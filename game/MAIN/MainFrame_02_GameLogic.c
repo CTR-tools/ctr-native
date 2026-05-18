@@ -125,9 +125,9 @@ void DECOMP_MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *g
 					else
 					{
 						uVar3 = gGT->timer;
-						if (uVar3 == (uVar3 / FPS_DOUBLE(6)) * FPS_DOUBLE(6))
+						if (uVar3 == (uVar3 / 6) * 6)
 						{
-							if (uVar3 == (uVar3 / FPS_DOUBLE(0xc)) * FPS_DOUBLE(0xc))
+							if (uVar3 == (uVar3 / 0xc) * 0xc)
 							{
 								DECOMP_OtherFX_Play_LowLevel(0x40, '\0', 0x8c9080);
 							}
@@ -344,7 +344,7 @@ void DECOMP_MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *g
 					DECOMP_ElimBG_Deactivate(gGT);
 
 					DECOMP_RECTMENU_Hide(sdata->ptrActiveMenu);
-					gGT->cooldownFromUnpauseUntilPause = FPS_DOUBLE(5);
+					gGT->cooldownFromUnpauseUntilPause = 5;
 				}
 			}
 			else
@@ -377,7 +377,7 @@ void DECOMP_MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *g
 
 									DECOMP_MainFreeze_IfPressStart();
 
-									gGT->cooldownfromPauseUntilUnpause = FPS_DOUBLE(5);
+									gGT->cooldownfromPauseUntilUnpause = 5;
 								}
 							}
 						}

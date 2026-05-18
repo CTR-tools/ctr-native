@@ -16,7 +16,7 @@ void DECOMP_UI_Weapon_DrawBG(short param_1, short param_2, short param_3, struct
 	iVar2 = (int)param_3;
 
 	// wumpaShineTheta (given to sine)
-	sdata->wumpaShineTheta += FPS_HALF(0x100);
+	sdata->wumpaShineTheta += 0x100;
 
 	iVar1 = iVar2 * 0xd000 >> 0x10;
 

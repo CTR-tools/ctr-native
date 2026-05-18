@@ -321,11 +321,11 @@ void DECOMP_RB_Spider_LInB(struct Instance *inst)
 
 	if (spider->spiderID == 3)
 	{
-		t->cooldownFrameCount = FPS_DOUBLE(91);
+		t->cooldownFrameCount = 91;
 	}
 	else if (spider->spiderID == 2)
 	{
-		t->cooldownFrameCount = FPS_DOUBLE(69);
+		t->cooldownFrameCount = 69;
 	}
 
 	struct Instance *shadowInst = DECOMP_INSTANCE_Birth3D(sdata->gGT->modelPtr[DYNAMIC_SPIDERSHADOW], 0, t);

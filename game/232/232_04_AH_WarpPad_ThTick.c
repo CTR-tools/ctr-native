@@ -229,7 +229,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 		warppadObj->spinRot_Prize[0] = 0;
 		warppadObj->spinRot_Prize[2] = 0;
 
-		warppadObj->spinRot_Prize[1] += FPS_HALF(0x40);
+		warppadObj->spinRot_Prize[1] += 0x40;
 
 		// reuse variable,
 		// end of function anyway
@@ -267,7 +267,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 		// If Gem, change colors every 2 seconds
 		if (modelID == STATIC_GEM)
 		{
-			i = (gGT->timer / FPS_DOUBLE(0x3C)) % 5;
+			i = (gGT->timer / 0x3C) % 5;
 
 			InstArr0->colorRGBA = ((unsigned int)data.AdvCups[i].color[0] << 0x14) | ((unsigned int)data.AdvCups[i].color[1] << 0xc) |
 			                      ((unsigned int)data.AdvCups[i].color[2] << 0x4);
@@ -281,7 +281,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 
 	// === Assume Unlocked ===
 
-	if ((instArr[WPIS_OPEN_BEAM] != 0) && ((gGT->timer & FPS_DOUBLE(1)) != 0))
+	if ((instArr[WPIS_OPEN_BEAM] != 0) && ((gGT->timer & 1) != 0))
 	{
 		warppadObj->spinRot_Beam[0] = 0;
 		warppadObj->spinRot_Beam[2] = 0;
@@ -295,7 +295,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 		ConvertRotToMatrix(&instArr[WPIS_OPEN_BEAM]->matrix, &warppadObj->spinRot_Beam[0]);
 	}
 
-	wispRiseRate = FPS_HALF(0x20);
+	wispRiseRate = 0x20;
 
 	wispMaxHeight = 0x600;
 
@@ -310,7 +310,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 			warppadObj->spinRot_Wisp[i][0] = 0;
 			warppadObj->spinRot_Wisp[i][2] = 0;
 
-			warppadObj->spinRot_Wisp[i][1] += FPS_HALF(0x100);
+			warppadObj->spinRot_Wisp[i][1] += 0x100;
 
 			// converted to TEST in rebuildPS1
 			ConvertRotToMatrix(&instArr[WPIS_OPEN_RING1 + i]->matrix, &warppadObj->spinRot_Wisp[i][0]);
@@ -355,10 +355,10 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 			}
 		}
 
-		wispRiseRate += FPS_HALF(0x10);
+		wispRiseRate += 0x10;
 	}
 
-	warppadObj->spinRot_Prize[1] += FPS_HALF(0x80);
+	warppadObj->spinRot_Prize[1] += 0x80;
 
 	rewardScale = 0x100;
 
@@ -418,8 +418,8 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 			}
 		}
 
-		warppadObj->thirds[i] += FPS_HALF(0x20);
-		warppadObj->spinRot_Rewards[1] += FPS_HALF(0x4);
+		warppadObj->thirds[i] += 0x20;
+		warppadObj->spinRot_Rewards[1] += 0x4;
 	}
 
 	// if flag is on-screen, loading has already been finalized
@@ -452,7 +452,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 	gGT->drivers[0]->funcPtrs[0] = DECOMP_VehStuckProc_Warp_Init;
 #endif
 
-	if (warppadObj->framesWarping < FPS_DOUBLE(0x400))
+	if (warppadObj->framesWarping < 0x400)
 		warppadObj->framesWarping++;
 
 	// optimization, dont do this "every" frame,
@@ -531,7 +531,7 @@ void DECOMP_AH_WarpPad_ThTick(struct Thread *t)
 	}
 
 	// wait 2 full seconds before loading
-	if (warppadObj->framesWarping <= FPS_DOUBLE(60))
+	if (warppadObj->framesWarping <= 60)
 		return;
 
 	// only works for trophy tracks rn

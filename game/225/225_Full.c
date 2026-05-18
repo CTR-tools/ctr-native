@@ -65,7 +65,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 	numPlyr = gGT->numPlyrCurrGame;
 	VsConfigIndex = numPlyr - 2;
 
-	if (sdata->framesSinceRaceEnded < FPS_DOUBLE(0xf0))
+	if (sdata->framesSinceRaceEnded < 0xf0)
 	{
 		sdata->framesSinceRaceEnded++;
 	}
@@ -106,7 +106,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 
 	RaceFlag_SetFullyOnScreen();
 
-	if (sdata->framesSinceRaceEnded <= FPS_DOUBLE(25))
+	if (sdata->framesSinceRaceEnded <= 25)
 	{
 		uVar7 = 0x296;
 		iVar11 = sdata->framesSinceRaceEnded;
@@ -115,11 +115,11 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 	else
 	{
 		uVar7 = 0x180;
-		iVar11 = sdata->framesSinceRaceEnded - FPS_DOUBLE(25);
+		iVar11 = sdata->framesSinceRaceEnded - 25;
 	}
 
 	// fly-in interpolation
-	DECOMP_UI_Lerp2D_Linear(&pos[0], 0x296, yCoord, uVar7, yCoord, iVar11, FPS_DOUBLE(5));
+	DECOMP_UI_Lerp2D_Linear(&pos[0], 0x296, yCoord, uVar7, yCoord, iVar11, 5);
 
 	iVar14 = yCoord + 0x28;
 
@@ -136,7 +136,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 		iStack60 = iVar10;
 		uStack52 = (u_int)(iVar10 < 3);
 
-		iStack48 = FPS_DOUBLE(30);
+		iStack48 = 30;
 
 		for (iVar11 = 0; iVar11 < iStack60; iVar11++)
 		{
@@ -158,7 +158,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 			}
 
 			// fly-in interpolation
-			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x296, sVar5, uVar7, sVar5, iVar10, FPS_DOUBLE(5));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x296, sVar5, uVar7, sVar5, iVar10, 5);
 
 			sVar9 = 0;
 
@@ -240,7 +240,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 					uVar7 = 0x4003;
 					if ((iVar10 == iVar2) && (uVar7 = 0x4004,
 					                          // odd number frames
-					                          (gGT->timer & FPS_DOUBLE(1)) != 0))
+					                          (gGT->timer & 1) != 0))
 					{
 						uVar7 = 0x4003;
 					}
@@ -272,7 +272,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 				sVar1 = (short)iVar11;
 			}
 
-			iStack48 = iStack48 + FPS_DOUBLE(5);
+			iStack48 = iStack48 + 5;
 
 			sStack80 = gGT->battleSetup.unk_afterTeams[gGT->battleSetup.unk1dc8[iVar11]];
 			// todo: replace 0x1f800000 with reference to scratchpad
@@ -320,7 +320,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 
 			    (0x100 < view->rect.w))
 			{
-				view->rect.w -= FPS_HALF(0xc);
+				view->rect.w -= 0xc;
 				view->distanceToScreen_CURR = 0x80;
 			}
 
@@ -332,13 +332,13 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 
 			    (0x6c < view->rect.h))
 			{
-				view->rect.h -= FPS_HALF(0x6);
+				view->rect.h -= 0x6;
 				view->distanceToScreen_CURR = 0x80;
 			}
 #endif
 
 			// fly-in interpolation
-			DECOMP_UI_Lerp2D_Linear(&pos[0], view->rect.x, view->rect.y, 0x14, 0xc, sdata->framesSinceRaceEnded, FPS_DOUBLE(25));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], view->rect.x, view->rect.y, 0x14, 0xc, sdata->framesSinceRaceEnded, 25);
 
 			box.x = pos[0] - 3;
 			box.y = pos[1] - 2;
@@ -361,10 +361,10 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 
 			if (view->rect.w > 0)
 			{
-				view->rect.x += FPS_HALF(5);
-				view->rect.y += FPS_HALF(3);
-				view->rect.w -= FPS_HALF(10);
-				view->rect.h -= FPS_HALF(6);
+				view->rect.x += 5;
+				view->rect.y += 3;
+				view->rect.w -= 10;
+				view->rect.h -= 6;
 			}
 
 #ifdef USE_NEW2P
@@ -380,7 +380,7 @@ void DECOMP_VB_EndEvent_DrawMenu(void)
 		}
 	}
 
-	if (((sdata->menuReadyToPass & 1) == 0) && (FPS_DOUBLE(25) < sdata->framesSinceRaceEnded))
+	if (((sdata->menuReadyToPass & 1) == 0) && (25 < sdata->framesSinceRaceEnded))
 	{
 		// if you're in battle mode.
 		endMenu = ((gGT->gameMode1 & 0x20) == 0) ? &menuVS : &menuBattle;

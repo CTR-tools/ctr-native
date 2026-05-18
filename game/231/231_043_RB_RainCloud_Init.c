@@ -43,7 +43,7 @@ void DECOMP_RB_RainCloud_Init(struct Driver *d)
 			rlocal->unk1[2] = 0;
 
 			rlocal->vel[0] = 0;
-			rlocal->vel[1] = FPS_HALF(-0x28);
+			rlocal->vel[1] = -0x28;
 			rlocal->vel[2] = 0;
 
 			rlocal->pos[0] = d->instSelf->matrix.t[0];

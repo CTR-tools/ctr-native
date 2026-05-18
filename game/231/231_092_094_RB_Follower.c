@@ -126,7 +126,7 @@ void DECOMP_RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 	t->funcThDestroy = PROC_DestroyInstance;
 
 	fObj = t->object;
-	fObj->frameCount = FPS_DOUBLE(7);
+	fObj->frameCount = 7;
 	fObj->driver = d;
 	fObj->mineTh = mineTh;
 	fObj->backupTimesDestroyed = mineTh->timesDestroyed;

@@ -29,5 +29,5 @@ void DECOMP_MM_ResetAllMenus(void)
 	}
 
 	// unused
-	sdata->framesRemainingInMenu = FPS_DOUBLE(0xF);
+	sdata->framesRemainingInMenu = 0xF;
 }

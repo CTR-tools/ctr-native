@@ -38,7 +38,7 @@ void DECOMP_RaceFlag_DrawLoadingString(void)
 	{
 		if (-1000 < (int)sdata->RaceFlag_Transition)
 		{
-			sdata->RaceFlag_Transition -= FPS_HALF(0x28);
+			sdata->RaceFlag_Transition -= 0x28;
 		}
 	}
 	else
@@ -48,7 +48,7 @@ void DECOMP_RaceFlag_DrawLoadingString(void)
 
 	iVar10 = (sdata->RaceFlag_Transition & 0xffff) - (iVar3 >> 1);
 
-	iVar3 = FPS_HALF(sdata->RaceFlag_LoadingTextAnimFrame);
+	iVar3 = sdata->RaceFlag_LoadingTextAnimFrame;
 
 	if (0 < iVar2)
 	{

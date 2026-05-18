@@ -30,7 +30,7 @@ struct ChannelStats *DECOMP_Channel_AllocSlot_AntiSpam(short soundID, char boolU
 
 				// if started within 10 frames, cancel old and start new,
 				// otherwise you'll allocate too many sounds and overflow
-				if (duration < FPS_DOUBLE(10))
+				if (duration < 10)
 				{
 					Channel_DestroySelf(curr);
 				}

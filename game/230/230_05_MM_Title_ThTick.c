@@ -25,17 +25,17 @@ void DECOMP_MM_Title_ThTick(struct Thread *title)
 		DECOMP_RECTMENU_ClearInput();
 
 		// set frame to 1000, skip the animation
-		D230.timerInTitle = FPS_DOUBLE(1000);
+		D230.timerInTitle = 1000;
 	}
 
 	// cap at 230
-	if (timer > FPS_DOUBLE(230))
-		timer = FPS_DOUBLE(230);
+	if (timer > 230)
+		timer = 230;
 
 	// play 8 sounds, one on each frame
 	for (i = 0; i < 8; i++)
 	{
-		if (FPS_DOUBLE(D230.titleSounds[i].frameToPlay) == timer)
+		if (D230.titleSounds[i].frameToPlay == timer)
 		{
 			DECOMP_OtherFX_Play(D230.titleSounds[i].soundID, 1);
 		}
@@ -80,17 +80,17 @@ void DECOMP_MM_Title_ThTick(struct Thread *title)
 		{
 			// if frame is anywhere in the two seconds
 			// that the trophy is in the air
-			if ((unsigned int)(timer - FPS_DOUBLE(138)) < FPS_DOUBLE(62))
+			if ((unsigned int)(timer - 138) < 62)
 			{
 				// make invisible
 				titleInst->flags |= 0x80;
 			}
 
 			// otherwise
-			else if (FPS_DOUBLE(200) <= timer)
+			else if (200 <= timer)
 			{
 				// play frame index, based on total animation frame
-				titleInst->animFrame = timer - FPS_DOUBLE(200);
+				titleInst->animFrame = timer - 200;
 
 				// set animation to 1
 				titleInst->animIndex = 1;
@@ -108,7 +108,7 @@ void DECOMP_MM_Title_ThTick(struct Thread *title)
 	// increment frame counter
 	timer = D230.timerInTitle + 1;
 
-	if (FPS_DOUBLE(245) < D230.timerInTitle)
+	if (245 < D230.timerInTitle)
 	{
 		// animation is over
 		D230.menuMainMenu.state &= ~(DISABLE_INPUT_ALLOW_FUNCPTRS);

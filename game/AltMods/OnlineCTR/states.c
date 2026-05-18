@@ -255,7 +255,7 @@ void StatePS1_Lobby_StartLoading()
 	// variable reuse, wait a few frames,
 	// so screen updates with green names
 	octr->CountPressX++;
-	if (octr->CountPressX < FPS_DOUBLE(15))
+	if (octr->CountPressX < 15)
 		return;
 
 	// stop music,

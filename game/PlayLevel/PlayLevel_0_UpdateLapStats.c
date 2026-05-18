@@ -171,7 +171,7 @@ void DECOMP_PlayLevel_UpdateLapStats(void)
 #endif
 
 							// frames, so the animation lasts 3 seconds
-							sdata->finalLapTextTimer[iVar10] = FPS_DOUBLE(90);
+							sdata->finalLapTextTimer[iVar10] = 90;
 					}
 				}
 			}

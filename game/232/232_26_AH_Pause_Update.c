@@ -88,7 +88,7 @@ void DECOMP_AH_Pause_Update()
 		D232.pausePagePrev = D232.pausePageCurr;
 		D232.pausePageDir_dup = D232.pausePageDir;
 
-		D232.pausePageTimer = FPS_DOUBLE(8);
+		D232.pausePageTimer = 8;
 
 		D232.pausePageCurr = gGT->advPausePage;
 	}
@@ -97,17 +97,17 @@ void DECOMP_AH_Pause_Update()
 	int posX;
 
 	// second half
-	if (D232.pausePageTimer < FPS_DOUBLE(5))
+	if (D232.pausePageTimer < 5)
 	{
 		pageID = D232.pausePageCurr;
-		posX = D232.pausePageTimer * D232.pausePageDir * FPS_HALF(-0x80);
+		posX = D232.pausePageTimer * D232.pausePageDir * -0x80;
 	}
 
 	// first half
 	else
 	{
 		pageID = D232.pausePagePrev;
-		posX = (FPS_DOUBLE(8) - D232.pausePageTimer) * D232.pausePageDir * FPS_HALF(0x80);
+		posX = (8 - D232.pausePageTimer) * D232.pausePageDir * 0x80;
 	}
 
 	DECOMP_AH_Pause_Draw(pageID, posX);

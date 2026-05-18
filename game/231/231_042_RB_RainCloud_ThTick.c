@@ -94,7 +94,7 @@ void DECOMP_RB_RainCloud_ThTick(struct Thread *t)
 
 			// you are always 5 frames away from new weapon,
 			// so you get weapon 5 frames after cloud dies
-			d->itemRollTimer = FPS_DOUBLE(5);
+			d->itemRollTimer = 5;
 
 			// you hold zero of this item
 			d->numHeldItems = 0;

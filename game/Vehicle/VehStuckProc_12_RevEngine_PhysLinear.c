@@ -23,7 +23,7 @@ void DECOMP_VehStuckProc_RevEngine_PhysLinear(struct Thread *t, struct Driver *d
 	if (d->KartStates.RevEngine.boolMaskGrab == 0)
 		return;
 
-	d->posCurr.y -= FPS_HALF(0x200);
+	d->posCurr.y -= 0x200;
 
 	// if maskObj exists
 	if (d->KartStates.RevEngine.maskObj != 0)

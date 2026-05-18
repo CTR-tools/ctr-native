@@ -162,7 +162,7 @@ void DECOMP_RB_Seal_ThTick_Move(struct Thread *t)
 	// move seal
 	for (i = 0; i < 3; i++)
 	{
-		sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / FPS_DOUBLE(0x2d);
+		sealInst->matrix.t[i] = (int)sealObj->spawnPos[i] - (sealObj->distFromSpawn * (int)sealObj->vel[i]) / 0x2d;
 	}
 
 	// moving towards spawn (0)
@@ -179,7 +179,7 @@ void DECOMP_RB_Seal_ThTick_Move(struct Thread *t)
 		sealObj->distFromSpawn++;
 	}
 
-	if (sealObj->distFromSpawn != FPS_DOUBLE(sealObj->direction * 0x2d))
+	if (sealObj->distFromSpawn != sealObj->direction * 0x2d)
 	{
 		Seal_CheckColl(sealInst, t, 1, 0x4000, 0x78);
 		return;

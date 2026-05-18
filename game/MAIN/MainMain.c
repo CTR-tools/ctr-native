@@ -140,7 +140,7 @@ u_int DECOMP_main()
 
 				// elapsed milliseconds per frame, locked 32 here
 				// impacts speed of flag wave during "loading...", but does not impact speed of flying text
-				gGT->elapsedTimeMS = FPS_HALF(32);
+				gGT->elapsedTimeMS = 32;
 
 				// if loading VLC
 				if (iVar8 == -6)
@@ -484,20 +484,20 @@ u_int DECOMP_main()
 						dirUD = -1;
 					if ((held & BTN_DOWN) != 0)
 						dirUD = 1;
-					gGT->pushBuffer[0].pos[2] += (dirUD * FPS_HALF(0x40) * DECOMP_MATH_Cos(gGT->pushBuffer[0].rot[1])) >> 0xC;
-					gGT->pushBuffer[0].pos[0] += (dirUD * FPS_HALF(0x40) * DECOMP_MATH_Sin(gGT->pushBuffer[0].rot[1])) >> 0xC;
+					gGT->pushBuffer[0].pos[2] += (dirUD * 0x40 * DECOMP_MATH_Cos(gGT->pushBuffer[0].rot[1])) >> 0xC;
+					gGT->pushBuffer[0].pos[0] += (dirUD * 0x40 * DECOMP_MATH_Sin(gGT->pushBuffer[0].rot[1])) >> 0xC;
 
 					if ((held & BTN_LEFT) != 0)
 						dirLR = 1;
 					if ((held & BTN_RIGHT) != 0)
 						dirLR = -1;
-					gGT->pushBuffer[0].rot[1] += dirLR * FPS_HALF(0x20);
+					gGT->pushBuffer[0].rot[1] += dirLR * 0x20;
 
 					if ((held & BTN_CROSS) != 0)
 						dirCT = -1;
 					if ((held & BTN_TRIANGLE) != 0)
 						dirCT = 1;
-					gGT->pushBuffer[0].pos[1] += dirCT * FPS_HALF(0x20);
+					gGT->pushBuffer[0].pos[1] += dirCT * 0x20;
 
 					if ((tap & BTN_R1) != 0)
 					{

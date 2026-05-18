@@ -73,7 +73,7 @@ void DECOMP_UI_TrackerSelf(struct Driver *d)
 			goto LAB_8004fe8c;
 
 		// reset timer loop
-		sVar18 = FPS_DOUBLE(12);
+		sVar18 = 12;
 	}
 
 	// missile chasing player,
@@ -95,7 +95,7 @@ void DECOMP_UI_TrackerSelf(struct Driver *d)
 		d->actionsFlagSet |= 0x4000000;
 
 		// reset timer loop
-		sVar18 = FPS_DOUBLE(8);
+		sVar18 = 8;
 	}
 
 	// reset timer loop
@@ -147,11 +147,11 @@ LAB_8004fe8c:
 		sVar18 = (short)missileDist;
 		data.trackerDist[driverid] = sVar18;
 
-		beep_rate = FPS_DOUBLE(5);
+		beep_rate = 5;
 		if (missileDist > 100)
-			beep_rate = FPS_DOUBLE(10);
+			beep_rate = 10;
 		if (missileDist > 200)
-			beep_rate = FPS_DOUBLE(30);
+			beep_rate = 30;
 
 		// red
 		bgColor = 0xff;

@@ -95,7 +95,7 @@ void DECOMP_RB_Armadillo_ThTick_Rolling(struct Thread *t)
 	}
 
 	// 32ms, 30fps
-	armObj->timeRolling += FPS_HALF(0x20);
+	armObj->timeRolling += 0x20;
 
 	armInst->matrix.t[0] += armObj->velX;
 	armInst->matrix.t[2] += armObj->velZ;
@@ -144,7 +144,7 @@ void DECOMP_RB_Armadillo_LInB(struct Instance *inst)
 	// puts armadillos on separate cycles
 	void **pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
 	metaArray = (short *)pointers[ST1_SPAWN];
-	t->cooldownFrameCount = FPS_DOUBLE(metaArray[inst->name[0xA] - '0']);
+	t->cooldownFrameCount = metaArray[inst->name[0xA] - '0'];
 
 	// rolling animation
 	inst->animFrame = 0;
@@ -157,8 +157,8 @@ void DECOMP_RB_Armadillo_LInB(struct Instance *inst)
 	armObj->spawnPosX = inst->matrix.t[0];
 	armObj->spawnPosZ = inst->matrix.t[2];
 
-	armObj->velX = inst->matrix.m[0][2] >> FPS_RIGHTSHIFT(7);
-	armObj->velZ = inst->matrix.m[2][2] >> FPS_RIGHTSHIFT(7);
+	armObj->velX = inst->matrix.m[0][2] >> 7;
+	armObj->velZ = inst->matrix.m[2][2] >> 7;
 
 	// optimization,
 	// rot[0] and rot[1] are always zero

@@ -32,9 +32,9 @@ void DECOMP_AH_MaskHint_SetAnim(int scale)
 	DECOMP_CAM_ProcessTransition(&posCurr[0], &rotCurr[0], &D232.maskCamPosStart[0], &D232.maskCamRotStart[0], &posEnd[0], &rotEnd[0], scale);
 
 	int rot = 0x1000;
-	if (D232.maskSpawnFrame - FPS_DOUBLE(20) < D232.maskFrameCurr)
+	if (D232.maskSpawnFrame - 20 < D232.maskFrameCurr)
 	{
-		rot = ((D232.maskSpawnFrame - D232.maskFrameCurr) * rot) / FPS_DOUBLE(20);
+		rot = ((D232.maskSpawnFrame - D232.maskFrameCurr) * rot) / 20;
 	}
 
 	// 4096->50
@@ -55,7 +55,7 @@ void DECOMP_AH_MaskHint_SetAnim(int scale)
 
 	((struct MaskHint *)mhInst->thread->object)->scale = scale * 4 - 1;
 
-	angle = (sdata->frameCounter + gGT->timer) * FPS_HALF(0x20);
+	angle = (sdata->frameCounter + gGT->timer) * 0x20;
 	sin = DECOMP_MATH_Sin(angle);
 	mhInst->matrix.t[1] = posCurr[1] + (short)(((sin << 4) >> 0xc) * scale >> 0xc);
 }

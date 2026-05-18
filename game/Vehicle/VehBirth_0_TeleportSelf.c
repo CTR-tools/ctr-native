@@ -303,7 +303,7 @@ void DECOMP_VehBirth_TeleportSelf(struct Driver *d, u_char spawnFlag, int spawnP
 	dInst->animIndex = 0;
 
 	// halfway
-	dInst->animFrame = FPS_DOUBLE(10);
+	dInst->animFrame = 10;
 
 #if 0 // 10 =
 		VehFrameInst_GetStartFrame(

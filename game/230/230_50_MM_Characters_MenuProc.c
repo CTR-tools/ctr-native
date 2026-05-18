@@ -65,7 +65,7 @@ void DECOMP_MM_Characters_MenuProc(struct RectMenu *unused)
 	// if menu is not in focus
 	if (D230.isMenuTransitioning != 1)
 	{
-		DECOMP_MM_TransitionInOut(D230.ptrTransitionMeta, (int)D230.transitionFrames, FPS_DOUBLE(8));
+		DECOMP_MM_TransitionInOut(D230.ptrTransitionMeta, (int)D230.transitionFrames, 8);
 	}
 
 	DECOMP_MM_Characters_SetMenuLayout();
@@ -93,7 +93,7 @@ void DECOMP_MM_Characters_MenuProc(struct RectMenu *unused)
 		D230.transitionFrames++;
 
 		// if more than 12 frames
-		if (D230.transitionFrames > FPS_DOUBLE(12))
+		if (D230.transitionFrames > 12)
 		{
 			// Make a backup of the characters
 			// you selected in character selection screen
@@ -595,7 +595,7 @@ dontDrawSelectCharacter:
 		}
 
 		// spin the character
-		D230.characterSelect_angle[i] += FPS_HALF(0x40);
+		D230.characterSelect_angle[i] += 0x40;
 	}
 
 	// reset

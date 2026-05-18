@@ -43,7 +43,7 @@ short DECOMP_SubmitName_DrawMenu(u_short string)
 	strlenCurrNameEnteredInt = strlen(gGT->currNameEntered);
 	currNameLength = strlenCurrNameEnteredInt;
 	currNameEntered = gGT->currNameEntered;
-	blinkWhite = ((sdata->typeTimer >> FPS_RIGHTSHIFT(0)) & 1) << 2;
+	blinkWhite = ((sdata->typeTimer >> 0) & 1) << 2;
 
 	while (currNameEntered[0] != 0)
 	{
@@ -136,7 +136,7 @@ short DECOMP_SubmitName_DrawMenu(u_short string)
 
 	                          68, FONT_BIG, WHITE);
 
-	if (((sdata->typeTimer & FPS_DOUBLE(2)) != 0) && (currNameLength < 16))
+	if (((sdata->typeTimer & 2) != 0) && (currNameLength < 16))
 	{
 		currNameWidth = DECOMP_DecalFont_GetLineWidth(gGT->currNameEntered, FONT_BIG);
 

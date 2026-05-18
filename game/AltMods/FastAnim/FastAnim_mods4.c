@@ -35,7 +35,7 @@ void FastAnim_Decompress(struct Model *m, int j, int k)
 
 	// unusual macro use, but it works,
 	// 0=30fps, 1=60fps, 2=120fps, etc
-	int numGenerateLerps = FPS_RIGHTSHIFT(0);
+	int numGenerateLerps = 0;
 
 	int numFrames = ma->numFrames;
 	if ((numFrames & 0x8000) != 0)

@@ -119,7 +119,7 @@ void DECOMP_UI_RaceEnd_MenuProc(struct RectMenu *menu)
 
 	// Save Ghost
 	case 9: {
-		sdata->framesSinceRaceEnded = FPS_DOUBLE(0x3f9);
+		sdata->framesSinceRaceEnded = 0x3f9;
 
 #ifndef REBUILD_PS1
 		// Set Load/Save to Ghost mode

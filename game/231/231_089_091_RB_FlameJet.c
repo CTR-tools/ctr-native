@@ -307,7 +307,7 @@ void DECOMP_RB_FlameJet_ThTick(struct Thread *t)
 	fjObj = (struct FlameJet *)t->object;
 
 	// in first 45 frames (1.5s)
-	if (fjObj->cycleTimer < FPS_DOUBLE(0x2d))
+	if (fjObj->cycleTimer < 0x2d)
 	{
 		PlaySound3D_Flags((u_int *)fjObj->audioPtr, 0x68, fjInst);
 
@@ -362,14 +362,14 @@ void DECOMP_RB_FlameJet_ThTick(struct Thread *t)
 	}
 
 	// on 45th frame (1.5s)
-	else if (fjObj->cycleTimer == FPS_DOUBLE(0x2d))
+	else if (fjObj->cycleTimer == 0x2d)
 	{
 		if (fjObj->audioPtr != 0)
 			OtherFX_RecycleMute((int *)fjObj->audioPtr);
 	}
 
 	// repeat cycle every 105 (3.5s)
-	else if (fjObj->cycleTimer > FPS_DOUBLE(0x69))
+	else if (fjObj->cycleTimer > 0x69)
 		fjObj->cycleTimer = 0;
 
 EndFjThTick:
@@ -414,5 +414,5 @@ void DECOMP_RB_FlameJet_LInB(struct Instance *inst)
 	// put on separate cycles
 	void **pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
 	metaArray = (short *)pointers[ST1_SPAWN];
-	t->cooldownFrameCount = FPS_DOUBLE(metaArray[inst->name[9] - '0']);
+	t->cooldownFrameCount = metaArray[inst->name[9] - '0'];
 }

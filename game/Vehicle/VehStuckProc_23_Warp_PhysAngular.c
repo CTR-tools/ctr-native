@@ -34,7 +34,7 @@ void DECOMP_VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 	}
 
 	timer = d->KartStates.Warp.timer;
-	timer += FPS_HALF(26);
+	timer += 26;
 
 	if (timer <= 800)
 	{
@@ -42,10 +42,10 @@ void DECOMP_VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 		// car is wide and short
 
 		for (char i = 0; i < 3; i++)
-			inst->scale[i] = VehCalc_InterpBySpeed(inst->scale[i], FPS_HALF(120), 4800 >> (i & 1));
+			inst->scale[i] = VehCalc_InterpBySpeed(inst->scale[i], 120, 4800 >> (i & 1));
 
 		if (d->posCurr.y < d->quadBlockHeight + 0x8000)
-			d->posCurr.y += FPS_HALF(0x800);
+			d->posCurr.y += 0x800;
 	}
 	else
 	{
@@ -58,7 +58,7 @@ void DECOMP_VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 		// car is tall and thin
 
 		for (char i = 0; i < 3; i++)
-			inst->scale[i] = VehCalc_InterpBySpeed(inst->scale[i], (i == 1) ? FPS_HALF(3200) : FPS_HALF(600), 24000 * (i & 1));
+			inst->scale[i] = VehCalc_InterpBySpeed(inst->scale[i], (i == 1) ? 3200 : 600, 24000 * (i & 1));
 
 		// if scale shrinks to zero
 		if (inst->scale[0] == 0)

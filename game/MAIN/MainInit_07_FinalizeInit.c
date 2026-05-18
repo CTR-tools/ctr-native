@@ -269,7 +269,7 @@ void DECOMP_MainInit_FinalizeInit(struct GameTracker *gGT)
 	if (gGT->levelID == MAIN_MENU_LEVEL)
 	{
 		// 30 seconds
-		gGT->demoCountdownTimer = FPS_DOUBLE(900);
+		gGT->demoCountdownTimer = 900;
 	}
 
 	// copy InstDef to InstancePool

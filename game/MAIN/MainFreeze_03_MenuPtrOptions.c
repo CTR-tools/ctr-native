@@ -102,9 +102,9 @@ force_inline void PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu,
 			int volume = howl_VolumeGet(menu->rowSelected);
 
 			if (sdata->AnyPlayerHold & BTN_LEFT)
-				volume -= FPS_HALF(4);
+				volume -= 4;
 			if (sdata->AnyPlayerHold & BTN_RIGHT)
-				volume += FPS_HALF(4);
+				volume += 4;
 
 			if (volume < 0)
 				volume = 0;

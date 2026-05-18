@@ -331,7 +331,7 @@ void DECOMP_CS_Garage_MenuProc(struct RectMenu *param_1)
 	char arrowColor = ORANGE;
 
 	// blink arrows
-	if ((sdata->frameCounter & FPS_DOUBLE(4)) == 0)
+	if ((sdata->frameCounter & 4) == 0)
 	{
 		arrowColor = RED;
 	}
@@ -523,7 +523,7 @@ SKIP_CONTROLS:
 	{
 		if (
 		    // frames remaining for animation
-		    (FPS_DOUBLE(59) < gGarage.delayOneSecond) || ((gGT->gameMode2 & GARAGE_OSK) != 0))
+		    (59 < gGarage.delayOneSecond) || ((gGT->gameMode2 & GARAGE_OSK) != 0))
 		{
 			// set desiredMenu to OSK (on-screen keyboard)
 			sdata->ptrDesiredMenu = &data.menuSubmitName;

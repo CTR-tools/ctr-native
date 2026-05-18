@@ -23,7 +23,7 @@ void DECOMP_AH_Pause_Draw(int pageID, int posX)
 
 	// orange/red
 	int colorIndex = 0;
-	if ((sdata->frameCounter & FPS_DOUBLE(4)) == 0)
+	if ((sdata->frameCounter & 4) == 0)
 		colorIndex = 3;
 
 	int *ptrColor = data.ptrColor[colorIndex];
@@ -412,7 +412,7 @@ void DECOMP_AH_Pause_Draw(int pageID, int posX)
 			inst->colorRGBA = 0;
 		}
 
-		rotArr[1] = inst->matrix.t[0] * 0x10 + inst->matrix.t[1] * 0x20 + sdata->frameCounter * FPS_HALF(0x40);
+		rotArr[1] = inst->matrix.t[0] * 0x10 + inst->matrix.t[1] * 0x20 + sdata->frameCounter * 0x40;
 
 		rotArr[1] &= 0xfff;
 	}

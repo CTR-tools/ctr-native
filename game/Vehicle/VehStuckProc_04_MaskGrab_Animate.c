@@ -19,7 +19,7 @@ void DECOMP_VehStuckProc_MaskGrab_Animate(struct Thread *t, struct Driver *d)
 		// numFrames = VehFrameInst_GetNumAnimFrames(inst, 0);
 
 		// (midpoint, numFrames)
-		inst->animFrame = FPS_DOUBLE(10); // VehFrameInst_GetStartFrame(0, numFrames);
+		inst->animFrame = 10; // VehFrameInst_GetStartFrame(0, numFrames);
 
 		d->AxisAngle2_normalVec[0] = d->KartStates.MaskGrab.AngleAxis_NormalVec[0];
 		d->AxisAngle2_normalVec[1] = d->KartStates.MaskGrab.AngleAxis_NormalVec[1];

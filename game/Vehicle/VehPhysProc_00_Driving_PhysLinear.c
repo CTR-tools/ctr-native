@@ -500,7 +500,7 @@ void DECOMP_VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver 
 		{
 			// circle button ends timer, if
 			// less than 70 frames (2.3s) remain
-			if (driver->itemRollTimer < FPS_DOUBLE(70))
+			if (driver->itemRollTimer < 70)
 				driver->itemRollTimer = 0;
 
 			// skip weapon firing check
@@ -521,14 +521,14 @@ void DECOMP_VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver 
 
 			// if numHeldItems == 0
 			// wait a full second before next weapon
-			driver->noItemTimer = FPS_DOUBLE(0x1e);
+			driver->noItemTimer = 0x1e;
 
 			// If "held item quantity" is zero
 			if (driver->numHeldItems != 0)
 			{
 				// if numHeldItems > 0,
 				// wait 5 frames before next weapon use
-				driver->noItemTimer = FPS_DOUBLE(5);
+				driver->noItemTimer = 5;
 
 // no spring in final game
 #if 0
@@ -577,7 +577,7 @@ CheckJumpButtons:
 			if ((actionsFlagSetCopy & 4) == 0)
 			{
 				// 10 frame jump buffer
-				driver->jump_TenBuffer = FPS_DOUBLE(10);
+				driver->jump_TenBuffer = 10;
 			}
 			goto LAB_8006222c;
 		}
@@ -605,7 +605,7 @@ CheckJumpButtons:
 
 		if (driverRankItemValue != 3)
 		{
-			driver->jump_TenBuffer = FPS_DOUBLE(10);
+			driver->jump_TenBuffer = 10;
 		LAB_8006222c:
 			actionsFlagSetCopy |= 4;
 		}
@@ -1082,7 +1082,7 @@ SkipSetSteer:
 
 	// Change wheel rotation based on StickLX
 	driverSpeedOrSmth = DECOMP_VehPhysJoystick_GetStrengthAbsolute(driverSpeedOrSmth, 0x40, ptrgamepad->rwd);
-	driverBaseSpeedUshort = DECOMP_VehCalc_InterpBySpeed((int)driver->wheelRotation, FPS_HALF(0x18), -driverSpeedOrSmth);
+	driverBaseSpeedUshort = DECOMP_VehCalc_InterpBySpeed((int)driver->wheelRotation, 0x18, -driverSpeedOrSmth);
 	*(u_short *)&driver->wheelRotation = driverBaseSpeedUshort;
 
 	driverSpeedOrSmth = (int)driver->fireSpeed;

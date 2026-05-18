@@ -67,7 +67,7 @@ void DECOMP_CS_Credits_Init()
 	creditsBSS->CreditThread = DECOMP_PROC_BirthWithObject(0x30d, CS_Credits_ThTick, NULL, NULL);
 
 	memset(creditsObj, 0, sizeof(struct CreditsObj));
-	creditsObj->countdown = FPS_DOUBLE(360);
+	creditsObj->countdown = 360;
 
 	// === 5 instances ===
 	for (i = 0; i < 5; i++)

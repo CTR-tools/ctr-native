@@ -13,7 +13,7 @@ void DECOMP_RB_Blade_ThTick(struct Thread *t)
 	rot[1] = bladeInst->instDef->rot[1] + 0x400;
 	rot[2] = bladeObj->angle;
 
-	bladeObj->angle += FPS_HALF(0x100);
+	bladeObj->angle += 0x100;
 
 	// converted to TEST in rebuildPS1
 	ConvertRotToMatrix(&bladeInst->matrix, &rot[0]);

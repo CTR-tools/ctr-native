@@ -255,7 +255,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			}
 		}
 
-		tw->frameCount_DontHurtParent = FPS_DOUBLE(60);
+		tw->frameCount_DontHurtParent = 60;
 		tw->frameCount_Blind = 0;
 		break;
 
@@ -306,7 +306,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		*(int *)&mw->velocity[0] = 0;
 		*(int *)&mw->velocity[2] = 0;
 		mw->boolDestroyed = 0;
-		mw->frameCount_DontHurtParent = FPS_DOUBLE(10);
+		mw->frameCount_DontHurtParent = 10;
 		mw->tntSpinY = 0;
 		mw->extraFlags = 0;
 
@@ -435,7 +435,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		mw->instParent = dInst;
 		mw->crateInst = 0;
 		mw->boolDestroyed = 0;
-		mw->frameCount_DontHurtParent = FPS_DOUBLE(10);
+		mw->frameCount_DontHurtParent = 10;
 		mw->extraFlags = (modelID == STATIC_BEAKER_RED);
 
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
@@ -522,7 +522,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	case 8:
 
 		d->numTimesClockWeaponUsed++;
-		d->clockSend = FPS_DOUBLE(0x1e);
+		d->clockSend = 0x1e;
 
 		DECOMP_OtherFX_Play(0x44, 1);
 
@@ -545,7 +545,7 @@ void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			if (victim == 0)
 				continue;
 
-			victim->clockFlash = FPS_DOUBLE(4);
+			victim->clockFlash = 4;
 
 			if (victim == d)
 				continue;

@@ -33,14 +33,14 @@ void DECOMP_AH_MaskHint_Start(short hintId, u_short bool_interruptWarppad)
 		DECOMP_LOAD_TalkingMask(DECOMP_LOAD_GetAdvPackIndex(), !DECOMP_VehPickupItem_MaskBoolGoodGuy(d));
 
 		// 3.0s to spawn mask
-		D232.maskSpawnFrame = FPS_DOUBLE(90);
+		D232.maskSpawnFrame = 90;
 	}
 
 	// if model is not nullptr
 	else
 	{
 		// 0.667s to spawn mask
-		D232.maskSpawnFrame = FPS_DOUBLE(20);
+		D232.maskSpawnFrame = 20;
 	}
 
 	iVar3 = (bool_interruptWarppad & 1) * 3;

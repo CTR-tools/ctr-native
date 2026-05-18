@@ -202,7 +202,7 @@ void DECOMP_AH_Map_HubItems(void *hubPtrs, short *param_2)
 				}
 
 				// if even frame
-				if ((gGT->timer & FPS_DOUBLE(2)) == 0)
+				if ((gGT->timer & 2) == 0)
 				{
 					iVar5 = (int)sVar7 * 6;
 				}
@@ -240,7 +240,7 @@ void DECOMP_AH_Map_HubItems(void *hubPtrs, short *param_2)
 						// blue and white
 						// depending on frames
 						uVar6 = 5;
-						if ((gGT->timer & FPS_DOUBLE(2)) != 0)
+						if ((gGT->timer & 2) != 0)
 							uVar6 = 4;
 					}
 				}

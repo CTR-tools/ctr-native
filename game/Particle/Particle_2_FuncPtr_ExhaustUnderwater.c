@@ -5,7 +5,7 @@ void DECOMP_Particle_FuncPtr_ExhaustUnderwater(struct Particle *p)
 	struct IconGroup *icon;
 	struct Icon **iconPtrArray;
 
-	if ((3 < ((p->axis[1].startVal >> 8) + p->driverInst->matrix.t[1])) && (p->framesLeftInLife < FPS_DOUBLE(27)))
+	if ((3 < ((p->axis[1].startVal >> 8) + p->driverInst->matrix.t[1])) && (p->framesLeftInLife < 27))
 	{
 		// bubblepop
 		icon = sdata->gGT->iconGroup[8];

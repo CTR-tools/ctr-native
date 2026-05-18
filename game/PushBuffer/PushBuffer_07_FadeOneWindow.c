@@ -68,7 +68,7 @@ void DECOMP_PushBuffer_FadeOneWindow(struct PushBuffer *pb)
 	}
 
 	// alter the fade value by the fade velocity
-	currValue += FPS_HALF(pb->fade_step);
+	currValue += pb->fade_step;
 
 	// if fade velocity is negative
 	if (pb->fade_step < 1)

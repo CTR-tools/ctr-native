@@ -15,7 +15,7 @@ void DECOMP_MM_JumpTo_Title_FirstTime(void)
 	if (sdata->boolLangChosen == 0)
 	{
 		sdata->ptrActiveMenu = &D230.menuLngBoot;
-		D230.langMenuTimer = FPS_DOUBLE(900);
+		D230.langMenuTimer = 900;
 	}
 	else
 	{

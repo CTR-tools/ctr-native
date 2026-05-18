@@ -22,7 +22,7 @@ void DECOMP_UI_Lerp2D_Angular(short *ptrPos, short drawnPosition, short absolute
 	// absolute position
 	absolutePositionInt = (int)absolutePosition;
 
-	angle = DECOMP_MATH_Sin(((int)frameCounter << 0xb) / FPS_DOUBLE(5));
+	angle = DECOMP_MATH_Sin(((int)frameCounter << 0xb) / 5);
 
 	// if driver "just" passed another driver
 	if (absolutePositionInt < drawnPositionInt)
@@ -47,7 +47,7 @@ void DECOMP_UI_Lerp2D_Angular(short *ptrPos, short drawnPosition, short absolute
 // absolutePositionInt - drawnPositionInt is either -1 or +1
 // 0x1b is vertical size of the icon
 #ifdef USE_ONLINE
-	ptrPos[1] = 53 + (drawnPosition * 20) + (((((absolutePositionInt - drawnPositionInt) * 20) * (int)frameCounter) * 4) / (FPS_DOUBLE(5) * 4));
+	ptrPos[1] = 53 + (drawnPosition * 20) + (((((absolutePositionInt - drawnPositionInt) * 20) * (int)frameCounter) * 4) / (5 * 4));
 #else
 	ptrPos[1] =
 
@@ -67,7 +67,7 @@ void DECOMP_UI_Lerp2D_Angular(short *ptrPos, short drawnPosition, short absolute
 	         4)
 
 	        // divide distance down
-	        / (FPS_DOUBLE(5) * 4));
+	        / (5 * 4));
 #endif
 
 	return;

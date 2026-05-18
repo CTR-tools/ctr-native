@@ -14,7 +14,7 @@ void DECOMP_UI_Map_DrawAdvPlayer(int ptrMap, int *matrix, int unused1, int unuse
 	DECOMP_UI_Map_GetIconPos((short *)ptrMap, &posX, &posY);
 
 	arrowColor = &data.playerIconAdvMap.vertCol1[0];
-	if ((sdata->gGT->timer & FPS_DOUBLE(2)) != 0)
+	if ((sdata->gGT->timer & 2) != 0)
 	{
 		arrowColor = &data.playerIconAdvMap.vertCol2[0];
 	}

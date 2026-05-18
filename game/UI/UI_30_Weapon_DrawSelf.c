@@ -47,7 +47,7 @@ void DECOMP_UI_Weapon_DrawSelf(short posX, short posY, short scale, struct Drive
 		}
 
 		// make weapon flicker
-		if (((d->noItemTimer) != 0) && ((gGT->timer & FPS_DOUBLE(1)) == 0))
+		if (((d->noItemTimer) != 0) && ((gGT->timer & 1) == 0))
 		{
 			return;
 		}
@@ -119,8 +119,7 @@ void DECOMP_UI_Weapon_DrawSelf(short posX, short posY, short scale, struct Drive
 		// if timer is not finished
 		if (d->PickupTimeboxHUD.cooldown != 0)
 		{
-			DECOMP_UI_Lerp2D_HUD(&posXY[0], d->PickupTimeboxHUD.startX, d->PickupTimeboxHUD.startY, (int)posX, (int)posY, d->PickupTimeboxHUD.cooldown,
-			                     FPS_DOUBLE(5));
+			DECOMP_UI_Lerp2D_HUD(&posXY[0], d->PickupTimeboxHUD.startX, d->PickupTimeboxHUD.startY, (int)posX, (int)posY, d->PickupTimeboxHUD.cooldown, 5);
 
 			// subtract one from timer
 			d->PickupTimeboxHUD.cooldown--;

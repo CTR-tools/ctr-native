@@ -287,10 +287,10 @@ LAB_800632cc:
 		if (absVal_DistortCurr < 10)
 		{
 			// count up for 8 frames
-			driver->unk3D4[2] = FPS_DOUBLE(8);
+			driver->unk3D4[2] = 8;
 
 			// distortion, rate of change
-			driver->unk3D4[1] = FPS_HALF(0x14);
+			driver->unk3D4[1] = 0x14;
 
 			if (iVar13 < 0)
 			{
@@ -323,7 +323,7 @@ LAB_800632cc:
 	if (driver->unk3D4[2] == 0)
 	{
 		// nearing spinout sfx
-		driver->unk3D4[1] = FPS_HALF(10);
+		driver->unk3D4[1] = 10;
 
 		if (0 < driver->unk3D4[0])
 			driver->unk3D4[1] = -driver->unk3D4[1];

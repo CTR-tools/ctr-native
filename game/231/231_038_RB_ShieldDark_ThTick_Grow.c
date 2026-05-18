@@ -22,7 +22,7 @@ void DECOMP_RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	// if highlight cooldown is gone
 	if (shield->highlightTimer == 0)
 	{
-		shield->highlightRot[1] += FPS_HALF(0x100);
+		shield->highlightRot[1] += 0x100;
 
 		// highlight is now visible
 		highlightInst->flags &= ~(0x80);
@@ -37,7 +37,7 @@ void DECOMP_RB_ShieldDark_ThTick_Grow(struct Thread *th)
 		if ((rotY + (iVar8 >> 12) * -0x1000) == 0x400)
 		{
 			// cooldown is 30 frames (one second)
-			shield->highlightTimer = FPS_DOUBLE(30);
+			shield->highlightTimer = 30;
 
 			shield->highlightRot[1] = 0xc00;
 
@@ -148,7 +148,7 @@ void DECOMP_RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	// if animation is done
 	else
 	{
-		short timerIndex = ((gGT->timer >> FPS_RIGHTSHIFT(0)) % 6);
+		short timerIndex = ((gGT->timer >> 0) % 6);
 
 		scaleXZ = ((short *)0x800b2d40)[timerIndex * 2 + 0];
 		scaleY = ((short *)0x800b2d40)[timerIndex * 2 + 1];
@@ -186,7 +186,7 @@ void DECOMP_RB_ShieldDark_ThTick_Grow(struct Thread *th)
 		}
 
 		// subtract 32ms by hand
-		duration -= FPS_HALF(32);
+		duration -= 32;
 		shield->duration = duration;
 
 		// 2.0 seconds
@@ -300,7 +300,7 @@ void DECOMP_RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	tw->vel[2] = (driverInst->matrix.m[2][2] * 3) >> 7;
 
 	tw->rotY = player->angle;
-	tw->frameCount_DontHurtParent = FPS_DOUBLE(10);
+	tw->frameCount_DontHurtParent = 10;
 
 LAB_800b0d6c:
 

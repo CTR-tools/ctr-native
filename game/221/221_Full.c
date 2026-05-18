@@ -58,7 +58,7 @@ void DECOMP_CC_EndEvent_DrawMenu()
 	elapsedFrames = sdata->framesSinceRaceEnded;
 
 	// count frames if hasn't been 30 seconds
-	if (elapsedFrames < FPS_DOUBLE(900))
+	if (elapsedFrames < 900)
 		elapsedFrames++;
 
 	sdata->framesSinceRaceEnded = elapsedFrames;
@@ -72,7 +72,7 @@ void DECOMP_CC_EndEvent_DrawMenu()
 		// fly in from right
 		DECOMP_UI_Lerp2D_Linear(&posXY[0], 0x264, 0x56, // startX, startY,
 		                        0xcd, 0x56,             // endX, endY
-		                        elapsedFrames, FPS_DOUBLE(0x14));
+		                        elapsedFrames, 0x14);
 
 		sdata->ptrMenuCrystal->matrix.t[0] = DECOMP_UI_ConvertX_2(posXY[0], 0x200);
 		sdata->ptrMenuCrystal->matrix.t[1] = DECOMP_UI_ConvertY_2(posXY[1], 0x200);
@@ -94,7 +94,7 @@ void DECOMP_CC_EndEvent_DrawMenu()
 		// fly in from left
 		DECOMP_UI_Lerp2D_Linear(&posXY[0], -0x63, 0x18, // startX, startY,
 		                        0x100, 0x18,            // endX, endY
-		                        elapsedFrames, FPS_DOUBLE(0x14));
+		                        elapsedFrames, 0x14);
 
 		// TIME REMAINING
 		DecalFont_DrawLine(sdata->lngStrings[0x16D], posXY[0], posXY[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE));
@@ -150,11 +150,11 @@ void DECOMP_CC_EndEvent_DrawMenu()
 	tokenInst->matrix.t[1] = DECOMP_UI_ConvertY_2(0xA2 - 0x18, 0x200);
 
 	// grow token after first second
-	if (elapsedFrames > FPS_DOUBLE(30))
+	if (elapsedFrames > 30)
 	{
 		if (tokenInst->scale[0] < 0x2001)
 		{
-			growVal = tokenInst->scale[0] + FPS_HALF(0x200);
+			growVal = tokenInst->scale[0] + 0x200;
 			tokenInst->scale[0] = growVal;
 			tokenInst->scale[1] = growVal;
 			tokenInst->scale[2] = growVal;
@@ -162,7 +162,7 @@ void DECOMP_CC_EndEvent_DrawMenu()
 	}
 
 	// play unlock sound after exactly 1 second
-	else if (elapsedFrames == FPS_DOUBLE(30))
+	else if (elapsedFrames == 30)
 	{
 		OtherFX_Play(0x67, 1);
 	}

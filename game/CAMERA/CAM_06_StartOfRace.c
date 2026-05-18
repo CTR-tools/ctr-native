@@ -24,7 +24,7 @@ void DECOMP_CAM_StartOfRace(struct CameraDC *cDC)
 		cDC->unk8C = 0;
 
 		// make transition to driver last one second
-		cDC->frameCounterTransition = FPS_DOUBLE(0x1E);
+		cDC->frameCounterTransition = 0x1E;
 		cDC->desiredRot[6] = 0;
 
 		// when camera reaches player, be zoomed in
@@ -36,7 +36,7 @@ void DECOMP_CAM_StartOfRace(struct CameraDC *cDC)
 
 		// ONLY patch this if used with PS1 asm patches,
 		// until the camera functions are really rewritten
-		cDC->unk8E = FPS_DOUBLE(0xA5);
+		cDC->unk8E = 0xA5;
 	}
 	else
 	{

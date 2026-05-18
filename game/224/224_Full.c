@@ -35,17 +35,17 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 	// Conditions to increment frame
 	if (
 	    // First 900 frames (30 seconds)
-	    (elapsedFrames < FPS_DOUBLE(900)) ||
+	    (elapsedFrames < 900) ||
 
 	    (((gameModeEnd & NEW_HIGH_SCORE) == 0) &&
 
 	     (
 	         // Transition the high scores on-screen
-	         (elapsedFrames <= FPS_DOUBLE(1000)) ||
+	         (elapsedFrames <= 1000) ||
 
 	         (
 	             // Wait until press X, then transition off-screen
-	             ((sdata->menuReadyToPass & 0x10) != 0) && (elapsedFrames < FPS_DOUBLE(1018))))))
+	             ((sdata->menuReadyToPass & 0x10) != 0) && (elapsedFrames < 1018)))))
 	{
 		elapsedFrames++;
 	}
@@ -55,19 +55,19 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 	// First 90 frames (0-3)
 	// Return at bottom of IF block
-	if (elapsedFrames <= FPS_DOUBLE(90))
+	if (elapsedFrames <= 90)
 	{
 		// no lerp, just sit on-screen
 		endX = 0x14;
 
-		if (elapsedFrames >= FPS_DOUBLE(65))
+		if (elapsedFrames >= 65)
 		{
 			endX = -0x96;
-			elapsedFrames -= FPS_DOUBLE(65);
+			elapsedFrames -= 65;
 		}
 
 		// draw race clock in top-left corner
-		DECOMP_UI_Lerp2D_Linear(&pos[0], 0x14, 8, endX, 8, elapsedFrames, FPS_DOUBLE(0x14));
+		DECOMP_UI_Lerp2D_Linear(&pos[0], 0x14, 8, endX, 8, elapsedFrames, 0x14);
 
 		DECOMP_UI_DrawRaceClock((int)pos[0], (int)pos[1], 0, gGT->drivers[0]);
 
@@ -76,30 +76,30 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 	// between 91 and 900 frames (3-30)
 	// Return at bottom of IF block
-	if (elapsedFrames <= FPS_DOUBLE(900))
+	if (elapsedFrames <= 900)
 	{
 		// first transition is race clock
-		elapsedFrames -= FPS_DOUBLE(90);
+		elapsedFrames -= 90;
 
 		// race time
-		DECOMP_UI_Lerp2D_Linear(&pos[0], -0x64, 90, 0x100, 90, elapsedFrames, FPS_DOUBLE(0x14));
+		DECOMP_UI_Lerp2D_Linear(&pos[0], -0x64, 90, 0x100, 90, elapsedFrames, 0x14);
 
 		DECOMP_TT_EndEvent_DisplayTime((int)pos[0], pos[1], sdata->flags_timeTrialEndOfRace);
 
 
 		// Blink Orange/White
-		int color = (gGT->timer & FPS_DOUBLE(1)) ? 0xffff8000 : 0xffff8004;
+		int color = (gGT->timer & 1) ? 0xffff8000 : 0xffff8004;
 
 
 		// "new high score" 1 second later
-		elapsedFrames -= FPS_DOUBLE(30);
+		elapsedFrames -= 30;
 
 		if ((elapsedFrames > 0) &&
 
 		    // if there is a new high score
 		    gGT->newHighScoreIndex > -1)
 		{
-			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x264, 122, 0x100, 122, elapsedFrames, FPS_DOUBLE(0x14));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x264, 122, 0x100, 122, elapsedFrames, 0x14);
 
 			// "NEW HIGH SCORE!"
 			DecalFont_DrawLine(lngStrings[353], (int)pos[0], (int)pos[1], 1, color);
@@ -110,14 +110,14 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 
 		// "new best lap" 1 second later
-		elapsedFrames -= FPS_DOUBLE(30);
+		elapsedFrames -= 30;
 
 		if ((elapsedFrames > 0) &&
 
 		    // if got new best lap
 		    ((gameModeEnd & NEW_BEST_LAP) != 0))
 		{
-			DECOMP_UI_Lerp2D_Linear(&pos[0], -0x64, 142, 0x100, 142, elapsedFrames, FPS_DOUBLE(0x14));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], -0x64, 142, 0x100, 142, elapsedFrames, 0x14);
 
 			// NEW BEST LAP!
 			DecalFont_DrawLine(lngStrings[370], (int)pos[0], (int)pos[1], 1, color);
@@ -128,7 +128,7 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 
 		// "n tropy" 1 second later
-		elapsedFrames -= FPS_DOUBLE(30);
+		elapsedFrames -= 30;
 
 		int eitherOneTrue = NTROPY_JUST_BEAT | NTROPY_JUST_OPENED;
 
@@ -137,7 +137,7 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 		    // if just open, or beat, n tropy
 		    ((gameModeEnd & eitherOneTrue) != 0))
 		{
-			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x264, 162, 0x100, 162, elapsedFrames, FPS_DOUBLE(0x14));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], 0x264, 162, 0x100, 162, elapsedFrames, 0x14);
 
 			char *nTropyString;
 
@@ -157,7 +157,7 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 		if ((sdata->AnyPlayerTap & 0x50) != 0)
 		{
 			// advance timer, quickly skip to see high scores
-			sdata->framesSinceRaceEnded = FPS_DOUBLE(901); // 30 seconds
+			sdata->framesSinceRaceEnded = 901; // 30 seconds
 		}
 
 		return;
@@ -165,7 +165,7 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 	// 901 or more (30 secs)
 	// Return at bottom of IF block
-	if (elapsedFrames < FPS_DOUBLE(1017))
+	if (elapsedFrames < 1017)
 	{
 		// start drawing the high score menu that shows the top 5 best times
 		gGT->gameModeEnd |= DRAW_HIGH_SCORES;
@@ -175,9 +175,9 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 			// ====== Draw High Score ===========
 
 			// 1001-1017
-			if (elapsedFrames >= FPS_DOUBLE(1001))
+			if (elapsedFrames >= 1001)
 			{
-				elapsedFrames -= FPS_DOUBLE(1001);
+				elapsedFrames -= 1001;
 
 				startX = 0x80;
 				endX = -0x96;
@@ -186,14 +186,14 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 			// 900-1001
 			else
 			{
-				elapsedFrames -= FPS_DOUBLE(901);
+				elapsedFrames -= 901;
 
 				startX = -0x96;
 				endX = 0x80;
 			}
 
 
-			DECOMP_UI_Lerp2D_Linear(&pos[0], startX, 10, endX, 10, elapsedFrames, FPS_DOUBLE(0x14));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], startX, 10, endX, 10, elapsedFrames, 0x14);
 
 			DECOMP_TT_EndEvent_DrawHighScore(pos[0], (int)pos[1]);
 
@@ -216,7 +216,7 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 				endX = 0x296;
 			}
 
-			DECOMP_UI_Lerp2D_Linear(&pos[0], startX, 0x82, endX, 0x82, elapsedFrames, FPS_DOUBLE(0x14));
+			DECOMP_UI_Lerp2D_Linear(&pos[0], startX, 0x82, endX, 0x82, elapsedFrames, 0x14);
 
 			DECOMP_TT_EndEvent_DisplayTime((int)pos[0], pos[1], sdata->flags_timeTrialEndOfRace);
 
@@ -225,9 +225,9 @@ void DECOMP_TT_EndEvent_DrawMenu(void)
 
 			// ==== Pause Timer until Press X =======
 			// Cross or Circle, or if timer drags on too long
-			if (((sdata->AnyPlayerTap & 0x50) != 0) && (sdata->framesSinceRaceEnded <= FPS_DOUBLE(1001)))
+			if (((sdata->AnyPlayerTap & 0x50) != 0) && (sdata->framesSinceRaceEnded <= 1001))
 			{
-				sdata->framesSinceRaceEnded = FPS_DOUBLE(1001);
+				sdata->framesSinceRaceEnded = 1001;
 
 				// unpause frame counter,
 				// which then counts up to 1018 for transition-out
@@ -278,7 +278,7 @@ void DECOMP_TT_EndEvent_DisplayTime(int paramX, short paramY, u_int UI_DrawRaceC
 		&pos[0],
 		(paramX - (0x88 - textWidth) / 2), paramY,
 		(paramX - (0x88 - textWidth) / 2), paramY,
-		sdata->framesSinceRaceEnded, FPS_DOUBLE(0x14));
+		sdata->framesSinceRaceEnded, 0x14);
 
 #else
 
@@ -339,7 +339,7 @@ void DECOMP_TT_EndEvent_DrawHighScore(short startX, int startY)
 		&pos[0],
 		startX, startY,
 		startX, startY,
-		sdata->framesSinceRaceEnded, FPS_DOUBLE(0x14));
+		sdata->framesSinceRaceEnded, 0x14);
 
 #else
 
@@ -363,10 +363,10 @@ void DECOMP_TT_EndEvent_DrawHighScore(short startX, int startY)
 		if (gGT->newHighScoreIndex == i)
 		{
 			// make name color flash every odd frame
-			nameColor = (gGT->timer & FPS_DOUBLE(2)) ? 4 : nameColor;
+			nameColor = (gGT->timer & 2) ? 4 : nameColor;
 
 			// flash color of time
-			timeColor = ((gGT->timer & FPS_DOUBLE(2)) << FPS_LEFTSHIFT(1));
+			timeColor = ((gGT->timer & 2) << 1);
 		}
 
 		timebox_Y = startY + 0x11 + currRowY;
@@ -424,7 +424,7 @@ void DECOMP_TT_EndEvent_DrawHighScore(short startX, int startY)
 		DecalFont_DrawLine(sdata->lngStrings[0x170], startX, startY + 0x95, 1, timeColor);
 
 		// If you got a new best lap
-		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & FPS_DOUBLE(2)) != 0))
+		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & 2) != 0))
 		{
 			timeColor = 0xffff8004;
 		}

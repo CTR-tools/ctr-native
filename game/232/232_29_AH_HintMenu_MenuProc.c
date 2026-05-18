@@ -171,7 +171,7 @@ void DECOMP_AH_HintMenu_MenuProc(struct RectMenu *menu)
 					{
 						sdata->instMaskHints3D = DECOMP_VehTalkMask_Init();
 
-						D232.maskCooldown = FPS_DOUBLE(30);
+						D232.maskCooldown = 30;
 
 						DECOMP_VehTalkMask_PlayXA(sdata->instMaskHints3D, (lngIndex + -0x17b) / 2);
 

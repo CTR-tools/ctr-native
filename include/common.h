@@ -106,13 +106,6 @@ enum HotReloadSteps
 #endif
 
 
-// Required for 60fps (removed, ctr-native uses fixed 30Hz simulation)
-#define FPS_DOUBLE(x)     (x)
-#define FPS_HALF(x)       (x)
-#define FPS_LEFTSHIFT(x)  (x)
-#define FPS_RIGHTSHIFT(x) (x)
-
-
 // WIDE_PICK:
 // param1 - normal
 // param2 - widescreen

@@ -66,7 +66,7 @@ void DECOMP_Particle_FuncPtr_SpitTire(struct Particle *p)
 		return;
 	}
 
-	p->axis[0].velocity = FPS_HALF(p->axis[0].velocity);
-	p->axis[1].velocity = FPS_HALF(p->axis[1].velocity);
-	p->axis[2].velocity = FPS_HALF(p->axis[2].velocity);
+	p->axis[0].velocity = p->axis[0].velocity;
+	p->axis[1].velocity = p->axis[1].velocity;
+	p->axis[2].velocity = p->axis[2].velocity;
 }

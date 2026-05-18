@@ -24,14 +24,14 @@ void DECOMP_RB_RainCloud_FadeAway(struct Thread *t)
 	}
 
 	struct RainLocal *rainLocal = rcloud->rainLocal;
-	rainLocal->frameCount -= FPS_HALF(2);
+	rainLocal->frameCount -= 2;
 
 	// shrink scale (x, y, z)
 	// use this order, for better register
 	// allocation, and less cpu instructions
-	inst->scale[2] += FPS_HALF(-0x100);
-	inst->scale[1] += FPS_HALF(-0x100);
-	inst->scale[0] += FPS_HALF(-0x100);
+	inst->scale[2] += -0x100;
+	inst->scale[1] += -0x100;
+	inst->scale[0] += -0x100;
 
 	if (inst->scale[0] < 0)
 	{

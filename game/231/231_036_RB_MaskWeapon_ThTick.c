@@ -87,7 +87,7 @@ void DECOMP_RB_MaskWeapon_ThTick(struct Thread *maskTh)
 	mhs->posOffset[0] = (((DECOMP_MATH_Sin(rot) << 6) >> 0xc) * mask->scale) >> 0xc;
 	mhs->posOffset[2] = (((DECOMP_MATH_Cos(rot) << 6) >> 0xc) * mask->scale) >> 0xc;
 
-	mhs->posOffset[1] = ((short *)0x800b2cc4)[(int)maskBeamInst->animFrame >> FPS_RIGHTSHIFT(0)] + 0x40;
+	mhs->posOffset[1] = ((short *)0x800b2cc4)[(int)maskBeamInst->animFrame >> 0] + 0x40;
 
 	mhs->rot[0] = 0;
 	mhs->rot[1] = rot;
@@ -141,7 +141,7 @@ void DECOMP_RB_MaskWeapon_ThTick(struct Thread *maskTh)
 	}
 
 	// adjust rotation
-	mask->rot[1] += FPS_HALF(-0x100);
+	mask->rot[1] += -0x100;
 
 	// If duration is over
 	if (mask->duration == 0)

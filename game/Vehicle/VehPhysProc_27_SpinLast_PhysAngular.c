@@ -20,8 +20,8 @@ void DECOMP_VehPhysProc_SpinLast_PhysAngular(struct Thread *t, struct Driver *d)
 		{
 			d->KartStates.Spinning.driftSpinRate = (driftAngleCurr * -4) >> 3;
 
-			if (d->KartStates.Spinning.driftSpinRate < FPS_HALF(0x20))
-				d->KartStates.Spinning.driftSpinRate = FPS_HALF(0x20);
+			if (d->KartStates.Spinning.driftSpinRate < 0x20)
+				d->KartStates.Spinning.driftSpinRate = 0x20;
 		}
 
 		d->turnAngleCurr += d->KartStates.Spinning.driftSpinRate;
@@ -41,8 +41,8 @@ void DECOMP_VehPhysProc_SpinLast_PhysAngular(struct Thread *t, struct Driver *d)
 		{
 			d->KartStates.Spinning.driftSpinRate = (driftAngleCurr * -4) >> 3;
 
-			if (d->KartStates.Spinning.driftSpinRate > FPS_HALF(-0x20))
-				d->KartStates.Spinning.driftSpinRate = FPS_HALF(-0x20);
+			if (d->KartStates.Spinning.driftSpinRate > -0x20)
+				d->KartStates.Spinning.driftSpinRate = -0x20;
 		}
 
 		d->turnAngleCurr += d->KartStates.Spinning.driftSpinRate;

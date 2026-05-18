@@ -73,7 +73,7 @@ LAB_800adc08:;
 
 		    (modelID == DYNAMIC_ROCKET))
 		{
-			tw->framesSeekMine = FPS_DOUBLE(10);
+			tw->framesSeekMine = 10;
 		}
 	}
 
@@ -224,13 +224,13 @@ LAB_800adc08:;
 		// if bomb is forwards
 		if ((tw->flags & 0x20) == 0)
 		{
-			tw->dir[0] += FPS_HALF(0x200);
+			tw->dir[0] += 0x200;
 		}
 
 		// if bomb is backwards
 		else
 		{
-			tw->dir[0] -= FPS_HALF(0x200);
+			tw->dir[0] -= 0x200;
 		}
 
 		// convert 3 rotation shorts into rotation matrix

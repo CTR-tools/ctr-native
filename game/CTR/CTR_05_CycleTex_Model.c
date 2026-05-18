@@ -9,7 +9,7 @@ void DECOMP_CTR_CycleTex_Model(struct AnimTex *animtex, int timer)
 	while (*(int *)curAnimTex != (int)animtex)
 	{
 		// which texture to draw this frame
-		frameCurr = FPS_HALF(timer) + curAnimTex->frameOffset;
+		frameCurr = timer + curAnimTex->frameOffset;
 
 		// allow frames to skip updating (like 60fps hacks)
 		frameCurr = frameCurr >> curAnimTex->frameSkip;

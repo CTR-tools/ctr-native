@@ -22,7 +22,7 @@ void CS_Podium_Prize_ThTick2(struct Thread *th)
 		if ((frameIndex & 1) == 0)
 		{
 			// scaleX
-			currScale = inst->scale[0] + FPS_HALF(800) + frameIndex * 400;
+			currScale = inst->scale[0] + 800 + frameIndex * 400;
 
 			if ((frameIndex + 1) * 0x28a + 0x2000 < currScale)
 			{
@@ -33,7 +33,7 @@ void CS_Podium_Prize_ThTick2(struct Thread *th)
 		else
 		{
 			// scaleX
-			currScale = inst->scale[0] - FPS_HALF(800);
+			currScale = inst->scale[0] - 800;
 
 			if (currScale < 0x1001)
 			{

@@ -12,7 +12,7 @@ void DECOMP_RB_Crystal_ThTick(struct Thread *t)
 	crystalObj = t->object;
 
 	// rotate each frame
-	crystalObj->rot[1] += FPS_HALF(0x80);
+	crystalObj->rot[1] += 0x80;
 	ConvertRotToMatrix(&crystalInst->matrix, &crystalObj->rot[0]);
 
 	// sine curve for vertical bounce
@@ -105,7 +105,7 @@ int DECOMP_RB_Crystal_LInC(struct Instance *LevInst, struct Thread *driverTh, st
 	// lasts 5 frames, give start position, count numCollected
 	driver->PickupWumpaHUD.startX = pb->rect.x + posScreen[0];
 	driver->PickupWumpaHUD.startY = pb->rect.y + posScreen[1] - 0x14;
-	driver->PickupWumpaHUD.cooldown = FPS_DOUBLE(5);
+	driver->PickupWumpaHUD.cooldown = 5;
 	driver->PickupWumpaHUD.numCollected++;
 
 	return 1;

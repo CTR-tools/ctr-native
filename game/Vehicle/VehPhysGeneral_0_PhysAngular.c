@@ -75,7 +75,7 @@ void DECOMP_VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *dri
 	{
 		int rate = ((int)driver->const_TurnInputDelay + driver->turnConst * 0x32) * terrain->friction >> 8;
 
-		rotCurrW_interp = DECOMP_VehCalc_InterpBySpeed(rotCurrW_original, FPS_HALF(rate), 0);
+		rotCurrW_interp = DECOMP_VehCalc_InterpBySpeed(rotCurrW_original, rate, 0);
 
 		forwardDir = (short)rotCurrW_interp;
 	}
@@ -214,7 +214,7 @@ void DECOMP_VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *dri
 	turnResistMinBitshift = rotCurrW_original;
 	if ((0x2ff < speedApprox) && ((actionsFlagSet & 1) != 0))
 	{
-		turnResistMaxBitshift = DECOMP_VehCalc_SteerAccel(FPS_HALF(driver->numFramesSpentSteering), (int)driver->const_SteerAccel_Stage2_FirstFrame,
+		turnResistMaxBitshift = DECOMP_VehCalc_SteerAccel(driver->numFramesSpentSteering, (int)driver->const_SteerAccel_Stage2_FirstFrame,
 		                                                  (int)driver->const_SteerAccel_Stage2_FrameLength, (int)driver->const_SteerAccel_Stage4_FirstFrame,
 		                                                  (int)driver->const_SteerAccel_Stage1_MinSteer, (int)driver->const_SteerAccel_Stage1_MaxSteer);
 		if (rotCurrW_original < 0)
@@ -319,7 +319,7 @@ LAB_80060284:
 		{
 			rotCurrW_interp = -rotCurrW_original;
 		}
-		rotCurrW_interp = DECOMP_VehCalc_InterpBySpeed(turnResistMax, FPS_HALF(rotCurrW_interp), 0);
+		rotCurrW_interp = DECOMP_VehCalc_InterpBySpeed(turnResistMax, rotCurrW_interp, 0);
 		forwardDir = (short)rotCurrW_interp;
 	}
 	else

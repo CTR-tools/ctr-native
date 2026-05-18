@@ -88,7 +88,7 @@ void ui60_entryHook()
 	// SelectProfile flashing orange/red
 	// for strings SAVE/LOAD/WARNING
 	{
-		*(short *)0x8004A5C8 = FPS_DOUBLE(4);
+		*(short *)0x8004A5C8 = 4;
 	}
 
 	// AI cooldown
@@ -96,12 +96,12 @@ void ui60_entryHook()
 		// decompile\WorkInProgress\src\PickupBots_UpdateAll.c
 
 		// nextDriver->weaponCooldown
-		*(short *)0x800412ac = FPS_DOUBLE(0xFF);
-		*(short *)0x800412b0 = FPS_DOUBLE(0xF0);
+		*(short *)0x800412ac = 0xFF;
+		*(short *)0x800412b0 = 0xF0;
 
 		// nextDriver->weaponCooldown (same func, different place)
-		*(short *)0x8004149c = FPS_DOUBLE(0xFF);
-		*(short *)0x800414a0 = FPS_DOUBLE(0xF0);
+		*(short *)0x8004149c = 0xFF;
+		*(short *)0x800414a0 = 0xF0;
 	}
 
 	// Boss cooldown
@@ -113,21 +113,21 @@ void ui60_entryHook()
 		for (x = &data.BossWeaponOxide[0]; x < &data.bossWeaponMetaPtr[0]; x++)
 		{
 			// double min cooldown
-			x->weaponCooldown = FPS_DOUBLE(x->weaponCooldown);
+			x->weaponCooldown = x->weaponCooldown;
 		}
 
 		// double & 0x10
 		// double + 0xc
 		// double <<2 to <<4
-		*(unsigned short *)0x80040c24 = FPS_DOUBLE(0x10);
-		*(unsigned short *)0x80040c40 = FPS_DOUBLE(0xC);
+		*(unsigned short *)0x80040c24 = 0x10;
+		*(unsigned short *)0x80040c40 = 0xC;
 		*(int *)0x80040c50 = 0x31900;
 
 		// double & 0x10
 		// double + 0xc
 		// double <<2 to <<4
-		*(unsigned short *)0x80040f4c = FPS_DOUBLE(0x10);
-		*(unsigned short *)0x80040f68 = FPS_DOUBLE(0xC);
+		*(unsigned short *)0x80040f4c = 0x10;
+		*(unsigned short *)0x80040f68 = 0xC;
 		*(int *)0x80040f78 = 0x31900;
 	}
 

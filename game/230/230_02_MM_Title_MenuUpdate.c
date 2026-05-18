@@ -37,7 +37,7 @@ void DECOMP_MM_Title_MenuUpdate(void)
 		// if you are transitioning in
 
 		// if not done watching C-T-R letters
-		if (D230.timerInTitle < FPS_DOUBLE(230))
+		if (D230.timerInTitle < 230)
 		{
 			D230.countMeta0xD = D230.title_numFrameTotal;
 
@@ -192,7 +192,7 @@ void DECOMP_MM_Title_MenuUpdate(void)
 			gGT->numPlyrCurrGame = 1;
 
 			// 60 seconds
-			gGT->demoCountdownTimer = FPS_DOUBLE(1800);
+			gGT->demoCountdownTimer = 1800;
 
 			// number of times you've seen Demo Mode,
 			seenDemo = sdata->demoModeIndex;

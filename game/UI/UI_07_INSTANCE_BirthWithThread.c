@@ -115,8 +115,8 @@ struct Instance *DECOMP_UI_INSTANCE_BirthWithThread(int param_1, int param_2, in
 			// -4 for C
 			// +0 for T
 			// +4 for R
-			ui3D->vel[0] = FPS_HALF((modelID - STATIC_T) * 4);
-			ui3D->vel[1] = FPS_HALF(0xc);
+			ui3D->vel[0] = (modelID - STATIC_T) * 4;
+			ui3D->vel[1] = 0xc;
 
 			// Set color
 			inst->colorRGBA = 0xffc8000;

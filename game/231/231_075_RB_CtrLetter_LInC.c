@@ -42,7 +42,7 @@ int DECOMP_RB_CtrLetter_LInC(struct Instance *letterInst, struct Thread *driverT
 	driver->PickupLetterHUD.startY = pb->rect.y + posScreen[1] - 0x14;
 
 	// transition should last 10 frames
-	driver->PickupLetterHUD.cooldown = FPS_DOUBLE(10);
+	driver->PickupLetterHUD.cooldown = 10;
 
 	// increment number of items in hud
 	driver->PickupLetterHUD.numCollected++;

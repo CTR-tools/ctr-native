@@ -137,7 +137,7 @@ void DECOMP_VehFire_Increment(struct Driver *driver, int reserves, u_int type, i
 			// 	- powerslide: two frames (quick death)
 			//	- all others: -1 frames (255 = 'no' death)
 			if (type & 2)
-				count = FPS_DOUBLE(2);
+				count = 2;
 			else
 				count = -1;
 			turboObj->fireDisappearCountdown = count;

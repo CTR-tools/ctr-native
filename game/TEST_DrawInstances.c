@@ -227,7 +227,7 @@ void DrawOneInst(struct Instance *curr)
 
 			// temporary solution, plays animations
 			// at 30fps while rest of the game is 60fps
-			int frameIndex = FPS_HALF(curr->animFrame);
+			int frameIndex = curr->animFrame;
 
 			// Get first frame, then current frame
 			char *firstFrame = MODELANIM_GETFRAME(ma);

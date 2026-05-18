@@ -68,7 +68,7 @@ void DECOMP_RB_Plant_ThTick_Eat(struct Thread *t)
 			plantInst->animFrame = plantInst->animFrame + 1;
 
 			// last frame
-			if (plantInst->animFrame == FPS_DOUBLE(0xf))
+			if (plantInst->animFrame == 0xf)
 			{
 				goto PlayChewSound;
 			}
@@ -101,7 +101,7 @@ void DECOMP_RB_Plant_ThTick_Eat(struct Thread *t)
 			plantInst->animFrame = plantInst->animFrame + 1;
 
 			// last frame
-			if (plantInst->animFrame == FPS_DOUBLE(0x19))
+			if (plantInst->animFrame == 0x19)
 			{
 				if (plantObj->boolEatingPlayer != 0)
 				{
@@ -433,8 +433,8 @@ void DECOMP_RB_Plant_LInB(struct Instance *inst)
 		metaArray = (short *)pointers[ST1_SPAWN];
 
 		plantID = inst->name[6] - '0';
-		t->cooldownFrameCount = FPS_DOUBLE(metaArray[plantID * 2 + 0]);
-		plantObj->LeftOrRight = FPS_DOUBLE(metaArray[plantID * 2 + 1]);
+		t->cooldownFrameCount = metaArray[plantID * 2 + 0];
+		plantObj->LeftOrRight = metaArray[plantID * 2 + 1];
 	}
 }
 

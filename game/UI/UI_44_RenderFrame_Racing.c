@@ -270,7 +270,7 @@ void DECOMP_UI_RenderFrame_Racing()
 						DECOMP_OtherFX_Play(0x42, 1);
 
 						// initial timer value
-						partTimeVariable1 = FPS_DOUBLE(5);
+						partTimeVariable1 = 5;
 
 						// if timer is already running, set new timer value
 						if (playerStruct->PickupWumpaHUD.numCollected != 0)
@@ -279,7 +279,7 @@ void DECOMP_UI_RenderFrame_Racing()
 					else
 					{
 						DECOMP_UI_Lerp2D_HUD(&wumpaModel_Pos[0], (int)playerStruct->PickupWumpaHUD.startX, (int)playerStruct->PickupWumpaHUD.startY,
-						                     hudStructPtr[3].x, hudStructPtr[3].y, playerStruct->PickupWumpaHUD.cooldown, FPS_DOUBLE(5));
+						                     hudStructPtr[3].x, hudStructPtr[3].y, playerStruct->PickupWumpaHUD.cooldown, 5);
 
 						// subtract one from timer
 						partTimeVariable1 = playerStruct->PickupWumpaHUD.cooldown - 1;
@@ -341,7 +341,7 @@ void DECOMP_UI_RenderFrame_Racing()
 
 					// Interpolate from start pos to end pos
 					DECOMP_UI_Lerp2D_HUD(&LetterCTR_Pos[0], playerStruct->PickupLetterHUD.startX, playerStruct->PickupLetterHUD.startY, (int)LetterCTR_Pos[0],
-					                     (int)LetterCTR_Pos[1], (int)playerStruct->PickupLetterHUD.cooldown, FPS_DOUBLE(10));
+					                     (int)LetterCTR_Pos[1], (int)playerStruct->PickupLetterHUD.cooldown, 10);
 
 					curr->matrix.t[0] = DECOMP_UI_ConvertX_2((int)LetterCTR_Pos[0], 0x200);
 					curr->matrix.t[1] = DECOMP_UI_ConvertY_2((int)LetterCTR_Pos[1], 0x200);
@@ -375,7 +375,7 @@ void DECOMP_UI_RenderFrame_Racing()
 
 					// 4b4 and 4b6 are WindowStartPos(x,y) from PushBuffer, inside Driver
 					DECOMP_UI_Lerp2D_HUD(&wumpaModel_Pos[0], playerStruct->PickupTimeboxHUD.startX, playerStruct->PickupTimeboxHUD.startY, 0x14, 8,
-					                     playerStruct->PickupTimeboxHUD.cooldown, FPS_DOUBLE(10));
+					                     playerStruct->PickupTimeboxHUD.cooldown, 10);
 
 					// Decrease remaining number of frames for this to be on screen
 					playerStruct->PickupTimeboxHUD.cooldown--;
@@ -418,7 +418,7 @@ void DECOMP_UI_RenderFrame_Racing()
 					string[2] = 0;
 
 					DECOMP_UI_Lerp2D_HUD(&wumpaModel_Pos[0], (int)playerStruct->BattleHUD.startX, (int)playerStruct->BattleHUD.startY,
-					                     (int)(hudStructPtr[0xD].x + 0x20), (int)(hudStructPtr[0xD].y + 8), playerStruct->BattleHUD.cooldown, FPS_DOUBLE(5));
+					                     (int)(hudStructPtr[0xD].x + 0x20), (int)(hudStructPtr[0xD].y + 8), playerStruct->BattleHUD.cooldown, 5);
 
 					// subtract one from the number of frames that the animation lasts
 					playerStruct->BattleHUD.cooldown--;

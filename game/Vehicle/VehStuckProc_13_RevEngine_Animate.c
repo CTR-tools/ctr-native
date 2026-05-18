@@ -44,7 +44,7 @@ void DECOMP_VehStuckProc_RevEngine_Animate(struct Thread *t, struct Driver *d)
 			iVar7 = 0x100;
 		}
 
-		iVar4 = DECOMP_VehCalc_InterpBySpeed(d->KartStates.RevEngine.fireLevel, FPS_HALF(iVar7), d->KartStates.RevEngine.boostMeter);
+		iVar4 = DECOMP_VehCalc_InterpBySpeed(d->KartStates.RevEngine.fireLevel, iVar7, d->KartStates.RevEngine.boostMeter);
 
 		// Set new curr rev
 		d->KartStates.RevEngine.fireLevel = iVar4;
@@ -96,7 +96,7 @@ void DECOMP_VehStuckProc_RevEngine_Animate(struct Thread *t, struct Driver *d)
 	{
 		d->KartStates.RevEngine.unk[0] = 0;
 
-		uVar6 = DECOMP_VehCalc_InterpBySpeed(d->KartStates.RevEngine.boostMeter, FPS_HALF(d->const_SacredFireSpeed / 3 + 3),
+		uVar6 = DECOMP_VehCalc_InterpBySpeed(d->KartStates.RevEngine.boostMeter, d->const_SacredFireSpeed / 3 + 3,
 		                                     d->const_SacredFireSpeed + d->const_AccelSpeed_ClassStat);
 
 		d->KartStates.RevEngine.boostMeter = uVar6;
@@ -150,7 +150,7 @@ void DECOMP_VehStuckProc_RevEngine_Animate(struct Thread *t, struct Driver *d)
 		}
 
 		// new rev = curr rev - rev deacceleration rate
-		iVar4 = d->KartStates.RevEngine.fireLevel - FPS_HALF(uVar8);
+		iVar4 = d->KartStates.RevEngine.fireLevel - uVar8;
 
 		// curr rev = new rev
 		d->KartStates.RevEngine.fireLevel = iVar4;

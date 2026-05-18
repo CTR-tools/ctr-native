@@ -199,7 +199,7 @@ void DECOMP_CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, stru
 	// slight-down view angle
 	if ((d->actionsFlagSet & 0x4000) == 0)
 	{
-		cDC->unk1A -= FPS_HALF(8);
+		cDC->unk1A -= 8;
 		if (cDC->unk1A < -0x20)
 			cDC->unk1A = -0x20;
 	}
@@ -208,7 +208,7 @@ void DECOMP_CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, stru
 	// straight-forward angle
 	else
 	{
-		cDC->unk1A += FPS_HALF(8);
+		cDC->unk1A += 8;
 		if (cDC->unk1A > 0)
 			cDC->unk1A = 0;
 	}
@@ -268,7 +268,7 @@ void DECOMP_CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, stru
 		cDC->BlastedLerp.desiredPos[1] = cDC->unkTriplet2[1] - *(short *)(scratchpad + 0x244);
 		cDC->BlastedLerp.desiredPos[2] = cDC->unkTriplet2[2] - *(short *)(scratchpad + 0x248);
 
-		cDC->BlastedLerp.framesRemaining = FPS_DOUBLE(8);
+		cDC->BlastedLerp.framesRemaining = 8;
 	}
 
 	// if not arcade end-of-race
@@ -312,7 +312,7 @@ void DECOMP_CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, stru
 			cDC->BlastedLerp.desiredPos[1] = cDC->unkTriplet2[1] - *(short *)(scratchpad + 0x244);
 			cDC->BlastedLerp.desiredPos[2] = cDC->unkTriplet2[2] - *(short *)(scratchpad + 0x248);
 
-			cDC->BlastedLerp.framesRemaining = FPS_DOUBLE(8);
+			cDC->BlastedLerp.framesRemaining = 8;
 
 			goto LAB_8001a8b0;
 		}
@@ -322,13 +322,13 @@ void DECOMP_CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, stru
 		// if frame countdown is not finished
 		if (cDC->BlastedLerp.framesRemaining != 0)
 		{
-			*(int *)(scratchpad + 0x240) += (cDC->BlastedLerp.desiredPos[0] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
-			*(int *)(scratchpad + 0x244) += (cDC->BlastedLerp.desiredPos[1] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
-			*(int *)(scratchpad + 0x248) += (cDC->BlastedLerp.desiredPos[2] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
+			*(int *)(scratchpad + 0x240) += (cDC->BlastedLerp.desiredPos[0] * cDC->BlastedLerp.framesRemaining) >> 3;
+			*(int *)(scratchpad + 0x244) += (cDC->BlastedLerp.desiredPos[1] * cDC->BlastedLerp.framesRemaining) >> 3;
+			*(int *)(scratchpad + 0x248) += (cDC->BlastedLerp.desiredPos[2] * cDC->BlastedLerp.framesRemaining) >> 3;
 
-			*(int *)(scratchpad + 0x258) += (cDC->BlastedLerp.desiredRot[0] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
-			*(int *)(scratchpad + 0x25c) += (cDC->BlastedLerp.desiredRot[1] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
-			*(int *)(scratchpad + 0x260) += (cDC->BlastedLerp.desiredRot[2] * cDC->BlastedLerp.framesRemaining) >> FPS_RIGHTSHIFT(3);
+			*(int *)(scratchpad + 0x258) += (cDC->BlastedLerp.desiredRot[0] * cDC->BlastedLerp.framesRemaining) >> 3;
+			*(int *)(scratchpad + 0x25c) += (cDC->BlastedLerp.desiredRot[1] * cDC->BlastedLerp.framesRemaining) >> 3;
+			*(int *)(scratchpad + 0x260) += (cDC->BlastedLerp.desiredRot[2] * cDC->BlastedLerp.framesRemaining) >> 3;
 
 			// decrease frame countdown
 			cDC->BlastedLerp.framesRemaining--;
@@ -411,7 +411,7 @@ LAB_8001ab04:
 
 		if (pb->rot[0] < 0x800)
 		{
-			pb->rot[0] += FPS_HALF(0x10);
+			pb->rot[0] += 0x10;
 			if (pb->rot[0] > 0x800)
 				pb->rot[0] = 0x800;
 		}
@@ -556,12 +556,12 @@ LAB_8001ab04:
 				flyInData.frameCount2 = 0x8e;
 
 				// which frame of fly-in you are in
-				x = FPS_DOUBLE(0xa5) - (u_int)cDC->unk8E;
+				x = 0xa5 - (u_int)cDC->unk8E;
 
-				if (x > FPS_DOUBLE(0x96))
-					x = FPS_DOUBLE(0x96);
+				if (x > 0x96)
+					x = 0x96;
 
-				CAM_StartLine_FlyIn(&flyInData, FPS_DOUBLE(0x96), x, &local_40[0], &local_38[0]);
+				CAM_StartLine_FlyIn(&flyInData, 0x96, x, &local_40[0], &local_38[0]);
 
 				// get interpolation of fly-in [0 - 0x1000]
 				x = (int)cDC->unk8C;

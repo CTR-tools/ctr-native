@@ -12,6 +12,6 @@ int CS_Credits_IsTextValid()
 	if (creditsObj->epilogue_topString != 0)
 		return 0;
 
-	creditsObj->countdown = FPS_DOUBLE(360);
+	creditsObj->countdown = 360;
 	return 1;
 }

@@ -229,7 +229,7 @@ void DECOMP_UI_DrawRankedDrivers(void)
 
 					psVar13[0]++;
 
-					if (*psVar13 >= FPS_DOUBLE(5))
+					if (*psVar13 >= 5)
 					{
 						*psVar13 = 0;
 						*curr = *des;

@@ -166,7 +166,7 @@ void DECOMP_AH_SaveObj_ThTick(struct Thread *t)
 		save->flags = 0;
 	}
 
-	save->scanlineFrame = FPS_DOUBLE(0xf);
+	save->scanlineFrame = 0xf;
 
 LAB_800af72c:
 

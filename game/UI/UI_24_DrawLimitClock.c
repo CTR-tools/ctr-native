@@ -58,7 +58,7 @@ void DECOMP_UI_DrawLimitClock(short posX, short posY, short fontType)
 	    (timeRemaining < 0x3840) &&
 
 	    // if number of frames is an even number
-	    ((gGT->timer & FPS_DOUBLE(1)) == 0))
+	    ((gGT->timer & 1) == 0))
 	{
 		// set color to white
 		flags = WHITE;

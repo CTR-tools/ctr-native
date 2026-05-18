@@ -183,7 +183,6 @@ void DECOMP_VehFrameProc_Driving(struct Thread *t, struct Driver *d)
 			// set AnimType based on charID
 			d->matrixArray = animType;
 
-			// set animation frame (needs FPS_HALF)
 			d->matrixIndex = *(char *)&inst->animFrame;
 
 			return;

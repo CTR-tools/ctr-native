@@ -31,7 +31,7 @@ void DECOMP_MM_CupSelect_MenuProc(struct RectMenu *menu)
 		// if transitioning in
 		if (D230.cupSel_transitionState == 0)
 		{
-			DECOMP_MM_TransitionInOut(&D230.transitionMeta_cupSel[0], elapsedFrames, FPS_DOUBLE(8));
+			DECOMP_MM_TransitionInOut(&D230.transitionMeta_cupSel[0], elapsedFrames, 8);
 
 			// if no more frames
 			if (elapsedFrames == 0)
@@ -50,13 +50,13 @@ void DECOMP_MM_CupSelect_MenuProc(struct RectMenu *menu)
 		// if transitioning out
 		else if (D230.cupSel_transitionState == 2)
 		{
-			DECOMP_MM_TransitionInOut(&D230.transitionMeta_cupSel[0], elapsedFrames, FPS_DOUBLE(8));
+			DECOMP_MM_TransitionInOut(&D230.transitionMeta_cupSel[0], elapsedFrames, 8);
 
 			// increase frame count
 			elapsedFrames++;
 
 			// if more than 12 frames pass
-			if (FPS_DOUBLE(12) < elapsedFrames)
+			if (12 < elapsedFrames)
 			{
 				// if cup selected
 				if (D230.cupSel_postTransition_boolStart != 0)
@@ -115,7 +115,7 @@ void DECOMP_MM_CupSelect_MenuProc(struct RectMenu *menu)
 		if (cupIndex == menu->rowSelected)
 		{
 			// Make text flash
-			if ((sdata->frameCounter & FPS_DOUBLE(2)) != 0)
+			if ((sdata->frameCounter & 2) != 0)
 				txtColor |= 4;
 		}
 

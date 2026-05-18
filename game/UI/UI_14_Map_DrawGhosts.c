@@ -22,7 +22,7 @@ void DECOMP_UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 			// flash red and blue
 
 			color = CORTEX_RED;
-			if ((gGT->timer & FPS_DOUBLE(1)) != 0)
+			if ((gGT->timer & 1) != 0)
 				color = CRASH_BLUE;
 		}
 
@@ -38,7 +38,7 @@ void DECOMP_UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 				// oxide flickers
 
 				color = RED;
-				if ((gGT->timer & FPS_DOUBLE(1)) != 0)
+				if ((gGT->timer & 1) != 0)
 					color = WHITE;
 			}
 		}

@@ -33,7 +33,7 @@ void DECOMP_VehPhysProc_SlamWall_Animate(struct Thread *t, struct Driver *d)
 	inst->animIndex = 0;
 
 	// start halfway into steer animation
-	inst->animFrame = FPS_DOUBLE(10);
+	inst->animFrame = 10;
 #if 0 // 10 =
 		VehFrameInst_GetStartFrame(
 

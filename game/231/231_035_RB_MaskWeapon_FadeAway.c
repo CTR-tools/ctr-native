@@ -25,7 +25,7 @@ void DECOMP_RB_MaskWeapon_FadeAway(struct Thread *t)
 	mhs->posOffset[2] = ((durationAdjusted * DECOMP_MATH_Cos(mask->rot[1])) >> 0xc);
 	mhs->posOffset[1] = 0x40;
 
-	mask->rot[1] += FPS_HALF(-0x100);
+	mask->rot[1] += -0x100;
 
 	struct Instance *instCurr;
 	instCurr = inst;
@@ -36,9 +36,9 @@ void DECOMP_RB_MaskWeapon_FadeAway(struct Thread *t)
 	{
 		LHMatrix_Parent(instCurr, driverInst, (SVECTOR *)&mhs->posOffset[0]);
 
-		instCurr->scale[0] += FPS_HALF(-0x100);
-		instCurr->scale[1] += FPS_HALF(-0x100);
-		instCurr->scale[2] += FPS_HALF(-0x100);
+		instCurr->scale[0] += -0x100;
+		instCurr->scale[1] += -0x100;
+		instCurr->scale[2] += -0x100;
 
 		// position offset
 		mhs->posOffset[0] = 0;
@@ -56,7 +56,7 @@ void DECOMP_RB_MaskWeapon_FadeAway(struct Thread *t)
 	MatrixRotate(m, m, &mhs->m);
 
 	if (maskBeamInst->alphaScale < 0x1000)
-		maskBeamInst->alphaScale += FPS_HALF(0x200);
+		maskBeamInst->alphaScale += 0x200;
 
 	totalTime = mask->duration;
 

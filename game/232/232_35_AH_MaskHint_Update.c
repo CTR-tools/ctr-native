@@ -65,7 +65,7 @@ void DECOMP_AH_MaskHint_Update()
 #endif
 		}
 
-		D232.maskWarppadDelayFrames = FPS_DOUBLE(60);
+		D232.maskWarppadDelayFrames = 60;
 
 		sdata->AkuAkuHintState++;
 	}
@@ -73,7 +73,7 @@ void DECOMP_AH_MaskHint_Update()
 
 	case 2:
 
-		if (((D232.maskWarppadBoolInterrupt & 1) == 0) && ((gGT->cameraDC[0].flags & 0x800) == 0) && (D232.maskSpawnFrame != FPS_DOUBLE(20)))
+		if (((D232.maskWarppadBoolInterrupt & 1) == 0) && ((gGT->cameraDC[0].flags & 0x800) == 0) && (D232.maskSpawnFrame != 20))
 		{
 			return;
 		}
@@ -117,18 +117,18 @@ void DECOMP_AH_MaskHint_Update()
 			DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0xff8080);
 
 		// if 3-second spawn, play more sounds
-		if (D232.maskSpawnFrame == FPS_DOUBLE(0x5a))
+		if (D232.maskSpawnFrame == 0x5a)
 		{
-			if (D232.maskFrameCurr == FPS_DOUBLE(10))
+			if (D232.maskFrameCurr == 10)
 				DECOMP_OtherFX_Play_LowLevel(0x100, 0, 0xd78a80);
 
-			else if (D232.maskFrameCurr == FPS_DOUBLE(20))
+			else if (D232.maskFrameCurr == 20)
 				DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0xaf9480);
 
-			else if (D232.maskFrameCurr == FPS_DOUBLE(25))
+			else if (D232.maskFrameCurr == 25)
 				DECOMP_OtherFX_Play_LowLevel(0x100, 0, 0x879e80);
 
-			else if (D232.maskFrameCurr == FPS_DOUBLE(30))
+			else if (D232.maskFrameCurr == 30)
 				DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0x5fa880);
 		}
 
@@ -274,7 +274,7 @@ void DECOMP_AH_MaskHint_Update()
 
 			D232.maskWarppadDelayFrames = 0;
 			if ((D232.maskWarppadBoolInterrupt & 1) != 0)
-				D232.maskWarppadDelayFrames = FPS_DOUBLE(30);
+				D232.maskWarppadDelayFrames = 30;
 
 			sdata->AkuAkuHintState++;
 		}
