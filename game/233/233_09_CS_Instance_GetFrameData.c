@@ -7,13 +7,14 @@
 		r2 = MFC2(27);      \
 	}
 
-u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_int animFrame, u_short *pos, u_short *param_5, int offset)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac320-0x800ac5a4
+void DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_int animFrame, u_short *pos, u_short *param_5, int offset)
 {
 	int isOdd;
 	int numFrames;
 	struct ModelAnim *ptrAnim;
 	short *framePos;
-	char *bonePtr;
+	u_char *bonePtr;
 	u_int boneValX, boneValY, boneValZ;
 	u_int boneDX, boneDY, boneDZ;
 	struct ModelHeader *headers;
@@ -26,7 +27,7 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 	if ((int)animFrame < 0)
 		animFrame = 0;
 
-	numFrames = ptrAnim->numFrames;
+	numFrames = (short)ptrAnim->numFrames;
 	isOdd = 0;
 
 	if (numFrames < 0)
@@ -36,17 +37,17 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 		animFrame = animFrame >> 1;
 	}
 
-	if ((numFrames - 1U) <= animFrame)
+	if ((int)animFrame >= (numFrames - 1))
 	{
 		isOdd = 0;
-		animFrame = numFrames - 1U;
+		animFrame = numFrames - 1;
 	}
 
-	framePos = (short *)((char *)ptrAnim + ptrAnim->frameSize * animFrame + sizeof(struct ModelAnim));
+	framePos = (short *)((char *)ptrAnim + ptrAnim->frameSize * (int)animFrame + sizeof(struct ModelAnim));
 
 	{
 		int boneOff = offset * 3 + 0x1c;
-		bonePtr = (char *)framePos + boneOff;
+		bonePtr = (u_char *)framePos + boneOff;
 	}
 
 	boneValX = (u_int)bonePtr[0];
@@ -61,7 +62,7 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 		framePos = (short *)((char *)framePos + ptrAnim->frameSize);
 		{
 			int boneOff = offset * 3 + 0x1c;
-			bonePtr = (char *)framePos + boneOff;
+			bonePtr = (u_char *)framePos + boneOff;
 		}
 
 		boneValX = (int)(boneValX + bonePtr[0]) >> 1;
@@ -72,22 +73,22 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 		boneDY = (int)(boneDY + bonePtr[4]) >> 1;
 	}
 
-	deltaDX = boneValX - boneDX;
+	deltaDX = (int)boneValX - (int)boneDX;
 
 	{
 		short instScale = inst->scale[0];
 
-		scaleX = ((int)((boneValX + (int)framePos[0]) * instScale) >> 0xc) * (int)headers->scale[0] >> 0xc;
-		scaleY = ((int)((boneValY + (int)framePos[1]) * instScale) >> 0xc) * (int)headers->scale[1] >> 0xc;
-		scaleZ = ((int)((boneValZ + (int)framePos[2]) * instScale) >> 0xc) * (int)headers->scale[2] >> 0xc;
+		scaleX = ((((int)boneValX + (int)framePos[0]) * instScale) >> 0xc) * (int)headers->scale[0] >> 0xc;
+		scaleY = ((((int)boneValY + (int)framePos[1]) * instScale) >> 0xc) * (int)headers->scale[1] >> 0xc;
+		scaleZ = ((((int)boneValZ + (int)framePos[2]) * instScale) >> 0xc) * (int)headers->scale[2] >> 0xc;
 	}
 
-	deltaDY = boneValY - boneDZ;
-	deltaDZ = boneValZ - boneDY;
+	deltaDY = (int)boneValY - (int)boneDZ;
+	deltaDZ = (int)boneValZ - (int)boneDY;
 
 	gte_SetLightMatrix(&inst->matrix);
 
-	MTC2((scaleX & 0xffff) | (scaleY << 0x10), 0);
+	MTC2((scaleX & 0xffff) | ((u_int)scaleY << 0x10), 0);
 	MTC2(scaleZ, 1);
 	gte_llv0();
 
@@ -102,7 +103,7 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 
 	if (param_5 != NULL)
 	{
-		MTC2((deltaDX & 0xffff) | (deltaDY << 0x10), 0);
+		MTC2((deltaDX & 0xffff) | ((u_int)deltaDY << 0x10), 0);
 		MTC2(deltaDZ, 1);
 		gte_llv0();
 
@@ -118,6 +119,4 @@ u_int DECOMP_CS_Instance_GetFrameData(struct Instance *inst, int animIndex, u_in
 			param_5[2] = 0;
 		}
 	}
-
-	return 0;
 }

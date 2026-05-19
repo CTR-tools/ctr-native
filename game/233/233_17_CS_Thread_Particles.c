@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800abdd4-0x800abf70
 void DECOMP_CS_Thread_Particles(struct Thread *t)
 {
 	struct CutsceneObj *cs = t->object;
@@ -17,7 +18,7 @@ void DECOMP_CS_Thread_Particles(struct Thread *t)
 	if ((unsigned char)particleID >= 9)
 		return;
 
-	entry = (struct unknown233 *)&OVR_233.pointerToWhateverThisMeans[(int)particleID];
+	entry = &OVR_233.pointerToWhateverThisMeans[(int)particleID];
 
 	while (1)
 	{

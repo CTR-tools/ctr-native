@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b06ac-0x800b087c
 void DECOMP_CS_Thread_LInB(struct Instance *inst)
 {
 	struct Thread *t;
@@ -7,7 +8,7 @@ void DECOMP_CS_Thread_LInB(struct Instance *inst)
 	short modelID;
 	char *scriptPtr;
 
-	OVR_233.VertSplitLine = 0;
+	OVR_233.isCutsceneOver = 0;
 
 	if (inst->thread != 0)
 		goto check_polar;

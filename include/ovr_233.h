@@ -301,10 +301,10 @@ extern struct
 
 
 	// 800b146c
-	struct unknown233 *pointerToWhateverThisMeans[10];
+	struct unknown233 pointerToWhateverThisMeans[10];
 
 
-	char fill3_beforeTawnaScripts[0x320];
+	char fill3_beforeTawnaScripts[0x2d0];
 
 	// 800b17b4
 	char script_tawnaNormal[0x28];
