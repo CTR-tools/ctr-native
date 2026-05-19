@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b88c8-0x800b8bd0
 void CS_Credits_DrawNames(struct CreditsObj *co)
 {
 	if (co->credits_topString == 0)
@@ -15,10 +16,10 @@ void CS_Credits_DrawNames(struct CreditsObj *co)
 
 	int posY = co->credits_posY;
 	char *str = co->credits_topString;
+	int charId = 0;
 
 	while (posY < 0x114)
 	{
-		int charId = 0;
 		unsigned short textFlags = 0;
 
 		if (*str == '~')

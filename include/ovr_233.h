@@ -488,12 +488,18 @@ extern struct OVR233_Garage gGarage;
 struct CreditsLevHeader
 {
 	int size;
-	int numStrings;
+	short numStrings;
+	short unused_06;
 
 	// char* ptrStrings[0];
 };
 
 #define CREDITSHEADER_GETSTRINGS(x) ((unsigned int)x + sizeof(struct CreditsLevHeader))
+
+#ifndef REBUILD_PC
+_Static_assert(OFFSETOF(struct CreditsLevHeader, numStrings) == 0x4);
+_Static_assert(sizeof(struct CreditsLevHeader) == 0x8);
+#endif
 
 struct CreditsObj
 {

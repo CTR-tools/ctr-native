@@ -1,5 +1,19 @@
 #include <common.h>
 
+// NOTE(aalhendi): Native copies of retail credits rdata names at
+// 0x800b8644-0x800b8678.
+static char cs_creditsRData[] = "credits\0creditghost\0credit strings";
+static char *const cs_creditsThreadName = &cs_creditsRData[0];
+static char *const cs_creditGhostName = &cs_creditsRData[8];
+
+// NOTE(aalhendi): Retail stores the no-op return stub at 0x800b8f84 as the
+// credits thread destroy callback.
+static void CS_Credits_ThDestroy_NoOp(struct Thread *self)
+{
+	(void)self;
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b8f8c-0x800b92a0
 void DECOMP_CS_Credits_Init(void)
 {
 	int i;
@@ -12,6 +26,7 @@ void DECOMP_CS_Credits_Init(void)
 	struct CreditsObj *creditsObj;
 	struct CreditsLevHeader *CLH;
 	struct CreditsLevHeader *creditsDst;
+	struct Thread *creditThread;
 
 	gGT = sdata->gGT;
 	advProg = &sdata->advProgress;
@@ -53,7 +68,9 @@ void DECOMP_CS_Credits_Init(void)
 	// 0 = no relation to param4
 	// 0x300 = SmallStackPool
 	// 0xd = "other" thread bucket
-	creditsBSS.CreditThread = DECOMP_PROC_BirthWithObject(0x30d, CS_Credits_ThTick, NULL, NULL);
+	creditThread = DECOMP_PROC_BirthWithObject(0x30d, CS_Credits_ThTick, cs_creditsThreadName, NULL);
+	creditThread->funcThDestroy = CS_Credits_ThDestroy_NoOp;
+	creditsBSS.CreditThread = creditThread;
 
 	memset(creditsObj, 0, sizeof(struct CreditsObj));
 	creditsObj->countdown = 360;
@@ -61,21 +78,20 @@ void DECOMP_CS_Credits_Init(void)
 	// === 5 instances ===
 	for (i = 0; i < 5; i++)
 	{
-#if 0
-		// OG game passes CreditsThread as parameter,
-		// but that's pointless, so it is removed
-#endif
-
 		// STATIC_AKUAKU for some reason?
-		inst = DECOMP_INSTANCE_Birth3D(gGT->modelPtr[STATIC_AKUAKU], 0, 0);
+		inst = DECOMP_INSTANCE_Birth3D(gGT->modelPtr[STATIC_AKUAKU], cs_creditGhostName, creditThread);
 
 		// save instance
 		creditsObj->creditGhostInst[4 - i] = inst;
 
-		*(int *)(((unsigned int)&inst->matrix) + 0x0) = 0x1000;
-		*(int *)(((unsigned int)&inst->matrix) + 0x4) = 0;
-		*(int *)(((unsigned int)&inst->matrix) + 0x8) = 0x1000;
-		*(int *)(((unsigned int)&inst->matrix) + 0xC) = 0;
+		inst->matrix.m[0][0] = 0x1000;
+		inst->matrix.m[0][1] = 0;
+		inst->matrix.m[0][2] = 0;
+		inst->matrix.m[1][0] = 0;
+		inst->matrix.m[1][1] = 0x1000;
+		inst->matrix.m[1][2] = 0;
+		inst->matrix.m[2][0] = 0;
+		inst->matrix.m[2][1] = 0;
 		inst->matrix.m[2][2] = 0x1000;
 
 		inst->flags |= 0x400;
@@ -83,10 +99,13 @@ void DECOMP_CS_Credits_Init(void)
 		struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
 		idpp[0].pushBuffer = &gGT->pushBuffer_UI;
 
-#if 0
-		// OG game erases other idpp's, but just ignore it
-#endif
+		for (int j = 1; j < gGT->numPlyrCurrGame; j++)
+		{
+			idpp[j].pushBuffer = NULL;
+		}
 	}
+
+	creditsBSS.dancerInst_invisible = NULL;
 
 	creditsDst = DECOMP_MEMPACK_AllocHighMem(CLH->size /* "credits strings" */);
 
