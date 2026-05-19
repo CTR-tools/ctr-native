@@ -13,6 +13,11 @@ void DECOMP_LOAD_AppendQueue_ex(/*int bigfile,*/ int flags, int fileIndex, void 
 	if (sdata->queueLength >= 8)
 		return;
 
+	// NOTE(aalhendi): Native loading uses bit flags, but retail overlay code
+	// can still pass legacy type `3` for VRAM queue entries.
+	if (flags == LT_VRAM)
+		flags = LT_SETVRAM;
+
 	lqs = &sdata->queueSlots[sdata->queueLength];
 	lqs->flags = flags;
 	lqs->subfileIndex = fileIndex;

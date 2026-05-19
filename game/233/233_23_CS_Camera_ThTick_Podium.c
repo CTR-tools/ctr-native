@@ -1,20 +1,13 @@
 #include <common.h>
 
-static void CS_Camera_Podium_RIP_Init(struct Thread *t, struct Driver *d)
-{
-	DECOMP_VehPhysProc_FreezeEndEvent_Init(t, d);
-	d->invisibleTimer = 0;
-	d->funcPtrs[1] = NULL;
-	d->funcPtrs[11] = NULL;
-}
-
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800aedf8-0x800af328
 void CS_Camera_ThTick_Podium(struct Thread *th)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	u_short *podium = th->object;
 
 	if (podium[0] == 0)
-		gGT->drivers[0]->funcPtrs[0] = CS_Camera_Podium_RIP_Init;
+		gGT->drivers[0]->funcPtrs[0] = DECOMP_VehStuckProc_RIP_Init;
 
 	if (gGT->cameraDC[0].cameraMode != 3)
 	{
@@ -173,7 +166,6 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 		gGT->gameMode2 &= ~VEH_FREEZE_PODIUM;
 
 		DECOMP_MainRaceTrack_RequestLoad((sdata->advProgress.rewards[2] & 0x100000) ? OXIDE_TRUE_ENDING : OXIDE_ENDING);
-		th->flags |= 0x800;
 		return;
 	}
 

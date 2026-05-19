@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800afe90-0x800b021c
 void CS_Podium_Prize_Init(u_int prizeModel, char *prizeName, short *posOnScreen)
 {
 	struct GameTracker *gGT = sdata->gGT;

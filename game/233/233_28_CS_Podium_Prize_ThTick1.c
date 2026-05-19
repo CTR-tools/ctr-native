@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800afcc4-0x800afe58
 void CS_Podium_Prize_ThTick1(struct Thread *th)
 {
 	struct Instance *inst = th->inst;

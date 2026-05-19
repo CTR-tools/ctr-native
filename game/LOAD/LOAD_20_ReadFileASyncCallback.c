@@ -29,8 +29,14 @@ void DECOMP_LOAD_ReadFileASyncCallback(CdlIntrResult result, uint8_t *unk)
 		if (sdata->queueLength == 0)
 			sdata->load_inProgress = 0;
 
-		if (lqs->callbackFuncPtr != 0)
+		if ((lqs->flags & LT_GETADDR) != 0)
+		{
+			DECOMP_LOAD_DramFileCallback(lqs);
+		}
+		else if (lqs->callbackFuncPtr != 0)
+		{
 			lqs->callbackFuncPtr(lqs);
+		}
 	}
 
 	// CdlDiskError

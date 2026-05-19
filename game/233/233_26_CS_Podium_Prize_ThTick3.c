@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800af994-0x800afbc8
 void CS_Podium_Prize_ThTick3(struct Thread *th)
 {
 	struct GameTracker *gGT;
@@ -18,9 +19,6 @@ void CS_Podium_Prize_ThTick3(struct Thread *th)
 		int x;
 		int y;
 		short scale;
-
-		if (frameMax == 0)
-			return;
 
 		x = (prize[8] + xInterp / frameMax - 0x100) * -inst->matrix.t[2];
 		if (x < 0)

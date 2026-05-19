@@ -497,6 +497,7 @@
 #include "game/Vehicle/VehPickupItem_4_ShootNow.c"
 #include "game/Vehicle/VehPickupItem_5_ShootOnCirclePress.c"
 
+#include "game/Vehicle/VehStuckProc_10_RIP_Init.c"
 #include "game/Vehicle/VehStuckProc_11_RevEngine_Update.c"
 #include "game/Vehicle/VehStuckProc_12_RevEngine_PhysLinear.c"
 #include "game/Vehicle/VehStuckProc_13_RevEngine_Animate.c"

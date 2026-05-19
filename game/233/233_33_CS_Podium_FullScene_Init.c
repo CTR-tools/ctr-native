@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b0300-0x800b06ac
 void DECOMP_CS_Podium_FullScene_Init(void)
 {
 	struct Instance *driverInstSelf;
@@ -127,7 +128,7 @@ void DECOMP_CS_Podium_FullScene_Init(void)
 	// 0 = no relation to param4
 	// 0x300 flag = SmallStackPool
 	// 0xf = camera thread bucket
-	victoryCamThread = (struct Thread *)DECOMP_PROC_BirthWithObject(0x4030f, (void *)CS_Camera_ThTick_Podium, NULL, NULL);
+	victoryCamThread = (struct Thread *)DECOMP_PROC_BirthWithObject(0x4030f, (void *)CS_Camera_ThTick_Podium, OVR_233.s_victorycam, NULL);
 
 	// if it allocated correctly
 	if (victoryCamThread != 0)

@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ae9a8-0x800aed48
 void CS_Camera_ThTick_Boss(struct Thread *t)
 {
 	char i;
@@ -71,17 +72,25 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 	// start fade-to-normal
 	case 3:
 
-		// NULLPTR checks if load started
-		// IS_PATCHED checks if load finished
+		// NULLPTR checks if load finished,
+		// because CS_LoadBossCallback writes this last
 		if (OVR_233.ptrModelBossHead == 0)
-			break;
-		if (!DRAM_IS_PATCHED(OVR_233.ptrModelBossHead))
 			break;
 
 		struct Model **mArr = &OVR_233.ptrModelBossHead;
 
-		gGT->modelPtr[mArr[0]->id] = mArr[0];
-		gGT->modelPtr[mArr[1]->id] = mArr[1];
+		for (i = 0; i < 2; i++)
+		{
+			if (mArr[i] != NULL)
+			{
+				if (i != 0)
+					mArr[i] = (struct Model *)((char *)mArr[i] + 4);
+
+				gGT->modelPtr[mArr[i]->id] = mArr[i];
+			}
+		}
+
+		DECOMP_MEMPACK_SwapPacks(gGT->activeMempackIndex);
 
 		struct CsThreadInitData initData;
 		initData.podiumPos[0] = bcd->bossPos[0];
@@ -100,7 +109,12 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		t = 0;
 		for (i = 1; i >= 0; i--)
 		{
+			if (mArr[i] == NULL)
+				continue;
+
 			t = DECOMP_CS_Thread_Init(mArr[i]->id, mArr[i], &initData, 0, t);
+			if (t == NULL)
+				continue;
 
 			inst = t->inst;
 			cs = t->object;

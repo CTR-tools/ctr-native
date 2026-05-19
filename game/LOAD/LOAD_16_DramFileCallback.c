@@ -3,6 +3,7 @@
 void DECOMP_LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 {
 	char *fileBuf = lqs->ptrDestination;
+	void (*callback)(struct LoadQueueSlot *) = lqs->callbackFuncPtr;
 
 // Completely impossible
 #if 0
@@ -26,5 +27,13 @@ void DECOMP_LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 		// undo allocation, allocate "needed" size,
 		// ptrMapOffset+4 equals the filesize
 		DECOMP_MEMPACK_ReallocMem(ptrMapOffset + 4);
+	}
+
+	lqs->ptrDestination = &fileBuf[4];
+
+	if ((callback != NULL) && (callback != DECOMP_LOAD_DramFileCallback) && (callback != (void (*)(struct LoadQueueSlot *))-1) &&
+	    (callback != (void (*)(struct LoadQueueSlot *))-2))
+	{
+		callback(lqs);
 	}
 }

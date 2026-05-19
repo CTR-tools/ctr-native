@@ -477,6 +477,7 @@ void DECOMP_VehPhysProc_Driving_Init(struct Thread *t, struct Driver *d);
 
 void DECOMP_VehPhysProc_FreezeEndEvent_PhysLinear(struct Thread *t, struct Driver *d);
 void DECOMP_VehPhysProc_FreezeEndEvent_Init(struct Thread *t, struct Driver *d);
+void DECOMP_VehStuckProc_RIP_Init(struct Thread *t, struct Driver *d);
 
 void DECOMP_VehPhysProc_FreezeVShift_Update(struct Thread *t, struct Driver *d);
 void DECOMP_VehPhysProc_FreezeVShift_ReverseOneFrame(struct Thread *t, struct Driver *d);
