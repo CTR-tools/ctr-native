@@ -38,6 +38,7 @@ static u_int CS_ScriptCmd_ReadOpcode_GetInt_dup(char **Opcodes)
 	return (unsigned char)bytes[3] << 24 | (unsigned char)bytes[2] << 16 | (unsigned char)bytes[1] << 8 | (unsigned char)bytes[0];
 }
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac014-0x800ac1c0
 static void CS_ScriptCmd_ReadOpcode_Main(struct CutsceneObj *cs)
 {
 	char *opcodes;
