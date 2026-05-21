@@ -1,6 +1,6 @@
 #include <common.h>
 
-void DECOMP_COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *sps)
+void COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *sps)
 {
 	int arraySize;
 	struct BSP *bspArray = node->data.leaf.bspHitboxArray;

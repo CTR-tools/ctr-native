@@ -1,6 +1,6 @@
 #include <common.h>
 
-void DECOMP_COLL_FIXED_BotsSearch(s16 *posCurr, s16 *posPrev, struct ScratchpadStruct *sps)
+void COLL_FIXED_BotsSearch(s16 *posCurr, s16 *posPrev, struct ScratchpadStruct *sps)
 {
 	char i;
 	s16 radius = sps->Input1.hitRadius;
@@ -34,5 +34,5 @@ void DECOMP_COLL_FIXED_BotsSearch(s16 *posCurr, s16 *posPrev, struct ScratchpadS
 	sps->numInstHitboxesHit = 0;
 	*(u32 *)&sps->dataOutput[0] = 0;
 
-	DECOMP_COLL_SearchBSP_CallbackPARAM(sps->ptr_mesh_info->bspRoot, &sps->bbox, DECOMP_COLL_FIXED_BSPLEAF_TestInstance, sps);
+	DECOMP_COLL_SearchBSP_CallbackPARAM(sps->ptr_mesh_info->bspRoot, &sps->bbox, COLL_FIXED_BSPLEAF_TestInstance, sps);
 }

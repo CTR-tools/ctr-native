@@ -892,9 +892,11 @@ void DECOMP_GAMEPAD_JogCon2(struct Driver *d, char val, s16 timeMS);
 void DECOMP_CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d);
 u32 DECOMP_BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason);
 void DECOMP_BOTS_Killplane(struct Thread *botThread);
-void DECOMP_COLL_FIXED_BotsSearch(s16 *posCurr, s16 *posPrev, struct ScratchpadStruct *sps);
 void DECOMP_COLL_SearchBSP_CallbackPARAM(struct BSP *root, struct BoundingBox *bbox, void (*callback)(struct BSP *, struct ScratchpadStruct *),
                                          struct ScratchpadStruct *param);
+u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node);
+void COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *sps);
+void COLL_FIXED_BotsSearch(s16 *posCurr, s16 *posPrev, struct ScratchpadStruct *sps);
 void COLL_FIXED_TRIANGL_Barycentrics(s16 *out, s16 *v1, s16 *v2, s16 *point);
 void COLL_FIXED_TRIANGL_UNUSED(void);
 void COLL_FIXED_TRIANGL_TestPoint(void *sps, void *v1, void *v2, void *v3);
