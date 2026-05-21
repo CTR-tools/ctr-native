@@ -1,17 +1,10 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80019e7c-0x80019f58
 void DECOMP_CAM_LookAtPosition(int scratchpad, int *positions, s16 *desiredPos, s16 *desiredRot)
 {
-	// One IF results in less instructions than,
-	// this: data.Spin360_heightOffset_driverPos[sdata->gGT->numPlyrCurrGame]);
-	// the instruction save is required to fit the byte budget
-
-	int yOffset = 0x40;
-	if (sdata->gGT->numPlyrCurrGame != 2)
-		yOffset = 0x60;
-
 	int dirX = desiredPos[0] - (positions[0] >> 8);
-	int dirY = desiredPos[1] - ((positions[1] >> 8) + yOffset);
+	int dirY = desiredPos[1] - ((positions[1] >> 8) + data.Spin360_heightOffset_driverPos[sdata->gGT->numPlyrCurrGame]);
 	int dirZ = desiredPos[2] - (positions[2] >> 8);
 
 	// Store dirX, dirY, dirZ in scratchpad
@@ -19,7 +12,7 @@ void DECOMP_CAM_LookAtPosition(int scratchpad, int *positions, s16 *desiredPos, 
 	*(int *)(scratchpad + 0x250) = dirY;
 	*(int *)(scratchpad + 0x254) = dirZ;
 
-	int distance = SquareRoot0_stub(dirX * dirX + dirZ * dirZ);
+	int distance = SquareRoot0_stub(CAM_MulLo(dirX, dirX) + CAM_MulLo(dirZ, dirZ));
 
 	// rotations
 	desiredRot[0] = 0x800 - (s16)ratan2(dirY, distance);
