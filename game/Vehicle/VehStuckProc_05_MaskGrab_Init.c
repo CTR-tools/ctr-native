@@ -106,9 +106,14 @@ void *PlayerMaskGrabFuncTable[13] = {NULL,
                                      VehPhysGeneral_JumpAndFriction,
                                      VehPhysForce_TranslateMatrix,
 #else
-                                     // TODO(aalhendi): Port moved collision, driver collision,
-                                     // jump/friction, and matrix translation stages.
-                                     NULL, NULL, COLL_FIXED_PlayerSearch, NULL, NULL,
+// TODO(aalhendi): Port driver collision,
+// jump/friction, and matrix translation stages.
+#ifdef CTR_NATIVE
+                                     COLL_MOVED_PlayerSearch,
+#else
+                                     NULL,
+#endif
+                                     NULL, COLL_FIXED_PlayerSearch, NULL, NULL,
 #endif
                                      DECOMP_VehStuckProc_MaskGrab_Animate,
 #ifndef REBUILD_PS1

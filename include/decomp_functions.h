@@ -924,6 +924,8 @@ void COLL_MOVED_TRIANGL_TestPoint(struct ScratchpadStruct *sps, struct BspSearch
 void COLL_MOVED_QUADBLK_TestTriangles(struct QuadBlock *quad, struct ScratchpadStruct *sps);
 void COLL_MOVED_BSPLEAF_TestQuadblocks(struct BSP *node, struct ScratchpadStruct *sps);
 void COLL_MOVED_FindScrub(struct QuadBlock *qb, int triangleID, struct ScratchpadStruct *sps);
+void COLL_MOVED_PlayerSearch(struct Thread *t, struct Driver *d);
 u32 COLL_MOVED_ScrubImpact(struct Driver *d, struct Thread *t, struct ScratchpadStruct *sps, struct Scrub *scrub, int *velocity);
+struct Scrub *VehAfterColl_GetSurface(u32 scrubId);
 void DECOMP_BOTS_LevInstColl(struct Thread *param_1);
 void DECOMP_CS_LoadBoss(struct BossCutsceneData *bcd);

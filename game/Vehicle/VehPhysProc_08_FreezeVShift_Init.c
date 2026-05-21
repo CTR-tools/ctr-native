@@ -37,8 +37,18 @@ void *PlayerAntiVShiftFuncTable[13] = {NULL,
                                        VehFrameProc_Driving,
                                        VehEmitter_DriverMain
 #else
-                                       // TODO(aalhendi): Port moved collision, driver collision,
-                                       // freeze-vshift one-frame, matrix translation, frame, and emitter stages.
-                                       NULL, NULL, COLL_FIXED_PlayerSearch, NULL, NULL, NULL, NULL
+// TODO(aalhendi): Port driver collision,
+// freeze-vshift one-frame, matrix translation, frame, and emitter stages.
+#ifdef CTR_NATIVE
+                                       COLL_MOVED_PlayerSearch,
+#else
+                                       NULL,
+#endif
+                                       NULL,
+                                       COLL_FIXED_PlayerSearch,
+                                       NULL,
+                                       NULL,
+                                       NULL,
+                                       NULL
 #endif
 };

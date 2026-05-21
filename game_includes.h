@@ -113,6 +113,7 @@
 #include "game/COLL/COLL_18_MOVED_QUADBLK_TestTriangles.c"
 #include "game/COLL/COLL_19_MOVED_BSPLEAF_TestQuadblocks.c"
 #include "game/COLL/COLL_20_MOVED_FindScrub.c"
+#include "game/COLL/COLL_21_MOVED_PlayerSearch.c"
 #include "game/COLL/COLL_22_MOVED_ScrubImpact.c"
 
 #include "game/CTR/CTR_00_Box_DrawWirePrims.c"
