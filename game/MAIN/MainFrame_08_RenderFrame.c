@@ -178,6 +178,11 @@ void DECOMP_MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem 
 
 #ifdef CTR_NATIVE
 				DrawSky_Full(gGT->level1->ptr_skybox, &gGT->pushBuffer[i], &gGT->backBuffer->primMem);
+
+				if (((gGT->level1->configFlags & 1) != 0) || (gGT->numPlyrCurrGame > 1))
+				{
+					CAM_SkyboxGlow((s16 *)&gGT->level1->glowGradient[0], &gGT->pushBuffer[i], &gGT->backBuffer->primMem, &gGT->pushBuffer[i].ptrOT[0x3ff]);
+				}
 #else
 				// placeholder for DrawSky_Full
 				TEST_DrawSkybox(gGT->level1->ptr_skybox, &gGT->pushBuffer[i], &gGT->backBuffer->primMem);

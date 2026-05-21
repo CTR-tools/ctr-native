@@ -30,6 +30,7 @@
 
 #include "game/MAIN/MAIN_AAA_BigBlock1.c"
 
+#include "game/CAMERA/CAM_00_SkyboxGlow.c"
 #include "game/CAMERA/CAM_01_ClearScreen.c"
 #include "game/CAMERA/CAM_02_Init.c"
 #include "game/CAMERA/CAM_04_Path_GetNumPoints.c"
