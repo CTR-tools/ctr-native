@@ -753,7 +753,7 @@ void PushBuffer_Init(struct PushBuffer *pb, int id, int total);
 void PushBuffer_SetDrawEnv_DecalMP(u_long *, struct DB *, s16, s16, s16, s16, s16, s16, s16, s16);
 void PushBuffer_SetDrawEnv_Normal(u_long *ot, struct PushBuffer *pb, struct DB *backBuffer, s16 *param_4, u8 param_5);
 void PushBuffer_SetMatrixVP(struct PushBuffer *pb);
-// PushBuffer_SetFrustumPlane()
+int PushBuffer_SetFrustumPlane(s16 *frustumData, struct FrustumCornerOUT *fc1, s16 *camPos, struct FrustumCornerOUT *fc2);
 void PushBuffer_UpdateFrustum(struct PushBuffer *pb);
 void PushBuffer_FadeOneWindow(struct PushBuffer *pb);
 void PushBuffer_FadeAllWindows();
@@ -1333,7 +1333,6 @@ void Particle_UpdateList(int *, int);
 void VehLap_UpdateProgress(struct Driver *);
 void MainGameEnd_Initialize();
 void SetDrawEnv(void *, DRAWENV *);
-int PushBuffer_SetFrustumPlane(char *, int, int, int);
 u32 VehCalc_FastSqrt(u32, u32);
 void VehBirth_NullThread(struct Thread *t);
 void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, u32 isHighlighted, s16 slotIndex, u16 menuFlag);

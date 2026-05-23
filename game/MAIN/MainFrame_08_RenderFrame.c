@@ -163,7 +163,7 @@ void DECOMP_MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem 
 		if (gCtrDebugSkipLevelGeometry == 0)
 #endif
 		{
-#ifndef REBUILD_PS1
+#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 
 			RenderAllLevelGeometry(gGT);
 
@@ -423,7 +423,8 @@ void RainLogic(struct GameTracker *gGT)
 
 	for (i = 0; i < numPlyrCurrGame; i++)
 	{
-#ifndef REBUILD_PS1
+#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
+		// NOTE(aalhendi): Native defines REBUILD_PS1 too, but 226 render lists need pb->bbox.
 		PushBuffer_UpdateFrustum(&gGT->pushBuffer[i]);
 #else
 		// temporary until PushBuffer_UpdateFrustum is done
@@ -879,7 +880,7 @@ void RenderAllHeatParticles(struct GameTracker *gGT)
 }
 #endif
 
-#ifndef REBUILD_PS1
+#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 void RenderAllLevelGeometry(struct GameTracker *gGT)
 {
 	int i;
@@ -1076,7 +1077,7 @@ SkyboxGlow:
 	return;
 }
 
-#endif // Rebuild_PS1
+#endif // !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 
 void MultiplayerWumpaHUD(struct GameTracker *gGT)
 {

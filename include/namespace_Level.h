@@ -294,6 +294,14 @@ struct BSP
 	// 0x20 bytes large
 };
 
+struct VisMemBspListNode
+{
+	struct VisMemBspListNode *next;
+	struct BSP *bsp;
+};
+
+_Static_assert(sizeof(struct VisMemBspListNode) == 8);
+
 struct LevVertex
 {
 	// 0x0
@@ -422,7 +430,7 @@ struct VisMem
 	// size = 8 * numBspNodes,
 	// this is the memory where RenderLists exist,
 	// allows every BSP to link to another BSP
-	void *bspList[4];
+	struct VisMemBspListNode *bspList[4];
 };
 
 struct mesh_info

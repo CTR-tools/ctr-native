@@ -6,6 +6,7 @@
 #include <common.h>
 
 #include "game/TEST_226.c"
+#include "game/226/226_00_DrawLevelOvr1P.c"
 #include "game/TEST_DrawSkybox.c"
 #include "game/TEST_DrawInstances.c"
 #include "game/TEST_ConvertRotToMatrix.c"
@@ -21,6 +22,8 @@
 
 #include "game/RenderBucket/RenderBucket_08_InitDepthGTE.c"
 #include "game/RenderBucket/RenderBucket_QueueExecute.c"
+#include "game/RenderLevel/AnimateWater.c"
+#include "game/RenderLevel/RenderLists.c"
 #include "game/RenderTires/DrawTires_Solid.c"
 #include "game/RenderTires/DrawTires_Reflection.c"
 #include "game/RenderStars/RenderStars.c"
@@ -167,6 +170,8 @@
 #include "game/CTR/CTR_04_CycleTex_LEV.c"
 #include "game/CTR/CTR_05_CycleTex_Model.c"
 #include "game/CTR/CTR_06_CycleTex_AllModels.c"
+#include "game/CTR/CTR_08_ClearRenderLists_1P2P.c"
+#include "game/CTR/CTR_09_ClearRenderLists_3P4P.c"
 #include "game/CTR/CTR_11_ErrorScreen.c"
 
 #include "game/DebugFont/DebugFont_0_Init.c"
@@ -478,6 +483,8 @@
 #include "game/PushBuffer/PushBuffer_01_SetPsyqGeom.c"
 #include "game/PushBuffer/PushBuffer_03_SetDrawEnv_Normal.c"
 #include "game/PushBuffer/PushBuffer_04_SetMatrixVP.c"
+#include "game/PushBuffer/PushBuffer_05_SetFrustumPlane.c"
+#include "game/PushBuffer/PushBuffer_06_UpdateFrustum.c"
 #include "game/PushBuffer/PushBuffer_07_FadeOneWindow.c"
 #include "game/PushBuffer/PushBuffer_08_FadeAllWindows.c"
 

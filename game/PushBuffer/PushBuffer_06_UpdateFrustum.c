@@ -1,6 +1,21 @@
 #include <common.h>
 
-void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
+// NOTE(aalhendi): Ghidra-assisted native port of retail 0x800430f0; required for honest 1P render lists.
+
+static void PushBuffer_UpdateFrustum_LoadV0(int xy, int z)
+{
+	MTC2((u32)xy, 0);
+	MTC2((u32)(s32)z, 1);
+}
+
+static void PushBuffer_UpdateFrustum_ReadMAC(s32 *x, s32 *y, s32 *z)
+{
+	*x = MFC2_S(25);
+	*y = MFC2_S(26);
+	*z = MFC2_S(27);
+}
+
+void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 {
 	int cameraPosX;
 	int cameraPosY;
@@ -9,8 +24,7 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	int val_X;
 	int val_Y;
 
-	// Let the compiler figure it out,
-	// the bitshifting annoys me
+	// Retail packs screen-space corner x/y into a single GTE VXY word.
 	union FrustumCornerIN frustumCorner[4];
 
 	int iVar19;
@@ -30,39 +44,24 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	int max_Y;
 	int max_Z;
 
-	struct ScratchpadFrustum *spf = 0x1f800000;
+	struct ScratchpadFrustum *spf = CTR_SCRATCHPAD_PTR(struct ScratchpadFrustum, 0);
 
 #if 0
   // TRAP checks removed
   // assume no divide by zero
 #endif
 
-#define gte_ldVXY0(r0) __asm__ volatile("mtc2   %0, $0" : : "r"(r0))
-#define gte_ldVZ0(r0)  __asm__ volatile("mtc2   %0, $1" : : "r"(r0))
-
-	// get the result
-#define read_mt(r0, r1, r2)            \
-	__asm__ volatile("mfc2   %0, $25;" \
-	                 "mfc2   %1, $26;" \
-	                 "mfc2   %2, $27;" \
-	                 :                 \
-	                 : "r"(r0), "r"(r1), "r"(r2))
-
 	DECOMP_PushBuffer_SetMatrixVP(pb);
-
-	gte_ldVZ0(pb->distanceToScreen_PREV);
 
 	cameraPosX = pb->pos[0];
 	cameraPosY = pb->pos[1];
 	cameraPosZ = pb->pos[2];
-
 
 	val_X = pb->rect.w;
 	val_X = val_X / 2;
 
 	val_Y = ((pb->rect.h * 0x600) / 0x360);
 	val_Y = val_Y / 2;
-
 
 	frustumCorner[0].x = val_X;
 	frustumCorner[0].y = val_Y;
@@ -75,7 +74,6 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 
 	frustumCorner[3].x = -val_X;
 	frustumCorner[3].y = -val_Y;
-
 
 	min_X = cameraPosX;
 	min_Y = cameraPosY;
@@ -92,12 +90,12 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 		// multiply corner of screen,
 		// by view-projection matrix,
 		// to get frustum plane world-pos
-		gte_ldVXY0(frustumCorner[i].self);
+		PushBuffer_UpdateFrustum_LoadV0(frustumCorner[i].self, pb->distanceToScreen_PREV);
 		gte_llv0();
 
 		// this is ViewProj matrix, loaded into GTE
 		// from end of PushBuffer_SetMatrixVP (called earlier)
-		read_mt(tx, ty, tz);
+		PushBuffer_UpdateFrustum_ReadMAC(&tx, &ty, &tz);
 
 		// far clip: pos + dir*100
 		posX = (s16)tx * 0x100 + cameraPosX;
@@ -256,14 +254,13 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	val_Y = PushBuffer_SetFrustumPlane(&pb->frustumData[0x18], &spf->fc[2], &spf->camPos[0], &spf->fc[0]);
 	pb->RenderListJmpIndex[3] = ~val_Y & 7;
 
-	gte_ldVXY0(0);
-	gte_ldVZ0(0x1000);
+	PushBuffer_UpdateFrustum_LoadV0(0, 0x1000);
 	gte_llv0();
 
 	int retX;
 	int retY;
 	int retZ;
-	read_mt(retX, retY, retZ);
+	PushBuffer_UpdateFrustum_ReadMAC(&retX, &retY, &retZ);
 
 	*(s16 *)&pb->frustumData[0x20] = -(s16)retX;
 	*(s16 *)&pb->frustumData[0x22] = -(s16)retY;
@@ -295,11 +292,10 @@ void DECOMP_PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 	pb->RenderListJmpIndex[4] = ~flags & 7;
 	pb->RenderListJmpIndex[5] = flags;
 
-	gte_ldVXY0(0);
-	gte_ldVZ0(distToScreen / 2);
+	PushBuffer_UpdateFrustum_LoadV0(0, distToScreen / 2);
 	gte_llv0();
 
-	read_mt(retX, retY, retZ);
+	PushBuffer_UpdateFrustum_ReadMAC(&retX, &retY, &retZ);
 
 	*(s16 *)&pb->data6[0] = (s16)retX + cameraPosX;
 	*(s16 *)&pb->data6[2] = (s16)retY + cameraPosY;

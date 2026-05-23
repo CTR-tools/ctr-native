@@ -212,13 +212,13 @@ struct GameTracker
 		// [4] - 0x20: Water
 		struct
 		{
-			void *ptrQuadBlocksRendered;
-			struct BSP **bspListStart;
+			struct QuadBlock **ptrQuadBlocksRendered;
+			struct VisMemBspListNode *bspListStart;
 		} list[5];
 
 		// 0x28
-		struct BSP **bspListStart_FullDynamic;
-		void *ptrQuadBlocksRendered_FullDynamic;
+		struct VisMemBspListNode *bspListStart_FullDynamic;
+		struct QuadBlock **ptrQuadBlocksRendered_FullDynamic;
 
 		// 0x30 large
 
