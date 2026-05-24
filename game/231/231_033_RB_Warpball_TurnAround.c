@@ -1,12 +1,12 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800aede0-0x800aef9c.
 void DECOMP_RB_Warpball_TurnAround(struct Thread *t)
 {
 	struct TrackerWeapon *tw;
 	struct Instance *inst;
 	u16 flags;
 	struct GameTracker *gGT = sdata->gGT;
-	s16 sVar3;
 	s16 rot;
 
 	tw = t->object;
@@ -34,11 +34,11 @@ void DECOMP_RB_Warpball_TurnAround(struct Thread *t)
 		inst->matrix.t[2] += ((int)tw->vel[2] * gGT->elapsedTimeMS) >> 5;
 
 		// increment counter
-		sVar3 = tw->turnAround++;
+		tw->turnAround++;
 
 		if (
 		    // if count too high
-		    (0x78 < sVar3) || // svar3 = tw->turnAround?
+		    (0x78 < tw->turnAround) ||
 
 		    // pointer to driver being chased,
 		    // is null, so warpball is chasing nobody
