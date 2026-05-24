@@ -1064,6 +1064,13 @@ static u32 DrawLevelOvr1P_GetProjectedNearMaskForDepth(const struct DrawLevelOvr
 	return depth == 0 ? DrawLevelOvr1P_GetProjectedNearMask(projected, indices) : DrawLevelOvr1P_GetProjectedRecursiveNearMask(projected, indices);
 }
 
+static u32 DrawLevelOvr1P_GetProjectedCopiedGridNearMask(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices)
+{
+	// NOTE(aalhendi): Retail copied grid helper bodies at 0x800a825c and
+	// 0x800a9e7c load scratch 0x28 before selecting the next child helper.
+	return DrawLevelOvr1P_GetProjectedRecursiveNearMask(projected, indices);
+}
+
 static void DrawLevelOvr1P_ProjectScratchVertex(struct DrawLevelOvr1PScratchVertex *projected, int writeClipBytes)
 {
 	u32 depth;
@@ -2747,45 +2754,39 @@ static int DrawLevelOvr1P_EmitProjectedGridNearClippedBridge(struct PushBuffer *
                                                              int inheritedOtIndex);
 static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected);
 
-static int DrawLevelOvr1P_EmitProjectedGridFaceCommon(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
-                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
-                                                      const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
+static int DrawLevelOvr1P_EmitProjectedGridFaceNearBranch(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                          const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                          const struct TextureLayout *texture, int depth, int writeClipBytes, int inheritedOtIndex)
+{
+	const u32 directMask = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
+	u32 nearMask;
+
+	*CTR_SCRATCHPAD_PTR(u32, 0x70) = directMask;
+
+	// NOTE(aalhendi): Retail 0x800a8360/0x800a9f80 enters the deepest
+	// handler from frame 0x324 before selecting another near child.
+	if (DrawLevelOvr1P_IsDeepestSubdivisionFrame(projected))
+		return DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes,
+		                                                               inheritedOtIndex);
+
+	nearMask = DrawLevelOvr1P_GetProjectedCopiedGridNearMask(projected, indices);
+	if (nearMask != 0)
+	{
+		return DrawLevelOvr1P_EmitProjectedGridNearClippedBridge(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth, writeClipBytes,
+		                                                         directMask, inheritedOtIndex);
+	}
+
+	return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes, 0,
+	                                                          inheritedOtIndex);
+}
+
+static int DrawLevelOvr1P_EmitProjectedGridFaceDirectBranch(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                            const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                            const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask,
+                                                            int inheritedOtIndex)
 {
 	u32 directMask;
 	u32 nearMask;
-
-	// TODO(aalhendi): Replace shared grid bridge with exact retail
-	// 0x800a825c..0x800a8784 / 0x800a9e7c..0x800aa3a4 side effects.
-	// NOTE(aalhendi): Copied recursive/default grid helpers preserve inherited
-	// UV/texture state. Texture-slot selection belongs to the selector entries
-	// before this path, such as retail 0x800a8380 and 0x800a9fa0.
-	if (writeClipBytes && DrawLevelOvr1P_IsProjectedFaceFullyNear(projected, indices))
-		return 1;
-
-	// NOTE(aalhendi): Rendered helpers branch on clip bytes before direct-mask reduction.
-	// The clipped-record header scratch word is inherited here; retail only
-	// refreshes it in the selector-style body before this shared recursive path.
-	if (writeClipBytes && DrawLevelOvr1P_HasProjectedVertexNear(projected, indices, 4))
-	{
-		directMask = DRAW_LEVEL_OVR1P_DIRECT_QUAD;
-		*CTR_SCRATCHPAD_PTR(u32, 0x70) = directMask;
-
-		// NOTE(aalhendi): Retail 0x800a8360/0x800a9f80 enters the deepest
-		// handler from frame 0x324 before selecting another near child.
-		if (DrawLevelOvr1P_IsDeepestSubdivisionFrame(projected))
-			return DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask,
-			                                                               writeClipBytes, inheritedOtIndex);
-
-		nearMask = DrawLevelOvr1P_GetProjectedNearMaskForDepth(projected, indices, depth);
-		if (nearMask != 0)
-		{
-			return DrawLevelOvr1P_EmitProjectedGridNearClippedBridge(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth,
-			                                                         writeClipBytes, directMask, inheritedOtIndex);
-		}
-
-		return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes, 0,
-		                                                          inheritedOtIndex);
-	}
 
 	// NOTE(aalhendi): Retail 0x800a82a0/0x800a9ec0 stores caller t2 before
 	// packed-SXY/offscreen and NCLIP reduce it to the surviving direct mask.
@@ -2806,7 +2807,7 @@ static int DrawLevelOvr1P_EmitProjectedGridFaceCommon(struct PushBuffer *pb, str
 		return DrawLevelOvr1P_EmitDeepestProjectedDirectStoredMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes,
 		                                                               inheritedOtIndex);
 
-	nearMask = DrawLevelOvr1P_GetProjectedNearMaskForDepth(projected, indices, depth);
+	nearMask = DrawLevelOvr1P_GetProjectedCopiedGridNearMask(projected, indices);
 	if (nearMask != 0)
 	{
 		return DrawLevelOvr1P_EmitProjectedGridNearClippedBridge(pb, primMem, block, projected, indices, faceIndex, texture, nearMask, depth, writeClipBytes,
@@ -2815,6 +2816,28 @@ static int DrawLevelOvr1P_EmitProjectedGridFaceCommon(struct PushBuffer *pb, str
 
 	return DrawLevelOvr1P_EmitPreparedProjectedDirectMaskAtOt(pb, primMem, block, projected, indices, faceIndex, texture, directMask, writeClipBytes, 0,
 	                                                          inheritedOtIndex);
+}
+
+static int DrawLevelOvr1P_EmitProjectedGridFaceCommon(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
+                                                      const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int faceIndex,
+                                                      const struct TextureLayout *texture, int depth, int writeClipBytes, u32 allowedMask, int inheritedOtIndex)
+{
+	// TODO(aalhendi): Replace shared grid bridge with exact retail terminal
+	// handlers around 0x800a87c8 and 0x800aa3e8.
+	// NOTE(aalhendi): Copied recursive/default grid helpers preserve inherited
+	// UV/texture state. Texture-slot selection belongs to the selector entries
+	// before this path, such as retail 0x800a8380 and 0x800a9fa0.
+	if (writeClipBytes && DrawLevelOvr1P_IsProjectedFaceFullyNear(projected, indices))
+		return 1;
+
+	// NOTE(aalhendi): Rendered helpers branch on clip bytes before direct-mask
+	// reduction. The clipped-record header scratch word is inherited here.
+	if (writeClipBytes && DrawLevelOvr1P_HasProjectedVertexNear(projected, indices, 4))
+		return DrawLevelOvr1P_EmitProjectedGridFaceNearBranch(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes,
+		                                                      inheritedOtIndex);
+
+	return DrawLevelOvr1P_EmitProjectedGridFaceDirectBranch(pb, primMem, block, projected, indices, faceIndex, texture, depth, writeClipBytes, allowedMask,
+	                                                        inheritedOtIndex);
 }
 
 static int DrawLevelOvr1P_EmitProjectedGridFace(struct PushBuffer *pb, struct PrimMem *primMem, const struct QuadBlock *block,
