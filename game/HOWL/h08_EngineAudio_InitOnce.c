@@ -52,3 +52,8 @@ char DECOMP_EngineAudio_InitOnce(u32 soundID, u32 flags)
 
 	return (channel != 0);
 }
+
+char EngineAudio_InitOnce(u32 soundID, u32 flags)
+{
+	return DECOMP_EngineAudio_InitOnce(soundID, flags);
+}

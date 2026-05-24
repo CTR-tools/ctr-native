@@ -17,3 +17,8 @@ void DECOMP_EngineAudio_Stop(u32 soundID)
 
 	return;
 }
+
+void EngineAudio_Stop(u32 soundID)
+{
+	DECOMP_EngineAudio_Stop(soundID);
+}

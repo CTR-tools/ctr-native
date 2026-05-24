@@ -121,7 +121,7 @@ void DECOMP_EngineSound_AI(struct Driver *ai, struct Driver *cameraDriver, int s
 	if ((cameraDriver->actionsFlagSet & 0x10000) != 0)
 		distortion |= 0x1000000;
 
-	DECOMP_EngineAudio_Recalculate((slotIndex + 0x10) & 0xffff, ((volume & 0xff) << 0x10) | distortion | (lr & 0xff));
+	EngineAudio_Recalculate((slotIndex + 0x10) & 0xffff, ((volume & 0xff) << 0x10) | distortion | (lr & 0xff));
 }
 
 void EngineSound_AI(struct Driver *ai, struct Driver *cameraDriver, int slotIndex, int distance, int distanceDelta, u32 lr)

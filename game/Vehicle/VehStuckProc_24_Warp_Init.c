@@ -30,7 +30,7 @@ void DECOMP_VehStuckProc_Warp_Init(struct Thread *th, struct Driver *d)
 
 	int engine = data.MetaDataCharacters[data.characterIDs[playerID]].engineID;
 
-	DECOMP_EngineAudio_Stop((engine * 4) + playerID);
+	EngineAudio_Stop((engine * 4) + playerID);
 
 	// CameraDC, freecam mode
 	sdata->gGT->cameraDC[playerID].cameraMode = 3;

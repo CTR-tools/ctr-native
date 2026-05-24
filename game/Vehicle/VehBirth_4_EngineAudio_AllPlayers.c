@@ -15,6 +15,6 @@ void DECOMP_VehBirth_EngineAudio_AllPlayers(void)
 
 		int engine = data.MetaDataCharacters[data.characterIDs[driverID]].engineID;
 
-		DECOMP_EngineAudio_InitOnce((engine * 4) + driverID, 0x8080);
+		EngineAudio_InitOnce((engine * 4) + driverID, 0x8080);
 	}
 }

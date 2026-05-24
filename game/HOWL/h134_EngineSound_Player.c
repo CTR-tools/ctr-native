@@ -155,5 +155,5 @@ void EngineSound_Player(struct Driver *driver)
 	else
 		volume |= distortion;
 
-	DECOMP_EngineAudio_Recalculate(((engine * 4) + id) & 0xffff, volume | lr);
+	EngineAudio_Recalculate(((engine * 4) + id) & 0xffff, volume | lr);
 }

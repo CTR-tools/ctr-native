@@ -72,3 +72,8 @@ s16 DECOMP_EngineAudio_Recalculate(u32 soundID, u32 sfx)
 
 	return 1;
 }
+
+s16 EngineAudio_Recalculate(u32 soundID, u32 sfx)
+{
+	return DECOMP_EngineAudio_Recalculate(soundID, sfx);
+}
