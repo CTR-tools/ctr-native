@@ -266,6 +266,14 @@ static void DrawLevelOvr1P_CopyScratchWords(const u32 *source, const struct Over
 		scratch[i] = source[i];
 }
 
+static void DrawLevelOvr1P_InitClipRecordJumpTable(void)
+{
+	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, 0x240);
+
+	for (int i = 0; i < OVR226_CLIP_RECORD_JUMP_WORD_COUNT; i++)
+		clipRecordJumpTable[i] = R226.clipRecordJumpTable[i];
+}
+
 static const struct OverlayRDATA_226_BucketSetupRecord *DrawLevelOvr1P_FindBucketSetupRecord(u32 setupAddress)
 {
 	for (int i = 0; i < OVR226_BUCKET_COUNT; i++)
@@ -282,13 +290,11 @@ static const struct OverlayRDATA_226_BucketSetupRecord *DrawLevelOvr1P_FindBucke
 static void DrawLevelOvr1P_InitScratchpadTables(void)
 {
 	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, 0xec);
-	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, 0x240);
 
 	for (int i = 0; i < OVR226_SCRATCH_INIT_WORD_COUNT; i++)
 		scratch[i] = R226.scratchInitTable[i];
 
-	for (int i = 0; i < OVR226_CLIP_RECORD_JUMP_WORD_COUNT; i++)
-		clipRecordJumpTable[i] = R226.clipRecordJumpTable[i];
+	DrawLevelOvr1P_InitClipRecordJumpTable();
 }
 
 static void DrawLevelOvr1P_ApplyBucketSetup(int bucketIndex)
@@ -380,6 +386,42 @@ static struct TextureLayout *DrawLevelOvr1P_ResolveMidTexture(const struct QuadB
 	return DrawLevelOvr1P_ResolveTexturePointer((uintptr_t)block->ptr_texture_mid[faceIndex]);
 }
 
+static int DrawLevelOvr1P_IsPlausibleTextureLayout(const struct TextureLayout *texture)
+{
+	if (texture == NULL)
+		return 0;
+
+	return (texture->tpage & 0xfe00) == 0;
+}
+
+static int DrawLevelOvr1P_IsNativeLevelTexturePointer(u32 value)
+{
+#ifdef REBUILD_PC
+	uintptr_t ptr = (uintptr_t)value;
+	uintptr_t levelStart;
+	uintptr_t levelEnd;
+
+	if (sdata->PtrMempack == NULL || sdata->ptrLevelFile == NULL)
+		return 0;
+
+	levelStart = (uintptr_t)sdata->ptrLevelFile;
+	levelEnd = (uintptr_t)sdata->PtrMempack->lastFreeByte;
+
+	if (ptr < levelStart || ptr >= levelEnd || levelEnd - ptr < sizeof(struct TextureLayout))
+		return 0;
+
+	return DrawLevelOvr1P_IsPlausibleTextureLayout((const struct TextureLayout *)ptr);
+#else
+	(void)value;
+	return 0;
+#endif
+}
+
+static int DrawLevelOvr1P_TreatAsRetailNegativeTextureWord(u32 value)
+{
+	return (s32)value < 0 || DrawLevelOvr1P_IsNativeLevelTexturePointer(value);
+}
+
 static int DrawLevelOvr1P_IsRepresentableActiveSlotWord(u32 slotWord)
 {
 	return (slotWord & 3) == 0 && slotWord <= 0xc;
@@ -439,7 +481,6 @@ static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct 
 	struct TextureLayout *texture = DrawLevelOvr1P_ResolveProjectedMidTexture(block, projected);
 	int hasWideActiveSlot;
 	u32 mosaicWord;
-	s32 mosaicSentinel;
 
 	hasWideActiveSlot = projected != NULL && !DrawLevelOvr1P_IsRepresentableActiveSlotWord(DrawLevelOvr1P_GetGridFaceSlotWord(projected));
 
@@ -453,7 +494,6 @@ static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct 
 		return NULL;
 
 	mosaicWord = *(u32 *)((u8 *)texture + 0x24);
-	mosaicSentinel = (s32)mosaicWord;
 
 	// NOTE(aalhendi): Retail stores texture+0x24 at scratch 0x84 for the
 	// deepest-frame UV reload path.
@@ -467,7 +507,10 @@ static struct TextureLayout *DrawLevelOvr1P_GetProjectedMidTexture(const struct 
 
 	if ((s32)maxDepth < *CTR_SCRATCHPAD_PTR(s32, 0x24))
 	{
-		if (mosaicSentinel >= 0)
+		// NOTE(aalhendi): Retail tests this word as signed PS1 data. Pointer-map
+		// rebasing turns valid 0x80xxxxxx hi-texture pointers into positive native
+		// addresses, so keep those on the retail negative path.
+		if (!DrawLevelOvr1P_TreatAsRetailNegativeTextureWord(mosaicWord))
 			texture++;
 	}
 
@@ -662,8 +705,9 @@ static void DrawLevelOvr1P_PrepareDeepestMosaicUv(const struct DrawLevelOvr1PScr
 
 	mosaicBase = *CTR_SCRATCHPAD_PTR(u32, 0x84);
 	// NOTE(aalhendi): Retail 0x800a8714/0x800aa334 restores saved UV scratch
-	// when the mosaic sentinel is positive or the previous-helper gate fails.
-	if ((s32)mosaicBase > 0)
+	// for positive inline sentinels, but rebased native hi-texture pointers must
+	// still follow PS1's negative-pointer reload path.
+	if ((s32)mosaicBase > 0 && !DrawLevelOvr1P_IsNativeLevelTexturePointer(mosaicBase))
 	{
 		DrawLevelOvr1P_RestoreProjectedUvScratch();
 		return;
@@ -4487,6 +4531,9 @@ void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
 	if (!DrawLevelOvr1P_DrawBspList(renderList, pb, mesh, primMem, visFaceList))
 		return;
 
+	// NOTE(aalhendi): Retail 0x800a0e98 reloads 0x800ab910 into scratch
+	// 0x240 immediately before 0x800aa790 consumes clipped records.
+	DrawLevelOvr1P_InitClipRecordJumpTable();
 	if (!DrawLevelOvr1P_ConsumeClipRecords(pb, primMem))
 		return;
 }

@@ -10,7 +10,6 @@
 #include <math.h>
 #include <string.h>
 
-#define GET_TPAGE_FORMAT(tpage) ((TexFormat)((tpage >> 7) & 0x3))
 #define GET_TPAGE_BLEND(tpage)  ((BlendMode)(((tpage >> 5) & 3) + 1))
 
 // TODO
@@ -19,6 +18,23 @@
 
 #define GET_CLUT_X(clut)        ((clut & 0x3F) << 4)
 #define GET_CLUT_Y(clut)        (clut >> 6)
+
+static TexFormat GetTPageFormat(int tpage)
+{
+	const int mode = (tpage >> 7) & 0x3;
+
+	// NOTE(aalhendi): PS1 mode 3 is reserved; PsyCross 32-bit mode is only for
+	// explicit native override textures.
+	return mode == 3 ? TF_16_BIT : (TexFormat)mode;
+}
+
+static short GetTPageBase(int tpage)
+{
+	const u_short page = (u_short)tpage;
+
+	// NOTE(aalhendi): The shader wants xPage + yPage * 16, not raw draw-mode bits.
+	return (short)((page & 0xf) | ((page & 0x10) ? 0x10 : 0));
+}
 
 OT_TAG prim_terminator = { -1, 0 }; // P_TAG with zero primLength
 
@@ -308,33 +324,34 @@ void MakeTexcoordQuad(GrVertex* vertex, unsigned char* uv0, unsigned char* uv1, 
 	assert(uv3);
 
 	const unsigned char bright = 2;
+	const short texPage = GetTPageBase(page);
 
 	vertex[0].u = uv0[0];
 	vertex[0].v = uv0[1];
 	vertex[0].bright = bright;
 	vertex[0].dither = dither;
-	vertex[0].page = page;
+	vertex[0].page = texPage;
 	vertex[0].clut = clut;
 
 	vertex[1].u = uv1[0];
 	vertex[1].v = uv1[1];
 	vertex[1].bright = bright;
 	vertex[1].dither = dither;
-	vertex[1].page = page;
+	vertex[1].page = texPage;
 	vertex[1].clut = clut;
 
 	vertex[2].u = uv2[0];
 	vertex[2].v = uv2[1];
 	vertex[2].bright = bright;
 	vertex[2].dither = dither;
-	vertex[2].page = page;
+	vertex[2].page = texPage;
 	vertex[2].clut = clut;
 
 	vertex[3].u = uv3[0];
 	vertex[3].v = uv3[1];
 	vertex[3].bright = bright;
 	vertex[3].dither = dither;
-	vertex[3].page = page;
+	vertex[3].page = texPage;
 	vertex[3].clut = clut;
 	/*
 	if (g_cfg_bilinearFiltering)
@@ -360,26 +377,27 @@ void MakeTexcoordTriangle(GrVertex* vertex, unsigned char* uv0, unsigned char* u
 	assert(uv2);
 
 	const unsigned char bright = 2;
+	const short texPage = GetTPageBase(page);
 
 	vertex[0].u = uv0[0];
 	vertex[0].v = uv0[1];
 	vertex[0].bright = bright;
 	vertex[0].dither = dither;
-	vertex[0].page = page;
+	vertex[0].page = texPage;
 	vertex[0].clut = clut;
 
 	vertex[1].u = uv1[0];
 	vertex[1].v = uv1[1];
 	vertex[1].bright = bright;
 	vertex[1].dither = dither;
-	vertex[1].page = page;
+	vertex[1].page = texPage;
 	vertex[1].clut = clut;
 
 	vertex[2].u = uv2[0];
 	vertex[2].v = uv2[1];
 	vertex[2].bright = bright;
 	vertex[2].dither = dither;
-	vertex[2].page = page;
+	vertex[2].page = texPage;
 	vertex[2].clut = clut;
 	/*
 	if (g_cfg_bilinearFiltering)
@@ -408,33 +426,34 @@ void MakeTexcoordRect(GrVertex* vertex, unsigned char* uv, short page, short clu
 
 	const unsigned char bright = 2;
 	const unsigned char dither = 0;
+	const short texPage = GetTPageBase(page);
 
 	vertex[0].u = uv[0];
 	vertex[0].v = uv[1];
 	vertex[0].bright = bright;
 	vertex[0].dither = dither;
-	vertex[0].page = page;
+	vertex[0].page = texPage;
 	vertex[0].clut = clut;
 
 	vertex[1].u = uv[0];
 	vertex[1].v = uv[1] + h;
 	vertex[1].bright = bright;
 	vertex[1].dither = dither;
-	vertex[1].page = page;
+	vertex[1].page = texPage;
 	vertex[1].clut = clut;
 
 	vertex[2].u = uv[0] + w;
 	vertex[2].v = uv[1] + h;
 	vertex[2].bright = bright;
 	vertex[2].dither = dither;
-	vertex[2].page = page;
+	vertex[2].page = texPage;
 	vertex[2].clut = clut;
 
 	vertex[3].u = uv[0] + w;
 	vertex[3].v = uv[1];
 	vertex[3].bright = bright;
 	vertex[3].dither = dither;
-	vertex[3].page = page;
+	vertex[3].page = texPage;
 	vertex[3].clut = clut;
 
 	if (g_cfg_bilinearFiltering)
@@ -679,7 +698,7 @@ static void AddSplit(bool semiTrans, bool textured)
 	GPUDrawSplit& curSplit = g_splits[g_splitIndex];
 
 	BlendMode blendMode = semiTrans ? GET_TPAGE_BLEND(tpage) : BM_NONE;
-	TexFormat texFormat = GET_TPAGE_FORMAT(tpage);
+	TexFormat texFormat = GetTPageFormat(tpage);
 	TextureID textureId = textured ? g_vramTexture : g_whiteTexture;
 
 	if (textured && overrideTexture != 0)
