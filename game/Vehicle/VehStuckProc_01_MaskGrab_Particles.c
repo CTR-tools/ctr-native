@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80066cb0-0x80066d4c.
 void DECOMP_VehStuckProc_MaskGrab_Particles(struct Driver *d)
 {
 	struct Particle *p;

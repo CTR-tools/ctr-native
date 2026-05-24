@@ -2,6 +2,7 @@
 
 extern void *PlayerMaskGrabFuncTable[13];
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800671b0-0x8006749c.
 void DECOMP_VehStuckProc_MaskGrab_Init(struct Thread *t, struct Driver *d)
 {
 	struct GameTracker *gGT = sdata->gGT;

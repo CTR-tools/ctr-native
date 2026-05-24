@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80066d4c-0x80066e3c.
 void DECOMP_VehStuckProc_MaskGrab_Update(struct Thread *t, struct Driver *d)
 {
 	struct GameTracker *gGT = sdata->gGT;
