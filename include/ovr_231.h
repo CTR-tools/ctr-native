@@ -656,6 +656,9 @@ struct Turtle
 
 struct OverlayRDATA_231
 {
+	// 0x800b2ae4
+	struct ParticleEmitter emSet_Missile[11];
+
 	// 0x800b2cc4
 	s16 maskPosArr[40];
 };

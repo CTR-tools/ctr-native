@@ -191,7 +191,7 @@ LAB_800adc08:;
 		inst->animFrame = 0;
 	}
 
-#ifndef REBUILD_PS1
+#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 	if (
 	    // if missile
 	    (modelID == DYNAMIC_ROCKET) &&
@@ -201,7 +201,8 @@ LAB_800adc08:;
 	{
 		// Make Instane in Particle Pool
 		struct Particle *p;
-		p = Particle_Init(0, gGT->iconGroup[0], (struct ParticleEmitter *)0x800b2ae4);
+		// NOTE(aalhendi): Native uses retail emitter bytes from 0x800b2ae4.
+		p = Particle_Init(0, gGT->iconGroup[0], &R231.emSet_Missile[0]);
 
 		if (p != 0)
 		{
