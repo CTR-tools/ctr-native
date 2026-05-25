@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80018e38-0x80018ec0.
 void CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d)
 {
 	struct GameTracker *gGT = sdata->gGT;

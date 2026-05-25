@@ -2,6 +2,7 @@
 
 int ratan2(int x, int y);
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80018d9c-0x80018e38.
 void CAM_EndOfRace_Battle(struct CameraDC *cDC, struct Driver *d)
 {
 	int dx;
