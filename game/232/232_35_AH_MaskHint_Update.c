@@ -115,21 +115,26 @@ void DECOMP_AH_MaskHint_Update()
 
 		// first frame "whoosh" sound
 		if (D232.maskFrameCurr == 0)
+			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b46d4-0x800b46e4 for mask spawn-start SFX.
 			DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0xff8080);
 
 		// if 3-second spawn, play more sounds
 		if (D232.maskSpawnFrame == 0x5a)
 		{
 			if (D232.maskFrameCurr == 10)
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b470c-0x800b4774 for mask spawn pulse 10 SFX.
 				DECOMP_OtherFX_Play_LowLevel(0x100, 0, 0xd78a80);
 
 			else if (D232.maskFrameCurr == 20)
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4728-0x800b4774 for mask spawn pulse 20 SFX.
 				DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0xaf9480);
 
 			else if (D232.maskFrameCurr == 25)
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4744-0x800b4774 for mask spawn pulse 25 SFX.
 				DECOMP_OtherFX_Play_LowLevel(0x100, 0, 0x879e80);
 
 			else if (D232.maskFrameCurr == 30)
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4760-0x800b4774 for mask spawn pulse 30 SFX.
 				DECOMP_OtherFX_Play_LowLevel(0x100, 1, 0x5fa880);
 		}
 
@@ -252,6 +257,7 @@ void DECOMP_AH_MaskHint_Update()
 		DECOMP_AH_MaskHint_SpawnParticles(20, &D232.emSet_maskLeave[0], 0x1000);
 
 		// vanish sound
+		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4b24-0x800b4b2c for mask vanish SFX.
 		DECOMP_OtherFX_Play(0x101, 1);
 
 		DECOMP_VehTalkMask_End();

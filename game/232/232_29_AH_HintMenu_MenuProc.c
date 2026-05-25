@@ -142,6 +142,7 @@ void DECOMP_AH_HintMenu_MenuProc(struct RectMenu *menu)
 				if ((tapP1 & 0x40020) != 0)
 				{
 					// Play sound
+					// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b38b4-0x800b38bc for hint-menu back SFX.
 					DECOMP_OtherFX_Play(2, 1);
 					goto LAB_800b38c0;
 				}
@@ -151,6 +152,7 @@ void DECOMP_AH_HintMenu_MenuProc(struct RectMenu *menu)
 			else
 			{
 				// Play Sound
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b3788-0x800b3790 for hint-menu confirm SFX.
 				DECOMP_OtherFX_Play(1, 1);
 
 				if (menu->rowSelected == numHintsFound)
@@ -201,6 +203,7 @@ void DECOMP_AH_HintMenu_MenuProc(struct RectMenu *menu)
 			if (menu->rowSelected < numHintsFound)
 			{
 				// Play Sound
+				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b375c-0x800b3764 for hint-menu down SFX.
 				DECOMP_OtherFX_Play(0, 1);
 
 				// change which row is selected
@@ -216,6 +219,7 @@ void DECOMP_AH_HintMenu_MenuProc(struct RectMenu *menu)
 		if (0 < menu->rowSelected)
 		{
 			// Play Sound
+			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b3724-0x800b372c for hint-menu up SFX.
 			DECOMP_OtherFX_Play(0, 1);
 
 			// change the row selected
