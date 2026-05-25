@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80046404-0x80046458.
 void DECOMP_RECTMENU_ClearInput()
 {
 	int i;

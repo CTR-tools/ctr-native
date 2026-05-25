@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80046458-0x80046534.
 void DECOMP_RECTMENU_CollectInput()
 {
 	int i;
@@ -10,11 +11,11 @@ void DECOMP_RECTMENU_CollectInput()
 	sdata->AnyPlayerHold = 0;
 	activeSub = sdata->activeSubMenu;
 
-	// what "actually" is the logic here? what gets set, when?
-	// this contradicts logic in RECTMENU_ProcessInput where only P1 is listened to
-	if ((activeSub == 0) || (numListen = 4, (activeSub->state & ALL_PLAYERS_USE_MENU) != 0))
+	numListen = sdata->gGT->numPlyrNextGame;
+
+	if ((activeSub != NULL) && ((activeSub->state & ALL_PLAYERS_USE_MENU) != 0))
 	{
-		numListen = sdata->gGT->numPlyrNextGame;
+		numListen = 4;
 	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[0];
