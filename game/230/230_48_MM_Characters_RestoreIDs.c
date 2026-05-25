@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800ae464-0x800ae6b0.
 void MM_Characters_RestoreIDs(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
