@@ -42,6 +42,7 @@ void RB_Follower_ProcessBucket(struct Thread *t)
 	}
 }
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b6e10-0x800b6f00.
 void DECOMP_RB_Follower_ThTick(struct Thread *t)
 {
 	int kartState;
@@ -83,6 +84,7 @@ void DECOMP_RB_Follower_ThTick(struct Thread *t)
 	t->flags |= 0x800;
 }
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b6f00-0x800b706c.
 void DECOMP_RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 {
 	struct Thread *t;
@@ -103,7 +105,7 @@ void DECOMP_RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 		return;
 
 	// create a thread and an Instance
-	iVar1 = DECOMP_INSTANCE_BirthWithThread(mineTh->modelIndex, 0, SMALL, FOLLOWER, DECOMP_RB_Follower_ThTick, sizeof(struct Follower), 0);
+	iVar1 = DECOMP_INSTANCE_BirthWithThread(mineTh->modelIndex, "follower", SMALL, FOLLOWER, DECOMP_RB_Follower_ThTick, sizeof(struct Follower), 0);
 
 	if (iVar1 == NULL)
 		return;
@@ -116,12 +118,7 @@ void DECOMP_RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 	// mineInst
 	iVar3 = mineTh->inst;
 
-	// copy position and rotation from one instance to another
-	*(int *)&iVar1->matrix.m[0][0] = *(int *)&iVar3->matrix.m[0][0];
-	*(int *)&iVar1->matrix.m[0][2] = *(int *)&iVar3->matrix.m[0][2];
-	*(int *)&iVar1->matrix.m[1][1] = *(int *)&iVar3->matrix.m[1][1];
-	*(int *)&iVar1->matrix.m[2][0] = *(int *)&iVar3->matrix.m[2][0];
-	iVar1->matrix.m[2][2] = iVar3->matrix.m[2][2];
+	memcpy(&iVar1->matrix, &iVar3->matrix, sizeof(iVar1->matrix));
 
 	t = iVar1->thread;
 	t->funcThDestroy = DECOMP_PROC_DestroyInstance;
@@ -135,8 +132,6 @@ void DECOMP_RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 	// backup original position
 	for (int i = 0; i < 3; i++)
 	{
-		int pos = iVar3->matrix.t[i];
-		iVar1->matrix.t[i] = pos;
-		fObj->realPos[i] = pos;
+		fObj->realPos[i] = iVar3->matrix.t[i];
 	}
 }
