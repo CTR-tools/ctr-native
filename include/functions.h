@@ -834,7 +834,7 @@ void SelectProfile_QueueLoadHub_MenuProc(struct RectMenu *menu);
 // SelectProfile_UI_ConvertX()
 // SelectProfile_UI_ConvertY()
 // SelectProfile_DrawAdvProfile()
-// SelectProfile_GetTrackID()
+void SelectProfile_GetTrackID();
 // SelectProfile_Init()
 void SelectProfile_Destroy();
 void SelectProfile_AdvPickMode_MenuProc(struct RectMenu *menu);
@@ -1283,7 +1283,6 @@ void Vector_SpecLightSpin3D(struct Instance *, s16 *, s16 *);
 void Vector_SpecLightNoSpin3D(struct Instance *, s16 *, s16 *);
 void CS_Podium_Prize_Spin(struct Instance *inst, s16 *prize);
 int howl_VolumeGet(int type);
-void SelectProfile_GetTrackID();
 void SelectProfile_PrintInteger(int integer, s16 posX, s16 posY, s16 fmt, u16 flags);
 void Vector_SpecLightSpin2D(struct Instance *, s16 *, s16 *); // guessed about the signature
 char *CS_Credits_GetNextString(char *);

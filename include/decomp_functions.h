@@ -396,6 +396,7 @@ void RefreshCard_StartMemcardAction(int action);
 
 void SelectProfile_MuteCursors(void);
 void SelectProfile_UnMuteCursors(void);
+void SelectProfile_GetTrackID(void);
 u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlags);
 void SelectProfile_AllProfiles_MenuProc(struct RectMenu *menu);
 void SelectProfile_ToggleMode(u32 mode);

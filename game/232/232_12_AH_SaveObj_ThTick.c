@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800af3e4-0x800af7f0.
 void AH_SaveObj_ThTick(struct Thread *t)
 {
 	s16 sVar1;
@@ -92,9 +93,7 @@ void AH_SaveObj_ThTick(struct Thread *t)
 				// then begin the transition by setting flag
 				CAM_SetDesiredPosRot(&gGT->cameraDC[0], (s16 *)&desiredPos, (s16 *)&desiredRot);
 
-#ifndef REBUILD_PS1
 				GAMEPAD_JogCon2(driver, 0, 0);
-#endif
 
 				save->flags |= 1;
 
@@ -136,9 +135,7 @@ void AH_SaveObj_ThTick(struct Thread *t)
 					{
 						save->flags |= 2;
 
-#ifndef REBUILD_PS1
 						SelectProfile_GetTrackID();
-#endif
 
 						// enable menu for green load/save screen
 						RECTMENU_Show(&data.menuGreenLoadSave);
@@ -186,7 +183,6 @@ LAB_800af72c:
 			saveInst->animFrame += 1;
 		}
 
-#ifndef REBUILD_PS1
 		// if animation is finished,
 		// reset animation, and play sound
 		else
@@ -218,7 +214,6 @@ LAB_800af72c:
 			// reset animation
 			saveInst->animFrame = 0;
 		}
-#endif
 	}
 	return;
 }

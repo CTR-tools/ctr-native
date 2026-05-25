@@ -528,6 +528,7 @@
 
 #include "game/SelectProfile/SelectProfile_00_QueueLoadHub_MenuProc.c"
 #include "game/SelectProfile/SelectProfile_04_UI_ConvertY.c"
+#include "game/SelectProfile/SelectProfile_06_GetTrackID.c"
 #include "game/SelectProfile/SelectProfile_13_Cursors.c"
 #include "game/SelectProfile/SelectProfile_14_ToggleMode.c"
 #include "game/SelectProfile/SelectProfile_15_InputLogic.c"
