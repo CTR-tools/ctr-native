@@ -2,6 +2,13 @@
 
 void Seal_CheckColl(struct Instance *sealInst, struct Thread *sealTh, int damage, int radius, int sound);
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b5f50-0x800b64c0.
+
+int DECOMP_RB_Fireball_ThCollide(struct Thread *thread)
+{
+	return thread->modelIndex == DYNAMIC_PLAYER;
+}
+
 struct ParticleEmitter emSet_Fireball[10] = {[0] =
                                                  {
                                                      .flags = 1,
@@ -123,6 +130,8 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 	struct Fireball *fireObj;
 	struct Particle *particle;
 	int velY;
+	int oldVelY;
+	int resetPosY;
 
 	struct GameTracker *gGT;
 	int elapsedTimeMS;
@@ -133,7 +142,20 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 	fireInst = t->inst;
 	fireObj = t->object;
 
-	int resetPosY = fireInst->instDef->pos[1] - 0x440;
+	if (fireObj->cooldown != 0)
+	{
+		fireObj->cooldown -= elapsedTimeMS;
+
+		if (fireObj->cooldown < 0)
+			fireObj->cooldown = 0;
+
+		return;
+	}
+
+	fireInst->flags |= 0x80;
+
+	oldVelY = 0;
+	resetPosY = fireInst->instDef->pos[1] - 0x440;
 
 	// if fireball isn't below the lava,
 	// handle all particle spawning
@@ -141,6 +163,7 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 	{
 		// move based on velocity
 		velY = fireObj->velY;
+		oldVelY = velY;
 		fireInst->matrix.t[1] += (velY * elapsedTimeMS) >> 5;
 
 		// reduce velocity (gravity)
@@ -193,26 +216,22 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 
 	fireObj->cycleTimer -= elapsedTimeMS;
 
-	// this code was in the game,
-	// but not used since instance is invisible
-#if 0
 	// if animation is not over
-	if(
-		(fireInst->animFrame+1) < 
-		DECOMP_INSTANCE_GetNumAnimFrames(fireInst, 0)
-	)
+	if ((fireInst->animFrame + 1) < DECOMP_INSTANCE_GetNumAnimFrames(fireInst, 0))
 	{
 		// increment frame
-		fireInst->animFrame = fireInst->animFrame+1;
+		fireInst->animFrame = fireInst->animFrame + 1;
 	}
-	
+
 	// if animation ended
 	else
 	{
 		// reset
 		fireInst->animFrame = 0;
 	}
-#endif
+
+	if ((oldVelY >= 0) && (fireObj->velY < 0))
+		fireObj->direction = 1;
 
 	// if cycle is over
 	if (fireObj->cycleTimer < 1)
@@ -224,14 +243,13 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 
 		// upward velocity
 		fireObj->velY = 200;
+		fireObj->direction = 0;
 
 		// reset position under lava
 		fireInst->matrix.t[1] = resetPosY;
 
-#if 0
 		// reset animation
 		fireInst->animFrame = 0;
-#endif
 
 #ifndef REBUILD_PS1
 		// fwooooossssssssshhhh
@@ -243,14 +261,18 @@ void DECOMP_RB_Fireball_ThTick(struct Thread *t)
 void DECOMP_RB_Fireball_LInB(struct Instance *inst)
 {
 	struct Fireball *fireObj;
-	struct InstDef *instDef;
+	struct Thread *t;
+	int fireballID;
 
-	struct Thread *t = DECOMP_PROC_BirthWithObject(
+	if (inst->thread != 0)
+		return;
+
+	t = DECOMP_PROC_BirthWithObject(
 	    // creation flags
 	    SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Fireball), NONE, SMALL, STATIC),
 
 	    DECOMP_RB_Fireball_ThTick, // behavior
-	    0,                         // debug name
+	    "fireball",                // debug name
 	    0                          // thread relative
 	);
 
@@ -258,33 +280,29 @@ void DECOMP_RB_Fireball_LInB(struct Instance *inst)
 		return;
 	inst->thread = t;
 	t->inst = inst;
+	t->funcThCollide = (void (*)(struct Thread *))DECOMP_RB_Fireball_ThCollide;
 
-	// make instance invisible,
-	// unused beta "tail"
-	inst->flags |= 0x80;
-
-#if 0
 	inst->scale[0] = 0x4000;
 	inst->scale[1] = 0x4000;
 	inst->scale[2] = 0x4000;
-	
-	// this code was in the game,
-	// but not used since instance is invisible
+
 	inst->animFrame = 0;
 	inst->animIndex = 0;
-#endif
 
 	fireObj = ((struct Fireball *)t->object);
 	fireObj->cycleTimer = 0;
+	fireObj->cooldown = 0;
+	fireObj->unused[0] = 0;
 	fireObj->velY = 96;
+	fireObj->direction = 0;
 
-	// unlike turtle, fireballs are named with same length,
-	// and they all have a number (0,1,2,3,4,5),
-	// similar to turtles, dont need to subtract '0'
-	if (inst->name[9] & 1)
+	fireballID = inst->name[strlen(inst->name) - 1] - '0';
+	fireObj->fireballID = fireballID;
+
+	if ((fireballID & 1) != 0)
 	{
 		// 1.44s, this is a ms-based timer, not a frame-based
 		// counter, so t->cooldownFrameCount is not allowed
-		fireObj->cycleTimer = 1440;
+		fireObj->cooldown = 1440;
 	}
 }
