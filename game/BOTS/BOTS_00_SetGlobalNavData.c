@@ -13,8 +13,3 @@ void BOTS_SetGlobalNavData(u16 index)
 
 	return;
 }
-
-void DECOMP_BOTS_SetGlobalNavData(s16 index)
-{
-	BOTS_SetGlobalNavData(index);
-}

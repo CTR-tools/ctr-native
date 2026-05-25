@@ -261,8 +261,3 @@ void BOTS_Adv_AdjustDifficulty(void)
 		sdata->accelerateOrder[bestDriverIndex] = topAccel;
 	}
 }
-
-void DECOMP_BOTS_Adv_AdjustDifficulty(void)
-{
-	BOTS_Adv_AdjustDifficulty();
-}

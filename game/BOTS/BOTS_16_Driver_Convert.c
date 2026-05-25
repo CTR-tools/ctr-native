@@ -101,8 +101,3 @@ void BOTS_Driver_Convert(struct Driver *d)
 
 	BOTS_ChangeState(d, damageType, NULL, 0);
 }
-
-void DECOMP_BOTS_Driver_Convert(struct Driver *d)
-{
-	BOTS_Driver_Convert(d);
-}

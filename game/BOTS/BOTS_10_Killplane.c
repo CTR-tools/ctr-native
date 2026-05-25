@@ -7,7 +7,7 @@
 #endif
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80013a70-0x80013c18.
-void DECOMP_BOTS_Killplane(struct Thread *botThread)
+void BOTS_Killplane(struct Thread *botThread)
 {
 	s16 i;
 	char boolOverride;
@@ -103,13 +103,8 @@ void DECOMP_BOTS_Killplane(struct Thread *botThread)
 		bot->botData.botNavFrame = frame;
 	}
 
-	DECOMP_BOTS_MaskGrab(botThread);
+	BOTS_MaskGrab(botThread);
 	return;
-}
-
-void BOTS_Killplane(struct Thread *botThread)
-{
-	DECOMP_BOTS_Killplane(botThread);
 }
 
 #undef BOTS_KILLPLANE_TINY_ARENA_NAME

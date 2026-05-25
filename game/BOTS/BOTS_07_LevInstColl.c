@@ -1,7 +1,7 @@
 #include <common.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800135d8-0x8001372c.
-void DECOMP_BOTS_LevInstColl(struct Thread *param_1)
+void BOTS_LevInstColl(struct Thread *param_1)
 {
 	s16 currPos[6];
 	s16 prevPos[3];
@@ -47,9 +47,4 @@ void DECOMP_BOTS_LevInstColl(struct Thread *param_1)
 			}
 		}
 	}
-}
-
-void BOTS_LevInstColl(struct Thread *param_1)
-{
-	DECOMP_BOTS_LevInstColl(param_1);
 }

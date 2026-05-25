@@ -1,6 +1,6 @@
 #include <common.h>
 
-void DECOMP_BOTS_GotoStartingLine(struct Driver *d)
+void BOTS_GotoStartingLine(struct Driver *d)
 {
 	int accelDuration;
 	s16 rotY;

@@ -1,7 +1,7 @@
 #include <common.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80013838-0x80013a70.
-void DECOMP_BOTS_MaskGrab(struct Thread *botThread)
+void BOTS_MaskGrab(struct Thread *botThread)
 {
 	int midpoint;
 	struct NavFrame *frame;
@@ -95,9 +95,4 @@ void DECOMP_BOTS_MaskGrab(struct Thread *botThread)
 	ThTick_SetAndExec(botThread, BOTS_ThTick_RevEngine);
 
 	return;
-}
-
-void BOTS_MaskGrab(struct Thread *botThread)
-{
-	DECOMP_BOTS_MaskGrab(botThread);
 }

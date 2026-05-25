@@ -53,8 +53,3 @@ void BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
 
 	return;
 }
-
-void DECOMP_BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
-{
-	BOTS_InitNavPath(gGT, index);
-}

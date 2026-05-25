@@ -146,8 +146,3 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 	}
 	return 1;
 }
-
-u32 DECOMP_BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason)
-{
-	return BOTS_ChangeState(driverVictim, damageType, driverAttacker, reason);
-}

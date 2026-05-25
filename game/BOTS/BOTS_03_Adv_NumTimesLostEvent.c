@@ -13,8 +13,3 @@ int BOTS_Adv_NumTimesLostEvent(int numLost)
 
 	return data.advDifficulty[numLost];
 }
-
-int DECOMP_BOTS_Adv_NumTimesLostEvent(int numLost)
-{
-	return BOTS_Adv_NumTimesLostEvent(numLost);
-}

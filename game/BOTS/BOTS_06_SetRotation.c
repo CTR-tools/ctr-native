@@ -60,8 +60,3 @@ void BOTS_SetRotation(struct Driver *bot, int param_2)
 
 	bot->botData.botFlags |= 1;
 }
-
-void DECOMP_BOTS_SetRotation(struct Driver *bot, s16 param_2)
-{
-	BOTS_SetRotation(bot, param_2);
-}

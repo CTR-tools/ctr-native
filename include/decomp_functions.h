@@ -1019,7 +1019,6 @@ void BOTS_SetRotation(struct Driver *driver, int param_2);
 u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason);
 void BOTS_LevInstColl(struct Thread *param_1);
 void BOTS_Killplane(struct Thread *botThread);
-void DECOMP_BOTS_MaskGrab(struct Thread *botThread);
 void BOTS_MaskGrab(struct Thread *botThread);
 void BOTS_Driver_Convert(struct Driver *driver);
 void UI_RaceEnd_GetDriverClock(struct Driver *d);
@@ -1027,8 +1026,6 @@ void DECOMP_UI_RaceEnd_GetDriverClock(struct Driver *d);
 void DECOMP_GAMEPAD_JogCon2(struct Driver *d, char val, s16 timeMS);
 void DECOMP_GAMEPAD_JogCon1(struct Driver *d, int val, int timeMS);
 void DECOMP_CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d);
-u32 DECOMP_BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver *driverAttacker, int reason);
-void DECOMP_BOTS_Killplane(struct Thread *botThread);
 void DECOMP_COLL_SearchBSP_CallbackPARAM(struct BSP *root, struct BoundingBox *bbox, void (*callback)(struct BSP *, struct ScratchpadStruct *),
                                          struct ScratchpadStruct *param);
 u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node);
@@ -1070,5 +1067,4 @@ void VehPhysGeneral_JumpAndFriction(struct Thread *thread, struct Driver *driver
 int DECOMP_VehPhysGeneral_JumpGetVelY(s16 *normalVec, Vec3 *speedXYZ);
 void DECOMP_VehPhysGeneral_JumpAndFriction(struct Thread *thread, struct Driver *driver);
 void DECOMP_VehPhysForce_TranslateMatrix(struct Thread *thread, struct Driver *driver);
-void DECOMP_BOTS_LevInstColl(struct Thread *param_1);
 void DECOMP_CS_LoadBoss(struct BossCutsceneData *bcd);
