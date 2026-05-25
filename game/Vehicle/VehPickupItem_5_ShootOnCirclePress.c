@@ -7,9 +7,7 @@ void DECOMP_VehPickupItem_ShootOnCirclePress(struct Driver *d)
 
 	if (d->ChangeState_param2 != 0)
 	{
-#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 		DECOMP_VehPickState_NewState(d, d->ChangeState_param2, (struct Driver *)d->ChangeState_param3, d->ChangeState_param4);
-#endif
 	}
 
 	// If you want to fire a weapon
