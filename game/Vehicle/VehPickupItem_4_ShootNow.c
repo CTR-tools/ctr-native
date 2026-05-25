@@ -13,8 +13,7 @@ void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 param_2, struct Driver
 
 void DECOMP_VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 {
-	// NOTE(aalhendi): Retail-backed item/audio lifecycle corrections for NTSC-U 926
-	// 0x8006540c-0x800666e4. TODO(aalhendi): complete the full ASM pass.
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006540c-0x800666e4.
 	struct Instance *dInst;
 	struct Thread *weaponTh;
 	struct Instance *weaponInst;
