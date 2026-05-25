@@ -975,7 +975,7 @@ void UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket);
 void UI_Map_DrawTracking(int ptrMap, struct Thread *bucket);
 void LOAD_Callback_Podiums(struct LoadQueueSlot *lqs);
 void LOAD_Callback_LEV(struct LoadQueueSlot *lqs);
-void LOAD_Callback_PatchMem();
+void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs);
 void LOAD_Callback_DriverModels(struct LoadQueueSlot *lqs);
 void LOAD_VramFileCallback(struct LoadQueueSlot *lqs);
 void VehBirth_NullThread(struct Thread *t);

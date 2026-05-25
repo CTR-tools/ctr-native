@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80034874-0x800348e8.
 void LOAD_LevelFile(int levelID)
 {
 	struct GameTracker *gGT = sdata->gGT;

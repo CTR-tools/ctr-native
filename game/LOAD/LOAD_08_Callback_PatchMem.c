@@ -1,6 +1,7 @@
 #include <common.h>
 
-void LOAD_Callback_PatchMem()
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031aa4-0x80031b00.
+void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs)
 {
 	char *patchPtr;
 	char *patchStart;
@@ -12,12 +13,16 @@ void LOAD_Callback_PatchMem()
 	// it loads one ReadFile for PtrMap with AllocHighMem
 
 	// that's why patchPtr is here
-	patchPtr = sdata->PatchMem_Ptr;
+	patchPtr = lqs->ptrDestination;
 	patchStart = &patchPtr[4];
 	patchSize = *(int *)&patchPtr[0];
 	patchNum = patchSize >> 2;
 
-	LOAD_RunPtrMap((int)sdata->ptrLevelFile, (int *)patchStart, patchNum);
+	sdata->load_inProgress = 0;
 
-	return;
+	LOAD_RunPtrMap((char *)sdata->ptrLevelFile, (int *)patchStart, patchNum);
+
+	MEMPACK_SwapPacks(0);
+	MEMPACK_ClearLowMem();
+	MEMPACK_SwapPacks(sdata->gGT->activeMempackIndex);
 }

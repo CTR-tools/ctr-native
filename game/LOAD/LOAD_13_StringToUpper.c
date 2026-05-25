@@ -1,14 +1,15 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031c1c-0x80031c58.
 void LOAD_StringToUpper(char *path)
 {
-	for (char *letter = &path[0]; letter[0] != 0; letter++)
+	for (u8 *letter = (u8 *)path; *letter != 0; letter++)
 	{
 		// if lowercase letter
-		if ((u32)(letter[0] - 0x61) < 0x1a)
+		if ((u32)(*letter - 0x61) < 0x1a)
 		{
 			// uppercase
-			letter[0] -= 0x20;
+			*letter -= 0x20;
 		}
 	}
 }

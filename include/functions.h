@@ -512,7 +512,7 @@ void LOAD_Callback_Overlay_233();
 void LOAD_Callback_MaskHints3D(struct LoadQueueSlot *lqs);
 void LOAD_Callback_Podiums(struct LoadQueueSlot *lqs);
 void LOAD_Callback_LEV(struct LoadQueueSlot *lqs);
-void LOAD_Callback_PatchMem();
+void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs);
 void LOAD_Callback_DriverModels(struct LoadQueueSlot *lqs);
 void LOAD_HubCallback(struct LoadQueueSlot *lqs);
 void LOAD_GlobalModelPtrs_MPK();
