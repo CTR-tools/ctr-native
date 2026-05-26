@@ -5,7 +5,7 @@ static void VehPhysCrash_Attack_SetReason(struct Driver *driver, u8 reason)
 	*(u8 *)&driver->ChangeState_param4 = reason;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005d218-0x8005d404
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005d218-0x8005d404.
 int VehPhysCrash_Attack(struct Driver *driver1, struct Driver *driver2, int canPlayFeedback, int boolPlayBubblePop)
 {
 	if ((driver1->actionsFlagSet & 0x800000) == 0)
