@@ -16,7 +16,6 @@ void VehStuckProc_RevEngine_Init(struct Thread *t, struct Driver *d)
 	d->KartStates.RevEngine.maskObj = NULL;
 	d->KartStates.RevEngine.fireLevel = 0;
 
-#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
 	// if this is a mask grab
 	if (d->quadBlockHeight + 0x1000 < d->posCurr.y)
 	{
@@ -30,7 +29,6 @@ void VehStuckProc_RevEngine_Init(struct Thread *t, struct Driver *d)
 		// CameraDC flag
 		sdata->gGT->cameraDC[d->driverID].flags |= 8;
 	}
-#endif
 
 	for (char i = 0; i < 13; i++)
 	{
@@ -49,32 +47,6 @@ void VehStuckProc_RevEngine_Init(struct Thread *t, struct Driver *d)
 }
 
 void *PlayerRevEngineFuncTable[13] = {
-    NULL,
-    VehStuckProc_RevEngine_Update,
-    VehStuckProc_RevEngine_PhysLinear,
-    VehPhysProc_Driving_Audio,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-
-#ifndef REBUILD_PS1
-    VehPhysForce_TranslateMatrix,
-    VehStuckProc_RevEngine_Animate,
-    VehEmitter_DriverMain,
-#else
-#ifdef CTR_NATIVE
-    VehPhysForce_TranslateMatrix,
-#else
-    0,
-#endif
-    VehStuckProc_RevEngine_Animate,
-#ifdef CTR_NATIVE
-    VehEmitter_DriverMain
-#else
-    0
-#endif
-#endif
+    NULL, VehStuckProc_RevEngine_Update, VehStuckProc_RevEngine_PhysLinear, VehPhysProc_Driving_Audio, NULL, NULL, NULL, NULL, NULL,
+    NULL, VehPhysForce_TranslateMatrix,  VehStuckProc_RevEngine_Animate,    VehEmitter_DriverMain,
 };

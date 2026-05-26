@@ -2,7 +2,7 @@
 
 extern void *PlayerEatenFuncTable[13];
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800677d0-0x80067930
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800677d0-0x80067930.
 // when eaten by plant on papu pyramid
 void VehStuckProc_PlantEaten_Init(struct Thread *t, struct Driver *d)
 {

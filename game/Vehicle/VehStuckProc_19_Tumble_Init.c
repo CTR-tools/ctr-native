@@ -6,27 +6,15 @@ void *PlayerBlastedFuncTable[0xD] = {(void *)0x0,
                                      VehPhysProc_Driving_Audio,
                                      VehStuckProc_Tumble_PhysAngular,
                                      VehPhysForce_OnApplyForces,
-
-#if !defined(REBUILD_PS1) || defined(CTR_NATIVE)
                                      COLL_MOVED_PlayerSearch,
                                      VehPhysForce_CollideDrivers,
                                      COLL_FIXED_PlayerSearch,
                                      VehPhysGeneral_JumpAndFriction,
                                      VehPhysForce_TranslateMatrix,
                                      VehStuckProc_Tumble_Animate,
-                                     VehEmitter_DriverMain
-#else
-                                     NULL,
-                                     NULL,
-                                     COLL_FIXED_PlayerSearch,
-                                     VehPhysGeneral_JumpAndFriction,
-                                     VehPhysForce_TranslateMatrix,
-                                     NULL,
-                                     VehEmitter_DriverMain
-#endif
-};
+                                     VehEmitter_DriverMain};
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800682a4-0x800683f4
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800682a4-0x800683f4.
 void VehStuckProc_Tumble_Init(struct Thread *thread, struct Driver *driver)
 {
 	int i;
