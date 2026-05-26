@@ -395,7 +395,10 @@
 #include "game/MAIN/MainFrame_07_RequestMaskHint.c"
 #include "game/MAIN/MainFrame_08_RenderFrame.c"
 
+#include "game/MAIN/MainFreeze_00_ConfigDrawNPC105.c"
 #include "game/MAIN/MainFreeze_01_ConfigDrawArrows.c"
+#include "game/MAIN/MainFreeze_02_ConfigSetupEntry.c"
+#include "game/MAIN/MainFreeze_03_MenuPtrOptions.c"
 #include "game/MAIN/MainFreeze_04_MenuPtrQuit.c"
 #include "game/MAIN/MainFreeze_05_SafeAdvDestroy.c"
 #include "game/MAIN/MainFreeze_06_MenuPtrDefault.c"

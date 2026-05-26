@@ -63,8 +63,7 @@ force_inline void IDENTIFYGAMEPADS_MainFreeze_MenuPtrOptions(struct RectMenu *me
 	gamepad->menuRowsToRemove = (4 - areBothControllerLabelsNecessary) - gGT->numPlyrCurrGame;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80038f98-0x80039024 for volume-slider audio/input side effects.
-force_inline void PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPAD_MainFreeze_MenuPtrOptions *gamepad)
+force_inline int PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPAD_MainFreeze_MenuPtrOptions *gamepad)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	int exitMenu = false;
@@ -88,102 +87,98 @@ force_inline void PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu,
 				menu->rowSelected = 8;
 		}
 	}
-
-	switch (menu->rowSelected)
+	else
 	{
-	// 0: FX slider
-	// 1: Music slider
-	// 2: Voice slider
-	case 0:
-	case 1:
-	case 2:
-		OptionsMenu_TestSound(menu->rowSelected, 1);
-		if (sdata->AnyPlayerHold & (BTN_LEFT | BTN_RIGHT))
+		switch (menu->rowSelected)
 		{
-			int volume = howl_VolumeGet(menu->rowSelected);
-
-			if (sdata->AnyPlayerHold & BTN_LEFT)
+		// 0: FX slider
+		// 1: Music slider
+		// 2: Voice slider
+		case 0:
+		case 1:
+		case 2:
+			OptionsMenu_TestSound(menu->rowSelected, 1);
+			if (sdata->AnyPlayerHold & (BTN_LEFT | BTN_RIGHT))
 			{
-				volume -= 4;
+				int volume = howl_VolumeGet(menu->rowSelected);
+
+				if (sdata->AnyPlayerHold & BTN_LEFT)
+				{
+					volume -= 4;
+				}
+				else if (sdata->AnyPlayerHold & BTN_RIGHT)
+				{
+					volume += 4;
+				}
+
+				if (volume < 0)
+					volume = 0;
+				if (volume > 0xff)
+					volume = 0xff;
+
+				howl_VolumeSet(menu->rowSelected, volume);
 			}
-			else if (sdata->AnyPlayerHold & BTN_RIGHT)
+			break;
+
+		// Mode	(Stereo/Mono)
+		case 3:
+			// clear test sound
+			OptionsMenu_TestSound(0, 0);
+
+			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
 			{
-				volume += 4;
+				OtherFX_Play(1, 1);
+				int mode = howl_ModeGet();
+				howl_ModeSet(mode == 0);
 			}
+			break;
 
-			if (volume < 0)
-				volume = 0;
-			if (volume > 0xff)
-				volume = 0xff;
+		// DualShock/"Analog controller" settings
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+			// clear test sound
+			OptionsMenu_TestSound(0, 0);
 
-			howl_VolumeSet(menu->rowSelected, volume);
-		}
-		break;
-
-	// Mode	(Stereo/Mono)
-	case 3:
-		// clear test sound
-		OptionsMenu_TestSound(0, 0);
-
-		if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
-		{
-			OtherFX_Play(1, 1);
-			int mode = howl_ModeGet();
-			howl_ModeSet(mode == 0);
-		}
-		break;
-
-	// DualShock/"Analog controller" settings
-	case 4:
-	case 5:
-	case 6:
-	case 7:
-		// clear test sound
-		OptionsMenu_TestSound(0, 0);
-
-		if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
-		{
-			OtherFX_Play(1, 1);
-
-			int gamepadRow = menu->rowSelected - 4;
-
-			if (gamepadRow < gamepad->numGamepads)
+			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
 			{
-				// selecting dualshock row
-				// toggle gamepad vibration
-				gGT->gameMode1 ^= data.gGT_gameMode1_VibPerPlayer[gamepad->gamepadId[gamepadRow]];
+				OtherFX_Play(1, 1);
+
+				int gamepadRow = menu->rowSelected - 4;
+
+				if (gamepadRow < gamepad->numGamepads)
+				{
+					// selecting dualshock row
+					// toggle gamepad vibration
+					gGT->gameMode1 ^= data.gGT_gameMode1_VibPerPlayer[gamepad->gamepadId[gamepadRow]];
+				}
+				else
+				{
+					// selecting "analog controller" row
+					// this will open the analog controller config menu
+					sdata->gamepadID_OwnerRaceWheelConfig = gamepad->analogId[gamepadRow - gamepad->numGamepads];
+					sdata->boolOpenWheelConfig = true;
+					sdata->raceWheelConfigPageIndex = 0;
+				}
 			}
-			else
+			break;
+
+		// Exit
+		case 8:
+			// clear test sound
+			OptionsMenu_TestSound(0, 0);
+
+			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
 			{
-				// selecting "analog controller" row
-				// this will open the analog controller config menu
-				sdata->gamepadID_OwnerRaceWheelConfig = gamepad->analogId[gamepadRow - gamepad->numGamepads];
-				sdata->boolOpenWheelConfig = true;
-				sdata->raceWheelConfigPageIndex = 0;
+				OtherFX_Play(1, 1);
+				exitMenu = true;
 			}
+			break;
 		}
-		break;
-
-	// Exit
-	case 8:
-		// clear test sound
-		OptionsMenu_TestSound(0, 0);
-
-		if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
-		{
-			OtherFX_Play(1, 1);
-			exitMenu = true;
-		}
-		break;
 	}
 
-	if (exitMenu || (sdata->AnyPlayerTap & (BTN_TRIANGLE | BTN_START | BTN_SQUARE_one)))
-	{
-		OtherFX_Play(1, 1);
-		OptionsMenu_TestSound(0, 0);
-		RECTMENU_ClearInput();
-		sdata->ptrDesiredMenu = MainFreeze_GetMenuPtr();
-	}
+	return exitMenu;
 }
 
 // stuff is drawn last to first
@@ -192,7 +187,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 	struct GameTracker *gGT = sdata->gGT;
 
 	// note: multitap only works if it's connected to the P1 slot
-	int isMultitap = (sdata->gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4));
+	int multitapStringOffset = (sdata->gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4)) ? 2 : 0;
 
 	// a menu row is 10 pixels
 	int menuRowsNegativePadding = gamepad->menuRowsToRemove * 10;
@@ -248,6 +243,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 
 	int *ot = &gGT->backBuffer->otMem.startPlusFour;
 	struct PrimMem *primMem = &gGT->backBuffer->primMem;
+	Color color;
 
 	// draw volume sliders
 	for (int i = 0; i < 3; i++)
@@ -276,7 +272,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		volumeSliderTriangle[5] = volumeSliderTriangle[1];
 
 		RECT volumeSliderBar = {.x = volumeSliderBarPosX + 1, .y = volumeSliderPosY + 48, .w = 3, .h = 10};
-		Color color = *(Color *)(data.Options_VolumeSlider_Colors + 0xc);
+		color = *(Color *)(data.Options_VolumeSlider_Colors + 0xc);
 		CTR_Box_DrawSolidBox(&volumeSliderBar, color, ot);
 
 		RECT volumeSliderBarOutline = {.x = volumeSliderBarPosX, .y = volumeSliderPosY + 47, .w = 5, .h = 12};
@@ -333,18 +329,14 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 			// "CONTROLLER 1", "CONTROLLER 2",
 			// "CONTROLLER 1A", "CONTROLLER 1B",
 			// "CONTROLLER 1C", "CONTROLLER 1D"
-			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[currPad + isMultitap]], lineWidth_vibrateOn, rowY, FONT_SMALL,
+			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[currPad + multitapStringOffset]], lineWidth_vibrateOn, rowY, FONT_SMALL,
 			                   dualShockRowColor);
 
-			// ON: 0
-			// OFF: 1
-			int boolDisabled = (gGT->gameMode1 & data.gGT_gameMode1_VibPerPlayer[currPad]) == 0;
+			int boolDisabled = (gGT->gameMode1 & data.gGT_gameMode1_VibPerPlayer[currPad]) != 0;
 
 			if (dualShockRowColor != GRAY)
 			{
-				// RED: 3
-				// WHITE: 4
-				dualShockRowColor = RED + boolDisabled;
+				dualShockRowColor = boolDisabled ? RED : WHITE;
 			}
 
 			// 325: "VIBRATE ON"
@@ -361,7 +353,7 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 
 		for (int i = 0; i < gamepad->numAnalogs; i++)
 		{
-			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[gamepad->analogId[i] + isMultitap]], 256,
+			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[gamepad->analogId[i] + multitapStringOffset]], 256,
 			                   100 + (menuRowsNegativePadding / 2) + analogRowPosY + (i * 10), FONT_SMALL, (JUSTIFY_CENTER | ORANGE));
 		}
 	}
@@ -411,6 +403,14 @@ void MainFreeze_MenuPtrOptions(struct RectMenu *menu)
 	};
 
 	IDENTIFYGAMEPADS_MainFreeze_MenuPtrOptions(menu, &gamepad);
-	PROCESSINPUTS_MainFreeze_MenuPtrOptions(menu, &gamepad);
+	int exitMenu = PROCESSINPUTS_MainFreeze_MenuPtrOptions(menu, &gamepad);
 	DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(menu, &gamepad);
+
+	if (exitMenu || (sdata->AnyPlayerTap & (BTN_TRIANGLE | BTN_START | BTN_SQUARE_one)))
+	{
+		OtherFX_Play(1, 1);
+		OptionsMenu_TestSound(0, 0);
+		RECTMENU_ClearInput();
+		sdata->ptrDesiredMenu = MainFreeze_GetMenuPtr();
+	}
 }

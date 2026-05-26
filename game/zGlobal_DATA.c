@@ -4352,8 +4352,7 @@ struct Data
                     .unk1 = 0,
                     .state = 0x88A3,
                     .rows = 0,
-                    // TODO(aalhendi): Include MainFreeze_MenuPtrOptions and replace this raw retail callback address.
-                    .funcPtr = (void (*)(struct RectMenu *))0x80038b5c,
+                    .funcPtr = MainFreeze_MenuPtrOptions,
                     .drawStyle = 4,
 
                     // the rest initializes as zeros
