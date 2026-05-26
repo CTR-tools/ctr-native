@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800b3954-0x800b3fe4.
 void MM_HighScore_MenuProc(struct RectMenu *menu_unused)
 {
 	u8 bVar1;
