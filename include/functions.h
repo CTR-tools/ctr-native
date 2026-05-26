@@ -49,23 +49,23 @@ void CAM_ThTick(struct Thread *t);
 
 u32 CDSYS_Init(int useDisc);
 u32 CDSYS_GetFilePosInt(char *fileString, int *filePos);
-void CDSYS_SetMode_StreamData();
-void CDSYS_SetMode_StreamAudio();
+void CDSYS_SetMode_StreamData(void);
+void CDSYS_SetMode_StreamAudio(void);
 u32 CDSYS_SetXAToLang(int lngIndex);
 void CDSYS_XaCallbackCdSync(char result);
 void CDSYS_XaCallbackCdReady(char result);
-void CDSYS_SpuCallbackIRQ();
-void CDSYS_SpuCallbackTransfer();
-void CDSYS_SpuEnableIRQ();
-void CDSYS_SpuDisableIRQ();
-void CDSYS_SpuGetMaxSample();
+void CDSYS_SpuCallbackIRQ(void);
+void CDSYS_SpuCallbackTransfer(void);
+void CDSYS_SpuEnableIRQ(void);
+void CDSYS_SpuDisableIRQ(void);
+void CDSYS_SpuGetMaxSample(void);
 u32 CDSYS_XAGetNumTracks(int categoryID);
 u32 CDSYS_XASeek(int isCdControl, int categoryID, int audioTrackID);
 int CDSYS_XAGetTrackLength(int categoryID, int audioTrackID);
 int CDSYS_XAPlay(int categoryID, int index);
-void CDSYS_XAPauseRequest();
-void CDSYS_XAPauseForce();
-void CDSYS_XAPauseAtEnd();
+void CDSYS_XAPauseRequest(void);
+void CDSYS_XAPauseForce(void);
+void CDSYS_XAPauseAtEnd(void);
 
 // COLL
 
@@ -214,8 +214,8 @@ void GAMEPROG_InitFullMemcard(struct MemcardProfile *mcp);
 void GAMEPROG_NewProfile_InsideAdv(struct AdvProgress *adv);
 void GAMEPROG_SaveCupProgress(void);
 void GAMEPROG_SyncGameAndCard(struct GameProgress *memcardProg, struct GameProgress *currentProg);
-void GAMEPROG_NewGame_OnBoot();
-void GAMEPROG_GetPtrHighScoreTrack();
+void GAMEPROG_NewGame_OnBoot(void);
+void GAMEPROG_GetPtrHighScoreTrack(void);
 
 // GhostBuffer
 
@@ -226,7 +226,7 @@ void GhostTape_Start(void);
 void GhostTape_End(void);
 void GhostTape_WriteMoves(s16 param_1);
 void GhostTape_WriteBoosts(int reserves, u8 type, int fireLevel);
-void GhostTape_Destroy();
+void GhostTape_Destroy(void);
 
 // OtherFX
 
@@ -358,8 +358,8 @@ void Channel_UpdateChannels(void);
 
 // Cutscene (?)
 
-void Cutscene_VolumeBackup();
-void Cutscene_VolumeRestore();
+void Cutscene_VolumeBackup(void);
+void Cutscene_VolumeRestore(void);
 
 // this is the last of ho- got em
 
@@ -440,12 +440,12 @@ void EngineSound_NearestAIs(void);
 
 // Garage
 
-void Garage_Init();
+void Garage_Init(void);
 void Garage_Enter(char characterID);
 void Garage_PlayFX(u32 soundID, char characterID);
-void Garage_LerpFX();
+void Garage_LerpFX(void);
 void Garage_MoveLR(int desiredID);
-void Garage_Leave();
+void Garage_Leave(void);
 
 // okay finally we're done with that
 
@@ -506,20 +506,20 @@ void LIST_Init(struct LinkedList *L, struct Item *item, int itemSize, int numIte
 // LOAD
 
 void LOAD_Callback_Overlay_Generic(struct LoadQueueSlot *lqs);
-void LOAD_Callback_Overlay_230();
-void LOAD_Callback_Overlay_231();
-void LOAD_Callback_Overlay_232();
-void LOAD_Callback_Overlay_233();
+void LOAD_Callback_Overlay_230(void);
+void LOAD_Callback_Overlay_231(void);
+void LOAD_Callback_Overlay_232(void);
+void LOAD_Callback_Overlay_233(void);
 void LOAD_Callback_MaskHints3D(struct LoadQueueSlot *lqs);
 void LOAD_Callback_Podiums(struct LoadQueueSlot *lqs);
 void LOAD_Callback_LEV(struct LoadQueueSlot *lqs);
 void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs);
 void LOAD_Callback_DriverModels(struct LoadQueueSlot *lqs);
 void LOAD_HubCallback(struct LoadQueueSlot *lqs);
-void LOAD_GlobalModelPtrs_MPK();
+void LOAD_GlobalModelPtrs_MPK(void);
 void LOAD_HubSwapPtrs(struct GameTracker *gGT);
 void LOAD_StringToUpper(char *path);
-void LOAD_InitCD();
+void LOAD_InitCD(void);
 void *LOAD_ReadDirectory(char *filepath);
 void LOAD_DramFileCallback(struct LoadQueueSlot *lqs);
 // LOAD_DramFile()
@@ -547,21 +547,21 @@ void LOAD_LangFile(int bigfilePtr, int lang);
 int LOAD_GetBigfileIndex(u32 levelID, int lod);
 void LOAD_AppendQueue(struct BigHeader *bigfile, int type, int fileIndex, void *destinationPtr, void (*callback)(struct LoadQueueSlot *));
 void LOAD_CDRequestCallback(struct LoadQueueSlot *lqs);
-void LOAD_NextQueuedFile();
+void LOAD_NextQueuedFile(void);
 void LOAD_Hub_ReadFile(struct BigHeader *bigfilePtr, int levID, int packID);
 void LOAD_Hub_SwapNow();
 void LOAD_Hub_Main(struct BigHeader *bigfilePtr);
 void LOAD_OvrLOD(u32 param_1);
 void LOAD_OvrEndRace(u32 param_1);
 void LOAD_OvrThreads(u32 param_1);
-int LOAD_GetAdvPackIndex();
+int LOAD_GetAdvPackIndex(void);
 int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *bigfile);
 void LOAD_TalkingMask(int, int);
 void LOAD_LevelFile(int levelID);
-int LOAD_IsOpen_RacingOrBattle();
-int LOAD_IsOpen_MainMenu();
-int LOAD_IsOpen_AdvHub();
-int LOAD_IsOpen_Podiums();
+int LOAD_IsOpen_RacingOrBattle(void);
+int LOAD_IsOpen_MainMenu(void);
+int LOAD_IsOpen_AdvHub(void);
+int LOAD_IsOpen_Podiums(void);
 
 // MainDB
 
@@ -571,8 +571,8 @@ void MainDB_OTMem(struct OTMem *otMem, u32 size);
 
 // MainDrawCb
 
-void MainDrawCb_DrawSync();
-void MainDrawCb_Vsync();
+void MainDrawCb_DrawSync(void);
+void MainDrawCb_Vsync(void);
 
 // MainFrame
 
@@ -592,10 +592,10 @@ void MainFreeze_ConfigDrawArrows(s16 posX, s16 posY, char *str);
 void MainFreeze_ConfigSetupEntry();
 void MainFreeze_MenuPtrOptions(struct RectMenu *menu);
 void MainFreeze_MenuPtrQuit(struct RectMenu *menu);
-void MainFreeze_SafeAdvDestroy();
+void MainFreeze_SafeAdvDestroy(void);
 void MainFreeze_MenuPtrDefault(struct RectMenu *menu);
 struct RectMenu *MainFreeze_GetMenuPtr();
-void MainFreeze_IfPressStart();
+void MainFreeze_IfPressStart(void);
 
 // MainGameEnd
 
@@ -624,12 +624,12 @@ void MainInit_VRAMDisplay(void);
 // MainKillGame
 
 // MainKillGame_StopCTR()
-void MainKillGame_LaunchSpyro2();
+void MainKillGame_LaunchSpyro2(void);
 
 // MainLoadVLC
 
 // MainLoadVLC_Callback()
-void MainLoadVLC();
+void MainLoadVLC(void);
 
 // main
 
@@ -667,8 +667,8 @@ int MEMCARD_ChecksumSave(u8 *saveBytes, int len);
 int MEMCARD_ChecksumLoad(u8 *saveBytes, int len);
 char *MEMCARD_StringInit(int slotIndex, char *dstString);
 void MEMCARD_StringSet(char *dstString, int slotIdx, char *srcString);
-void MEMCARD_InitCard();
-void MEMCARD_CloseCard();
+void MEMCARD_InitCard(void);
+void MEMCARD_CloseCard(void);
 u8 MEMCARD_GetNextSwEvent(void);
 u8 MEMCARD_GetNextHwEvent(void);
 u8 MEMCARD_WaitForHwEvent(void);
@@ -702,7 +702,7 @@ void MEMPACK_ClearLowMem(void);
 void MEMPACK_PopState(void);
 void MEMPACK_PopToState(int id);
 
-int MixRNG_Scramble();
+int MixRNG_Scramble(void);
 int MixRNG_Particles(int numParticle);
 u32 MixRNG_GetValue(int val);
 
@@ -726,7 +726,7 @@ void PickupBots_Update();
 
 // PlayLevel (?)
 
-void PlayLevel_UpdateLapStats();
+void PlayLevel_UpdateLapStats(void);
 void RR_EndEvent_UnlockAward(void);
 
 // Tawna (?)
@@ -762,7 +762,7 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb);
 int PushBuffer_SetFrustumPlane(s16 *frustumData, struct FrustumCornerOUT *fc1, s16 *camPos, struct FrustumCornerOUT *fc2);
 void PushBuffer_UpdateFrustum(struct PushBuffer *pb);
 void PushBuffer_FadeOneWindow(struct PushBuffer *pb);
-void PushBuffer_FadeAllWindows();
+void PushBuffer_FadeAllWindows(void);
 
 // QueueLoadTrack
 
@@ -805,10 +805,10 @@ void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *r);
 void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, int boolCheckSubmenu);
 void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, int boolCheckSubmenu);
 void RECTMENU_DrawSelf(struct RectMenu *m, int posX, s16 posY, s16 menuWidth);
-void RECTMENU_ClearInput();
-void RECTMENU_CollectInput();
+void RECTMENU_ClearInput(void);
+void RECTMENU_CollectInput(void);
 int RECTMENU_ProcessInput(struct RectMenu *m);
-void RECTMENU_ProcessState();
+void RECTMENU_ProcessState(void);
 void RECTMENU_Show(struct RectMenu *m);
 void RECTMENU_Hide(struct RectMenu *m);
 int RECTMENU_BoolHidden(struct RectMenu *m);
@@ -831,20 +831,20 @@ void RefreshCard_GameProgressAndOptions(void);
 
 // Load...
 
-void RefreshCard_Entry();
+void RefreshCard_Entry(void);
 void SelectProfile_QueueLoadHub_MenuProc(struct RectMenu *menu);
 void SelectProfile_ThTick(struct Thread *t);
 void SelectProfile_PrintInteger(int value, int posX, int posY, int usePaddedFormat, int color);
 int SelectProfile_UI_ConvertX(int param_1, int param_2);
 int SelectProfile_UI_ConvertY(int param_1, int param_2);
 // SelectProfile_DrawAdvProfile()
-void SelectProfile_GetTrackID();
+void SelectProfile_GetTrackID(void);
 void SelectProfile_Init(u16 flags);
 void SelectProfile_Destroy(void);
 void SelectProfile_AdvPickMode_MenuProc(struct RectMenu *menu);
 // SelectProfile_DrawGhostProfile()
-void SelectProfile_MuteCursors();
-void SelectProfile_UnMuteCursors();
+void SelectProfile_MuteCursors(void);
+void SelectProfile_UnMuteCursors(void);
 void SelectProfile_ToggleMode(u32 param_1);
 void SelectProfile_InitAndDestroy(void);
 u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 param_2, u32 confirm);
@@ -863,7 +863,7 @@ void TakeCupProgress_MenuProc(struct RectMenu *menu);
 
 // RCNT
 
-void Timer_Init();
+void Timer_Init(void);
 // Timer_Destroy()
 int Timer_GetTime_Total();
 int Timer_GetTime_Elapsed(int time, int *param_2);
@@ -882,7 +882,7 @@ void UI_ThTick_big1(struct Thread *);
 int UI_ConvertX_2(int oldPosX, int newPosX);
 int UI_ConvertY_2(int oldPosY, int newPosY);
 // UI_INSTANCE_BirthWithThread()
-void UI_INSTANCE_InitAll();
+void UI_INSTANCE_InitAll(void);
 void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s16 posX, s16 posY, struct PrimMem *primMem, u_long *otMem, u32 colorID);
 void UI_Map_GetIconPos(s16 *ptrMap, int *posX, int *posY);
 void UI_Map_DrawAdvPlayer(int ptrMap, int *matrix, int unused1, int unused2, s16 param_5, s16 param_6);
@@ -914,14 +914,14 @@ void UI_DrawNumKey(int posX, int posY);
 void UI_DrawNumTrophy(int posX, int posY);
 void UI_DrawNumCrystal(int posX, int posY, struct Driver *d);
 void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver);
-void UI_DrawSpeedBG();
+void UI_DrawSpeedBG(void);
 void UI_JumpMeter_Update(struct Driver *d);
 void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver);
-void UI_DrawRankedDrivers();
-void UI_RenderFrame_Racing();
-void UI_RenderFrame_AdvHub();
-void UI_RenderFrame_CrystChall();
+void UI_DrawRankedDrivers(void);
+void UI_RenderFrame_Racing(void);
+void UI_RenderFrame_AdvHub(void);
+void UI_RenderFrame_CrystChall(void);
 void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT);
 u32 UI_VsQuipReadDriver(struct Driver *driver, int offset, int size);
 void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver *bestDriver, int characterID);
@@ -931,9 +931,9 @@ void UI_VsWaitForPressX();
 void UI_RaceEnd_GetDriverClock(struct Driver *driver);
 void UI_RaceStart_IntroText1P();
 void UI_RaceEnd_MenuProc();
-void UI_CupStandings_FinalizeCupRanks();
-void UI_CupStandings_UpdateCupRanks();
-void UI_CupStandings_InputAndDraw();
+void UI_CupStandings_FinalizeCupRanks(void);
+void UI_CupStandings_UpdateCupRanks(void);
+void UI_CupStandings_InputAndDraw(void);
 
 // Vector
 
@@ -1170,7 +1170,7 @@ void *BreakDraw();
 // OVERLAY FUNCTIONS ARE BELOW
 // (currently unorganized)
 
-void RB_Bubbles_RoosTubes();
+void RB_Bubbles_RoosTubes(void);
 void RB_Burst_DrawAll(struct GameTracker *gGT);
 void VB_EndEvent_DrawMenu();
 void RR_EndEvent_DrawMenu();
@@ -1179,9 +1179,9 @@ void TT_EndEvent_DisplayTime(int paramX, s16 paramY, u32 UI_DrawRaceClockFlags);
 void TT_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode);
 void TT_EndEvent_DrawMenu(void);
 void CC_EndEvent_DrawMenu();
-void AH_Map_Main();
+void AH_Map_Main(void);
 void AH_MaskHint_Start(s16 requestedHint, s16 bool_interruptWarppad);
-void CS_BoxScene_InstanceSplitLines();
+void CS_BoxScene_InstanceSplitLines(void);
 
 void RB_Player_ToggleInvisible();
 void RB_Player_ToggleFlicker();
@@ -1194,8 +1194,8 @@ void RB_Blowup_ProcessBucket(struct Thread *thread);
 void RB_Spider_DrawWebs(struct Thread *thread, struct PushBuffer *pb);
 void RB_Follower_ProcessBucket(struct Thread *thread);
 void RB_StartText_ProcessBucket(struct Thread *thread);
-void AH_WarpPad_AllWarppadNum();
-void MM_Title_SetTrophyDPP();
+void AH_WarpPad_AllWarppadNum(void);
+void MM_Title_SetTrophyDPP(void);
 
 void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *waterEnvMap);
 void DrawLevelOvr2P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
@@ -1206,7 +1206,7 @@ void DrawLevelOvr4P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
                     void *VisMem1C, void *waterEnvMap);
 
 u32 MM_Video_CheckIfFinished(int param_1);
-void AH_Pause_Update();
+void AH_Pause_Update(void);
 
 //=====================================================================================================================
 // this section is forward decls to fix warnings by TheUbMunster.
@@ -1286,15 +1286,15 @@ int howl_VolumeGet(int type);
 void howl_VolumeSet(int type, u8 vol);
 void Vector_SpecLightSpin2D(struct Instance *, s16 *, s16 *);
 char *CS_Credits_GetNextString(char *);
-void CS_Credits_DestroyCreditGhost();
+void CS_Credits_DestroyCreditGhost(void);
 void CdSetDebug(int);
 void SpuSetIRQ(int);
 void SpuReadDecodedData(s16 *, int);
 void SpuSetIRQCallback(void (*)(void));
 void SpuSetTransferCallback(void (*)(void));
 void MainInit_RainBuffer(struct GameTracker *);
-void CS_Podium_FullScene_Init();
-void CS_Cutscene_Start();
+void CS_Podium_FullScene_Init(void);
+void CS_Cutscene_Start(void);
 void howl_StopAudio(int boolErasePauseBackup, int boolEraseMusic, int boolDestroyAllFX);
 u32 OtherFX_Modify(u32 soundId, u32 flags);
 void RB_TNT_ThTick_ThrowOnHead(struct Thread *);
@@ -1327,7 +1327,7 @@ void RenderBucket_InitDepthGTE();
 int format(char *);
 void Particle_UpdateList(int *, int);
 void VehLap_UpdateProgress(struct Driver *);
-void MainGameEnd_Initialize();
+void MainGameEnd_Initialize(void);
 void SetDrawEnv(void *, DRAWENV *);
 u32 VehCalc_FastSqrt(u32, u32);
 void VehBirth_NullThread(struct Thread *t);
