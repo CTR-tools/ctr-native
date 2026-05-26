@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800adc0c-0x800ae0bc.
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800adc0c-0x800ae0bc PSX path.
 void MM_Characters_DrawWindows(int boolShowDrivers)
 {
 	struct GameTracker *gGT;
@@ -104,13 +104,7 @@ void MM_Characters_DrawWindows(int boolShowDrivers)
 		iVar10->flags &= 0xffffff7f;
 
 		// if driver is off-screen
-		if (
-// ND bug, this can't happen
-#if 0
-			(gGT->numPlyrNextGame <= iVar14) ||
-#endif
-
-		    (boolShowDrivers == 0))
+		if ((gGT->numPlyrNextGame <= iVar14) || (boolShowDrivers == 0))
 		{
 			// invisible
 			iVar10->flags |= 0x80;
