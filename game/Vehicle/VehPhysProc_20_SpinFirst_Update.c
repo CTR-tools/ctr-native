@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80063cf4-0x80063d44.
 void VehPhysProc_SpinFirst_Update(struct Thread *t, struct Driver *d)
 {
 	int speedApprox;
