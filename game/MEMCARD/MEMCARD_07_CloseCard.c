@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003d95c-0x8003d9ec.
 void MEMCARD_CloseCard(void)
 {
 	// This function was copy/pasted by Naughty Dog,
