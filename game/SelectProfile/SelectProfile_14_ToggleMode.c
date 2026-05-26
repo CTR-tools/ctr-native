@@ -17,7 +17,6 @@ void SelectProfile_ToggleMode(u32 mode)
 
 	// 0x00 AdvNew, 0x10 AdvLoad, 0x20 green load/save, 0x30 ghost, 0x40 slot selected.
 	*SelectProfile_Mode() = mode & 0xf0;
-	*(s16 *)&sdata->data10_bbb[2] = 0;
 	*(s16 *)&sdata->data10_bbb[4] = 0;
 	*(s16 *)&sdata->data10_bbb[6] = 0;
 	*(s16 *)&sdata->data10_bbb[8] = 0;
