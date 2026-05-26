@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80022318-0x800223f4.
 void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY)
 {
 // Deperate for byte budget

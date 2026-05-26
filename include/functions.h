@@ -117,7 +117,7 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags);
 // DebugFont
 
 void DebugFont_Init(struct GameTracker *gGT);
-void DebugFont_DrawNumbers(int param_1, u32 param_2, int param_3);
+void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY);
 
 // DecalFont
 
