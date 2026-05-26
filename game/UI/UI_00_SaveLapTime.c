@@ -1,6 +1,11 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004c55c-0x8004c718
+static inline s32 UI_SaveLapTime_MipsMul(s32 lhs, s32 rhs)
+{
+	return (s32)((u32)lhs * (u32)rhs);
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004c55c-0x8004c718.
 void UI_SaveLapTime(int numLaps, int lapTime, s16 driverID)
 {
 	int numMinutes;
@@ -32,7 +37,7 @@ void UI_SaveLapTime(int numLaps, int lapTime, s16 driverID)
 	// calculate proper lap time
 	sdata->LapTimes.p1_Sec10s[PlayerLapIndex] = (lapTime / 0x2580) % 6;
 	sdata->LapTimes.p1_Sec1s[PlayerLapIndex] = (lapTime / 0x3c0) % 10;
-	sdata->LapTimes.p1_Ms10s[PlayerLapIndex] = ((lapTime * 10) / 0x3c0) % 10;
-	sdata->LapTimes.p1_Ms1s[PlayerLapIndex] = ((lapTime * 100) / 0x3c0) % 10;
+	sdata->LapTimes.p1_Ms10s[PlayerLapIndex] = (UI_SaveLapTime_MipsMul(lapTime, 10) / 0x3c0) % 10;
+	sdata->LapTimes.p1_Ms1s[PlayerLapIndex] = (UI_SaveLapTime_MipsMul(lapTime, 100) / 0x3c0) % 10;
 	return;
 }
