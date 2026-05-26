@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800680d0-0x80068150
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800680d0-0x80068150.
 void VehStuckProc_Tumble_PhysLinear(struct Thread *thread, struct Driver *driver)
 {
 	driver->NoInputTimer -= sdata->gGT->elapsedTimeMS;

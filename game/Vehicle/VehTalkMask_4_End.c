@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006925c-0x80069284
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006925c-0x80069284.
 void VehTalkMask_End()
 {
 	CDSYS_XAPauseRequest();

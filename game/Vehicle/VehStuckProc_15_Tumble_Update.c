@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006809c-0x800680d0
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006809c-0x800680d0.
 void VehStuckProc_Tumble_Update(struct Thread *thread, struct Driver *driver)
 {
 	if (driver->NoInputTimer != 0)

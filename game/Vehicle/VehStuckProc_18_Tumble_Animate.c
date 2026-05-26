@@ -1,6 +1,6 @@
 #include <common.h>
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80068244-0x800682a4
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80068244-0x800682a4.
 void VehStuckProc_Tumble_Animate(struct Thread *thread, struct Driver *driver)
 {
 	int matrixIndex;
