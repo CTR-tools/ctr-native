@@ -1,7 +1,6 @@
 #include <common.h>
-// called "CTR" for no good reason,
-// come back to this later
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80021500-0x80021594.
 void CTR_Box_DrawWirePrims(Point p1, Point p2, Color color, void *ot)
 {
 	LineF2 *p;

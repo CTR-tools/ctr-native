@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80021894-0x80021984.
 void CTR_Box_DrawSolidBox(RECT *r, Color color, u_long *ot)
 {
 	PolyF4 *p;

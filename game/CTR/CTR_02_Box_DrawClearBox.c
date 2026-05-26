@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): PSX path ASM-verified NTSC-U 926 0x8002177c-0x80021894.
 void CTR_Box_DrawClearBox(RECT *r, Color *color, int transparency, u_long *ot)
 {
 	typedef struct TPage_PolyF4
@@ -35,7 +36,8 @@ void CTR_Box_DrawClearBox(RECT *r, Color *color, int transparency, u_long *ot)
 	p->p.v[3].pos.x = bottomX;
 	p->p.v[3].pos.y = bottomY;
 
-#ifdef REBUILD_PC
+// NOTE(aalhendi): CTR_NATIVE keeps PsyCross display-area drawing enabled.
+#ifdef CTR_NATIVE
 	((TPage *)p)->texpage.drawDisplayArea = 1;
 #endif
 
