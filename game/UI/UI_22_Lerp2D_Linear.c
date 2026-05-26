@@ -1,6 +1,7 @@
 #include <common.h>
 
 // param1 pointer to array of two shorts (x,y)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004ecd4-0x8004edac.
 void UI_Lerp2D_Linear(s16 *ptrPos, s16 startX, s16 startY, s16 endX, s16 endY, int curFrame, s16 endFrame)
 {
 	int endFrameInt;
