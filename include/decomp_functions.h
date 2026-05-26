@@ -388,7 +388,10 @@ void RaceConfig_LoadGameOptions(void);
 void RaceConfig_SaveGameOptions(void);
 
 void RefreshCard_Entry(void);
+int RefreshCard_BoolGhostForLEV(u16 trackID);
 void RefreshCard_GhostEncodeProfile(u32 slotIndex, u16 characterID, u16 levelID, int time, char *name);
+int RefreshCard_GhostDecodeByte(int value);
+void RefreshCard_GhostDecodeProfile(struct GhostProfile *profile, char *fileName);
 int RefreshCard_GetResult(int result);
 void RefreshCard_NextMemcardAction(int slot, int action, char *fileName, char *fileIconHeader, struct GhostHeader *ptrGhostHeader, int fileSize);
 u32 RefreshCard_GhostEncodeByte(int currByte);

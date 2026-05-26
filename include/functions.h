@@ -815,13 +815,13 @@ int RECTMENU_BoolHidden(struct RectMenu *m);
 
 // GhostData (?)
 
-// RefreshCard_BoolGhostForLEV()
+int RefreshCard_BoolGhostForLEV(u16 trackID);
 int RefreshCard_GetResult(int result);
 void RefreshCard_NextMemcardAction(int slot, int action, char *fileName, char *fileIconHeader, struct GhostHeader *ptrGhostHeader, int fileSize);
 u32 RefreshCard_GhostEncodeByte(int currByte);
-// RefreshCard_GhostDecodeByte()
-// RefreshCard_GhostEncodeProfile()
-// RefreshCard_GhostDecodeProfile()
+int RefreshCard_GhostDecodeByte(int value);
+void RefreshCard_GhostEncodeProfile(u32 slotIndex, u16 characterID, u16 levelID, int time, char *name);
+void RefreshCard_GhostDecodeProfile(struct GhostProfile *profile, char *fileName);
 void RefreshCard_StartMemcardAction(int action);
 void RefreshCard_StopMemcardAction(void);
 void RefreshCard_SetScreenText(int screenText);
@@ -1224,7 +1224,6 @@ void RotTrans(SVECTOR *, VECTOR *, long *);
 void SetRotMatrix(MATRIX *);
 void SetTransMatrix(MATRIX *);
 void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY); // this is present (but commented out) further up the file. Idk why.
-int RefreshCard_BoolGhostForLEV(u16 trackID);                              // this is present (but commented out) further up the file. Idk why.
 void StCdInterrupt();                                                      // 80078d34
 void DecDCTout(u_long *, int);                                             // 80079940 guessed the signature
 void DecDCTin(u_long *, int);
