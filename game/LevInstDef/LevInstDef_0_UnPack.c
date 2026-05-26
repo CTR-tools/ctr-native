@@ -2,6 +2,7 @@
 
 void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info)
 {
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003116c-0x80031268.
 	int i;
 	int numQuadBlock;
 	struct QuadBlock *ptrQuadBlockArray;
@@ -17,7 +18,7 @@ void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info)
 	{
 		qbCurr = &ptrQuadBlockArray[i];
 
-		if (qbCurr->pvs != 0)
+		if ((qbCurr->pvs != 0) && (qbCurr->pvs->visInstSrc != 0))
 		{
 			// loop through all instance pointers visible on quadblock
 			for (visInstSrc = (struct InstDef **)qbCurr->pvs->visInstSrc; visInstSrc[0] != NULL; visInstSrc++)
@@ -29,7 +30,7 @@ void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info)
 
 	level1 = sdata->gGT->level1;
 
-	if (level1->numInstances != 0)
+	if (level1->ptrInstDefPtrArray != 0)
 	{
 		// loop through all instDef pointers in the LEV
 		for (visInstSrc = level1->ptrInstDefPtrArray; visInstSrc[0] != 0; visInstSrc++)
