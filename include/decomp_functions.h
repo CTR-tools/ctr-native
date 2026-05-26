@@ -900,7 +900,7 @@ void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags);
 void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver);
 int DecalFont_GetLineWidth(char *str, s16 fontType);
 void RR_EndEvent_UnlockAward(void);
-void RR_EndEvent_DrawHighScore(s16 startX, int startY);
+void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode);
 int LOAD_IsOpen_RacingOrBattle(void);
 void GAMEPROG_NewProfile_InsideAdv(struct AdvProgress *adv);
 int RaceFlag_MoveModels(int frameIndex, int numFrames);

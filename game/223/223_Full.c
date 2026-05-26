@@ -17,6 +17,7 @@ void JunkPadding223()
 	asm("nop");
 	asm("nop");
 }
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f71c-0x8009fcd0.
 void RR_EndEvent_UnlockAward(void)
 {
 	int i;
@@ -472,7 +473,7 @@ void RR_EndEvent_DrawMenu(void)
 
 	    ((gGT->gameModeEnd & NEW_HIGH_SCORE) == 0))
 	{
-		RR_EndEvent_DrawHighScore(0x100, 10);
+		RR_EndEvent_DrawHighScore(0x100, 10, 1);
 
 		// PRESS * TO CONTINUE
 		DecalFont_DrawLine(sdata->lngStrings[0xc9], 0x100, 0xbe, 1, 0xffff8000);
@@ -489,11 +490,13 @@ void RR_EndEvent_DrawMenu(void)
 }
 
 // same in TT and RR, but not the same in Main Menu
-void RR_EndEvent_DrawHighScore(s16 startX, int startY)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fcd0-0x800a01d8.
+void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 {
 	// This is different from High Score in Main Menu because Main Menu
 	// does not show the rank icons '1', '2', '3', '4', '5'
 	struct GameTracker *gGT;
+	struct Driver *d;
 	struct HighScoreEntry *scoreEntry;
 
 	char i;
@@ -507,11 +510,12 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY)
 	RECT box;
 
 	gGT = sdata->gGT;
+	d = gGT->drivers[0];
 	timebox_X = startX - 0x1f;
 	currRowY = 0;
 
 	// 12 entries per track, 6 for Time Trial and 6 for Relic Race
-	scoreEntry = &sdata->gameProgress.highScoreTracks[gGT->levelID].scoreEntry[6];
+	scoreEntry = &sdata->gameProgress.highScoreTracks[gGT->levelID].scoreEntry[6 * scoreMode];
 
 	// === Naughty Dog Bug ===
 	// Start and End are the same
@@ -586,13 +590,30 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY)
 		currRowY += 0x1a;
 	}
 
-	// IF RR
+	if (scoreMode == 0)
+	{
+		// Change the way text flickers
+		timeColor = 0xffff8000;
+
+		// "BEST LAP"
+		DecalFont_DrawLine(sdata->lngStrings[0x170], startX, startY + 0x95, 1, timeColor);
+
+		// If you got a new best lap
+		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & 2) != 0))
+		{
+			timeColor = 0xffff8004;
+		}
+
+		// make a string for best lap
+		timeString = RECTMENU_DrawTime(scoreEntry[0].time);
+	}
+	else
 	{
 		// "YOUR TIME"
 		DecalFont_DrawLine(sdata->lngStrings[0xC5], startX, startY + 0x95, 1, 0xffff8000);
 
 		// make a string for your current track time
-		timeString = RECTMENU_DrawTime(gGT->drivers[0]->timeElapsedInRace);
+		timeString = RECTMENU_DrawTime(d->timeElapsedInRace);
 
 		// color
 		timeColor = 0xffff8000;
