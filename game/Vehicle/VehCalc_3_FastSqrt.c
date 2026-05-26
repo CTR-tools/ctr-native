@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80059070-0x80059100.
 u32 VehCalc_FastSqrt(u32 n, u32 shift)
 {
 	u32 result = 0;

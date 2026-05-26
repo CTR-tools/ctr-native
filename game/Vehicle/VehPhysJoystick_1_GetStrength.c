@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800616b0-0x800617cc.
 int VehPhysJoystick_GetStrength(int val, int max, struct RacingWheelData *rwd)
 {
 	int dead;

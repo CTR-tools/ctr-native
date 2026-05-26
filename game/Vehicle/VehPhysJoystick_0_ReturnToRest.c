@@ -1,8 +1,8 @@
 #include <common.h>
 
-// less bytes, less instructions, than original
 extern struct RacingWheelData rwd_default;
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006163c-0x800616b0.
 int VehPhysJoystick_ReturnToRest(int stickVal, int half, struct RacingWheelData *rwd)
 {
 	if (rwd == 0)
