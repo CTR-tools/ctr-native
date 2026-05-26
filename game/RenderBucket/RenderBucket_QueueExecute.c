@@ -1761,12 +1761,12 @@ struct RenderBucketUncompressResult RenderBucket_UncompressAnimationFrame(struct
 	u32 *deltaArray = (u32 *)ctx->idpp->ptrDeltaArray;
 	u8 flags = (command >> 24) & 0xff;
 
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006a8e0-0x8006aaa8.
 	if ((flags & 4) != 0)
 	{
 		u32 *scratchVertex = CTR_SCRATCHPAD_PTR(u32, 0x140 + (stackIndex * 8));
 
-		// NOTE(aalhendi): ASM-verified 0x8006a8e0-0x8006a8fc returns the
-		// cached packed vertex when command bit 0x04000000 is set.
+		// Command bit 0x04000000 returns the cached packed vertex.
 		result.packed.xy = scratchVertex[0];
 		result.packed.z = scratchVertex[1];
 		result.color = RenderBucket_GetCommandColor(ctx, command);
@@ -1784,8 +1784,8 @@ struct RenderBucketUncompressResult RenderBucket_UncompressAnimationFrame(struct
 		int bz = RenderBucket_SignExtendBits(temporal >> 17, 8);
 		int by = RenderBucket_SignExtendBits(temporal >> 9, 8);
 
-		// NOTE(aalhendi): ASM-verified 0x8006a92c-0x8006aa48 delta decode keeps
-		// the retail reset rule: an 8-bit field skips the temporal base add.
+		// NOTE(aalhendi): Retail delta decode keeps the reset rule: an 8-bit
+		// field skips the temporal base add.
 		RenderBucket_ReadDeltaComponent(ctx, xBits, bx, &ctx->x_alu);
 		RenderBucket_ReadDeltaComponent(ctx, zBits, bz, &ctx->y_alu);
 		RenderBucket_ReadDeltaComponent(ctx, yBits, by, &ctx->z_alu);
