@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e678-0x8003e6d4.
 char *MEMCARD_FindNextGhost(void)
 {
 	if (sdata->memcard_stage != MC_STAGE_GHOST_FOUND)
@@ -10,7 +11,7 @@ char *MEMCARD_FindNextGhost(void)
 	struct DIRENTRY *nextEntry;
 	struct DIRENTRY someEntry;
 
-	nextEntry == nextfile(&someEntry);
+	nextEntry = nextfile(&someEntry);
 	if (nextEntry == 0)
 	{
 		sdata->memcard_stage = MC_STAGE_IDLE;

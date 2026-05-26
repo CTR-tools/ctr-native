@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e600-0x8003e678.
 char *MEMCARD_FindFirstGhost(int slotIdx, char *srcString)
 {
 	if (sdata->memcard_stage != MC_STAGE_IDLE)

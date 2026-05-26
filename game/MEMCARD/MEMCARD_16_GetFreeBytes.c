@@ -4,6 +4,7 @@
 // People reported "Out of room" error screens
 // even though the memory card was not full
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003dd10-0x8003ddac.
 void MEMCARD_GetFreeBytes(int slotIdx)
 {
 	struct DIRENTRY *firstEntry;

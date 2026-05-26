@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003e6d4-0x8003e740.
 // called by MC_ACTION_Erase
 u8 MEMCARD_EraseFile(int slotIdx, char *srcString)
 {
