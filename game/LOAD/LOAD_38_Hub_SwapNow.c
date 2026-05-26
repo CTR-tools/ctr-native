@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80033108-0x80033318.
 void LOAD_Hub_SwapNow()
 {
 	struct Level *level1;
@@ -31,9 +32,7 @@ void LOAD_Hub_SwapNow()
 	gGT->prevLEV = gGT->levelID;
 	gGT->levelID = gGT->levID_in_each_mempack[gGT->activeMempackIndex];
 
-#ifndef REBUILD_PS1
 	Audio_AdvHub_SwapSong(gGT->levelID);
-#endif
 
 	// Aug 5
 	// ptrintf("SWAPPING 3...\n");
