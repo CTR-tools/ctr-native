@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800b0eec-0x800b164c.
 void MM_CupSelect_MenuProc(struct RectMenu *menu)
 {
 	char i;
@@ -61,6 +62,12 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 				// if cup selected
 				if (D230.cupSel_postTransition_boolStart != 0)
 				{
+					// set cupID to the cup selected
+					gGT->cup.cupID = menu->rowSelected;
+
+					// set track index to zero, to go to first track
+					gGT->cup.trackIndex = 0;
+
 					// loop through 8 drivers
 					for (i = 0; i < 8; i++)
 					{
@@ -71,14 +78,8 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 					// passthrough Menu for the function
 					sdata->ptrDesiredMenu = &data.menuQueueLoadTrack;
 
-					// set track index to zero, to go to first track
-					gGT->cup.trackIndex = 0;
-
-					// set cupID to the cup selected
-					gGT->cup.cupID = menu->rowSelected;
-
 					// set current level
-					gGT->currLEV = data.ArcadeCups[gGT->cup.cupID].CupTrack[0].trackID;
+					gGT->currLEV = data.ArcadeCups[gGT->cup.cupID].CupTrack[gGT->cup.trackIndex].trackID;
 					return;
 				}
 
@@ -122,10 +123,8 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 		// loop through 3 stars to draw
 		for (starIndex = 0; starIndex < 3; starIndex++)
 		{
-			// assuming starUnlock is never more than 32,
-			// otherwise you'd do [flag>>5] >> flag&0x1f
 			int starUnlock = D230.cupSel_StarUnlockFlag[starIndex] + cupIndex;
-			if (((sdata->gameProgress.unlocks[0] >> starUnlock) & 1) != 0)
+			if (CHECK_ADV_BIT(sdata->gameProgress.unlocks, starUnlock) != 0)
 			{
 				// array of colorIDs
 				// 0x11: driver_C (tropy) (blue)
