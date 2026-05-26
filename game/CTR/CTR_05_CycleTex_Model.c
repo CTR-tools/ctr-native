@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80021a20-0x80021ac0.
 void CTR_CycleTex_Model(struct AnimTex *animtex, int timer)
 {
 	int frameCurr;

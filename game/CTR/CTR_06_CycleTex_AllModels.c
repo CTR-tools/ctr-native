@@ -1,18 +1,21 @@
 #include <common.h>
 
-/// @brief Process "flipbook" texture animation for the provided list of models.
-/// @param numModels - number of models to process. negative value means loops until NULL is met
-/// @param pModels - pointer to array of model pointers
-/// @param timer
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80021ac0-0x80021b94.
 void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer)
 {
 	struct Model *pModel;
 	struct ModelHeader *pHeader;
 
-	for (int i = 0; i < *((int *)&numModels); i++)
+	if (pModelArray == NULL)
+		return;
+
+	if (numModels == 0)
+		return;
+
+	while (true)
 	{
-		pModel = pModelArray[i];
-		if (pModel == 0)
+		pModel = *pModelArray;
+		if (pModel == NULL)
 			return;
 
 		// iterate over all model headers
@@ -25,5 +28,11 @@ void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer
 				CTR_CycleTex_Model(pHeader->animtex, timer);
 			}
 		}
+
+		numModels--;
+		if (numModels == 0)
+			return;
+
+		pModelArray++;
 	}
 }
