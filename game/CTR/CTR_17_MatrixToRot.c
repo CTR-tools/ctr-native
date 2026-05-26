@@ -5,6 +5,7 @@
 /// @param rot - resulting rotation vector
 /// @param matrix - instance matrix
 /// @param flags - 3 bits boots + 2 bits some offset value (b0 - switch XZ, b1 - ?, b2 - negate the result)
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80021edc-0x80022234.
 void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 {
 	int iVar2;
@@ -24,7 +25,8 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 
 	// 8008D004
 	// char unk_CTR_MatrixToRot_table[0x10];
-#if defined(REBUILD_PC)
+// NOTE(aalhendi): CTR_NATIVE mirrors the retail 0x8008d004 table through sdata.
+#if defined(CTR_NATIVE)
 	char *table1 = &sdata->unk_CTR_MatrixToRot_table[0];
 	char *table2 = &sdata->unk_CTR_MatrixToRot_table[8];
 #else
