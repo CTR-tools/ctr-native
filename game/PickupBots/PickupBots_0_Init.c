@@ -2,6 +2,7 @@
 
 void PickupBots_Init(void)
 {
+	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80040850-0x800408b8.
 	int hub;
 	int lev = sdata->gGT->levelID;
 
@@ -17,8 +18,7 @@ void PickupBots_Init(void)
 	if (hub > -1)
 	{
 		// set pointer to boss weapon meta
-		// sdata->bossWeaponMeta = data.bossWeaponMetaPtr[hub]
-		*(u32 *)0x8008d8e8 = data.bossWeaponMetaPtr[hub];
+		sdata->bossWeaponMeta = data.bossWeaponMetaPtr[hub];
 	}
 	return;
 }

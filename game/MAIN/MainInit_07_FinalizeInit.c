@@ -235,6 +235,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 		if (gGT->podiumRewardID != NOFUNC) // 0
 			CS_Podium_FullScene_Init();
 
-	PickupBots_Init();
 #endif
+
+	PickupBots_Init();
 }

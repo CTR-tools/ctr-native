@@ -474,6 +474,8 @@
 #include "game/Particle/Particle_8_RenderList.c"
 #include "game/Particle/Particle_4_Init.c"
 
+#include "game/PickupBots/PickupBots_0_Init.c"
+
 #include "game/PROC/PROC_00_DestroyTracker.c"
 #include "game/PROC/PROC_01_DestroyInstance.c"
 #include "game/PROC/PROC_02_DestroyObject.c"

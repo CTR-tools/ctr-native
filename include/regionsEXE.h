@@ -4144,13 +4144,15 @@ struct sData
 	int SwCARD_EvSpTIMOUT;
 
 
-// 8008d8e4 - boss weapon cooldown (after getting damage)
-// 8008d8e8 - pointer to boss weapon meta
+	// 8008d8e4 - boss weapon cooldown (after getting damage)
+	// 8008d8e8 - pointer to boss weapon meta
 
-// 8008d8e4
-// UsaRetail JpnTrial EurRetail
+	// 8008d8e4
+	// UsaRetail JpnTrial EurRetail
 #if BUILD >= SepReview && BUILD <= EurRetail
-	char data10_aaaaa[0xC];
+	int bossWeaponCooldown;
+	struct MetaDataBOSS *bossWeaponMeta;
+	char data10_aaaaa[4];
 
 	// 8008d8f0 - Usa
 	u16 boolHasLoadedOptions;
