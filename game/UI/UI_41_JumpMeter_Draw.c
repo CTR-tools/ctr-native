@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80051e24-0x80052250.
 void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 {
 	struct GameTracker *gGT;
