@@ -11,6 +11,12 @@ static void RB_Burst_DrawAll_SetPushBuffer(struct Instance *inst, int playerInde
 		RB_Burst_DrawAll_GetIDPP(inst, playerIndex)->pushBuffer = pb;
 }
 
+static struct Instance *RB_Burst_DrawAll_GetSlot(u32 *burst, int index)
+{
+	// NOTE(aalhendi): burst thread object is retail-width instance slots.
+	return (struct Instance *)(uintptr_t)burst[index];
+}
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b25b8-0x800b28c0.
 void RB_Burst_DrawAll(struct GameTracker *gGT)
 {
@@ -31,13 +37,19 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 
 		for (thread = gGT->threadBuckets[BURST].thread; thread != NULL; thread = thread->siblingThread)
 		{
-			struct Instance **burst = thread->object;
-			struct Instance *burstInst = burst[1];
+			u32 *burst = thread->object;
+			struct Instance *burstInst = RB_Burst_DrawAll_GetSlot(burst, 1);
 			SVECTOR pos;
 			VECTOR transformed;
 			int absX;
 			int absY;
 			int absZ;
+
+#ifdef CTR_NATIVE
+			// NOTE(aalhendi): Retail can survive the one-frame null low-RAM read.
+			if (burstInst == NULL)
+				continue;
+#endif
 
 			pos.vx = burstInst->matrix.t[0];
 			pos.vy = burstInst->matrix.t[1];
@@ -83,15 +95,15 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 
 		for (thread = gGT->threadBuckets[BURST].thread; thread != NULL; thread = thread->siblingThread)
 		{
-			struct Instance **burst = thread->object;
+			u32 *burst = thread->object;
 			struct PushBuffer *targetPB = pb;
 
 			if ((selectedThread[playerIndex] != NULL) && (selectedThread[playerIndex] != thread))
 				targetPB = NULL;
 
-			RB_Burst_DrawAll_SetPushBuffer(burst[1], playerIndex, targetPB);
-			RB_Burst_DrawAll_SetPushBuffer(burst[2], playerIndex, targetPB);
-			RB_Burst_DrawAll_SetPushBuffer(burst[0], playerIndex, targetPB);
+			RB_Burst_DrawAll_SetPushBuffer(RB_Burst_DrawAll_GetSlot(burst, 1), playerIndex, targetPB);
+			RB_Burst_DrawAll_SetPushBuffer(RB_Burst_DrawAll_GetSlot(burst, 2), playerIndex, targetPB);
+			RB_Burst_DrawAll_SetPushBuffer(RB_Burst_DrawAll_GetSlot(burst, 0), playerIndex, targetPB);
 		}
 	}
 }
