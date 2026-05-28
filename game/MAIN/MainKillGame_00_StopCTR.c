@@ -3,11 +3,15 @@
 // NOTE(aalhendi): PSX path ASM-verified NTSC-U 926 0x8003c41c-0x8003c480.
 void MainKillGame_StopCTR(void)
 {
-	DrawSyncCallback(0);
+	EnterCriticalSection();
+	DrawSyncCallback((void (*)(void))sdata->MainDrawCb_DrawSyncPtr);
+	ExitCriticalSection();
 	StopCallback();
 
 #ifndef CTR_NATIVE
 	MEMCARD_CloseCard();
+#else
+	// NOTE(aalhendi): Native skips PSX memcard event teardown.
 #endif
 
 	PadStopCom();
