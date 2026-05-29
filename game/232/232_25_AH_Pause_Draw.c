@@ -318,7 +318,7 @@ void AH_Pause_Draw(int pageID, int posX)
 		DecalFont_DrawLine((char *)count, posX + 0x100, 0x6e, FONT_BIG, 0xffff8000);
 	}
 
-	int iVar7 = len;
+	int iVar7 = DecalFont_GetLineWidth(str, FONT_BIG);
 
 	int iVar11 = iVar7 + 0x14;
 	if ((s16)iVar7 < 0x20b)
@@ -351,63 +351,62 @@ void AH_Pause_Draw(int pageID, int posX)
 		int index = ptrPauseObject->PauseMember[i].indexAdvPauseInst;
 
 		struct Instance *inst = ptrPauseObject->PauseMember[i].inst;
+		s16 *rotArr = &ptrPauseObject->PauseMember[i].rot[0];
 
 		if (index < 0)
 		{
 			// make invisible
 			inst->flags |= 0x80;
-			continue;
 		}
-
-		inst->flags &= 0xfff8ff7f;
-		inst->flags |= D232.advPauseInst[index].instFlags;
-
-		if (ptrPauseObject->PauseMember[i].unlockFlag == 0)
+		else
 		{
 			inst->flags &= 0xfff8ff7f;
-			inst->colorRGBA = 0;
-			inst->alphaScale = 0x1000;
-		}
+			inst->flags |= D232.advPauseInst[index].instFlags;
 
-		else
-		{
-			u8 *ptrColor = (u8 *)&D232.advPauseInst[index].color;
+			if (ptrPauseObject->PauseMember[i].unlockFlag == 0)
+			{
+				inst->flags &= 0xfff8ff7f;
+				inst->colorRGBA = 0;
+				inst->alphaScale = 0x1000;
+			}
 
-			inst->alphaScale = 0;
-			inst->colorRGBA = (ptrColor[0] << 0x14) | (ptrColor[1] << 0xc) | (ptrColor[2] << 0x4);
-		}
+			else
+			{
+				u8 *ptrColor = (u8 *)&D232.advPauseInst[index].color;
 
-		int scale = D232.advPauseInst[index].scale;
+				inst->alphaScale = 0;
+				inst->colorRGBA = (ptrColor[0] << 0x14) | (ptrColor[1] << 0xc) | (ptrColor[2] << 0x4);
+			}
 
-		// can we just replace the table values instead?
-		if (type == 1)
-			scale = 0x1000;
-		if (type == 2)
-			scale = scale << 2;
+			int scale = D232.advPauseInst[index].scale;
 
-		inst->scale[0] = scale;
-		inst->scale[1] = scale;
-		inst->scale[2] = scale;
+			if (type == 1)
+				scale = 0x1000;
+			else if (type != 0)
+				scale = scale << 2;
 
-		int modelID = D232.advPauseInst[index].modelID;
+			inst->scale[0] = scale;
+			inst->scale[1] = scale;
+			inst->scale[2] = scale;
 
-		inst->model = gGT->modelPtr[modelID];
+			int modelID = D232.advPauseInst[index].modelID;
 
-		s16 *rotArr = &ptrPauseObject->PauseMember[i].rot[0];
+			inst->model = gGT->modelPtr[modelID];
 
-		ConvertRotToMatrix(&inst->matrix, rotArr);
+			ConvertRotToMatrix(&inst->matrix, rotArr);
 
-		// if using specular light
-		if ((inst->flags & 0x70000) == 0x20000)
-		{
-			s16 *specArr = &D232.advPauseInst[index].specLight[0];
+			// if using specular light
+			if ((inst->flags & 0x70000) == 0x20000)
+			{
+				s16 *specArr = &D232.advPauseInst[index].specLight[0];
 
-			Vector_SpecLightSpin2D(inst, rotArr, specArr);
-		}
+				Vector_SpecLightSpin2D(inst, rotArr, specArr);
+			}
 
-		else
-		{
-			inst->colorRGBA = 0;
+			else
+			{
+				inst->colorRGBA = 0;
+			}
 		}
 
 		rotArr[1] = inst->matrix.t[0] * 0x10 + inst->matrix.t[1] * 0x20 + sdata->frameCounter * 0x40;
