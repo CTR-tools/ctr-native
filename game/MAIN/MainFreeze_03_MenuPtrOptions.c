@@ -1,5 +1,7 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80038b5c-0x80039908.
+
 typedef struct
 {
 	int numGamepads;
@@ -80,7 +82,7 @@ force_inline int PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, 
 			if (menu->rowSelected == 7)
 				menu->rowSelected = gGT->numPlyrCurrGame + 3;
 		}
-		if (sdata->AnyPlayerTap & BTN_DOWN)
+		else if (sdata->AnyPlayerTap & BTN_DOWN)
 		{
 			menu->rowSelected = (menu->rowSelected + 1) % 9;
 			if (menu->rowSelected > (gGT->numPlyrCurrGame + 3))

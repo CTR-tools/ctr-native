@@ -1,211 +1,224 @@
 #include <common.h>
 
-// Not part of original game,
-// just for cleaning up repetition
-enum MC_EXTRA
-{
-	MC_EXTRA_NULL,
-	MC_EXTRA_CLOSE,
-	MC_EXTRA_WRITE_ICON,
-	MC_EXTRA_WRITE_FILE,
-	MC_EXTRA_READ_FILE
-};
-
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003ddac-0x8003e238.
 int MEMCARD_HandleEvent(void)
 {
-	int readResult;
 	int event;
-	int iVar4;
-	int *ptrData;
-
-	int extra = 0;
+	int stage;
+	int offset;
+	int size;
+	u8 *writePtr;
 
 	switch (sdata->memcard_stage)
 	{
-	// after checking info
 	case MC_STAGE_GETINFO:
-	{
 		event = MEMCARD_GetNextSwEvent();
 
-		if (event == MC_RETURN_PENDING)
-			return MC_RETURN_PENDING;
-
-		else if (event == MC_RETURN_IOE)
+		if (event == MC_RETURN_IOE)
 		{
-			// If this is the first frame of the main game loop,
-			// after all initialization is done
 			if ((sdata->memcardStatusFlags & 1) != 0)
 			{
-				// discard any previous events
-				// submit a load to test the card
+				sdata->memcard_stage = MC_STAGE_NEWCARD;
 				MEMCARD_SkipEvents();
+
 				while (_card_load(sdata->memcardSlot) != 1)
 					;
 
-				sdata->memcard_stage = MC_STAGE_NEWCARD;
 				return MC_RETURN_PENDING;
 			}
 
 			if ((sdata->memcardStatusFlags & 2) == 0)
 			{
 				sdata->memoryCard_SizeRemaining = 0;
-				return MC_RETURN_UNFORMATTED;
+				event = MC_RETURN_UNFORMATTED;
 			}
-
-			// retail feature, this spams every frame,
-			// is this for finding unplugged cards?
-			sdata->memcard_stage = MC_STAGE_IDLE;
-			return MC_RETURN_IOE;
 		}
-
 		else if (event == MC_RETURN_NEWCARD)
 		{
-			// discard any previous events
-			// submit a load to test the card
 			MEMCARD_SkipEvents();
+
 			while (_card_clear(sdata->memcardSlot) != 1)
 				;
 
 			event = MEMCARD_WaitForHwEvent();
-			if (event == 0)
+
+			if (event == MC_RETURN_IOE)
 			{
-				// discard any previous events
-				// submit a load to test the card
+				sdata->memcard_stage = MC_STAGE_NEWCARD;
 				MEMCARD_SkipEvents();
+
 				while (_card_load(sdata->memcardSlot) != 1)
 					;
 
-				sdata->memcard_stage = MC_STAGE_NEWCARD;
 				return MC_RETURN_PENDING;
 			}
-
-			return MC_RETURN_NEWCARD;
 		}
-
+		else if (event == MC_RETURN_PENDING)
+		{
+			return MC_RETURN_PENDING;
+		}
 		else
 		{
 			sdata->memcard_stage = MC_STAGE_IDLE;
 			sdata->memoryCard_SizeRemaining = 0;
 			return event;
 		}
-	}
 
-	// after checking new card
+		sdata->memcard_stage = MC_STAGE_IDLE;
+		return event;
+
 	case MC_STAGE_NEWCARD:
-	{
 		event = MEMCARD_GetNextSwEvent();
+
+		if (event == MC_RETURN_IOE)
+		{
+			sdata->memcard_stage = MC_STAGE_IDLE;
+			sdata->memcardStatusFlags = (sdata->memcardStatusFlags | 2) & ~1;
+			MEMCARD_GetFreeBytes(sdata->memcardSlot);
+			return MC_RETURN_NEWCARD;
+		}
+
+		if (event == MC_RETURN_NEWCARD)
+		{
+			sdata->memcard_stage = MC_STAGE_IDLE;
+			sdata->memcardStatusFlags &= ~3;
+			return MC_RETURN_UNFORMATTED;
+		}
 
 		if (event == MC_RETURN_PENDING)
 			return MC_RETURN_PENDING;
 
 		sdata->memcard_stage = MC_STAGE_IDLE;
+		return event;
 
-		// if new card passed a "load" test (after format),
-		// set stage to idle, record free bytes
+	case MC_STAGE_LOAD_PART0_START:
+		event = MEMCARD_GetNextSwEvent();
+
 		if (event == MC_RETURN_IOE)
 		{
-			sdata->memcardStatusFlags &= ~(1);
-			sdata->memcardStatusFlags |= 2;
-			MEMCARD_GetFreeBytes(sdata->memcardSlot);
-			return MC_RETURN_NEWCARD;
+			sdata->memcard_stage = MC_STAGE_LOAD_PART2_READ;
+			sdata->memcardIconSize = ((sdata->memcard_ptrStart[2] & 0xf) + 1) << 7;
+
+			event = MEMCARD_ReadFile(sdata->memcardIconSize, sdata->memcardFileSize);
+
+			if ((((sdata->memcardIconSize + sdata->memcardFileSize + 0x1fff) >> 13) < sdata->memcard_ptrStart[3]) &&
+			    (((sdata->memcardIconSize + sdata->memcardFileSize * 2 + 0x1fff) >> 13) >= 2))
+			{
+				sdata->memcardStatusFlags &= ~4;
+			}
+			else
+			{
+				sdata->memcardStatusFlags |= 4;
+			}
+
+			return event;
 		}
-
-		// if new card was just inserted
-		if (event == MC_RETURN_NEWCARD)
-		{
-			sdata->memcardStatusFlags &= ~(1 | 2);
-			return MC_RETURN_UNFORMATTED;
-		}
-
-		return event;
-	}
-
-	// after requesting to load for first time
-	case MC_STAGE_LOAD_PART0_START:
-
-		sdata->memcard_stage++;
-		extra = MC_EXTRA_READ_FILE;
-		break;
-
-	// HEADER code skipped
-
-	// LOAD Data
-	case MC_STAGE_LOAD_PART2_READ:
-
-		event = MEMCARD_GetNextSwEvent();
 
 		if (event == MC_RETURN_PENDING)
 			return MC_RETURN_PENDING;
 
+		if (sdata->memcard_remainingAttempts > 0)
+		{
+			sdata->memcard_remainingAttempts--;
+			return MEMCARD_ReadFile(0, 0x80);
+		}
+
+		MEMCARD_CloseFile();
+		return event;
+
+	case MC_STAGE_LOAD_PART2_READ:
+	case MC_STAGE_LOAD_PART4_READ:
+		event = MEMCARD_GetNextSwEvent();
+
 		if (event == MC_RETURN_IOE)
 		{
+			sdata->crc16_checkpoint_byteIndex = 0;
+			sdata->crc16_checkpoint_status = 0;
 			sdata->memcard_stage++;
+
+			if ((sdata->memcardStatusFlags & 8) == 0)
+				return MC_RETURN_PENDING;
+
+			goto ChecksumLoad;
+		}
+
+		if (event == MC_RETURN_PENDING)
 			return MC_RETURN_PENDING;
-		}
-		else
+
+		if (sdata->memcard_remainingAttempts > 0)
 		{
-			extra = MC_EXTRA_READ_FILE;
-			break;
+			stage = sdata->memcard_stage;
+			sdata->memcard_remainingAttempts--;
+			return MEMCARD_ReadFile(sdata->memcardIconSize + (stage - MC_STAGE_LOAD_PART2_READ) * sdata->memcardFileSize, sdata->memcardFileSize);
 		}
+
+		MEMCARD_CloseFile();
+		return event;
 
 	case MC_STAGE_LOAD_PART3_CHECK:
-
+	case MC_STAGE_LOAD_PART5_CHECK:
+	ChecksumLoad:
 		event = MEMCARD_ChecksumLoad(sdata->memcard_ptrStart, sdata->memcardFileSize);
 
-		if (event == MC_RETURN_PENDING)
-			return MC_RETURN_PENDING;
+		if (event != MC_RETURN_IOE)
+		{
+			if (event == MC_RETURN_PENDING)
+				return MC_RETURN_PENDING;
 
-		extra = MC_EXTRA_CLOSE;
-		break;
+			stage = sdata->memcard_stage;
+
+			if (((sdata->memcardStatusFlags & 4) == 0) && (stage < MC_STAGE_LOAD_PART5_CHECK))
+			{
+				sdata->memcard_stage = stage + 1;
+				return MEMCARD_ReadFile(sdata->memcardIconSize + (stage - MC_STAGE_LOAD_PART0_START) * sdata->memcardFileSize, sdata->memcardFileSize);
+			}
+		}
+
+		MEMCARD_CloseFile();
+		return event;
 
 	case MC_STAGE_SAVE_PART0_START:
-
-		sdata->memcard_stage++;
-		extra = MC_EXTRA_WRITE_ICON;
-		break;
-
 	case MC_STAGE_SAVE_PART1_ICON:
-
-		event = MEMCARD_GetNextSwEvent();
-
-		if (event == MC_RETURN_PENDING)
-			return MC_RETURN_PENDING;
-
-		if (event == MC_RETURN_IOE)
-		{
-			sdata->memcard_stage++;
-			extra = MC_EXTRA_WRITE_FILE;
-			break;
-		}
-
-		else
-		{
-			extra = MC_EXTRA_WRITE_ICON;
-			break;
-		}
-
-		break;
-
 	case MC_STAGE_SAVE_PART2_WRITE:
-
 		event = MEMCARD_GetNextSwEvent();
+
+		if (event == MC_RETURN_IOE)
+		{
+			stage = sdata->memcard_stage;
+
+			if ((stage != MC_STAGE_SAVE_PART0_START) && ((stage > MC_STAGE_SAVE_PART1_ICON) || ((sdata->memcardStatusFlags & 4) != 0)))
+			{
+				MEMCARD_CloseFile();
+				MEMCARD_GetFreeBytes(sdata->memcardSlot);
+				return MC_RETURN_IOE;
+			}
+
+			sdata->memcard_stage = stage + 1;
+			offset = sdata->memcardIconSize + (stage - MC_STAGE_SAVE_PART0_START) * sdata->memcardFileSize;
+			return MEMCARD_WriteFile(offset, sdata->memcard_ptrStart, sdata->memcardFileSize);
+		}
 
 		if (event == MC_RETURN_PENDING)
 			return MC_RETURN_PENDING;
 
-		if (event == MC_RETURN_IOE)
+		if (sdata->memcard_remainingAttempts > 0)
 		{
-			MEMCARD_CloseFile();
-			MEMCARD_GetFreeBytes(sdata->memcardSlot);
-			return MC_RETURN_IOE;
+			stage = sdata->memcard_stage;
+			sdata->memcard_remainingAttempts--;
+
+			if (stage == MC_STAGE_SAVE_PART0_START)
+			{
+				return MEMCARD_WriteFile(0, (u8 *)&data.memcardIcon_PsyqHand[0], sdata->memcardIconSize);
+			}
+
+			offset = sdata->memcardIconSize + (stage - MC_STAGE_SAVE_PART1_ICON) * sdata->memcardFileSize;
+			writePtr = sdata->memcard_ptrStart;
+			size = sdata->memcardFileSize;
+			return MEMCARD_WriteFile(offset, writePtr, size);
 		}
 
-		else
-		{
-			extra = MC_EXTRA_WRITE_FILE;
-			break;
-		}
-
+		MEMCARD_CloseFile();
+		return event;
 
 	case MC_STAGE_ERASE_FAIL:
 		sdata->memcard_stage = MC_STAGE_IDLE;
@@ -216,50 +229,6 @@ int MEMCARD_HandleEvent(void)
 		return MC_RETURN_IOE;
 
 	default:
-		// if HandleEvent was called for a STAGE_DONE
 		return MC_RETURN_TIMEOUT;
 	}
-
-	// Whether pass or fail, deduct one chance anyway
-	{
-		if (sdata->memcard_remainingAttempts < 1)
-		{
-			extra = MC_EXTRA_CLOSE;
-		}
-
-		sdata->memcard_remainingAttempts--;
-	}
-
-	switch (extra)
-	{
-	case MC_EXTRA_NULL:
-		while (1)
-		{
-			printf("Did not return?\n");
-		}
-
-	case MC_EXTRA_CLOSE:
-		MEMCARD_CloseFile();
-		return event;
-
-	case MC_EXTRA_WRITE_ICON:
-
-		int *icon = &data.memcardIcon_CrashHead[0];
-		if (sdata->memcardFileSize == 0x3E00)
-			icon = &data.memcardIcon_Ghost[0];
-
-		return MEMCARD_WriteFile(0, icon, sdata->memcardIconSize);
-
-	case MC_EXTRA_WRITE_FILE:
-		return MEMCARD_WriteFile(sdata->memcardIconSize, sdata->memcard_ptrStart, sdata->memcardFileSize);
-
-		// case MC_EXTRA_READ_HEADER:
-		//	return MEMCARD_ReadFile(0, 0x80);
-
-	case MC_EXTRA_READ_FILE:
-		return MEMCARD_ReadFile(
-		    // offset and size,
-		    // read pointer is assumed
-		    sdata->memcardIconSize, sdata->memcardFileSize);
-	};
 }

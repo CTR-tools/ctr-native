@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80037da0-0x80038b5c.
 static inline void MainFreeze_ConfigDrawWire(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b, void *ot)
 {
 	CTR_Box_DrawWirePrims(MakePoint(x1, y1), MakePoint(x2, y2), MakeColor(r, g, b), ot);
@@ -78,9 +79,11 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 	for (int point = 0; point < 3; point++)
 	{
 		int offset = point * 2;
+		int colorOffset = point * 4;
 		MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[offset] + ((baseCos * 200) / 0x5000) + 0x100,
 		                            data.unkNamcoGamepad_800842DC[offset + 1] + sdata->unk_drawingRaceWheelRects[1] + ((baseSin * 0x19) >> 0xc), 10, 0x80,
-		                            baseAngle, (char *)&data.unkNamcoGamepadRwdTriangleColors[offset], gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
+		                            baseAngle, (char *)&data.unkNamcoGamepadRwdTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT,
+		                            &gGT->backBuffer->primMem);
 	}
 
 	for (int row = 0; row < 0x400; row += 0xaa)
