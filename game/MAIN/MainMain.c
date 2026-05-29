@@ -497,9 +497,7 @@ void StateZero()
 	ResetGraph(0);
 	SetGraphDebug(0);
 
-#ifndef REBUILD_PS1
 	MainInit_VRAMClear();
-#endif
 
 	SetDispMask(1);
 
