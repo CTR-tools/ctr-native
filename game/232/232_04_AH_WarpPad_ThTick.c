@@ -1,5 +1,7 @@
 #include <common.h>
 
+// NOTE(aalhendi): Source-backed partial for NTSC-U 926 0x800abf48-0x800ad298.
+// Full branch-order/menu/load-tail audit remains pending before ASM verification.
 void AH_WarpPad_ThTick(struct Thread *t)
 {
 	int i;
@@ -36,8 +38,16 @@ void AH_WarpPad_ThTick(struct Thread *t)
 
 	char randKartSpawn[8];
 
-	// for human reading purposes
-	u8 ADV_CUP = 100;
+	// NOTE(aalhendi): WarpPad level IDs come from "warppad#NN" instance names
+	// and use retail adventure numbering, not the native LevelID enum.
+	enum
+	{
+		AH_WP_SLIDE_COLISEUM = 16,
+		AH_WP_TURBO_TRACK = 17,
+		AH_WP_NITRO_COURT = 18,
+		AH_WP_GEM_STONE_VALLEY = 25,
+		AH_WP_ADV_CUP = 100,
+	};
 
 	boolOpen = 0;
 	gGT = sdata->gGT;
@@ -94,16 +104,16 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	// if near a portal
 	if (
 	    // Trophy tracks (-16)
-	    ((((u16)(levelID)) < SLIDE_COLISEUM) && (dist < 0x144000)) ||
+	    ((levelID < AH_WP_SLIDE_COLISEUM) && (dist < 0x144000)) ||
 
 	    // Slide Col + Turbo Track (-16)
-	    ((((u16)(levelID - SLIDE_COLISEUM)) < 2) && (dist < 0x90000)) ||
+	    ((((u16)(levelID - AH_WP_SLIDE_COLISEUM)) < 2) && (dist < 0x90000)) ||
 
 	    // Battle tracks (-18)
-	    ((((u16)(levelID - NITRO_COURT)) < 7) && (dist < 0x144000)) ||
+	    ((((u16)(levelID - AH_WP_NITRO_COURT)) < 7) && (dist < 0x144000)) ||
 
 	    // Gem cups
-	    ((((u16)(levelID)) >= 100) && (dist < 0x90000)))
+	    ((levelID >= AH_WP_ADV_CUP) && (dist < 0x90000)))
 	{
 		// if you are near a new warppad, or if you already were
 		// determined as near the same warppad in the last frame,
@@ -119,17 +129,17 @@ void AH_WarpPad_ThTick(struct Thread *t)
 			if (sdata->AkuAkuHintState == 0)
 			{
 				// default
-				if (levelID < ADV_CUP)
+				if (levelID < AH_WP_ADV_CUP)
 					warppadLNG = sdata->lngStrings[data.metaDataLEV[levelID].name_LNG];
 
 				// gem cups
 				else
-					warppadLNG = sdata->lngStrings[data.AdvCups[levelID - ADV_CUP].lngIndex_CupName];
+					warppadLNG = sdata->lngStrings[data.AdvCups[levelID - AH_WP_ADV_CUP].lngIndex_CupName];
 
 				// midpoing X,
 				// 30 pixels above botttom Y
 				DecalFont_DrawLine(warppadLNG, gGT->pushBuffer[0].rect.x + gGT->pushBuffer[0].rect.w / 2,
-				                   gGT->pushBuffer[0].rect.x + gGT->pushBuffer[0].rect.h - 30, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+				                   gGT->pushBuffer[0].rect.y + gGT->pushBuffer[0].rect.h - 30, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 			}
 
 			// if track is unlocked, ignore all other ELSE-IFs
@@ -140,7 +150,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 			else if (
 
 			    // gem cup
-			    (levelID >= ADV_CUP) &&
+			    (levelID >= AH_WP_ADV_CUP) &&
 
 			    // Dont have hint "you must have 4 tokens for a gem"
 			    ((sdata->advProgress.rewards[4] & 0x20000) == 0)
@@ -154,7 +164,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 			else if (
 
 			    // Trophy track
-			    (levelID < SLIDE_COLISEUM) &&
+			    (levelID < AH_WP_SLIDE_COLISEUM) &&
 
 			    // Dont have hint "you must have more trophies"
 			    ((sdata->advProgress.rewards[3] & 0x1000000) == 0) &&
@@ -169,7 +179,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 			else if (
 
 			    // Slide Col
-			    (levelID == SLIDE_COLISEUM) &&
+			    (levelID == AH_WP_SLIDE_COLISEUM) &&
 
 			    // Dont have hint "you must have 10 relics"
 			    ((sdata->advProgress.rewards[4] & 0x40000) == 0))
@@ -241,21 +251,20 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		if (modelID == STATIC_TROPHY)
 			return;
 
-		// OG code had pointers to warppadObj->specLightXXX
-		// but that was replaced with pointers to globals,
-		// because the arrays didnt actually change per warppad
+		// NOTE(aalhendi): Retail passes the per-WarpPad spec-light arrays at
+		// offsets 0x50/0x58/0x60.
 
 		// Relic
 		if (modelID == STATIC_RELIC)
 		{
-			Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &D232.specLightRelic[0]);
+			Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &warppadObj->specLightRelic[0]);
 			return;
 		}
 
 		// Token
 		if (modelID == STATIC_TOKEN)
 		{
-			Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &D232.specLightToken[0]);
+			Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &warppadObj->specLightToken[0]);
 			return;
 		}
 
@@ -268,7 +277,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		}
 
 		// for Key or Gem
-		Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &D232.specLightGem[0]);
+		Vector_SpecLightSpin3D(InstArr0, &warppadObj->spinRot_Prize[0], &warppadObj->specLightGem[0]);
 		return;
 	}
 
@@ -414,6 +423,67 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		warppadObj->spinRot_Rewards[1] += 0x4;
 	}
 
+	if ((dist <= 0x8fff) || (warppadObj->boolEnteredWarppad != 0))
+	{
+		// Retail repeats this setup every close/warping frame before the
+		// transition/load gate.
+		LOAD_Robots1P(data.characterIDs[0]);
+
+		// spawn P1 in the back
+		sdata->kartSpawnOrderArray[0] = 7;
+
+		// variable reuse, get track speed champion
+		champID = data.metaDataLEV[levelID].characterID_Champion;
+
+		// default
+		champSlot = 0;
+
+		// If Speed Champion is on the track (Crash-Pura)
+		// and is not the same characterID as Player 1
+		if ((champID < 8) && (champID != data.characterIDs[0]))
+		{
+			// set everyone to spawn in order
+			for (i = 1; i < 7; i++)
+			{
+				if (champID == data.characterIDs[i])
+				{
+					sdata->kartSpawnOrderArray[i] = 0;
+					champSlot = i;
+				}
+
+				else
+					sdata->kartSpawnOrderArray[i] = i;
+			}
+
+			sdata->kartSpawnOrderArray[7] = champSlot;
+		}
+
+		// Speed Champion is invalid
+		else
+		{
+			for (i = 1; i < 8; i++)
+				randKartSpawn[i] = i;
+
+			for (i = 0; i < 7; i++)
+			{
+				rng1 = RngDeadCoed(&sdata->const_0x30215400);
+
+				rng2 = 7 - i;
+
+				rng2 = (rng1 & 0xfff) % rng2 + 1;
+				rng2 = (s16)rng2;
+
+				sdata->kartSpawnOrderArray[randKartSpawn[rng2]] = (char)i;
+
+				while (rng2 < 7)
+				{
+					randKartSpawn[rng2] = randKartSpawn[rng2 + 1];
+					rng2++;
+				}
+			}
+		}
+	}
+
 	// if flag is on-screen, loading has already been finalized
 	if (RaceFlag_IsTransitioning() != 0)
 		return;
@@ -447,83 +517,12 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	if (warppadObj->framesWarping < 0x400)
 		warppadObj->framesWarping++;
 
-	// optimization, dont do this "every" frame,
-	// which the original game did. Also this needs
-	// to happen before the frames<61, to preserve
-	// OG bug (pause->quit->adventure->load->spawn8th)
-	if (warppadObj->framesWarping == 1)
-	{
-		// Assign Characters
-		// Dont worry about Token or Relic, those dont
-		// use kartSpawnOrderArray, the OG game just did
-		// this without an IF check at all
-		if ((levelID < SLIDE_COLISEUM) || (levelID >= ADV_CUP))
-		{
-			// assign characterIDs, not actually "load"
-			LOAD_Robots1P(data.characterIDs[0]);
-
-			// spawn P1 in the back
-			sdata->kartSpawnOrderArray[0] = 7;
-
-			// variable reuse, get track speed champion
-			champID = data.metaDataLEV[levelID].characterID_Champion;
-
-			// default
-			champSlot = 0;
-
-			// If Speed Champion is on the track (Crash-Pura)
-			// and is not the same characterID as Player 1
-			if ((champID < 8) && (champID != data.characterIDs[0]))
-			{
-				// set everyone to spawn in order
-				for (i = 1; i < 7; i++)
-				{
-					if (champID == data.characterIDs[i])
-					{
-						sdata->kartSpawnOrderArray[i] = 0;
-						champSlot = i;
-					}
-
-					else
-						sdata->kartSpawnOrderArray[i] = i;
-				}
-
-				sdata->kartSpawnOrderArray[7] = champSlot;
-			}
-
-			// Speed Champion is invalid
-			else
-			{
-				for (i = 1; i < 8; i++)
-					randKartSpawn[i] = i;
-
-				for (i = 0; i < 7; i++)
-				{
-					rng1 = RngDeadCoed(&sdata->const_0x30215400);
-
-					rng2 = 7 - i;
-
-					rng2 = (rng1 & 0xfff) % rng2 + 1;
-					rng2 = (s16)rng2;
-
-					sdata->kartSpawnOrderArray[randKartSpawn[rng2]] = (char)i;
-
-					while (rng2 < 7)
-					{
-						randKartSpawn[rng2] = randKartSpawn[rng2 + 1];
-						rng2++;
-					}
-				}
-			}
-		}
-	}
-
 	// wait 2 full seconds before loading
 	if (warppadObj->framesWarping <= 60)
 		return;
 
 	// only works for trophy tracks rn
-	if (levelID < SLIDE_COLISEUM)
+	if (levelID < AH_WP_SLIDE_COLISEUM)
 	{
 		// if trophy is unlocked
 		if (CHECK_ADV_BIT(sdata->advProgress.rewards, (levelID + 6)) != 0)
@@ -576,14 +575,14 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	}
 
 	// Slide Col or Turbo Track
-	else if (levelID < NITRO_COURT)
+	else if (levelID < AH_WP_NITRO_COURT)
 	{
 		// Add Relic
 		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x4000000;
 	}
 
 	// Battle Tracks
-	else if (levelID < GEM_STONE_VALLEY)
+	else if (levelID < AH_WP_GEM_STONE_VALLEY)
 	{
 		// Add Crystal Challenge
 		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x8000000;
@@ -598,7 +597,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		if ((i & 0xffff) == 0)
 			return;
 
-		gGT->originalEventTime = D232.timeCrystalChallenge[levelID - NITRO_COURT];
+		gGT->originalEventTime = D232.timeCrystalChallenge[levelID - AH_WP_NITRO_COURT];
 	}
 
 	// gem cups
@@ -607,7 +606,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		// Add Adv Cup
 		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x10000000;
 
-		gGT->cup.cupID = levelID - ADV_CUP;
+		gGT->cup.cupID = levelID - AH_WP_ADV_CUP;
 		gGT->cup.trackIndex = 0;
 		for (i = 0; i < 8; i++)
 			gGT->cup.points[i] = 0;

@@ -1,5 +1,8 @@
 #include <common.h>
 
+static const s16 s_warpPadRewardModelIDs[3] = {STATIC_TROPHY, STATIC_RELIC, STATIC_TOKEN};
+
+// NOTE(aalhendi): Source-backed for NTSC-U 926 0x800ad3ec-0x800ae870.
 void AH_WarpPad_LInB(struct Instance *inst)
 {
 	int i;
@@ -12,19 +15,32 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	int unlockItem_numOwned;
 	int unlockItem_numNeeded;
 	int unlockItem_modelID;
+	int rewardModelID;
+	int rewardAngle;
+	int tokenGroupID;
 
 	int *arrTokenCount;
 	struct Instance *newInst;
 
-	// for human reading purposes
-	u8 ADV_CUP = 100;
+	// NOTE(aalhendi): WarpPad level IDs come from "warppad#NN" instance names
+	// and use retail adventure numbering, not the native LevelID enum.
+	enum
+	{
+		AH_WP_SLIDE_COLISEUM = 16,
+		AH_WP_TURBO_TRACK = 17,
+		AH_WP_NITRO_COURT = 18,
+		AH_WP_ADV_CUP = 100,
+	};
 
 	gGT = sdata->gGT;
+
+	if (inst->thread != NULL)
+		return;
 
 	t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct WarpPad), NONE, MEDIUM, WARPPAD),
 
 	                         AH_WarpPad_ThTick, // behavior
-	                         0,                 // debug name
+	                         "warppad",         // debug name
 	                         0                  // thread relative
 	);
 
@@ -72,10 +88,12 @@ void AH_WarpPad_LInB(struct Instance *inst)
 
 	warppadObj->levelID = levelID;
 
+	unlockItem_modelID = 0;
+	unlockItem_numOwned = 0;
 	unlockItem_numNeeded = -1;
 
 	// Trophy Track
-	if (levelID < SLIDE_COLISEUM)
+	if (levelID < AH_WP_SLIDE_COLISEUM)
 	{
 		// optimization idea:
 		// instead of data.metaDataLEV[levelID].hubID
@@ -103,7 +121,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	}
 
 	// Slide Col
-	else if (levelID == SLIDE_COLISEUM)
+	else if (levelID == AH_WP_SLIDE_COLISEUM)
 	{
 		// number relics needed to open
 		unlockItem_modelID = STATIC_RELIC;
@@ -112,7 +130,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	}
 
 	// Turbo Track
-	else if (levelID == TURBO_TRACK)
+	else if (levelID == AH_WP_TURBO_TRACK)
 	{
 		// number gems needed to open
 		unlockItem_modelID = STATIC_GEM;
@@ -126,31 +144,32 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	}
 
 	// battle maps
-	else if (levelID < GEM_STONE_VALLEY)
+	else if ((((u16)(levelID - AH_WP_NITRO_COURT)) < 2) || (levelID == 21) || (levelID == 23))
 	{
 		goto GetKeysRequirement;
 	}
 
 	// gem cups
-	else
+	else if (((u16)(levelID - AH_WP_ADV_CUP)) < 5)
 	{
 		// number tokens needed to open
 		unlockItem_modelID = STATIC_TOKEN;
 		unlockItem_numNeeded = 4;
 
 		arrTokenCount = &gGT->currAdvProfile.numCtrTokens.red;
-		unlockItem_numOwned = arrTokenCount[levelID - ADV_CUP];
+		unlockItem_numOwned = arrTokenCount[levelID - AH_WP_ADV_CUP];
 	}
 
 	// if unlocked
 	if (unlockItem_numOwned >= unlockItem_numNeeded)
 	{
 		warppadObj->digit1s = 0;
+		t->modelIndex = 1;
 
 		// if beam model exists
 		if (gGT->modelPtr[STATIC_BEAM] != 0)
 		{
-			newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BEAM], 0, t);
+			newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BEAM], "beam", t);
 
 			// copy matrix
 			*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
@@ -172,7 +191,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		{
 			for (i = 0; i < 2; i++)
 			{
-				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BOTTOMRING], 0, t);
+				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BOTTOMRING], "bottomRing", t);
 
 				// copy matrix
 				*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
@@ -208,7 +227,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 			warppadObj->spinRot_Wisp[i][2] = 0;
 		}
 
-		if (levelID < SLIDE_COLISEUM)
+		if (levelID < AH_WP_SLIDE_COLISEUM)
 		{
 			// unlocked all
 			t->modelIndex = 2;
@@ -219,61 +238,155 @@ void AH_WarpPad_LInB(struct Instance *inst)
 				// open for trophy
 				t->modelIndex = 1;
 
-				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_TROPHY], 0, t);
+				rewardAngle = 0;
+				for (i = 0; i < 3; i++)
+				{
+					rewardModelID = s_warpPadRewardModelIDs[i];
+					newInst = INSTANCE_Birth3D(gGT->modelPtr[rewardModelID], "prize1", t);
+					warppadObj->inst[WPIS_OPEN_PRIZE1 + i] = newInst;
 
-				newInst->scale[0] = 0x2800;
-				newInst->scale[1] = 0x2800;
-				newInst->scale[2] = 0x2800;
+					// copy matrix
+					*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
+					*(int *)((int)&newInst->matrix + 0x4) = *(int *)((int)&inst->matrix + 0x4);
+					*(int *)((int)&newInst->matrix + 0x8) = *(int *)((int)&inst->matrix + 0x8);
+					*(int *)((int)&newInst->matrix + 0xC) = *(int *)((int)&inst->matrix + 0xC);
+					*(s16 *)((int)&newInst->matrix + 0x10) = *(s16 *)((int)&inst->matrix + 0x10);
+					newInst->matrix.t[0] = inst->matrix.t[0] + ((MATH_Sin(rewardAngle) * 0xc0) >> 0xc);
+					newInst->matrix.t[1] = inst->matrix.t[1] + 0x100;
+					newInst->matrix.t[2] = inst->matrix.t[2] + ((MATH_Cos(rewardAngle) * 0xc0) >> 0xc);
+
+					if (rewardModelID == STATIC_RELIC)
+					{
+						newInst->colorRGBA = 0x20a5ff0;
+						newInst->flags |= 0x20000;
+						newInst->scale[0] = 0x1800;
+						newInst->scale[1] = 0x1800;
+						newInst->scale[2] = 0x1800;
+					}
+
+					else if (rewardModelID == STATIC_TOKEN)
+					{
+						tokenGroupID = data.metaDataLEV[levelID].ctrTokenGroupID;
+
+						// token color
+						newInst->colorRGBA = ((u32)data.AdvCups[tokenGroupID].color[0] << 0x14) | ((u32)data.AdvCups[tokenGroupID].color[1] << 0xc) |
+						                     ((u32)data.AdvCups[tokenGroupID].color[2] << 0x4);
+
+						// specular lighting
+						newInst->flags |= 0x30000;
+
+						warppadObj->specLightToken[0] = D232.specLightToken[tokenGroupID * 3 + 0];
+						warppadObj->specLightToken[1] = D232.specLightToken[tokenGroupID * 3 + 1];
+						warppadObj->specLightToken[2] = D232.specLightToken[tokenGroupID * 3 + 2];
+
+						newInst->scale[0] = 0x2000;
+						newInst->scale[1] = 0x2000;
+						newInst->scale[2] = 0x2000;
+					}
+
+					else
+					{
+						newInst->scale[0] = 0x2800;
+						newInst->scale[1] = 0x2800;
+						newInst->scale[2] = 0x2800;
+					}
+
+					rewardAngle += 0x555;
+				}
+
+				return;
+			}
+
+			// if relic not owned
+			if (CHECK_ADV_BIT(sdata->advProgress.rewards, (levelID + 0x16)) == 0)
+			{
+				// open for relic/token
+				t->modelIndex = 3;
+
+				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_RELIC], "prize2", t);
+
+				// relic blue
+				newInst->colorRGBA = 0x20a5ff0;
+
+				// specular lighting
+				newInst->flags |= 0x20000;
+
+				warppadObj->specLightRelic[0] = D232.specLightRelic[0];
+				warppadObj->specLightRelic[1] = D232.specLightRelic[1];
+				warppadObj->specLightRelic[2] = D232.specLightRelic[2];
+
+				// copy matrix
+				*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
+				*(int *)((int)&newInst->matrix + 0x4) = *(int *)((int)&inst->matrix + 0x4);
+				*(int *)((int)&newInst->matrix + 0x8) = *(int *)((int)&inst->matrix + 0x8);
+				*(int *)((int)&newInst->matrix + 0xC) = *(int *)((int)&inst->matrix + 0xC);
+				*(s16 *)((int)&newInst->matrix + 0x10) = *(s16 *)((int)&inst->matrix + 0x10);
+				newInst->matrix.t[0] = inst->matrix.t[0];
+				newInst->matrix.t[1] = inst->matrix.t[1] + 0x100;
+				newInst->matrix.t[2] = inst->matrix.t[2];
+
+				newInst->scale[0] = 0x1800;
+				newInst->scale[1] = 0x1800;
+				newInst->scale[2] = 0x1800;
 
 				warppadObj->inst[WPIS_OPEN_PRIZE1] = newInst;
 			}
 
-			// if token not owned
-			if (CHECK_ADV_BIT(sdata->advProgress.rewards, (levelID + 0x4c)) == 0)
-			{
-				// not open for trophy
-				if (t->modelIndex != 1)
-				{
-					// open for relic/token
-					t->modelIndex = 3;
-				}
-			BattleTrack:
-				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_TOKEN], 0, t);
+			// if token owned
+			if (CHECK_ADV_BIT(sdata->advProgress.rewards, (levelID + 0x4c)) != 0)
+				return;
 
-				// specular lighting
-				newInst->flags |= 0x30000;
+			tokenGroupID = data.metaDataLEV[levelID].ctrTokenGroupID;
 
-				newInst->scale[0] = 0x2000;
-				newInst->scale[1] = 0x2000;
-				newInst->scale[2] = 0x2000;
+			// open for relic/token
+			t->modelIndex = 3;
 
-				i = data.metaDataLEV[levelID].ctrTokenGroupID;
+			newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_TOKEN], "prize2", t);
 
-				// token color
-				newInst->colorRGBA = ((u32)data.AdvCups[i].color[0] << 0x14) | ((u32)data.AdvCups[i].color[1] << 0xc) | ((u32)data.AdvCups[i].color[2] << 0x4);
+			// token color
+			newInst->colorRGBA = ((u32)data.AdvCups[tokenGroupID].color[0] << 0x14) | ((u32)data.AdvCups[tokenGroupID].color[1] << 0xc) |
+			                     ((u32)data.AdvCups[tokenGroupID].color[2] << 0x4);
 
-				warppadObj->specLightToken[0] = D232.specLightToken[0];
-				warppadObj->specLightToken[1] = D232.specLightToken[1];
-				warppadObj->specLightToken[2] = D232.specLightToken[2];
+			// specular lighting
+			newInst->flags |= 0x30000;
 
-				warppadObj->inst[WPIS_OPEN_PRIZE2] = newInst;
-			}
+			warppadObj->specLightToken[0] = D232.specLightToken[tokenGroupID * 3 + 0];
+			warppadObj->specLightToken[1] = D232.specLightToken[tokenGroupID * 3 + 1];
+			warppadObj->specLightToken[2] = D232.specLightToken[tokenGroupID * 3 + 2];
+
+			// copy matrix
+			*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
+			*(int *)((int)&newInst->matrix + 0x4) = *(int *)((int)&inst->matrix + 0x4);
+			*(int *)((int)&newInst->matrix + 0x8) = *(int *)((int)&inst->matrix + 0x8);
+			*(int *)((int)&newInst->matrix + 0xC) = *(int *)((int)&inst->matrix + 0xC);
+			*(s16 *)((int)&newInst->matrix + 0x10) = *(s16 *)((int)&inst->matrix + 0x10);
+			newInst->matrix.t[0] = inst->matrix.t[0];
+			newInst->matrix.t[1] = inst->matrix.t[1] + 0x100;
+			newInst->matrix.t[2] = inst->matrix.t[2];
+
+			newInst->scale[0] = 0x2000;
+			newInst->scale[1] = 0x2000;
+			newInst->scale[2] = 0x2000;
+
+			warppadObj->inst[WPIS_OPEN_PRIZE2] = newInst;
+
+			return;
 
 		SlideColTurboTrack:
 
 			// if relic not owned
-			if (levelID < NITRO_COURT) // check this cause of "goto BattleTrack"
+			if (levelID < AH_WP_NITRO_COURT)
 				if (CHECK_ADV_BIT(sdata->advProgress.rewards, (levelID + 0x16)) == 0)
 				{
 					// SlideCol/TurboTrack
-					if (levelID >= SLIDE_COLISEUM)
+					if (levelID >= AH_WP_SLIDE_COLISEUM)
 						t->modelIndex = 4;
 
 					// open for token/relic
 					else if (t->modelIndex != 1)
 						t->modelIndex = 3;
 
-					newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_RELIC], 0, t);
+					newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_RELIC], "prize2", t);
 
 					// relic blue
 					newInst->colorRGBA = 0x20a5ff0;
@@ -281,11 +394,15 @@ void AH_WarpPad_LInB(struct Instance *inst)
 					// specular lighting
 					newInst->flags |= 0x20000;
 
+					warppadObj->specLightRelic[0] = D232.specLightRelic[0];
+					warppadObj->specLightRelic[1] = D232.specLightRelic[1];
+					warppadObj->specLightRelic[2] = D232.specLightRelic[2];
+
 					newInst->scale[0] = 0x1800;
 					newInst->scale[1] = 0x1800;
 					newInst->scale[2] = 0x1800;
 
-					warppadObj->inst[WPIS_OPEN_PRIZE3] = newInst;
+					warppadObj->inst[WPIS_OPEN_PRIZE1] = newInst;
 				}
 
 			for (i = 0; i < 3; i++)
@@ -308,7 +425,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		}
 
 		// slide col, turbo track
-		else if (levelID < NITRO_COURT)
+		else if (levelID < AH_WP_NITRO_COURT)
 		{
 			// already unlocked
 			t->modelIndex = 2;
@@ -317,9 +434,9 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		}
 
 		// battle tracks
-		else if (levelID < GEM_STONE_VALLEY)
+		else if ((((u16)(levelID - AH_WP_NITRO_COURT)) < 2) || (levelID == 21) || (levelID == 23))
 		{
-			i = R232.battleTrackArr[levelID - NITRO_COURT] + 0x6f;
+			i = R232.battleTrackArr[levelID - AH_WP_NITRO_COURT] + 0x6f;
 
 			// already unlocked
 			t->modelIndex = 2;
@@ -329,15 +446,37 @@ void AH_WarpPad_LInB(struct Instance *inst)
 				// rainbow
 				t->modelIndex = 4;
 
-				goto BattleTrack;
+				newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_TOKEN], "prize2", t);
+
+				// specular lighting
+				newInst->flags |= 0x20000;
+
+				tokenGroupID = 4;
+
+				// token color
+				newInst->colorRGBA = ((u32)data.AdvCups[tokenGroupID].color[0] << 0x14) | ((u32)data.AdvCups[tokenGroupID].color[1] << 0xc) |
+				                     ((u32)data.AdvCups[tokenGroupID].color[2] << 0x4);
+
+				warppadObj->specLightToken[0] = D232.specLightToken[tokenGroupID * 3 + 0];
+				warppadObj->specLightToken[1] = D232.specLightToken[tokenGroupID * 3 + 1];
+				warppadObj->specLightToken[2] = D232.specLightToken[tokenGroupID * 3 + 2];
+
+				newInst->scale[0] = 0x2000;
+				newInst->scale[1] = 0x2000;
+				newInst->scale[2] = 0x2000;
+
+				warppadObj->inst[WPIS_OPEN_PRIZE1] = newInst;
+
+				// for matrix copy
+				goto SlideColTurboTrack;
 			}
 		}
 
-		// gemstone valley
-		else
+		// gem cups
+		else if (((u16)(levelID - AH_WP_ADV_CUP)) < 5)
 		{
 			// bit index of gem
-			i = (levelID - ADV_CUP) + 0x6a;
+			i = (levelID - AH_WP_ADV_CUP) + 0x6a;
 
 			// if gem is already unlocked, quit
 			if (CHECK_ADV_BIT(sdata->advProgress.rewards, i) != 0)
@@ -351,12 +490,12 @@ void AH_WarpPad_LInB(struct Instance *inst)
 			// rainbow color
 			t->modelIndex = 4;
 
-			newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_GEM], 0, t);
+			newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_GEM], "prize2", t);
 
 			// specular lighting
 			newInst->flags |= 0x20000;
 
-			i = levelID - ADV_CUP;
+			i = levelID - AH_WP_ADV_CUP;
 
 			// token color
 			newInst->colorRGBA = ((u32)data.AdvCups[i].color[0] << 0x14) | ((u32)data.AdvCups[i].color[1] << 0xc) | ((u32)data.AdvCups[i].color[2] << 0x4);
@@ -364,9 +503,13 @@ void AH_WarpPad_LInB(struct Instance *inst)
 			warppadObj->inst[WPIS_OPEN_PRIZE1] = newInst;
 
 			// store in Gem array
-			warppadObj->specLightGem[0] = D232.specLightGem[0];
-			warppadObj->specLightGem[1] = D232.specLightGem[1];
-			warppadObj->specLightGem[2] = D232.specLightGem[2];
+			warppadObj->specLightGem[0] = D232.specLightGem[i * 3 + 0];
+			warppadObj->specLightGem[1] = D232.specLightGem[i * 3 + 1];
+			warppadObj->specLightGem[2] = D232.specLightGem[i * 3 + 2];
+
+			newInst->scale[0] = 0x2000;
+			newInst->scale[1] = 0x2000;
+			newInst->scale[2] = 0x2000;
 
 			// for matrix copy
 			goto SlideColTurboTrack;
@@ -392,7 +535,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	// ====== Item ========
 
 	// WPIS_CLOSED_ITEM
-	newInst = INSTANCE_Birth3D(gGT->modelPtr[unlockItem_modelID], 0, t);
+	newInst = INSTANCE_Birth3D(gGT->modelPtr[unlockItem_modelID], "reqObj", t);
 
 	// copy matrix
 	*(int *)((int)&newInst->matrix + 0x0) = *(int *)((int)&inst->matrix + 0x0);
@@ -440,7 +583,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		// Gem
 		else if (unlockItem_modelID == STATIC_GEM)
 		{
-			// dont set color, that gets set in ThTick
+			newInst->colorRGBA = ((u32)data.AdvCups[0].color[0] << 0x14) | ((u32)data.AdvCups[0].color[1] << 0xc) | ((u32)data.AdvCups[0].color[2] << 0x4);
 
 			// store in Gem array
 			warppadObj->specLightGem[0] = D232.specLightGem[0];
@@ -451,14 +594,14 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		// assume token
 		else
 		{
-			i = levelID - ADV_CUP;
+			i = levelID - AH_WP_ADV_CUP;
 
 			// token color
 			newInst->colorRGBA = ((u32)data.AdvCups[i].color[0] << 0x14) | ((u32)data.AdvCups[i].color[1] << 0xc) | ((u32)data.AdvCups[i].color[2] << 0x4);
 
-			warppadObj->specLightToken[0] = D232.specLightToken[0];
-			warppadObj->specLightToken[1] = D232.specLightToken[1];
-			warppadObj->specLightToken[2] = D232.specLightToken[2];
+			warppadObj->specLightToken[0] = D232.specLightToken[i * 3 + 0];
+			warppadObj->specLightToken[1] = D232.specLightToken[i * 3 + 1];
+			warppadObj->specLightToken[2] = D232.specLightToken[i * 3 + 2];
 		}
 	}
 
@@ -467,7 +610,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	// ====== "X" ========
 
 	// WPIS_CLOSED_X
-	newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BIGX], 0, t);
+	newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BIGX], "x", t);
 
 	// copy matrix
 	*(int *)((int)&newInst->matrix + 0x0) = 0x1000;
@@ -493,7 +636,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	if (warppadObj->digit10s != 0)
 	{
 		// WPIS_CLOSED_10S
-		newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BIG1], 0, t);
+		newInst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_BIG1], "warpnum", t);
 
 		// copy matrix
 		*(int *)((int)&newInst->matrix + 0x0) = 0x1000;
@@ -526,7 +669,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 		i = 0x6e; // '9'
 
 	// WPIS_CLOSED_1S
-	newInst = INSTANCE_Birth3D(gGT->modelPtr[i], 0, t);
+	newInst = INSTANCE_Birth3D(gGT->modelPtr[i], "warpnum", t);
 
 	// copy matrix
 	*(int *)((int)&newInst->matrix + 0x0) = 0x1000;
