@@ -15,6 +15,7 @@ const s16 hub[8] = {
 extern struct MenuRow rows221[3];
 extern struct RectMenu menu221;
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f710-0x8009fbec.
 void CC_EndEvent_DrawMenu()
 {
 	struct GameTracker *gGT;
@@ -28,7 +29,7 @@ void CC_EndEvent_DrawMenu()
 	int bitIndex;
 	int levelID;
 	int elapsedFrames;
-
+	int color;
 
 	gGT = sdata->gGT;
 	levelID = gGT->levelID;
@@ -66,6 +67,20 @@ void CC_EndEvent_DrawMenu()
 	// hide hud crystal
 	sdata->ptrHudCrystal->flags |= 0x80;
 
+	// Fly from Left,
+	// TimeRemaining, and Clock
+	{
+		// fly in from left
+		UI_Lerp2D_Linear(&posXY[0], -0x64, 0x18, // startX, startY,
+		                 0x100, 0x18,            // endX, endY
+		                 elapsedFrames, 0x14);
+
+		// TIME REMAINING
+		DecalFont_DrawLine(sdata->lngStrings[0x16D], posXY[0], posXY[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+
+		UI_DrawLimitClock(posXY[0] - 0x33, posXY[1] + 0x11, FONT_BIG);
+	}
+
 	// Fly from Right,
 	// YouWin/TryAgain, and Crystal Count
 	{
@@ -87,22 +102,6 @@ void CC_EndEvent_DrawMenu()
 		DecalFont_DrawLine(sdata->lngStrings[lngIndex], posXY[0] + 0x33, posXY[1] + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 	}
 
-	// Fly from Left,
-	// TimeRemaining, and Clock,
-	// this must happen after "Fly from Right" for variable re-use
-	{
-		// fly in from left
-		UI_Lerp2D_Linear(&posXY[0], -0x63, 0x18, // startX, startY,
-		                 0x100, 0x18,            // endX, endY
-		                 elapsedFrames, 0x14);
-
-		// TIME REMAINING
-		DecalFont_DrawLine(sdata->lngStrings[0x16D], posXY[0], posXY[1], FONT_BIG, (JUSTIFY_CENTER | ORANGE));
-
-		UI_DrawLimitClock(posXY[0] - 0x33, posXY[1] + 0x11, FONT_BIG);
-	}
-
-
 	// if a token is not newly-unlocked
 	if (
 
@@ -123,7 +122,7 @@ void CC_EndEvent_DrawMenu()
 		// open the Retry/ExitToMap menu
 		RECTMENU_ClearInput();
 		RECTMENU_Show(&menu221);
-		sdata->menuReadyToPass = 1;
+		sdata->menuReadyToPass |= 1;
 		return;
 	}
 
@@ -131,17 +130,16 @@ void CC_EndEvent_DrawMenu()
 
 	tokenInst = sdata->ptrToken;
 
-// Naughty Dog bug,
-// should be ((& 1) == 0) to enable flicker
-#if 0
 	color = (JUSTIFY_CENTER | ORANGE);
-	if(gGT->timer == 0) color = (JUSTIFY_CENTER | WHITE);
-#endif
+	if (gGT->timer == 0)
+		color = (JUSTIFY_CENTER | WHITE);
 
-	// variable re-use posXY[0]
+	UI_Lerp2D_Linear(&posXY[0], -0x64, 0xA2, // startX, startY,
+	                 0x100, 0xA2,            // endX, endY
+	                 elapsedFrames, 0x14);
 
 	// CTR TOKEN AWARDED
-	DecalFont_DrawLine(sdata->lngStrings[0x16F], posXY[0], 0xA2, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
+	DecalFont_DrawLine(sdata->lngStrings[0x16F], posXY[0], posXY[1], FONT_BIG, color);
 
 	// make token visible
 	tokenInst->flags &= ~(HIDE_MODEL);

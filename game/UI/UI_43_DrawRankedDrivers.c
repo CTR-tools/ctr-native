@@ -1,5 +1,8 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800524c4-0x80052f98.
+// DriverIndex_GetDamageColor factors the duplicated inline color-timer logic.
+
 // Draw player icons on left side of screen
 // in Arcade mode and Boss mode, and draws
 // icons in multiplayer on the midY axis (and warpball)
@@ -186,18 +189,12 @@ void UI_DrawRankedDrivers(void)
 
 				s16 iconScale = FP(1);
 
+				int isTransitioning = (pos.x == -100);
+
 				// === Icon Transitioning ===
-				if (pos.x == -100)
+				if (isTransitioning)
 				{
 					UI_Lerp2D_Angular((s16 *)&pos, *curr, *des, *psVar13);
-
-					psVar13[0]++;
-
-					if (*psVar13 >= 5)
-					{
-						*psVar13 = 0;
-						*curr = *des;
-					}
 				}
 
 				UI_DrawDriverIcon(
@@ -209,6 +206,17 @@ void UI_DrawRankedDrivers(void)
 				    gGT->pushBuffer_UI.ptrOT,
 
 				    1, iconScale, local_30);
+
+				if (isTransitioning)
+				{
+					psVar13[0]++;
+
+					if (*psVar13 >= 5)
+					{
+						*psVar13 = 0;
+						*curr = *des;
+					}
+				}
 			}
 		}
 	}
@@ -254,11 +262,8 @@ void UI_DrawRankedDrivers(void)
 				uVar18 = iVar4 / iVar3;
 				uVar18 = (u16)uVar18;
 
-#if 0
-          if (iVar3 == 0) trap(0x1c00);
-          if ((iVar3 == -1) && (iVar4 == -0x80000000)) trap(0x1800);
-          if (uVar18 << 0x10 < 0) goto LAB_80052b00;
-#endif
+				if ((s16)uVar18 < 0)
+					goto LAB_80052b00;
 			}
 
 			// posX
@@ -336,12 +341,10 @@ void UI_DrawRankedDrivers(void)
 
 			struct TrackerWeapon *tw = warpballInst->thread->object;
 
-			iVar4 = tw->nodeCurrIndex;
+			iVar4 = ((intptr_t)tw->ptrNodeCurr - (intptr_t)cn) / (s32)sizeof(struct CheckpointNode);
 			iVar12 = 0;
 
-			if (gGT->level1->cnt_restart_points < 1)
-				continue;
-			if (iVar4 < 0)
+			if (((u32)(gGT->level1->cnt_restart_points - 1) >= 0xff) || (iVar4 < 0))
 				continue;
 
 			int pos[4];
@@ -349,10 +352,10 @@ void UI_DrawRankedDrivers(void)
 			pos[1] = warpballInst->matrix.t[1];
 			pos[2] = warpballInst->matrix.t[2];
 
-			struct CheckpointNode *cn1 = &cn[tw->ptrNodeCurr->nextIndex_forward];
+			struct CheckpointNode *cn0 = &cn[iVar4];
+			struct CheckpointNode *cn1 = &cn[cn0->nextIndex_forward];
 			struct CheckpointNode *cn2 = &cn[cn1->nextIndex_forward];
 
-#ifndef REBUILD_PC
 			s16 vec1[4];
 			vec1[0] = cn1->pos[0] - cn2->pos[0];
 			vec1[1] = cn1->pos[1] - cn2->pos[1];
@@ -364,6 +367,14 @@ void UI_DrawRankedDrivers(void)
 			vec2[1] = pos[1] - cn1->pos[1];
 			vec2[2] = pos[2] - cn1->pos[2];
 
+#if defined(CTR_NATIVE)
+			// NOTE(aalhendi): Retail loads vec1 as GTE rot row 0, runs MVMVA
+			// on vec2, then reads MAC1. Native computes the same unshifted dot.
+			s64 projected = (s64)vec1[0] * vec2[0];
+			projected += (s64)vec1[1] * vec2[1];
+			projected += (s64)vec1[2] * vec2[2];
+			iVar15 = (s32)projected;
+#else
 			// replace R11R12 and R13R21
 			gte_ldsvrtrow0(&vec1[0]);
 
@@ -379,6 +390,8 @@ void UI_DrawRankedDrivers(void)
 			iVar3 = cn1->distToFinish * 8 + (iVar15 >> 0xc);
 			iVar15 = gGT->level1->ptr_restart_points[0].distToFinish * 8;
 			iVar12 = iVar3 % iVar15;
+			if (iVar12 == 0)
+				continue;
 
 #if 0
 	  	if (uVar1 == 0) trap(0x1c00);
@@ -407,7 +420,7 @@ void UI_DrawRankedDrivers(void)
 			    // pointer to OT memory
 			    gGT->pushBuffer_UI.ptrOT,
 
-			    TRANS_50_DECAL, FP(2 / 3) - FP(1 / 8), 1);
+			    TRANS_50_DECAL, 0x8aa, 1);
 		}
 	}
 }

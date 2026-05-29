@@ -1,14 +1,16 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800552a4-0x8005572c.
 void UI_VsWaitForPressX(void)
 {
 	char i, j;
-	char numAttacked;
+	u8 numAttacked;
 	s16 sVar4;
-	int *puVar6;
-	int iVar8;
 	int string;
 	int local_78;
+	char statText[8];
+	Color clearColor;
+	RECT clearRect;
 	s16 shortArr3P4P[2 * 4];
 
 	*(int *)&shortArr3P4P[0] = 0x350055;
@@ -48,7 +50,7 @@ void UI_VsWaitForPressX(void)
 
 			if (
 			    // ready to continue, after cooldown
-			    (gGT->timerEndOfRaceVS < 0x78) && ((tap & (BTN_CROSS | BTN_START)) != 0))
+			    (gGT->timerEndOfRaceVS < 0x78) && ((tap & (BTN_CROSS_one | BTN_START)) != 0))
 			{
 				// invert &2 bit
 				*pressedX = *pressedX ^ 2;
@@ -85,24 +87,22 @@ void UI_VsWaitForPressX(void)
 
 					if (numPlyr == 2)
 					{
-						shortArr = &sdata->Battle_EndOfRace.textFlags1_2P;
+						shortArr = (s16 *)&sdata->Battle_EndOfRace.textFlags1_2P;
 					}
 
 					// YOU HIT THEM
 					if ((*pressedX & 1) == 0)
 					{
-						numAttacked = currDriver->numTimesAttackingPlayer[j];
+						numAttacked = (u8)currDriver->numTimesAttackingPlayer[j];
 					}
 
 					// HIT YOU
 					else
 					{
-						numAttacked = currDriver->numTimesAttackedByPlayer[j];
+						numAttacked = (u8)currDriver->numTimesAttackedByPlayer[j];
 					}
 
-					// only 8 bytes, use scratchpad
-
-					sprintf(0x1f800000, "p%d:%2.02d",
+					sprintf(statText, "p%d:%2.02d",
 
 					        // basically, j + 1
 					        // which is (1, 2, 3, 4)
@@ -118,7 +118,7 @@ void UI_VsWaitForPressX(void)
 					local_78 = (sVar4 + 0x18U | 0x8000);
 
 
-					DecalFont_DrawLine(0x1f800000,
+					DecalFont_DrawLine(statText,
 
 					                   // midpoint between Start X and Size X
 					                   (r->x + shortArr[j * 2 + 0]),
@@ -136,12 +136,12 @@ void UI_VsWaitForPressX(void)
 		{
 			// Stop drawing comment + battle stats
 
-			// 4-byte RGBA = black
-			*(int *)0x1f800000 = 0;
-			CTR_Box_DrawClearBox(r, 0x1f800000, 0, gGT->backBuffer->otMem.startPlusFour);
+			memset(&clearColor, 0, sizeof(clearColor));
+			clearRect = *r;
+			CTR_Box_DrawClearBox(&clearRect, &clearColor, 0, gGT->backBuffer->otMem.startPlusFour);
 
 			// Allow Go-Back option to YouHit/HitYou
-			if ((tap & BTN_SQUARE) != 0)
+			if ((tap & BTN_SQUARE_two) != 0)
 			{
 				// invert &2 bit
 				*pressedX = *pressedX ^ 2;

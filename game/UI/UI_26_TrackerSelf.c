@@ -1,5 +1,6 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004fd34-0x8005045c.
 void UI_TrackerSelf(struct Driver *d)
 {
 	s16 y;
@@ -137,11 +138,8 @@ LAB_8004fe8c:
 	{
 		struct TrackerWeapon *tw = d->thTrackingMe->object;
 
-#ifndef REBUILD_PS1
+		// NOTE(aalhendi): Retail always computes tracker distance here.
 		missileDist = VehCalc_FastSqrt(tw->distanceToTarget, 0);
-#else
-		missileDist = 0;
-#endif
 
 		missileDist = missileDist / 0x32;
 		sVar18 = (s16)missileDist;
@@ -207,14 +205,6 @@ LAB_8004fe8c:
 	{
 		primMem = &gGT->backBuffer->primMem;
 
-		// if curr < near-end
-		if (((u32)primMem->curr + 4) > (u32)primMem->endMin100)
-			return;
-
-		// increment curr
-		p = primMem->curr;
-		primMem->curr = p + 4;
-
 		sVar6 = sVar18 + (x >> 8);
 		sVar5 = (s16)((y * 7) >> 12);
 
@@ -245,6 +235,11 @@ LAB_8004fe8c:
 				rgb2 = 0x3000ffff;
 			}
 
+			p = primMem->curr;
+			if (p > (POLY_G3 *)primMem->endMin100)
+				return;
+			primMem->curr = p + 1;
+
 			*(int *)&p->r0 = rgb0;
 			*(int *)&p->r1 = 0x30ffffff;
 			*(int *)&p->r2 = rgb2;
@@ -267,7 +262,10 @@ LAB_8004fe8c:
 
 			// next Prim
 			POLY_G3 *pLast = p;
-			p++;
+			p = primMem->curr;
+			if (p > (POLY_G3 *)primMem->endMin100)
+				return;
+			primMem->curr = p + 1;
 
 			// if tracking object is warpball
 			if (data.trackerType[driverid] == 1)
@@ -301,8 +299,6 @@ LAB_8004fe8c:
 
 			*(int *)p = *ot | 0x6000000;
 			*ot = (u32)p & 0xffffff;
-
-			p++;
 		}
 	}
 

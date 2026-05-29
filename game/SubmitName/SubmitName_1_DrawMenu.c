@@ -1,5 +1,8 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004aa60-0x8004b144 for the
+// retail path. CTR_NATIVE adds host keyboard shortcuts before retail input.
+
 #ifdef CTR_NATIVE
 int kbCurr = 0;
 int kbPrev = 0;

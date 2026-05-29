@@ -2,9 +2,11 @@
 
 static int str_number222 = 0x20; // " \0"
 extern struct RectMenu menu222;
+extern struct RectMenu menu222_2P;
 
 // 3528
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f704-0x800a06f8.
 void AA_EndEvent_DrawMenu(void)
 {
 	struct GameTracker *gGT;
@@ -37,10 +39,9 @@ void AA_EndEvent_DrawMenu(void)
 	s16 lerpEndY;
 	s16 lerpFrames;
 	s16 currFrame;
-	u32 scaleDown;
+	int scaleDown;
 	u32 txtColor;
 	int bitIndex;
-
 
 	bitIndex = -1;
 	gGT = sdata->gGT;
@@ -77,14 +78,12 @@ void AA_EndEvent_DrawMenu(void)
 
 	// For trophy race, check 1st place
 	int boolWin = (driver->driverRank == 0);
+	int boolTokenAward = boolWin && (driver->PickupLetterHUD.numCollected == 3);
 
-	// If C-T-R token race
-	if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+	// If adventure mode
+	if ((gGT->gameMode1 & ADVENTURE_MODE) != 0)
 	{
-		// add requirement of C-T-R letters
-		boolWin = (boolWin) && (driver->PickupLetterHUD.numCollected == 3);
-
-		if (boolWin)
+		if (boolTokenAward)
 		{
 			// lerp C-T-R letters closer to center by 16 pixels
 			// default (unlocking and frames < 140) or (already unlocked and frames < 300)
@@ -98,16 +97,25 @@ void AA_EndEvent_DrawMenu(void)
 			// If you have not unlocked this CTR Token
 			bitIndex = gGT->levelID + 0x4c;
 			*(int *)&letterPos[0] = *(int *)&hudCTR[0];
+			int updateToken = 0;
+			int scaleLetters = 0;
+			int awardTextFrame = -1;
 			if (CHECK_ADV_BIT(adv->rewards, bitIndex) == 0)
 			{
 				scaleDown = hudC->scale[0];
-				scaleDown -= (scaleDown < 0x800) ? 0x800 : 0x401;
-				scaleDown = scaleDown >> 10;
+				scaleDown -= (scaleDown < 0x800) ? 0x401 : 0x800;
+				scaleDown >>= 10;
+				updateToken = 1;
 
 				// lerp letters off-screen
-				if (elapsedFrames >= 230)
+				if (elapsedFrames > 230)
 				{
+					// NOTE(aalhendi): Retail uses frames-50 for the awarded text, skipping most of the fly-out.
+					awardTextFrame = elapsedFrames - 50;
+					txtStartX = 0x100;
+					txtEndX = -150;
 					elapsedFrames -= 230;
+					lerpFrames = 10;
 
 					lerpStartX += 0x10;
 					lerpStartY += 0x50;
@@ -116,31 +124,30 @@ void AA_EndEvent_DrawMenu(void)
 				}
 
 				// lerp letters to center
-				else if (elapsedFrames >= 140)
+				else if (elapsedFrames > 140)
 				{
 					elapsedFrames -= 140;
+					awardTextFrame = elapsedFrames;
+					txtStartX = 0x264;
+					txtEndX = 0x100;
+					scaleLetters = 1;
 
 					lerpStartX += 0x10;
 					lerpStartY += 0x10;
 					lerpEndX = hudCTR->x - 0x10;
 					lerpEndY = hudCTR->y + 0x50;
+				}
 
-					if (hudToken->scale[0] < 0x2001)
-					{
-						hudToken->scale[0] += 0x200;
-						hudToken->scale[1] += 0x200;
-						hudToken->scale[2] += 0x200;
-					}
+				UI_Lerp2D_Linear(&letterPos[0], lerpStartX, lerpStartY, lerpEndX, lerpEndY, elapsedFrames, lerpFrames);
 
+				if (scaleLetters)
+				{
 					// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fc48-0x8009fc50 for CTR token unlock SFX.
 					if (hudC->scale[0] == 0x800)
 						OtherFX_Play(0x67, 1);
 
-					// original code said < 0x2200, but the
-					// actual desired value is 0x2400, needs
-					// this change so 60fps doesn't stop at
-					// 0x2200 when stepping at half speed
-					if (hudLetters[0]->scale[0] < 0x2400)
+					// NOTE(aalhendi): Retail scales until X reaches target, with no separate scale cap.
+					if (letterPos[0] != hudCTR->x - 0x10)
 					{
 						for (i = 0; i < 3; i++)
 						{
@@ -149,29 +156,7 @@ void AA_EndEvent_DrawMenu(void)
 							hudLetters[i]->scale[2] += 0x400;
 						}
 					}
-
-					// Naughty Dog Bug: This was supposed to lerp off-screen at elapsedFrames > 230,
-					// but they passed "elapsedFrames-50" instead of "elapsedFrames-230", kills effect.
-					//	txtStartX = 0x100;
-					//	txtEndX = -150;
-					//	elapsedFrames -= 50;
-
-					// lerp on-screen: CTR TOKEN AWARDED
-					txtStartX = 0x264;
-					txtEndX = 0x100;
-
-					UI_Lerp2D_Linear(&txtPos[0], txtStartX, 0xA6, txtEndX, 0xA6, elapsedFrames, 8);
-
-					txtColor = (gGT->timer & 1) ? 0xFFFF8003 : 0xFFFF8004;
-
-					DecalFont_DrawLine(sdata->lngStrings[0x16F], txtPos[0], txtPos[1], 1, txtColor);
 				}
-
-				UI_Lerp2D_Linear(&letterPos[0], lerpStartX, lerpStartY, lerpEndX, lerpEndY, elapsedFrames, 8);
-
-				hudToken->flags &= ~HIDE_MODEL;
-				hudToken->matrix.t[0] = hudT->matrix.t[0];
-				hudToken->matrix.t[1] = UI_ConvertY_2(letterPos[1] + 0x18, 0x200);
 
 				// variable reuse, frame timers
 				lerpStartY = 120;
@@ -181,7 +166,7 @@ void AA_EndEvent_DrawMenu(void)
 			// If you already have this CTR Token unlocked
 			else
 			{
-				if (elapsedFrames >= 300)
+				if (elapsedFrames > 300)
 				{
 					elapsedFrames -= 300;
 
@@ -206,42 +191,73 @@ void AA_EndEvent_DrawMenu(void)
 				hudLetters[i]->matrix.t[0] = UI_ConvertX_2(letterPos[0] + (scaleDown * (i * 12)) + (i * 29), 0x200);
 				hudLetters[i]->matrix.t[1] = UI_ConvertY_2(letterPos[1] - (i & 1), 0x200);
 			}
+
+			if (updateToken)
+			{
+				hudR->unk50 = 1;
+				hudToken->flags &= ~HIDE_MODEL;
+				hudToken->matrix.t[0] = hudT->matrix.t[0];
+				hudToken->matrix.t[1] = UI_ConvertY_2(letterPos[1] + 0x18, 0x200);
+
+				if ((awardTextFrame >= 0) && (hudToken->scale[0] < 0x2001))
+				{
+					hudToken->scale[0] += 0x200;
+					hudToken->scale[1] += 0x200;
+					hudToken->scale[2] += 0x200;
+				}
+
+				if (awardTextFrame >= 0)
+				{
+					UI_Lerp2D_Linear(&txtPos[0], txtStartX, 0xa6, txtEndX, 0xa6, awardTextFrame, 8);
+
+					txtColor = (gGT->timer & 1) ? 0xFFFF8003 : 0xFFFF8004;
+
+					DecalFont_DrawLine(sdata->lngStrings[0x16F], txtPos[0], txtPos[1], 1, txtColor);
+				}
+			}
 		}
 
-		// If you did not collect all 3 letters (C, T, and R), or you lost the race,
-		// do this for the first 30 seconds (900 frames)
-		else if (elapsedFrames < 900)
+		// If you did not collect all 3 letters (C, T, and R), or you lost the race.
+		else
 		{
 			driver->PickupLetterHUD.numCollected = 0;
 
-			for (i = 0; i < 3; i++)
+			// Do this for the first 30 seconds (900 frames).
+			if (elapsedFrames < 900)
 			{
-				if (
-				    // letter is visible
-				    ((hudLetters[i]->flags & HIDE_MODEL) == 0) &&
-
-				    // delay letter (6 frames apart)
-				    (elapsedFrames > 6 * i) &&
-
-				    // letter not fully off-screen
-				    (-300 < hudLetters[i]->matrix.t[1]))
+				for (i = 0; i < 3; i++)
 				{
-					letter = hudLetters[i]->thread->object;
+					if (
+					    // letter is visible
+					    ((hudLetters[i]->flags & HIDE_MODEL) == 0) &&
 
-					// move X position (yes, C-Letter only, Naughty Dog bug?)
-					hudLetters[0]->matrix.t[0] += letter->vel[0];
+					    // delay letter (6 frames apart)
+					    (elapsedFrames > 6 * i) &&
 
-					// make the letter fall off the screen
-					hudLetters[i]->matrix.t[1] -= letter->vel[1];
-
-					if (-0x14 < letter->vel[1])
+					    // letter not fully off-screen
+					    (-300 < hudLetters[i]->matrix.t[1]))
 					{
-						letter->vel[1] -= 2;
+						letter = hudLetters[i]->thread->object;
+
+						// move X position (yes, C-Letter only, Naughty Dog bug?)
+						hudLetters[0]->matrix.t[0] += letter->vel[0];
+
+						// make the letter fall off the screen
+						hudLetters[i]->matrix.t[1] -= letter->vel[1];
+
+						if (-0x14 < letter->vel[1])
+						{
+							letter->vel[1] -= 2;
+						}
 					}
 				}
 			}
 		}
 	}
+
+	// If C-T-R token race, add requirement of C-T-R letters.
+	if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+		boolWin = boolTokenAward;
 
 	for (i = 0; i < numPlyr; i++)
 	{
@@ -361,10 +377,7 @@ void AA_EndEvent_DrawMenu(void)
 	// If you're in Arcade mode
 	if ((gGT->gameMode1 & ARCADE_MODE) != 0)
 	{
-		// End of Race based on number of players (1 or more)
-		menu222.posY_curr = (numPlyr == 1) ? 170 : 108;
-
-		RECTMENU_Show(&menu222);
+		RECTMENU_Show((numPlyr == 1) ? &menu222 : &menu222_2P);
 
 		// record that the menu is drawing
 		sdata->menuReadyToPass |= 1;
@@ -462,6 +475,12 @@ void AA_EndEvent_DrawMenu(void)
 		UNLOCK_ADV_BIT(adv->rewards, bitIndex);
 	}
 
+	if (gGT->gameMode1 < 0)
+	{
+		MainRaceTrack_RequestLoad(levSpawn);
+		return;
+	}
+
 	// if trophy is not won,
 	// Dingo Bingo needs to win trophy and token in the same race
 	bitIndex = gGT->levelID + 6;
@@ -477,6 +496,7 @@ void AA_EndEvent_DrawMenu(void)
 	MainRaceTrack_RequestLoad(levSpawn);
 }
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a06f8-0x800a0b38.
 void AA_EndEvent_DisplayTime(s16 driverId, s16 param_2)
 {
 	struct GameTracker *gGT;
@@ -498,10 +518,6 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 param_2)
 
 	gGT = sdata->gGT;
 	driver = gGT->drivers[driverId];
-
-	// stop after 12 seconds
-	if (driver->framesSinceRaceEnded_forThisDriver > 360)
-		return;
 
 	numPlyr = gGT->numPlyrCurrGame;
 	hudArray = data.hudStructPtr[numPlyr - 1];
@@ -700,6 +716,18 @@ struct RectMenu menu222 = {
     .stringIndexTitle = 0xFFFF,
     .posX_curr = 256,
     .posY_curr = 170,
+    .unk1 = 0,
+    .state = (0x800 | USE_SMALL_FONT | CENTER_ON_COORDS), // 0x883
+    .rows = rows222,
+    .funcPtr = UI_RaceEnd_MenuProc,
+    .drawStyle = 4,
+    // rest of variables all default zero
+};
+
+struct RectMenu menu222_2P = {
+    .stringIndexTitle = 0xFFFF,
+    .posX_curr = 256,
+    .posY_curr = 108,
     .unk1 = 0,
     .state = (0x800 | USE_SMALL_FONT | CENTER_ON_COORDS), // 0x883
     .rows = rows222,

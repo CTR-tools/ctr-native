@@ -1,5 +1,7 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80055840-0x80055c90.
+
 // You see this in 1P mode, right before traffic lights count down
 void UI_RaceStart_IntroText1P(void)
 {
@@ -14,7 +16,7 @@ void UI_RaceStart_IntroText1P(void)
 	s16 font;
 	int textID;
 	int transition;
-	char trackText[12];
+	char trackText[24];
 	RECT rect;
 	int colors[2];
 
@@ -132,12 +134,8 @@ LAB_80055930:
 		    // If you are not in Arcade or VS cup
 		    (((gGT->gameMode2 & 0x10) == 0)))
 		{
-#if 0
-         // X-value, X + W/2
-         posX = gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11);
-#else
-			posX = 0x100; // screw it
-#endif
+			// X-value, X + W/2
+			posX = gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11);
 
 			// string of top title bar
 			pcVar6 = sdata->lngStrings[textID];
@@ -154,11 +152,7 @@ LAB_80055930:
 			// uVar9 * 4
 			DecalFont_DrawLine(sdata->lngStrings[textID],
 
-#if 0
-            gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
-#else
-			                   0x100, // screw it
-#endif
+			                   gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 
 			                   ((gGT->pushBuffer[0].rect.y - (transition + -7)) + -6), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
@@ -197,11 +191,7 @@ LAB_80055930:
 		    // Level ID
 		    sdata->lngStrings[data.metaDataLEV[gGT->levelID].name_LNG],
 
-#if 0
-         gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
-#else
-		    0x100, // screw it
-#endif
+		    gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 
 		    (gGT->pushBuffer[0].rect.y + gGT->pushBuffer[0].rect.h + transition + -0x17), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 

@@ -20,6 +20,7 @@ s16 VsPosY_Config[3 * VsPosY_NUM] = {
     0xa,  0x35, 0x5b, 0x81, 0xa7 // 4P
 };
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f718-0x800a0208.
 void VB_EndEvent_DrawMenu(void)
 {
 	struct GameTracker *gGT;
@@ -27,6 +28,7 @@ void VB_EndEvent_DrawMenu(void)
 	struct PushBuffer *view;
 	struct RectMenu *endMenu;
 	char numPlyr;
+	char text[24];
 	s16 pos[2];
 	RECT box;
 
@@ -248,12 +250,11 @@ void VB_EndEvent_DrawMenu(void)
 					iVar2 = iVar10 + 1;
 
 					// string for each player rank and count from standings (0x1e80)
-					sprintf((char *)0x1f800000, "%d%s-%2.02ld", iVar2, // todo: replace 0x1f800000 with reference to scratchpad
-					        sdata->lngStrings[0x19 + iVar10], (gGT->standingsPoints[gGT->battleSetup.unk1dc8[iVar11] * 3 + iVar10]));
+					sprintf(text, "%d%s-%2.02ld", iVar2, sdata->lngStrings[0x19 + iVar10],
+					        (gGT->standingsPoints[gGT->battleSetup.unk1dc8[iVar11] * 3 + iVar10]));
 
 					// Draw string
-					// todo: replace 0x1f800000 with reference to scratchpad
-					DecalFont_DrawLine((char *)0x1f800000, (pos[0] + 0x79), ((uStack112 - (iVar6 * 4 + -0xd)) + iVar10 * 8), 2, uVar7);
+					DecalFont_DrawLine(text, (pos[0] + 0x79), ((uStack112 - (iVar6 * 4 + -0xd)) + iVar10 * 8), 2, uVar7);
 				}
 			}
 
@@ -275,12 +276,10 @@ void VB_EndEvent_DrawMenu(void)
 			iStack48 = iStack48 + 5;
 
 			sStack80 = gGT->battleSetup.unk_afterTeams[gGT->battleSetup.unk1dc8[iVar11]];
-			// todo: replace 0x1f800000 with reference to scratchpad
-			sprintf((char *)0x1f800000, "%d%s", sVar1 + 1, sdata->lngStrings[0x19 + sVar1]);
+			sprintf(text, "%d%s", sVar1 + 1, sdata->lngStrings[0x19 + sVar1]);
 
 			// Draw String
-			// todo: replace 0x1f800000 with reference to scratchpad
-			DecalFont_DrawLine((char *)0x1f800000, (pos[0] - 0x24), (uStack112 + 5), 1, 0xffff8000);
+			DecalFont_DrawLine(text, (pos[0] - 0x24), (uStack112 + 5), 1, 0xffff8000);
 		}
 	}
 
