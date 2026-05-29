@@ -68,49 +68,97 @@ void AH_Pause_Draw(int pageID, int posX)
 	if (type == 0)
 	{
 		int hubID = levelID - GEM_STONE_VALLEY;
+		int rowIndex = 0;
+		int pauseIndex = 0;
+		int crystalID = -1;
+		int textX = 0x50;
+		int iconX = 0x15e;
+		int rowBase = 0;
 
-		// gemstone
 		if (hubID == 0)
 		{
-			// 2 relics
-			for (int i = 0; i < 2; i++)
+			textX = 0x6e;
+			iconX = 0x16d;
+			rowBase = 4;
+		}
+
+		for (int trackID = 0; trackID < 0x41; trackID++)
+		{
+			struct MetaDataLEV *mdLev = &data.metaDataLEV[trackID];
+
+			if (mdLev->hubID != hubID)
+				continue;
+
+			if (trackID >= 0x12)
 			{
-				// 0x10 + i:
-				// 0x10 - SlideCol
-				// 0x11 - TurboTrack
-
-				struct MetaDataLEV *mdLev = &data.metaDataLEV[SLIDE_COLISEUM + i];
-
-				DecalFont_DrawLine(sdata->lngStrings[mdLev->name_LNG], posX + 0x6e, i * 0x10 + 4 + 0x26, FONT_BIG, 0);
-
-				struct Instance *inst = ptrPauseObject->PauseMember[i].inst;
-
-				// Remove SelectProfile with regular UI variant
-				inst->matrix.t[0] = UI_ConvertX_2(posX + 0x16d + 1 * 0x1e, 0x100);
-
-				inst->matrix.t[1] = UI_ConvertY_2(i * 0x10 + 4 + 0x2f, 0x100);
-
-				if (CHECK_ADV_BIT(adv->rewards, (0x10 + i + 0x3a)) != 0)
-				{
-					ptrPauseObject->PauseMember[i].unlockFlag |= 1;
-					ptrPauseObject->PauseMember[i].indexAdvPauseInst = 8;
-				}
-				else if (CHECK_ADV_BIT(adv->rewards, (0x10 + i + 0x28)) != 0)
-				{
-					ptrPauseObject->PauseMember[i].unlockFlag |= 1;
-					ptrPauseObject->PauseMember[i].indexAdvPauseInst = 7;
-				}
-				else
-				{
-					ptrPauseObject->PauseMember[i].indexAdvPauseInst = 6;
-					ptrPauseObject->PauseMember[i].unlockFlag |= CHECK_ADV_BIT(adv->rewards, (0x10 + i + 0x16));
-				}
+				crystalID = trackID;
+				continue;
 			}
 
-			int bossID = D232.advPausePages[pageID].characterID_Boss;
+			int rowY = rowBase + rowIndex * 0x10;
+			rowIndex++;
 
-			DecalFont_DrawLine(sdata->lngStrings[data.MetaDataCharacters[bossID].name_LNG_long], posX + 0x6e, 2 * 0x10 + 4 + 0x26, FONT_BIG, 4);
+			DecalFont_DrawLine(sdata->lngStrings[mdLev->name_LNG], posX + textX, rowY + 0x26, FONT_BIG, 0);
 
+			if (hubID != 0)
+			{
+				for (int j = 0; j < 3; j++)
+				{
+					struct Instance *inst = ptrPauseObject->PauseMember[pauseIndex + j].inst;
+
+					// Remove SelectProfile with regular UI variant
+					inst->matrix.t[0] = UI_ConvertX_2(posX + iconX + j * 0x1e, 0x100);
+
+					inst->matrix.t[1] = UI_ConvertY_2(rowY + 0x2f, 0x100);
+				}
+
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 14;
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= CHECK_ADV_BIT(adv->rewards, trackID + 6);
+				pauseIndex++;
+			}
+			else
+			{
+				struct Instance *inst = ptrPauseObject->PauseMember[pauseIndex].inst;
+
+				// Remove SelectProfile with regular UI variant
+				inst->matrix.t[0] = UI_ConvertX_2(posX + iconX + 1 * 0x1e, 0x100);
+
+				inst->matrix.t[1] = UI_ConvertY_2(rowY + 0x2f, 0x100);
+			}
+
+			if (CHECK_ADV_BIT(adv->rewards, trackID + 0x3a) != 0)
+			{
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= 1;
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 8;
+			}
+			else if (CHECK_ADV_BIT(adv->rewards, trackID + 0x28) != 0)
+			{
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= 1;
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 7;
+			}
+			else
+			{
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 6;
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= CHECK_ADV_BIT(adv->rewards, trackID + 0x16);
+			}
+
+			pauseIndex++;
+
+			if (hubID != 0)
+			{
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 9 + mdLev->ctrTokenGroupID;
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= CHECK_ADV_BIT(adv->rewards, trackID + 0x4c);
+				pauseIndex++;
+			}
+		}
+
+		int bossRowY = rowBase + rowIndex * 0x10;
+		int bossID = D232.advPausePages[pageID].characterID_Boss;
+
+		DecalFont_DrawLine(sdata->lngStrings[data.MetaDataCharacters[bossID].name_LNG_long], posX + textX, bossRowY + 0x26, FONT_BIG, 4);
+
+		if (hubID == 0)
+		{
 			// === Draw Star ===
 
 			// black
@@ -127,7 +175,7 @@ void AH_Pause_Draw(int pageID, int posX)
 
 			DecalHUD_DrawPolyGT4(iconPtrArray[0x37],
 
-			                     posX + 0x16d + 0x18, 2 * 0x10 + 4 + 0x2a,
+			                     posX + iconX + 0x18, bossRowY + 0x2a,
 
 			                     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
 
@@ -135,10 +183,11 @@ void AH_Pause_Draw(int pageID, int posX)
 
 			                     0, 0x1000);
 
-			// 5 gems
+			pauseIndex = rowIndex;
+
 			for (int i = 0; i < 5; i++)
 			{
-				struct Instance *inst = ptrPauseObject->PauseMember[2 + i].inst;
+				struct Instance *inst = ptrPauseObject->PauseMember[pauseIndex + i].inst;
 
 				// Remove SelectProfile with regular UI variant
 				inst->matrix.t[0] = UI_ConvertX_2(posX + 0x100 + (i - 2) * 60, 0x100);
@@ -146,92 +195,42 @@ void AH_Pause_Draw(int pageID, int posX)
 				inst->matrix.t[1] = UI_ConvertY_2(((i & 1) << 4) | 0x6a, 0x100);
 
 				// gem color
-				ptrPauseObject->PauseMember[2 + i].indexAdvPauseInst = i;
+				ptrPauseObject->PauseMember[pauseIndex + i].indexAdvPauseInst = i;
 
 				// unlock gem
-				ptrPauseObject->PauseMember[2 + i].unlockFlag |= CHECK_ADV_BIT(adv->rewards, (i + 0x6a));
+				ptrPauseObject->PauseMember[pauseIndex + i].unlockFlag |= CHECK_ADV_BIT(adv->rewards, i + 0x6a);
 			}
 		}
-
-		// any other hub
 		else
 		{
-			s16 *check = &data.advHubTrackIDs[(hubID - 1) * 4];
+			struct Instance *inst = ptrPauseObject->PauseMember[pauseIndex].inst;
 
-			// 4 tracks
-			for (int i = 0; i < 4; i++)
+			// Remove SelectProfile with regular UI variant
+			inst->matrix.t[0] = UI_ConvertX_2(posX + iconX + 1 * 0x1e, 0x100);
+
+			inst->matrix.t[1] = UI_ConvertY_2(bossRowY + 0x2f, 0x100);
+
+			ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 5;
+			ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= CHECK_ADV_BIT(adv->rewards, data.BeatBossPrize[hubID]);
+			pauseIndex++;
+
+			if (crystalID >= 0)
 			{
-				struct MetaDataLEV *mdLev = &data.metaDataLEV[check[i]];
+				struct MetaDataLEV *mdLev = &data.metaDataLEV[crystalID];
+				int crystalRowY = bossRowY + 0x10;
 
-				DecalFont_DrawLine(sdata->lngStrings[mdLev->name_LNG], posX + 0x50, i * 0x10 + 0 + 0x26, FONT_BIG, 0);
+				DecalFont_DrawLine(sdata->lngStrings[mdLev->name_LNG], posX + textX, crystalRowY + 0x26, FONT_BIG, 1);
 
-				// 3 instances per track
-				for (int j = 0; j < 3; j++)
-				{
-					struct Instance *inst = ptrPauseObject->PauseMember[3 * i + j].inst;
+				inst = ptrPauseObject->PauseMember[pauseIndex].inst;
 
-					// Remove SelectProfile with regular UI variant
-					inst->matrix.t[0] = UI_ConvertX_2(posX + 0x15e + j * 0x1e, 0x100);
+				// Remove SelectProfile with regular UI variant
+				inst->matrix.t[0] = UI_ConvertX_2(posX + iconX + 1 * 0x1e, 0x100);
 
-					inst->matrix.t[1] = UI_ConvertY_2(i * 0x10 + 0 + 0x2f, 0x100);
-				}
+				inst->matrix.t[1] = UI_ConvertY_2(crystalRowY + 0x2f, 0x100);
 
-				// trophy
-				ptrPauseObject->PauseMember[i * 3 + 0].indexAdvPauseInst = 14;
-				ptrPauseObject->PauseMember[i * 3 + 0].unlockFlag |= CHECK_ADV_BIT(adv->rewards, (check[i] + 6));
-
-				if (CHECK_ADV_BIT(adv->rewards, (check[i] + 0x3a)) != 0)
-				{
-					ptrPauseObject->PauseMember[i * 3 + 1].unlockFlag |= 1;
-					ptrPauseObject->PauseMember[i * 3 + 1].indexAdvPauseInst = 8;
-				}
-				else if (CHECK_ADV_BIT(adv->rewards, (check[i] + 0x28)) != 0)
-				{
-					ptrPauseObject->PauseMember[i * 3 + 1].unlockFlag |= 1;
-					ptrPauseObject->PauseMember[i * 3 + 1].indexAdvPauseInst = 7;
-				}
-				else
-				{
-					ptrPauseObject->PauseMember[i * 3 + 1].indexAdvPauseInst = 6;
-					ptrPauseObject->PauseMember[i * 3 + 1].unlockFlag |= CHECK_ADV_BIT(adv->rewards, (check[i] + 0x16));
-				}
-
-				// CTR Tokens
-				ptrPauseObject->PauseMember[i * 3 + 2].indexAdvPauseInst = 9 + mdLev->ctrTokenGroupID;
-				ptrPauseObject->PauseMember[i * 3 + 2].unlockFlag |= CHECK_ADV_BIT(adv->rewards, (check[i] + 0x4c));
+				ptrPauseObject->PauseMember[pauseIndex].indexAdvPauseInst = 9 + mdLev->ctrTokenGroupID;
+				ptrPauseObject->PauseMember[pauseIndex].unlockFlag |= CHECK_ADV_BIT(adv->rewards, hubID + 0x6e);
 			}
-
-			int bossID = D232.advPausePages[pageID].characterID_Boss;
-
-			DecalFont_DrawLine(sdata->lngStrings[data.MetaDataCharacters[bossID].name_LNG_long], posX + 0x50, 4 * 0x10 + 0 + 0x26, FONT_BIG, 4);
-
-			struct Instance *inst = ptrPauseObject->PauseMember[12].inst;
-
-			// Remove SelectProfile with regular UI variant
-			inst->matrix.t[0] = UI_ConvertX_2(posX + 0x15e + 1 * 0x1e, 0x100);
-
-			inst->matrix.t[1] = UI_ConvertY_2(4 * 0x10 + 0 + 0x2f, 0x100);
-
-			ptrPauseObject->PauseMember[12].indexAdvPauseInst = 5;
-			ptrPauseObject->PauseMember[12].unlockFlag |= CHECK_ADV_BIT(adv->rewards, data.BeatBossPrize[hubID]);
-
-			// skull rock, rampage ruins,
-			// rocky road, nitro court
-			// 10, 9, 11, 8
-			int crystalArr = 0x12171315;
-			char crystalID = crystalArr >> (8 * (hubID - 1));
-
-			DecalFont_DrawLine(sdata->lngStrings[data.metaDataLEV[crystalID].name_LNG], posX + 0x50, 5 * 0x10 + 0 + 0x26, FONT_BIG, 1);
-
-			inst = ptrPauseObject->PauseMember[13].inst;
-
-			// Remove SelectProfile with regular UI variant
-			inst->matrix.t[0] = UI_ConvertX_2(posX + 0x15e + 1 * 0x1e, 0x100);
-
-			inst->matrix.t[1] = UI_ConvertY_2(5 * 0x10 + 0 + 0x2f, 0x100);
-
-			ptrPauseObject->PauseMember[13].indexAdvPauseInst = 13;
-			ptrPauseObject->PauseMember[13].unlockFlag |= CHECK_ADV_BIT(adv->rewards, hubID + 0x6e);
 		}
 	}
 
@@ -239,7 +238,7 @@ void AH_Pause_Draw(int pageID, int posX)
 	{
 		int tokenCount[5] = {0, 0, 0, 0, 0};
 
-		for (int i = 0; i < SLIDE_COLISEUM; i++)
+		for (int i = 0; i < 0x10; i++)
 		{
 			if (CHECK_ADV_BIT(adv->rewards, (i + 0x4c)) != 0)
 				tokenCount[data.metaDataLEV[i].ctrTokenGroupID]++;
