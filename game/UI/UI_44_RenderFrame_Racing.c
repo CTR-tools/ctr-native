@@ -116,10 +116,7 @@ void UI_RenderFrame_Racing()
 	// and not in time trial
 	if ((gameMode1 & (RELIC_RACE | TIME_TRIAL | BATTLE_MODE)) == 0)
 	{
-// cant run on PC yet, drivers dont initialize
-#ifndef REBUILD_PC
 		UI_DrawRankedDrivers();
-#endif
 	}
 
 	// pointer to first Player thread
