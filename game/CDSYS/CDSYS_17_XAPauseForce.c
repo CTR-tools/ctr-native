@@ -1,6 +1,6 @@
 #include <common.h>
 
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 void PsyX_SPUAL_StopXA(void);
 #endif
 
@@ -9,7 +9,7 @@ void CDSYS_XAPauseForce()
 {
 	if (sdata->boolUseDisc == 0)
 	{
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 		PsyX_SPUAL_StopXA();
 		sdata->XA_boolFinished = 0;
 		sdata->XA_State = 0;

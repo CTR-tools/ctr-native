@@ -1,6 +1,6 @@
 #include <common.h>
 
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 int PsyX_SPUAL_IsXAPlaying(void);
 #endif
 
@@ -9,7 +9,7 @@ void CDSYS_XAPauseAtEnd()
 {
 	if (sdata->boolUseDisc == 0)
 	{
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 		if (PsyX_SPUAL_IsXAPlaying() != 0)
 			sdata->XA_CurrOffset++;
 		else

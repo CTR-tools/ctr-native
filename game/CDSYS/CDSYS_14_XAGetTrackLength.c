@@ -1,6 +1,6 @@
 #include <common.h>
 
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 int PsyX_SPUAL_GetXATrackLength(int categoryID, int xaID);
 #endif
 
@@ -9,7 +9,7 @@ int CDSYS_XAGetTrackLength(int categoryID, int xaID)
 {
 	if (sdata->boolUseDisc == 0)
 	{
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 		return PsyX_SPUAL_GetXATrackLength(categoryID, xaID);
 #endif
 		return 0;

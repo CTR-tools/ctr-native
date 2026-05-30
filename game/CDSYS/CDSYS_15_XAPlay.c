@@ -1,6 +1,6 @@
 #include <common.h>
 
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 int PsyX_SPUAL_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight);
 #endif
 
@@ -12,7 +12,7 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 
 	if (sdata->boolUseDisc == 0)
 	{
-#if defined(REBUILD_PC) && defined(CTR_NATIVE)
+#if defined(CTR_NATIVE)
 		int nativeVol = (categoryID == CDSYS_XA_TYPE_MUSIC) ? sdata->vol_Music : sdata->vol_Voice;
 
 		// NOTE(aalhendi): Native PCDRV has no CD-XA IRQ stream. Feed extracted
