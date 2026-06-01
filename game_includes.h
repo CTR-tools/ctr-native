@@ -5,7 +5,9 @@
 
 #include "game/TEST_226.c"
 #include "game/226/R226.c"
+#include "game/227/R227.c"
 #include "game/226/226_00_DrawLevelOvr1P.c"
+#include "game/227/227_00_DrawLevelOvr2P.c"
 #include "game/TEST_DrawSkybox.c"
 #include "game/TEST_DrawInstances.c"
 #include "game/DrawConfetti/DrawConfetti.c"

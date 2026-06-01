@@ -119,6 +119,8 @@ enum DrawLevelOvr1PPrimCode
 
 static const u32 DRAW_LEVEL_OVR1P_SLOT_WORD_PRESERVE = 0xffffffff;
 static int sOvr226_800a1cc4_InheritedOtIndex;
+static struct QuadBlock **sDrawLevelOvr1P_RenderedOverflowBase;
+static u8 *sDrawLevelOvr1P_ClipRecordStart;
 
 struct DrawLevelOvr1PScratchVertex
 {
@@ -936,7 +938,15 @@ static void DrawLevelOvr1P_SetClipRecordCursor(u8 *cursor)
 
 static u8 *DrawLevelOvr1P_GetClipRecordStart(void)
 {
+	if (sDrawLevelOvr1P_ClipRecordStart != NULL)
+		return sDrawLevelOvr1P_ClipRecordStart;
+
 	return data.PtrClipBuffer[0];
+}
+
+static void DrawLevelOvr1P_SetClipRecordStart(u8 *start)
+{
+	sDrawLevelOvr1P_ClipRecordStart = start;
 }
 
 static u8 *DrawLevelOvr1P_GetClipRecordEnd(void)
@@ -7496,6 +7506,19 @@ static void DrawLevelOvr1P_SetRenderedListCursor(struct QuadBlock **renderedList
 	*CTR_SCRATCHPAD_PTR(u32, 0x64) = (u32)(uintptr_t)renderedList;
 }
 
+static void DrawLevelOvr1P_SetRenderedOverflowBase(struct QuadBlock **renderedList)
+{
+	sDrawLevelOvr1P_RenderedOverflowBase = renderedList;
+}
+
+static struct QuadBlock **DrawLevelOvr1P_GetRenderedOverflowBase(void)
+{
+	if (sDrawLevelOvr1P_RenderedOverflowBase != NULL)
+		return sDrawLevelOvr1P_RenderedOverflowBase;
+
+	return sdata_static.quadBlocksRendered;
+}
+
 static struct QuadBlock **DrawLevelOvr1P_GetRenderedListCursor(void)
 {
 	return (struct QuadBlock **)(uintptr_t)*CTR_SCRATCHPAD_PTR(u32, 0x64);
@@ -8174,7 +8197,7 @@ static int Ovr226_800a3738_EmitGround4x1ListQuadBlock(struct PushBuffer *pb, str
 static int Ovr226_800a36a8_DrawGround4x1BspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                 const int *visFaceList)
 {
-	DrawLevelOvr1P_SetRenderedListCursor(sdata_static.quadBlocksRendered);
+	DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 
 	while (slot != NULL)
 	{
@@ -8355,7 +8378,7 @@ static int Ovr226_800a5030_EmitGround4x2ListQuadBlock(struct PushBuffer *pb, str
 static int Ovr226_800a4fa0_DrawGround4x2BspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                 const int *visFaceList)
 {
-	DrawLevelOvr1P_SetRenderedListCursor(sdata_static.quadBlocksRendered);
+	DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 
 	while (slot != NULL)
 	{
@@ -8412,7 +8435,7 @@ static int Ovr226_800a6fd0_EmitDynamicListQuadBlock(struct PushBuffer *pb, struc
 static int Ovr226_800a6f40_DrawDynamicBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                               const int *visFaceList)
 {
-	DrawLevelOvr1P_SetRenderedListCursor(sdata_static.quadBlocksRendered);
+	DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 
 	while (slot != NULL)
 	{
@@ -8469,7 +8492,7 @@ static int Ovr226_800a8bf0_EmitWideDynamicQuadBlock(struct PushBuffer *pb, struc
 static int Ovr226_800a8b60_DrawWideDynamicBspList(struct VisMemBspListNode *slot, struct PushBuffer *pb, struct mesh_info *mesh, struct PrimMem *primMem,
                                                   const int *visFaceList)
 {
-	DrawLevelOvr1P_SetRenderedListCursor(sdata_static.quadBlocksRendered);
+	DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 
 	while (slot != NULL)
 	{
@@ -9065,7 +9088,7 @@ static void Ovr226_800a1e30_SeedWaterListState(void)
 
 	// NOTE(aalhendi): Retail 0x800a1e30 uses the global 1P retry list, not the
 	// current render-list field, before walking the water BSP list.
-	DrawLevelOvr1P_SetRenderedListCursor(sdata_static.quadBlocksRendered);
+	DrawLevelOvr1P_SetRenderedListCursor(DrawLevelOvr1P_GetRenderedOverflowBase());
 	CTC2(0, 21);
 	CTC2(0, 22);
 	CTC2(0, 23);
@@ -9620,6 +9643,8 @@ static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 	if (mesh->ptrQuadBlockArray == NULL)
 		return 1;
 
+	DrawLevelOvr1P_SetClipRecordStart(data.PtrClipBuffer[0]);
+	DrawLevelOvr1P_SetRenderedOverflowBase(sdata_static.quadBlocksRendered);
 	Ovr226_800a0d20_SeedEntryScratchPointers(renderList, pb);
 	Ovr226_800a0d34_SetEntryGteAndCameraScratch(pb);
 	Ovr226_800a0dc4_ClearProjectedScratch();
@@ -9641,14 +9666,6 @@ static int Ovr226_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 void DrawLevelOvr1P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *waterEnvMap)
 {
 	(void)Ovr226_800a0cbc_Entry(LevRenderList, pb, bspList, primMem, VisMem10, waterEnvMap);
-}
-
-void DrawLevelOvr2P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14, void *waterEnvMap)
-{
-	// TODO(aalhendi): Port overlay 227. Native keeps the legacy fallback until
-	// the 2P renderer is audited against retail.
-	(void)VisMem14;
-	TEST_226((struct RenderList *)LevRenderList, pb, (struct mesh_info *)bspList, primMem, VisMem10, (int)waterEnvMap);
 }
 
 void DrawLevelOvr3P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14, void *VisMem18,
