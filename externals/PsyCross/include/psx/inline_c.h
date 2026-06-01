@@ -104,10 +104,10 @@ extern int doCOP2(int op);
 		MTC2(*(uint*)((char*)(r2)), 22); \
 		MTC2(*(uint*)((char*)(r2)), 6); }
 
-// mtc2 0, lwc2 1
+// mtc2 12, lwc2 1
 #define gte_ldlv0( r0 ) \
-	{	MTC2((*(ushort*)((char*)(r0)+4) << 16) | *(ushort*)((char*)(r0)));\
-		MTC2(*(ushort*)((char*)(r0)+8) << 16); }
+	{	MTC2((*(ushort*)((char*)(r0)+4) << 16) | *(ushort*)((char*)(r0)), 12);\
+		MTC2(*(ushort*)((char*)(r0)+8), 1); }
 
 // mtc2 8
 #define gte_lddp( r0 )	\

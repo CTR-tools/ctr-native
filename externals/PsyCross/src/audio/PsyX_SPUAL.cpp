@@ -990,7 +990,7 @@ static void UpdateVoiceSample(SPUALVoice* voice)
 	loopStart = 0;
 	loopLen = 0;
 
-	count = decodeSound(s_SpuMemory.samplemem + voice->attr.addr, SPU_REALMEMSIZE - voice->attr.addr, waveBuffer, &loopStart, &loopLen, 1);
+	count = decodeSound(s_SpuMemory.samplemem + voice->attr.addr, SPU_MEMSIZE - voice->attr.addr, waveBuffer, &loopStart, &loopLen, 1);
 
 	if (count == 0)
 		return;
