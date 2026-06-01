@@ -20,7 +20,7 @@ struct TorchPointSource
 
 static u32 Torch_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static u32 Torch_ReadWord(const void *base, int offset)

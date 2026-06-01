@@ -16,7 +16,7 @@ static u32 RenderWeather_ReadWord(const void *base, int offset)
 
 static u32 RenderWeather_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static struct RenderWeatherTrigPair RenderWeather_TrigAngleSinCos(int angle)

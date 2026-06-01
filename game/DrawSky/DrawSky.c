@@ -14,7 +14,7 @@ static u32 DrawSky_ReadWord(const void *base, int offset)
 
 static u32 DrawSky_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static int DrawSky_IsVisible(u32 gteFlag, u32 sxy0, u32 sxy1, u32 sxy2, u32 screenBounds)

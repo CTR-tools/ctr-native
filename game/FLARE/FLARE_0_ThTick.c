@@ -2,7 +2,7 @@
 
 static inline u32 FLARE_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static inline u32 FLARE_PackXY(s16 x, s16 y)

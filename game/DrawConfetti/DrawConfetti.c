@@ -35,7 +35,7 @@ static void DrawConfetti_WriteWord(void *base, int offset, u32 value)
 
 static u32 DrawConfetti_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static struct DrawConfettiTrigPair DrawConfetti_TrigAngleSinCos(int angle)

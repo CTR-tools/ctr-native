@@ -2,7 +2,7 @@
 
 static u32 DISPLAY_Blur_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static u32 DISPLAY_Blur_PackS16Pair(int x, int y)

@@ -27,7 +27,7 @@ static s8 RedBeaker_ReadS8(const void *base, int offset)
 
 static u32 RedBeaker_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static u32 RedBeaker_NextRngByte(u32 *state0, u32 *state1)

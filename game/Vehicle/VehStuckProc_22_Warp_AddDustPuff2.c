@@ -17,7 +17,7 @@ static s16 VehWarpDust_AddHalf(s16 value, int delta)
 
 static u32 VehWarpDust_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static void VehWarpDust_Project(SVECTOR *point, int offsetX, int offsetY, int offsetZ, struct VehWarpDustProjected *out)

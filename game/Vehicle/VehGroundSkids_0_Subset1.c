@@ -2,7 +2,7 @@
 
 static u32 VehGroundSkids_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static void VehGroundSkids_WriteLo16(u32 *word, u16 value)

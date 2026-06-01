@@ -12,7 +12,7 @@ static u8 Particle_RenderList_ReadByte(const void *base, int offset)
 
 static u32 Particle_RenderList_Ptr24(const void *ptr)
 {
-	return (u32)((uintptr_t)ptr & 0xffffff);
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static s32 Particle_RenderList_MulLo(s32 left, s32 right)
