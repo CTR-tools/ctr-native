@@ -107,7 +107,7 @@ LAB_800232d8:
 	*(int *)&p->r3 = color4;
 
 	*(int *)p = *otMemPtr | 0xc000000;
-	*otMemPtr = (u32)p & 0xffffff;
+	*otMemPtr = CtrGpu_PrimToOTLink24(p);
 
 	// POLY_GT4 is 0x34 bytes large
 	primMem->curr = p + 1;

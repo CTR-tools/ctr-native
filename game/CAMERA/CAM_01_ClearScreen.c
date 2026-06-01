@@ -72,7 +72,7 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 			tile->code = 0x2;
 
 			tile->tag = *(u32 *)endOT | 0x3000000;
-			*(u32 *)endOT = (u32)((uintptr_t)tile & 0xffffff);
+			*(u32 *)endOT = CtrGpu_PrimToOTLink24(tile);
 
 			tile++;
 		}
@@ -90,7 +90,7 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 			tile->code = 0x2;
 
 			tile->tag = *(u32 *)endOT | 0x3000000;
-			*(u32 *)endOT = (u32)((uintptr_t)tile & 0xffffff);
+			*(u32 *)endOT = CtrGpu_PrimToOTLink24(tile);
 
 			tile++;
 		}

@@ -129,6 +129,6 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		u_long *ot = gGT->pushBuffer[playerID].ptrOT;
 
 		*(int *)p = *ot | 0x8000000;
-		*ot = (u32)p & 0xffffff;
+		*ot = CtrGpu_PrimToOTLink24(p);
 	}
 }

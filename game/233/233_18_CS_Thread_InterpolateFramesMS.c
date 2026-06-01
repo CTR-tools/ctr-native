@@ -69,7 +69,7 @@ void CS_Thread_InterpolateFramesMS(struct Thread *t)
 
 		ot = (u32 *)&gGT->pushBuffer[0].ptrOT[otIndex];
 		prim[0] = (*ot & 0xffffff) | 0x05000000;
-		*ot = (u32)prim & 0xffffff;
+		*ot = CtrGpu_PrimToOTLink24(prim);
 		prim += 6;
 	}
 

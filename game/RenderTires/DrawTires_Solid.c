@@ -621,7 +621,7 @@ static void DrawTiresSolid_LinkPrimitive(struct DrawTiresSolidScratch *scratch, 
 	// pointers like addPolyFT4/AddPrim, so only the native write is widened.
 	*otSlot = (u_long)(uintptr_t)p;
 #else
-	*otSlot = (u_long)((uintptr_t)p & 0xffffff);
+	*otSlot = (u_long)CtrGpu_PrimToOTLink24(p);
 #endif
 }
 

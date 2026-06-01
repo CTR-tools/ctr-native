@@ -335,7 +335,7 @@ SKIP_LOADING_TEXT:
 					// Prim/OT
 					// addPrim(ot, p); works but uses more instructions.
 					*(int *)p = *ot | 0x8000000;
-					*ot = (u32)p & 0xffffff;
+					*ot = CtrGpu_PrimToOTLink24(p);
 
 					p++;
 				}

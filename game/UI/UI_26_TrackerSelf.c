@@ -258,7 +258,7 @@ LAB_8004fe8c:
 			ot = gGT->pushBuffer[driverid].ptrOT;
 
 			*(int *)p = *ot | 0x6000000;
-			*ot = (u32)p & 0xffffff;
+			*ot = CtrGpu_PrimToOTLink24(p);
 
 			// next Prim
 			POLY_G3 *pLast = p;
@@ -298,7 +298,7 @@ LAB_8004fe8c:
 			p->y2 = screenPosY + sVar5 - 12;
 
 			*(int *)p = *ot | 0x6000000;
-			*ot = (u32)p & 0xffffff;
+			*ot = CtrGpu_PrimToOTLink24(p);
 		}
 	}
 

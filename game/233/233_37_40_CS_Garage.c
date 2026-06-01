@@ -218,7 +218,7 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 				void *ot = gGT->pushBuffer_UI.ptrOT;
 
 				*(int *)p = (*(int *)ot & 0xffffff) | 0x8000000;
-				*(int *)ot = (int)p & 0xffffff;
+				*(int *)ot = (int)CtrGpu_PrimToOTLink24(p);
 			}
 
 			segmentStart += segmentLen;

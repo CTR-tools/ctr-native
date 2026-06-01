@@ -74,7 +74,7 @@ void MM_Battle_DrawIcon_Weapon(struct Icon *icon, u32 posX, int posY, struct Pri
 	}
 
 	*(int *)p = *(int *)ot | 0x9000000;
-	*(int *)ot = (int)p & 0xffffff;
+	*(int *)ot = (int)CtrGpu_PrimToOTLink24(p);
 
 	primMem->curr = p + 1;
 }

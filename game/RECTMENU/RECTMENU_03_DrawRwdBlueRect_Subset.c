@@ -22,6 +22,6 @@ void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, int *color, u_long *ot, struct Pr
 		*(int *)&p->x3 = (pos[0] + pos[2]) | ((pos[1] + pos[3]) << 16);
 
 		*(int *)p = (*(int *)ot & 0xffffff) | 0x8000000;
-		*(int *)ot = (int)p & 0xffffff;
+		*(int *)ot = (int)CtrGpu_PrimToOTLink24(p);
 	}
 }

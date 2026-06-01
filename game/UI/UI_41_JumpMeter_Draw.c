@@ -73,7 +73,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 		primmemCurr = gGT->pushBuffer_UI.ptrOT;
 
 		*(int *)p = *primmemCurr | 0x5000000;
-		*primmemCurr = (u32)p & 0xffffff;
+		*primmemCurr = CtrGpu_PrimToOTLink24(p);
 
 		box2.y = posY - barHeight;
 		box2.w = 0xc;
@@ -131,7 +131,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 			primmemCurr = gGT->pushBuffer_UI.ptrOT;
 
 			*(int *)p = *primmemCurr | 0x5000000;
-			*primmemCurr = (u32)p & 0xffffff;
+			*primmemCurr = CtrGpu_PrimToOTLink24(p);
 
 			backDB = gGT->backBuffer;
 			primmemCurr = backDB->primMem.curr;
@@ -161,7 +161,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 				primmemCurr = gGT->pushBuffer_UI.ptrOT;
 
 				*(int *)p = *primmemCurr | 0x5000000;
-				*primmemCurr = (u32)p & 0xffffff;
+				*primmemCurr = CtrGpu_PrimToOTLink24(p);
 			}
 		}
 	}

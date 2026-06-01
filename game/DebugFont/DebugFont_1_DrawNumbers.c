@@ -44,5 +44,5 @@ void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY)
 	p->tpage = sdata->debugFont.tpage;
 
 	*(int *)p = *ot | 0x9000000;
-	*ot = (u32)p & 0xffffff;
+	*ot = CtrGpu_PrimToOTLink24(p);
 }

@@ -10,7 +10,7 @@ struct CAMSkyboxGlowGradient
 
 static u32 CAM_SkyboxGlow_PrimAddr(const void *prim)
 {
-	return (u32)((uintptr_t)prim & 0xffffff);
+	return CtrGpu_PrimToOTLink24(prim);
 }
 
 static u32 CAM_SkyboxGlow_PackXY(int x, int y)
