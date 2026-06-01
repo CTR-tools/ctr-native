@@ -471,7 +471,7 @@ static void RenderBucket_AdjustDepthBiasForNormal(struct Instance *inst, int pla
 
 static u32 RenderBucket_OTAddress(void *ptr)
 {
-	return (u32)ptr & 0xffffff;
+	return CtrGpu_PrimToOTLink24(ptr);
 }
 
 static void RenderBucket_GteLoadLightMatrixWords(const MATRIX *m);
