@@ -13,6 +13,7 @@
 // TODO(aalhendi): unify defs with a base layer!
 typedef int8_t s8;
 typedef int16_t s16;
+typedef int32_t s32;
 typedef int32_t b32;
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -32,6 +33,9 @@ typedef uint64_t u64;
 #define NATIVE_AUDIO_STATE_MAGIC       0x41525443
 #define NATIVE_AUDIO_STATE_VERSION     1
 #define NATIVE_AUDIO_ARENA_ALIGN       16
+#define NATIVE_AUDIO_ADSR_MIN          (-0x8000)
+#define NATIVE_AUDIO_ADSR_MAX          0x7fff
+#define NATIVE_AUDIO_ADSR_STEP_BIT     0x8000u
 
 #define XA_NUM_TYPES                   3
 #define XA_HEADER_SIZE                 0x44
@@ -56,6 +60,15 @@ enum
 	ADPCM_LOOP_END = 1 << 0,
 	ADPCM_REPEAT = 1 << 1,
 	ADPCM_LOOP_START = 1 << 2
+};
+
+enum NativeAudioAdsrPhase
+{
+	NATIVE_AUDIO_ADSR_OFF,
+	NATIVE_AUDIO_ADSR_ATTACK,
+	NATIVE_AUDIO_ADSR_DECAY,
+	NATIVE_AUDIO_ADSR_SUSTAIN,
+	NATIVE_AUDIO_ADSR_RELEASE
 };
 
 struct NativeAudioSpuArena
@@ -107,9 +120,12 @@ struct NativeAudioVoice
 	b32 looped;
 	u16 reverb;
 	b32 sampleDirty;
+	s32 adsrLevel;
+	u32 adsrCounter;
+	u8 adsrPhase;
 };
 
-// TODO(aalhendi): Add fuller PS1 SPU ADSR/reverb/noise behavior when audible
+// TODO(aalhendi): Add fuller PS1 SPU reverb/noise behavior when audible
 // evidence shows CTR needs it.
 
 struct NativeAudioXA
@@ -189,6 +205,9 @@ struct NativeAudioVoiceState
 	b32 looped;
 	u16 reverb;
 	b32 sampleDirty;
+	s32 adsrLevel;
+	u32 adsrCounter;
+	u8 adsrPhase;
 };
 
 struct NativeAudioXAState
@@ -320,6 +339,277 @@ static int NativeAudio_InterpolateVoiceSample(const struct NativeAudioVoice *voi
 	sample += (s_gaussTable[gaussIndex] * newest) >> 15;
 
 	return NativeAudio_Clamp16(sample);
+}
+
+// NOTE(aalhendi): PS1 SPU ADSR envelope behavior follows PSX-SPX.
+// Source reference: https://psx-spx.consoledev.net/soundprocessingunitspu/
+static int NativeAudio_ClampAdsrLevel(int level)
+{
+	if (level < NATIVE_AUDIO_ADSR_MIN)
+		return NATIVE_AUDIO_ADSR_MIN;
+	if (level > NATIVE_AUDIO_ADSR_MAX)
+		return NATIVE_AUDIO_ADSR_MAX;
+	return level;
+}
+
+static b32 NativeAudio_AdsrModeIsExponential(int mode)
+{
+	return mode == SPU_VOICE_EXPIncN || mode == SPU_VOICE_EXPIncR || mode == SPU_VOICE_EXPDec;
+}
+
+static b32 NativeAudio_AdsrModeIsDecreasing(int mode)
+{
+	return mode == SPU_VOICE_LINEARDecN || mode == SPU_VOICE_LINEARDecR || mode == SPU_VOICE_EXPDec;
+}
+
+static b32 NativeAudio_AdsrModeIsPhaseNegative(int mode)
+{
+	return mode == SPU_VOICE_LINEARIncR || mode == SPU_VOICE_LINEARDecR || mode == SPU_VOICE_EXPIncR;
+}
+
+static int NativeAudio_AdsrSustainTarget(const struct NativeAudioVoice *voice)
+{
+	int target = ((int)voice->attr.sl + 1) * 0x800;
+
+	if (target > NATIVE_AUDIO_ADSR_MAX)
+		target = NATIVE_AUDIO_ADSR_MAX;
+	return target;
+}
+
+static void NativeAudio_AdsrSetPhase(struct NativeAudioVoice *voice, int phase)
+{
+	voice->adsrPhase = (u8)phase;
+	voice->adsrCounter = 0;
+}
+
+static void NativeAudio_AdsrForceOff(struct NativeAudioVoice *voice)
+{
+	voice->adsrLevel = 0;
+	voice->adsrCounter = 0;
+	voice->adsrPhase = NATIVE_AUDIO_ADSR_OFF;
+	voice->attr.envx = 0;
+	voice->active = 0;
+}
+
+static void NativeAudio_AdsrKeyOn(struct NativeAudioVoice *voice)
+{
+	voice->adsrLevel = 0;
+	voice->adsrCounter = 0;
+	voice->adsrPhase = NATIVE_AUDIO_ADSR_ATTACK;
+	voice->attr.envx = 0;
+}
+
+static void NativeAudio_AdsrKeyOff(struct NativeAudioVoice *voice)
+{
+	if (voice->adsrPhase != NATIVE_AUDIO_ADSR_OFF)
+		NativeAudio_AdsrSetPhase(voice, NATIVE_AUDIO_ADSR_RELEASE);
+	else
+		NativeAudio_AdsrForceOff(voice);
+}
+
+static b32 NativeAudio_AdsrRateIsAllOnes(int shiftValue, int stepValue, int bitCount)
+{
+	int mask = (1 << bitCount) - 1;
+
+	return (stepValue | (shiftValue << 2)) == mask;
+}
+
+static void NativeAudio_AdsrRunEnvelopeStep(struct NativeAudioVoice *voice, int shiftValue, int stepValue, b32 exponential, b32 decreasing, b32 phaseNegative,
+                                            b32 rateAllOnes)
+{
+	int adsrStep;
+	u32 counterIncrement;
+	u32 counter;
+
+	if (rateAllOnes)
+		return;
+
+	adsrStep = 7 - stepValue;
+	if (decreasing != phaseNegative)
+		adsrStep = ~adsrStep;
+
+	if (shiftValue < 11)
+		adsrStep <<= 11 - shiftValue;
+
+	counterIncrement = NATIVE_AUDIO_ADSR_STEP_BIT;
+	if (shiftValue > 11)
+	{
+		int shift = shiftValue - 11;
+		counterIncrement = shift < 31 ? (NATIVE_AUDIO_ADSR_STEP_BIT >> shift) : 0;
+	}
+
+	if (exponential && !decreasing && voice->adsrLevel > 0x6000)
+	{
+		if (shiftValue < 10)
+		{
+			adsrStep >>= 2;
+		}
+		else if (shiftValue >= 11)
+		{
+			counterIncrement >>= 2;
+		}
+		else
+		{
+			adsrStep >>= 1;
+			counterIncrement >>= 1;
+		}
+	}
+	else if (exponential && decreasing)
+	{
+		adsrStep = (int)(((int64_t)adsrStep * voice->adsrLevel) / 0x8000);
+		if (voice->adsrPhase == NATIVE_AUDIO_ADSR_RELEASE && adsrStep == 0 && voice->adsrLevel > 0)
+			adsrStep = -1;
+	}
+
+	if (counterIncrement == 0)
+		counterIncrement = 1;
+
+	counter = voice->adsrCounter + counterIncrement;
+	voice->adsrCounter = counter & (NATIVE_AUDIO_ADSR_STEP_BIT - 1);
+	if ((counter & NATIVE_AUDIO_ADSR_STEP_BIT) == 0)
+		return;
+
+	voice->adsrLevel += adsrStep;
+	if (!decreasing)
+	{
+		voice->adsrLevel = NativeAudio_ClampAdsrLevel(voice->adsrLevel);
+	}
+	else if (phaseNegative)
+	{
+		if (voice->adsrLevel < NATIVE_AUDIO_ADSR_MIN)
+			voice->adsrLevel = NATIVE_AUDIO_ADSR_MIN;
+		if (voice->adsrLevel > 0)
+			voice->adsrLevel = 0;
+	}
+	else if (voice->adsrLevel < 0)
+	{
+		voice->adsrLevel = 0;
+	}
+
+	voice->attr.envx = (s16)voice->adsrLevel;
+}
+
+static void NativeAudio_AdsrAdvance(struct NativeAudioVoice *voice)
+{
+	switch (voice->adsrPhase)
+	{
+	case NATIVE_AUDIO_ADSR_ATTACK:
+	{
+		int shift = (voice->attr.ar >> 2) & 0x1f;
+		int step = voice->attr.ar & 3;
+
+		NativeAudio_AdsrRunEnvelopeStep(voice, shift, step, NativeAudio_AdsrModeIsExponential(voice->attr.a_mode), 0,
+		                                NativeAudio_AdsrModeIsPhaseNegative(voice->attr.a_mode), NativeAudio_AdsrRateIsAllOnes(shift, step, 7));
+		if (voice->adsrLevel >= NATIVE_AUDIO_ADSR_MAX)
+		{
+			voice->adsrLevel = NATIVE_AUDIO_ADSR_MAX;
+			voice->attr.envx = NATIVE_AUDIO_ADSR_MAX;
+			NativeAudio_AdsrSetPhase(voice, NATIVE_AUDIO_ADSR_DECAY);
+		}
+		break;
+	}
+
+	case NATIVE_AUDIO_ADSR_DECAY:
+	{
+		int target = NativeAudio_AdsrSustainTarget(voice);
+
+		if (voice->adsrLevel <= target)
+		{
+			voice->adsrLevel = target;
+			voice->attr.envx = (s16)target;
+			NativeAudio_AdsrSetPhase(voice, NATIVE_AUDIO_ADSR_SUSTAIN);
+			break;
+		}
+
+		NativeAudio_AdsrRunEnvelopeStep(voice, voice->attr.dr & 0xf, 0, 1, 1, 0, 0);
+		if (voice->adsrLevel <= target)
+		{
+			voice->adsrLevel = target;
+			voice->attr.envx = (s16)target;
+			NativeAudio_AdsrSetPhase(voice, NATIVE_AUDIO_ADSR_SUSTAIN);
+		}
+		break;
+	}
+
+	case NATIVE_AUDIO_ADSR_SUSTAIN:
+	{
+		int shift = (voice->attr.sr >> 2) & 0x1f;
+		int step = voice->attr.sr & 3;
+
+		NativeAudio_AdsrRunEnvelopeStep(voice, shift, step, NativeAudio_AdsrModeIsExponential(voice->attr.s_mode),
+		                                NativeAudio_AdsrModeIsDecreasing(voice->attr.s_mode), NativeAudio_AdsrModeIsPhaseNegative(voice->attr.s_mode),
+		                                NativeAudio_AdsrRateIsAllOnes(shift, step, 7));
+		break;
+	}
+
+	case NATIVE_AUDIO_ADSR_RELEASE:
+	{
+		int shift = voice->attr.rr & 0x1f;
+
+		if (voice->adsrLevel <= 0)
+		{
+			NativeAudio_AdsrForceOff(voice);
+			break;
+		}
+
+		NativeAudio_AdsrRunEnvelopeStep(voice, shift, 0, NativeAudio_AdsrModeIsExponential(voice->attr.r_mode), 1,
+		                                NativeAudio_AdsrModeIsPhaseNegative(voice->attr.r_mode), shift == 0x1f);
+		if (voice->adsrLevel <= 0)
+			NativeAudio_AdsrForceOff(voice);
+		break;
+	}
+
+	default:
+		NativeAudio_AdsrForceOff(voice);
+		break;
+	}
+}
+
+static int NativeAudio_ApplyAdsrEnvelope(int sample, int adsrLevel)
+{
+	int scaleMax;
+
+	if (adsrLevel == 0)
+		return 0;
+	if (adsrLevel >= NATIVE_AUDIO_ADSR_MAX)
+		return sample;
+
+	scaleMax = adsrLevel < 0 ? 0x8000 : NATIVE_AUDIO_ADSR_MAX;
+	return NativeAudio_Clamp16((int)(((int64_t)sample * adsrLevel) / scaleMax));
+}
+
+static void NativeAudio_UpdatePackedAdsrFromFields(struct NativeAudioVoice *voice)
+{
+	voice->attr.adsr1 = (u16)((voice->attr.sl & 0xf) | ((voice->attr.dr & 0xf) << 4) | ((voice->attr.ar & 0x7f) << 8) |
+	                          (NativeAudio_AdsrModeIsExponential(voice->attr.a_mode) ? 0x8000 : 0));
+	voice->attr.adsr2 =
+	    (u16)((voice->attr.rr & 0x1f) | ((voice->attr.sr & 0x7f) << 6) | (NativeAudio_AdsrModeIsDecreasing(voice->attr.s_mode) ? 0x4000 : 0) |
+	          (NativeAudio_AdsrModeIsExponential(voice->attr.s_mode) ? 0x8000 : 0) | (NativeAudio_AdsrModeIsExponential(voice->attr.r_mode) ? 0x20 : 0));
+}
+
+static void NativeAudio_DecodePackedAdsrToFields(struct NativeAudioVoice *voice, b32 decodeAdsr1, b32 decodeAdsr2)
+{
+	if (decodeAdsr1)
+	{
+		voice->attr.sl = voice->attr.adsr1 & 0xf;
+		voice->attr.dr = (voice->attr.adsr1 >> 4) & 0xf;
+		voice->attr.ar = (voice->attr.adsr1 >> 8) & 0x7f;
+		voice->attr.a_mode = (voice->attr.adsr1 & 0x8000) != 0 ? SPU_VOICE_EXPIncN : SPU_VOICE_LINEARIncN;
+	}
+
+	if (decodeAdsr2)
+	{
+		b32 sustainDecreasing = (voice->attr.adsr2 & 0x4000) != 0;
+		b32 sustainExponential = (voice->attr.adsr2 & 0x8000) != 0;
+
+		voice->attr.rr = voice->attr.adsr2 & 0x1f;
+		voice->attr.r_mode = (voice->attr.adsr2 & 0x20) != 0 ? SPU_VOICE_EXPDec : SPU_VOICE_LINEARDecN;
+		voice->attr.sr = (voice->attr.adsr2 >> 6) & 0x7f;
+		if (sustainExponential)
+			voice->attr.s_mode = sustainDecreasing ? SPU_VOICE_EXPDec : SPU_VOICE_EXPIncN;
+		else
+			voice->attr.s_mode = sustainDecreasing ? SPU_VOICE_LINEARDecN : SPU_VOICE_LINEARIncN;
+	}
 }
 
 static int NativeAudio_ReadLE32(const u8 *bytes)
@@ -756,6 +1046,9 @@ static void NativeAudio_CopyVoiceToState(struct NativeAudioVoiceState *dst, cons
 	dst->looped = src->looped;
 	dst->reverb = src->reverb;
 	dst->sampleDirty = src->sampleDirty;
+	dst->adsrLevel = src->adsrLevel;
+	dst->adsrCounter = src->adsrCounter;
+	dst->adsrPhase = src->adsrPhase;
 }
 
 static void NativeAudio_CopyStateToVoice(struct NativeAudioVoice *dst, const struct NativeAudioVoiceState *src)
@@ -770,6 +1063,9 @@ static void NativeAudio_CopyStateToVoice(struct NativeAudioVoice *dst, const str
 	dst->looped = src->looped;
 	dst->reverb = src->reverb;
 	dst->sampleDirty = src->sampleDirty || src->active;
+	dst->adsrLevel = src->adsrLevel;
+	dst->adsrCounter = src->adsrCounter;
+	dst->adsrPhase = src->adsrPhase;
 	dst->pcm = NULL;
 }
 
@@ -792,6 +1088,10 @@ static int NativeAudio_ValidateVoiceSnapshot(const struct NativeAudioVoiceState 
 	if (voice->active && (voice->attr.addr >= NATIVE_AUDIO_SPU_MEMSIZE))
 		return 0;
 	if (voice->attr.loop_addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+		return 0;
+	if (voice->adsrPhase > NATIVE_AUDIO_ADSR_RELEASE)
+		return 0;
+	if ((voice->adsrLevel < NATIVE_AUDIO_ADSR_MIN) || (voice->adsrLevel > NATIVE_AUDIO_ADSR_MAX))
 		return 0;
 	return 1;
 }
@@ -1499,11 +1799,14 @@ static void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 			if (voice->active && ((voice->pcm == NULL) || voice->sampleDirty))
 				NativeAudio_UpdateVoiceSample(voice);
 
-			if (!voice->active || voice->pcm == NULL || voice->sampleCount <= 0)
+			if (!voice->active || voice->pcm == NULL || voice->sampleCount <= 0 || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
 				continue;
 
 			if (voice->attr.pitch == 0)
+			{
+				NativeAudio_AdsrAdvance(voice);
 				continue;
+			}
 
 			sampleIndex = voice->positionFp >> NATIVE_AUDIO_FP_SHIFT;
 			if (sampleIndex >= (u64)voice->sampleCount)
@@ -1515,15 +1818,17 @@ static void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 				}
 				else
 				{
-					voice->active = 0;
+					NativeAudio_AdsrForceOff(voice);
 					continue;
 				}
 			}
 
 			sample = NativeAudio_InterpolateVoiceSample(voice);
+			sample = NativeAudio_ApplyAdsrEnvelope(sample, voice->adsrLevel);
 			left = NativeAudio_ApplyVolume(sample, voice->attr.volume.left, s_audio.masterVolumeLeft);
 			right = NativeAudio_ApplyVolume(sample, voice->attr.volume.right, s_audio.masterVolumeRight);
 			NativeAudio_MixSample(&mixLeft, &mixRight, left, right);
+			NativeAudio_AdsrAdvance(voice);
 
 			stepFp = ((u32)voice->attr.pitch << NATIVE_AUDIO_FP_SHIFT) / 0x1000u;
 			voice->positionFp += stepFp;
@@ -1913,6 +2218,10 @@ void PsyX_SPUAL_SetVoiceAttr(SpuVoiceAttr *psxAttrib)
 			voice->attr.adsr1 = psxAttrib->adsr1;
 		if (psxAttrib->mask & SPU_VOICE_ADSR_ADSR2)
 			voice->attr.adsr2 = psxAttrib->adsr2;
+		NativeAudio_DecodePackedAdsrToFields(voice, (psxAttrib->mask & SPU_VOICE_ADSR_ADSR1) != 0, (psxAttrib->mask & SPU_VOICE_ADSR_ADSR2) != 0);
+		if (psxAttrib->mask & (SPU_VOICE_ADSR_AR | SPU_VOICE_ADSR_DR | SPU_VOICE_ADSR_SR | SPU_VOICE_ADSR_RR | SPU_VOICE_ADSR_SL | SPU_VOICE_ADSR_AMODE |
+		                       SPU_VOICE_ADSR_SMODE | SPU_VOICE_ADSR_RMODE | SPU_VOICE_ADSR_ADSR1 | SPU_VOICE_ADSR_ADSR2))
+			NativeAudio_UpdatePackedAdsrFromFields(voice);
 	}
 
 	if (s_audio.output.device != 0)
@@ -1945,10 +2254,17 @@ void PsyX_SPUAL_SetKey(int on_off, u_int voice_bit)
 			voice->positionFp = 0;
 			voice->looped = 0;
 			voice->active = voice->pcm != NULL;
+			if (voice->active)
+				NativeAudio_AdsrKeyOn(voice);
+			else
+				NativeAudio_AdsrForceOff(voice);
 		}
 		else
 		{
-			voice->active = 0;
+			if (on_off)
+				NativeAudio_AdsrForceOff(voice);
+			else
+				NativeAudio_AdsrKeyOff(voice);
 		}
 	}
 
