@@ -252,12 +252,6 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// If in main menu (character selection, track selection, any part of it)
 		if ((gGT->gameMode1 & MAIN_MENU) != 0)
 		{
-#ifdef CTR_NATIVE
-			// NOTE(aalhendi): Native links overlay data instead of reloading overlay 230 BSS, so reset stale menu/title state explicitly.
-			D230.menuMainMenu.state = 0x403;
-			D230.titleObj = NULL;
-#endif
-
 			if ((u32)sdata->mainMenuState < len(mainMenuInit))
 				mainMenuInit[sdata->mainMenuState]();
 		}

@@ -876,6 +876,28 @@ struct OverlayDATA_230 D230 = {
 
 struct OVR_230_VideoBSS V230;
 
+#ifdef CTR_NATIVE
+static struct OverlayDATA_230 s_d230InitialState;
+static int s_d230InitialStateReady;
+
+void OVR230_ResetRuntimeState(void)
+{
+	if (s_d230InitialStateReady == 0)
+	{
+		s_d230InitialState = D230;
+		s_d230InitialStateReady = 1;
+	}
+
+	D230 = s_d230InitialState;
+	memset(&V230, 0, sizeof(V230));
+}
+
+void OVR230_InitData(void)
+{
+	OVR230_ResetRuntimeState();
+}
+#endif
+
 #undef CHEAT_N
 #undef CHEAT_U
 #undef CHEAT_S

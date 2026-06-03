@@ -296,6 +296,16 @@ void LOAD_Callback_Overlay_230(void);
 void LOAD_Callback_Overlay_231(void);
 void LOAD_Callback_Overlay_232(void);
 void LOAD_Callback_Overlay_233(void);
+#ifdef CTR_NATIVE
+void OVR230_ResetRuntimeState(void);
+void OVR230_InitData(void);
+void OVR231_ResetRuntimeState(void);
+void OVR231_InitData(void);
+void OVR232_ResetRuntimeState(void);
+void OVR232_InitData(void);
+void OVR233_ResetRuntimeState(void);
+void OVR233_InitData(void);
+#endif
 void LOAD_ReadFileASyncCallback(CdlIntrResult result, u8 *unk);
 
 // same hack as AppendQueue, see notes there

@@ -3682,12 +3682,22 @@ char *CS_OVR233_TranslateRetailOpcodePointer(char *opCodeAt)
 }
 #endif
 
-void CS_OVR233_ResetRuntimeState(void)
+void OVR233_ResetRuntimeState(void)
 {
 	OVR_233 = s_ovr233InitialState;
 }
 
+void OVR233_InitData(void)
+{
+	OVR233_ResetRuntimeState();
+}
+
+void CS_OVR233_ResetRuntimeState(void)
+{
+	OVR233_ResetRuntimeState();
+}
+
 void CS_OVR233_InitData(void)
 {
-	CS_OVR233_ResetRuntimeState();
+	OVR233_InitData();
 }
