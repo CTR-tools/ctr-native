@@ -442,9 +442,9 @@
 
 #include "game/MEMCARD/MEMCARD_00_SetIcon.c"
 #include "game/MEMCARD/MEMCARD_01_CRC16.c"
-// NOTE(aalhendi): CTR_NATIVE routes host-backed card operations through MEMCARD_Compat; non-native builds use the retail card functions below.
+// NOTE(aalhendi): CTR_NATIVE routes host-backed card operations through MEMCARD_NativeAdapter; non-native builds use the retail card functions below.
 #if defined(CTR_NATIVE)
-#include "game/MEMCARD/MEMCARD_Compat.c"
+#include "game/MEMCARD/MEMCARD_NativeAdapter.c"
 #else
 #include "game/MEMCARD/MEMCARD_16_GetFreeBytes.c"
 #include "game/MEMCARD/MEMCARD_18_GetInfo.c"

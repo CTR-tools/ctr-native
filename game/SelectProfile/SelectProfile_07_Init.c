@@ -43,6 +43,9 @@ void SelectProfile_Init(u16 flags)
 
 		t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct SelectProfileLoadSaveObj), NONE, SMALL, OTHER), SelectProfile_ThTick, threadName,
 		                         NULL);
+		// NOTE(aalhendi): Native low-RAM audit candidate only. Retail writes
+		// through this allocation result before its later null check; keep
+		// unpatched until a valid menu repro proves the allocation can fail.
 		obj = (struct SelectProfileLoadSaveObj *)t->object;
 		sdata->ptrLoadSaveObj = (int)obj;
 		obj->icons = (struct SelectProfileLoadSaveIcon *)&sdata->LoadSaveData[0];

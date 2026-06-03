@@ -48,6 +48,9 @@ void AH_SaveObj_LInB(struct Instance *savInst)
 				inst = INSTANCE_Birth3D(gGT->modelPtr[STATIC_SCAN], R232.s_scan, 0);
 				save->inst = inst;
 
+				// NOTE(aalhendi): Native low-RAM audit candidate only. Retail
+				// uses this scan instance allocation before any null fallback;
+				// keep unpatched until a valid hub/save repro proves failure.
 				memcpy(&inst->matrix, &savInst->matrix, sizeof(inst->matrix));
 
 				rot[0] = spawn->posCoords[3];

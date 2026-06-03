@@ -124,6 +124,11 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		// medium stack pool
 		weaponInst = INSTANCE_BirthWithThread(modelID, weaponName, MEDIUM, bucket, RB_MovingExplosive_ThTick, sizeof(struct TrackerWeapon), parentTh);
 
+		// NOTE(aalhendi): Native low-RAM audit candidate only. Retail
+		// dereferences weapon birth results before later checks in several
+		// branches of this function; keep unpatched until memory pressure or
+		// gameplay repro proves the semantic fallback.
+
 		// copy matrix
 		*(int *)&weaponInst->matrix.m[0][0] = *(int *)&dInst->matrix.m[0][0];
 		*(int *)&weaponInst->matrix.m[0][2] = *(int *)&dInst->matrix.m[0][2];

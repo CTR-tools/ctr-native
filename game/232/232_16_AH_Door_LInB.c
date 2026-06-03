@@ -105,6 +105,10 @@ void AH_Door_LInB(struct Instance *inst)
 	// which is not in LEV file, only built in thread
 	woodDoor->otherDoor = otherDoorInst;
 
+	// NOTE(aalhendi): Native low-RAM audit candidate only. Retail uses the
+	// generated right-door instance before any null fallback; keep unpatched
+	// until a valid hub/door repro proves the allocation can fail.
+
 	// | 0x8000 - reverse culling direction
 	otherDoorInst->flags |= 0x9000;
 

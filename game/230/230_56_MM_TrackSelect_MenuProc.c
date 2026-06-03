@@ -105,19 +105,11 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 					// by default, dont show ghost in race
 					sdata->boolReplayHumanGhost = 0;
 
-#ifdef CTR_NATIVE
-					// TODO(aalhendi): Implement native pre-race ghost-load flow.
-					// NOTE(aalhendi): Skip playback selection and keep Time Trial
-					// ghost recording.
-					sdata->ptrDesiredMenu = &data.menuQueueLoadTrack;
-					return;
-#else
 					SelectProfile_ToggleMode(0x30);
 
 					// open the ghost selection menu
 					sdata->ptrDesiredMenu = &data.menuGhostSelection;
 					return;
-#endif
 				}
 
 				// passthrough Menu for the function
