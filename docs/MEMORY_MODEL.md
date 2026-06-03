@@ -107,7 +107,7 @@ The split is intentional:
 | Mode | Backing Buffer | Exposed Mempack Window | Purpose |
 |------|----------------|------------------------|---------|
 | `1` | `0x200000` bytes | `0xba9f0`-`0x1ff800` | Test native under retail-like memory pressure |
-| `0` | `0x2000000` bytes | `0x0`-`0x2000000` | Legacy native mode with extra host memory |
+| `0` | `0x800000` bytes | `0x0`-`0x800000` | Expanded native mode with extra low-address host memory |
 
 The pressure mode is useful for finding native paths that silently rely on more dynamic memory than retail had.
 The PS1 path does not call the platform arena hook; it computes the allocator window from retail overlay symbols.
