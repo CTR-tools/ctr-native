@@ -37,8 +37,8 @@ static void CDSYS_SaveMaxSample(int max)
 void CDSYS_SpuGetMaxSampleAtOffset(int xaCurrOffset)
 {
 	// NOTE(aalhendi): Retail reads decoded CD-XA samples from SPU IRQ
-	// buffers. Native XA is decoded by the SDL mixer, so feed the same
-	// amplitude globals from the matching native PCM block.
+	// buffers. Native XA is decoded by the native audio backend, so feed
+	// the same amplitude globals from the matching native PCM block.
 	if (sdata->boolUseDisc == 0)
 	{
 		CDSYS_SaveMaxSample(NativeAudio_GetXAMaxSampleAtOffset(xaCurrOffset));

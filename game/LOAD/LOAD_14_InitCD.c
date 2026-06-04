@@ -25,7 +25,7 @@ int LOAD_InitCDvol(void)
 	CD_REG(2) = 0;
 	CD_REG(3) = 0x20;
 #else
-	// NOTE(aalhendi): Native CD/XA mix is owned by the SDL audio backend, not PSX MMIO.
+	// NOTE(aalhendi): Native CD/XA mix is owned by the native audio backend, not PSX MMIO.
 #endif
 
 	return 0;
