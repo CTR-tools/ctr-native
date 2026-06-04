@@ -149,7 +149,6 @@ struct NativeAudioOutput
 	int reportVBlankCountdown;
 	int lastReportedUnderrunFrames;
 	int lastReportedOverflowFrames;
-	int lastReportedQueuedFrames;
 	int callbackMaxRequestFrames;
 	int lastReportedCallbackMaxRequestFrames;
 #endif
@@ -2366,7 +2365,6 @@ static int NativeAudio_ShouldReportOutputStatsNoLock(int *underrunFrames, int *o
 		return 0;
 
 	if ((*underrunFrames == s_audio.output.lastReportedUnderrunFrames) && (*overflowFrames == s_audio.output.lastReportedOverflowFrames) &&
-	    (*queuedFrames == s_audio.output.lastReportedQueuedFrames) &&
 	    (s_audio.output.callbackMaxRequestFrames == s_audio.output.lastReportedCallbackMaxRequestFrames))
 	{
 		return 0;
@@ -2374,7 +2372,6 @@ static int NativeAudio_ShouldReportOutputStatsNoLock(int *underrunFrames, int *o
 
 	s_audio.output.lastReportedUnderrunFrames = *underrunFrames;
 	s_audio.output.lastReportedOverflowFrames = *overflowFrames;
-	s_audio.output.lastReportedQueuedFrames = *queuedFrames;
 	s_audio.output.lastReportedCallbackMaxRequestFrames = s_audio.output.callbackMaxRequestFrames;
 	return 1;
 }
@@ -2676,6 +2673,16 @@ void NativeAudio_StepVBlank(void)
 		return;
 
 	NativeAudio_LockOutput();
+
+	if (s_audio.output.deterministicRenderMode)
+	{
+		s16 renderedFrames[NATIVE_AUDIO_VBLANK_FRAMES * NATIVE_AUDIO_CHANNELS];
+
+		// NOTE(aalhendi): Replay/TAS mode advances SPU/XA from the native PS1
+		// VBlank clock. SDL only drains the scheduled PCM in its callback.
+		int framesRendered = NativeAudio_RenderFramesNoLock(renderedFrames, NATIVE_AUDIO_VBLANK_FRAMES);
+		NativeAudio_QueueRenderedFramesNoLock(renderedFrames, framesRendered);
+	}
 
 #ifdef CTR_INTERNAL
 	shouldReportStats = NativeAudio_ShouldReportOutputStatsNoLock(&underrunFrames, &overflowFrames, &queuedFrames);

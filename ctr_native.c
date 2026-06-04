@@ -885,28 +885,17 @@ int NikoGetEnterKey(void)
 // NOTE(aalhendi): Native owns the CTR VBlank clock instead of PsyCross's
 // autonomous interrupt thread. The retail-shaped VSyncCallback storage lives in
 // native_libetc.c; native VSync emits that callback at each emulated VBlank.
+#define NATIVE_VSYNC_HZ          60
+#define NATIVE_VSYNC_CATCHUP_MAX 8
+
 static Uint64 s_nextVBlankCounter = 0;
 static Uint64 s_vblankRemainder = 0;
 static int s_nativeVBlankCount = 0;
 
-static void Native_WaitNextVBlank(void)
+static void Native_AdvanceVBlankTarget(void)
 {
 	const Uint64 freq = SDL_GetPerformanceFrequency();
-	const Uint64 hz = 60; // NOTE(aalhendi): ctr-native targets NTSC-U 926.
-	const Uint64 now = SDL_GetPerformanceCounter();
-
-	if (s_nextVBlankCounter == 0)
-	{
-		s_nextVBlankCounter = now;
-	}
-	else if ((Sint64)(now - s_nextVBlankCounter) > 0)
-	{
-		// NOTE(aalhendi): Retail VSync(0) waits for the next hardware VBlank;
-		// it does not catch up missed VBlanks with immediate returns after a
-		// host stall. Rebase stale targets so audio/video advance once per wait.
-		s_nextVBlankCounter = now;
-		s_vblankRemainder = 0;
-	}
+	const Uint64 hz = NATIVE_VSYNC_HZ;
 
 	s_nextVBlankCounter += freq / hz;
 	s_vblankRemainder += freq % hz;
@@ -915,16 +904,35 @@ static void Native_WaitNextVBlank(void)
 		s_nextVBlankCounter++;
 		s_vblankRemainder -= hz;
 	}
+}
+
+static void Native_EnsureVBlankTarget(void)
+{
+	const Uint64 now = SDL_GetPerformanceCounter();
+
+	if (s_nextVBlankCounter == 0)
+	{
+		s_nextVBlankCounter = now;
+		s_vblankRemainder = 0;
+		Native_AdvanceVBlankTarget();
+	}
+}
+
+static void Native_WaitUntilVBlankTarget(void)
+{
+	const Uint64 freq = SDL_GetPerformanceFrequency();
 
 	while (1)
 	{
 		const Uint64 now = SDL_GetPerformanceCounter();
+		Uint64 remaining;
+		Uint64 remainingMs;
 
-		if ((Sint64)(s_nextVBlankCounter - now) <= 0)
+		if (now >= s_nextVBlankCounter)
 			return;
 
-		const Uint64 remaining = s_nextVBlankCounter - now;
-		const Uint64 remainingMs = (remaining * 1000) / freq;
+		remaining = s_nextVBlankCounter - now;
+		remainingMs = (remaining * 1000) / freq;
 
 		if (remainingMs > 1)
 			SDL_Delay((Uint32)(remainingMs - 1));
@@ -933,24 +941,85 @@ static void Native_WaitNextVBlank(void)
 	}
 }
 
+static void Native_EmitVBlank(void)
+{
+	if (vsync_callback != NULL)
+		vsync_callback();
+
+	NativeAudio_StepVBlank();
+	s_nativeVBlankCount++;
+}
+
+static int Native_CatchUpDueVBlanks(void)
+{
+	int emittedVBlanks = 0;
+
+	Native_EnsureVBlankTarget();
+
+	while (SDL_GetPerformanceCounter() >= s_nextVBlankCounter)
+	{
+		const Uint64 now = SDL_GetPerformanceCounter();
+
+		Native_EmitVBlank();
+		emittedVBlanks++;
+
+		if (emittedVBlanks >= NATIVE_VSYNC_CATCHUP_MAX)
+		{
+			// NOTE(aalhendi): Debugger stalls can otherwise replay minutes of
+			// VBlank callbacks at once. Keep normal late frames faithful, but
+			// rebase pathological host pauses.
+			s_nextVBlankCounter = now;
+			s_vblankRemainder = 0;
+			Native_AdvanceVBlankTarget();
+			break;
+		}
+
+		Native_AdvanceVBlankTarget();
+	}
+
+	return emittedVBlanks;
+}
+
+static void Native_WaitAndEmitVBlank(void)
+{
+	Native_EnsureVBlankTarget();
+	Native_WaitUntilVBlankTarget();
+	Native_EmitVBlank();
+	Native_AdvanceVBlankTarget();
+}
+
 int VSync(int mode)
 {
-	int vblankCount;
+	int requestedVBlanks;
+	int emittedVBlanks;
 
 	if (mode < 0)
 		return s_nativeVBlankCount;
 
-	vblankCount = (mode == 0) ? 1 : mode;
+	requestedVBlanks = (mode == 0) ? 1 : mode;
+	emittedVBlanks = 0;
 
-	for (int i = 0; i < vblankCount; i++)
+#if defined(CTR_INTERNAL)
+	if (NativeReplayScheduler_ConsumeVSyncPacket(requestedVBlanks, &emittedVBlanks))
 	{
-		Native_WaitNextVBlank();
-		if (vsync_callback != NULL)
-			vsync_callback();
+		for (int i = 0; i < emittedVBlanks; i++)
+			Native_WaitAndEmitVBlank();
 
-		NativeAudio_StepVBlank();
-		s_nativeVBlankCount++;
+		return s_nativeVBlankCount;
 	}
+#endif
+
+	emittedVBlanks += Native_CatchUpDueVBlanks();
+
+	for (int i = 0; i < requestedVBlanks; i++)
+	{
+		Native_WaitAndEmitVBlank();
+		emittedVBlanks++;
+	}
+
+#if defined(CTR_INTERNAL)
+	NativeReplayScheduler_RecordVSyncPacket(emittedVBlanks);
+#endif
 
 	return s_nativeVBlankCount;
 }

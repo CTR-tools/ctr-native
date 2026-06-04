@@ -13,6 +13,11 @@ static struct NativeReplaySchedulerFrameInfo MainReplayScheduler_FrameInfo(struc
 
 	info.frameTimer = gGT->frameTimer_VsyncCallback;
 	info.frameCounter = sdata->frameCounter;
+	info.timer = gGT->timer;
+	info.framesInThisLEV = gGT->framesInThisLEV;
+	info.elapsedTimeMS = gGT->elapsedTimeMS;
+	info.msInThisLEV = gGT->msInThisLEV;
+	info.elapsedEventTime = gGT->elapsedEventTime;
 	info.mainGameState = sdata->mainGameState;
 	info.loadingStage = sdata->Loading.stage;
 	info.levelID = gGT->levelID;

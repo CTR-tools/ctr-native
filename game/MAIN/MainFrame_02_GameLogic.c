@@ -1,5 +1,9 @@
 #include <common.h>
 
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+#include <platform/native_replay_scheduler.h>
+#endif
+
 typedef void (*VehicleFuncPtr)(struct Thread *thread, struct Driver *driver);
 
 void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
@@ -89,6 +93,12 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		{
 			gGT->elapsedTimeMS = 0x20;
 		}
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+		// NOTE(aalhendi): Replay playback must not let host RCNT timing decide
+		// cutscene/gameplay advancement. Use the recorded PS1-shaped frame delta
+		// before msInThisLEV and elapsedEventTime consume it.
+		NativeReplayScheduler_ConsumeFrameElapsedTimeMS(&gGT->elapsedTimeMS);
+#endif
 		gGT->msInThisLEV += gGT->elapsedTimeMS;
 		if (gGT->trafficLightsTimer < 1)
 		{
