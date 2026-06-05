@@ -576,7 +576,14 @@ static void Platform_HandleKey(int key, char down)
 				g_dbg_polygonSelected += (key == SDL_SCANCODE_UP) ? 3 : -3;
 			}
 			break;
+		case SDL_SCANCODE_F9:
+			if (NativeReplayScheduler_RequestStart() != 0)
+				break;
+			break;
 		case SDL_SCANCODE_F10:
+			NativeReplayScheduler_RequestStop();
+			break;
+		case SDL_SCANCODE_F11:
 			Platform_LogWarn("[CTR Native] saving VRAM.TGA\n");
 			NativeRenderer_SaveVRAM("VRAM.TGA", 0, 0, VRAM_WIDTH, VRAM_HEIGHT, 1);
 			break;

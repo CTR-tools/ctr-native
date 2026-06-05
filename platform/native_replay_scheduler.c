@@ -32,6 +32,7 @@
 #define NATIVE_REPLAY_MAX_VSYNC_PACKETS          64u
 #define NATIVE_REPLAY_BUILD_ID_BYTES             64u
 #define NATIVE_REPLAY_PLATFORM_ID_BYTES          32u
+#define NATIVE_REPLAY_DEFAULT_REPORT_ROOT        "debug/reports"
 #define NATIVE_REPLAY_REPORT_REPLAY_NAME         "recording.ctrreplay"
 #define NATIVE_REPLAY_REPORT_METADATA_NAME       "metadata.txt"
 #define NATIVE_REPLAY_REPORT_LOG_NAME            "ctr-native.log"
@@ -43,6 +44,7 @@
 enum NativeReplaySchedulerMode
 {
 	NATIVE_REPLAY_MODE_NONE = 0,
+	NATIVE_REPLAY_MODE_ARMED,
 	NATIVE_REPLAY_MODE_RECORD,
 	NATIVE_REPLAY_MODE_PLAYBACK
 };
@@ -86,7 +88,6 @@ struct NativeReplayFrameRecord
 
 static enum NativeReplaySchedulerMode s_mode;
 static u32 s_replayFrame;
-static u32 s_frameLimit;
 static s32 s_beginOpen;
 static s32 s_divergenceLogged;
 static FILE *s_file;
@@ -106,6 +107,10 @@ static u32 s_frameVBlankPacketCount;
 static s32 s_vblankPacketOverflow;
 static s32 s_vblankPlaybackMismatch;
 static enum NativeReplayCheckpointPolicy s_checkpointPolicy = NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
+static s32 s_startRequested;
+static s32 s_stopRequested;
+static s32 s_reportCompleted;
+static s32 s_reportManualStart;
 static s32 s_reportEnabled;
 static char *s_reportDir;
 static char *s_reportReplayPath;
@@ -119,6 +124,16 @@ static void NativeReplayScheduler_ResetVSyncPackets(void)
 	s_frameVBlankPacketCount = 0;
 	s_vblankPacketOverflow = 0;
 	s_vblankPlaybackMismatch = 0;
+}
+
+static void NativeReplayScheduler_ResetSessionState(void)
+{
+	s_replayFrame = 0;
+	s_beginOpen = 0;
+	s_divergenceLogged = 0;
+	s_frameTimingConsumed = 0;
+	s_stopRequested = 0;
+	NativeReplayScheduler_ResetVSyncPackets();
 }
 
 static u32 NativeReplayScheduler_Fnv1a(const void *data, u32 size)
@@ -171,23 +186,18 @@ static const char *NativeReplayScheduler_CheckpointPolicyName(enum NativeReplayC
 	return "rolling";
 }
 
-static s32 NativeReplayScheduler_ParseCheckpointPolicy(const char *text, enum NativeReplayCheckpointPolicy *policy)
+static const char *NativeReplayScheduler_MetadataStatus(s32 finalMetadata)
 {
-	if ((text == NULL) || (policy == NULL))
-		return 0;
+	if (finalMetadata != 0)
+		return "finalized";
+	if (s_mode == NATIVE_REPLAY_MODE_ARMED)
+		return "armed";
+	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
+		return "recording";
+	if (s_reportCompleted != 0)
+		return "finalized";
 
-	if (strcmp(text, "rolling") == 0)
-	{
-		*policy = NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
-		return 1;
-	}
-	if ((strcmp(text, "bootstrap-only") == 0) || (strcmp(text, "bootstrap") == 0) || (strcmp(text, "once") == 0))
-	{
-		*policy = NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY;
-		return 1;
-	}
-
-	return 0;
+	return "idle";
 }
 
 static void NativeReplayScheduler_CopyFixedString(char *dst, u32 dstSize, const char *src)
@@ -277,6 +287,19 @@ static const char *NativeReplayScheduler_ArgValue(int argc, char **argv, const c
 	return NULL;
 }
 
+static s32 NativeReplayScheduler_ArgPresent(int argc, char **argv, const char *arg)
+{
+	int i;
+
+	for (i = 1; i < argc; i++)
+	{
+		if (strcmp(argv[i], arg) == 0)
+			return 1;
+	}
+
+	return 0;
+}
+
 static s32 NativeReplayScheduler_ArgMissingValue(int argc, char **argv, const char *arg)
 {
 	int i;
@@ -288,22 +311,6 @@ static s32 NativeReplayScheduler_ArgMissingValue(int argc, char **argv, const ch
 	}
 
 	return 0;
-}
-
-static s32 NativeReplayScheduler_ParseU32(const char *text, u32 *out)
-{
-	char *end;
-	unsigned long value;
-
-	if ((text == NULL) || (text[0] == '\0') || (out == NULL))
-		return 0;
-
-	value = strtoul(text, &end, 10);
-	if ((end == text) || (*end != '\0') || (value > 0xffffffffUL))
-		return 0;
-
-	*out = (u32)value;
-	return 1;
 }
 
 static char *NativeReplayScheduler_MakeSidecarPath(const char *path, const char *extension)
@@ -564,26 +571,20 @@ fail:
 
 int NativeReplayScheduler_PrepareReportFromArgs(int argc, char **argv)
 {
-	const char *reportRoot = NativeReplayScheduler_ArgValue(argc, argv, "--record-report");
+	const s32 recordReport = NativeReplayScheduler_ArgPresent(argc, argv, "--record");
 
-	if (NativeReplayScheduler_ArgMissingValue(argc, argv, "--record-report"))
-	{
-		fprintf(stderr, "[CTR Replay] missing --record-report value\n");
-		return 1;
-	}
-
-	if (reportRoot == NULL)
+	if (recordReport == 0)
 		return 0;
 
-	if ((NativeReplayScheduler_ArgValue(argc, argv, "--record-replay") != NULL) || (NativeReplayScheduler_ArgValue(argc, argv, "--replay") != NULL))
+	if (NativeReplayScheduler_ArgPresent(argc, argv, "--replay") != 0)
 	{
-		fprintf(stderr, "[CTR Replay] choose --record-report, --record-replay, or --replay, not more than one\n");
+		fprintf(stderr, "[CTR Replay] choose --record or --replay, not both\n");
 		return 1;
 	}
 
-	if (!NativeReplayScheduler_PrepareReportPaths(reportRoot))
+	if (!NativeReplayScheduler_PrepareReportPaths(NATIVE_REPLAY_DEFAULT_REPORT_ROOT))
 	{
-		fprintf(stderr, "[CTR Replay] failed to prepare report folder under: %s\n", reportRoot);
+		fprintf(stderr, "[CTR Replay] failed to prepare report folder under: %s\n", NATIVE_REPLAY_DEFAULT_REPORT_ROOT);
 		return 1;
 	}
 
@@ -606,6 +607,10 @@ static void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 
 	fprintf(file, "ctr_native_report=1\n");
 	fprintf(file, "finalized=%d\n", finalMetadata != 0);
+	fprintf(file, "recording_status=%s\n", NativeReplayScheduler_MetadataStatus(finalMetadata));
+	fprintf(file, "manual_start=%d\n", s_reportManualStart != 0);
+	fprintf(file, "start_hotkey=F9\n");
+	fprintf(file, "stop_hotkey=F10\n");
 	fprintf(file, "build_id=%s\n", s_header.buildId);
 	fprintf(file, "platform=%s\n", s_header.platformId);
 	fprintf(file, "replay_version=%u\n", (unsigned int)s_header.version);
@@ -680,6 +685,7 @@ static void NativeReplayScheduler_CloseFiles(void)
 		NativeReplayScheduler_CloseCheckpointFile();
 		NativeAudio_SetDeterministicRenderMode(0);
 		s_mode = NATIVE_REPLAY_MODE_NONE;
+		s_stopRequested = 0;
 		return;
 	}
 
@@ -695,6 +701,9 @@ static void NativeReplayScheduler_CloseFiles(void)
 	s_file = NULL;
 	NativeReplayScheduler_CloseCheckpointFile();
 	NativeAudio_SetDeterministicRenderMode(0);
+	if (s_reportEnabled != 0)
+		s_reportCompleted = 1;
+	s_stopRequested = 0;
 	s_mode = NATIVE_REPLAY_MODE_NONE;
 }
 
@@ -895,6 +904,39 @@ static s32 NativeReplayScheduler_OpenRecord(const char *path)
 	return 1;
 }
 
+static s32 NativeReplayScheduler_ArmReport(void)
+{
+	if ((s_reportEnabled == 0) || (s_reportReplayPath == NULL))
+		return 0;
+
+	NativeReplayScheduler_ResetSessionState();
+	NativeReplayScheduler_InitHeader(&s_header);
+	s_mode = NATIVE_REPLAY_MODE_ARMED;
+	s_reportManualStart = 1;
+	s_reportCompleted = 0;
+	NativeReplayScheduler_WriteReportMetadata(0);
+	Platform_Log("[CTR Replay] report armed: press F9 to start recording, F10 to stop\n");
+	return 1;
+}
+
+static s32 NativeReplayScheduler_StartReportRecording(void)
+{
+	if ((s_reportEnabled == 0) || (s_reportReplayPath == NULL))
+		return 0;
+	if (s_reportCompleted != 0)
+	{
+		Platform_Log("[CTR Replay] report already finalized: %s\n", s_reportDir != NULL ? s_reportDir : "");
+		return 0;
+	}
+
+	NativeReplayScheduler_ResetSessionState();
+	if (!NativeReplayScheduler_OpenRecord(s_reportReplayPath))
+		return 0;
+
+	Platform_Log("[CTR Replay] report recording started\n");
+	return 1;
+}
+
 static s32 NativeReplayScheduler_OpenPlayback(const char *path)
 {
 	s_file = fopen(path, "rb");
@@ -971,62 +1013,50 @@ static void NativeReplayScheduler_ReportDivergence(const struct NativeReplayFram
 
 int NativeReplayScheduler_ConfigureFromArgs(int argc, char **argv)
 {
-	const char *recordPath = NativeReplayScheduler_ArgValue(argc, argv, "--record-replay");
 	const char *playbackPath = NativeReplayScheduler_ArgValue(argc, argv, "--replay");
-	const char *reportRoot = NativeReplayScheduler_ArgValue(argc, argv, "--record-report");
-	const char *checkpointModeText = NativeReplayScheduler_ArgValue(argc, argv, "--checkpoint-mode");
-	const char *frameLimitText = NativeReplayScheduler_ArgValue(argc, argv, "--replay-frame-limit");
+	const s32 recordReport = NativeReplayScheduler_ArgPresent(argc, argv, "--record");
+	const s32 playback = NativeReplayScheduler_ArgPresent(argc, argv, "--replay");
+	s32 toggle = NativeReplayScheduler_ArgPresent(argc, argv, "--toggle");
+	s32 detailed = NativeReplayScheduler_ArgPresent(argc, argv, "--detailed");
 
-	if (NativeReplayScheduler_ArgMissingValue(argc, argv, "--record-replay") || NativeReplayScheduler_ArgMissingValue(argc, argv, "--replay") ||
-	    NativeReplayScheduler_ArgMissingValue(argc, argv, "--record-report") || NativeReplayScheduler_ArgMissingValue(argc, argv, "--checkpoint-mode") ||
-	    NativeReplayScheduler_ArgMissingValue(argc, argv, "--replay-frame-limit"))
+	if (NativeReplayScheduler_ArgMissingValue(argc, argv, "--replay"))
 	{
 		Platform_Log("[CTR Replay] missing replay command value\n");
 		return 1;
 	}
 
-	if (((recordPath != NULL) + (playbackPath != NULL) + (reportRoot != NULL)) > 1)
+	if ((recordReport != 0) && (playback != 0))
 	{
-		Platform_Log("[CTR Replay] choose --record-report, --record-replay, or --replay, not more than one\n");
+		Platform_Log("[CTR Replay] choose --record or --replay, not both\n");
 		return 1;
 	}
-	if ((checkpointModeText != NULL) && (recordPath == NULL) && (reportRoot == NULL))
+	if (((toggle != 0) || (detailed != 0)) && (recordReport == 0))
 	{
-		Platform_Log("[CTR Replay] --checkpoint-mode only applies to replay recording\n");
-		return 1;
-	}
-
-	if ((reportRoot != NULL) && (s_reportEnabled == 0) && !NativeReplayScheduler_PrepareReportPaths(reportRoot))
-	{
-		Platform_Log("[CTR Replay] failed to prepare report folder under: %s\n", reportRoot);
+		Platform_Log("[CTR Replay] --toggle and --detailed only apply to --record\n");
 		return 1;
 	}
 
-	if ((frameLimitText != NULL) && !NativeReplayScheduler_ParseU32(frameLimitText, &s_frameLimit))
+	if ((recordReport != 0) && (s_reportEnabled == 0) && !NativeReplayScheduler_PrepareReportPaths(NATIVE_REPLAY_DEFAULT_REPORT_ROOT))
 	{
-		Platform_Log("[CTR Replay] invalid --replay-frame-limit value: %s\n", frameLimitText);
+		Platform_Log("[CTR Replay] failed to prepare report folder under: %s\n", NATIVE_REPLAY_DEFAULT_REPORT_ROOT);
 		return 1;
 	}
 
-	s_replayFrame = 0;
-	s_beginOpen = 0;
-	s_divergenceLogged = 0;
-	s_frameTimingConsumed = 0;
-	s_checkpointPolicy = NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
-	NativeReplayScheduler_ResetVSyncPackets();
+	NativeReplayScheduler_ResetSessionState();
+	s_startRequested = 0;
+	s_reportCompleted = 0;
+	s_reportManualStart = 0;
+	s_checkpointPolicy = (recordReport != 0) ? NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY : NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
+	if (detailed != 0)
+		s_checkpointPolicy = NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
 
-	if ((checkpointModeText != NULL) && !NativeReplayScheduler_ParseCheckpointPolicy(checkpointModeText, &s_checkpointPolicy))
+	if (recordReport != 0)
 	{
-		Platform_Log("[CTR Replay] invalid --checkpoint-mode value: %s\n", checkpointModeText);
-		Platform_Log("[CTR Replay] valid checkpoint modes: rolling, bootstrap-only\n");
-		return 1;
+		if (toggle == 0)
+			return NativeReplayScheduler_OpenRecord(s_reportReplayPath) ? 0 : 1;
+
+		return NativeReplayScheduler_ArmReport() ? 0 : 1;
 	}
-
-	if (recordPath != NULL)
-		return NativeReplayScheduler_OpenRecord(recordPath) ? 0 : 1;
-
-	if (reportRoot != NULL)
-		return NativeReplayScheduler_OpenRecord(s_reportReplayPath) ? 0 : 1;
 
 	if (playbackPath != NULL)
 		return NativeReplayScheduler_OpenPlayback(playbackPath) ? 0 : 1;
@@ -1042,16 +1072,60 @@ void NativeReplayScheduler_Shutdown(void)
 	s_mode = NATIVE_REPLAY_MODE_NONE;
 }
 
+int NativeReplayScheduler_RequestStart(void)
+{
+	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
+	{
+		Platform_Log("[CTR Replay] report recording is already active\n");
+		return 1;
+	}
+	if (s_mode != NATIVE_REPLAY_MODE_ARMED)
+		return 0;
+	if (s_reportCompleted != 0)
+	{
+		Platform_Log("[CTR Replay] report is already finalized\n");
+		return 1;
+	}
+
+	if (s_startRequested == 0)
+	{
+		s_startRequested = 1;
+		Platform_Log("[CTR Replay] report start requested; recording begins next frame\n");
+	}
+	return 1;
+}
+
+int NativeReplayScheduler_RequestStop(void)
+{
+	if (s_mode == NATIVE_REPLAY_MODE_ARMED)
+	{
+		Platform_Log("[CTR Replay] report is armed but not recording; press F9 to start\n");
+		return 1;
+	}
+	if (s_mode != NATIVE_REPLAY_MODE_RECORD)
+		return 0;
+
+	if (s_stopRequested == 0)
+	{
+		s_stopRequested = 1;
+		Platform_Log("[CTR Replay] report stop requested; finalizing after current frame\n");
+	}
+	return 1;
+}
+
 int NativeReplayScheduler_BeginFrame(const struct NativeReplaySchedulerFrameInfo *info)
 {
 	if ((s_mode == NATIVE_REPLAY_MODE_NONE) || (info == NULL))
 		return 0;
 
-	if ((s_frameLimit != 0) && (s_replayFrame >= s_frameLimit))
+	if (s_mode == NATIVE_REPLAY_MODE_ARMED)
 	{
-		if (s_mode == NATIVE_REPLAY_MODE_PLAYBACK)
-			Platform_Log("[CTR Replay] playback frame limit reached: frames=%u\n", s_replayFrame);
-		return 1;
+		if (s_startRequested == 0)
+			return 0;
+
+		s_startRequested = 0;
+		if (!NativeReplayScheduler_StartReportRecording())
+			return 1;
 	}
 
 	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
@@ -1223,11 +1297,11 @@ int NativeReplayScheduler_EndFrame(const struct NativeReplaySchedulerFrameInfo *
 		s_frameTimingConsumed = 0;
 		NativeReplayScheduler_ResetVSyncPackets();
 
-		if ((s_frameLimit != 0) && (s_replayFrame >= s_frameLimit))
+		if (s_stopRequested != 0)
 		{
-			Platform_Log("[CTR Replay] recorded input replay frames=%u\n", s_replayFrame);
+			Platform_Log("[CTR Replay] report finalized by hotkey: frames=%u\n", s_replayFrame);
 			NativeReplayScheduler_CloseFiles();
-			return 1;
+			return 0;
 		}
 
 		return 0;

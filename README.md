@@ -93,6 +93,10 @@ ctr_native/
       MUSIC/S00.XA ... S05.XA
 ```
 
+## Bug Replays
+
+Internal builds can record a small bug report folder. See `docs/REPLAYS.md`.
+
 ## Architecture
 
 ```
