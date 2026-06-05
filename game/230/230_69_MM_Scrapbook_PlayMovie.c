@@ -1,5 +1,41 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+#include <platform/native_str.h>
+
+#define SCRAPBOOK_NATIVE_SRC_X       512
+#define SCRAPBOOK_NATIVE_SRC_Y       0
+#define SCRAPBOOK_NATIVE_DST_X       0
+#define SCRAPBOOK_NATIVE_DST_Y       4
+#define SCRAPBOOK_NATIVE_WIDTH       512
+#define SCRAPBOOK_NATIVE_HEIGHT      208
+#define SCRAPBOOK_NATIVE_STRIP_WIDTH 128
+
+static void MM_Scrapbook_DrawNativeFrame(void)
+{
+	struct GameTracker *gGT = sdata->gGT;
+	u32 *prim = (u32 *)gGT->backBuffer->primMem.curr;
+	u32 *firstPrim = prim;
+	u_long *ot = gGT->pushBuffer_UI.ptrOT;
+	u32 oldTag = (u32)*ot;
+	s32 x;
+
+	for (x = 0; x < SCRAPBOOK_NATIVE_WIDTH; x += SCRAPBOOK_NATIVE_STRIP_WIDTH)
+	{
+		s16 tile[16] = {
+		    SCRAPBOOK_NATIVE_SRC_X + (s16)x, SCRAPBOOK_NATIVE_SRC_Y, SCRAPBOOK_NATIVE_STRIP_WIDTH, SCRAPBOOK_NATIVE_HEIGHT,
+		    SCRAPBOOK_NATIVE_DST_X + (s16)x, SCRAPBOOK_NATIVE_DST_Y, SCRAPBOOK_NATIVE_STRIP_WIDTH, SCRAPBOOK_NATIVE_HEIGHT,
+		};
+
+		prim = DISPLAY_Blur_SubFunc(prim, tile);
+	}
+
+	*ot = (u_long)CtrGpu_PrimToOTLink24(firstPrim);
+	prim[-10] = oldTag | 0x09000000;
+	gGT->backBuffer->primMem.curr = prim;
+}
+#endif
+
 #ifndef CTR_NATIVE
 __attribute__((optimize("O0"))) int ScrapBookPlayMovie_DecodeFrame()
 {
@@ -53,11 +89,17 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b40a8-0x800b40b4 for scrapbook CD stream mode.
 		CDSYS_SetMode_StreamData();
 
+#ifdef CTR_NATIVE
+		if (NativeSTR_StartScrapbook() != 0)
+		{
+			D230.scrapbookState = 2;
+			return;
+		}
+#else
 		// \TEST.STR;1
 		// if file was found
 		if (CdSearchFile(&cdlFile, R230.s_teststr1) != 0)
 		{
-#ifndef CTR_NATIVE
 			SpuSetCommonCDVolume(sdata->vol_Music << 7, sdata->vol_Music << 7);
 
 			// Alloc memory to store Scrapbook
@@ -74,15 +116,13 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 
 			// CD position of video, and numFrames
 			MM_Video_StartStream(cdPos, 0x1148);
-#else
-			// NOTE(aalhendi): Native does not run the PSX STR decoder path here.
-#endif
 
 			// start playing movie
 			D230.scrapbookState = 2;
 
 			return;
 		}
+#endif
 
 		goto GO_BACK;
 
@@ -104,6 +144,10 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		    // if movie is finished,
 		    // means scrapbook ended, no looping
 		    (MM_Video_CheckIfFinished(0) == 1) || (getButtonPress != 0))
+#else
+		getButtonPress = (sdata->buttonTapPerPlayer[0] & 0x41070);
+
+		if ((getButtonPress != 0) || (NativeSTR_UploadNextFrame(SCRAPBOOK_NATIVE_SRC_X, SCRAPBOOK_NATIVE_SRC_Y) == 0))
 #endif
 		{
 			if (getButtonPress != 0)
@@ -114,6 +158,12 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 			// stop video
 			D230.scrapbookState = 3;
 		}
+#ifdef CTR_NATIVE
+		else
+		{
+			MM_Scrapbook_DrawNativeFrame();
+		}
+#endif
 
 		VSync(4);
 		break;
@@ -127,6 +177,8 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		MM_Video_StopStream();
 
 		MM_Video_ClearMem();
+#else
+		NativeSTR_Stop();
 #endif
 
 		if (RaceFlag_IsFullyOffScreen() == 1)
