@@ -4687,7 +4687,8 @@ struct Data
             .memcardIcon_CrashHead =
                 {
                     // 0x00114353:
-                    // S, C, 0x11 icons, 0 blocks
+                    // 'S', 'C', icon display flag 0x11, block-count seed 0.
+                    // MEMCARD_Save overwrites byte 3 with the computed block count before create/write.
                     0x00114353, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0xf4d9f819, 0xffddff2d, 0xfb99ffff, 0xec1698c6, 0x83ff8c63, 0xd812dcb4, 0xbc2dd193, 0xb00ade36, 0x34432100,
@@ -4699,7 +4700,8 @@ struct Data
             .memcardIcon_Ghost =
                 {
                     // 0x00114353:
-                    // S, C, 0x11 icons, 0 blocks
+                    // 'S', 'C', icon display flag 0x11, block-count seed 0.
+                    // MEMCARD_Save overwrites byte 3 with the computed block count before create/write.
                     0x00114353, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0x84b2fca0, 0x8959886c, 0xfbdf8422, 0x8525adad, 0xbe18ce9d, 0x9cf1e8a0, 0xbc61e2f8, 0xc881b596, 0x21110000,
@@ -4711,7 +4713,8 @@ struct Data
             .memcardIcon_PsyqHand =
                 {
                     // 0x00114353:
-                    // S, C, 0x11 icons, 0 blocks
+                    // 'S', 'C', icon display flag 0x11, block-count seed 0.
+                    // MEMCARD_Save overwrites byte 3 with the computed block count before create/write.
                     0x00114353, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                     0x00000000, 0x00000000, 0x7fff0000, 0x03e07c00, 0x31b52973, 0x5b1d469c, 0x7bdf6f7f, 0x03c07800, 0x001e7bc0, 0x03ff781e, 0xffffffff,
