@@ -17,9 +17,7 @@ Windows: use `build\ctr_native.exe` instead.
 
 Normal saves live in `memcards/slot0`.
 
-When recording starts, the CTR save files from `memcards/slot0` and `slot1` are
-copied into the report folder. Saves and ghosts made while recording stay in
-that report copy.
+When recording starts, the CTR save files from `memcards/slot0` and `slot1` are copied to `memcard.seed`. The game records with a writable copy named `memcard.recording`, so saves and ghosts made while recording stay in the report.
 
 To choose when recording starts:
 
@@ -52,7 +50,7 @@ It looks like:
 build/ctr_native --replay "debug/reports/20260605/ctr-123456/input.ctrreplay"
 ```
 
-Playback uses the report's memcard copy and does not touch your real saves.
+Playback creates a fresh writable `memcard.playback` from `memcard.seed` every run and does not touch your real saves.
 
 If a developer asks you to bypass header identity checks:
 

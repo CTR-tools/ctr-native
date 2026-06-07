@@ -39,7 +39,8 @@
 #define NATIVE_REPLAY_DEFAULT_REPORT_ROOT        "debug/reports"
 #define NATIVE_REPLAY_REPORT_REPLAY_NAME         "input.ctrreplay"
 #define NATIVE_REPLAY_REPORT_CHECKPOINT_NAME     "state.ctrstates"
-#define NATIVE_REPLAY_REPORT_MEMCARD_NAME        "memcard"
+#define NATIVE_REPLAY_REPORT_MEMCARD_SEED_NAME   "memcard.seed"
+#define NATIVE_REPLAY_RECORDING_MEMCARD_NAME     "memcard.recording"
 #define NATIVE_REPLAY_PLAYBACK_MEMCARD_NAME      "memcard.playback"
 #define NATIVE_REPLAY_REPORT_METADATA_NAME       "metadata.txt"
 #define NATIVE_REPLAY_REPORT_LOG_NAME            "ctr-native.log"
@@ -122,7 +123,8 @@ global_variable s32 s_reportEnabled;
 global_variable char *s_reportDir;
 global_variable char *s_reportReplayPath;
 global_variable char *s_reportCheckpointPath;
-global_variable char *s_reportMemcardPath;
+global_variable char *s_reportMemcardSeedPath;
+global_variable char *s_reportMemcardRecordingPath;
 global_variable char *s_reportMetadataPath;
 global_variable char *s_reportLogPath;
 global_variable char *s_playbackMemcardPath;
@@ -502,13 +504,15 @@ internal void NativeReplayScheduler_FreeReportPaths(void)
 	free(s_reportDir);
 	free(s_reportReplayPath);
 	free(s_reportCheckpointPath);
-	free(s_reportMemcardPath);
+	free(s_reportMemcardSeedPath);
+	free(s_reportMemcardRecordingPath);
 	free(s_reportMetadataPath);
 	free(s_reportLogPath);
 	s_reportDir = NULL;
 	s_reportReplayPath = NULL;
 	s_reportCheckpointPath = NULL;
-	s_reportMemcardPath = NULL;
+	s_reportMemcardSeedPath = NULL;
+	s_reportMemcardRecordingPath = NULL;
 	s_reportMetadataPath = NULL;
 	s_reportLogPath = NULL;
 	s_reportEnabled = 0;
@@ -568,11 +572,12 @@ internal s32 NativeReplayScheduler_PrepareReportPaths(const char *root)
 
 	s_reportReplayPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_REPLAY_NAME);
 	s_reportCheckpointPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_CHECKPOINT_NAME);
-	s_reportMemcardPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_MEMCARD_NAME);
+	s_reportMemcardSeedPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_MEMCARD_SEED_NAME);
+	s_reportMemcardRecordingPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_RECORDING_MEMCARD_NAME);
 	s_reportMetadataPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_METADATA_NAME);
 	s_reportLogPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_LOG_NAME);
-	if ((s_reportReplayPath == NULL) || (s_reportCheckpointPath == NULL) || (s_reportMemcardPath == NULL) || (s_reportMetadataPath == NULL) ||
-	    (s_reportLogPath == NULL))
+	if ((s_reportReplayPath == NULL) || (s_reportCheckpointPath == NULL) || (s_reportMemcardSeedPath == NULL) || (s_reportMemcardRecordingPath == NULL) ||
+	    (s_reportMetadataPath == NULL) || (s_reportLogPath == NULL))
 		goto fail;
 
 	if (!NativeReplayScheduler_CreateDirs(s_reportDir))
@@ -647,7 +652,8 @@ internal void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 	fprintf(file, "report_dir=%s\n", s_reportDir != NULL ? s_reportDir : "");
 	fprintf(file, "replay_path=%s\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
 	fprintf(file, "checkpoint_path=%s\n", s_reportCheckpointPath != NULL ? s_reportCheckpointPath : "");
-	fprintf(file, "memcard_path=%s\n", s_reportMemcardPath != NULL ? s_reportMemcardPath : "");
+	fprintf(file, "memcard_seed_path=%s\n", s_reportMemcardSeedPath != NULL ? s_reportMemcardSeedPath : "");
+	fprintf(file, "memcard_recording_path=%s\n", s_reportMemcardRecordingPath != NULL ? s_reportMemcardRecordingPath : "");
 	fprintf(file, "log_path=%s\n", Platform_LogGetPath());
 	fprintf(file, "playback_command=build/ctr_native --replay \"%s\"\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
 	fclose(file);
@@ -680,8 +686,8 @@ internal void NativeReplayScheduler_LogMemcardStartDeferred(void)
 
 	if (sdata != NULL)
 	{
-		Platform_Log("[CTR Replay] report start waiting for memcard activity to finish (stage=%d frame1=%d frame2=%d)\n",
-		             sdata->memcard_stage, sdata->frame1_memcardAction, sdata->frame2_memcardAction);
+		Platform_Log("[CTR Replay] report start waiting for memcard activity to finish (stage=%d frame1=%d frame2=%d)\n", sdata->memcard_stage,
+		             sdata->frame1_memcardAction, sdata->frame2_memcardAction);
 	}
 	else
 	{
@@ -712,25 +718,33 @@ internal s32 NativeReplayScheduler_ActivateRecordMemcardSandbox(void)
 {
 	enum NativeMemcardResult result;
 
-	if ((s_reportMemcardPath == NULL) || !NativeReplayScheduler_MemcardIdleForRootSwitch())
+	if ((s_reportMemcardSeedPath == NULL) || (s_reportMemcardRecordingPath == NULL) || !NativeReplayScheduler_MemcardIdleForRootSwitch())
 		return 0;
 
-	result = NativeMemcard_CloneCurrentRoot(s_reportMemcardPath);
+	result = NativeMemcard_CloneCurrentRoot(s_reportMemcardSeedPath);
 	if (result != NATIVE_MEMCARD_OK)
 	{
-		Platform_Log("[CTR Replay] failed to clone memcard files into report: %s\n", s_reportMemcardPath);
+		Platform_Log("[CTR Replay] failed to clone memcard seed into report: %s\n", s_reportMemcardSeedPath);
 		return 0;
 	}
 
-	result = NativeMemcard_SetRoot(s_reportMemcardPath);
+	result = NativeMemcard_CloneRoot(s_reportMemcardSeedPath, s_reportMemcardRecordingPath);
 	if (result != NATIVE_MEMCARD_OK)
 	{
-		Platform_Log("[CTR Replay] failed to enter report memcard sandbox: %s\n", s_reportMemcardPath);
+		Platform_Log("[CTR Replay] failed to prepare recording memcard sandbox: %s\n", s_reportMemcardRecordingPath);
+		return 0;
+	}
+
+	result = NativeMemcard_SetRoot(s_reportMemcardRecordingPath);
+	if (result != NATIVE_MEMCARD_OK)
+	{
+		Platform_Log("[CTR Replay] failed to enter recording memcard sandbox: %s\n", s_reportMemcardRecordingPath);
 		return 0;
 	}
 
 	s_memcardSandboxActive = 1;
-	Platform_Log("[CTR Replay] memcard sandbox: %s\n", s_reportMemcardPath);
+	Platform_Log("[CTR Replay] memcard seed: %s\n", s_reportMemcardSeedPath);
+	Platform_Log("[CTR Replay] recording memcard sandbox: %s\n", s_reportMemcardRecordingPath);
 	return 1;
 }
 
@@ -739,7 +753,7 @@ internal s32 NativeReplayScheduler_ActivatePlaybackMemcardSandbox(const char *re
 	char *sourcePath;
 	enum NativeMemcardResult result;
 
-	sourcePath = NativeReplayScheduler_MakeSiblingPath(replayPath, NATIVE_REPLAY_REPORT_MEMCARD_NAME);
+	sourcePath = NativeReplayScheduler_MakeSiblingPath(replayPath, NATIVE_REPLAY_REPORT_MEMCARD_SEED_NAME);
 	s_playbackMemcardPath = NativeReplayScheduler_MakeSiblingPath(replayPath, NATIVE_REPLAY_PLAYBACK_MEMCARD_NAME);
 	if ((sourcePath == NULL) || (s_playbackMemcardPath == NULL))
 	{
@@ -751,11 +765,14 @@ internal s32 NativeReplayScheduler_ActivatePlaybackMemcardSandbox(const char *re
 
 	if (!NativeReplayScheduler_PathExists(sourcePath))
 	{
-		Platform_Log("[CTR Replay] replay is missing memcard bundle: %s\n", sourcePath);
+		Platform_Log("[CTR Replay] replay is missing memcard seed: %s\n", sourcePath);
 		free(sourcePath);
 		return 0;
 	}
 
+	// TODO(aalhendi): Per-checkpoint resume needs checkpoint-indexed memcard
+	// snapshots or a deterministic memcard mutation log. This seed only
+	// guarantees frame-0 playback starts from the recorded card state.
 	result = NativeMemcard_CloneRoot(sourcePath, s_playbackMemcardPath);
 	if (result != NATIVE_MEMCARD_OK)
 	{
