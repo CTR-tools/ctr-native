@@ -82,5 +82,14 @@ void AH_Map_Main(void)
 	UI_DrawNumKey(ptrHudData[0xF].x + 0x10, ptrHudData[0xF].y - 10);
 	UI_DrawNumTrophy(ptrHudData[0x10].x + 0x10, ptrHudData[0x10].y - 10);
 
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Retail appends this prompt after DrawOTag starts; the PS1
+	// GPU can still consume that late OT write. Native DrawOTag parses
+	// synchronously, so emit only this static prompt during the hub UI pass and
+	// leave AH_MaskHint_Update to run the real state/audio timing later.
+	if (sdata->AkuAkuHintState == 5)
+		AH_MaskHint_DrawRepeatPrompt();
+#endif
+
 	return;
 }

@@ -1,5 +1,45 @@
 #include <common.h>
 
+force_inline void AH_MaskHint_DrawRepeatPrompt(void)
+{
+	int lngIndex = 0;
+	int boolFound = 0;
+
+	if (sdata->AkuAkuHintState != 5)
+		return;
+
+	s16 *ptrLngID = &D232.hintMenu_lngIndexArr[0];
+	struct GameTracker *gGT = sdata->gGT;
+	struct Driver *d = gGT->drivers[0];
+
+	for (/**/; *ptrLngID > -1; ptrLngID++)
+	{
+		if (D232.maskHintID == (ptrLngID[0] - 0x17b) / 2)
+		{
+			boolFound = 1;
+			break;
+		}
+	}
+
+	if (!boolFound)
+		return;
+
+	// Retail finds the hint subtitle entry above, but the shipped path draws a
+	// generic "press start to repeat" prompt instead of that hint text.
+	if (VehPickupItem_MaskBoolGoodGuy(d))
+		lngIndex = 0x177;
+	else
+		lngIndex = 0x232;
+
+	RECT r;
+	r.x = -10;
+	r.y = 0xb0;
+	r.w = 0x214;
+	r.h = 8 + DecalFont_DrawMultiLine(sdata->lngStrings[lngIndex], 0x100, 0xb4, 400, 2, 0xffff8000);
+
+	RECTMENU_DrawInnerRect(&r, 4, gGT->backBuffer->otMem.startPlusFour);
+}
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 232 0x800b4470-0x800b4c80.
 void AH_MaskHint_Update()
 {
@@ -156,51 +196,12 @@ void AH_MaskHint_Update()
 
 	case 4:
 	{
-		int lngIndex = 0;
-		int boolFound = 0;
-		s16 *ptrLngID = &D232.hintMenu_lngIndexArr[0];
-
-		for (/**/; *ptrLngID > -1; ptrLngID++)
-		{
-			if (D232.maskHintID == (ptrLngID[0] - 0x17b) / 2)
-			{
-				boolFound = 1;
-				break;
-			}
-		}
-
-		if (boolFound)
-		{
-			// === Cut Content? ===
-			// Find LngIndex of subtitles, then dont use it,
-			// and instead use generic "press start to repeat"
-
-#if 1
-
-			// Code that shipped in 1999
-			if (VehPickupItem_MaskBoolGoodGuy(d))
-				lngIndex = 0x177;
-			else
-				lngIndex = 0x232;
-
-#else
-
-			// Code that restores the effect,
-			// ptrLngID[0]+0 - Title of Hint
-			// ptrLngID[0]+1 - Words of Hint
-			lngIndex = ptrLngID[0] + 0;
-
+		// NOTE(aalhendi): Native draws only this shared prompt earlier from
+		// AH_Map_Main so synchronous DrawOTag sees it; the rest of this state
+		// remains retail-timed here.
+#if !defined(CTR_NATIVE)
+		AH_MaskHint_DrawRepeatPrompt();
 #endif
-
-			RECT r;
-			r.x = -10;
-			r.y = 0xb0;
-			r.w = 0x214;
-			r.h = 8 + /* not a typo */
-			      DecalFont_DrawMultiLine(sdata->lngStrings[lngIndex], 0x100, 0xb4, 400, 2, 0xffff8000);
-
-			RECTMENU_DrawInnerRect(&r, 4, gGT->backBuffer->otMem.startPlusFour);
-		}
 
 		AH_MaskHint_SetAnim(0x1000);
 

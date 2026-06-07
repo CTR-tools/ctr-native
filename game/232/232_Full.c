@@ -21,6 +21,9 @@
 #include "232_20_AH_Map_HubArrowOutter.c"
 #include "232_21_AH_Map_HubItems.c"
 #include "232_22_AH_Map_Warppads.c"
+#if defined(CTR_NATIVE)
+force_inline void AH_MaskHint_DrawRepeatPrompt(void);
+#endif
 #include "232_23_AH_Map_Main.c"
 #include "232_24_AH_Pause_Destroy.c"
 #include "232_25_AH_Pause_Draw.c"
