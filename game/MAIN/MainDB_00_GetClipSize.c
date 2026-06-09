@@ -5,10 +5,10 @@ int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 {
 	switch (levelID)
 	{
-	case INTRO_CRASH:
+	case ADVENTURE_GARAGE:
 		return 24000;
 
-	case INTRO_SPACE:
+	case MAIN_MENU_LEVEL:
 		return 16;
 
 	case SEWER_SPEEDWAY:
