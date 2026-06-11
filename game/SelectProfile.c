@@ -1,5 +1,582 @@
 #include <common.h>
 
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047da8-0x80047dfc.
+void SelectProfile_QueueLoadHub_MenuProc(struct RectMenu *menu)
+{
+	struct GameTracker *gGT = sdata->gGT;
+
+	// NOTE(aalhendi): Retail stores 0x27 before LOAD_LevelFile records prevLEV.
+	gGT->levelID = MAIN_MENU_LEVEL;
+
+	data.characterIDs[0] = sdata->advProgress.characterID;
+	MainRaceTrack_RequestLoad(gGT->currLEV);
+	RECTMENU_Hide(menu);
+	return;
+}
+
+
+struct SelectProfileLoadSaveIcon
+{
+	struct Instance *inst;
+	s16 rot[3];
+	s16 padding;
+};
+
+struct SelectProfileLoadSaveObj
+{
+	struct Thread *thread;
+	struct SelectProfileLoadSaveIcon *icons;
+};
+
+_Static_assert(sizeof(struct SelectProfileLoadSaveIcon) == 0xc);
+_Static_assert(sizeof(struct SelectProfileLoadSaveObj) == 0x8);
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047dfc-0x80047f20.
+void SelectProfile_ThTick(struct Thread *t)
+{
+	struct SelectProfileLoadSaveObj *obj;
+	struct SelectProfileLoadSaveIcon *icon;
+	int i;
+
+	obj = (struct SelectProfileLoadSaveObj *)t->object;
+	icon = obj->icons;
+
+	for (i = 0; i < 12; i++, icon++)
+	{
+		int slot = i % 3;
+
+		icon->rot[1] = (s16)(icon->rot[1] + sdata->LoadSave_SpinRateY[slot]);
+		ConvertRotToMatrix(&icon->inst->matrix, &icon->rot[0]);
+
+		if (slot != 1)
+		{
+			Vector_SpecLightSpin3D(icon->inst, &icon->rot[0], &data.MetaDataLoadSave[i].vec3_specular_inverted[0]);
+		}
+	}
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047f20-0x80047fb8.
+void SelectProfile_PrintInteger(int value, int posX, int posY, int usePaddedFormat, int color)
+{
+	char text[64];
+	char *format;
+
+	if (usePaddedFormat == 1)
+		format = &sdata->stringFormat1[0];
+	else
+		format = &sdata->stringFormat2[0];
+
+	sprintf(text, format, value);
+	DecalFont_DrawLine(text, posX, posY, FONT_BIG, color);
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047fb8-0x80047fd8.
+int SelectProfile_UI_ConvertX(int param_1, int param_2)
+{
+	param_2 = (param_1 - 0x100) * param_2;
+	if (param_2 < 0)
+	{
+		param_2 = param_2 + 0xff;
+	}
+	return param_2 >> 8;
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047fd8-0x80047ff8.
+int SelectProfile_UI_ConvertY(int param_1, int param_2)
+{
+	param_2 = (param_1 + -0x6c) * param_2;
+	if (param_2 < 0)
+	{
+		param_2 = param_2 + 0xff;
+	}
+	return param_2 >> 8;
+}
+
+
+static void SelectProfile_DrawAdvProfile_UpdateIcon(struct SelectProfileLoadSaveObj *obj, int index, int posX, int posY)
+{
+	struct Instance *inst = obj->icons[index].inst;
+
+	inst->matrix.t[0] = SelectProfile_UI_ConvertX(posX, 0x100);
+	inst->matrix.t[1] = SelectProfile_UI_ConvertY(posY, 0x100);
+	inst->matrix.t[2] = 0x100;
+	inst->flags &= ~HIDE_MODEL;
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047ff8-0x800485a8.
+void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s16 isHighlighted, s16 slotIndex, u16 menuFlag)
+{
+	struct GameTracker *gGT = sdata->gGT;
+	RECT profileRect;
+
+	int iconColor;
+	int numberColor;
+	int emptyColor;
+	int nameColor;
+	int percentColor;
+
+	if ((menuFlag & 0x10) != 0)
+	{
+		iconColor = sdata->greenColor;
+		numberColor = 0x1d;
+		emptyColor = 0x1e;
+		nameColor = 0x1d;
+		percentColor = 0x1d;
+	}
+	else
+	{
+		iconColor = sdata->greyColor;
+		numberColor = 0;
+		emptyColor = 3;
+		nameColor = 1;
+		percentColor = 4;
+	}
+
+	slotIndex *= 3;
+	GAMEPROG_AdvPercent(adv);
+
+	if (adv->characterID < 0)
+	{
+		DecalFont_DrawLine(sdata->lngStrings[0xb5], posX + 0x6c, posY + 0x17, FONT_BIG, emptyColor | 0xffff8000);
+	}
+	else
+	{
+		int profileTextColor = numberColor | 0x4000;
+		int characterID = adv->characterID;
+		int iconID = data.MetaDataCharacters[characterID].iconID;
+		struct SelectProfileLoadSaveObj *obj = (struct SelectProfileLoadSaveObj *)sdata->ptrLoadSaveObj;
+
+		RECTMENU_DrawPolyGT4(gGT->ptrIcons[iconID], posX + 10, posY + 6, &gGT->backBuffer->primMem, gGT->backBuffer->otMem.startPlusFour, iconColor, iconColor,
+		                     iconColor, iconColor, 1, 0x1000);
+
+		DecalFont_DrawLine(adv->name, posX + 0x6c, posY + 0x29, FONT_BIG, nameColor | 0xffff8000);
+
+		SelectProfile_PrintInteger(gGT->currAdvProfile.completionPercent, posX + 0x6a, posY + 0x17, 0, profileTextColor);
+		SelectProfile_PrintInteger(gGT->currAdvProfile.numTrophies, posX + 0x6a, posY + 5, 0, profileTextColor);
+		SelectProfile_PrintInteger(gGT->currAdvProfile.numKeys, posX + 0xb5, posY + 5, 0, profileTextColor);
+		SelectProfile_PrintInteger(gGT->currAdvProfile.numRelics, posX + 0xb5, posY + 0x17, 0, profileTextColor);
+
+		DecalFont_DrawLine((char *)&sdata->s_percent_sign, posX + 0x70, posY + 0x17, FONT_BIG, percentColor);
+
+		SelectProfile_DrawAdvProfile_UpdateIcon(obj, slotIndex, posX + 0xc3, posY + 0x1f);
+		SelectProfile_DrawAdvProfile_UpdateIcon(obj, slotIndex + 1, posX + 0x78, posY + 0xd);
+		SelectProfile_DrawAdvProfile_UpdateIcon(obj, slotIndex + 2, posX + 0xc3, posY + 0xd);
+	}
+
+	profileRect.x = posX;
+	profileRect.y = posY;
+	profileRect.w = 0xdc;
+	profileRect.h = 0x3d;
+
+	if (isHighlighted != 0)
+	{
+		RECT highlightRect;
+		Color *highlightColor = ((menuFlag & 0x10) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
+
+		highlightRect.x = posX + 6;
+		highlightRect.y = posY + 4;
+		highlightRect.w = 0xd0;
+		highlightRect.h = 0x35;
+
+		CTR_Box_DrawClearBox(&highlightRect, highlightColor, 1, &gGT->backBuffer->otMem.startPlusFour[3]);
+	}
+
+	RECTMENU_DrawInnerRect(&profileRect, (s16)menuFlag, &gGT->backBuffer->otMem.startPlusFour[3]);
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800485a8-0x800485cc.
+void SelectProfile_GetTrackID()
+{
+	data.menuGreenLoadSave.rowSelected = 1;
+	sdata->advProgress.HubLevYouSavedOn = sdata->gGT->levelID;
+}
+
+
+#ifdef CTR_NATIVE
+// NOTE(aalhendi): Retail stores these debug names in EXE RDATA; native does not
+// expose the full retail RDATA struct.
+static char s_SelectProfileThreadName[] = "LoadSave";
+static char s_SelectProfileInstName[] = "loadsave";
+#endif
+
+static u32 SelectProfile_LoadSave_Color(int index, u32 flags)
+{
+	u32 red = (u8)data.MetaDataLoadSave[index].r;
+	u32 green = (u8)data.MetaDataLoadSave[index].g;
+	u32 blue = (u8)data.MetaDataLoadSave[index].b;
+
+	if ((flags & 0x10) != 0)
+	{
+		red >>= 1;
+		blue >>= 1;
+	}
+
+	return (red << 0x14) | (green << 0xc) | (blue << 4);
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800485cc-0x800488e0.
+void SelectProfile_Init(u16 flags)
+{
+	struct GameTracker *gGT;
+	struct SelectProfileLoadSaveObj *obj;
+	struct SelectProfileLoadSaveIcon *icon;
+	struct Thread *t;
+	int i;
+
+	obj = (struct SelectProfileLoadSaveObj *)sdata->ptrLoadSaveObj;
+
+	if (obj == NULL)
+	{
+#ifdef CTR_NATIVE
+		char *threadName = &s_SelectProfileThreadName[0];
+#else
+		char *threadName = rdata.s_LoadSave;
+#endif
+
+		t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct SelectProfileLoadSaveObj), NONE, SMALL, OTHER), SelectProfile_ThTick, threadName,
+		                         NULL);
+		// NOTE(aalhendi): Native low-RAM audit candidate only. Retail writes
+		// through this allocation result before its later null check; keep
+		// unpatched until a valid menu repro proves the allocation can fail.
+		obj = (struct SelectProfileLoadSaveObj *)t->object;
+		sdata->ptrLoadSaveObj = (int)obj;
+		obj->icons = (struct SelectProfileLoadSaveIcon *)&sdata->LoadSaveData[0];
+		memset(obj->icons, 0, sizeof(sdata->LoadSaveData));
+
+		if (obj == NULL)
+			return;
+
+		obj->thread = t;
+	}
+
+	gGT = sdata->gGT;
+	icon = obj->icons;
+
+	for (i = 0; i < 12; i++, icon++)
+	{
+		struct Instance *inst;
+		int slot;
+
+		if (icon->inst == NULL)
+		{
+			struct Model *model = gGT->modelPtr[data.MetaDataLoadSave[i].modelID];
+#ifdef CTR_NATIVE
+			char *instName = &s_SelectProfileInstName[0];
+#else
+			char *instName = rdata.s_loadsave;
+#endif
+
+			if (model != NULL)
+			{
+				inst = INSTANCE_Birth3D(model, instName, obj->thread);
+
+				if (inst != NULL)
+				{
+					struct InstDrawPerPlayer *idpp;
+					int player;
+
+					icon->inst = inst;
+					slot = i % 3;
+
+					inst->flags |= HIDE_MODEL | SCREENSPACE_INSTANCE;
+					if (slot != 1)
+					{
+						inst->flags |= USE_SPECULAR_LIGHT;
+					}
+
+					idpp = INST_GETIDPP(inst);
+					idpp[0].pushBuffer = &gGT->pushBuffer_UI;
+					for (player = 1; player < gGT->numPlyrCurrGame; player++)
+					{
+						idpp[player].pushBuffer = NULL;
+					}
+
+					inst->colorRGBA = SelectProfile_LoadSave_Color(i, flags);
+					inst->scale[0] = data.MetaDataLoadSave[i].scale;
+					inst->scale[1] = data.MetaDataLoadSave[i].scale;
+					inst->scale[2] = data.MetaDataLoadSave[i].scale;
+
+					icon->rot[0] = 0;
+					icon->rot[1] = 0;
+					icon->rot[2] = data.spinOffset_LoadSave[slot];
+
+					*(int *)&inst->matrix.m[0][0] = 0x1000;
+					*(int *)&inst->matrix.m[0][2] = 0;
+					*(int *)&inst->matrix.m[1][1] = 0x1000;
+					*(int *)&inst->matrix.m[2][0] = 0;
+					inst->matrix.m[2][2] = 0x1000;
+				}
+			}
+		}
+
+		inst = icon->inst;
+		if (inst != NULL)
+		{
+			inst->flags |= HIDE_MODEL;
+		}
+	}
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800488e0-0x80048960.
+void SelectProfile_Destroy(void)
+{
+	struct SelectProfileLoadSaveObj *obj;
+
+	obj = (struct SelectProfileLoadSaveObj *)sdata->ptrLoadSaveObj;
+	if (obj != NULL)
+	{
+		struct SelectProfileLoadSaveIcon *icon = obj->icons;
+		int i;
+
+		for (i = 0; i < 12; i++, icon++)
+		{
+			if (icon->inst != NULL)
+			{
+				INSTANCE_Death(icon->inst);
+			}
+		}
+
+		obj->thread->flags |= 0x800;
+		sdata->ptrLoadSaveObj = 0;
+	}
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048960-0x80048a30.
+void SelectProfile_AdvPickMode_MenuProc(struct RectMenu *menu)
+{
+	if (menu->unk1e != 0)
+	{
+		SelectProfile_Init(menu->drawStyle);
+		SelectProfile_DrawAdvProfile(&sdata->advProgress, 0x92, 0x32, 0, 0, 0x10);
+		return;
+	}
+
+	s16 row = menu->rowSelected;
+
+	if ((row >= 0) && (row < 3))
+	{
+		SelectProfile_ToggleMode((u16)menu->rowSelected | 0x20);
+		sdata->ptrDesiredMenu = &data.menuFourAdvProfiles;
+		return;
+	}
+
+	if ((row == -1) || (row == 3))
+	{
+		RECTMENU_Hide(menu);
+		SelectProfile_Destroy();
+	}
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048a30-0x80048da0.
+void SelectProfile_DrawGhostProfile(struct GhostProfile *profile, int posX, int posY, u32 isHighlighted, int unused, u16 menuFlag, s16 isLoading,
+                                    s16 isUnavailable)
+{
+	struct GameTracker *gGT = sdata->gGT;
+	RECT profileRect;
+	RECT innerRect;
+
+	(void)unused;
+
+	profileRect.x = posX;
+	profileRect.y = posY;
+	profileRect.w = 0xc8;
+	profileRect.h = 0x29;
+
+	innerRect.x = posX + 6;
+	innerRect.y = posY + 3;
+	innerRect.w = 0xbc;
+	innerRect.h = 0x23;
+
+	if (isUnavailable != 0)
+	{
+		DecalFont_DrawLine(sdata->lngStrings[0x6d], posX + 0x64, posY + 0x11, FONT_SMALL, 0xffff8016);
+		CTR_Box_DrawClearBox(&innerRect, (Color *)&sdata->redColor, ADD_DECAL, gGT->backBuffer->otMem.startPlusFour);
+	}
+
+	if (profile != NULL)
+	{
+		struct MetaDataLEV *mdLev = &data.metaDataLEV[profile->trackID];
+		int iconID = data.MetaDataCharacters[profile->characterID].iconID;
+
+		DecalFont_DrawLine(sdata->lngStrings[mdLev->name_LNG], posX + 0x64, posY + 0x1e, FONT_SMALL, 0xffff801d);
+		DecalFont_DrawLine(RECTMENU_DrawTime(profile->trackTime), posX + 0x78, posY + 10, FONT_BIG, 0xffff8001);
+		RECTMENU_DrawPolyGT4(gGT->ptrIcons[iconID], posX + 8, posY + 5, &gGT->backBuffer->primMem, gGT->backBuffer->otMem.startPlusFour, sdata->ghostIconColor,
+		                     sdata->ghostIconColor, sdata->ghostIconColor, sdata->ghostIconColor, TRANS_50_DECAL, 0x1000);
+	}
+	else
+	{
+		int lngIndex = (isLoading != 0) ? 0x6c : 0xb5;
+		int color = (isLoading != 0) ? 0xffff8001 : 0xffff8003;
+
+		DecalFont_DrawLine(sdata->lngStrings[lngIndex], posX + 0x64, posY + 0x11, FONT_SMALL, color);
+	}
+
+	if (isHighlighted != 0)
+	{
+		Color *highlight = ((menuFlag & 0x10) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
+		CTR_Box_DrawClearBox(&innerRect, highlight, TRANS_50_DECAL, gGT->backBuffer->otMem.startPlusFour);
+	}
+
+	RECTMENU_DrawInnerRect(&profileRect, (s16)menuFlag, gGT->backBuffer->otMem.startPlusFour);
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048da0-0x80048de4.
+void SelectProfile_MuteCursors(void)
+{
+	data.menuFourAdvProfiles.state |= MUTE_SOUND_OF_MOVING_CURSOR;
+	data.menuGhostSelection.state |= MUTE_SOUND_OF_MOVING_CURSOR;
+	data.menuWarning2.state |= MUTE_SOUND_OF_MOVING_CURSOR;
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048de4-0x80048e2c.
+void SelectProfile_UnMuteCursors(void)
+{
+	data.menuFourAdvProfiles.state &= ~MUTE_SOUND_OF_MOVING_CURSOR;
+	data.menuGhostSelection.state &= ~MUTE_SOUND_OF_MOVING_CURSOR;
+	data.menuWarning2.state &= ~MUTE_SOUND_OF_MOVING_CURSOR;
+}
+
+
+static s16 *SelectProfile_Mode(void)
+{
+	return (s16 *)&sdata->data10_bbb[0];
+}
+
+static s16 *SelectProfile_TimerSaveComplete(void)
+{
+	return (s16 *)&sdata->data10_bbb[12];
+}
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048e2c-0x80048edc.
+void SelectProfile_ToggleMode(u32 mode)
+{
+	sdata->memcardAction = mode & 0xf;
+
+	// 0x00 AdvNew, 0x10 AdvLoad, 0x20 green load/save, 0x30 ghost, 0x40 slot selected.
+	*SelectProfile_Mode() = mode & 0xf0;
+	*(s16 *)&sdata->data10_bbb[4] = 0;
+	*(s16 *)&sdata->data10_bbb[6] = 0;
+	*(s16 *)&sdata->data10_bbb[8] = 0;
+	*(s16 *)&sdata->data10_bbb[10] = 0;
+	*SelectProfile_TimerSaveComplete() = 0;
+
+	SelectProfile_UnMuteCursors();
+
+	data.menuFourAdvProfiles.drawStyle &= ~0x10;
+	data.menuOverwriteAdv.drawStyle &= ~0x10;
+	if (*SelectProfile_Mode() == 0x20)
+	{
+		data.menuFourAdvProfiles.drawStyle |= 0x10;
+		data.menuOverwriteAdv.drawStyle |= 0x10;
+	}
+
+	SelectProfile_Init(data.menuFourAdvProfiles.drawStyle);
+
+	data.menuFourAdvProfiles.rowSelected = sdata->unk_8008d73C_relatedToRowHighlighted;
+	*(s16 *)&sdata->data10_bbb[2] = 0;
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048f0c-0x800490c4
+u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlags)
+{
+	u32 handled = 0;
+	u32 tap = sdata->buttonTapPerPlayer[0];
+
+	// D-Pad, Cross, Square, Triangle, Circle
+	if ((tap & 0x4007f) == 0)
+		return 0;
+
+	if ((confirmFlags & 1) == 0)
+	{
+		u16 oldRow = menu->rowSelected;
+		u16 nextRow = oldRow - 2;
+		s16 selectedRow;
+
+		if ((tap & BTN_UP) != 0)
+		{
+			menu->rowSelected = nextRow;
+		}
+		else
+		{
+			nextRow = oldRow + 2;
+
+			if ((tap & BTN_DOWN) != 0)
+			{
+				menu->rowSelected = nextRow;
+			}
+			else
+			{
+				nextRow = oldRow ^ 1;
+
+				if ((tap & (BTN_LEFT | BTN_RIGHT)) != 0)
+					menu->rowSelected = nextRow;
+			}
+		}
+
+		selectedRow = menu->rowSelected;
+		if (selectedRow < 0)
+		{
+			menu->rowSelected = 0;
+			selectedRow = menu->rowSelected;
+		}
+
+		if (numRows <= selectedRow)
+			menu->rowSelected = numRows - 1;
+
+		if ((u16)menu->rowSelected != oldRow)
+			OtherFX_Play(0, 1);
+
+		if (((tap & (BTN_CROSS | BTN_CIRCLE)) == 0) || ((numRows == 0) && (sdata->memcardAction != 1)))
+		{
+			if ((tap & (BTN_TRIANGLE | BTN_SQUARE)) != 0)
+			{
+				OtherFX_Play(2, 1);
+				handled = 1;
+				menu->rowSelected = -1;
+			}
+		}
+		else
+		{
+			OtherFX_Play(1, 1);
+			handled = 1;
+
+			if (sdata->mcScreenText == MC_SCREEN_WARNING_UNFORMATTED)
+				menu->rowSelected = 0;
+		}
+	}
+	else
+	{
+		u32 cancel = (tap & (BTN_TRIANGLE | BTN_SQUARE)) != 0;
+
+		if (cancel)
+		{
+			OtherFX_Play(2, 1);
+			menu->rowSelected = -1;
+		}
+
+		handled = cancel;
+
+		if (((confirmFlags & 2) != 0) && ((tap & (BTN_CROSS | BTN_CIRCLE)) != 0))
+		{
+			OtherFX_Play(1, 1);
+			handled = 1;
+		}
+	}
+
+	RECTMENU_ClearInput();
+	return handled;
+}
+
+
 extern struct RectMenu menu224;
 extern struct RectMenu menu224NoSave;
 
@@ -839,4 +1416,12 @@ draw_and_finish:
 		else
 			SelectProfile_FinalizeAdventure(menu);
 	}
+}
+
+
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048edc-0x80048f0c.
+void SelectProfile_InitAndDestroy(void)
+{
+	SelectProfile_Init(data.menuFourAdvProfiles.drawStyle);
+	SelectProfile_Destroy();
 }
