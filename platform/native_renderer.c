@@ -466,7 +466,7 @@ GLint u_psxTextureOutputStpLoc;
 	"		-3.0,  +1.0,  -4.0,  +0.0,\n"                              \
 	"		+3.0,  -1.0,  +2.0,  -2.0) / 255.0;\n"                     \
 	"	vec4 dither(vec4 color) {\n"                                \
-	"		ivec2 dc = ivec2(fract(gl_FragCoord.xy / 4.0) * 4.0);\n"   \
+	"		ivec2 dc = ivec2(mod(floor(v_ditherCoord), 4.0));\n"       \
 	"		color.xyz += vec3(c_dither[dc.x][dc.y] * v_texcoord.w);\n" \
 	"		return color;\n"                                           \
 	"	}\n"
@@ -539,6 +539,7 @@ GLint u_psxTextureOutputStpLoc;
 global_variable const char *gpu_shader_common = "	varying vec4 v_texcoord;\n"
                                                 "	varying vec4 v_color;\n"
                                                 "	varying vec4 v_page_clut;\n"
+                                                "	varying vec2 v_ditherCoord;\n"
                                                 "	varying float v_z;\n";
 
 const char *gte_shader_4 = GPU_FRAGMENT_SAMPLE_SHADER(4);
@@ -564,6 +565,7 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
 	"	uniform mat4 Projection;\n"                                                                                  \
 	"	const vec2 c_UVFudge = vec2(0.00025, 0.00025);\n"                                                            \
 	"	void main() {\n"                                                                                             \
+	"		v_ditherCoord = a_position.xy;\n"                                                                           \
 	"		v_texcoord = a_texcoord;\n"                                                                                 \
 	"		v_texcoord.xy += a_extra.xy * 0.5;\n"                                                                       \
 	"		v_color = a_color;\n"                                                                                       \
