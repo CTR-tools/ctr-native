@@ -1147,7 +1147,7 @@ void VehPhysForce_CounterSteer(struct Driver *driver)
 		return;
 	}
 
-	int angleLimit = (u8)driver->angleMaxCounterSteer;
+	int angleLimit = (u8)driver->const_ModelTurnCounterSteerStrength;
 	int angle = CTR_MipsSubLo(driver->turnAngleCurr, driver->turnAnglePrev);
 	if (angle > angleLimit)
 	{

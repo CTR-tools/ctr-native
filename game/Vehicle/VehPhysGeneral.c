@@ -228,8 +228,7 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 			turnResistMinBitshift = CTR_MipsNegLo(rotCurrW_original);
 		}
 
-		// driver->unk44e is const val 0x80
-		turnResistMinBitshift = CTR_MipsSra(CTR_MipsMulLo(driver->unk44e, turnResistMinBitshift), 8);
+		turnResistMinBitshift = CTR_MipsSra(CTR_MipsMulLo(driver->const_SteerAccelTurnVelScale, turnResistMinBitshift), 8);
 
 		driver->numFramesSpentSteering = (s16)CTR_MipsAddLo((u16)driver->numFramesSpentSteering, 1);
 
@@ -246,8 +245,7 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 			turnResistMaxBitshift = CTR_MipsNegLo(turnResistMaxBitshift);
 		}
 
-		// driver->unk450 = constant value zero, for all classes
-		turnResistMax = (int)driver->unk450;
+		turnResistMax = (int)driver->const_SteerAccelTurnVelLimit;
 
 		if ((rotCurrW_original < 1) ||
 		    (turnResistMinBitshift = CTR_MipsNegLo(turnResistMax), turnResistMinBitshift <= CTR_MipsAddLo(rotCurrW_original, turnResistMaxBitshift)))
@@ -417,11 +415,11 @@ int VehPhysGeneral_LerpToForwards(struct Driver *d, int currentAngle, int curren
 
 			if (d->const_modelRotVelMax < currentAngle)
 			{
-				lerpStrength = CTR_MipsSubLo(CTR_MipsSll((u8)d->unk458, 4), (u8)d->unk458);
+				lerpStrength = CTR_MipsSubLo(CTR_MipsSll((u8)d->const_ModelTurnReturnStrength, 4), (u8)d->const_ModelTurnReturnStrength);
 			}
 			else
 			{
-				lerpStrength = (u8)d->unk458;
+				lerpStrength = (u8)d->const_ModelTurnReturnStrength;
 			}
 			desiredVelocity = VehPhysGeneral_LerpQuarterStrength(lerpStrength, CTR_MipsSubLo(currentAngle, targetAngle));
 			desiredVelocity = CTR_MipsNegLo(desiredVelocity);
@@ -432,11 +430,12 @@ int VehPhysGeneral_LerpToForwards(struct Driver *d, int currentAngle, int curren
 			{
 				if (currentAngle < 0)
 				{
-					desiredVelocity = VehPhysGeneral_LerpQuarterStrength((u8)d->unk459, CTR_MipsSubLo(targetAngle, currentAngle));
+					desiredVelocity =
+					    VehPhysGeneral_LerpQuarterStrength((u8)d->const_ModelTurnNegativeReturnStrength, CTR_MipsSubLo(targetAngle, currentAngle));
 				}
 				else
 				{
-					desiredVelocity = VehPhysGeneral_LerpQuarterStrength((u8)d->angleMaxCounterSteer, CTR_MipsSubLo(targetAngle, currentAngle));
+					desiredVelocity = VehPhysGeneral_LerpQuarterStrength((u8)d->const_ModelTurnCounterSteerStrength, CTR_MipsSubLo(targetAngle, currentAngle));
 					d->turnAngleLerpTarget = (s16)targetAngle;
 				}
 			}
@@ -444,7 +443,7 @@ int VehPhysGeneral_LerpToForwards(struct Driver *d, int currentAngle, int curren
 	}
 
 	// Interpolate rotation by speed
-	desiredVelocity = VehCalc_InterpBySpeed(currentVelocity, d->unk45a, desiredVelocity);
+	desiredVelocity = VehCalc_InterpBySpeed(currentVelocity, d->const_ModelTurnVelocityLerp, desiredVelocity);
 	if (mirrored)
 	{
 		desiredVelocity = CTR_MipsNegLo(desiredVelocity);
@@ -807,16 +806,17 @@ NOT_JUMPING:
 
 		if (speedApprox < 0x100)
 		{
-			d->unk36E = (s16)CTR_MipsSubLo((u16)d->unk36E, CTR_MipsSra(d->unk36E, 3));
+			d->speedometerNeedleValue = (s16)CTR_MipsSubLo((u16)d->speedometerNeedleValue, CTR_MipsSra(d->speedometerNeedleValue, 3));
 		}
 		else
 		{
-			d->unk36E = (s16)((u32)CTR_MipsAddLo(CTR_MipsMulLo(d->unk36E, 0xd), CTR_MipsMulLo(sdata->gGT->timer & 7, 0x300)) >> 4);
+			d->speedometerNeedleValue =
+			    (s16)((u32)CTR_MipsAddLo(CTR_MipsMulLo(d->speedometerNeedleValue, 0xd), CTR_MipsMulLo(sdata->gGT->timer & 7, 0x300)) >> 4);
 		}
 	}
 	else
 	{
-		d->unk36E = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo(d->unk36E, 0xd), CTR_MipsMulLo(speedApprox, 3)), 4);
+		d->speedometerNeedleValue = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo(d->speedometerNeedleValue, 0xd), CTR_MipsMulLo(speedApprox, 3)), 4);
 	}
 }
 

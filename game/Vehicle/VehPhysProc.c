@@ -1446,12 +1446,12 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 	if (bVar2)
 	{
-		iVar12_D = CTR_MipsSubLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->unk466, gGT->elapsedTimeMS), 5));
+		iVar12_D = CTR_MipsSubLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateDecel, gGT->elapsedTimeMS), 5));
 		bVar2 = iVar12_D < iVar13;
 	}
 	else
 	{
-		iVar12_D = CTR_MipsAddLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->unk464, gGT->elapsedTimeMS), 5));
+		iVar12_D = CTR_MipsAddLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateAccel, gGT->elapsedTimeMS), 5));
 		bVar2 = iVar13 < iVar12_D;
 	}
 
@@ -1499,8 +1499,8 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 	// Map value from [oldMin, oldMax] to [newMin, newMax]
 	// inverting newMin and newMax will give an inverse range mapping
-	iVar13 = VehCalc_MapToRange((int)driver->KartStates.Drifting.driftTotalTimeMS, 0, CTR_MipsSll((u8)driver->unk462, 5),
-	                            CTR_MipsSra(CTR_MipsMulLo((s8)driver->unk461, driver->multDrift), 8), iVar15);
+	iVar13 = VehCalc_MapToRange((int)driver->KartStates.Drifting.driftTotalTimeMS, 0, CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5),
+	                            CTR_MipsSra(CTR_MipsMulLo((s8)driver->const_DriftTurnStartupScale, driver->multDrift), 8), iVar15);
 	if (-1 < iVar13)
 	{
 		if (iVar12_D < CTR_MipsNegLo(iVar13))
@@ -1527,7 +1527,8 @@ LAB_800632cc:
 
 	// Map value from [oldMin, oldMax] to [newMin, newMax]
 	// inverting newMin and newMax will give an inverse range mapping
-	iVar12_D = VehCalc_MapToRange(iVar12_D, 0, CTR_MipsAddLo((s8)driver->unk460, CTR_MipsSll((s8)driver->turnConst, 2) / 5), 0, (int)driver->unk474);
+	iVar12_D = VehCalc_MapToRange(iVar12_D, 0, CTR_MipsAddLo((s8)driver->const_DriftTurnBase, CTR_MipsSll((s8)driver->turnConst, 2) / 5), 0,
+	                              (int)driver->const_DriftTurnAngleScale);
 
 	iVar15 = iVar9;
 
@@ -1535,14 +1536,14 @@ LAB_800632cc:
 		iVar15 = CTR_MipsNegLo(iVar9);
 
 	// iVar13 and iVar9 have different signs
-	iVar8 = (int)driver->unk472;
+	iVar8 = (int)driver->const_DriftTurnOppositeDirectionAngle;
 	iVar11 = (s8)driver->const_SteerVel_DriftSwitchWay;
 
 	// if both numbers have same sign,
 	// either both < 0, or both >= 0
 	if ((iVar13 ^ iVar9) >= 0)
 	{
-		iVar8 = (int)driver->unk470;
+		iVar8 = (int)driver->const_DriftTurnSameDirectionAngle;
 		iVar11 = (s8)driver->const_SteerVel_DriftStandard;
 	}
 
@@ -1665,7 +1666,7 @@ LAB_800632cc:
 		if (driver->KartStates.Drifting.driftBoostTimeMS < 0)
 			driver->KartStates.Drifting.driftBoostTimeMS = 0;
 
-		sVar5 = CTR_MipsSra(CTR_MipsMulLo((u8)driver->unk47A, gGT->elapsedTimeMS), 5);
+		sVar5 = CTR_MipsSra(CTR_MipsMulLo((u8)driver->const_DriftBoostAxisKickRate, gGT->elapsedTimeMS), 5);
 
 		if (driver->turnAngleCurr < 0)
 		{
@@ -1680,40 +1681,36 @@ LAB_800632cc:
 	// increment this by milliseconds
 	driver->KartStates.Drifting.driftTotalTimeMS = (s16)CTR_MipsAddLo((u16)driver->KartStates.Drifting.driftTotalTimeMS, (u16)gGT->elapsedTimeMS);
 
-	if (driver->KartStates.Drifting.driftTotalTimeMS > CTR_MipsSll((u8)driver->unk462, 5))
-		driver->KartStates.Drifting.driftTotalTimeMS = (s16)CTR_MipsSll((u8)driver->unk462, 5);
+	if (driver->KartStates.Drifting.driftTotalTimeMS > CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5))
+		driver->KartStates.Drifting.driftTotalTimeMS = (s16)CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5);
 
 	PhysTerrainSlope(driver);
 }
 
-void PhysLerpRot(struct Driver *driver, int iVar13)
+void PhysLerpRot(struct Driver *driver, int targetRotW)
 {
-	int uVar14;
+	int remainingRot = CTR_MipsSubLo(driver->rotCurr.w, targetRotW);
+	if (remainingRot < 0)
+		remainingRot = CTR_MipsNegLo(remainingRot);
 
-	// abs value: spinDistRemain
-	int iVar12_C = CTR_MipsSubLo(driver->rotCurr.w, iVar13);
-	if (iVar12_C < 0)
-		iVar12_C = CTR_MipsNegLo(iVar12_C);
+	int lerpStep = CTR_MipsSra(remainingRot, 3);
 
-	uVar14 = CTR_MipsSra(iVar12_C, 3);
-
-	if (uVar14 == 0)
+	if (lerpStep == 0)
 	{
-		uVar14 = 1;
+		lerpStep = 1;
 	}
 
-	// max spin this frame
-	int uVar10 = (u8)driver->unk46a;
-	if ((int)uVar14 < (u8)driver->unk46a)
+	int maxLerpStep = (u8)driver->const_DriftCameraLerpStep;
+	if (lerpStep < (u8)driver->const_DriftCameraLerpStep)
 	{
-		uVar10 = uVar14;
+		maxLerpStep = lerpStep;
 	}
 
 	// Interpolate rotation by speed
-	driver->rotPrev.w = VehCalc_InterpBySpeed((int)driver->rotPrev.w, 8, uVar10);
+	driver->rotPrev.w = VehCalc_InterpBySpeed((int)driver->rotPrev.w, 8, maxLerpStep);
 
 	// Interpolate rotation by speed
-	driver->rotCurr.w = VehCalc_InterpBySpeed((int)driver->rotCurr.w, CTR_MipsSra(CTR_MipsMulLo(driver->rotPrev.w, sdata->gGT->elapsedTimeMS), 5), iVar13);
+	driver->rotCurr.w = VehCalc_InterpBySpeed((int)driver->rotCurr.w, CTR_MipsSra(CTR_MipsMulLo(driver->rotPrev.w, sdata->gGT->elapsedTimeMS), 5), targetRotW);
 }
 
 void PhysTerrainSlope(struct Driver *driver)
@@ -1727,7 +1724,7 @@ void PhysTerrainSlope(struct Driver *driver)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80063634-0x8006364c.
 void VehPhysProc_PowerSlide_Finalize(struct Driver *d)
 {
-	d->timeUntilDriftSpinout = (s16)CTR_MipsSll((u8)d->unk46b, 5);
+	d->timeUntilDriftSpinout = (s16)CTR_MipsSll((u8)d->const_DriftReleaseTurnAssistFrames, 5);
 	d->previousFrameMultDrift = d->multDrift;
 }
 
@@ -1832,14 +1829,14 @@ void VehPhysProc_PowerSlide_Update(struct Thread *t, struct Driver *d)
 				}
 
 				// drift boost meter = constant
-				d->KartStates.Drifting.driftBoostTimeMS = (s16)CTR_MipsSll((u8)d->unk479, 5);
+				d->KartStates.Drifting.driftBoostTimeMS = (s16)CTR_MipsSll((u8)d->const_DriftBoostDurationFrames, 5);
 			}
 
 			// If meter is in the green
 			else
 			{
-				// reset meter to beginning
-				d->unk381 = 8;
+				// force exhaust feedback for the failed boost
+				d->failedBoostExhaustTimer = 8;
 			}
 
 			meterLeft = 0;
@@ -1922,7 +1919,7 @@ void VehPhysProc_PowerSlide_Init(struct Thread *t, struct Driver *d)
 	d->kartState = KS_DRIFTING;
 
 	// Character's Drift stat + ((Turning multiplier? << 2) / 5) * 100
-	int drift = CTR_MipsSll(CTR_MipsAddLo((s8)d->unk460, CTR_MipsSll((s8)d->turnConst, 2) / 5), 8);
+	int drift = CTR_MipsSll(CTR_MipsAddLo((s8)d->const_DriftTurnBase, CTR_MipsSll((s8)d->turnConst, 2) / 5), 8);
 
 	// if simplified turning state is negative (means you're turning right)
 	if ((s8)d->simpTurnState < 0)
@@ -2065,7 +2062,7 @@ void VehPhysProc_SlamWall_Init(struct Thread *t, struct Driver *d)
 
 	d->Screen_OffsetY = 0;
 	d->ampTurnState = 0;
-	d->unk36E = 0;
+	d->speedometerNeedleValue = 0;
 	d->speed = 0;
 	d->speedApprox = 0;
 	d->baseSpeed = 0;

@@ -1098,7 +1098,7 @@ void MM_Cheat_TurboCounter(void);
 void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empty, struct PrimMem *primMem, u_long *otMem, u32 transparency);
 
 void VehTalkMask_ThTick(struct Thread *t);
-void PhysLerpRot(struct Driver *driver, int iVar13);
+void PhysLerpRot(struct Driver *driver, int targetRotW);
 void PhysTerrainSlope(struct Driver *driver);
 
 void Channel_DestroySelf(struct ChannelStats *stats);

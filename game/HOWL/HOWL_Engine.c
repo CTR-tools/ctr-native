@@ -163,7 +163,7 @@ void EngineSound_Player(struct Driver *driver)
 			if (0 < driver->fireSpeed)
 				targetPitch = 0x3000;
 
-			targetPitch = (driver->fill_3B6[1] * 0x40 + targetPitch * 0x30 + driver->unk36E * 0x90) >> 8;
+			targetPitch = (driver->fill_3B6[1] * 0x40 + targetPitch * 0x30 + driver->speedometerNeedleValue * 0x90) >> 8;
 			if (0 < driver->fireSpeed)
 				targetPitch += 0x1000;
 		}

@@ -5,7 +5,7 @@ void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 {
 	int minScale = 0;
 	int maxScale = FP8_INT(driver->const_AccelSpeed_ClassStat) + FP8_INT(driver->const_SacredFireSpeed);
-	int speed = driver->unk36E; // is this actually speed?
+	int speed = driver->speedometerNeedleValue;
 	int minAngle, maxAngle;
 	int accelSpeedInt = FP8_INT(driver->const_AccelSpeed_ClassStat);
 	if (driver->const_AccelSpeed_ClassStat < speed)

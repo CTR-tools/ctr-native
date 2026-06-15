@@ -662,7 +662,7 @@ static int VehEmitter_ShouldSkipExhaust(struct Thread *thread, struct Driver *d)
 				return 1;
 		}
 
-		if (d->unk381 == 0)
+		if (d->failedBoostExhaustTimer == 0)
 		{
 			int meterLeft = d->turbo_MeterRoomLeft;
 
@@ -674,8 +674,8 @@ static int VehEmitter_ShouldSkipExhaust(struct Thread *thread, struct Driver *d)
 		}
 	}
 
-	if (d->unk381 != 0)
-		d->unk381--;
+	if (d->failedBoostExhaustTimer != 0)
+		d->failedBoostExhaustTimer--;
 
 	return 0;
 }

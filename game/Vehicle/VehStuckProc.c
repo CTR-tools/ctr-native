@@ -924,7 +924,7 @@ LAB_80067dec:
 
 	int accelClassStat = d->const_AccelSpeed_ClassStat;
 
-	d->unk36E = d->KartStates.RevEngine.fireLevel;
+	d->speedometerNeedleValue = d->KartStates.RevEngine.fireLevel;
 
 	u8 meterRoomStart;
 	int meterRoomEnd;
@@ -961,7 +961,7 @@ LAB_80067dec:
 	d->turbo_MeterRoomLeft = meterRoomLeft;
 
 	d->distanceDrivenBackwards = 0;
-	int squishScale = CTR_MipsSra((s16)d->unk36E, 6);
+	int squishScale = CTR_MipsSra((s16)d->speedometerNeedleValue, 6);
 
 	if (squishScale < 0x401)
 	{
