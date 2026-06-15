@@ -1272,7 +1272,7 @@ struct Scrub *VehAfterColl_GetSurface(u32 scrubId);
 void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2);
 void OtherFX_DriverCrashing(u32 boolEcho, u32 volume);
 void VehPhysCrash_ConvertVecToSpeed(struct Driver *d, Vec3 *v);
-int VehPhysCrash_BounceSelf(s16 *normal, Vec3 *origin, Vec3 *vel, int boolOtherDriver);
+int VehPhysCrash_BounceSelf(const SVec3 *normal, const Vec3 *origin, Vec3 *vel, int boolOtherDriver);
 void VehPhysCrash_AI(struct Driver *bot, Vec3 *vel);
 int VehPhysCrash_Attack(struct Driver *driver1, struct Driver *driver2, int canPlayFeedback, int boolPlayBubblePop);
 void VehPhysCrash_AnyTwoCars(struct Thread *thread, struct DriverCollisionSearch *search, Vec3 *selfVel);

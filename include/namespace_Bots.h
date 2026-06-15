@@ -22,8 +22,8 @@ struct NavFrame
 
 	// 0xE - flags
 	// bit 1 (0x1): TurboIncrement(normal turbo)
-	// bit 2 (0x2): skid front wheels
-	// bit 3 (0x4): skid back wheels
+	// bit 2 (0x2): skid back wheels
+	// bit 3 (0x4): skid front wheels
 	// bits 4,5,6,7: 15 terrains in 4 bits
 	// bit 8 (0x100) TurboIncrement(super turbo)
 	// bit 9 (0x200) something to do with killplane?

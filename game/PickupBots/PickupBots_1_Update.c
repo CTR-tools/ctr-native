@@ -380,7 +380,7 @@ static void PickupBots_UpdateBoss(void)
 	struct MetaDataBOSS *bossMeta = sdata->bossWeaponMeta;
 
 	if (((boss->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0) || ((boss->actionsFlagSet & 0x2000000) != 0) || (boss->instTntRecv != NULL) ||
-	    (boss->clockReceive != 0) || (boss->botData.unk5bc.ai_speedLinear < 0x1f41))
+	    (boss->clockReceive != 0) || (boss->botData.aiPhysics.speedLinear < 0x1f41))
 	{
 		PickupBots_SetBossCooldown(bossMeta);
 		return;

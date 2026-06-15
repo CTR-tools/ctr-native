@@ -548,11 +548,10 @@ void VehPhysForce_CollideDrivers(struct Thread *thread, struct Driver *driver)
 	{
 		struct DriverCollisionSearch search;
 
-		search.bucket.pos[0] = (s16)CTR_MipsSra(driver->posCurr.x, 8);
-		search.bucket.pos[1] = (s16)CTR_MipsSra(driver->posCurr.y, 8);
-		search.bucket.pos[2] = (s16)CTR_MipsSra(driver->posCurr.z, 8);
+		CTR_SET_VEC3(search.bucket.pos.v, (s16)CTR_MipsSra(driver->posCurr.x, 8), (s16)CTR_MipsSra(driver->posCurr.y, 8),
+		             (s16)CTR_MipsSra(driver->posCurr.z, 8));
 		search.bucket.th = NULL;
-		search.bucket.radius = 0x7fffffff;
+		search.bucket.bestDistSq = 0x7fffffff;
 
 		PROC_CollidePointWithBucket(thread->siblingThread, &search.bucket);
 		PROC_CollidePointWithBucket(sdata->gGT->threadBuckets[ROBOT].thread, &search.bucket);
@@ -561,7 +560,7 @@ void VehPhysForce_CollideDrivers(struct Thread *thread, struct Driver *driver)
 		{
 			int radiusSum = CTR_MipsAddLo(thread->driver_HitRadius, search.bucket.th->driver_HitRadius);
 
-			if (search.bucket.radius < CTR_MipsMulLo(radiusSum, radiusSum))
+			if (search.bucket.bestDistSq < CTR_MipsMulLo(radiusSum, radiusSum))
 			{
 				VehPhysCrash_AnyTwoCars(thread, &search, &driver->velocity);
 			}

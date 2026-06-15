@@ -24,8 +24,17 @@ enum
 	BOTS_DAMAGE_STATE_SQUISH = 3,
 	BOTS_DAMAGE_STATE_MASK_GRAB = 5,
 
+	BOTS_NAV_FLAG_TURBO = 0x1,
+	BOTS_NAV_FLAG_BACK_SKID = 0x2,
+	BOTS_NAV_FLAG_FRONT_SKID = 0x4,
+	BOTS_NAV_FLAG_SUPER_TURBO = 0x100,
 	BOTS_NAV_FLAG_KILLPLANE = 0x200,
+	BOTS_NAV_FLAG_JUMP = 0x400,
+	BOTS_NAV_FLAG_DRIFT_LEFT = 0x800,
+	BOTS_NAV_FLAG_DRIFT_RIGHT = 0x1000,
+	BOTS_NAV_FLAG_ENGINE_ECHO = 0x2000,
 	BOTS_NAV_FLAG_SPLIT_LINE = 0x8000,
+	BOTS_NAV_FLAG_DRIFT_MASK = BOTS_NAV_FLAG_DRIFT_LEFT | BOTS_NAV_FLAG_DRIFT_RIGHT,
 
 	BOTS_NAV_SPECIAL_RAMP_PHYS = 0x10,
 	BOTS_NAV_SPECIAL_REFLECTIVE = 0x20,
@@ -263,7 +272,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 		BOTS_Adv_LerpDifficulty(sdata->cup_difficultyParams, cupDifficulty);
 	}
 
-	sdata->unk_counter_upTo450 = 0;
+	sdata->aiCollisionDelayFrameCount = 0;
 
 	if ((sdata->const_0x30215400 == 0) && (sdata->const_0x493583fe == 0))
 	{
@@ -437,7 +446,7 @@ void BOTS_UpdateGlobals(void)
 		sdata->bestHumanRank = worstRobotDriver;
 	}
 
-	sdata->unk_counter_upTo450++;
+	sdata->aiCollisionDelayFrameCount++;
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80013444-0x800135d8
@@ -445,7 +454,7 @@ void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 {
 	struct NavFrame *nf = bot->botData.botNavFrame;
 
-	CTR_SET_VEC3(bot->botData.unk5bc.ai_velAxis, 0, 0, 0);
+	CTR_SET_VEC3(bot->botData.aiPhysics.velAxis, 0, 0, 0);
 
 	// ======== Get Driver Position =============
 
@@ -501,12 +510,9 @@ void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800135d8-0x8001372c.
 void BOTS_LevInstColl(struct Thread *botThread)
 {
-	SVec3 currPos;
-	SVec3 prevPos;
 	struct Driver *driver = (struct Driver *)botThread->object;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
-	// scratchpad stuff
 	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
 	sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES;
 	sps->Input1.modelID = DYNAMIC_ROBOT_CAR;
@@ -514,37 +520,35 @@ void BOTS_LevInstColl(struct Thread *botThread)
 	sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
 	sps->Input1.hitRadius = BOTS_LEVEL_INST_COLL_RADIUS;
 
-	// grab driver stuff
-	currPos.x = (s16)CTR_MipsSra(driver->posCurr.x, 8);
-	currPos.y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, 8), BOTS_LEVEL_INST_COLL_RADIUS);
-	currPos.z = (s16)CTR_MipsSra(driver->posCurr.z, 8);
-	prevPos.x = (s16)CTR_MipsSra(driver->posPrev.x, 8);
-	prevPos.y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, 8), BOTS_LEVEL_INST_COLL_RADIUS);
-	prevPos.z = (s16)CTR_MipsSra(driver->posPrev.z, 8);
+	SVec3 currPos = {
+	    .x = (s16)CTR_MipsSra(driver->posCurr.x, 8),
+	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, 8), BOTS_LEVEL_INST_COLL_RADIUS),
+	    .z = (s16)CTR_MipsSra(driver->posCurr.z, 8),
+	};
+	SVec3 prevPos = {
+	    .x = (s16)CTR_MipsSra(driver->posPrev.x, 8),
+	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, 8), BOTS_LEVEL_INST_COLL_RADIUS),
+	    .z = (s16)CTR_MipsSra(driver->posPrev.z, 8),
+	};
 
 	COLL_FIXED_BotsSearch(&currPos, &prevPos, sps);
 
-	if (sps->boolDidTouchHitbox)
-	{
-		sps->Union.QuadBlockColl.searchFlags &= ~COLL_SEARCH_REUSE_NORMALS;
+	if (sps->boolDidTouchHitbox == 0)
+		return;
 
-		if ((sps->bspHitbox->flag & 0x80) != 0)
-		{
-			struct InstDef *instDef = sps->bspHitbox->data.hitbox.instDef;
-			struct Instance *inst = instDef->ptrInstance;
-			if (inst != NULL)
-			{
-				struct MetaDataMODEL *mdm = COLL_LevModelMeta(instDef->modelID);
-				if (mdm != NULL)
-				{
-					if (mdm->LInC != NULL)
-					{
-						mdm->LInC(inst, botThread, sps);
-					}
-				}
-			}
-		}
-	}
+	sps->Union.QuadBlockColl.searchFlags &= ~COLL_SEARCH_REUSE_NORMALS;
+
+	if ((sps->bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
+		return;
+
+	struct InstDef *instDef = sps->bspHitbox->data.hitbox.instDef;
+	struct Instance *inst = instDef->ptrInstance;
+	if (inst == NULL)
+		return;
+
+	struct MetaDataMODEL *mdm = COLL_LevModelMeta(instDef->modelID);
+	if ((mdm != NULL) && (mdm->LInC != NULL))
+		mdm->LInC(inst, botThread, sps);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8001372c-0x80013838.
@@ -620,16 +624,17 @@ void BOTS_MaskGrab(struct Thread *botThread)
 	bot->botData.ai_posBackup[2] = midpoint;
 	bot->posPrev.z = midpoint;
 
-	bot->botData.unk5bc.ai_mulDrift = 0;
-	bot->botData.unk5bc.ai_squishCooldown = 0;
-	bot->botData.unk5bc.unk5cc = 0;
-	bot->botData.unk5bc.ai_speedY = 0;
-	bot->botData.unk5bc.ai_speedLinear = 0;
-	CTR_SET_VEC3(bot->botData.unk5bc.ai_velAxis, 0, 0, 0);
+	bot->botData.aiPhysics.mulDrift = 0;
+	bot->botData.aiPhysics.squishCooldown = 0;
+	bot->botData.aiPhysics.unk5cc = 0;
+	bot->botData.aiPhysics.speedY = 0;
+	bot->botData.aiPhysics.speedLinear = 0;
+	CTR_SET_VEC3(bot->botData.aiPhysics.velAxis, 0, 0, 0);
 
 	bot->actionsFlagSet |= ACTION_TOUCH_GROUND;
 
-	bot->botData.botFlags &= 0xffffffb0;
+	bot->botData.botFlags &=
+	    ~(BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER | BOT_FLAG_FREE_PHYSICS | BOT_FLAG_BOSS_PATH_REQUESTED);
 
 	bot->rotCurr.x = (s16)CTR_MipsSll(frame->rot[0], 4);
 	bot->rotCurr.y = (s16)CTR_MipsSll(frame->rot[1], 4);
@@ -643,14 +648,13 @@ void BOTS_MaskGrab(struct Thread *botThread)
 	bot->matrixArray = 0;
 	bot->matrixIndex = 0;
 
-	// Clear bot ghost and airborne action bits.
-	bot->actionsFlagSet &= 0xfff7ffbf;
+	bot->actionsFlagSet &= ~(ACTION_AIRBORNE | ACTION_HIGH_JUMP);
 
 	// if driver is not ghost
 	if (botThread->modelIndex != DYNAMIC_GHOST)
 	{
 		// enable collision for this thread
-		botThread->flags &= 0xffffefff;
+		botThread->flags &= ~THREAD_FLAG_DISABLE_COLLISION;
 	}
 
 	// posY, plus height to be dropped from
@@ -684,7 +688,7 @@ void BOTS_Killplane(struct Thread *botThread)
 	{
 		// edge-case override?
 		u8 override;
-		switch (bot->unknown_lap_related[1])
+		switch (bot->checkpoint.currentIndex)
 		{
 		case 0x94:
 			override = 0x84;
@@ -735,7 +739,7 @@ void BOTS_Killplane(struct Thread *botThread)
 		struct NavFrame *frame = bot->botData.botNavFrame;
 
 		// current nav point (player turned AI)
-		u8 currNav = bot->unknown_lap_related[1];
+		u8 currNav = bot->checkpoint.currentIndex;
 
 		// goBackCount
 		u8 backCount = frame->goBackCount;
@@ -755,7 +759,7 @@ void BOTS_Killplane(struct Thread *botThread)
 				frame = &sdata->NavPath_ptrHeader[i]->last[-1];
 			}
 			backCount = frame->goBackCount;
-			currNav = bot->unknown_lap_related[1];
+			currNav = bot->checkpoint.currentIndex;
 		}
 		// save ptr to nav frame
 		bot->botData.botNavFrame = frame;
@@ -825,11 +829,11 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	if (botDriver->clockReceive < 0)
 		botDriver->clockReceive = 0;
 
-	botDriver->botData.unk5bc.ai_driftTarget = 0;
+	botDriver->botData.aiPhysics.driftTarget = 0;
 	botDriver->kartState = KS_NORMAL;
 
 	botDriver->actionsFlagSetPrevFrame = botDriver->actionsFlagSet;
-	botDriver->actionsFlagSet &= ~(0x80000402);
+	botDriver->actionsFlagSet &= ~(ACTION_DROPPING_MINE | ACTION_JUMP_STARTED | ACTION_STARTED_TOUCH_GROUND);
 
 	int speedApprox = botDriver->speedApprox; // iVar4
 
@@ -851,7 +855,7 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	    (s16)CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(speedApprox, 0x89), CTR_MipsMulLo(botDriver->unkSpeedValue2, 0x177)), 3), 0xC); // sVar7
 	botDriver->unkSpeedValue2 = unkSpeedThing;
 
-	if ((botDriver->actionsFlagSetPrevFrame & 8) == 0)
+	if ((botDriver->actionsFlagSetPrevFrame & ACTION_ACCEL_PREVENTION) == 0)
 	{
 		int baseSpeed = botDriver->baseSpeed;
 		if (baseSpeed < 0)
@@ -864,12 +868,12 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 				baseSpeed = CTR_MipsNegLo(baseSpeed);
 
 			if (baseSpeed < 0x201)
-				goto give_this_label_a_better_name;
+				goto UpdateTireColorTimer;
 		}
 
 		botDriver->unkSpeedValue1 = (s16)CTR_MipsSubLo((u16)botDriver->unkSpeedValue1, unkSpeedThing);
 	}
-give_this_label_a_better_name:
+UpdateTireColorTimer:
 
 	if ((botDriver->unkSpeedValue1 < 1) && ((botDriver->tireColor & 1) == 0))
 	{
@@ -899,50 +903,39 @@ give_this_label_a_better_name:
 		navFrameNext = botDriver->botData.botNavFrame;
 	}
 
-	struct DriverCollisionSearch cpwb_param_2;
-	cpwb_param_2.bucket.pos[0] = (short)CTR_MipsSra(botDriver->posCurr.x, 8);
-	cpwb_param_2.bucket.pos[1] = (short)CTR_MipsSra(botDriver->posCurr.y, 8);
-	cpwb_param_2.bucket.pos[2] = (short)CTR_MipsSra(botDriver->posCurr.z, 8);
-	cpwb_param_2.bucket.th = NULL;
-	cpwb_param_2.bucket.radius = 0x7fffffff;
+	struct DriverCollisionSearch driverSearch;
+	CTR_SET_VEC3(driverSearch.bucket.pos.v, (s16)CTR_MipsSra(botDriver->posCurr.x, 8), (s16)CTR_MipsSra(botDriver->posCurr.y, 8),
+	             (s16)CTR_MipsSra(botDriver->posCurr.z, 8));
+	driverSearch.bucket.th = NULL;
+	driverSearch.bucket.bestDistSq = 0x7fffffff;
 
-	struct Thread *uVar12;
-
-	if ((botThread->flags & 0x1800) == 0)
+	if ((botThread->flags & (THREAD_FLAG_DEAD | THREAD_FLAG_DISABLE_COLLISION)) == 0)
 	{
 		if (botThread->modelIndex == DYNAMIC_PLAYER)
 		{
-			PROC_CollidePointWithBucket(botThread->siblingThread, &cpwb_param_2.bucket);
-
-			uVar12 = gGT->threadBuckets[ROBOT].thread;
+			PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
+			PROC_CollidePointWithBucket(gGT->threadBuckets[ROBOT].thread, &driverSearch.bucket);
 		}
-		else
+		else if (botThread->modelIndex == DYNAMIC_ROBOT_CAR)
 		{
-			if (botThread->modelIndex != DYNAMIC_ROBOT_CAR)
-				goto give_this_label_a_better_name2;
-
-			uVar12 = botThread->siblingThread;
+			PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
 		}
-
-		PROC_CollidePointWithBucket(uVar12, &cpwb_param_2.bucket);
 	}
-give_this_label_a_better_name2:
 
-	struct Thread *t = cpwb_param_2.bucket.th;
-	if (t != NULL)
+	struct Thread *hitThread = driverSearch.bucket.th;
+	if (hitThread != NULL)
 	{
-		int iVar4 = CTR_MipsAddLo(botThread->driver_HitRadius, t->driver_HitRadius);
-		if (cpwb_param_2.bucket.radius < CTR_MipsMulLo(iVar4, iVar4))
+		int combinedRadius = CTR_MipsAddLo(botThread->driver_HitRadius, hitThread->driver_HitRadius);
+		if (driverSearch.bucket.bestDistSq < CTR_MipsMulLo(combinedRadius, combinedRadius))
 		{
-			Vec3 xyz;
-			xyz.x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.unk5bc.ai_accelAxis[0]);
-			xyz.y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.unk5bc.ai_accelAxis[1]);
-			xyz.z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.unk5bc.ai_accelAxis[2]);
-			VehPhysCrash_AnyTwoCars(botThread, &cpwb_param_2, &xyz);
+			Vec3 selfVelocity = {
+			    .x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.aiPhysics.accelAxis[0]),
+			    .y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.aiPhysics.accelAxis[1]),
+			    .z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.aiPhysics.accelAxis[2]),
+			};
+			VehPhysCrash_AnyTwoCars(botThread, &driverSearch, &selfVelocity);
 		}
 	}
-
-	// puVar5 = gGT
 
 	int deltaPosThisFrame; // iVar4
 
@@ -957,18 +950,18 @@ give_this_label_a_better_name2:
 		}
 
 		if (0 < trafficLightsTimer)
-			goto give_this_label_a_better_name3; // if race not started, then skip
+			goto HoldBotBeforeRaceOrCooldown; // if race not started, then skip
 
-		if ((gGT->boolDemoMode != 0) && ((botDriver->botData.botFlags & 0x100) == 0) && (botThread->modelIndex == DYNAMIC_PLAYER))
+		if ((gGT->boolDemoMode != 0) && ((botDriver->botData.botFlags & BOT_FLAG_DEMO_CAMERA_STARTED) == 0) && (botThread->modelIndex == DYNAMIC_PLAYER))
 		{
-			botDriver->botData.botFlags |= 0x100;
+			botDriver->botData.botFlags |= BOT_FLAG_DEMO_CAMERA_STARTED;
 			CAM_EndOfRace(&gGT->cameraDC[botDriver->driverID], botDriver);
 		}
 
-		if ((botDriver->botData.botFlags & 0x200) == 0)
+		if ((botDriver->botData.botFlags & BOT_FLAG_STARTLINE_INIT_DONE) == 0)
 		{
 			// first frame of race
-			botDriver->botData.botFlags |= 0x200;
+			botDriver->botData.botFlags |= BOT_FLAG_STARTLINE_INIT_DONE;
 
 			if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
 			{ // if oxide, then talk
@@ -1019,7 +1012,7 @@ give_this_label_a_better_name2:
 		}
 		else
 		{
-			if (BOTS_RACE_START_AI_COLLISION_DELAY_FRAMES < sdata->unk_counter_upTo450)
+			if (BOTS_RACE_START_AI_COLLISION_DELAY_FRAMES < sdata->aiCollisionDelayFrameCount)
 			{
 				struct Driver *otherDriver = NULL; // iVar4
 				if ((botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
@@ -1105,14 +1098,14 @@ give_this_label_a_better_name2:
 
 		if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 		{
-			int ZYsqr = CTR_MipsAddLo(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedLinear, botDriver->botData.unk5bc.ai_speedLinear),
-			                          CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedY, botDriver->botData.unk5bc.ai_speedY));
+			int ZYsqr = CTR_MipsAddLo(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, botDriver->botData.aiPhysics.speedLinear),
+			                          CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, botDriver->botData.aiPhysics.speedY));
 
 			if (0x2b110000 < ZYsqr) // sqrZY
 			{
 				int ZY = SquareRoot0_stub(ZYsqr);
 
-				int zVel = CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedLinear, 0x6900); // iVar3
+				int zVel = CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, 0x6900); // iVar3
 
 #if 0 // in the OG game
 				if (ZY == 0)
@@ -1124,7 +1117,7 @@ give_this_label_a_better_name2:
 					//trap(0x1800);
 				}
 #endif
-				int yVel = CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedY, 0x6900); // iVar15
+				int yVel = CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, 0x6900); // iVar15
 #if 0                                                                                  // in the OG game
 				if (ZY == 0)
 				{
@@ -1135,13 +1128,13 @@ give_this_label_a_better_name2:
 					//trap(0x1800);
 				}
 #endif
-				botDriver->botData.unk5bc.ai_speedLinear = CTR_MipsDiv(zVel, ZY);
-				botDriver->botData.unk5bc.ai_speedY = CTR_MipsDiv(yVel, ZY);
+				botDriver->botData.aiPhysics.speedLinear = CTR_MipsDiv(zVel, ZY);
+				botDriver->botData.aiPhysics.speedY = CTR_MipsDiv(yVel, ZY);
 			}
 		}
 		else
 		{
-			botDriver->actionsFlagSet &= ~(0x80000);
+			botDriver->actionsFlagSet &= ~ACTION_AIRBORNE;
 
 			struct Driver *bestDriverRank = sdata->bestHumanRank; // iVar4
 
@@ -1211,14 +1204,14 @@ give_this_label_a_better_name2:
 
 				int lapIndex = bestDriverRank->lapIndex; // uVar20
 
-				if ((bestDriverRank->actionsFlagSet & 0x1000000) != 0)
+				if ((bestDriverRank->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
 				{
 					lapIndex--;
 				}
 
 				int botLapIndex = botDriver->lapIndex; // uVar18
 
-				if ((botDriver->actionsFlagSet & 0x1000000) != 0)
+				if ((botDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
 				{
 					botLapIndex--;
 				}
@@ -1313,10 +1306,10 @@ give_this_label_a_better_name2:
 			}
 
 			if (botDriver->reserves == 0)
-				botDriver->botData.botFlags &= 0xffffffef;
+				botDriver->botData.botFlags &= ~BOT_FLAG_NAV_BOOST_ACTIVE;
 			else
 			{
-				if ((botDriver->botData.botFlags & 0x10) == 0)
+				if ((botDriver->botData.botFlags & BOT_FLAG_NAV_BOOST_ACTIVE) == 0)
 					botVelocity = CTR_MipsAddLo(botVelocity, botDriver->fireSpeedCap);
 				else
 					botVelocity = CTR_MipsAddLo(botDriver->fireSpeedCap, 10000);
@@ -1336,7 +1329,7 @@ give_this_label_a_better_name2:
 			}
 			else
 			{
-				botDriver->botData.unk5bc.ai_turboMeter = 0;
+				botDriver->botData.aiPhysics.turboMeter = 0;
 
 				if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
 				{
@@ -1356,24 +1349,24 @@ give_this_label_a_better_name2:
 
 			struct Terrain *botTerrain = botDriver->terrainMeta1; // iVar15
 
-			botDriver->botData.unk5bc.ai_speedLinear =
-			    CTR_MipsSubLo(botDriver->botData.unk5bc.ai_speedLinear,
-			                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_PedalFriction_Forward, botTerrain->accel_impact), 8)); // iVar4
+			botDriver->botData.aiPhysics.speedLinear =
+			    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
+			                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_PedalFriction_Forward, botTerrain->botFrictionScale), 8)); // iVar4
 
-			if (botDriver->botData.unk5bc.ai_speedLinear < 0)
-				botDriver->botData.unk5bc.ai_speedLinear = 0;
+			if (botDriver->botData.aiPhysics.speedLinear < 0)
+				botDriver->botData.aiPhysics.speedLinear = 0;
 
 			if (0x6900 < botVelocity)
 				botVelocity = 0x6900;
 
-			int velocityAccountingForTerrain = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->unk_0x34[2]), 8); // iVar4
+			int velocityAccountingForTerrain = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->botTargetSpeedScale), 8); // iVar4
 
-			if ((botTerrain->unk_0x34[1] & 0x80) == 0)
+			if ((botTerrain->botSpeedFlags & TERRAIN_BOT_FLAG_DECEL_TO_TARGET_SPEED) == 0)
 			{
-			LAB_80014b34:
-				if (botDriver->botData.unk5bc.ai_speedLinear < velocityAccountingForTerrain)
+			CheckAccelerationTowardTerrainTarget:
+				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
 				{
-				LAB_80014b48:
+				ApplyTerrainAcceleration:
 					short accel; // sVar7
 					if (botDriver->reserves < 1)
 					{
@@ -1383,7 +1376,7 @@ give_this_label_a_better_name2:
 					{
 						accel = botDriver->const_Accel_Reserves;
 					}
-					botVelocity = CTR_MipsSra(CTR_MipsMulLo(accel, botTerrain->unk_0x34[3]), 8);
+					botVelocity = CTR_MipsSra(CTR_MipsMulLo(accel, botTerrain->botAccelerationScale), 8);
 
 					if (botDriver->botData.botAccel != 0)
 					{
@@ -1393,21 +1386,21 @@ give_this_label_a_better_name2:
 						                          8);
 					}
 
-					botDriver->botData.unk5bc.ai_speedLinear = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_speedLinear, botVelocity);
+					botDriver->botData.aiPhysics.speedLinear = CTR_MipsAddLo(botDriver->botData.aiPhysics.speedLinear, botVelocity);
 				}
 			}
 			else
 			{
-				botVelocity = CTR_MipsSra(botDriver->botData.unk5bc.ai_speedLinear, 1);
+				botVelocity = CTR_MipsSra(botDriver->botData.aiPhysics.speedLinear, 1);
 
-				if (botDriver->botData.unk5bc.ai_speedLinear < velocityAccountingForTerrain)
-					goto LAB_80014b48;
+				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
+					goto ApplyTerrainAcceleration;
 
-				botDriver->botData.unk5bc.ai_speedLinear = botVelocity;
+				botDriver->botData.aiPhysics.speedLinear = botVelocity;
 				if (botVelocity < velocityAccountingForTerrain)
 				{
-					botDriver->botData.unk5bc.ai_speedLinear = velocityAccountingForTerrain;
-					goto LAB_80014b34;
+					botDriver->botData.aiPhysics.speedLinear = velocityAccountingForTerrain;
+					goto CheckAccelerationTowardTerrainTarget;
 				}
 			}
 
@@ -1436,12 +1429,12 @@ give_this_label_a_better_name2:
 				int navFrameIndexOnPath = (int)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
 
 				if ((data.botsThrottle[botPathIndex] <= navFrameIndexOnPath) && (navFrameIndexOnPath < CTR_MipsAddLo(data.botsThrottle[botPathIndex], 0xb)) &&
-				    (9000 < botDriver->botData.unk5bc.ai_speedLinear))
+				    (9000 < botDriver->botData.aiPhysics.speedLinear))
 				{
-					botDriver->botData.unk5bc.ai_turboMeter = 0;
+					botDriver->botData.aiPhysics.turboMeter = 0;
 
-					botDriver->botData.unk5bc.ai_speedLinear =
-					    CTR_MipsSubLo(botDriver->botData.unk5bc.ai_speedLinear, CTR_MipsAddLo(100, botDriver->const_Accel_ClassStat));
+					botDriver->botData.aiPhysics.speedLinear =
+					    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear, CTR_MipsAddLo(100, botDriver->const_Accel_ClassStat));
 				}
 			}
 
@@ -1449,13 +1442,13 @@ give_this_label_a_better_name2:
 			{
 				velocityAccountingForTerrain = CTR_MipsAddLo(velocityAccountingForTerrain, botDriver->unk47E);
 
-				if (botDriver->botData.unk5bc.ai_speedLinear < velocityAccountingForTerrain)
+				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
 				{
 					unsigned int var = (unsigned int)navFrameCurr->rot[3];
 					int sinOfAngle = MATH_Sin(CTR_MipsSll(var, 4));
 
-					botDriver->botData.unk5bc.ai_speedLinear =
-					    CTR_MipsSubLo(botDriver->botData.unk5bc.ai_speedLinear,
+					botDriver->botData.aiPhysics.speedLinear =
+					    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
 					                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_Gravity, sinOfAngle), 0xc)); // force on a slope due to gravity
 				}
 
@@ -1463,12 +1456,12 @@ give_this_label_a_better_name2:
 			}
 		}
 
-		if (0x6400 < botDriver->botData.unk5bc.ai_speedLinear)
+		if (0x6400 < botDriver->botData.aiPhysics.speedLinear)
 		{
-			botDriver->botData.unk5bc.ai_speedLinear = 0x6400;
+			botDriver->botData.aiPhysics.speedLinear = 0x6400;
 		}
 
-		deltaPosThisFrame = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedLinear, elapsedMilliseconds), 5); // iVar4
+		deltaPosThisFrame = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, elapsedMilliseconds), 5); // iVar4
 		if (deltaPosThisFrame < 0)
 		{
 			deltaPosThisFrame = 0;
@@ -1477,12 +1470,12 @@ give_this_label_a_better_name2:
 	}
 	else
 	{
-	give_this_label_a_better_name3:
+	HoldBotBeforeRaceOrCooldown:
 		botInstance->scale[0] = 0xccc;
 		botInstance->scale[1] = 0xccc;
 		botInstance->scale[2] = 0xccc;
 
-		botDriver->botData.unk5bc.ai_speedLinear = 0;
+		botDriver->botData.aiPhysics.speedLinear = 0;
 
 		if (botDriver->botData.ai_progress_cooldown != 0)
 		{
@@ -1510,14 +1503,14 @@ give_this_label_a_better_name2:
 		gravity = CTR_MipsDiv(CTR_MipsMulLo(botDriver->const_Gravity, 41), 100);
 	}
 
-	botDriver->botData.unk5bc.ai_speedY =
-	    CTR_MipsSubLo(botDriver->botData.unk5bc.ai_speedY, CTR_MipsSra(CTR_MipsMulLo(gravity, elapsedMilliseconds), 5)); // iVar3
+	botDriver->botData.aiPhysics.speedY =
+	    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedY, CTR_MipsSra(CTR_MipsMulLo(gravity, elapsedMilliseconds), 5)); // iVar3
 
-	if (botDriver->botData.unk5bc.ai_speedY < -0x5000)
-		botDriver->botData.unk5bc.ai_speedY = -0x5000;
+	if (botDriver->botData.aiPhysics.speedY < -0x5000)
+		botDriver->botData.aiPhysics.speedY = -0x5000;
 
 	botDriver->botData.ai_posBackup[1] =
-	    CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedY, elapsedMilliseconds), 5));
+	    CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, elapsedMilliseconds), 5));
 
 	short navDist; // sVar7
 
@@ -1608,20 +1601,20 @@ give_this_label_a_better_name2:
 
 	botDriver->botData.navProgressRemainder = deltaPosThisFrame;
 
-	int actionFlagsBuildup = CTR_MipsSll(navFrameFlags & 2, 10); // uVar20
+	int navActionFlags = ((navFrameFlags & BOTS_NAV_FLAG_BACK_SKID) != 0) ? ACTION_BACK_SKID : 0;
 
-	if ((navFrameFlags & 0x2000) != 0)
+	if ((navFrameFlags & BOTS_NAV_FLAG_ENGINE_ECHO) != 0)
 	{
-		actionFlagsBuildup |= 0x10000;
+		navActionFlags |= ACTION_ENGINE_ECHO;
 	}
 
-	if ((navFrameFlags & 4) != 0)
+	if ((navFrameFlags & BOTS_NAV_FLAG_FRONT_SKID) != 0)
 	{
-		actionFlagsBuildup |= 0x1000;
+		navActionFlags |= ACTION_FRONT_SKID;
 	}
 
-	botDriver->actionsFlagSet &= ~(0x11800);
-	botDriver->actionsFlagSet |= actionFlagsBuildup;
+	botDriver->actionsFlagSet &= ~(ACTION_ENGINE_ECHO | ACTION_BACK_SKID | ACTION_FRONT_SKID);
+	botDriver->actionsFlagSet |= navActionFlags;
 
 	struct Terrain *terrain = VehAfterColl_GetTerrain(((u_char)navFrameCurr->flags) >> 3);
 
@@ -1644,7 +1637,7 @@ give_this_label_a_better_name2:
 		botInstance->flags |= 0x4000;
 	}
 
-	if (((navFrameCurr->specialBits & 0x30) == 0) && (botThread->modelIndex != DYNAMIC_GHOST))
+	if (((navFrameCurr->specialBits & (BOTS_NAV_SPECIAL_RAMP_PHYS | BOTS_NAV_SPECIAL_REFLECTIVE)) == 0) && (botThread->modelIndex != DYNAMIC_GHOST))
 	{
 		int transparency = CTR_MipsMulLo(navFrameCurr->specialBits & BOTS_NAV_SPECIAL_INDEX_MASK, 0x9c00);
 
@@ -1653,37 +1646,37 @@ give_this_label_a_better_name2:
 		botInstance->alphaScale = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo((u16)botInstance->alphaScale, 100), transparency), 8);
 	}
 
-	if (((botDriver->actionsFlagSet & 0x1000) == 0) || ((actionFlagsBuildup & 0x1800) == 0))
+	if (((botDriver->actionsFlagSet & ACTION_FRONT_SKID) == 0) || ((navActionFlags & (ACTION_BACK_SKID | ACTION_FRONT_SKID)) == 0))
 	{
 		botDriver->turbo_MeterRoomLeft = 0;
-		botDriver->botData.unk5bc.ai_turboMeter = 0;
-		botDriver->botData.unk5bc.ai_fireLevel = 0;
+		botDriver->botData.aiPhysics.turboMeter = 0;
+		botDriver->botData.aiPhysics.fireLevel = 0;
 	}
 	else
 	{
-		botDriver->actionsFlagSet |= 0x80;
-		botDriver->botData.unk5bc.ai_turboMeter = (s16)CTR_MipsAddLo((u16)botDriver->botData.unk5bc.ai_turboMeter, elapsedMilliseconds);
+		botDriver->actionsFlagSet |= ACTION_TURBO_INPUT_LATCH;
+		botDriver->botData.aiPhysics.turboMeter = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.turboMeter, elapsedMilliseconds);
 		int uVar6;
 		// this ugly tree of ifs may have been a switch perhaps?
-		if ((botDriver->botData.unk5bc.ai_turboMeter < 0xb41) || (5 < botDriver->botData.unk5bc.ai_fireLevel))
+		if ((botDriver->botData.aiPhysics.turboMeter < 0xb41) || (5 < botDriver->botData.aiPhysics.fireLevel))
 		{
-			if ((botDriver->botData.unk5bc.ai_turboMeter < 0x961) || (uVar6 = 5, 4 < botDriver->botData.unk5bc.ai_fireLevel))
+			if ((botDriver->botData.aiPhysics.turboMeter < 0x961) || (uVar6 = 5, 4 < botDriver->botData.aiPhysics.fireLevel))
 			{
-				if ((botDriver->botData.unk5bc.ai_turboMeter < 0x781) || (3 < botDriver->botData.unk5bc.ai_fireLevel))
+				if ((botDriver->botData.aiPhysics.turboMeter < 0x781) || (3 < botDriver->botData.aiPhysics.fireLevel))
 				{
-					if ((0x5a0 < botDriver->botData.unk5bc.ai_turboMeter) && (uVar6 = 3, botDriver->botData.unk5bc.ai_fireLevel < 3))
-						goto LAB_800153d0;
-					if ((botDriver->botData.unk5bc.ai_turboMeter < 0x3c1) || (1 < botDriver->botData.unk5bc.ai_fireLevel))
+					if ((0x5a0 < botDriver->botData.aiPhysics.turboMeter) && (uVar6 = 3, botDriver->botData.aiPhysics.fireLevel < 3))
+						goto SetTurboChargeThreshold;
+					if ((botDriver->botData.aiPhysics.turboMeter < 0x3c1) || (1 < botDriver->botData.aiPhysics.fireLevel))
 					{
-						if ((0x1e0 < botDriver->botData.unk5bc.ai_turboMeter) && (uVar6 = 1, botDriver->botData.unk5bc.ai_fireLevel < 1))
+						if ((0x1e0 < botDriver->botData.aiPhysics.turboMeter) && (uVar6 = 1, botDriver->botData.aiPhysics.fireLevel < 1))
 						{
-							goto LAB_800153d0;
+							goto SetTurboChargeThreshold;
 						}
 					}
 					else
 					{
 						// trigger a turbo boost?
-						botDriver->botData.unk5bc.ai_fireLevel = 2;
+						botDriver->botData.aiPhysics.fireLevel = 2;
 						botDriver->turbo_MeterRoomLeft = 0;
 						VehFire_Increment(botDriver, 0xf0, 2, CTR_MipsSll(local_38, 7));
 					}
@@ -1691,40 +1684,40 @@ give_this_label_a_better_name2:
 				else
 				{
 					// trigger a turbo boost?
-					botDriver->botData.unk5bc.ai_fireLevel = 4;
+					botDriver->botData.aiPhysics.fireLevel = 4;
 					botDriver->turbo_MeterRoomLeft = 0;
 					VehFire_Increment(botDriver, 0x1e0, 2, CTR_MipsSll(local_38, 8));
 				}
 			}
 			else
 			{
-			LAB_800153d0:
+			SetTurboChargeThreshold:
 				// trigger a turbo boost?
-				botDriver->botData.unk5bc.ai_fireLevel = uVar6;
+				botDriver->botData.aiPhysics.fireLevel = uVar6;
 				botDriver->turbo_MeterRoomLeft = 0xa0;
 			}
 		}
 		else
 		{
 			// trigger a turbo boost?
-			botDriver->botData.unk5bc.ai_fireLevel = 6;
+			botDriver->botData.aiPhysics.fireLevel = 6;
 			botDriver->turbo_MeterRoomLeft = 0;
 			VehFire_Increment(botDriver, 0x2d0, 2, CTR_MipsMulLo(local_38, 0x180));
 		}
 	}
 
-	if ((navFrameFlags & 0x100) != 0)
+	if ((navFrameFlags & BOTS_NAV_FLAG_SUPER_TURBO) != 0)
 	{
 		VehFire_Increment(botDriver, 0x78, 1, 0x900);
 
-		botDriver->botData.botFlags |= 0x10;
+		botDriver->botData.botFlags |= BOT_FLAG_NAV_BOOST_ACTIVE;
 	}
 
-	if ((navFrameFlags & 0x1) != 0)
+	if ((navFrameFlags & BOTS_NAV_FLAG_TURBO) != 0)
 	{
 		VehFire_Increment(botDriver, 0x2d0, 1, 0x180);
 
-		botDriver->botData.botFlags |= 0x10;
+		botDriver->botData.botFlags |= BOT_FLAG_NAV_BOOST_ACTIVE;
 	}
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
@@ -1762,96 +1755,96 @@ give_this_label_a_better_name2:
 	botDriver->botData.ai_posBackup[2] = CTR_MipsSll(
 	    CTR_MipsAddLo(navFrameCurr->pos[2], CTR_MipsSra(CTR_MipsMulLo(CTR_MipsSubLo(navFrameNext->pos[2], navFrameCurr->pos[2]), percentage), 0xc)), 8);
 
-	if ((botDriver->botData.botFlags & 0x8) != 0)
+	if ((botDriver->botData.botFlags & BOT_FLAG_FREE_PHYSICS) != 0)
 	{
-		botDriver->botData.unk5bc.ai_accelAxis[1] = 0;
-		botDriver->botData.unk5bc.ai_velAxis[0] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[0], botDriver->botData.unk5bc.ai_accelAxis[0]);
-		botDriver->botData.unk5bc.ai_velAxis[1] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[1], botDriver->botData.unk5bc.ai_accelAxis[1]);
-		botDriver->botData.unk5bc.ai_velAxis[2] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[2], botDriver->botData.unk5bc.ai_accelAxis[2]);
-		int preAccelX = botDriver->botData.unk5bc.ai_accelAxis[0]; // iVar3
-		int preAccelZ = botDriver->botData.unk5bc.ai_accelAxis[2]; // iVar15
-		botDriver->botData.unk5bc.ai_accelAxis[0] = CTR_MipsSra(botDriver->botData.unk5bc.ai_accelAxis[0], 1);
-		botDriver->botData.unk5bc.ai_accelAxis[2] = CTR_MipsSra(botDriver->botData.unk5bc.ai_accelAxis[2], 1);
-		botDriver->botData.unk5bc.ai_velAxis[1] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[1], botDriver->botData.unk5bc.ai_accelAxis[1]);
+		botDriver->botData.aiPhysics.accelAxis[1] = 0;
+		botDriver->botData.aiPhysics.velAxis[0] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[0], botDriver->botData.aiPhysics.accelAxis[0]);
+		botDriver->botData.aiPhysics.velAxis[1] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[1], botDriver->botData.aiPhysics.accelAxis[1]);
+		botDriver->botData.aiPhysics.velAxis[2] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[2], botDriver->botData.aiPhysics.accelAxis[2]);
+		int preAccelX = botDriver->botData.aiPhysics.accelAxis[0]; // iVar3
+		int preAccelZ = botDriver->botData.aiPhysics.accelAxis[2]; // iVar15
+		botDriver->botData.aiPhysics.accelAxis[0] = CTR_MipsSra(botDriver->botData.aiPhysics.accelAxis[0], 1);
+		botDriver->botData.aiPhysics.accelAxis[2] = CTR_MipsSra(botDriver->botData.aiPhysics.accelAxis[2], 1);
+		botDriver->botData.aiPhysics.velAxis[1] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[1], botDriver->botData.aiPhysics.accelAxis[1]);
 
-		botDriver->botData.unk5bc.ai_velAxis[0] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[0], preAccelX);
-		botDriver->botData.unk5bc.ai_velAxis[2] = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[2], preAccelZ);
+		botDriver->botData.aiPhysics.velAxis[0] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[0], preAccelX);
+		botDriver->botData.aiPhysics.velAxis[2] = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[2], preAccelZ);
 
-		int preX = botDriver->botData.unk5bc.ai_velAxis[0]; // iVar3
+		int preX = botDriver->botData.aiPhysics.velAxis[0]; // iVar3
 		if (preX != 0)
 		{
 			if (preX < 1)
 			{
-				botDriver->botData.unk5bc.ai_velAxis[0] = CTR_MipsAddLo(preX, 0x444);
+				botDriver->botData.aiPhysics.velAxis[0] = CTR_MipsAddLo(preX, 0x444);
 				if (0 < CTR_MipsAddLo(preX, 0x444))
 				{
-					botDriver->botData.unk5bc.ai_velAxis[0] = 0;
+					botDriver->botData.aiPhysics.velAxis[0] = 0;
 				}
 				else
 				{
-					if (botDriver->botData.unk5bc.ai_accelAxis[0] == 0)
+					if (botDriver->botData.aiPhysics.accelAxis[0] == 0)
 					{
-						botDriver->botData.unk5bc.ai_accelAxis[0] = 0x444;
+						botDriver->botData.aiPhysics.accelAxis[0] = 0x444;
 					}
 				}
 			}
 			else
 			{
-				botDriver->botData.unk5bc.ai_velAxis[0] = CTR_MipsSubLo(preX, 0x444);
+				botDriver->botData.aiPhysics.velAxis[0] = CTR_MipsSubLo(preX, 0x444);
 				if (CTR_MipsSubLo(preX, 0x444) < 0)
 				{
-					botDriver->botData.unk5bc.ai_velAxis[0] = 0;
+					botDriver->botData.aiPhysics.velAxis[0] = 0;
 				}
 				else
 				{
-					if (botDriver->botData.unk5bc.ai_accelAxis[0] == 0)
+					if (botDriver->botData.aiPhysics.accelAxis[0] == 0)
 					{
-						botDriver->botData.unk5bc.ai_accelAxis[0] = -0x444;
+						botDriver->botData.aiPhysics.accelAxis[0] = -0x444;
 					}
 				}
 			}
 		}
-		int preZ = botDriver->botData.unk5bc.ai_velAxis[2]; // iVar3
+		int preZ = botDriver->botData.aiPhysics.velAxis[2]; // iVar3
 		if (preZ != 0)
 		{
 			if (preZ < 1)
 			{
-				botDriver->botData.unk5bc.ai_velAxis[2] = CTR_MipsAddLo(preZ, 0x444);
+				botDriver->botData.aiPhysics.velAxis[2] = CTR_MipsAddLo(preZ, 0x444);
 				if (0 < CTR_MipsAddLo(preZ, 0x444))
 				{
-					botDriver->botData.unk5bc.ai_velAxis[2] = 0;
+					botDriver->botData.aiPhysics.velAxis[2] = 0;
 				}
 				else
 				{
-					if (botDriver->botData.unk5bc.ai_accelAxis[2] == 0)
+					if (botDriver->botData.aiPhysics.accelAxis[2] == 0)
 					{
-						botDriver->botData.unk5bc.ai_accelAxis[2] = 0x444;
+						botDriver->botData.aiPhysics.accelAxis[2] = 0x444;
 					}
 				}
 			}
 			else
 			{
-				botDriver->botData.unk5bc.ai_velAxis[2] = CTR_MipsSubLo(preZ, 0x444);
+				botDriver->botData.aiPhysics.velAxis[2] = CTR_MipsSubLo(preZ, 0x444);
 				if (CTR_MipsSubLo(preZ, 0x444) < 0)
 				{
-					botDriver->botData.unk5bc.ai_velAxis[2] = 0;
+					botDriver->botData.aiPhysics.velAxis[2] = 0;
 				}
 				else
 				{
-					if (botDriver->botData.unk5bc.ai_accelAxis[2] == 0)
+					if (botDriver->botData.aiPhysics.accelAxis[2] == 0)
 					{
-						botDriver->botData.unk5bc.ai_accelAxis[2] = -0x444;
+						botDriver->botData.aiPhysics.accelAxis[2] = -0x444;
 					}
 				}
 			}
 		}
-		if ((botDriver->botData.unk5bc.ai_velAxis[0] == 0) && (botDriver->botData.unk5bc.ai_velAxis[2] == 0))
+		if ((botDriver->botData.aiPhysics.velAxis[0] == 0) && (botDriver->botData.aiPhysics.velAxis[2] == 0))
 		{
-			botDriver->botData.botFlags &= 0xfffffff7;
+			botDriver->botData.botFlags &= ~BOT_FLAG_FREE_PHYSICS;
 		}
 	}
 
-	if ((botDriver->botData.botFlags & 0x9) == 0)
+	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) == 0)
 	{
 		botDriver->botData.ai_quadblock_checkpointIndex = navFrameCurr->goBackCount;
 	}
@@ -1865,16 +1858,19 @@ give_this_label_a_better_name2:
 
 		botDriver->botData.ai_rot4[1] = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[1], 4), CTR_MipsSra(CTR_MipsMulLo(deltaRotY, percentage), 0xc)) & 0xfff;
 
-		SVec3 probeTop;
-		probeTop.x = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[0], botDriver->botData.unk5bc.ai_velAxis[0]), 8);
-		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], botDriver->botData.unk5bc.ai_velAxis[1]), 8);
-		probeTop.y = (s16)CTR_MipsSubLo(probeY, 0x100);
-		probeTop.z = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[2], botDriver->botData.unk5bc.ai_velAxis[2]), 8);
-
-		SVec3 probeBottom;
-		probeBottom.x = probeTop.x;
-		probeBottom.y = (s16)CTR_MipsAddLo(probeY, 0x80);
-		probeBottom.z = probeTop.z;
+		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], botDriver->botData.aiPhysics.velAxis[1]), 8);
+		s16 probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[0], botDriver->botData.aiPhysics.velAxis[0]), 8);
+		s16 probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[2], botDriver->botData.aiPhysics.velAxis[2]), 8);
+		SVec3 probeTop = {
+		    .x = probeX,
+		    .y = (s16)CTR_MipsSubLo(probeY, 0x100),
+		    .z = probeZ,
+		};
+		SVec3 probeBottom = {
+		    .x = probeX,
+		    .y = (s16)CTR_MipsAddLo(probeY, 0x80),
+		    .z = probeZ,
+		};
 
 		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
@@ -1906,7 +1902,7 @@ give_this_label_a_better_name2:
 	if (botDriver->botData.ai_posBackup[1] < botDriver->quadBlockHeight)
 	{
 		u32 oldBotFlags = botDriver->botData.botFlags; // uVar8
-		botDriver->botData.botFlags &= 0xffffffdf;
+		botDriver->botData.botFlags &= ~BOT_FLAG_MOON_GRAVITY;
 
 		if ((navFrameCurr->flags & BOTS_NAV_FLAG_KILLPLANE) == 0)
 		{
@@ -1933,7 +1929,7 @@ give_this_label_a_better_name2:
 							}
 						}
 						int flags;
-						if ((botDriver->actionsFlagSet & 0x10000) == 0)
+						if ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) == 0)
 						{
 							flags = CTR_MipsSll(volume, 0x10) | 0x8080;
 						}
@@ -1982,35 +1978,35 @@ give_this_label_a_better_name2:
 						VehFire_Increment(botDriver, 0x2d0, 2, deltaPosThisFrame);
 					}
 
-					botDriver->actionsFlagSet |= 2;
+					botDriver->actionsFlagSet |= ACTION_STARTED_TOUCH_GROUND;
 				}
 				deltaPosThisFrame = CTR_MipsSubLo(botDriver->quadBlockHeight, botDriver->posPrev.y);
 
 				botDriver->botData.ai_posBackup[1] = botDriver->quadBlockHeight;
 
-				botDriver->botData.unk5bc.ai_speedY = deltaPosThisFrame;
+				botDriver->botData.aiPhysics.speedY = deltaPosThisFrame;
 
-				if ((navFrameFlags & 0x400) != 0 || (botDriver->instTntRecv != NULL))
+				if ((navFrameFlags & BOTS_NAV_FLAG_JUMP) != 0 || (botDriver->instTntRecv != NULL))
 				{
 					int oldActionsFlags = botDriver->actionsFlagSet;
 
-					botDriver->actionsFlagSet |= 0x400;
+					botDriver->actionsFlagSet |= ACTION_JUMP_STARTED;
 
-					botDriver->botData.unk5bc.ai_speedY = CTR_MipsAddLo(deltaPosThisFrame, 0x1400);
+					botDriver->botData.aiPhysics.speedY = CTR_MipsAddLo(deltaPosThisFrame, 0x1400);
 
 					if (botThread->modelIndex == DYNAMIC_PLAYER)
 					{
 						OtherFX_Play_Echo(8, 1, ((u32)oldActionsFlags >> 0x10) & 1);
 					}
 				}
-				if (16000 < botDriver->botData.unk5bc.ai_speedY)
+				if (16000 < botDriver->botData.aiPhysics.speedY)
 				{
-					botDriver->botData.unk5bc.ai_speedY = 16000;
+					botDriver->botData.aiPhysics.speedY = 16000;
 				}
 
-				if ((navFrameFlags & 0x1800) == 0)
+				if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) == 0)
 				{
-					botDriver->botData.unk5bc.ai_driftTarget = 0;
+					botDriver->botData.aiPhysics.driftTarget = 0;
 
 					botDriver->kartState = KS_NORMAL;
 				}
@@ -2018,13 +2014,13 @@ give_this_label_a_better_name2:
 				{
 					botDriver->kartState = KS_DRIFTING;
 
-					if ((navFrameFlags & 0x800) == 0)
+					if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_LEFT) == 0)
 					{
-						botDriver->botData.unk5bc.ai_driftTarget = 0x2aa;
+						botDriver->botData.aiPhysics.driftTarget = 0x2aa;
 					}
 					else
 					{
-						botDriver->botData.unk5bc.ai_driftTarget = -0x2aa;
+						botDriver->botData.aiPhysics.driftTarget = -0x2aa;
 					}
 				}
 			}
@@ -2049,13 +2045,13 @@ give_this_label_a_better_name2:
 						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(deltaPosThisFrame, navFrameCurr->distToNextNavXYZ), iVar3), 8);
 					}
 				}
-				deltaPosThisFrame = CTR_MipsSra(CTR_MipsNegLo(botDriver->botData.unk5bc.ai_speedY), 1);
+				deltaPosThisFrame = CTR_MipsSra(CTR_MipsNegLo(botDriver->botData.aiPhysics.speedY), 1);
 
-				botDriver->botData.unk5bc.ai_speedY = deltaPosThisFrame;
+				botDriver->botData.aiPhysics.speedY = deltaPosThisFrame;
 
 				if (deltaPosThisFrame < 0)
 				{
-					botDriver->botData.unk5bc.ai_speedY = CTR_MipsNegLo(deltaPosThisFrame);
+					botDriver->botData.aiPhysics.speedY = CTR_MipsNegLo(deltaPosThisFrame);
 				}
 
 				u8 bVar10 = (u8)CTR_MipsAddLo(botDriver->botData.blastBounceCount, 1);
@@ -2063,15 +2059,15 @@ give_this_label_a_better_name2:
 
 				if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_SPIN)
 				{
-					botDriver->actionsFlagSet |= 0x1800;
+					botDriver->actionsFlagSet |= ACTION_BACK_SKID | ACTION_FRONT_SKID;
 				}
 				else
 				{
 					if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_BLAST && (2 < bVar10))
 					{
 						botDriver->botData.ai_progress_cooldown = 10;
-						botDriver->botData.unk5bc.ai_speedLinear = 0;
-						botDriver->botData.botFlags &= 0xfffffff9;
+						botDriver->botData.aiPhysics.speedLinear = 0;
+						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
 					}
 				}
 
@@ -2108,40 +2104,40 @@ give_this_label_a_better_name2:
 		}
 
 		botDriver->actionsFlagSet &= ~ACTION_TOUCH_GROUND;
-		botDriver->actionsFlagSet |= 0x80000;
+		botDriver->actionsFlagSet |= ACTION_AIRBORNE;
 
 		botDriver->jump_LandingBoost = (s16)CTR_MipsAddLo((u16)botDriver->jump_LandingBoost, elapsedMilliseconds);
 	}
 
 	int iVar4_lifetime_3 = 0x18;
 
-	if (botDriver->botData.unk5bc.ai_driftTarget != 0)
+	if (botDriver->botData.aiPhysics.driftTarget != 0)
 	{
 		iVar4_lifetime_3 = 0x60;
 	}
 
-	s16 iVar3_lifetime_2 = (s16)CTR_MipsSubLo((u16)botDriver->botData.unk5bc.ai_mulDrift, iVar4_lifetime_3);
-	if (botDriver->botData.unk5bc.ai_driftTarget < botDriver->botData.unk5bc.ai_mulDrift)
+	s16 iVar3_lifetime_2 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
+	if (botDriver->botData.aiPhysics.driftTarget < botDriver->botData.aiPhysics.mulDrift)
 	{
-		botDriver->botData.unk5bc.ai_mulDrift = iVar3_lifetime_2;
+		botDriver->botData.aiPhysics.mulDrift = iVar3_lifetime_2;
 
-		if (iVar3_lifetime_2 < botDriver->botData.unk5bc.ai_driftTarget)
+		if (iVar3_lifetime_2 < botDriver->botData.aiPhysics.driftTarget)
 		{
-			botDriver->botData.unk5bc.ai_mulDrift = botDriver->botData.unk5bc.ai_driftTarget;
+			botDriver->botData.aiPhysics.mulDrift = botDriver->botData.aiPhysics.driftTarget;
 		}
 	}
 	else
 	{
-		iVar4_lifetime_3 = (s16)CTR_MipsAddLo((u16)botDriver->botData.unk5bc.ai_mulDrift, iVar4_lifetime_3);
+		iVar4_lifetime_3 = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
 
-		botDriver->botData.unk5bc.ai_mulDrift = iVar4_lifetime_3;
+		botDriver->botData.aiPhysics.mulDrift = iVar4_lifetime_3;
 
-		if (botDriver->botData.unk5bc.ai_driftTarget < iVar4_lifetime_3)
+		if (botDriver->botData.aiPhysics.driftTarget < iVar4_lifetime_3)
 		{
-			botDriver->botData.unk5bc.ai_mulDrift = botDriver->botData.unk5bc.ai_driftTarget;
+			botDriver->botData.aiPhysics.mulDrift = botDriver->botData.aiPhysics.driftTarget;
 		}
 	}
-	botDriver->multDrift = botDriver->botData.unk5bc.ai_mulDrift;
+	botDriver->multDrift = botDriver->botData.aiPhysics.mulDrift;
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
 	{
@@ -2149,7 +2145,7 @@ give_this_label_a_better_name2:
 		short sVar7 = botDriver->botData.aiDamageState;
 		if (sVar7 == BOTS_DAMAGE_STATE_BLAST)
 		{
-			botDriver->botData.unk5bc.rotXZ = (s16)CTR_MipsSubLo((u16)botDriver->botData.unk5bc.rotXZ, 1);
+			botDriver->botData.aiPhysics.rotXZ = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, 1);
 		}
 		else
 		{
@@ -2157,16 +2153,16 @@ give_this_label_a_better_name2:
 			{
 				if (sVar7 == BOTS_DAMAGE_STATE_SPIN)
 				{
-					u16 squishCooldownMaybe = (u16)botDriver->botData.unk5bc.ai_squishCooldown;
-					int alsoSquishCooldownMaybe = CTR_MipsSubLo(botDriver->botData.unk5bc.ai_squishCooldown, 0xc);
-					botDriver->botData.unk5bc.ai_squishCooldown = alsoSquishCooldownMaybe;
-					botDriver->botData.unk5bc.ai_mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.unk5bc.ai_mulDrift, squishCooldownMaybe);
+					u16 squishCooldownMaybe = (u16)botDriver->botData.aiPhysics.squishCooldown;
+					int alsoSquishCooldownMaybe = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
+					botDriver->botData.aiPhysics.squishCooldown = alsoSquishCooldownMaybe;
+					botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, squishCooldownMaybe);
 					if (alsoSquishCooldownMaybe < 0x100)
 					{
-						botDriver->botData.unk5bc.ai_squishCooldown = 0;
-						botDriver->botData.unk5bc.ai_mulDrift = 0;
-						botDriver->botData.unk5bc.ai_speedLinear = 0;
-						botDriver->botData.botFlags &= 0xfffffff9;
+						botDriver->botData.aiPhysics.squishCooldown = 0;
+						botDriver->botData.aiPhysics.mulDrift = 0;
+						botDriver->botData.aiPhysics.speedLinear = 0;
+						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
 					}
 					newKartState = 3;
 					botDriver->kartState = newKartState;
@@ -2176,22 +2172,22 @@ give_this_label_a_better_name2:
 			{
 				if (sVar7 == BOTS_DAMAGE_STATE_SQUISH)
 				{
-					u16 sVar7 = (u16)botDriver->botData.unk5bc.ai_squishCooldown;
-					int iVar4 = CTR_MipsSubLo(botDriver->botData.unk5bc.ai_squishCooldown, 0xc);
-					botDriver->botData.unk5bc.ai_squishCooldown = iVar4;
-					botDriver->botData.unk5bc.ai_mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.unk5bc.ai_mulDrift, sVar7);
+					u16 sVar7 = (u16)botDriver->botData.aiPhysics.squishCooldown;
+					int iVar4 = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
+					botDriver->botData.aiPhysics.squishCooldown = iVar4;
+					botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, sVar7);
 					if (iVar4 < 0x200)
 					{
-						botDriver->botData.unk5bc.ai_squishCooldown = 0;
-						botDriver->botData.unk5bc.ai_mulDrift = 0;
+						botDriver->botData.aiPhysics.squishCooldown = 0;
+						botDriver->botData.aiPhysics.mulDrift = 0;
 					}
-					iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.unk5bc.rotXZ, elapsedMilliseconds);
-					botDriver->botData.unk5bc.rotXZ = iVar4;
+					iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
+					botDriver->botData.aiPhysics.rotXZ = iVar4;
 					if (iVar4 <= 0)
 					{
-						botDriver->botData.unk5bc.ai_speedY = 0x1400;
-						botDriver->botData.botFlags &= 0xfffffff9;
-						botDriver->actionsFlagSet |= 0x400;
+						botDriver->botData.aiPhysics.speedY = 0x1400;
+						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
+						botDriver->actionsFlagSet |= ACTION_JUMP_STARTED;
 					}
 				}
 				else
@@ -2202,7 +2198,7 @@ give_this_label_a_better_name2:
 
 						struct Instance *plantInst = plant->inst;
 
-						if (botDriver->botData.unk5bc.rotXZ < 0xb40)
+						if (botDriver->botData.aiPhysics.rotXZ < 0xb40)
 						{
 							SVECTOR v;
 							v.vx = 0xfa;
@@ -2241,13 +2237,13 @@ give_this_label_a_better_name2:
 							gGT->pushBuffer[botDriver->driverID].rot[2] = 0;
 						}
 
-						botDriver->botData.unk5bc.ai_speedLinear = 0;
-						int iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.unk5bc.rotXZ, elapsedMilliseconds);
-						botDriver->botData.unk5bc.rotXZ = iVar4;
+						botDriver->botData.aiPhysics.speedLinear = 0;
+						int iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
+						botDriver->botData.aiPhysics.rotXZ = iVar4;
 						newKartState = 5;
 						if (iVar4 < 1)
 						{
-							botDriver->botData.botFlags &= 0xfffffff9;
+							botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
 							botInstance->flags &= 0xffffff7f;
 							botDriver->botData.ai_progress_cooldown = 1;
 							BOTS_MaskGrab(botThread);
@@ -2260,35 +2256,35 @@ give_this_label_a_better_name2:
 		}
 	}
 
-	if (botDriver->forcedJump_trampoline != 0)
+	if (botDriver->forcedJumpType != FORCED_JUMP_NONE)
 	{
 		int turtleJumpForce = CTR_MipsAddLo(CTR_MipsSll(botDriver->const_JumpForce, 1), botDriver->const_JumpForce); // iVar4
 
-		if (botDriver->forcedJump_trampoline != 2)
+		if (botDriver->forcedJumpType != FORCED_JUMP_HIGH)
 		{
 			turtleJumpForce = CTR_MipsDiv(turtleJumpForce, 2);
 		}
 
-		if (botDriver->botData.unk5bc.ai_speedY < turtleJumpForce)
+		if (botDriver->botData.aiPhysics.speedY < turtleJumpForce)
 		{
-			botDriver->botData.unk5bc.ai_speedY = turtleJumpForce;
+			botDriver->botData.aiPhysics.speedY = turtleJumpForce;
 		}
 
-		botDriver->forcedJump_trampoline = 0;
+		botDriver->forcedJumpType = FORCED_JUMP_NONE;
 	}
 
 	if (((navFrameSpecialBits & BOTS_NAV_SPECIAL_RAMP_PHYS) != 0) &&
-	    ((0x1c1f < botDriver->botData.unk5bc.ai_speedLinear) || (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)))
+	    ((0x1c1f < botDriver->botData.aiPhysics.speedLinear) || (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)))
 	{
 		int iVar4 = (local_3c & BOTS_NAV_SPECIAL_INDEX_MASK);
-		botDriver->botData.unk5bc.ai_speedY = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys2[iVar4];
-		botDriver->botData.unk5bc.ai_speedLinear = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys1[iVar4];
+		botDriver->botData.aiPhysics.speedY = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys2[iVar4];
+		botDriver->botData.aiPhysics.speedLinear = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys1[iVar4];
 
 		if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
 		{
-			botDriver->botData.unk5bc.ai_squishCooldown = 0;
-			botDriver->botData.unk5bc.ai_mulDrift = 0;
-			botDriver->botData.botFlags &= 0xfffffff9;
+			botDriver->botData.aiPhysics.squishCooldown = 0;
+			botDriver->botData.aiPhysics.mulDrift = 0;
+			botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
 		}
 	}
 
@@ -2354,32 +2350,32 @@ give_this_label_a_better_name2:
 		botDriver->turnAngleCurr = other_uVar8;
 
 		s16 sVar7;
-		if (botDriver->botData.unk5bc.ai_driftTarget == 0)
+		if (botDriver->botData.aiPhysics.driftTarget == 0)
 		{
 			other_uVar8 &= 0xfff;
 			sVar7 = other_uVar8;
-			botDriver->botData.unk5bc.ai_simpTurnState = sVar7;
+			botDriver->botData.aiPhysics.simpTurnState = sVar7;
 			if (0x7ff < other_uVar8)
 			{
-				botDriver->botData.unk5bc.ai_simpTurnState = (s16)CTR_MipsSubLo(sVar7, 0x1000);
+				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(sVar7, 0x1000);
 			}
-			sVar7 = (s16)CTR_MipsSra(botDriver->botData.unk5bc.ai_simpTurnState, 2);
+			sVar7 = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 2);
 		}
 		else
 		{
-			int uVar11 = CTR_MipsNegLo((u16)botDriver->botData.unk5bc.ai_mulDrift) & 0xfff;
+			int uVar11 = CTR_MipsNegLo((u16)botDriver->botData.aiPhysics.mulDrift) & 0xfff;
 
-			botDriver->botData.unk5bc.ai_simpTurnState = uVar11;
+			botDriver->botData.aiPhysics.simpTurnState = uVar11;
 			if (0x7ff < uVar11)
 			{
-				botDriver->botData.unk5bc.ai_simpTurnState = (s16)CTR_MipsSubLo(uVar11, 0x1000);
+				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(uVar11, 0x1000);
 			}
 
-			sVar7 = (s16)CTR_MipsSra(botDriver->botData.unk5bc.ai_simpTurnState, 3);
+			sVar7 = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 3);
 		}
-		botDriver->botData.unk5bc.ai_simpTurnState = sVar7;
+		botDriver->botData.aiPhysics.simpTurnState = sVar7;
 
-		other_uVar8 = CTR_MipsSubLo(botDriver->botData.unk5bc.ai_simpTurnState, botDriver->wheelRotation) & 0xfff;
+		other_uVar8 = CTR_MipsSubLo(botDriver->botData.aiPhysics.simpTurnState, botDriver->wheelRotation) & 0xfff;
 		bool other_bVar1 = other_uVar8 < 0x21;
 
 		if (0x7ff < other_uVar8)
@@ -2401,7 +2397,7 @@ give_this_label_a_better_name2:
 		}
 
 		botDriver->wheelRotation = (s16)CTR_MipsAddLo((u16)botDriver->wheelRotation, sVar7);
-		botDriver->simpTurnState = (s8)(u8)botDriver->botData.unk5bc.ai_simpTurnState;
+		botDriver->simpTurnState = (s8)(u8)botDriver->botData.aiPhysics.simpTurnState;
 	}
 
 	botDriver->rotCurr.x = botDriver->botData.ai_rot4[0];
@@ -2438,14 +2434,14 @@ give_this_label_a_better_name2:
 		gte_ldv0(&wiggle);
 		gte_mvmva(1, 0, 0, 3, 0);
 
-		botDriver->botData.unk5bc.ai_turboMeter = 0;
+		botDriver->botData.aiPhysics.turboMeter = 0;
 
 		botDriver->rotCurr.x = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.x, (s16)MFC2(25));
 		botDriver->rotCurr.y = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.y, (s16)MFC2(26));
 		botDriver->rotCurr.z = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.z, (s16)MFC2(27));
 	}
 
-	if ((botDriver->botData.botFlags & 9) == 0)
+	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) == 0)
 	{
 		s16 rot[3];
 		rot[0] = (s16)CTR_MipsSll(navFrameCurr->rot[0], 4);
@@ -2471,38 +2467,38 @@ give_this_label_a_better_name2:
 
 	botDriver->angle = botDriver->rotCurr.y;
 
-	botDriver->speedApprox = botDriver->botData.unk5bc.ai_speedLinear;
+	botDriver->speedApprox = botDriver->botData.aiPhysics.speedLinear;
 
-	botDriver->speed = botDriver->botData.unk5bc.ai_speedLinear;
+	botDriver->speed = botDriver->botData.aiPhysics.speedLinear;
 	botDriver->jumpHeightPrev = botDriver->jumpHeightCurr;
 	botDriver->axisRotationX = botDriver->botData.ai_rot4[1] & 0xfff;
 
 	int iVar4_lifetime_2 = MATH_Cos(navFrameCurr->rot[3]);
 
-	botDriver->jumpHeightCurr = (s16)CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedY, iVar4_lifetime_2), 0xc);
+	botDriver->jumpHeightCurr = (s16)CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, iVar4_lifetime_2), 0xc);
 
 	iVar4_lifetime_2 = MATH_Cos(botDriver->axisRotationX);
 
-	botDriver->zSpeed = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedLinear, iVar4_lifetime_2), 0xc);
+	botDriver->zSpeed = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, iVar4_lifetime_2), 0xc);
 
 	iVar4_lifetime_2 = MATH_Sin(botDriver->axisRotationX);
 
 	int uVar11 = botDriver->rotCurr.z & 0xfff;
 
-	botDriver->ySpeed = botDriver->botData.unk5bc.ai_speedY;
+	botDriver->ySpeed = botDriver->botData.aiPhysics.speedY;
 	botDriver->rotCurr.z = uVar11;
 
-	botDriver->xSpeed = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.unk5bc.ai_speedLinear, iVar4_lifetime_2), 0xc);
+	botDriver->xSpeed = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, iVar4_lifetime_2), 0xc);
 	if (0x7ff < uVar11)
 	{
 		botDriver->rotCurr.z = (s16)CTR_MipsSubLo(uVar11, 0x1000);
 	}
 	botDriver->rotCurr.y =
-	    (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.y, CTR_MipsAddLo((u16)botDriver->botData.unk5bc.ai_mulDrift, (u16)botDriver->turnAngleCurr));
+	    (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.y, CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, (u16)botDriver->turnAngleCurr));
 
-	botDriver->posCurr.x = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[0], botDriver->botData.ai_posBackup[0]);
-	botDriver->posCurr.y = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[1], botDriver->botData.ai_posBackup[1]);
-	botDriver->posCurr.z = CTR_MipsAddLo(botDriver->botData.unk5bc.ai_velAxis[2], botDriver->botData.ai_posBackup[2]);
+	botDriver->posCurr.x = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[0], botDriver->botData.ai_posBackup[0]);
+	botDriver->posCurr.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[1], botDriver->botData.ai_posBackup[1]);
+	botDriver->posCurr.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velAxis[2], botDriver->botData.ai_posBackup[2]);
 
 	botInstance->matrix.t[0] = CTR_MipsSra(botDriver->posCurr.x, 8);
 	botInstance->matrix.t[1] = CTR_MipsAddLo(CTR_MipsSra(botDriver->posCurr.y, 8), botDriver->Screen_OffsetY);
@@ -2527,7 +2523,7 @@ give_this_label_a_better_name2:
 			{
 				botDriver->hazardTimer = -2;
 			}
-			goto LAB_8001686c;
+			goto FinishHazardTimerUpdate;
 		}
 	}
 
@@ -2541,14 +2537,14 @@ give_this_label_a_better_name2:
 
 		if (iVar4 < 0x101)
 		{
-			goto LAB_800167fc;
+			goto CheckExistingHazardTimer;
 		}
 
 		if (badnessRecieveTimer < 0)
 		{
 			badnessRecieveTimer = CTR_MipsNegLo(badnessRecieveTimer);
 		}
-	LAB_8001680c:
+	StoreNegativeHazardTimer:
 		botDriver->hazardTimer = (s16)CTR_MipsNegLo(badnessRecieveTimer);
 	}
 	else
@@ -2562,11 +2558,11 @@ give_this_label_a_better_name2:
 
 		if (iVar4 < 0x101)
 		{
-		LAB_800167fc:
+		CheckExistingHazardTimer:
 			badnessRecieveTimer = botDriver->hazardTimer;
 			if (0 < badnessRecieveTimer)
 			{
-				goto LAB_8001680c;
+				goto StoreNegativeHazardTimer;
 			}
 		}
 		else
@@ -2581,9 +2577,10 @@ give_this_label_a_better_name2:
 
 	botDriver->hazardTimer = (s16)((u16)botDriver->hazardTimer | 1); // increment it by 1 if even.
 
-LAB_8001686c:
+FinishHazardTimerUpdate:
 
-	if (((navFrameSpecialBits & BOTS_NAV_SPECIAL_LEVEL_INST_COLL) != 0) || ((botDriver->botData.botFlags & 9) != 0))
+	if (((navFrameSpecialBits & BOTS_NAV_SPECIAL_LEVEL_INST_COLL) != 0) ||
+	    ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) != 0))
 	{
 		BOTS_LevInstColl(botThread);
 	}
@@ -2602,9 +2599,9 @@ LAB_8001686c:
 	if (((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0) && (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_BLAST))
 	{
 		s16 rot[3];
-		rot[0] = (s16)CTR_MipsSll(botDriver->botData.unk5bc.rotXZ, 8);
+		rot[0] = (s16)CTR_MipsSll(botDriver->botData.aiPhysics.rotXZ, 8);
 		rot[2] = 0;
-		rot[1] = (s16)CTR_MipsMulLo(botDriver->botData.unk5bc.rotXZ, 0xe0);
+		rot[1] = (s16)CTR_MipsMulLo(botDriver->botData.aiPhysics.rotXZ, 0xe0);
 
 		ConvertRotToMatrix(&sdata->rotXZ, &rot[0]);
 
@@ -2615,7 +2612,7 @@ LAB_8001686c:
 		botInstance->matrix.t[1] = CTR_MipsAddLo(botInstance->matrix.t[1], 0x20);
 	}
 
-	if ((botDriver->botData.botFlags & 4) == 0)
+	if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_SUPPRESS_EMITTER) == 0)
 	{
 		VehEmitter_DriverMain(botThread, botDriver);
 	}
@@ -2639,16 +2636,19 @@ LAB_8001686c:
 
 	if (botThread->modelIndex == DYNAMIC_PLAYER)
 	{
-		SVec3 probeTop;
-		SVec3 probeBottom;
-
-		probeTop.x = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[0], botDriver->botData.unk5bc.ai_velAxis[0]), 8);
-		probeBottom.y = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], botDriver->botData.unk5bc.ai_velAxis[1]), 8);
-		probeTop.y = (s16)CTR_MipsSubLo(probeBottom.y, 0x100);
-		probeBottom.y = (s16)CTR_MipsAddLo(probeBottom.y, 0x40);
-		probeTop.z = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[2], botDriver->botData.unk5bc.ai_velAxis[2]), 8);
-		probeBottom.x = probeTop.x;
-		probeBottom.z = probeTop.z;
+		s16 probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[0], botDriver->botData.aiPhysics.velAxis[0]), 8);
+		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[1], botDriver->botData.aiPhysics.velAxis[1]), 8);
+		s16 probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.ai_posBackup[2], botDriver->botData.aiPhysics.velAxis[2]), 8);
+		SVec3 probeTop = {
+		    .x = probeX,
+		    .y = (s16)CTR_MipsSubLo(probeY, 0x100),
+		    .z = probeZ,
+		};
+		SVec3 probeBottom = {
+		    .x = probeX,
+		    .y = (s16)CTR_MipsAddLo(probeY, 0x40),
+		    .z = probeZ,
+		};
 
 		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
@@ -2689,29 +2689,29 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
 		{
 			driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_SPIN;
-			driverVictim->botData.unk5bc.ai_turboMeter = 0;
+			driverVictim->botData.aiPhysics.turboMeter = 0;
 
 			if ((data.characterIDs[driverVictim->driverID] != NITROS_OXIDE) || ((driverVictim->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
 			{
 				driverVictim->reserves = 0;
 				driverVictim->turbo_outsideTimer = 0;
-				driverVictim->botData.unk5bc.unk5cc = 0;
+				driverVictim->botData.aiPhysics.unk5cc = 0;
 
 				int newSpeed;
 
 				if (data.characterIDs[driverVictim->driverID] == NITROS_OXIDE)
 				{
-					newSpeed = CTR_MipsSra(driverVictim->botData.unk5bc.ai_speedLinear, 1);
+					newSpeed = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 1);
 				}
 				else
 				{
-					newSpeed = CTR_MipsSra(driverVictim->botData.unk5bc.ai_speedLinear, 2);
+					newSpeed = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 2);
 				}
 
-				driverVictim->botData.unk5bc.ai_speedLinear = newSpeed;
+				driverVictim->botData.aiPhysics.speedLinear = newSpeed;
 			}
 
-			driverVictim->botData.unk5bc.ai_squishCooldown = 0x300;
+			driverVictim->botData.aiPhysics.squishCooldown = 0x300;
 			driverVictim->botData.ai_progress_cooldown = 0;
 
 			driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE;
@@ -2729,16 +2729,16 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 		break;
 	case 2:
 		driverVictim->botData.blastBounceCount = 0;
-		driverVictim->botData.unk5bc.ai_turboMeter = 0;
+		driverVictim->botData.aiPhysics.turboMeter = 0;
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_BLAST;
 		driverVictim->reserves = 0;
 		driverVictim->turbo_outsideTimer = 0;
-		driverVictim->botData.unk5bc.unk5cc = 0;
-		driverVictim->botData.unk5bc.ai_speedY = sdata->AI_VelY_WhenBlasted_0x3000;
+		driverVictim->botData.aiPhysics.unk5cc = 0;
+		driverVictim->botData.aiPhysics.speedY = sdata->AI_VelY_WhenBlasted_0x3000;
 
 		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
 		{
-			driverVictim->botData.unk5bc.ai_speedLinear = CTR_MipsSra(driverVictim->botData.unk5bc.ai_speedLinear, 3);
+			driverVictim->botData.aiPhysics.speedLinear = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 3);
 			driverVictim->botData.ai_posBackup[1] = CTR_MipsAddLo(driverVictim->botData.ai_posBackup[1], 0x4000);
 		}
 
@@ -2757,36 +2757,36 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 		}
 		break;
 	case 3:
-		driverVictim->botData.unk5bc.ai_turboMeter = 0;
+		driverVictim->botData.aiPhysics.turboMeter = 0;
 
-		if (driverVictim->instSelf->thread->modelIndex == DYNAMIC_PLAYER && driverVictim->botData.unk5bc.ai_squishCooldown == 0)
+		if (driverVictim->instSelf->thread->modelIndex == DYNAMIC_PLAYER && driverVictim->botData.aiPhysics.squishCooldown == 0)
 		{
 			OtherFX_Play(0x5a, 1);
 		}
 
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_SQUISH;
-		driverVictim->botData.unk5bc.ai_squishCooldown = 0x300;
-		driverVictim->botData.unk5bc.rotXZ = 0xf00;
+		driverVictim->botData.aiPhysics.squishCooldown = 0x300;
+		driverVictim->botData.aiPhysics.rotXZ = 0xf00;
 		driverVictim->squishTimer = 0xf00;
 		driverVictim->reserves = 0;
 		driverVictim->turbo_outsideTimer = 0;
-		driverVictim->botData.unk5bc.unk5cc = 0;
-		driverVictim->botData.unk5bc.ai_speedY = 0;
+		driverVictim->botData.aiPhysics.unk5cc = 0;
+		driverVictim->botData.aiPhysics.speedY = 0;
 		driverVictim->botData.ai_progress_cooldown = 0;
-		driverVictim->botData.unk5bc.ai_speedLinear = CTR_MipsSra(driverVictim->botData.unk5bc.ai_speedLinear, 1);
-		driverVictim->botData.botFlags |= 6;
+		driverVictim->botData.aiPhysics.speedLinear = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 1);
+		driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
 		break;
 	case 5:
-		driverVictim->botData.unk5bc.ai_turboMeter = 0;
-		driverVictim->botData.unk5bc.ai_speedLinear = 0;
-		driverVictim->botData.unk5bc.ai_speedY = 0;
-		driverVictim->botData.unk5bc.unk5cc = 0;
+		driverVictim->botData.aiPhysics.turboMeter = 0;
+		driverVictim->botData.aiPhysics.speedLinear = 0;
+		driverVictim->botData.aiPhysics.speedY = 0;
+		driverVictim->botData.aiPhysics.unk5cc = 0;
 		driverVictim->instSelf->flags |= 0x80;
-		driverVictim->botData.unk5bc.rotXZ = 0xd20;
+		driverVictim->botData.aiPhysics.rotXZ = 0xd20;
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_MASK_GRAB;
 		driverVictim->kartState = KS_MASK_GRABBED;
-		driverVictim->botData.botFlags |= 6;
-		driverVictim->instSelf->thread->flags |= 0x1000;
+		driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
+		driverVictim->instSelf->thread->flags |= THREAD_FLAG_DISABLE_COLLISION;
 		break;
 	default:
 		driverVictim->botData.ai_progress_cooldown = 0x3c;
@@ -2879,35 +2879,35 @@ void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2)
 
 	if (res1 < res2)
 	{
-		int speed = CTR_MipsSubLo(robot_2->botData.unk5bc.ai_speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
+		int speed = CTR_MipsSubLo(robot_2->botData.aiPhysics.speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
 		speed = ((speed < 0) ? 0 : speed); // clamp to 0
 
-		robot_1->botData.unk5bc.ai_speedLinear = speed;
+		robot_1->botData.aiPhysics.speedLinear = speed;
 	}
 	else
 	{
-		int speed = CTR_MipsSubLo(robot_1->botData.unk5bc.ai_speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
+		int speed = CTR_MipsSubLo(robot_1->botData.aiPhysics.speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
 		speed = ((speed < 0) ? 0 : speed); // clamp to 0
 
-		robot_2->botData.unk5bc.ai_speedLinear = speed;
+		robot_2->botData.aiPhysics.speedLinear = speed;
 	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8001702c-0x80017164.
 void BOTS_GotoStartingLine(struct Driver *d)
 {
-	sdata->unk_counter_upTo450 = 0;
+	sdata->aiCollisionDelayFrameCount = 0;
 
 	VehBirth_TeleportSelf(d, 3, 0);
 
 	// get position where driver should spawn
 	u8 spawnPos = sdata->kartSpawnOrderArray[d->driverID];
 
-	d->botData.unk5bc.unk5cc = 0;
-	d->botData.unk5bc.ai_speedY = 0;
-	d->botData.unk5bc.ai_speedLinear = 0;
-	CTR_SET_VEC3(d->botData.unk5bc.ai_accelAxis, 0, 0, 0);
-	CTR_SET_VEC3(d->botData.unk5bc.ai_velAxis, 0, 0, 0);
+	d->botData.aiPhysics.unk5cc = 0;
+	d->botData.aiPhysics.speedY = 0;
+	d->botData.aiPhysics.speedLinear = 0;
+	CTR_SET_VEC3(d->botData.aiPhysics.accelAxis, 0, 0, 0);
+	CTR_SET_VEC3(d->botData.aiPhysics.velAxis, 0, 0, 0);
 
 	d->botData.ai_posBackup[0] = d->posCurr.x;
 	d->botData.ai_posBackup[1] = d->posCurr.y;
@@ -3035,7 +3035,7 @@ void BOTS_Driver_Convert(struct Driver *d)
 
 	memset(&d->botData, 0, sizeof(struct BotData));
 
-	d->botData.unk5bc.ai_speedY = d->ySpeed;
+	d->botData.aiPhysics.speedY = d->ySpeed;
 
 	s32 speedApprox = d->speedApprox;
 
@@ -3043,7 +3043,7 @@ void BOTS_Driver_Convert(struct Driver *d)
 
 	speedApprox = ((speedApprox < 0) ? CTR_MipsNegLo(speedApprox) : speedApprox);
 
-	d->botData.unk5bc.ai_speedLinear = speedApprox;
+	d->botData.aiPhysics.speedLinear = speedApprox;
 
 	struct NavFrame *firstNavFrame = sdata->NavPath_ptrNavFrameArray[navPathIndex];
 
@@ -3073,7 +3073,7 @@ void BOTS_Driver_Convert(struct Driver *d)
 
 	u32 oldActionFlagsSet = d->actionsFlagSet;
 
-	d->actionsFlagSet = (oldActionFlagsSet & 0xfffffff3) | ACTION_BOT;
+	d->actionsFlagSet = (oldActionFlagsSet & ~(ACTION_JUMP_BUTTON_HELD | ACTION_ACCEL_PREVENTION)) | ACTION_BOT;
 
 	if ((oldActionFlagsSet & ACTION_RACE_FINISHED) != 0)
 	{

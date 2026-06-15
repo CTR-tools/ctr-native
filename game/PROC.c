@@ -278,9 +278,9 @@ void PROC_CollidePointWithSelf(struct Thread *th, struct BucketSearchParams *buf
 	// it will not compile to less assembly,
 	// 180 bytes is as low as this will go
 
-	distX = (int)buf->pos[0] - (int)inst->matrix.t[0];
-	distY = (int)buf->pos[1] - (int)inst->matrix.t[1];
-	distZ = (int)buf->pos[2] - (int)inst->matrix.t[2];
+	distX = (int)buf->pos.x - (int)inst->matrix.t[0];
+	distY = (int)buf->pos.y - (int)inst->matrix.t[1];
+	distZ = (int)buf->pos.z - (int)inst->matrix.t[2];
 
 	if (distX * distX >= 0x10000000)
 		return;
@@ -292,18 +292,16 @@ void PROC_CollidePointWithSelf(struct Thread *th, struct BucketSearchParams *buf
 	dist = distX * distX + distY * distY + distZ * distZ;
 
 	// if outside hit radius
-	if (dist >= buf->radius)
+	if (dist >= buf->bestDistSq)
 		return;
 
 	// return distance to center
-	buf->radius = dist;
+	buf->bestDistSq = dist;
 
 	// save the thread collided with
 	buf->th = th;
 
-	buf->distX = (s16)distX;
-	buf->distY = (s16)distY;
-	buf->distZ = (s16)distZ;
+	CTR_SET_VEC3(buf->dist.v, (s16)distX, (s16)distY, (s16)distZ);
 }
 
 

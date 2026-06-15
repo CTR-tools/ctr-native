@@ -63,12 +63,12 @@ static int VehPhysCrash_BounceSelf_Div6Shift9(int value)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005cf64-0x8005d0d0.
-int VehPhysCrash_BounceSelf(s16 *normal, Vec3 *origin, Vec3 *vel, int boolOtherDriver)
+int VehPhysCrash_BounceSelf(const SVec3 *normal, const Vec3 *origin, Vec3 *vel, int boolOtherDriver)
 {
 	int diffX = CTR_MipsSubLo(vel->x, origin->x);
 	int diffY = CTR_MipsSubLo(vel->y, origin->y);
 	int diffZ = CTR_MipsSubLo(vel->z, origin->z);
-	int dot = CTR_MipsSra(CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsMulLo(diffX, normal[0]), CTR_MipsMulLo(diffY, normal[1])), CTR_MipsMulLo(diffZ, normal[2])), 0xc);
+	int dot = CTR_MipsSra(CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsMulLo(diffX, normal->x), CTR_MipsMulLo(diffY, normal->y)), CTR_MipsMulLo(diffZ, normal->z)), 0xc);
 
 	if (boolOtherDriver == 0)
 	{
@@ -93,9 +93,9 @@ int VehPhysCrash_BounceSelf(s16 *normal, Vec3 *origin, Vec3 *vel, int boolOtherD
 		sdata->unk_8008d9f4[0] = absDot;
 	}
 
-	diffX = CTR_MipsSubLo(diffX, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal[0])));
-	diffY = CTR_MipsSubLo(diffY, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal[1])));
-	diffZ = CTR_MipsSubLo(diffZ, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal[2])));
+	diffX = CTR_MipsSubLo(diffX, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal->x)));
+	diffY = CTR_MipsSubLo(diffY, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal->y)));
+	diffZ = CTR_MipsSubLo(diffZ, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal->z)));
 
 	vel->x = CTR_MipsAddLo(diffX, origin->x);
 
@@ -212,21 +212,21 @@ static void VehPhysCrash_WeightedVelocity(Vec3 *out, Vec3 *lhs, struct Driver *l
 	out->z = VehPhysCrash_WeightedAverage(lhs->z, lhsDriver->unk47C, rhs->z, rhsDriver->unk47C);
 }
 
-static void VehPhysCrash_AddImpulse(Vec3 *vel, s16 *hitDir, s32 strength)
+static void VehPhysCrash_AddImpulse(Vec3 *vel, const SVec3 *hitDir, s32 strength)
 {
-	vel->x = CTR_MipsAddLo(vel->x, CTR_MipsSra(CTR_MipsMulLo(hitDir[0], strength), 8));
-	vel->y = CTR_MipsAddLo(vel->y, CTR_MipsSra(CTR_MipsMulLo(hitDir[1], strength), 8));
-	vel->z = CTR_MipsAddLo(vel->z, CTR_MipsSra(CTR_MipsMulLo(hitDir[2], strength), 8));
+	vel->x = CTR_MipsAddLo(vel->x, CTR_MipsSra(CTR_MipsMulLo(hitDir->x, strength), 8));
+	vel->y = CTR_MipsAddLo(vel->y, CTR_MipsSra(CTR_MipsMulLo(hitDir->y, strength), 8));
+	vel->z = CTR_MipsAddLo(vel->z, CTR_MipsSra(CTR_MipsMulLo(hitDir->z, strength), 8));
 }
 
-static void VehPhysCrash_SubImpulse(Vec3 *vel, s16 *hitDir, s32 strength)
+static void VehPhysCrash_SubImpulse(Vec3 *vel, const SVec3 *hitDir, s32 strength)
 {
-	vel->x = CTR_MipsSubLo(vel->x, CTR_MipsSra(CTR_MipsMulLo(hitDir[0], strength), 8));
-	vel->y = CTR_MipsSubLo(vel->y, CTR_MipsSra(CTR_MipsMulLo(hitDir[1], strength), 8));
-	vel->z = CTR_MipsSubLo(vel->z, CTR_MipsSra(CTR_MipsMulLo(hitDir[2], strength), 8));
+	vel->x = CTR_MipsSubLo(vel->x, CTR_MipsSra(CTR_MipsMulLo(hitDir->x, strength), 8));
+	vel->y = CTR_MipsSubLo(vel->y, CTR_MipsSra(CTR_MipsMulLo(hitDir->y, strength), 8));
+	vel->z = CTR_MipsSubLo(vel->z, CTR_MipsSra(CTR_MipsMulLo(hitDir->z, strength), 8));
 }
 
-static void VehPhysCrash_BouncePair(s16 *hitDir, Vec3 *weightedVel, Vec3 *otherVel, Vec3 *selfVel)
+static void VehPhysCrash_BouncePair(const SVec3 *hitDir, const Vec3 *weightedVel, Vec3 *otherVel, Vec3 *selfVel)
 {
 	if (VehPhysCrash_BounceSelf(hitDir, weightedVel, otherVel, 1) < 0)
 	{
@@ -282,21 +282,18 @@ static void VehPhysCrash_PlayHumanFeedback(struct Thread *selfThread, struct Thr
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005d404-0x8005e104
 void VehPhysCrash_AnyTwoCars(struct Thread *thread, struct DriverCollisionSearch *search, Vec3 *selfVel)
 {
-	int distance = VehCalc_FastSqrt(search->bucket.radius, 0);
-	s16 *dist = &search->bucket.distX;
-	s16 *hitDir = &search->hitDir[0];
+	int distance = VehCalc_FastSqrt(search->bucket.bestDistSq, 0);
+	const SVec3 *dist = &search->bucket.dist;
+	SVec3 *hitDir = &search->hitDir;
 
 	if (distance == 0)
 	{
-		hitDir[0] = 0;
-		hitDir[1] = 0;
-		hitDir[2] = 0x1000;
+		CTR_SET_VEC3(hitDir->v, 0, 0, 0x1000);
 	}
 	else
 	{
-		hitDir[0] = (s16)CTR_MipsDiv(CTR_MipsSll(dist[0], 0xc), distance);
-		hitDir[1] = (s16)CTR_MipsDiv(CTR_MipsSll(dist[1], 0xc), distance);
-		hitDir[2] = (s16)CTR_MipsDiv(CTR_MipsSll(dist[2], 0xc), distance);
+		CTR_SET_VEC3(hitDir->v, (s16)CTR_MipsDiv(CTR_MipsSll(dist->x, 0xc), distance), (s16)CTR_MipsDiv(CTR_MipsSll(dist->y, 0xc), distance),
+		             (s16)CTR_MipsDiv(CTR_MipsSll(dist->z, 0xc), distance));
 	}
 
 	struct Thread *otherThread = search->bucket.th;

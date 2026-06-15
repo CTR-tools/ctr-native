@@ -145,29 +145,34 @@ struct Thread
 struct BucketSearchParams
 {
 	// 0x0
-	s16 pos[4];
+	SVec3 pos;
+	s16 padding_0x6;
 
 	// 0x8
 	struct Thread *th;
 
 	// 0xC
-	int radius; // actually probably (radius or diameter) squared
+	int bestDistSq;
 
 	// 0x10
-	s16 distX;
-	s16 distY;
-	s16 distZ;
-	s16 padding;
+	SVec3 dist;
+	s16 padding_0x16;
 };
 
 struct DriverCollisionSearch
 {
 	struct BucketSearchParams bucket;
-	s16 hitDir[4];
+	SVec3 hitDir;
+	s16 padding_0x1e;
 };
 
 _Static_assert(offsetof(struct DriverCollisionSearch, bucket) == 0);
 _Static_assert(offsetof(struct DriverCollisionSearch, hitDir) == sizeof(struct BucketSearchParams));
+_Static_assert(offsetof(struct BucketSearchParams, th) == 0x8);
+_Static_assert(offsetof(struct BucketSearchParams, bestDistSq) == 0xc);
+_Static_assert(offsetof(struct BucketSearchParams, dist) == 0x10);
+_Static_assert(sizeof(struct BucketSearchParams) == 0x18);
+_Static_assert(sizeof(struct DriverCollisionSearch) == 0x20);
 _Static_assert(THREAD_FLAG_DEAD == 0x0800);
 _Static_assert(THREAD_FLAG_DISABLE_COLLISION == 0x1000);
 
