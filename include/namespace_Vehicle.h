@@ -1108,12 +1108,10 @@ struct Driver
 	s16 rotationSpinRate; // again?
 
 	// 0x3B6
-	// both related to EngineSound
-	// 0x3b6 controls the ¿volume? of the Engine Sound*
-	// 0x3b8 controls the base pitch of the Engine Sound
-	// The final pitch calculation where these vars are used
-	// is also affected by something else I couldn't find
-	s16 fill_3B6[2];
+	s16 engineSoundVolumeState;
+
+	// 0x3B8
+	s16 engineSoundPitchState;
 
 	// 0x3BA
 	// in japanese VehFire_Increment
@@ -2028,6 +2026,8 @@ _Static_assert(offsetof(struct Driver, padding_0x37e) == 0x37e);
 _Static_assert(offsetof(struct Driver, failedBoostExhaustTimer) == 0x381);
 _Static_assert(offsetof(struct Driver, forwardAccelVector) == 0x3ac);
 _Static_assert(offsetof(struct Driver, forwardAccelImpulse) == 0x3b2);
+_Static_assert(offsetof(struct Driver, engineSoundVolumeState) == 0x3b6);
+_Static_assert(offsetof(struct Driver, engineSoundPitchState) == 0x3b8);
 _Static_assert(offsetof(struct Driver, tireColorCycleTimer) == 0x3bc);
 _Static_assert(offsetof(struct Driver, tireColorCycleStep) == 0x3be);
 _Static_assert(offsetof(struct Driver, accelTapWindowTimer) == 0x3c0);

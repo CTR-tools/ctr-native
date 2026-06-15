@@ -88,9 +88,9 @@ int VehPhysCrash_BounceSelf(const SVec3 *normal, const Vec3 *origin, Vec3 *vel, 
 		absDot = CTR_MipsNegLo(absDot);
 	}
 
-	if (sdata->unk_8008d9f4[0] < absDot)
+	if (sdata->vehicleCollisionImpactStrength < absDot)
 	{
-		sdata->unk_8008d9f4[0] = absDot;
+		sdata->vehicleCollisionImpactStrength = absDot;
 	}
 
 	diffX = CTR_MipsSubLo(diffX, VehPhysCrash_BounceSelf_Div6Shift9(CTR_MipsMulLo(dot, normal->x)));
@@ -114,16 +114,16 @@ int VehPhysCrash_BounceSelf(const SVec3 *normal, const Vec3 *origin, Vec3 *vel, 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005d0d0-0x8005d218.
 void VehPhysCrash_AI(struct Driver *bot, Vec3 *vel)
 {
-	sdata->unk_rot[0] = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[0], 4);
-	sdata->unk_rot[1] = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[1], 4);
-	sdata->unk_rot[2] = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[2], 4);
+	sdata->botCrashNavRot.x = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[0], 4);
+	sdata->botCrashNavRot.y = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[1], 4);
+	sdata->botCrashNavRot.z = (s16)CTR_MipsSll(bot->botData.botNavFrame->rot[2], 4);
 
 	// NOTE(aalhendi): Retail uses globals at 0x8009ae28 and 0x8009ae38.
 	// `dataLibFiller` covers that exact EXE data range in ctr-native.
 	int *forward = (int *)&sdata->dataLibFiller[0];
 	MATRIX *matrix = (MATRIX *)&sdata->dataLibFiller[0x10];
 
-	ConvertRotToMatrix(matrix, &sdata->unk_rot[0]);
+	ConvertRotToMatrix(matrix, &sdata->botCrashNavRot.v[0]);
 
 	forward[0] = CTR_MipsSra(matrix->m[0][2], 4);
 	forward[1] = CTR_MipsSra(matrix->m[1][2], 4);
@@ -185,7 +185,8 @@ int VehPhysCrash_Attack(struct Driver *driver1, struct Driver *driver2, int canP
 			}
 		}
 
-		if ((sdata->unk_8008d9f4[0] > 0xa00) && (driver2->reserves != 0) && ((driver2->actionsFlagSet & ACTION_TURBO_ITEM) != 0) && (driver1->reserves == 0))
+		if ((sdata->vehicleCollisionImpactStrength > 0xa00) && (driver2->reserves != 0) && ((driver2->actionsFlagSet & ACTION_TURBO_ITEM) != 0) &&
+		    (driver1->reserves == 0))
 		{
 			driver2->forcedJumpType = FORCED_JUMP_HIGH;
 
@@ -230,26 +231,26 @@ static void VehPhysCrash_BouncePair(const SVec3 *hitDir, const Vec3 *weightedVel
 {
 	if (VehPhysCrash_BounceSelf(hitDir, weightedVel, otherVel, 1) < 0)
 	{
-		sdata->unk_8008d9f4[0] = 0;
+		sdata->vehicleCollisionImpactStrength = 0;
 	}
 
 	if (VehPhysCrash_BounceSelf(hitDir, weightedVel, selfVel, 0) > 0)
 	{
-		sdata->unk_8008d9f4[0] = 0;
+		sdata->vehicleCollisionImpactStrength = 0;
 	}
 }
 
 static void VehPhysCrash_PlayHumanFeedback(struct Thread *selfThread, struct Thread *otherThread, struct Driver *selfDriver, struct Driver *otherDriver,
                                            u32 canPlayFeedback)
 {
-	if (sdata->unk_8008d9f4[0] <= 0x200)
+	if (sdata->vehicleCollisionImpactStrength <= 0x200)
 	{
 		return;
 	}
 
 	if ((selfThread->modelIndex == DYNAMIC_PLAYER) || (otherThread->modelIndex == DYNAMIC_PLAYER))
 	{
-		int volume = VehCalc_MapToRange(sdata->unk_8008d9f4[0], 0, 0x1900, 0x3f, 0xff);
+		int volume = VehCalc_MapToRange(sdata->vehicleCollisionImpactStrength, 0, 0x1900, 0x3f, 0xff);
 
 		if ((canPlayFeedback != 0) && (selfDriver->kartState != KS_BLASTED) && (selfDriver->invincibleTimer == 0) && (otherDriver->kartState != KS_BLASTED) &&
 		    (otherDriver->invincibleTimer == 0))
@@ -306,7 +307,7 @@ void VehPhysCrash_AnyTwoCars(struct Thread *thread, struct DriverCollisionSearch
 		return;
 	}
 
-	sdata->unk_8008d9f4[0] = 0;
+	sdata->vehicleCollisionImpactStrength = 0;
 
 	if ((selfDriver->actionsFlagSet & ACTION_BOT) != 0)
 	{

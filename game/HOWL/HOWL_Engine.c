@@ -138,19 +138,19 @@ void EngineSound_Player(struct Driver *driver)
 
 	if (driver->engineSoundMode == ENGINE_SOUND_FADE_OUT)
 	{
-		driver->fill_3B6[0] = (driver->fill_3B6[0] * 0x177) >> 9;
-		driver->fill_3B6[1] = (driver->fill_3B6[1] * 3000 + 0x22400) >> 0xc;
+		driver->engineSoundVolumeState = (driver->engineSoundVolumeState * 0x177) >> 9;
+		driver->engineSoundPitchState = (driver->engineSoundPitchState * 3000 + 0x22400) >> 0xc;
 
-		volume = VehCalc_MapToRange(driver->fill_3B6[0], 0, driver->const_AccelSpeed_ClassStat, 0, 0xe6);
-		distortion = VehCalc_MapToRange(driver->fill_3B6[1], 0, driver->const_AccelSpeed_ClassStat, 0x3c, 200);
+		volume = VehCalc_MapToRange(driver->engineSoundVolumeState, 0, driver->const_AccelSpeed_ClassStat, 0, 0xe6);
+		distortion = VehCalc_MapToRange(driver->engineSoundPitchState, 0, driver->const_AccelSpeed_ClassStat, 0x3c, 200);
 	}
 	else if (driver->engineSoundMode == ENGINE_SOUND_FADE_IN)
 	{
-		driver->fill_3B6[0] = (driver->fill_3B6[0] * 3000 + 0x322bc0) >> 0xc;
-		driver->fill_3B6[1] = (driver->fill_3B6[1] * 3000 + 0x22400) >> 0xc;
+		driver->engineSoundVolumeState = (driver->engineSoundVolumeState * 3000 + 0x322bc0) >> 0xc;
+		driver->engineSoundPitchState = (driver->engineSoundPitchState * 3000 + 0x22400) >> 0xc;
 
-		volume = VehCalc_MapToRange(driver->fill_3B6[0], 0, driver->const_AccelSpeed_ClassStat, 0x82, 0xe6);
-		distortion = VehCalc_MapToRange(driver->fill_3B6[1], 0, driver->const_AccelSpeed_ClassStat, 0x3c, 200);
+		volume = VehCalc_MapToRange(driver->engineSoundVolumeState, 0, driver->const_AccelSpeed_ClassStat, 0x82, 0xe6);
+		distortion = VehCalc_MapToRange(driver->engineSoundPitchState, 0, driver->const_AccelSpeed_ClassStat, 0x3c, 200);
 	}
 	else
 	{
@@ -163,7 +163,7 @@ void EngineSound_Player(struct Driver *driver)
 			if (0 < driver->fireSpeed)
 				targetPitch = 0x3000;
 
-			targetPitch = (driver->fill_3B6[1] * 0x40 + targetPitch * 0x30 + driver->speedometerNeedleValue * 0x90) >> 8;
+			targetPitch = (driver->engineSoundPitchState * 0x40 + targetPitch * 0x30 + driver->speedometerNeedleValue * 0x90) >> 8;
 			if (0 < driver->fireSpeed)
 				targetPitch += 0x1000;
 		}
@@ -186,47 +186,47 @@ void EngineSound_Player(struct Driver *driver)
 			}
 		}
 
-		int pitchDelta = targetPitch - driver->fill_3B6[1];
+		int pitchDelta = targetPitch - driver->engineSoundPitchState;
 		if (pitchDelta < 0)
 			pitchDelta = -pitchDelta;
 
 		if (pitchDelta < 0x601)
 		{
-			u16 cooldown = driver->fill_3B6[0] - 500;
-			driver->fill_3B6[0] = cooldown;
+			u16 cooldown = driver->engineSoundVolumeState - 500;
+			driver->engineSoundVolumeState = cooldown;
 
 			if (driver->kartState == KS_DRIFTING)
 			{
 				if ((s16)cooldown < 2000)
-					driver->fill_3B6[0] = 2000;
+					driver->engineSoundVolumeState = 2000;
 			}
 			else if ((s16)cooldown < 0)
 			{
-				driver->fill_3B6[0] = 0;
+				driver->engineSoundVolumeState = 0;
 			}
 		}
 		else
 		{
-			s16 cooldown = driver->fill_3B6[0] + 2000;
-			driver->fill_3B6[0] = cooldown;
+			s16 cooldown = driver->engineSoundVolumeState + 2000;
+			driver->engineSoundVolumeState = cooldown;
 			if (14000 < cooldown)
-				driver->fill_3B6[0] = 14000;
+				driver->engineSoundVolumeState = 14000;
 		}
 
 		int steer = driver->wheelRotation;
-		driver->fill_3B6[1] = (s16)((targetPitch * 0x89 + driver->fill_3B6[1] * 0x177) >> 9);
+		driver->engineSoundPitchState = (s16)((targetPitch * 0x89 + driver->engineSoundPitchState * 0x177) >> 9);
 		if (steer < 0)
 			steer = -steer;
 
 		u32 volMax = ((driver->actionsFlagSet & 0x100000) == 0) ? 0xe6 : 0xbe;
-		volume = VehCalc_MapToRange(driver->fill_3B6[0], 0, driver->const_AccelSpeed_ClassStat, 0x82, volMax);
+		volume = VehCalc_MapToRange(driver->engineSoundVolumeState, 0, driver->const_AccelSpeed_ClassStat, 0x82, volMax);
 
 		if ((driver->kartState != KS_DRIFTING) && ((driver->actionsFlagSet & 8) == 0))
 			volume += steer >> 3;
 
 		u32 pitchMax = ((driver->actionsFlagSet & 0x100000) == 0) ? 200 : 0xbe;
 		int enginePitch =
-		    VehCalc_MapToRange(driver->fill_3B6[1], 0, driver->const_AccelSpeed_ClassStat + driver->const_SacredFireSpeed + 0xf00, 0x3c, pitchMax);
+		    VehCalc_MapToRange(driver->engineSoundPitchState, 0, driver->const_AccelSpeed_ClassStat + driver->const_SacredFireSpeed + 0xf00, 0x3c, pitchMax);
 
 		if ((driver->actionsFlagSet & 0x100000) == 0)
 		{
@@ -331,41 +331,41 @@ static int EngineSound_AI_GetTargetPitch(struct Driver *ai)
 
 static void EngineSound_AI_UpdateSmoothing(struct Driver *ai, int targetPitch)
 {
-	int delta = targetPitch - ai->fill_3B6[1];
+	int delta = targetPitch - ai->engineSoundPitchState;
 
 	if (delta < 0)
 		delta = -delta;
 
 	if (delta < 0x601)
 	{
-		u16 cooldown = ai->fill_3B6[0] - 500;
-		ai->fill_3B6[0] = cooldown;
+		u16 cooldown = ai->engineSoundVolumeState - 500;
+		ai->engineSoundVolumeState = cooldown;
 
 		if (ai->kartState == KS_DRIFTING)
 		{
 			if ((s16)cooldown < 2000)
-				ai->fill_3B6[0] = 2000;
+				ai->engineSoundVolumeState = 2000;
 		}
 		else if ((s16)cooldown < 0)
 		{
-			ai->fill_3B6[0] = 0;
+			ai->engineSoundVolumeState = 0;
 		}
 	}
 	else
 	{
-		s16 cooldown = ai->fill_3B6[0] + 2000;
-		ai->fill_3B6[0] = cooldown;
+		s16 cooldown = ai->engineSoundVolumeState + 2000;
+		ai->engineSoundVolumeState = cooldown;
 
 		if (14000 < cooldown)
-			ai->fill_3B6[0] = 14000;
+			ai->engineSoundVolumeState = 14000;
 	}
 
-	ai->fill_3B6[1] = (s16)((targetPitch * 0x89 + ai->fill_3B6[1] * 0x177) >> 9);
+	ai->engineSoundPitchState = (s16)((targetPitch * 0x89 + ai->engineSoundPitchState * 0x177) >> 9);
 }
 
 static u32 EngineSound_AI_CalculateVolume(struct Driver *ai, int slotIndex, int distance)
 {
-	u32 volume = VehCalc_MapToRange(ai->fill_3B6[0], 0, ai->const_AccelSpeed_ClassStat, 0x82, 0xe6);
+	u32 volume = VehCalc_MapToRange(ai->engineSoundVolumeState, 0, ai->const_AccelSpeed_ClassStat, 0x82, 0xe6);
 
 	if (distance < 2000)
 	{
@@ -386,7 +386,7 @@ static u32 EngineSound_AI_CalculateVolume(struct Driver *ai, int slotIndex, int 
 static u32 EngineSound_AI_CalculateDistortion(struct Driver *ai, int distanceDelta)
 {
 	int distortion;
-	int pitch = VehCalc_MapToRange(ai->fill_3B6[1], 0, ai->const_AccelSpeed_ClassStat, 0x3c, 0xaa);
+	int pitch = VehCalc_MapToRange(ai->engineSoundPitchState, 0, ai->const_AccelSpeed_ClassStat, 0x3c, 0xaa);
 
 	distanceDelta >>= 3;
 

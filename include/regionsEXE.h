@@ -4470,15 +4470,27 @@ struct sData
 	int relicTime_1sec;
 
 	// 8008d9ec
-	// rotX, rotY, rotZ, for something?
-	s16 unk_rot[4];
+	union
+	{
+		s16 vehicleCrashRotScratchRaw[4];
+		struct
+		{
+			SVec3 botCrashNavRot;
+			s16 botCrashNavRotPadding;
+		};
+	};
 
 	// 8008d9f4
-	// force of driver bounce?
-	int unk_8008d9f4[3];
-
-	// 8008d9f8 and 8008d9fc,
-	// both talkMask variables
+	union
+	{
+		int vehicleTalkMaskScratchRaw[3];
+		struct
+		{
+			int vehicleCollisionImpactStrength;
+			int talkMaskXASamplePeak;
+			int talkMaskMaxMouthFrame;
+		};
+	};
 
 	// 8008da00
 	u8 talkMask_boolDead;
@@ -5145,4 +5157,8 @@ _Static_assert(sizeof(struct MetaDataMODEL) == 0xC);
 
 _Static_assert(OFFSETOF_DATA(rowsQuit[0]) == 0x800841BC);
 _Static_assert(OFFSETOF_DATA(menuQuit) == 0x800841D0);
+_Static_assert(OFFSETOF_SDATA(botCrashNavRot) == 0x8008D9EC);
+_Static_assert(OFFSETOF_SDATA(vehicleCollisionImpactStrength) == 0x8008D9F4);
+_Static_assert(OFFSETOF_SDATA(talkMaskXASamplePeak) == 0x8008D9F8);
+_Static_assert(OFFSETOF_SDATA(talkMaskMaxMouthFrame) == 0x8008D9FC);
 #endif

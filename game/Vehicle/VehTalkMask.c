@@ -35,9 +35,9 @@ void VehTalkMask_ThTick(struct Thread *t)
 
 	u32 lastFrame = VehFrameInst_GetNumAnimFrames(mhInst, 0) - 1;
 
-	sdata->unk_8008d9f4[1] = sdata->XA_MaxSampleValInArr;
+	sdata->talkMaskXASamplePeak = sdata->XA_MaxSampleValInArr;
 
-	int targetMouthFrame = sdata->unk_8008d9f4[1] * 7;
+	int targetMouthFrame = sdata->talkMaskXASamplePeak * 7;
 
 	if (targetMouthFrame < 0)
 	{
@@ -46,8 +46,8 @@ void VehTalkMask_ThTick(struct Thread *t)
 
 	targetMouthFrame = targetMouthFrame >> 0xe;
 
-	if (sdata->unk_8008d9f4[2] < targetMouthFrame)
-		sdata->unk_8008d9f4[2] = targetMouthFrame;
+	if (sdata->talkMaskMaxMouthFrame < targetMouthFrame)
+		sdata->talkMaskMaxMouthFrame = targetMouthFrame;
 
 	int desiredMouthFrame = targetMouthFrame;
 	if (targetMouthFrame < 2)
