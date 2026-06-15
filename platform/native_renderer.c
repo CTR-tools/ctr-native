@@ -178,6 +178,9 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	SDL_SetHint(SDL_HINT_WINDOW_ALLOW_TOPMOST, "0");
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
+	// Prevent compositors from interpreting framebuffer alpha as window transparency.
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
 
 	if (!NativeRenderer_InitialiseGLContext(windowName, fullscreen))
