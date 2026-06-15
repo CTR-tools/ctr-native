@@ -156,9 +156,9 @@ static void VehPickupItem_MissileLoadAiView(struct Driver *driver)
 	MATRIX unusedInverse;
 
 	RotMatrix(&rot, &matrix);
-	matrix.t[0] = driver->posCurr.x >> 8;
-	matrix.t[1] = driver->posCurr.y >> 8;
-	matrix.t[2] = driver->posCurr.z >> 8;
+	matrix.t[0] = CTR_MipsSra(driver->posCurr.x, 8);
+	matrix.t[1] = CTR_MipsSra(driver->posCurr.y, 8);
+	matrix.t[2] = CTR_MipsSra(driver->posCurr.z, 8);
 
 	MATH_HitboxMatrix(&unusedInverse, &matrix);
 
@@ -235,9 +235,9 @@ struct Driver *VehPickupItem_MissileGetTargetDriver(struct Driver *driver)
 		if (!VehPickupItem_MissileCandidateVisible(pb, candidate))
 			continue;
 
-		s32 dx = (candidate->posCurr.x - driver->posCurr.x) >> 8;
-		s32 dz = (candidate->posCurr.z - driver->posCurr.z) >> 8;
-		s32 distance = (dx * dx) + (dz * dz);
+		s32 dx = CTR_MipsSra(CTR_MipsSubLo(candidate->posCurr.x, driver->posCurr.x), 8);
+		s32 dz = CTR_MipsSra(CTR_MipsSubLo(candidate->posCurr.z, driver->posCurr.z), 8);
+		s32 distance = CTR_MipsAddLo(CTR_MipsMulLo(dx, dx), CTR_MipsMulLo(dz, dz));
 		if (distance < closestDistance)
 		{
 			closestDistance = distance;
@@ -573,13 +573,13 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		SVec3 probeTop;
 		SVec3 probeBottom;
 
-		probeTop.x = weaponInst->matrix.t[0];
-		probeTop.y = weaponInst->matrix.t[1] - 400;
-		probeTop.z = weaponInst->matrix.t[2];
+		probeTop.x = (s16)(u16)weaponInst->matrix.t[0];
+		probeTop.y = (s16)CTR_MipsAddLo((u16)weaponInst->matrix.t[1], -400);
+		probeTop.z = (s16)(u16)weaponInst->matrix.t[2];
 
-		probeBottom.x = weaponInst->matrix.t[0];
-		probeBottom.y = weaponInst->matrix.t[1] + 64;
-		probeBottom.z = weaponInst->matrix.t[2];
+		probeBottom.x = (s16)(u16)weaponInst->matrix.t[0];
+		probeBottom.y = (s16)CTR_MipsAddLo((u16)weaponInst->matrix.t[1], 64);
+		probeBottom.z = (s16)(u16)weaponInst->matrix.t[2];
 
 		struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
@@ -846,9 +846,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		*(int *)&weaponInst->matrix.m[2][0] = 0;
 		weaponInst->matrix.m[2][2] = 0x1000;
 
-		weaponInst->matrix.t[0] = d->posCurr.x >> 8;
-		weaponInst->matrix.t[1] = d->posCurr.y >> 8;
-		weaponInst->matrix.t[2] = d->posCurr.z >> 8;
+		weaponInst->matrix.t[0] = CTR_MipsSra(d->posCurr.x, 8);
+		weaponInst->matrix.t[1] = CTR_MipsSra(d->posCurr.y, 8);
+		weaponInst->matrix.t[2] = CTR_MipsSra(d->posCurr.z, 8);
 
 		weaponTh = weaponInst->thread;
 		weaponTh->funcThDestroy = PROC_DestroyInstance;

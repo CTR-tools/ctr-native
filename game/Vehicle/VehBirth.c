@@ -72,7 +72,7 @@ static struct VehBirthPosRot *VehBirth_SpawnType2PosRot(struct Level *level)
 static void VehBirth_SetBottomFromPos(SVec3 *posBottom, const s16 *pos)
 {
 	posBottom->x = pos[0];
-	posBottom->y = pos[1] + 0x80;
+	posBottom->y = (s16)CTR_MipsAddLo(pos[1], 0x80);
 	posBottom->z = pos[2];
 }
 
@@ -110,7 +110,7 @@ static void VehBirth_SetStartlineRotation(struct Driver *d, struct Level *level)
 
 static int VehBirth_ScaleTrig(int trig, int scale)
 {
-	return (trig * scale) >> 0xc;
+	return CTR_MipsSra(CTR_MipsMulLo(trig, scale), 0xc);
 }
 
 // NOTE(aalhendi): PSX path ASM-verified NTSC-U 926 0x80057c8c-0x80058898.
@@ -148,9 +148,9 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 
 	if ((spawnFlag & 1) == 0)
 	{
-		posBottom.x = d->posCurr.x >> 8;
-		posBottom.y = (d->posCurr.y >> 8) + 0x80;
-		posBottom.z = d->posCurr.z >> 8;
+		posBottom.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
+		posBottom.y = (s16)CTR_MipsAddLo(CTR_MipsSra(d->posCurr.y, 8), 0x80);
+		posBottom.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
 	}
 	else
 	{
@@ -201,7 +201,7 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 	}
 
 	posTop.x = posBottom.x;
-	posTop.y = posBottom.y - 0x100;
+	posTop.y = (s16)CTR_MipsSubLo(posBottom.y, 0x100);
 	posTop.z = posBottom.z;
 
 	COLL_SearchBSP_CallbackQUADBLK(&posTop, &posBottom, sps, 0);
@@ -220,13 +220,13 @@ void VehBirth_TeleportSelf(struct Driver *d, u8 spawnFlag, int spawnPosY)
 	d->AxisAngle2_normalVec = d->AxisAngle3_normalVec;
 	d->AxisAngle4_normalVec = d->AxisAngle2_normalVec;
 
-	d->posCurr.x = (int)(sps->Union.QuadBlockColl.hitPos.x) << 8;
-	d->posCurr.y = (int)(sps->Union.QuadBlockColl.hitPos.y + spawnPosY) * 0x100;
-	d->posCurr.z = (int)(sps->Union.QuadBlockColl.hitPos.z) << 8;
+	d->posCurr.x = CTR_MipsSll(sps->Union.QuadBlockColl.hitPos.x, 8);
+	d->posCurr.y = CTR_MipsSll(CTR_MipsAddLo(sps->Union.QuadBlockColl.hitPos.y, spawnPosY), 8);
+	d->posCurr.z = CTR_MipsSll(sps->Union.QuadBlockColl.hitPos.z, 8);
 	d->posPrev.x = d->posCurr.x;
 	d->posPrev.y = d->posCurr.y;
 	d->posPrev.z = d->posCurr.z;
-	d->quadBlockHeight = (int)sps->Union.QuadBlockColl.hitPos.y << 8;
+	d->quadBlockHeight = CTR_MipsSll(sps->Union.QuadBlockColl.hitPos.y, 8);
 
 	if ((spawnFlag & 1) != 0)
 	{

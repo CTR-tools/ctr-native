@@ -127,9 +127,9 @@ static void VehGroundShadow_BuildEntry(struct VehGroundShadowEntry *entry, struc
 	for (int playerIndex = numPlayers - 1; playerIndex >= 0; playerIndex--)
 		entry->idppFlags[playerIndex] = (u8)VehGroundShadow_GetIdpp(inst, playerIndex)->instFlags;
 
-	entry->pos[0] = (s16)(driver->posCurr.x >> 8);
-	entry->pos[1] = (s16)(driver->quadBlockHeight >> 8) + 3;
-	entry->pos[2] = (s16)(driver->posCurr.z >> 8);
+	entry->pos[0] = (s16)CTR_MipsSra(driver->posCurr.x, 8);
+	entry->pos[1] = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->quadBlockHeight, 8), 3);
+	entry->pos[2] = (s16)CTR_MipsSra(driver->posCurr.z, 8);
 	entry->depthBias = (s8)((entry->instFlags & SPLIT_LINE) != 0 ? inst->unk51 : inst->unk50) + 1;
 }
 
@@ -138,7 +138,7 @@ static void VehGroundShadow_TransformLocalAxes(struct VehGroundShadowEntry *entr
 	struct Driver *driver = entry->driver;
 	MATRIX axisMatrix;
 	s16 local[4];
-	int height = 0x100 - ((driver->posCurr.y - driver->quadBlockHeight) >> 8);
+	int height = CTR_MipsSubLo(0x100, CTR_MipsSra(CTR_MipsSubLo(driver->posCurr.y, driver->quadBlockHeight), 8));
 	int localX;
 	int localZ0;
 	int localZ1;

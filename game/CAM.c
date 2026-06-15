@@ -565,8 +565,8 @@ void CAM_EndOfRace_Battle(struct CameraDC *cDC, struct Driver *d)
 
 	// direction to face
 	pb = cDC->pushBuffer;
-	dx = pb->pos[0] - (d->posCurr.x >> 8);
-	dz = pb->pos[2] - (d->posCurr.z >> 8);
+	dx = CTR_MipsSubLo(pb->pos[0], CTR_MipsSra(d->posCurr.x, 8));
+	dz = CTR_MipsSubLo(pb->pos[2], CTR_MipsSra(d->posCurr.z, 8));
 	cDC->spin360Angle = ratan2(dx, dz);
 
 	return;
@@ -660,10 +660,10 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 	sps->Union.QuadBlockColl.pos.z = posZ;
 
 	sps->Input1.pos.x = posX;
-	sps->Input1.pos.y = (s16)((u16)posY - 0x800);
+	sps->Input1.pos.y = (s16)CTR_MipsSubLo((u16)posY, 0x800);
 	sps->Union.QuadBlockColl.hitPos.x = sps->Input1.pos.x;
 	sps->Input1.pos.z = posZ;
-	sps->Union.QuadBlockColl.pos.y = (s16)((u16)sps->Union.QuadBlockColl.pos.y + 0x100);
+	sps->Union.QuadBlockColl.pos.y = (s16)CTR_MipsAddLo((u16)sps->Union.QuadBlockColl.pos.y, 0x100);
 	sps->Union.QuadBlockColl.hitPos.y = sps->Input1.pos.y;
 	sps->Union.QuadBlockColl.hitPos.z = posZ;
 
@@ -715,20 +715,11 @@ void CAM_FindClosestQuadblock(struct ScratchpadStruct *sps, struct CameraDC *cDC
 	gGT->unk1cac[0] = quad - meshInfo->ptrQuadBlockArray;
 }
 
-static void CAM_StartLine_FlyIn_FixY_SetPoint(SVec3 *point, s16 x, s16 y, s16 z)
-{
-	point->x = x;
-	point->y = y;
-	point->z = z;
-}
-
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80018ec0-0x80018fec.
 void CAM_StartLine_FlyIn_FixY(s16 *posRot)
 {
 	struct ScratchpadStruct *sps = &sdata->scratchpadStruct;
 	s16 pos[3];
-	SVec3 posTop;
-	SVec3 posBottom;
 	int i;
 
 	sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND | QUADBLOCK_FLAG_COLLISION_SURFACE;
@@ -742,10 +733,18 @@ void CAM_StartLine_FlyIn_FixY(s16 *posRot)
 
 	for (i = 0; i < 8; i++)
 	{
-		s16 probeOffset = i * 0x400;
+		s32 probeOffset = i * 0x400;
 
-		CAM_StartLine_FlyIn_FixY_SetPoint(&posTop, pos[0], pos[1] - (probeOffset + 0x400), pos[2]);
-		CAM_StartLine_FlyIn_FixY_SetPoint(&posBottom, pos[0], pos[1] - (probeOffset - 0x100), pos[2]);
+		SVec3 posTop = {
+		    .x = pos[0],
+		    .y = (s16)CTR_MipsSubLo((u16)pos[1], CTR_MipsAddLo(probeOffset, 0x400)),
+		    .z = pos[2],
+		};
+		SVec3 posBottom = {
+		    .x = pos[0],
+		    .y = (s16)CTR_MipsSubLo((u16)pos[1], CTR_MipsSubLo(probeOffset, 0x100)),
+		    .z = pos[2],
+		};
 
 		COLL_SearchBSP_CallbackQUADBLK(&posTop, &posBottom, sps, 0);
 
@@ -1066,12 +1065,12 @@ void CAM_FollowDriver_Spin360(struct CameraDC *cDC, u8 *scratchpad, struct Drive
 
 	int angle = cDC->spin360Angle;
 	ratio = MATH_Sin(angle);
-	desiredPos[0] = (s16)(d->posCurr.x >> 8) + (s16)(CAM_MulLo(ratio, cDC->transitionTo.pos[2]) >> 0xc);
+	desiredPos[0] = (s16)CTR_MipsAddLo(CTR_MipsSra(d->posCurr.x, 8), CTR_MipsSra(CAM_MulLo(ratio, cDC->transitionTo.pos[2]), 0xc));
 
 	ratio = MATH_Cos(angle);
-	desiredPos[2] = (s16)(d->posCurr.z >> 8) + (s16)(CAM_MulLo(ratio, cDC->transitionTo.pos[2]) >> 0xc);
+	desiredPos[2] = (s16)CTR_MipsAddLo(CTR_MipsSra(d->posCurr.z, 8), CTR_MipsSra(CAM_MulLo(ratio, cDC->transitionTo.pos[2]), 0xc));
 
-	desiredPos[1] = (s16)(d->posCurr.y >> 8) + cDC->transitionTo.pos[1];
+	desiredPos[1] = (s16)CTR_MipsAddLo((u16)cDC->transitionTo.pos[1], CTR_MipsSra(d->posCurr.y, 8));
 
 	CAM_LookAtPosition(scratchpad, (int *)&d->posCurr.x, desiredPos, desiredRot);
 	return;
@@ -1258,9 +1257,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 	gte_rtv0();
 	gte_stlvnl((VECTOR *)(void *)(scratchpad + 0x27c));
 
-	*(int *)(scratchpad + 600) = d->posCurr.x >> 8;
-	*(int *)(scratchpad + 0x25c) = d->posCurr.y >> 8;
-	*(int *)(scratchpad + 0x260) = d->posCurr.z >> 8;
+	*(int *)(scratchpad + 600) = CTR_MipsSra(d->posCurr.x, 8);
+	*(int *)(scratchpad + 0x25c) = CTR_MipsSra(d->posCurr.y, 8);
+	*(int *)(scratchpad + 0x260) = CTR_MipsSra(d->posCurr.z, 8);
 
 	*(int *)(scratchpad + 600) += *(int *)(scratchpad + 0x27c);
 	*(int *)(scratchpad + 0x260) += *(int *)(scratchpad + 0x284);
@@ -1270,7 +1269,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 	// mask-grab
 	if ((cDC->flags & CAMERA_FLAG_MASK_GRAB) != 0)
 	{
-		*(int *)(scratchpad + 0x244) = (d->quadBlockHeight >> 8) + (int)cDC->maskGrabHeightOffset + (int)zoom->vertDistance;
+		*(int *)(scratchpad + 0x244) = CTR_MipsSra(d->quadBlockHeight, 8) + (int)cDC->maskGrabHeightOffset + (int)zoom->vertDistance;
 	}
 
 	else
@@ -1381,13 +1380,13 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 		if (cDC->BlastedLerp.boolLerpPending == 0)
 		{
 			*(s16 *)((int)cDC + 0xc8) = cDC->lookAtPos.y - cDC->cameraPos.y;
-			*(s16 *)((int)cDC + 0xca) = cDC->cameraPos.y - (d->quadBlockHeight >> 8);
+			*(s16 *)((int)cDC + 0xca) = cDC->cameraPos.y - CTR_MipsSra(d->quadBlockHeight, 8);
 		}
 
 		cDC->BlastedLerp.boolLerpPending = 1;
 
 		if ((cDC->cameraPos.y < *(int *)(scratchpad + 0x244)) &&
-		    (x = (int)*(s16 *)((int)cDC + 0xca) + (d->quadBlockHeight >> 8), x < *(int *)(scratchpad + 0x244)))
+		    (x = (int)*(s16 *)((int)cDC + 0xca) + CTR_MipsSra(d->quadBlockHeight, 8), x < *(int *)(scratchpad + 0x244)))
 		{
 			*(int *)(scratchpad + 0x244) = x;
 		}
@@ -1441,17 +1440,17 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 	struct QuadBlock *quad = sps->hit.ptrQuadblock;
 	if ((sps->boolDidTouchQuadblock == 0) || ((quad->quadFlags & CAM_FOLLOW_DRIVER_QUAD_FLAGS_SKIP_TERRAIN_HEIGHT) != 0))
 	{
-		if (*(int *)(scratchpad + 0x244) < (int)cDC->heightSmoothing.currentOffset + (d->posCurr.y >> 8))
+		if (*(int *)(scratchpad + 0x244) < (int)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8))
 		{
 			cDC->heightSmoothing.framesRemaining = 8;
 			cDC->heightSmoothing.startOffset = cDC->heightSmoothing.currentOffset;
-			*(int *)(scratchpad + 0x244) = (int)cDC->heightSmoothing.currentOffset + (d->posCurr.y >> 8);
+			*(int *)(scratchpad + 0x244) = (int)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8);
 
 			goto LAB_8001ab04;
 		}
 
 		cDC->heightSmoothing.framesRemaining = 8;
-		cDC->heightSmoothing.startOffset = *(s16 *)(scratchpad + 0x244) - (s16)(d->posCurr.y >> 8);
+		cDC->heightSmoothing.startOffset = *(s16 *)(scratchpad + 0x244) - (s16)CTR_MipsSra(d->posCurr.y, 8);
 	}
 
 	else
@@ -1475,12 +1474,12 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, s16 *pushBu
 		{
 			*(int *)(scratchpad + 0x244) =
 
-			    (8 - x) * *(int *)(scratchpad + 0x244) + x * ((int)cDC->heightSmoothing.startOffset + (d->posCurr.y >> 8)) >> 3;
+			    (8 - x) * *(int *)(scratchpad + 0x244) + x * ((int)cDC->heightSmoothing.startOffset + CTR_MipsSra(d->posCurr.y, 8)) >> 3;
 
 			cDC->heightSmoothing.framesRemaining += -1;
 		}
 	}
-	cDC->heightSmoothing.currentOffset = *(s16 *)(scratchpad + 0x244) - (d->posCurr.y >> 8);
+	cDC->heightSmoothing.currentOffset = *(s16 *)(scratchpad + 0x244) - CTR_MipsSra(d->posCurr.y, 8);
 LAB_8001ab04:
 
 	// if mask grabs you when you're underwater
@@ -1499,13 +1498,13 @@ LAB_8001ab04:
 		pb->rot[2] -= (pb->rot[2] >> 3);
 
 		// camera dirX, cameraPosX minus driverPosX
-		*(int *)(scratchpad + 0x24c) = (int)pb->pos[0] - (d->posCurr.x >> 8);
+		*(int *)(scratchpad + 0x24c) = (int)pb->pos[0] - CTR_MipsSra(d->posCurr.x, 8);
 
 		// camera dirY, cameraPosY minus driverPosY, plus something else
-		*(int *)(scratchpad + 0x250) = (int)pb->pos[1] - ((d->posCurr.y >> 8) + (int)zoom->angle[2]);
+		*(int *)(scratchpad + 0x250) = (int)pb->pos[1] - (CTR_MipsSra(d->posCurr.y, 8) + (int)zoom->angle[2]);
 
 		// camera dirZ, cameraPosZ minus driverPosZ
-		*(int *)(scratchpad + 0x254) = (int)pb->pos[2] - (d->posCurr.z >> 8);
+		*(int *)(scratchpad + 0x254) = (int)pb->pos[2] - CTR_MipsSra(d->posCurr.z, 8);
 
 		if (pb->rot[0] < 0x800)
 		{
@@ -2096,9 +2095,9 @@ SkipNewCameraEOR:
 
 						s16 stackMemPos[3];
 
-						stackMemPos[0] = (s16)((u32)d->posCurr.x >> 8);
-						stackMemPos[1] = (s16)((u32)d->posCurr.y >> 8);
-						stackMemPos[2] = (s16)((u32)d->posCurr.z >> 8);
+						stackMemPos[0] = (s16)CTR_MipsSra(d->posCurr.x, 8);
+						stackMemPos[1] = (s16)CTR_MipsSra(d->posCurr.y, 8);
+						stackMemPos[2] = (s16)CTR_MipsSra(d->posCurr.z, 8);
 
 						iVar8 = CAM_MapRange_PosPoints((cDC->transitionTo).pos, (cDC->transitionTo).rot, &stackMemPos[0]);
 
@@ -2167,9 +2166,9 @@ SkipNewCameraEOR:
 					}
 					if (sVar6 == 7)
 					{
-						pb->pos[0] = (s16)((u32)d->posCurr.x >> 8);
-						pb->pos[1] = (cDC->transitionTo).pos[0] + (s16)((u32)d->posCurr.y >> 8);
-						pb->pos[2] = (s16)((u32)d->posCurr.z >> 8);
+						pb->pos[0] = (s16)CTR_MipsSra(d->posCurr.x, 8);
+						pb->pos[1] = (cDC->transitionTo).pos[0] + (s16)CTR_MipsSra(d->posCurr.y, 8);
+						pb->pos[2] = (s16)CTR_MipsSra(d->posCurr.z, 8);
 						sVar6 = (cDC->transitionTo).pos[1];
 						pb->rot[1] = 0;
 						pb->rot[2] = 0;
@@ -2182,9 +2181,9 @@ SkipNewCameraEOR:
 					}
 					else if ((u16)(sVar5 - 0xfU) < 2)
 					{
-						pb->pos[0] = sdata->FirstPersonCamera.posOffset[0] + (s16)((u32)d->posCurr.x >> 8);
-						pb->pos[1] = sdata->FirstPersonCamera.posOffset[1] + (s16)((u32)d->posCurr.y >> 8);
-						pb->pos[2] = sdata->FirstPersonCamera.posOffset[2] + (s16)((u32)d->posCurr.z >> 8);
+						pb->pos[0] = sdata->FirstPersonCamera.posOffset[0] + (s16)CTR_MipsSra(d->posCurr.x, 8);
+						pb->pos[1] = sdata->FirstPersonCamera.posOffset[1] + (s16)CTR_MipsSra(d->posCurr.y, 8);
+						pb->pos[2] = sdata->FirstPersonCamera.posOffset[2] + (s16)CTR_MipsSra(d->posCurr.z, 8);
 
 						pb->rot[0] = sdata->FirstPersonCamera.rotOffset[0] + (d->rotCurr).x;
 						if (cDC->cameraMode == 0x10)

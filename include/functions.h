@@ -51,7 +51,7 @@ void CDSYS_XAPauseForce(void);
 void CDSYS_XAPauseAtEnd(void);
 
 struct MetaDataMODEL *COLL_LevModelMeta(u32 id);
-void COLL_SearchBSP_CallbackQUADBLK(const void *packedTop, const void *packedBottom, struct ScratchpadStruct *sps, s32 hitRadius);
+void COLL_SearchBSP_CallbackQUADBLK(const SVec3 *top, const SVec3 *bottom, struct ScratchpadStruct *sps, s32 hitRadius);
 void COLL_SearchBSP_CallbackPARAM(struct BSP *root, struct BoundingBox *bbox, CollBspLeafCallback callback, struct ScratchpadStruct *sps);
 
 void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer);

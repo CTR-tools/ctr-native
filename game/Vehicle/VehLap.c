@@ -34,20 +34,20 @@ void VehLap_UpdateProgress(struct Driver *driver)
 	struct CheckpointNode *nextNode = &nodes[progressNode->nextIndex_forward];
 
 	SVec4 nodeDelta;
-	nodeDelta.x = progressNode->pos[0] - nextNode->pos[0];
-	nodeDelta.y = progressNode->pos[1] - nextNode->pos[1];
-	nodeDelta.z = progressNode->pos[2] - nextNode->pos[2];
+	nodeDelta.x = (s16)CTR_MipsSubLo((u16)progressNode->pos[0], (u16)nextNode->pos[0]);
+	nodeDelta.y = (s16)CTR_MipsSubLo((u16)progressNode->pos[1], (u16)nextNode->pos[1]);
+	nodeDelta.z = (s16)CTR_MipsSubLo((u16)progressNode->pos[2], (u16)nextNode->pos[2]);
 	nodeDelta.w = 0;
 
 	MATH_VectorNormalize((SVec3 *)&nodeDelta);
 
-	s16 deltaX = (driver->posCurr.x >> 8) - progressNode->pos[0];
-	s16 deltaY = (driver->posCurr.y >> 8) - progressNode->pos[1];
-	s16 deltaZ = (driver->posCurr.z >> 8) - progressNode->pos[2];
+	s16 deltaX = (s16)CTR_MipsSubLo((u16)CTR_MipsSra(driver->posCurr.x, 8), (u16)progressNode->pos[0]);
+	s16 deltaY = (s16)CTR_MipsSubLo((u16)CTR_MipsSra(driver->posCurr.y, 8), (u16)progressNode->pos[1]);
+	s16 deltaZ = (s16)CTR_MipsSubLo((u16)CTR_MipsSra(driver->posCurr.z, 8), (u16)progressNode->pos[2]);
 
 	CTC2(CTR_PackS16Pair(deltaX, deltaY), 0);
-	CTC2(CTR_PackS16Pair(deltaZ, driver->matrixMovingDir.m[0][2] >> 5), 1);
-	CTC2(CTR_PackS16Pair(driver->matrixMovingDir.m[1][2] >> 5, driver->matrixMovingDir.m[2][2] >> 5), 2);
+	CTC2(CTR_PackS16Pair(deltaZ, CTR_MipsSra(driver->matrixMovingDir.m[0][2], 5)), 1);
+	CTC2(CTR_PackS16Pair(CTR_MipsSra(driver->matrixMovingDir.m[1][2], 5), CTR_MipsSra(driver->matrixMovingDir.m[2][2], 5)), 2);
 
 	gte_ldv0(&nodeDelta);
 	gte_mvmva(0, 0, 0, 3, 0);
