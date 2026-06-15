@@ -207,7 +207,6 @@ void VehStuckProc_MaskGrab_PhysLinear(struct Thread *t, struct Driver *d)
 void VehStuckProc_MaskGrab_Animate(struct Thread *t, struct Driver *d)
 {
 	char frame;
-	s16 sVar2;
 	int numFrames;
 	struct GameTracker *gGT = sdata->gGT;
 	struct Instance *inst = t->inst;
@@ -1134,11 +1133,6 @@ DriverFunc PlayerBlastedFuncTable[DRIVER_FUNC_COUNT] = {NULL,
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800682a4-0x800683f4.
 void VehStuckProc_Tumble_Init(struct Thread *thread, struct Driver *driver)
 {
-	int i;
-	int iVar2;
-	char bVar3;
-	s8 simpTurnState;
-
 	driver->kartState = KS_BLASTED;
 	driver->turbo_MeterRoomLeft = 0;
 
@@ -1149,30 +1143,31 @@ void VehStuckProc_Tumble_Init(struct Thread *thread, struct Driver *driver)
 
 	driver->instSelf->animIndex = 0;
 
-	iVar2 = VehFrameInst_GetNumAnimFrames(driver->instSelf, 0);
-	iVar2 = VehFrameInst_GetStartFrame(0, iVar2);
+	int numAnimFrames = VehFrameInst_GetNumAnimFrames(driver->instSelf, 0);
+	int animFrame = VehFrameInst_GetStartFrame(0, numAnimFrames);
 
-	driver->instSelf->animFrame = (s16)iVar2;
+	driver->instSelf->animFrame = (s16)animFrame;
 
-	iVar2 = MixRNG_Scramble();
-	driver->KartStates.Blasted.boolPlayBackwards = iVar2 & 4;
+	int rng = MixRNG_Scramble();
+	driver->KartStates.Blasted.boolPlayBackwards = rng & 4;
 
-	simpTurnState = driver->simpTurnState;
+	s8 simpTurnState = driver->simpTurnState;
+	char rumbleStrength;
 	if (simpTurnState < 1)
 	{
-		bVar3 = 0x19;
+		rumbleStrength = 0x19;
 	}
 	else
 	{
-		bVar3 = 0x29;
+		rumbleStrength = 0x29;
 	}
 
-	for (i = 0; i < DRIVER_FUNC_COUNT; i++)
+	for (int i = 0; i < DRIVER_FUNC_COUNT; i++)
 	{
 		driver->funcPtrs[i] = PlayerBlastedFuncTable[i];
 	}
 
-	GAMEPAD_JogCon1(driver, bVar3, 0x60);
+	GAMEPAD_JogCon1(driver, rumbleStrength, 0x60);
 }
 
 
@@ -1386,8 +1381,6 @@ void VehStuckProc_Warp_AddDustPuff2(struct Driver *d, int *warp)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80068be8-0x80068e04.
 void VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 {
-	s16 sVar2;
-	int iVar3;
 	int timer;
 	s16 pos[4];
 
@@ -1398,12 +1391,12 @@ void VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 	if ((inst->flags & HIDE_MODEL) == 0)
 	{
 		// height + 0x100
-		iVar3 = CTR_MipsAddLo(d->posCurr.y, 0x100);
+		int beamHeight = CTR_MipsAddLo(d->posCurr.y, 0x100);
 
-		if (iVar3 < d->KartStates.Warp.quadHeight)
-			iVar3 = d->KartStates.Warp.quadHeight;
+		if (beamHeight < d->KartStates.Warp.quadHeight)
+			beamHeight = d->KartStates.Warp.quadHeight;
 
-		d->KartStates.Warp.beamHeight = iVar3;
+		d->KartStates.Warp.beamHeight = beamHeight;
 
 		d->KartStates.Warp.numParticle = CTR_MipsSubLo(d->KartStates.Warp.numParticle, 100);
 
@@ -1464,11 +1457,11 @@ void VehStuckProc_Warp_PhysAngular(struct Thread *th, struct Driver *d)
 	}
 
 	// drift angle = ((drift angle + warp timer + 0x800) & 0xfff) - 0x800
-	sVar2 = (s16)CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsAddLo((u16)d->turnAngleCurr, (u16)timer), 0x800) & 0xfff, 0x800);
-	d->turnAngleCurr = sVar2;
+	s16 wrappedTurnAngle = (s16)CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsAddLo((u16)d->turnAngleCurr, (u16)timer), 0x800) & 0xfff, 0x800);
+	d->turnAngleCurr = wrappedTurnAngle;
 
 	// cameraRotY = ??? + kart angle + drift angle
-	d->rotCurr.y = (s16)CTR_MipsAddLo(CTR_MipsAddLo((u16)d->turnWobbleAngle, (u16)d->angle), (u16)sVar2);
+	d->rotCurr.y = (s16)CTR_MipsAddLo(CTR_MipsAddLo((u16)d->turnWobbleAngle, (u16)d->angle), (u16)wrappedTurnAngle);
 
 	// driver is warping
 	d->actionsFlagSet |= ACTION_WARP;

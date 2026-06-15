@@ -50,8 +50,8 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	int approxTrig;
 	int driverBaseSpeed;
 	int approximateSpeed;
-	int sVar13;
-	int iVar14;
+	int tireColorStep;
+	int steerStrength;
 	u32 buttonsTapped;
 	u16 driverTimerNegativePrelim;
 	int driverTimer;
@@ -66,7 +66,8 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	int msPerFrame;
 	s16 driverRankItemValue;
 	u32 itemSound;
-	u32 uVar20;
+	u32 actionsFlagSetNext;
+	u32 buttonsHeld;
 	int stickLY;
 	int stickRY;
 	int driverSpeedOrSmth = 0;
@@ -374,12 +375,12 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	driver->turnAnglePrev = driver->turnAngleCurr;
 
 	// Preserve the subset of action flags that feed driving physics.
-	uVar20 = actionsFlagSetCopy & VEH_PHYS_PROC_ACTION_CARRY_MASK;
+	actionsFlagSetNext = actionsFlagSetCopy & VEH_PHYS_PROC_ACTION_CARRY_MASK;
 
 	// disable input if opening adv hub door with key
 	if ((gameMode2 & 0x4004) != 0)
 	{
-		driver->actionsFlagSet = uVar20;
+		driver->actionsFlagSet = actionsFlagSetNext;
 		return;
 	}
 
@@ -394,7 +395,7 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	// === Check Mask Weapon ===
 
 
-	actionsFlagSetCopy = uVar20;
+	actionsFlagSetCopy = actionsFlagSetNext;
 	driverItemThread = thread->childThread;
 	while (driverItemThread != 0)
 	{
@@ -402,7 +403,7 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		if ((driverItemThread->modelIndex == STATIC_UKAUKA) || (driverItemThread->modelIndex == STATIC_AKUAKU))
 		{
 			// driver is using mask weapon
-			actionsFlagSetCopy = uVar20 | ACTION_MASK_WEAPON;
+			actionsFlagSetCopy = actionsFlagSetNext | ACTION_MASK_WEAPON;
 			break;
 		}
 
@@ -418,18 +419,18 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	ptrgamepad = &sdata->gGamepads->gamepad[(u32)driver->driverID];
 
 	// no hold, no tap
-	uVar20 = 0;
+	buttonsHeld = 0;
 	buttonsTapped = 0;
 
 	// If you're not in End-Of-Race menu
 	if ((gGT->gameMode1 & END_OF_RACE) == 0)
 	{
-		uVar20 = ptrgamepad->buttonsHeldCurrFrame;
+		buttonsHeld = ptrgamepad->buttonsHeldCurrFrame;
 		buttonsTapped = ptrgamepad->buttonsTapped;
 	}
 
-	cross = uVar20 & BTN_CROSS;
-	square = uVar20 & BTN_SQUARE;
+	cross = buttonsHeld & BTN_CROSS;
+	square = buttonsHeld & BTN_SQUARE;
 
 	// state of kart
 	kartState = driver->kartState;
@@ -536,7 +537,7 @@ CheckJumpButtons:
 	{
 		if (
 		    // If you are holding L1 or R1 and
-		    ((uVar20 & 0xc00) != 0) && (driverRankItemValue != 3))
+		    ((buttonsHeld & 0xc00) != 0) && (driverRankItemValue != 3))
 		{
 			if ((actionsFlagSetCopy & ACTION_JUMP_BUTTON_HELD) == 0)
 			{
@@ -717,17 +718,17 @@ CheckJumpButtons:
 			approximateSpeed2 = CTR_MipsSra(driverSpeedOrSmth, 7);
 			buttonsTapped = ACTION_REVERSING_ENGINE;
 		LAB_800625c4:
-			uVar20 = actionsFlagSetCopy | buttonsTapped;
+			actionsFlagSetNext = actionsFlagSetCopy | buttonsTapped;
 		}
 		else
 		{
-			uVar20 = actionsFlagSetCopy | ACTION_ACCEL_PREVENTION;
+			actionsFlagSetNext = actionsFlagSetCopy | ACTION_ACCEL_PREVENTION;
 			if (0 < (s8)driver->simpTurnState)
-				uVar20 = actionsFlagSetCopy | ACTION_REVERSE_STEER_RIGHT | ACTION_ACCEL_PREVENTION;
+				actionsFlagSetNext = actionsFlagSetCopy | ACTION_REVERSE_STEER_RIGHT | ACTION_ACCEL_PREVENTION;
 			if ((s8)driver->simpTurnState < 0)
 			{
 				buttonsTapped = ACTION_REVERSE_STEER_LEFT;
-				actionsFlagSetCopy = uVar20;
+				actionsFlagSetCopy = actionsFlagSetNext;
 				goto LAB_800625c4;
 			}
 		}
@@ -796,12 +797,12 @@ CheckJumpButtons:
 		actionsFlagSetCopy |= ACTION_REVERSING_ENGINE | ACTION_BRAKE_WITH_ACCEL;
 
 	LAB_80062548:
-		uVar20 = actionsFlagSetCopy & ~(ACTION_REVERSE_STEER_LEFT | ACTION_REVERSE_STEER_RIGHT);
+		actionsFlagSetNext = actionsFlagSetCopy & ~(ACTION_REVERSE_STEER_LEFT | ACTION_REVERSE_STEER_RIGHT);
 		approximateSpeed2 = driverSpeedSmth2;
 	}
 
 	// driving backwards
-	if ((uVar20 & ACTION_REVERSING_ENGINE) != 0)
+	if ((actionsFlagSetNext & ACTION_REVERSING_ENGINE) != 0)
 	{
 		driver->timeSpentReversing = CTR_MipsAddLo(driver->timeSpentReversing, gGT->elapsedTimeMS);
 	}
@@ -815,9 +816,9 @@ CheckJumpButtons:
 			if (0 < approximateSpeed2)
 			{
 				// not holding brake
-				if ((uVar20 & (ACTION_ACCEL_RELEASED_WITH_RESERVES | ACTION_BRAKE_WITH_ACCEL)) == 0)
+				if ((actionsFlagSetNext & (ACTION_ACCEL_RELEASED_WITH_RESERVES | ACTION_BRAKE_WITH_ACCEL)) == 0)
 				{
-					driver->actionsFlagSet = uVar20;
+					driver->actionsFlagSet = actionsFlagSetNext;
 
 					// fire level, depending on numWumpa
 					superEngineFireLevel = 0x80;
@@ -827,14 +828,14 @@ CheckJumpButtons:
 					// add 0.12s reserves
 					VehFire_Increment(driver, 120, (TURBO_PAD | SUPER_ENGINE), superEngineFireLevel);
 
-					uVar20 = driver->actionsFlagSet;
+					actionsFlagSetNext = driver->actionsFlagSet;
 				}
 			}
 		}
 	}
 
 	// if accel prevention (hold square)
-	actionsFlagSetCopy = uVar20 & ACTION_ACCEL_PREVENTION;
+	actionsFlagSetCopy = actionsFlagSetNext & ACTION_ACCEL_PREVENTION;
 	if (actionsFlagSetCopy != 0)
 	{
 		// high speed
@@ -877,7 +878,7 @@ CheckJumpButtons:
 	}
 
 	// brakes
-	if ((uVar20 & (ACTION_MASK_WEAPON | ACTION_BRAKE_WITH_ACCEL)) == 0)
+	if ((actionsFlagSetNext & (ACTION_MASK_WEAPON | ACTION_BRAKE_WITH_ACCEL)) == 0)
 	{
 		driverSpeedOrSmth = driver->terrainMeta2->speedMultiplier;
 
@@ -906,13 +907,13 @@ CheckJumpButtons:
 	}
 
 	// default steer strength from class stats
-	iVar14 = CTR_MipsAddLo(driver->const_TurnRate, CTR_MipsSll((s8)driver->turnConst, 1) / 5);
+	steerStrength = CTR_MipsAddLo(driver->const_TurnRate, CTR_MipsSll((s8)driver->turnConst, 1) / 5);
 
 	// if mashing X button
 	if ((driver->mashXUnknown > 6) && (approximateSpeed < 0x2600))
 	{
 		// sharp turn
-		iVar14 = 0x5a;
+		steerStrength = 0x5a;
 		goto UseTurnRate;
 	}
 
@@ -920,7 +921,7 @@ CheckJumpButtons:
 	if (driver->wallRubTimer != 0)
 	{
 		// restrict turn
-		iVar14 = 0x30;
+		steerStrength = 0x30;
 		goto UseTurnRate;
 	}
 
@@ -928,7 +929,7 @@ CheckJumpButtons:
 
 	// if not holding Square (& 0x8)
 	// or not using brakes (& 0x20)
-	if ((uVar20 & (ACTION_ACCEL_PREVENTION | ACTION_BRAKE_WITH_ACCEL)) == 0)
+	if ((actionsFlagSetNext & (ACTION_ACCEL_PREVENTION | ACTION_BRAKE_WITH_ACCEL)) == 0)
 	{
 		// use const_TurnRate + turnConst<<1/5
 		goto UseTurnRate;
@@ -938,7 +939,7 @@ CheckJumpButtons:
 	if (cross == 0)
 	{
 		// turn rate
-		iVar14 = 0x40;
+		steerStrength = 0x40;
 		goto UseTurnRate;
 	}
 
@@ -950,15 +951,15 @@ CheckJumpButtons:
 		driverSpeedCopy = CTR_MipsNegLo(driverSpeedCopy);
 
 	// As speed increases, turn rate decreases
-	iVar14 = VehCalc_MapToRange(driverSpeedCopy, 0x300, CTR_MipsSra(driver->const_Speed_ClassStat, 1), 0x40, iVar14);
+	steerStrength = VehCalc_MapToRange(driverSpeedCopy, 0x300, CTR_MipsSra(driver->const_Speed_ClassStat, 1), 0x40, steerStrength);
 
 UseTurnRate:
 
 	// Steer, based on strength, and LeftStickX
-	iVar14 = VehPhysJoystick_GetStrengthAbsolute(driverSpeedOrSmth, iVar14, ptrgamepad->rwd);
+	steerStrength = VehPhysJoystick_GetStrengthAbsolute(driverSpeedOrSmth, steerStrength, ptrgamepad->rwd);
 
 	// no desired steer
-	if (CTR_MipsNegLo(iVar14) == 0)
+	if (CTR_MipsNegLo(steerStrength) == 0)
 	{
 		driver->numFramesSpentSteering = 10000;
 	}
@@ -967,30 +968,30 @@ UseTurnRate:
 	else
 	{
 		// desired steer left, or active steer left
-		if ((iVar14 < 1) || ((s8)driver->simpTurnState < 0))
+		if ((steerStrength < 1) || ((s8)driver->simpTurnState < 0))
 		{
 			// desired steer right, or active steer right
-			if ((-1 < iVar14) || (0 < (s8)driver->simpTurnState))
+			if ((-1 < steerStrength) || (0 < (s8)driver->simpTurnState))
 			{
 				// active steer has not changed
 				goto SkipSetSteer;
 			}
 
 			// active steer left
-			uVar20 |= ACTION_STEER_LEFT;
+			actionsFlagSetNext |= ACTION_STEER_LEFT;
 		}
 
 		else
 		{
 			// active steer right
-			uVar20 &= ~ACTION_STEER_LEFT;
+			actionsFlagSetNext &= ~ACTION_STEER_LEFT;
 		}
 		driver->numFramesSpentSteering = 0;
 	}
 
 SkipSetSteer:
 
-	driver->simpTurnState = (s8)CTR_MipsNegLo(iVar14);
+	driver->simpTurnState = (s8)CTR_MipsNegLo(steerStrength);
 
 	// Change wheel rotation based on StickLX
 	driverSpeedOrSmth = VehPhysJoystick_GetStrengthAbsolute(driverSpeedOrSmth, 0x40, ptrgamepad->rwd);
@@ -1010,8 +1011,8 @@ SkipSetSteer:
 		driverSpeedOrSmth = CTR_MipsSra(CTR_MipsAddLo(driverSpeedOrSmth, approximateSpeed), 1);
 	}
 
-	sVar13 = CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(driverSpeedOrSmth, 0x89), CTR_MipsMulLo(driver->unkSpeedValue2, 0x177)), 3), 0xc);
-	driver->unkSpeedValue2 = sVar13;
+	tireColorStep = CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(driverSpeedOrSmth, 0x89), CTR_MipsMulLo(driver->unkSpeedValue2, 0x177)), 3), 0xc);
+	driver->unkSpeedValue2 = tireColorStep;
 
 	if ((driver->actionsFlagSetPrevFrame & ACTION_ACCEL_PREVENTION) == 0)
 	{
@@ -1022,7 +1023,7 @@ SkipSetSteer:
 		// If base or approximate speed is above the low-speed threshold.
 		if ((approximateSpeed2 > 0x200) || (approximateSpeed > 0x200))
 		{
-			driver->unkSpeedValue1 = (s16)CTR_MipsSubLo(driver->unkSpeedValue1, sVar13);
+			driver->unkSpeedValue1 = (s16)CTR_MipsSubLo(driver->unkSpeedValue1, tireColorStep);
 		}
 	}
 
@@ -1043,7 +1044,7 @@ SkipSetSteer:
 		driver->tireColor = 0x2e808080;
 	}
 
-	driver->actionsFlagSet = uVar20;
+	driver->actionsFlagSet = actionsFlagSetNext;
 	return;
 }
 
@@ -1307,99 +1308,74 @@ DriverFunc PlayerAntiVShiftFuncTable[DRIVER_FUNC_COUNT] = {NULL,
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80062f4c-0x80063634.
 void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver)
 {
-	int cVar1;
-	char bVar2;
-	char bVar3;
-	struct GameTracker *gGT;
-	int sVar5;
-	u16 uVar6;
-	u16 uVar7;
-	int iVar8;
-	int iVar9;
-	u32 uVar10;
-	int iVar11;
-	int iVar13;
-	u32 uVar14;
-	int iVar15;
+	struct GameTracker *gGT = sdata->gGT;
 
-	int iVar12_A;
-	int elapsedTimeDouble;
-	int iVar12_C;
-	int iVar12_D;
-
-	int absVal_NumFrameDrift;
-	int absVal_DistortCurr;
-	int absVal_DistortVel;
-
-	gGT = sdata->gGT;
-
-	iVar12_A = CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsSubLo(driver->axisRotationX, driver->angle), 0x800) & 0xfff, 0x800);
-	if (iVar12_A != 0)
+	int axisAngleDelta = CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsSubLo(driver->axisRotationX, driver->angle), 0x800) & 0xfff, 0x800);
+	if (axisAngleDelta != 0)
 	{
 		// decrease by 1/8
 		// val = val * 7/8
-		iVar13 = CTR_MipsSra(iVar12_A, 3);
+		int axisAngleStep = CTR_MipsSra(axisAngleDelta, 3);
 
-		if (iVar13 == 0)
+		if (axisAngleStep == 0)
 		{
-			iVar13 = 1;
+			axisAngleStep = 1;
 		}
 
-		elapsedTimeDouble = CTR_MipsSra(CTR_MipsSll(gGT->elapsedTimeMS, 6), 5);
+		int axisAngleStepLimit = CTR_MipsSra(CTR_MipsSll(gGT->elapsedTimeMS, 6), 5);
 
-		if (iVar13 > elapsedTimeDouble)
-			iVar13 = elapsedTimeDouble;
+		if (axisAngleStep > axisAngleStepLimit)
+			axisAngleStep = axisAngleStepLimit;
 
-		int minElapsedDelta = CTR_MipsNegLo(elapsedTimeDouble);
-		if (iVar13 < minElapsedDelta)
-			iVar13 = minElapsedDelta;
+		int minAxisAngleStep = CTR_MipsNegLo(axisAngleStepLimit);
+		if (axisAngleStep < minAxisAngleStep)
+			axisAngleStep = minAxisAngleStep;
 
 		// change player rotation
-		driver->angle = (s16)CTR_MipsAddLo((u16)driver->angle, iVar13);
+		driver->angle = (s16)CTR_MipsAddLo((u16)driver->angle, axisAngleStep);
 
-		driver->axisRotationX = (s16)(CTR_MipsSubLo((u16)driver->axisRotationX, iVar13) & 0xfff);
+		driver->axisRotationX = (s16)(CTR_MipsSubLo((u16)driver->axisRotationX, axisAngleStep) & 0xfff);
 	}
 
 	// positive cam spin rate
-	iVar13 = (int)driver->const_Drifting_CameraSpinRate;
+	int cameraSpinRate = (int)driver->const_Drifting_CameraSpinRate;
 
 	if (driver->multDrift < 0)
 	{
 		// negative cam spin rate
-		iVar13 = CTR_MipsNegLo(iVar13);
+		cameraSpinRate = CTR_MipsNegLo(cameraSpinRate);
 	}
 
-	PhysLerpRot(driver, iVar13);
+	PhysLerpRot(driver, cameraSpinRate);
 
 	// turning rate
-	iVar12_D = driver->rotationSpinRate;
+	int currentSpinRate = driver->rotationSpinRate;
 
 	// drift direction
-	iVar15 = (int)driver->multDrift;
+	int driftDirection = (int)driver->multDrift;
 
-	bVar3 = false;
+	char spinRateNegated = false;
 
-	iVar9 = (s8)driver->simpTurnState;
+	int steerInput = (s8)driver->simpTurnState;
+	int steerInputScaled = CTR_MipsSll(steerInput, 8);
+	int steerVelLimit;
 
-	iVar13 = CTR_MipsSll(iVar9, 8);
-
-	// if drifting to the right
-	if (iVar15 < 0)
+	if (driftDirection < 0)
 	{
 		// if steering to the right
-		if (iVar13 < 1)
+		if (steerInputScaled < 1)
 		{
-			iVar13 = CTR_MipsNegLo(CTR_MipsSll(iVar9, 8));
+			steerInputScaled = CTR_MipsNegLo(CTR_MipsSll(steerInput, 8));
 
 			// const_SteerVel_DriftStandard
-			iVar9 = CTR_MipsNegLo((s8)driver->const_SteerVel_DriftStandard);
+			steerVelLimit = CTR_MipsNegLo((s8)driver->const_SteerVel_DriftStandard);
 		}
 
 		// if steering to the left
 		else
 		{
 			// const_SteerVel_DriftSwitchWay
-			iVar9 = CTR_MipsNegLo((s8)driver->const_SteerVel_DriftSwitchWay);
+			steerVelLimit = CTR_MipsNegLo((s8)driver->const_SteerVel_DriftSwitchWay);
 		}
 	}
 
@@ -1407,65 +1383,70 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 	else
 	{
 		// if steering to the right
-		if (iVar13 < 0)
+		if (steerInputScaled < 0)
 		{
-			iVar13 = CTR_MipsNegLo(CTR_MipsSll(iVar9, 8));
+			steerInputScaled = CTR_MipsNegLo(CTR_MipsSll(steerInput, 8));
 
 			// const_SteerVel_DriftSwitchWay
-			cVar1 = (s8)driver->const_SteerVel_DriftSwitchWay;
+			steerVelLimit = (s8)driver->const_SteerVel_DriftSwitchWay;
 		}
 
 		// if steering to the left
 		else
 		{
 			// const_SteerVel_DriftStandard
-			cVar1 = (s8)driver->const_SteerVel_DriftStandard;
+			steerVelLimit = (s8)driver->const_SteerVel_DriftStandard;
 		}
-
-		iVar9 = (int)cVar1;
 	}
 
 	// Map "simpTurnState" from [0, const_TurnRate] to [0, driftDirection]
-	iVar13 = VehCalc_MapToRange(iVar13, 0, CTR_MipsSll(CTR_MipsAddLo(driver->const_TurnRate, CTR_MipsSll((s8)driver->turnConst, 1) / 5), 8), 0,
-	                            CTR_MipsSll(iVar9, 8));
+	int desiredSpinRate =
+	    VehCalc_MapToRange(steerInputScaled, 0, CTR_MipsSll(CTR_MipsAddLo(driver->const_TurnRate, CTR_MipsSll((s8)driver->turnConst, 1) / 5), 8), 0,
+	                       CTR_MipsSll(steerVelLimit, 8));
 
-	if ((iVar13 < 0) || ((
-	                        // compare two turning rates
-	                        bVar2 = iVar13 < iVar12_D,
-
-	                        iVar13 == 0 && (iVar12_D < 0))))
+	char clampSpinRate;
+	if (desiredSpinRate < 0)
 	{
-		bVar3 = true;
-		iVar13 = CTR_MipsNegLo(iVar13);
-		iVar12_D = CTR_MipsNegLo(iVar12_D);
-		iVar15 = CTR_MipsNegLo(iVar15);
-		bVar2 = iVar13 < iVar12_D;
+		spinRateNegated = true;
+		desiredSpinRate = CTR_MipsNegLo(desiredSpinRate);
+		currentSpinRate = CTR_MipsNegLo(currentSpinRate);
+		driftDirection = CTR_MipsNegLo(driftDirection);
+		clampSpinRate = desiredSpinRate < currentSpinRate;
+	}
+	else
+	{
+		clampSpinRate = desiredSpinRate < currentSpinRate;
+		if ((desiredSpinRate == 0) && (currentSpinRate < 0))
+		{
+			spinRateNegated = true;
+			currentSpinRate = CTR_MipsNegLo(currentSpinRate);
+			driftDirection = CTR_MipsNegLo(driftDirection);
+			clampSpinRate = desiredSpinRate < currentSpinRate;
+		}
 	}
 
 	// 0x464 and 0x466 impact turning somehow
 
-	if (bVar2)
+	if (clampSpinRate)
 	{
-		iVar12_D = CTR_MipsSubLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateDecel, gGT->elapsedTimeMS), 5));
-		bVar2 = iVar12_D < iVar13;
+		currentSpinRate = CTR_MipsSubLo(currentSpinRate, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateDecel, gGT->elapsedTimeMS), 5));
+		clampSpinRate = currentSpinRate < desiredSpinRate;
 	}
 	else
 	{
-		iVar12_D = CTR_MipsAddLo(iVar12_D, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateAccel, gGT->elapsedTimeMS), 5));
-		bVar2 = iVar13 < iVar12_D;
+		currentSpinRate = CTR_MipsAddLo(currentSpinRate, CTR_MipsSra(CTR_MipsMulLo(driver->const_DriftSpinRateAccel, gGT->elapsedTimeMS), 5));
+		clampSpinRate = desiredSpinRate < currentSpinRate;
 	}
 
-	if (bVar2)
+	if (clampSpinRate)
 	{
-		iVar12_D = iVar13;
+		currentSpinRate = desiredSpinRate;
 	}
 
 	// if not holding a drift direction,
 	// interpolate to "neutral" drift
-	if ((iVar13 == 0) || (iVar15 == 0))
+	if ((desiredSpinRate == 0) || (driftDirection == 0))
 	{
-	LAB_80063244:
-
 		// Interpolate by 1 unit, until zero
 		driver->KartStates.Drifting.numFramesDrifting = VehCalc_InterpBySpeed((int)driver->KartStates.Drifting.numFramesDrifting, 1, 0);
 	}
@@ -1474,7 +1455,7 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 	else
 	{
 		// if drifting right
-		if (iVar15 < 1)
+		if (driftDirection < 1)
 		{
 			driver->KartStates.Drifting.numFramesDrifting = (s16)CTR_MipsSubLo((u16)driver->KartStates.Drifting.numFramesDrifting, 1);
 
@@ -1491,106 +1472,107 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 				driver->KartStates.Drifting.numFramesDrifting = 0;
 		}
 	}
-	if (bVar3)
+	if (spinRateNegated)
 	{
-		iVar12_D = CTR_MipsNegLo(iVar12_D);
-		iVar15 = CTR_MipsNegLo(iVar15);
+		currentSpinRate = CTR_MipsNegLo(currentSpinRate);
+		driftDirection = CTR_MipsNegLo(driftDirection);
 	}
 
 	// Map value from [oldMin, oldMax] to [newMin, newMax]
 	// inverting newMin and newMax will give an inverse range mapping
-	iVar13 = VehCalc_MapToRange((int)driver->KartStates.Drifting.driftTotalTimeMS, 0, CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5),
-	                            CTR_MipsSra(CTR_MipsMulLo((s8)driver->const_DriftTurnStartupScale, driver->multDrift), 8), iVar15);
-	if (-1 < iVar13)
+	int driftTurnInput = VehCalc_MapToRange((int)driver->KartStates.Drifting.driftTotalTimeMS, 0, CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5),
+	                                        CTR_MipsSra(CTR_MipsMulLo((s8)driver->const_DriftTurnStartupScale, driver->multDrift), 8), driftDirection);
+
+	int newSpinRate = (s16)currentSpinRate;
+	if (-1 < driftTurnInput)
 	{
-		if (iVar12_D < CTR_MipsNegLo(iVar13))
+		if (currentSpinRate < CTR_MipsNegLo(driftTurnInput))
 		{
-			iVar12_D = CTR_MipsNegLo(iVar13);
+			currentSpinRate = CTR_MipsNegLo(driftTurnInput);
 		}
-		sVar5 = (s16)iVar12_D;
-		if (0 < iVar13)
-			goto LAB_800632cc;
+		newSpinRate = (s16)currentSpinRate;
 	}
-	sVar5 = (s16)iVar12_D;
-	if (CTR_MipsNegLo(iVar13) < iVar12_D)
+	if (driftTurnInput <= 0)
 	{
-		sVar5 = (s16)CTR_MipsNegLo(iVar13);
+		if (CTR_MipsNegLo(driftTurnInput) < currentSpinRate)
+		{
+			newSpinRate = (s16)CTR_MipsNegLo(driftTurnInput);
+		}
 	}
-LAB_800632cc:
-	iVar12_D = iVar13;
-	if (iVar13 < 0)
+
+	int driftTurnInputAbs = driftTurnInput;
+	if (driftTurnInput < 0)
 	{
-		iVar12_D = CTR_MipsNegLo(iVar13);
+		driftTurnInputAbs = CTR_MipsNegLo(driftTurnInput);
 	}
-	driver->rotationSpinRate = sVar5;
-	iVar9 = (int)sVar5;
+	driver->rotationSpinRate = newSpinRate;
+	int signedSpinRate = (int)newSpinRate;
 
 	// Map value from [oldMin, oldMax] to [newMin, newMax]
 	// inverting newMin and newMax will give an inverse range mapping
-	iVar12_D = VehCalc_MapToRange(iVar12_D, 0, CTR_MipsAddLo((s8)driver->const_DriftTurnBase, CTR_MipsSll((s8)driver->turnConst, 2) / 5), 0,
-	                              (int)driver->const_DriftTurnAngleScale);
+	int driftTurnAngleBase = VehCalc_MapToRange(driftTurnInputAbs, 0, CTR_MipsAddLo((s8)driver->const_DriftTurnBase, CTR_MipsSll((s8)driver->turnConst, 2) / 5),
+	                                            0, (int)driver->const_DriftTurnAngleScale);
 
-	iVar15 = iVar9;
+	int spinRateAbs = signedSpinRate;
+	if (signedSpinRate < 0)
+		spinRateAbs = CTR_MipsNegLo(signedSpinRate);
 
-	if (iVar9 < 0)
-		iVar15 = CTR_MipsNegLo(iVar9);
-
-	// iVar13 and iVar9 have different signs
-	iVar8 = (int)driver->const_DriftTurnOppositeDirectionAngle;
-	iVar11 = (s8)driver->const_SteerVel_DriftSwitchWay;
+	// drift input and current spin have different signs
+	int driftTurnAngleLimit = (int)driver->const_DriftTurnOppositeDirectionAngle;
+	int driftSteerVelLimit = (s8)driver->const_SteerVel_DriftSwitchWay;
 
 	// if both numbers have same sign,
 	// either both < 0, or both >= 0
-	if ((iVar13 ^ iVar9) >= 0)
+	if ((driftTurnInput ^ signedSpinRate) >= 0)
 	{
-		iVar8 = (int)driver->const_DriftTurnSameDirectionAngle;
-		iVar11 = (s8)driver->const_SteerVel_DriftStandard;
+		driftTurnAngleLimit = (int)driver->const_DriftTurnSameDirectionAngle;
+		driftSteerVelLimit = (s8)driver->const_SteerVel_DriftStandard;
 	}
 
-	if (iVar13 < 0)
+	if (driftTurnInput < 0)
 	{
-		iVar12_D = CTR_MipsNegLo(iVar12_D);
-		iVar8 = CTR_MipsNegLo(iVar8);
+		driftTurnAngleBase = CTR_MipsNegLo(driftTurnAngleBase);
+		driftTurnAngleLimit = CTR_MipsNegLo(driftTurnAngleLimit);
 	}
 
 	// Map value from [oldMin, oldMax] to [newMin, newMax]
 	// inverting newMin and newMax will give an inverse range mapping
-	iVar15 = VehCalc_MapToRange(iVar15, 0, CTR_MipsSll(iVar11, 8), 0, iVar8);
+	int driftTurnAngleAssist = VehCalc_MapToRange(spinRateAbs, 0, CTR_MipsSll(driftSteerVelLimit, 8), 0, driftTurnAngleLimit);
 
-	iVar12_D = CTR_MipsSubLo(CTR_MipsAddLo(iVar12_D, iVar15), driver->turnAngleCurr);
+	int turnAngleDelta = CTR_MipsSubLo(CTR_MipsAddLo(driftTurnAngleBase, driftTurnAngleAssist), driver->turnAngleCurr);
 
-	iVar15 = CTR_MipsSra(iVar12_D, 3);
+	int turnAngleStep = CTR_MipsSra(turnAngleDelta, 3);
 
-	sVar5 = (s16)iVar15;
-	if (iVar12_D != 0)
+	int turnAngleStepSigned = (s16)turnAngleStep;
+	if (turnAngleDelta != 0)
 	{
-		if (iVar15 == 0)
+		if (turnAngleStep == 0)
 		{
-			sVar5 = 1;
+			turnAngleStepSigned = 1;
 		}
-		driver->turnAngleCurr = (s16)CTR_MipsAddLo((u16)driver->turnAngleCurr, sVar5);
+		driver->turnAngleCurr = (s16)CTR_MipsAddLo((u16)driver->turnAngleCurr, turnAngleStepSigned);
 	}
 
-	absVal_NumFrameDrift = driver->KartStates.Drifting.numFramesDrifting;
+	int numFramesDriftingAbs = driver->KartStates.Drifting.numFramesDrifting;
 
-	if (absVal_NumFrameDrift < 0)
-		absVal_NumFrameDrift = CTR_MipsNegLo(absVal_NumFrameDrift);
+	if (numFramesDriftingAbs < 0)
+		numFramesDriftingAbs = CTR_MipsNegLo(numFramesDriftingAbs);
 
 	// get half of spin-out constant,
 	// this determines when to start making tire sound effects,
 	// after the turbo meter finishes filling past it's max capacity
 
 	// if you drift beyond the limit of the turbo meter
-	if (((u8)driver->const_Drifting_FramesTillSpinout >> 1) < absVal_NumFrameDrift)
+	if (((u8)driver->const_Drifting_FramesTillSpinout >> 1) < numFramesDriftingAbs)
 	{
 		// Play the SFX of near-spinout
 
-		absVal_DistortCurr = driver->turnWobbleAngle;
-		if (absVal_DistortCurr < 0)
-			absVal_DistortCurr = CTR_MipsNegLo(absVal_DistortCurr);
+		int turnWobbleAngleAbs = driver->turnWobbleAngle;
+		if (turnWobbleAngleAbs < 0)
+			turnWobbleAngleAbs = CTR_MipsNegLo(turnWobbleAngleAbs);
 
 		// if low distortion
-		if (absVal_DistortCurr < 10)
+		if (turnWobbleAngleAbs < 10)
 		{
 			// count up for 8 frames
 			driver->turnWobbleTimer = 8;
@@ -1598,7 +1580,7 @@ LAB_800632cc:
 			// distortion, rate of change
 			driver->turnWobbleVelocity = 0x14;
 
-			if (iVar13 < 0)
+			if (driftTurnInput < 0)
 			{
 				driver->turnWobbleVelocity = (s16)CTR_MipsNegLo(driver->turnWobbleVelocity);
 			}
@@ -1613,18 +1595,19 @@ LAB_800632cc:
 		driver->turnWobbleTimer = 0;
 	}
 
-	absVal_DistortCurr = driver->turnWobbleAngle;
-	if (absVal_DistortCurr < 0)
-		absVal_DistortCurr = CTR_MipsNegLo(absVal_DistortCurr);
+	int turnWobbleAngleAbs = driver->turnWobbleAngle;
+	if (turnWobbleAngleAbs < 0)
+		turnWobbleAngleAbs = CTR_MipsNegLo(turnWobbleAngleAbs);
 
 	// if distortion is too high
-	if (0x32 < absVal_DistortCurr)
+	if (0x32 < turnWobbleAngleAbs)
 	{
 		// stop increasing distortion,
 		// go back down
 		driver->turnWobbleTimer = 0;
 	}
 
+	int turnWobbleAngleNext;
 	// frame countdown over
 	if (driver->turnWobbleTimer == 0)
 	{
@@ -1634,12 +1617,12 @@ LAB_800632cc:
 		if (0 < driver->turnWobbleAngle)
 			driver->turnWobbleVelocity = (s16)CTR_MipsNegLo(driver->turnWobbleVelocity);
 
-		absVal_DistortVel = driver->turnWobbleVelocity;
-		if (absVal_DistortVel < 0)
-			absVal_DistortVel = CTR_MipsNegLo(absVal_DistortVel);
+		int turnWobbleVelocityAbs = driver->turnWobbleVelocity;
+		if (turnWobbleVelocityAbs < 0)
+			turnWobbleVelocityAbs = CTR_MipsNegLo(turnWobbleVelocityAbs);
 
 		// move down until zero
-		sVar5 = VehCalc_InterpBySpeed(driver->turnWobbleAngle, absVal_DistortVel, 0);
+		turnWobbleAngleNext = VehCalc_InterpBySpeed(driver->turnWobbleAngle, turnWobbleVelocityAbs, 0);
 	}
 
 	// frames counting down
@@ -1648,13 +1631,13 @@ LAB_800632cc:
 		driver->turnWobbleTimer = (s16)CTR_MipsSubLo((u16)driver->turnWobbleTimer, 1);
 
 		// move up each frame
-		sVar5 = CTR_MipsAddLo((u16)driver->turnWobbleAngle, (u16)driver->turnWobbleVelocity);
+		turnWobbleAngleNext = CTR_MipsAddLo((u16)driver->turnWobbleAngle, (u16)driver->turnWobbleVelocity);
 	}
 
 	// near-spinout distortion SFX
-	driver->turnWobbleAngle = sVar5;
+	driver->turnWobbleAngle = turnWobbleAngleNext;
 
-	driver->ampTurnState = (s16)CTR_MipsAddLo(iVar9, iVar13);
+	driver->ampTurnState = (s16)CTR_MipsAddLo(signedSpinRate, driftTurnInput);
 
 	driver->angle = (s16)(CTR_MipsAddLo((u16)driver->angle, CTR_MipsSra(CTR_MipsMulLo(driver->ampTurnState, gGT->elapsedTimeMS), 0xd)) & 0xfff);
 
@@ -1666,14 +1649,14 @@ LAB_800632cc:
 		if (driver->KartStates.Drifting.driftBoostTimeMS < 0)
 			driver->KartStates.Drifting.driftBoostTimeMS = 0;
 
-		sVar5 = CTR_MipsSra(CTR_MipsMulLo((u8)driver->const_DriftBoostAxisKickRate, gGT->elapsedTimeMS), 5);
+		int axisKick = CTR_MipsSra(CTR_MipsMulLo((u8)driver->const_DriftBoostAxisKickRate, gGT->elapsedTimeMS), 5);
 
 		if (driver->turnAngleCurr < 0)
 		{
-			sVar5 = CTR_MipsNegLo(sVar5);
+			axisKick = CTR_MipsNegLo(axisKick);
 		}
 
-		driver->axisRotationX = (s16)(CTR_MipsAddLo((u16)driver->axisRotationX, sVar5) & 0xfff);
+		driver->axisRotationX = (s16)(CTR_MipsAddLo((u16)driver->axisRotationX, axisKick) & 0xfff);
 	}
 
 	driver->rotCurr.y = (s16)CTR_MipsAddLo(CTR_MipsAddLo((u16)driver->turnWobbleAngle, (u16)driver->angle), (u16)driver->turnAngleCurr);

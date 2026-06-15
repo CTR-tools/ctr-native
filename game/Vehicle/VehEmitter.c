@@ -1,7 +1,7 @@
 #include <common.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80059100-0x80059344.
-struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *param_2, VECTOR *param_3)
+struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *exhaustPos, VECTOR *exhaustVel)
 {
 	int exhaustType;
 
@@ -40,7 +40,7 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *param_2, VECTOR *p
 		}
 	}
 
-	if (((dInst->flags & SPLIT_LINE) != 0) && ((param_2->vy - param_3->vy) + d->posCurr.y < 256))
+	if (((dInst->flags & SPLIT_LINE) != 0) && ((exhaustPos->vy - exhaustVel->vy) + d->posCurr.y < 256))
 	{
 		// bubble texture
 		exhaustType = 7;
@@ -54,8 +54,8 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *param_2, VECTOR *p
 
 	for (char i = 0; i < 3; i++)
 	{
-		p->axis[i].startVal += (((int *)param_2)[i] - ((int *)param_3)[i]);
-		p->axis[i].velocity = ((int *)param_3)[i];
+		p->axis[i].startVal += (((int *)exhaustPos)[i] - ((int *)exhaustVel)[i]);
+		p->axis[i].velocity = ((int *)exhaustVel)[i];
 	}
 
 	p->driverInst = dInst;

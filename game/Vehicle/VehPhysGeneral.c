@@ -14,7 +14,7 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 	int classSpeed_halved;
 	struct Terrain *terrain;
 	int rotCurrW_original;
-	int iVar1;
+	int rotCurrWAbs;
 	u16 angle;
 	int turnResistMinBitshift;
 	int turnResistMaxBitshift;
@@ -182,12 +182,12 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 	classSpeed_halved = 0;
 	if (turnResistMinBitshift <= speedApprox)
 	{
-		iVar1 = rotCurrW_original;
+		rotCurrWAbs = rotCurrW_original;
 		if (rotCurrW_original < 0)
 		{
-			iVar1 = CTR_MipsNegLo(rotCurrW_original);
+			rotCurrWAbs = CTR_MipsNegLo(rotCurrW_original);
 		}
-		if (turnResistMax < iVar1)
+		if (turnResistMax < rotCurrWAbs)
 		{
 			classSpeed_halved = (int)driver->fireSpeed;
 			if (classSpeed_halved < 0)
@@ -195,7 +195,7 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 				classSpeed_halved = CTR_MipsNegLo(classSpeed_halved);
 			}
 			classSpeed_halved = VehCalc_MapToRange(classSpeed_halved, turnResistMinBitshift, turnResistMaxBitshift, 0, rotCurrW_interp);
-			classSpeed_halved = VehCalc_MapToRange(iVar1, turnResistMax, turnResistMin, 0, classSpeed_halved);
+			classSpeed_halved = VehCalc_MapToRange(rotCurrWAbs, turnResistMax, turnResistMin, 0, classSpeed_halved);
 			if (rotCurrW_original < 0)
 			{
 				classSpeed_halved = CTR_MipsNegLo(classSpeed_halved);
