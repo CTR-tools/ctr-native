@@ -93,8 +93,7 @@ void PROC_CheckBloodlineForDead(struct Thread **replaceSelf, struct Thread *th)
 	{
 		struct Thread *siblingThread = th->siblingThread;
 
-		// if this thread is alive
-		if ((th->flags & 0x800) == 0)
+		if ((th->flags & THREAD_FLAG_DEAD) == 0)
 		{
 			// [wow this sounds dark]
 			// check child's bloodline, and if child is dead, then
@@ -268,8 +267,7 @@ void PROC_CollidePointWithSelf(struct Thread *th, struct BucketSearchParams *buf
 	int distZ;
 	int dist;
 
-	// if collision disabled, or thread is dead, quit
-	if ((th->flags & 0x1800) != 0)
+	if ((th->flags & (THREAD_FLAG_DEAD | THREAD_FLAG_DISABLE_COLLISION)) != 0)
 		return;
 
 	inst = th->inst;

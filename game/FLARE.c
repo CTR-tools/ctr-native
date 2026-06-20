@@ -48,7 +48,7 @@ void FLARE_ThTick(struct Thread *th)
 
 	if (timer >= 20)
 	{
-		th->flags |= 0x800;
+		th->flags |= THREAD_FLAG_DEAD;
 		return;
 	}
 

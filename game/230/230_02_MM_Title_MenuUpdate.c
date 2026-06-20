@@ -277,8 +277,7 @@ void MM_Title_KillThread(void)
 			INSTANCE_Death(title->i[n]);
 		}
 
-		// kill thread
-		title->t->flags |= 0x800;
+		title->t->flags |= THREAD_FLAG_DEAD;
 		D230.titleObj = NULL;
 
 		// CameraDC, it must be zero to follow you

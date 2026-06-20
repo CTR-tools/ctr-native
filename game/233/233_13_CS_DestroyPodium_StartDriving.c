@@ -15,10 +15,7 @@ void CS_DestroyPodium_StartDriving(void)
 	while (t != NULL)
 	{
 		if (t->funcThDestroy != CS_Podium_Prize_ThDestroy)
-		{
-			// This thread is now dead
-			t->flags |= 0x800;
-		}
+			t->flags |= THREAD_FLAG_DEAD;
 
 		t = t->siblingThread;
 	}
@@ -28,7 +25,7 @@ void CS_DestroyPodium_StartDriving(void)
 	// enable collisions for thread,
 	// and make instance visible
 	inst = d->instSelf;
-	inst->thread->flags &= ~(0x1000);
+	inst->thread->flags &= ~THREAD_FLAG_DISABLE_COLLISION;
 	inst->flags &= ~(HIDE_MODEL);
 
 	d->kartState = KS_ENGINE_REVVING;

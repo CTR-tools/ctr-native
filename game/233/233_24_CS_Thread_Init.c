@@ -14,7 +14,7 @@ void CS_Thread_ThTick(struct Thread *t)
 
 	if (CS_Thread_UseOpcode(inst, cs))
 	{
-		t->flags |= 0x800;
+		t->flags |= THREAD_FLAG_DEAD;
 
 		if ((sdata->gGT->gameMode2 & 0x80) != 0)
 			return;
@@ -102,7 +102,7 @@ thTick_epilogue:
 	// ASM: 0x800ae7dc - check isCutsceneOver, re-apply death flag
 	if (D233.isCutsceneOver != 0)
 	{
-		t->flags |= 0x800;
+		t->flags |= THREAD_FLAG_DEAD;
 	}
 }
 

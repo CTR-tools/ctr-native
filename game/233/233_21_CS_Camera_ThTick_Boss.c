@@ -55,7 +55,7 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		t = gGT->threadBuckets[OTHER].thread;
 		while (t != 0)
 		{
-			t->flags |= 0x800;
+			t->flags |= THREAD_FLAG_DEAD;
 			t = t->siblingThread;
 		}
 
@@ -165,6 +165,6 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 			break;
 
 		gGT->podiumRewardID = NOFUNC; // 0
-		t->flags |= 0x800;
+		t->flags |= THREAD_FLAG_DEAD;
 	}
 }

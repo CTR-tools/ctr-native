@@ -4,8 +4,5 @@
 void CS_Podium_Stand_ThTick(struct Thread *t)
 {
 	if (D233.isCutsceneOver != 0)
-	{
-		// thread is now dead
-		t->flags |= 0x800;
-	}
+		t->flags |= THREAD_FLAG_DEAD;
 }

@@ -341,7 +341,7 @@ void SelectProfile_Destroy(void)
 			}
 		}
 
-		obj->thread->flags |= 0x800;
+		obj->thread->flags |= THREAD_FLAG_DEAD;
 		sdata->ptrLoadSaveObj = 0;
 	}
 }

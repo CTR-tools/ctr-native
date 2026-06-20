@@ -110,7 +110,7 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 				s16 hintID;
 
 				D233.isCutsceneOver = 1;
-				th->flags |= 0x800;
+				th->flags |= THREAD_FLAG_DEAD;
 
 				CS_DestroyPodium_StartDriving();
 
@@ -178,7 +178,7 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 		// spawn threads and play audio before the checkered flag finishes, so kill
 		// the thread here to prevent the re-entry entirely.
 		D233.isCutsceneOver = 1;
-		th->flags |= 0x800;
+		th->flags |= THREAD_FLAG_DEAD;
 #endif
 		return;
 	}

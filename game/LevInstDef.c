@@ -84,10 +84,9 @@ void LevInstDef_RePack(struct mesh_info *ptr_mesh_info, int boolAdvHub)
 			// if on adv hub
 			if (boolAdvHub != 0)
 			{
-				// kill thread if it exists
 				th = inst->thread;
 				if (th != 0)
-					th->flags |= 0x800;
+					th->flags |= THREAD_FLAG_DEAD;
 
 				// erase instance in pool
 				LIST_AddFront(&sdata->gGT->JitPools.instance.free, (struct Item *)inst);

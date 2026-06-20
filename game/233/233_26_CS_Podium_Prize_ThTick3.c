@@ -74,5 +74,5 @@ void CS_Podium_Prize_ThTick3(struct Thread *th)
 
 	OtherFX_Play(0x67, 1);
 
-	th->flags |= 0x800;
+	th->flags |= THREAD_FLAG_DEAD;
 }
