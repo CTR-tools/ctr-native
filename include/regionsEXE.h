@@ -3116,8 +3116,8 @@ struct sData
 	char LOD[8];
 
 	// 8008d2d8
-	// one for RaceWheel, one for Namco
-	int unk_drawingRaceWheelRects[2];
+	// Y positions for analog controller config display (RaceWheel, Namco)
+	int analogConfigY[2];
 
 	// 8008d2e0
 	// one for RaceWheel, one for Namco
@@ -3268,14 +3268,14 @@ struct sData
 	s16 RaceFlag_Position;
 
 	// 8008d446
-	s16 unk_CheckFlag1;
+	s16 RaceFlag_TransitionSpeed;
 
 	// 8008b8a8 Sep3
 	// 8008d448 UsaRetail
 	s16 RaceFlag_CanDraw;
 
 	// 8008d44a
-	s16 unk_CheckFlag2;
+	s16 RaceFlag_DrawInitialized;
 
 	// 8008b8ac Sep3
 	// 8008d44c UsaRetail
@@ -3538,7 +3538,7 @@ struct sData
 	} UnlockBitIndex;
 
 	// 8008D590
-	int unk_UsedIn_FUN_80057884;
+	int matrixTableBaked;
 
 	// 8008B9dc -- SepReview
 	// 8008D594 -- UsaRetail

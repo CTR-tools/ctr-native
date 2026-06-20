@@ -255,7 +255,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              .LOD = {1, 2, 4, 4, 8, 8, 8, 8},
 
                              // one for RaceWheel, one for Namco
-                             .unk_drawingRaceWheelRects = {0x3C, 0x64},
+                             .analogConfigY = {0x3C, 0x64},
 
                              .posY_MultiLine = {0x92, 0xA0, 0x81, 0x8F},
 
@@ -329,9 +329,9 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
 
                              .RaceFlag_AnimationType = 0,
                              .RaceFlag_Position = 0,
-                             .unk_CheckFlag1 = 300,
+                             .RaceFlag_TransitionSpeed = 300,
                              .RaceFlag_CanDraw = 1,
-                             .unk_CheckFlag2 = 0,
+                             .RaceFlag_DrawInitialized = 0,
                              .RaceFlag_DrawOrder = 0,
                              .padding_8008d44e = 0,
 
@@ -435,7 +435,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                                      .UnlockBattleMap = {2, 3, 4, 0},
                                  },
 
-                             .unk_UsedIn_FUN_80057884 = 0,
+                             .matrixTableBaked = 0,
 
                              .s_NOSCRUB = "NOSCRUB",
                              .s_ROAD = "ROAD",

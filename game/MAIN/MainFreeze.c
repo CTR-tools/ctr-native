@@ -129,7 +129,7 @@ static inline void MainFreeze_ConfigDrawRaceWheel(int value, struct GameTracker 
 			ot = (void *)((intptr_t)ot + 0xc);
 		}
 
-		s16 y = sdata->unk_drawingRaceWheelRects[0] + ((sin * (i - 1) * 0x20) >> 0xc) + 0x20;
+		s16 y = sdata->analogConfigY[0] + ((sin * (i - 1) * 0x20) >> 0xc) + 0x20;
 		MainFreeze_ConfigDrawWire(0xe2, y, 0x11e, y, 0, 0xff, 0, ot);
 	}
 
@@ -144,20 +144,20 @@ static inline void MainFreeze_ConfigDrawRaceWheel(int value, struct GameTracker 
 		{
 			int base = tri * 6 + point * 2;
 			triangle[point * 2] = data.raceConfig_unk80084290[base + 2] + ((tri == 0) ? 0x114 : 0xec);
-			triangle[(point * 2) + 1] = sdata->unk_drawingRaceWheelRects[0] + ((angleSin << 5) >> 0xc) + 0x20 + data.raceConfig_unk80084290[base + 3];
+			triangle[(point * 2) + 1] = sdata->analogConfigY[0] + ((angleSin << 5) >> 0xc) + 0x20 + data.raceConfig_unk80084290[base + 3];
 		}
 
 		RECTMENU_DrawRwdTriangle(triangle, (char *)data.raceConfig_colors_arrows, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 	}
 
 	rect.x = 0xec;
-	rect.y = sdata->unk_drawingRaceWheelRects[0];
+	rect.y = sdata->analogConfigY[0];
 	rect.w = 0x28;
 	rect.h = 0x41;
 	RECTMENU_DrawRwdBlueRect(&rect, (char *)data.raceConfig_colors_blueRect, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 
 	rect.x = -0x14;
-	rect.y = sdata->unk_drawingRaceWheelRects[0] - 0x14;
+	rect.y = sdata->analogConfigY[0] - 0x14;
 	rect.w = 0x228;
 	rect.h = 0x91;
 	RECTMENU_DrawInnerRect(&rect, 4, gGT->pushBuffer_UI.ptrOT);
@@ -175,8 +175,8 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 		int sin = MATH_Sin(angle);
 		int cos = MATH_Cos(angle);
 
-		MainFreeze_ConfigDrawWire(0x100 + ((cos * 400) / 0x5000), sdata->unk_drawingRaceWheelRects[1] + ((sin * 0x32) >> 0xc), 0x100 + ((cos * 0x118) / 0x5000),
-		                          sdata->unk_drawingRaceWheelRects[1] + ((sin * 0x23) >> 0xc), 0, 0xff, 0, gGT->pushBuffer_UI.ptrOT);
+		MainFreeze_ConfigDrawWire(0x100 + ((cos * 400) / 0x5000), sdata->analogConfigY[1] + ((sin * 0x32) >> 0xc), 0x100 + ((cos * 0x118) / 0x5000),
+		                          sdata->analogConfigY[1] + ((sin * 0x23) >> 0xc), 0, 0xff, 0, gGT->pushBuffer_UI.ptrOT);
 	}
 
 	u32 frameAngle = (u32)sdata->frameCounter << 6;
@@ -189,9 +189,8 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 		int offset = point * 2;
 		int colorOffset = point * 4;
 		MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[offset] + ((baseCos * 200) / 0x5000) + 0x100,
-		                            data.unkNamcoGamepad_800842DC[offset + 1] + sdata->unk_drawingRaceWheelRects[1] + ((baseSin * 0x19) >> 0xc), 10, 0x80,
-		                            baseAngle, (char *)&data.unkNamcoGamepadRwdTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT,
-		                            &gGT->backBuffer->primMem);
+		                            data.unkNamcoGamepad_800842DC[offset + 1] + sdata->analogConfigY[1] + ((baseSin * 0x19) >> 0xc), 10, 0x80, baseAngle,
+		                            (char *)&data.unkNamcoGamepadRwdTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 	}
 
 	for (int row = 0; row < 0x400; row += 0xaa)
@@ -203,8 +202,8 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 			int sin = MATH_Sin(currAngle);
 			int cos = MATH_Cos(currAngle);
 
-			MainFreeze_ConfigDrawWire(0x100 + ((cos < 0 ? cos + 0x3f : cos) >> 6), sdata->unk_drawingRaceWheelRects[1] + ((sin * 0x28) >> 0xc),
-			                          0x100 + ((cos * 0x120) / 0x5000), sdata->unk_drawingRaceWheelRects[1] + ((sin * 0x24) >> 0xc), color, color, color,
+			MainFreeze_ConfigDrawWire(0x100 + ((cos < 0 ? cos + 0x3f : cos) >> 6), sdata->analogConfigY[1] + ((sin * 0x28) >> 0xc),
+			                          0x100 + ((cos * 0x120) / 0x5000), sdata->analogConfigY[1] + ((sin * 0x24) >> 0xc), color, color, color,
 			                          gGT->pushBuffer_UI.ptrOT);
 		}
 	}
@@ -217,14 +216,14 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 			int pointOffset = point * 2;
 			s16 scale = data.unkNamcoGamepad_800842DC[rowOffset + 7];
 			MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[pointOffset + 18] * scale + 0x100,
-			                            sdata->unk_drawingRaceWheelRects[1] + (data.unkNamcoGamepad_800842DC[pointOffset + 19] * scale),
+			                            sdata->analogConfigY[1] + (data.unkNamcoGamepad_800842DC[pointOffset + 19] * scale),
 			                            data.unkNamcoGamepad_800842DC[rowOffset + 6], 0x80, baseAngle, (char *)&data.unkNamcoGamepad_800842DC[pointOffset + 12],
 			                            gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 		}
 	}
 
 	rect.x = -0x14;
-	rect.y = sdata->unk_drawingRaceWheelRects[1] - 0x3c;
+	rect.y = sdata->analogConfigY[1] - 0x3c;
 	rect.w = 0x228;
 	rect.h = 0xa0;
 	RECTMENU_DrawInnerRect(&rect, 4, gGT->pushBuffer_UI.ptrOT);

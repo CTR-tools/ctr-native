@@ -166,9 +166,9 @@ u32 *RaceFlag_GetOT(void)
 	otDrawFirst_FarthestDepth = (u32 *)&gGT->pushBuffer[0].ptrOT[0x3FF];
 	otDrawLast_ClosestDepth = gGT->otSwapchainDB[gGT->swapchainIndex];
 
-	if (sdata->unk_CheckFlag2 == 0)
+	if (sdata->RaceFlag_DrawInitialized == 0)
 	{
-		sdata->unk_CheckFlag2 = 1;
+		sdata->RaceFlag_DrawInitialized = 1;
 	}
 
 	// transitioning on-screen
@@ -178,7 +178,7 @@ u32 *RaceFlag_GetOT(void)
 		if (sdata->RaceFlag_Position < 0)
 			sdata->RaceFlag_Position = 5000;
 
-		sdata->unk_CheckFlag1 = 300;
+		sdata->RaceFlag_TransitionSpeed = 300;
 
 		iVar2 = sdata->RaceFlag_Position;
 
@@ -223,15 +223,15 @@ u32 *RaceFlag_GetOT(void)
 	// transition off-screen
 	if (sdata->RaceFlag_AnimationType == 2)
 	{
-		if ((s16)sdata->unk_CheckFlag1 < 1000)
+		if (sdata->RaceFlag_TransitionSpeed < 1000)
 		{
-			sdata->unk_CheckFlag1 += (s16)((gGT->elapsedTimeMS * 10) >> 5);
+			sdata->RaceFlag_TransitionSpeed += (s16)((gGT->elapsedTimeMS * 10) >> 5);
 		}
 
 		// If transitioning "off"
 		if (sdata->RaceFlag_Position > -5000)
 		{
-			sdata->RaceFlag_Position -= (((u32)sdata->unk_CheckFlag1 >> 2) * gGT->elapsedTimeMS) >> 5;
+			sdata->RaceFlag_Position -= (((u32)sdata->RaceFlag_TransitionSpeed >> 2) * gGT->elapsedTimeMS) >> 5;
 		}
 
 		// finished transitioning off
