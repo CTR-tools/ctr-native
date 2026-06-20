@@ -815,7 +815,7 @@ struct OverlayDATA_230 D230 = {
     .highScore_verticalMove = {0, 0},
 
     // SCRAPBOOK
-    .scrapbookState = 0,
+    .scrapbookState = SCRAP_INIT,
 
     // CHAR SELECT AND TITLE DYN
     .characterSelect_sizeY = 0,

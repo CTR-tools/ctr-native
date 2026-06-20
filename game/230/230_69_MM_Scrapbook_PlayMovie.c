@@ -53,7 +53,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 	{
 	// Init State,
 	// alter checkered flag
-	case 0:
+	case SCRAP_INIT:
 		if (RaceFlag_IsFullyOnScreen() == 1)
 		{
 			// checkered flag, begin transition off-screen
@@ -61,15 +61,14 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		}
 
 		// go to Load State
-		D230.scrapbookState = 1;
+		D230.scrapbookState = SCRAP_LOAD;
 		menu->state &= ~NEEDS_TO_CLOSE;
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4070-0x800b408c for scrapbook audio state handoff.
 		Audio_SetState_Safe(1);
 		break;
 
-	// Load State,
 	// find the TEST.STR file
-	case 1:
+	case SCRAP_LOAD:
 
 		// if not fully off screen
 		if (RaceFlag_IsFullyOffScreen() != 1)
@@ -92,7 +91,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 				goto GO_BACK;
 			}
 			s_scrapbookNativeNextVBlank = Platform_GetVBlankCount() + SCRAPBOOK_NATIVE_FRAME_VBLANKS;
-			D230.scrapbookState = 2;
+			D230.scrapbookState = SCRAP_PLAY;
 			return;
 		}
 #else
@@ -118,7 +117,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 			MM_Video_StartStream(cdPos, 0x1148);
 
 			// start playing movie
-			D230.scrapbookState = 2;
+			D230.scrapbookState = SCRAP_PLAY;
 
 			return;
 		}
@@ -127,7 +126,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		goto GO_BACK;
 
 	// Actually play the movie
-	case 2:
+	case SCRAP_PLAY:
 
 #ifndef CTR_NATIVE
 		// infinite loop (cause this is scrapbook),
@@ -140,10 +139,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		// If you press Start, Cross, Circle, Triangle, or Square
 		getButtonPress = (sdata->buttonTapPerPlayer[0] & 0x41070);
 
-		if (
-		    // if movie is finished,
-		    // means scrapbook ended, no looping
-		    (MM_Video_CheckIfFinished(0) == 1) || (getButtonPress != 0))
+		if ((MM_Video_CheckIfFinished(0) == 1) || (getButtonPress != 0))
 #else
 		getButtonPress = (sdata->buttonTapPerPlayer[0] & 0x41070);
 		s32 nativeUploaded = 0;
@@ -166,8 +162,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 				RaceFlag_SetFullyOnScreen();
 			}
 
-			// stop video
-			D230.scrapbookState = 3;
+			D230.scrapbookState = SCRAP_STOP;
 		}
 #ifdef CTR_NATIVE
 		else
@@ -196,7 +191,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 
 	// return disc to normal,
 	// return checkered flag to normal
-	case 3:
+	case SCRAP_STOP:
 #ifndef CTR_NATIVE
 		SpuSetCommonCDVolume(0, 0);
 
@@ -210,27 +205,19 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 
 		if (RaceFlag_IsFullyOffScreen() == 1)
 		{
-			// checkered flag, begin transition on-screen
 			RaceFlag_BeginTransition(1);
 		}
 	GO_BACK:
 
-		// return to gameplay
-		D230.scrapbookState = 4;
+		D230.scrapbookState = SCRAP_EXIT;
 		break;
 
-	// send player back to adv hub,
-	// or back to main menu
-	case 4:
+	case SCRAP_EXIT:
 		if (RaceFlag_IsFullyOnScreen() == 1)
 		{
 			// change checkered flag back
 			RaceFlag_SetDrawOrder(0);
 
-			// if adventure mode
-			lev = GEM_STONE_VALLEY;
-
-			// If you're not in Adventure Mode
 			if ((gGT->gameMode1 & ADVENTURE_MODE) == 0)
 			{
 				lev = MAIN_MENU_LEVEL;
@@ -239,6 +226,10 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 
 				// return to main menu (adv, tt, arcade, vs, battle)
 				sdata->mainMenuState = MAIN_MENU_TITLE;
+			}
+			else
+			{
+				lev = GEM_STONE_VALLEY;
 			}
 
 			MainRaceTrack_RequestLoad(lev);

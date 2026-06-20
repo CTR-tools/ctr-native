@@ -1,3 +1,12 @@
+typedef enum ScrapbookState : s32
+{
+	SCRAP_INIT = 0,
+	SCRAP_LOAD = 1,
+	SCRAP_PLAY = 2,
+	SCRAP_STOP = 3,
+	SCRAP_EXIT = 4,
+} ScrapbookState;
+
 enum TransitionState
 {
 	ENTERING_MENU,
@@ -902,7 +911,7 @@ struct OverlayDATA_230
 
 	// 800b59d8 - UsaRetail
 	// 800b627c - EurRetail
-	int scrapbookState;
+	ScrapbookState scrapbookState;
 
 	// ============= Character Select DYN ====================
 
