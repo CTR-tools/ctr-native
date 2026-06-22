@@ -271,12 +271,6 @@ void PushBuffer_SetDrawEnv_Normal(void *ot, struct PushBuffer *pb, struct DB *ba
 	}
 }
 
-
-#ifdef CTR_NATIVE
-// NOTE(aalhendi): Native uses host GTE/scratch shims; PS1 path is retail.
-static char buf[0x400];
-#endif
-
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80042c04-0x80042e50.
 void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 {
@@ -292,31 +286,12 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	u32 view8;
 	u32 viewC;
 
-#ifdef CTR_NATIVE
-	char *scratchpad;
-	scratchpad = &buf[0];
-#endif
-
 	// originally used 556 bytes
+	struct PushBufferSetMatrixVPScratch *scratch = CTR_SCRATCHPAD_PTR(struct PushBufferSetMatrixVPScratch, 0);
+	MATRIX *matrixDST = &scratch->cameraMatrix;
 
-#ifdef CTR_NATIVE
-	MATRIX *matrixDST = (MATRIX *)&scratchpad[0x3d4];
-#else
-	// ordinary PlayStation 1, use scratchpad
-	MATRIX *matrixDST = (MATRIX *)0x1f8003d4;
-#endif
-
-#ifndef CTR_NATIVE
-	*(s16 *)0x1f8003f4 = pb->rot.x;
-	*(s16 *)0x1f8003f6 = pb->rot.y;
-	*(s16 *)0x1f8003f8 = pb->rot.z;
-	ConvertRotToMatrix(matrixDST, (s16 *)0x1f8003f4);
-#else
-	*(s16 *)&scratchpad[0x3f4] = pb->rot.x;
-	*(s16 *)&scratchpad[0x3f6] = pb->rot.y;
-	*(s16 *)&scratchpad[0x3f8] = pb->rot.z;
-	ConvertRotToMatrix(matrixDST, (s16 *)&scratchpad[0x3f4]);
-#endif
+	scratch->rot = pb->rot;
+	ConvertRotToMatrix(matrixDST, &scratch->rot);
 
 	SVec3 negPos;
 
@@ -446,7 +421,7 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	gte_r10(uVar5);
 	gte_r11(uVar6);
 #else
-	gte_SetLightMatrix(&scratchpad[0x3d4]);
+	gte_SetLightMatrix(&scratch->cameraMatrix);
 #endif
 
 	return;
