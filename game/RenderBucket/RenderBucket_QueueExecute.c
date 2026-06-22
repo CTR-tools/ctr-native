@@ -564,7 +564,7 @@ static void RenderBucket_LinkPrimRaw(u_long *otEntry, void *prim, u32 lenWord)
 
 	// NOTE(aalhendi): Source-backs DrawInstPrim_Normal's retail OT tag write at
 	// 0x8006ae50-0x8006ae64.
-	*tag = *(u32 *)otEntry | lenWord;
+	*tag = CtrGpu_PackOTTag(*otEntry, lenWord);
 	*(u32 *)otEntry = RenderBucket_OTAddress(prim);
 }
 

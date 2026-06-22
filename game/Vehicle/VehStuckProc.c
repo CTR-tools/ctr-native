@@ -1324,7 +1324,7 @@ static void VehWarpDust_EmitSegment(u32 **primCursor, struct PushBuffer *pb, con
 	packet->rightStrip.color3 = 0x007f1f3f;
 	packet->rightStrip.xy3 = prev->sxy1;
 
-	packet->tag = (u32)*ot | 0x11000000;
+	packet->tag = CtrGpu_PackOTTag(*ot, 0x11000000);
 	*ot = (u_long)VehWarpDust_Ptr24(packet);
 	*primCursor = (u32 *)(packet + 1);
 }

@@ -200,7 +200,7 @@ void DecalMP_03(struct GameTracker *gGT)
 		poly->tpage = (u16)(((texY & 0x100) >> 4) | ((texX & 0x3ff) >> 6) | 0x100 | ((texY & 0x200) << 2));
 
 		u_long *ot = gGT->pushBuffer[cameraID].ptrOT + (entry->pb.renderBucketOTByteOffset >> 2);
-		poly->tag = *ot | 0x09000000;
+		poly->tag = CtrGpu_PackOTTag(*ot, 0x09000000);
 		CtrGpu_LinkPrimToOT(ot, poly);
 		gGT->backBuffer->primMem.cursor = poly + 1;
 	}

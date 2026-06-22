@@ -128,7 +128,7 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 
 		u_long *ot = gGT->pushBuffer[playerID].ptrOT;
 
-		*(int *)p = *ot | 0x8000000;
+		*(int *)p = CtrGpu_PackOTTag(*ot, 0x8000000);
 		*ot = CtrGpu_PrimToOTLink24(p);
 	}
 }
@@ -390,7 +390,7 @@ LAB_8004fe8c:
 
 			ot = gGT->pushBuffer[driverid].ptrOT;
 
-			*(int *)p = *ot | 0x6000000;
+			*(int *)p = CtrGpu_PackOTTag(*ot, 0x6000000);
 			*ot = CtrGpu_PrimToOTLink24(p);
 
 			// next Prim
@@ -430,7 +430,7 @@ LAB_8004fe8c:
 
 			p->y2 = screenPosY + sVar5 - 12;
 
-			*(int *)p = *ot | 0x6000000;
+			*(int *)p = CtrGpu_PackOTTag(*ot, 0x6000000);
 			*ot = CtrGpu_PrimToOTLink24(p);
 		}
 	}

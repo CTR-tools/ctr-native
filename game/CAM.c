@@ -76,7 +76,7 @@ static void CAM_SkyboxGlow_EmitG3(struct PrimMem *primMem, u_long *ot, u32 color
 	CtrGpu_WritePackedXY(&poly->x1, xy1);
 	CtrGpu_WriteColorCode(&poly->r2, color2 & 0xffffff);
 	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	poly->tag = *ot | 0x06000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x06000000);
 	*ot = CAM_SkyboxGlow_PrimAddr(poly);
 
 	primMem->cursor = poly + 1;
@@ -94,7 +94,7 @@ static void CAM_SkyboxGlow_EmitG4(struct PrimMem *primMem, u_long *ot, u32 color
 	CtrGpu_WritePackedXY(&poly->x2, xy2);
 	CtrGpu_WriteColorCode(&poly->r3, color3 & 0xffffff);
 	CtrGpu_WritePackedXY(&poly->x3, xy3);
-	poly->tag = *ot | 0x08000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x08000000);
 	*ot = CAM_SkyboxGlow_PrimAddr(poly);
 
 	primMem->cursor = poly + 1;
@@ -108,7 +108,7 @@ static void CAM_SkyboxGlow_EmitF3(struct PrimMem *primMem, u_long *ot, u32 color
 	CtrGpu_WritePackedXY(&poly->x0, xy0);
 	CtrGpu_WritePackedXY(&poly->x1, xy1);
 	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	poly->tag = *ot | 0x04000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x04000000);
 	*ot = CAM_SkyboxGlow_PrimAddr(poly);
 
 	primMem->cursor = poly + 1;
@@ -123,7 +123,7 @@ static void CAM_SkyboxGlow_EmitF4(struct PrimMem *primMem, u_long *ot, u32 color
 	CtrGpu_WritePackedXY(&poly->x1, xy1);
 	CtrGpu_WritePackedXY(&poly->x2, xy2);
 	CtrGpu_WritePackedXY(&poly->x3, xy3);
-	poly->tag = *ot | 0x05000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x05000000);
 	*ot = CAM_SkyboxGlow_PrimAddr(poly);
 
 	primMem->cursor = poly + 1;
@@ -315,7 +315,7 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 			*(s32 *)&tile->r0 = *(s32 *)&level1->clearColor[0].rgb[0];
 			tile->code = 0x2;
 
-			tile->tag = *(u32 *)endOT | 0x3000000;
+			tile->tag = CtrGpu_PackOTTag(*(u32 *)endOT, 0x3000000);
 			*(u32 *)endOT = CtrGpu_PrimToOTLink24(tile);
 
 			tile++;
@@ -332,7 +332,7 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 			*(s32 *)&tile->r0 = *(s32 *)&level1->clearColor[1].rgb[0];
 			tile->code = 0x2;
 
-			tile->tag = *(u32 *)endOT | 0x3000000;
+			tile->tag = CtrGpu_PackOTTag(*(u32 *)endOT, 0x3000000);
 			*(u32 *)endOT = CtrGpu_PrimToOTLink24(tile);
 
 			tile++;

@@ -73,7 +73,7 @@ static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, int srcX, int srcY)
 	// a 16-bit textured quad instead of relying on a CPU-side VRAM copy.
 	*ot = (u_long)CtrGpu_PrimToOTLink24(prim);
 	nextPrim = DISPLAY_Blur_SubFunc(prim, tile);
-	((POLY_FT4 *)nextPrim - 1)->tag = oldTag | 0x09000000;
+	((POLY_FT4 *)nextPrim - 1)->tag = CtrGpu_PackOTTag(oldTag, 0x09000000);
 	gGT->backBuffer->primMem.cursor = nextPrim;
 }
 #endif

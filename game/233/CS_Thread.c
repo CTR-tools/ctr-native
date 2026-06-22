@@ -1173,7 +1173,7 @@ void CS_Thread_InterpolateFramesMS(struct Thread *t)
 			otIndex = 0x3ff;
 
 		ot = (u32 *)&gGT->pushBuffer[0].ptrOT[otIndex];
-		packet->tag = (*ot & 0xffffff) | 0x05000000;
+		packet->tag = CtrGpu_PackOTTag(*ot, 0x05000000);
 		*ot = CtrGpu_PrimToOTLink24(packet);
 		packet++;
 	}

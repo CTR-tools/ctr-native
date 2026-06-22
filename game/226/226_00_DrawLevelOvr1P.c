@@ -2614,8 +2614,8 @@ static void DrawLevelOvr1P_AddRawPrimToOt(struct PrimMem *primMem, void *packet,
 {
 	u32 *packetTag = packet;
 
-	*packetTag = ((u32)*otEntry & 0x00ffffff) | (wordCount << 24);
-	*otEntry = (u32)(uintptr_t)packet & 0x00ffffff;
+	*packetTag = CtrGpu_PackOTTag(*otEntry, wordCount << 24);
+	*otEntry = CtrGpu_PrimToOTLink24(packet);
 	// NOTE(aalhendi): Retail keeps the overlay primitive count in `sp`, seeded
 	// from PrimMem+0x14 and stored back at the epilogue.
 	primMem->primitiveCount++;

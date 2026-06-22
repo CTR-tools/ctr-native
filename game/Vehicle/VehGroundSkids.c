@@ -57,7 +57,7 @@ void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroun
 
 	struct PushBuffer *pb = scratch->pushBuffer;
 	u_long *ot = pb->ptrOT + ((s32)depth >> 6);
-	poly->tag = (u32)*ot | 0x0c000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x0c000000);
 	*ot = (u_long)VehGroundSkids_Ptr24(poly);
 }
 

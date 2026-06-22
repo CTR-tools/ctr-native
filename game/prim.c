@@ -19,6 +19,9 @@ void GetPrimitiveMem(void **ppPrim, size_t primSize)
 
 void AddPrimitive(void *pPrim, void *pOt)
 {
-	((Tag *)pPrim)->addr = ((Tag *)pOt)->addr;
-	((Tag *)pOt)->addr = (u32)pPrim;
+	u32 primTag = CTR_GPU_ReadTagWord(pPrim);
+	u32 otTag = CTR_GPU_ReadTagWord(pOt);
+
+	CTR_GPU_WriteTagWord(pPrim, CtrGpu_PackOTTag(otTag, primTag & 0xff000000u));
+	CTR_GPU_WriteTagWord(pOt, CtrGpu_PrimToOTLink24(pPrim));
 }

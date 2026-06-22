@@ -212,7 +212,7 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 				// pointer to OT memory
 				void *ot = gGT->pushBuffer_UI.ptrOT;
 
-				*(int *)p = (*(int *)ot & 0xffffff) | 0x8000000;
+				*(int *)p = CtrGpu_PackOTTag(*(u_long *)ot, 0x8000000);
 				*(int *)ot = (int)CtrGpu_PrimToOTLink24(p);
 			}
 

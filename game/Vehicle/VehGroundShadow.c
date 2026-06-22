@@ -271,7 +271,7 @@ static void VehGroundShadow_EmitQuad(u32 **primCursor, u_long *otBase, const str
 	VehGroundShadow_WriteUv(poly, texture);
 
 	ot = &otBase[depthIndex];
-	poly->tag = (u32)*ot | 0x09000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x09000000);
 	*ot = (u_long)VehGroundShadow_Ptr24(poly);
 
 	*primCursor = (u32 *)(poly + 1);

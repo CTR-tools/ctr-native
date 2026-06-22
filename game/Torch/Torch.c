@@ -157,7 +157,7 @@ static void Torch_WriteUvPair(int uvOffset, int pointOffset)
 
 static void Torch_LinkPrimitive(u32 *tagWord, const void *packet, u_long *ot, u32 tag)
 {
-	*tagWord = (u32)*ot | tag;
+	*tagWord = CtrGpu_PackOTTag(*ot, tag);
 	*ot = (u_long)Torch_Ptr24(packet);
 }
 

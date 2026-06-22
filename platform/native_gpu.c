@@ -7,6 +7,8 @@
 #include <macros.h>
 #include "platform/native_gpu.h"
 
+#include "../platform.h"
+
 #include <SDL3/SDL.h>
 
 #include "platform/native_log.h"
@@ -15,6 +17,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -945,6 +948,81 @@ void DrawAllSplits()
 int ParsePrimitive(P_TAG *polyTag);
 int ParseTaglessPrimitive(u32 *command);
 
+internal bool NativeGpu_IsValidOTLink(uintptr_t link)
+{
+	const struct PlatformMempackArena *arena = Platform_GetMempackArena();
+	const uintptr_t base = (uintptr_t)arena->base;
+	const uintptr_t end = (uintptr_t)arena->endOfMemory;
+
+	return (link >= base) && (link < end) && ((link & (sizeof(u32) - 1)) == 0);
+}
+
+internal u32 NativeGpu_ReadPacketWordForLog(uintptr_t packet, int wordIndex)
+{
+	const struct PlatformMempackArena *arena = Platform_GetMempackArena();
+	const uintptr_t word = packet + (uintptr_t)wordIndex * sizeof(u32);
+	const uintptr_t end = word + sizeof(u32);
+
+	if ((word < (uintptr_t)arena->base) || (end > (uintptr_t)arena->endOfMemory) || ((word & (sizeof(u32) - 1)) != 0))
+		return 0xffffffffu;
+
+	return *(const u32 *)word;
+}
+
+internal void NativeGpu_FormatPointerRegion(char *dst, size_t dstSize, uintptr_t ptr)
+{
+	if ((sdata == NULL) || (sdata->gGT == NULL))
+	{
+		snprintf(dst, dstSize, "no-gGT");
+		return;
+	}
+
+	struct GameTracker *gGT = sdata->gGT;
+
+	for (int playerIndex = 0; playerIndex < 4; playerIndex++)
+	{
+		struct PushBuffer *pb = &gGT->pushBuffer[playerIndex];
+		const uintptr_t start = (uintptr_t)pb->ptrOT;
+		const uintptr_t end = (uintptr_t)pb->renderBucketOTRangeEnd;
+		if ((start != 0) && (end != 0) && (ptr >= start) && (ptr <= end))
+		{
+			snprintf(dst, dstSize, "pb%d.ot+0x%zx", playerIndex, (size_t)(ptr - start));
+			return;
+		}
+	}
+
+	struct PushBuffer *uiPB = &gGT->pushBuffer_UI;
+	const uintptr_t uiStart = (uintptr_t)uiPB->ptrOT;
+	const uintptr_t uiEnd = (uintptr_t)uiPB->renderBucketOTRangeEnd;
+	if ((uiStart != 0) && (uiEnd != 0) && (ptr >= uiStart) && (ptr <= uiEnd))
+	{
+		snprintf(dst, dstSize, "ui.ot+0x%zx", (size_t)(ptr - uiStart));
+		return;
+	}
+
+	for (int dbIndex = 0; dbIndex < 2; dbIndex++)
+	{
+		struct DB *db = &gGT->db[dbIndex];
+		const uintptr_t primStart = (uintptr_t)db->primMem.start;
+		const uintptr_t primEnd = (uintptr_t)db->primMem.end;
+		if ((primStart != 0) && (ptr >= primStart) && (ptr < primEnd))
+		{
+			snprintf(dst, dstSize, "db%d.prim+0x%zx", dbIndex, (size_t)(ptr - primStart));
+			return;
+		}
+
+		const uintptr_t otStart = (uintptr_t)db->otMem.start;
+		const uintptr_t otEnd = (uintptr_t)db->otMem.end;
+		if ((otStart != 0) && (ptr >= otStart) && (ptr < otEnd))
+		{
+			snprintf(dst, dstSize, "db%d.ot+0x%zx", dbIndex, (size_t)(ptr - otStart));
+			return;
+		}
+	}
+
+	snprintf(dst, dstSize, "unknown");
+}
+
 void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 {
 	if (!p)
@@ -966,14 +1044,21 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 	else
 	{
 		// walk OT_TAG linked list
-		for (uintptr_t basePacket = (uintptr_t)p;; basePacket = (uintptr_t)nextPrim(basePacket))
+		uintptr_t basePacket = (uintptr_t)p;
+		while (true)
 		{
 			const int tagLength = getlen(basePacket);
 			if (tagLength > 0)
 			{
 				if (tagLength > 32)
 				{
-					NATIVE_GPU_ERROR("got invalid tag length %d, code %d\n", tagLength, ((P_TAG *)basePacket)->code);
+					char packetRegion[64];
+					NativeGpu_FormatPointerRegion(packetRegion, sizeof(packetRegion), basePacket);
+					NATIVE_GPU_ERROR("got invalid tag length %d, code %d packet=%p region=%s words=%08x %08x %08x %08x\n", tagLength,
+					                 ((P_TAG *)basePacket)->code, (void *)basePacket, packetRegion, NativeGpu_ReadPacketWordForLog(basePacket, 0),
+					                 NativeGpu_ReadPacketWordForLog(basePacket, 1), NativeGpu_ReadPacketWordForLog(basePacket, 2),
+					                 NativeGpu_ReadPacketWordForLog(basePacket, 3));
+					break;
 				}
 
 				uintptr_t currentPacket = basePacket;
@@ -993,7 +1078,12 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 
 				if (currentPacket != endPacket)
 				{
-					NATIVE_GPU_ERROR("did not output valid primitive or ptag length is not valid (diff=%d)\n", endPacket - currentPacket);
+					char packetRegion[64];
+					NativeGpu_FormatPointerRegion(packetRegion, sizeof(packetRegion), basePacket);
+					NATIVE_GPU_ERROR("did not output valid primitive or ptag length is not valid (diff=%d packet=%p region=%s words=%08x %08x %08x %08x)\n",
+					                 endPacket - currentPacket, (void *)basePacket, packetRegion, NativeGpu_ReadPacketWordForLog(basePacket, 0),
+					                 NativeGpu_ReadPacketWordForLog(basePacket, 1), NativeGpu_ReadPacketWordForLog(basePacket, 2),
+					                 NativeGpu_ReadPacketWordForLog(basePacket, 3));
 				}
 			}
 
@@ -1002,6 +1092,22 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 
 			if (isendprim(basePacket))
 				break;
+
+			uintptr_t nextPacket = (uintptr_t)nextPrim(basePacket);
+			if (!NativeGpu_IsValidOTLink(nextPacket))
+			{
+				char packetRegion[64];
+				char nextRegion[64];
+				NativeGpu_FormatPointerRegion(packetRegion, sizeof(packetRegion), basePacket);
+				NativeGpu_FormatPointerRegion(nextRegion, sizeof(nextRegion), nextPacket);
+				NATIVE_GPU_ERROR("invalid OT link: packet=%p region=%s addr=%06x next=%p nextRegion=%s len=%d code=%02x words=%08x %08x %08x %08x\n",
+				                 (void *)basePacket, packetRegion, getaddr(basePacket), (void *)nextPacket, nextRegion, getlen(basePacket), getcode(basePacket),
+				                 NativeGpu_ReadPacketWordForLog(basePacket, 0), NativeGpu_ReadPacketWordForLog(basePacket, 1),
+				                 NativeGpu_ReadPacketWordForLog(basePacket, 2), NativeGpu_ReadPacketWordForLog(basePacket, 3));
+				break;
+			}
+
+			basePacket = nextPacket;
 		}
 	}
 

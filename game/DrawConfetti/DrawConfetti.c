@@ -131,7 +131,7 @@ static int DrawConfetti_BoundsVisible(u32 sxy0, u32 sxy1, u32 sxy2, u32 sxy3, u3
 
 static void DrawConfetti_LinkPrimitive(POLY_F4 *poly, u_long *ot)
 {
-	poly->tag = (u32)*ot | 0x05000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x05000000);
 	*ot = (u_long)DrawConfetti_Ptr24(poly);
 }
 

@@ -87,7 +87,7 @@ void MM_Battle_DrawIcon_Weapon(struct Icon *icon, u32 posX, int posY, struct Pri
 		}
 	}
 
-	*(int *)p = *(int *)ot | 0x9000000;
+	*(int *)p = CtrGpu_PackOTTag(*(u_long *)ot, 0x9000000);
 	*(int *)ot = (int)CtrGpu_PrimToOTLink24(p);
 
 	primMem->cursor = p + 1;

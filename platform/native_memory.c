@@ -69,6 +69,11 @@ const struct PlatformMempackArena *Platform_InitMempackArena(void)
 	return &s_mempackArena;
 }
 
+const struct PlatformMempackArena *Platform_GetMempackArena(void)
+{
+	return &s_mempackArena;
+}
+
 internal void Platform_RepairResidentPointers(s32 activeMempackIndex)
 {
 	if ((activeMempackIndex < 0) || (activeMempackIndex >= 4))

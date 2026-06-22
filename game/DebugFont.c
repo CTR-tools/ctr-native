@@ -63,6 +63,6 @@ void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY)
 	p->clut = sdata->debugFont.clut;
 	p->tpage = sdata->debugFont.tpage;
 
-	*(int *)p = *ot | 0x9000000;
+	*(int *)p = CtrGpu_PackOTTag(*ot, 0x9000000);
 	*ot = CtrGpu_PrimToOTLink24(p);
 }

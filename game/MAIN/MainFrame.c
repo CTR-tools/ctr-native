@@ -21,7 +21,7 @@ void MainFrame_TogglePauseAudio(int bool_pause)
 	return;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80034bbc-0x80034d54.
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80034bbc-0x80034d54 for the retail path.
 void MainFrame_ResetDB(struct GameTracker *gGT)
 {
 	u_long *puVar3;
@@ -65,6 +65,21 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	puVar3 = (u_long *)((int)otSwapchainDB + 4);
 	gGT->pushBuffer_UI.ptrOT = puVar3;
 	db->otMem.uiOT = puVar3;
+
+#if defined(CTR_NATIVE)
+	if (sdata->ptrPushBufferUI != 0)
+	{
+		struct PushBuffer *wumpaPushBuffer = (struct PushBuffer *)(uintptr_t)sdata->ptrPushBufferUI;
+
+		// NOTE(aalhendi): Retail stores PS1 RAM OT addresses here. Native stores
+		// host pointers, so reset the fake UI pushbuffer to the current backbuffer
+		// before RenderBucket can publish this frame's range metadata.
+		wumpaPushBuffer->ptrOT = gGT->pushBuffer_UI.ptrOT;
+		wumpaPushBuffer->renderBucketOTRangeEnd = NULL;
+		wumpaPushBuffer->renderBucketOTByteOffset = 0;
+	}
+#endif
+
 	return;
 }
 

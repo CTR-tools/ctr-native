@@ -595,7 +595,7 @@ static struct ParticleRenderListTrig Particle_RenderList_ReadTrig(s32 angle)
 
 static void Particle_RenderList_LinkPrimitive(u32 *tagWord, const void *packet, u_long *ot, u32 tag)
 {
-	*tagWord = (u32)*ot | tag;
+	*tagWord = CtrGpu_PackOTTag(*ot, tag);
 	*ot = (u_long)Particle_RenderList_Ptr24(packet);
 }
 

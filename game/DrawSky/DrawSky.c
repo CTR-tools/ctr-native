@@ -63,7 +63,7 @@ static void DrawSky_EmitPrimitive(u32 **primCursor, u_long *ot)
 	CtrGpu_WritePackedXY(&poly->x1, MFC2(13));
 	CtrGpu_WriteColorCode(&poly->r2, MFC2(22));
 	CtrGpu_WritePackedXY(&poly->x2, MFC2(14));
-	poly->tag = (u32)*ot | 0x06000000;
+	poly->tag = CtrGpu_PackOTTag(*ot, 0x06000000);
 	*ot = (u_long)DrawSky_Ptr24(poly);
 
 	*primCursor = (u32 *)(poly + 1);

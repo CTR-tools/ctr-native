@@ -15,6 +15,7 @@ void Platform_Init(const char *title, int width, int height);
 void Platform_Shutdown(void);
 void Platform_InitScratchpad(void);
 const struct PlatformMempackArena *Platform_InitMempackArena(void);
+const struct PlatformMempackArena *Platform_GetMempackArena(void);
 void Platform_BeginFrame(void);
 int Platform_BeginScene(void);
 void Platform_EndScene(void);

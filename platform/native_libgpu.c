@@ -11,6 +11,7 @@
 #include <platform/native_renderer.h>
 #include <platform/native_gpu.h>
 #include <platform/native_perf.h>
+#include <gpu.h>
 #include "../platform.h"
 
 #include <string.h>
@@ -297,5 +298,9 @@ void DrawPrim(void *p)
 
 void AddPrim(void *ot, void *p)
 {
-	addPrim(ot, p);
+	u32 otTag = CTR_GPU_ReadTagWord(ot);
+	u32 primTag = CTR_GPU_ReadTagWord(p);
+
+	CTR_GPU_WriteTagWord(p, CtrGpu_PackOTTag(otTag, primTag & 0xff000000u));
+	CTR_GPU_WriteTagWord(ot, CtrGpu_PrimToOTLink24(p));
 }

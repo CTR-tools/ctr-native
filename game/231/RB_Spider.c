@@ -118,7 +118,7 @@ void RB_Spider_DrawWebs(struct Thread *t, struct PushBuffer *pb)
 				ot = (u32 *)&pb->ptrOT[depth];
 
 				// prim header, OT and prim len
-				*(int *)p = *ot | 0x5000000;
+				*(int *)p = CtrGpu_PackOTTag(*ot, 0x5000000);
 				*ot = CtrGpu_PrimToOTLink24(p);
 				p++;
 			}

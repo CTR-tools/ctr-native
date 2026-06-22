@@ -115,7 +115,7 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, s16 *tile)
 	CtrGpu_WritePackedUV(&poly->u2, (u16)(u0 | v1));
 	CtrGpu_WritePackedUV(&poly->u3, (u16)(u1 | v1));
 	poly->code = 0x2f;
-	poly->tag = DISPLAY_Blur_Ptr24(poly + 1) | 0x09000000;
+	poly->tag = CtrGpu_PackOTTag(DISPLAY_Blur_Ptr24(poly + 1), 0x09000000);
 	CtrGpu_WritePackedUVWord(&poly->u1, u1 | v0 | (tpage << 16));
 
 	return (u32 *)(poly + 1);
@@ -153,7 +153,7 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 		packet->colorAndCode = (strength < 0) ? 0x2affffff : 0x2a000000;
 
 		ot = gGT->otSwapchainDB[gGT->swapchainIndex];
-		packet->tag = (u32)*ot | 0x09000000;
+		packet->tag = CtrGpu_PackOTTag(*ot, 0x09000000);
 		*ot = (u_long)DISPLAY_Blur_Ptr24(packet);
 		nextPrim = (u32 *)(packet + 1);
 	}
@@ -195,7 +195,7 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 		scratch[3] = pb->rect.h - (insetY * 2);
 
 		nextPrim = DISPLAY_Blur_SubFunc(prim, scratch);
-		((POLY_FT4 *)nextPrim - 1)->tag = oldTag | 0x09000000;
+		((POLY_FT4 *)nextPrim - 1)->tag = CtrGpu_PackOTTag(oldTag, 0x09000000);
 	}
 
 	backBuffer->primMem.cursor = nextPrim;

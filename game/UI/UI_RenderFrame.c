@@ -136,8 +136,7 @@ void UI_RenderFrame_Racing()
 			// pointer to player structure
 			playerStruct = (struct Driver *)playerThread->object;
 			// if player has not driven backwards very far,
-			if (
-			    (playerStruct->distanceDrivenBackwards < 0x1f5)
+			if ((playerStruct->distanceDrivenBackwards < 0x1f5)
 
 			    ||
 
@@ -427,9 +426,7 @@ void UI_RenderFrame_Racing()
 				UI_DrawBattleScores((int)hudStructPtr[0xD].x, (int)hudStructPtr[0xD].y, playerStruct);
 			}
 
-			if (
-			    ((gameMode1 & (ARCADE_MODE | ADVENTURE_MODE)) != 0) &&
-			    ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) != 0))
+			if (((gameMode1 & (ARCADE_MODE | ADVENTURE_MODE)) != 0) && ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) != 0))
 			{
 				AA_EndEvent_DisplayTime((u32)playerStruct->driverID, 0);
 			}
@@ -439,15 +436,14 @@ void UI_RenderFrame_Racing()
 			// If you are in Relic Race, and not in battle mode, and not in time trial
 			if ((partTimeVariable5 & 0x4020020) == 0)
 			{
-				if (
-				    ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) == 0) || ((
-				                                                             // if numPlyrCurrGame is 2
-				                                                             numPlyr == '\x02' &&
+				if (((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) == 0) || ((
+				                                                                        // if numPlyrCurrGame is 2
+				                                                                        numPlyr == '\x02' &&
 
-				                                                             // AND
+				                                                                        // AND
 
-				                                                             // Not Arcade Mode (must be VS or Battle)
-				                                                             ((partTimeVariable5 & 0x400000) == 0))))
+				                                                                        // Not Arcade Mode (must be VS or Battle)
+				                                                                        ((partTimeVariable5 & 0x400000) == 0))))
 				{
 					sVar17 = 0;
 					partTimeVariable5 = 0;
@@ -524,8 +520,7 @@ void UI_RenderFrame_Racing()
 				UI_BattleDrawHeadArrows(playerStruct);
 			}
 
-			if ((playerStruct->numWumpas >= 10) &&
-			    ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) == 0))
+			if ((playerStruct->numWumpas >= 10) && ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) == 0))
 			{
 				// draw shining background behind wumpa fruit
 				UI_Weapon_DrawBG(hudStructPtr[0xC].x, hudStructPtr[0xC].y, hudStructPtr[0xC].scale, playerStruct);
@@ -726,7 +721,7 @@ void UI_RenderFrame_Racing()
 				// pointer to OT memory
 				primMemCurr = gGT->pushBuffer_UI.ptrOT;
 
-				*(int *)TurboCounterBar = *primMemCurr | 0x8000000;
+				*(int *)TurboCounterBar = CtrGpu_PackOTTag(*primMemCurr, 0x8000000);
 				*primMemCurr = (u32)TurboCounterBar & 0xffffff;
 			}
 		}
@@ -803,9 +798,7 @@ void UI_RenderFrame_Racing()
 			playerStruct = gGT->drivers[i];
 			pb = &gGT->pushBuffer[playerStruct->driverID];
 
-			if ((
-			        ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) != 0) &&
-			        ((gameMode1 & (ARCADE_MODE | TIME_TRIAL)) == 0)) &&
+			if ((((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) != 0) && ((gameMode1 & (ARCADE_MODE | TIME_TRIAL)) == 0)) &&
 			    ((
 			        // cooldown is finished
 			        gGT->timerEndOfRaceVS == 0 ||
@@ -1055,7 +1048,7 @@ LAB_800545e8:
 	return;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005465c-0x80054a08.
+// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005465c-0x80054a08 for the retail path.
 void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 {
 	RECT viewport2P;
@@ -1089,13 +1082,18 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 
 	if (wumpaPushBuffer != NULL)
 	{
-		PushBuffer_SetDrawEnv_DecalMP(wumpaPushBuffer->renderBucketOTRangeEnd, gGT->backBuffer, viewport, viewport->x + (viewport->w >> 1) - 0x100,
-		                              viewport->y + (viewport->h >> 1) - 0x6c, 0, 0, 0, 0, 1);
+		u_long *textureStart = wumpaPushBuffer->ptrOT;
+		u_long *textureEnd = wumpaPushBuffer->renderBucketOTRangeEnd;
+		b32 shouldCycleTexture = (textureStart != NULL) && (textureEnd != NULL);
 
-		u32 *textureStart = wumpaPushBuffer->ptrOT;
-		u32 *textureEnd = wumpaPushBuffer->renderBucketOTRangeEnd;
+#ifdef CTR_NATIVE
+		shouldCycleTexture = shouldCycleTexture && CtrGpu_IsCurrentOTRange(gGT->backBuffer, textureStart, textureEnd);
+#endif
 
-		if (textureStart != NULL && textureEnd != NULL)
+		PushBuffer_SetDrawEnv_DecalMP(textureEnd, gGT->backBuffer, viewport, viewport->x + (viewport->w >> 1) - 0x100, viewport->y + (viewport->h >> 1) - 0x6c,
+		                              0, 0, 0, 0, 1);
+
+		if (shouldCycleTexture)
 		{
 			CTR_CycleTex_2p3p4pWumpaHUD((u32 *)&gGT->pushBuffer[0].ptrOT[0x3ff], textureStart, (int)(textureEnd - textureStart) + 1);
 		}
