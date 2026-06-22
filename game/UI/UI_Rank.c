@@ -365,36 +365,23 @@ void UI_DrawRankedDrivers(void)
 			struct CheckpointNode *cn1 = &cn[cn0->nextIndex_forward];
 			struct CheckpointNode *cn2 = &cn[cn1->nextIndex_forward];
 
-			s16 vec1[4];
-			vec1[0] = cn1->pos.x - cn2->pos.x;
-			vec1[1] = cn1->pos.y - cn2->pos.y;
-			vec1[2] = cn1->pos.z - cn2->pos.z;
-			MATH_VectorNormalize((VECTOR *)&vec1[0]);
+			SVec3 trackDir = {
+			    .x = cn1->pos.x - cn2->pos.x,
+			    .y = cn1->pos.y - cn2->pos.y,
+			    .z = cn1->pos.z - cn2->pos.z,
+			};
+			MATH_VectorNormalize(&trackDir);
 
-			s16 vec2[4];
-			vec2[0] = pos[0] - cn1->pos.x;
-			vec2[1] = pos[1] - cn1->pos.y;
-			vec2[2] = pos[2] - cn1->pos.z;
+			SVec3 warpDelta = {
+			    .x = pos[0] - cn1->pos.x,
+			    .y = pos[1] - cn1->pos.y,
+			    .z = pos[2] - cn1->pos.z,
+			};
 
-#if defined(CTR_NATIVE)
-			// NOTE(aalhendi): Retail loads vec1 as GTE rot row 0, runs MVMVA
-			// on vec2, then reads MAC1. Native computes the same unshifted dot.
-			s64 projected = (s64)vec1[0] * vec2[0];
-			projected += (s64)vec1[1] * vec2[1];
-			projected += (s64)vec1[2] * vec2[2];
-			iVar15 = (s32)projected;
-#else
-			// replace R11R12 and R13R21
-			gte_ldsvrtrow0(&vec1[0]);
-
-			// required s16
-			gte_ldv0(&vec2[0]);
-
+			CTR_GteLoadRotRow0SVec3(&trackDir);
+			CTR_GteLoadSVec3V0(&warpDelta);
 			gte_mvmva(0, 0, 0, 3, 0);
-
-			// replace stMAC1
-			gte_stlvnl0(&iVar15);
-#endif
+			iVar15 = CTR_GteReadMAC1();
 
 			iVar3 = cn1->distToFinish * 8 + (iVar15 >> 0xc);
 			iVar15 = gGT->level1->ptr_restart_points[0].distToFinish * 8;
