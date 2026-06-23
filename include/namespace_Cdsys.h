@@ -59,7 +59,7 @@ struct XNF
 	// size = numXAs_total
 	// int XaCdPos[0];
 };
-#define XNF_GETXACDPOS(x) (int *)((u32)x + sizeof(struct XNF))
+#define XNF_GETXACDPOS(x) (int *)((char *)x + sizeof(struct XNF))
 
 struct XaSize
 {
@@ -84,4 +84,4 @@ struct AudioMeta
 	char *name;
 };
 
-_Static_assert(sizeof(struct AudioMeta) == 8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct AudioMeta) == 8);
