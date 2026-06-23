@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_reloc.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80031c1c-0x80031c58.
 void LOAD_StringToUpper(char *path)
@@ -118,23 +119,37 @@ void LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 		{
 			struct DramPointerMap *dpm = (struct DramPointerMap *)&realFileBuf[ptrMapOffset];
 
-			LOAD_RunPtrMap(realFileBuf, (int *)DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
-
-#if defined(CTR_NATIVE)
-			if ((lqs->flags & LT_MEMPACK) != 0)
-#else
-			if ((lqs->flags & LT_SETADDR) != 0)
+#ifdef CTR_RELOC64
+			if (callback == LOAD_Callback_DriverModels)
+			{
+				// arm64: rebuild the model pack into native-pointer structs
+				// instead of the truncating in-place LOAD_RunPtrMap. The file
+				// body stays resident (leaf data is pointed at directly), so no
+				// realloc trim here. See platform/native_reloc.c.
+				lqs->ptrDestination = Reloc64_ModelPack(realFileBuf, DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
+			}
+			else
 #endif
 			{
-				MEMPACK_ReallocMem(ptrMapOffset + 4);
+				LOAD_RunPtrMap(realFileBuf, (int *)DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
+
+#if defined(CTR_NATIVE)
+				if ((lqs->flags & LT_MEMPACK) != 0)
+#else
+				if ((lqs->flags & LT_SETADDR) != 0)
+#endif
+				{
+					MEMPACK_ReallocMem(ptrMapOffset + 4);
+				}
+
+				lqs->ptrDestination = &fileBuf[4];
 			}
 		}
 		else
 		{
 			lqs->flags |= LT_GETADDR;
+			lqs->ptrDestination = &fileBuf[4];
 		}
-
-		lqs->ptrDestination = &fileBuf[4];
 	}
 
 #if defined(CTR_NATIVE)
