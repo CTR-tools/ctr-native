@@ -574,21 +574,21 @@ struct MemcardProfile
 	// 0x1600 - size of profile
 };
 
-_Static_assert(sizeof(struct HighScoreEntry) == 0x18);
-_Static_assert(sizeof(struct HighScoreTrack) == 0x124);
-_Static_assert(OFFSETOF(struct GameProgress, unlockFlags) == 0x4);
-_Static_assert(OFFSETOF(struct GameProgress, extendedUnlockFlags) == 0x8);
-_Static_assert(OFFSETOF(struct GameProgress, highScoreTracks) == 0xc);
-_Static_assert(sizeof(struct GameProgress) == 0x1494);
-_Static_assert(OFFSETOF(struct AdvProgress, platinumCtrTokenFlags) == 0x8);
-_Static_assert(OFFSETOF(struct AdvProgress, storyFlags) == 0xc);
-_Static_assert(OFFSETOF(struct AdvProgress, hintFlags) == 0x10);
-_Static_assert(OFFSETOF(struct AdvProgress, reservedRewardFlags) == 0x14);
-_Static_assert(OFFSETOF(struct AdvProgress, name) == 0x18);
-_Static_assert(sizeof(struct AdvProgress) == 0x50);
-_Static_assert(sizeof(struct GhostProfile) == 0x34);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct HighScoreEntry) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct HighScoreTrack) == 0x124);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct GameProgress, unlockFlags) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct GameProgress, extendedUnlockFlags) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct GameProgress, highScoreTracks) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct GameProgress) == 0x1494);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct AdvProgress, platinumCtrTokenFlags) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct AdvProgress, storyFlags) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct AdvProgress, hintFlags) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct AdvProgress, reservedRewardFlags) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct AdvProgress, name) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct AdvProgress) == 0x50);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct GhostProfile) == 0x34);
 #if BUILD >= UsaRetail
-_Static_assert(sizeof(struct GameOptions) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct GameOptions) == 0x28);
 #else
-_Static_assert(sizeof(struct GameOptions) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct GameOptions) == 0x24);
 #endif
