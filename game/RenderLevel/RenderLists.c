@@ -23,7 +23,7 @@ struct RenderListsScratchRecord
 	struct BoundingBox box;
 };
 
-_Static_assert(sizeof(struct RenderListsScratchRecord) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderListsScratchRecord) == 0x10);
 
 static int RenderLists_IsVisible(const int *visLeafList, BspChildId childID)
 {
