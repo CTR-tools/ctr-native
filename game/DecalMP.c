@@ -15,7 +15,7 @@ struct DecalMPEntry
 	struct PushBuffer pb;
 };
 
-_Static_assert(sizeof(struct DecalMPEntry) == 0x128);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct DecalMPEntry) == 0x128);
 
 static inline struct DecalMPEntry *DecalMP_GetEntry(struct GameTracker *gGT, int index)
 {
