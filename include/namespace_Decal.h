@@ -167,10 +167,10 @@ struct IconGroup
 	// 0x14
 	// struct Icon* icons[0];
 };
-#define ICONGROUP_GETICONS(x) (struct Icon **)((u32)x + sizeof(struct IconGroup))
+#define ICONGROUP_GETICONS(x) (struct Icon **)((char *)x + sizeof(struct IconGroup))
 
-_Static_assert(sizeof(struct TextureLayout) == 0xC);
-_Static_assert(sizeof(struct Icon) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct TextureLayout) == 0xC);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Icon) == 0x20);
 
 #define setIconUV(p, icon)                                                                                                                    \
 	*(u32 *)&p->u0 = *(u32 *)&icon->texLayout.u0, *(u32 *)&p->u1 = *(u32 *)&icon->texLayout.u1, *(u16 *)&p->u2 = *(u16 *)&icon->texLayout.u2, \
