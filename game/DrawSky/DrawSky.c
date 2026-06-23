@@ -13,9 +13,9 @@ struct DrawSkyScratch
 	u32 baseCountOffset;
 };
 
-_Static_assert(sizeof(struct DrawSkyScratch) == 0x8);
-_Static_assert(offsetof(struct DrawSkyScratch, baseFaceOffset) == 0x0);
-_Static_assert(offsetof(struct DrawSkyScratch, baseCountOffset) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct DrawSkyScratch) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DrawSkyScratch, baseFaceOffset) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DrawSkyScratch, baseCountOffset) == 0x4);
 
 static u32 DrawSky_ReadWord(const void *base, int offset)
 {
