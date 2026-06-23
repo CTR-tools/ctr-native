@@ -17,18 +17,18 @@ struct RenderWeatherScratch
 	u32 centerZ;
 };
 
-_Static_assert(sizeof(struct RenderWeatherScratch) == 0x10);
-_Static_assert(offsetof(struct RenderWeatherScratch, colorTop) == 0x00);
-_Static_assert(offsetof(struct RenderWeatherScratch, colorBottom) == 0x04);
-_Static_assert(offsetof(struct RenderWeatherScratch, packedCenterXY) == 0x08);
-_Static_assert(offsetof(struct RenderWeatherScratch, centerZ) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderWeatherScratch) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderWeatherScratch, colorTop) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderWeatherScratch, colorBottom) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderWeatherScratch, packedCenterXY) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderWeatherScratch, centerZ) == 0x0C);
 
-_Static_assert(sizeof(LINE_G2) == 0x14);
-_Static_assert(offsetof(LINE_G2, tag) == 0x00);
-_Static_assert(offsetof(LINE_G2, r0) == 0x04);
-_Static_assert(offsetof(LINE_G2, x0) == 0x08);
-_Static_assert(offsetof(LINE_G2, r1) == 0x0C);
-_Static_assert(offsetof(LINE_G2, x1) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(LINE_G2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, r1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, x1) == 0x10);
 
 static u32 RenderWeather_ReadWord(const void *base, int offset)
 {
