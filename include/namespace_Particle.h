@@ -151,10 +151,10 @@ struct ParticleEmitter
 	// 0x24 bytes each
 };
 
-_Static_assert(sizeof(struct ParticleAxis) == 8);
-_Static_assert(sizeof(struct ParticleOscillator) == 0x18);
-_Static_assert(sizeof(struct Particle) == 0x7c);
-_Static_assert(offsetof(struct Particle, otIndexOffset) == 0x18);
-_Static_assert(offsetof(struct Particle, driverID) == 0x19);
-_Static_assert(offsetof(struct Particle, unk1A) == 0x1a);
-_Static_assert(sizeof(struct ParticleEmitter) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ParticleAxis) == 8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ParticleOscillator) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Particle) == 0x7c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Particle, otIndexOffset) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Particle, driverID) == 0x19);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Particle, unk1A) == 0x1a);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ParticleEmitter) == 0x24);
