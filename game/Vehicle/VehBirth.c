@@ -414,7 +414,7 @@ enum
 	VEH_EXTRA_DRIVER_MODEL_COUNT = 3,
 };
 
-_Static_assert(sizeof(((struct Model *)0)->name) == VEH_MODEL_NAME_WORD_COUNT * sizeof(u32));
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct Model *)0)->name) == VEH_MODEL_NAME_WORD_COUNT * sizeof(u32));
 
 internal u32 VehBirth_ReadModelNameWord(const char *name, int wordIndex)
 {
