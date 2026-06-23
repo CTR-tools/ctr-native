@@ -19,7 +19,10 @@ void Voiceline_PoolInit(void)
 	LIST_Clear(&sdata->channelFree);
 	LIST_Clear(&sdata->channelTaken);
 
-	LIST_Init(&sdata->channelFree, (struct Item *)&sdata->channelStatsPrev[0], 0x20, 0x18);
+	// itemSize is the retail ChannelStats size (0x20 with 4-byte pointers); on a
+	// 64-bit host the struct is wider, so stride by the real element size to walk
+	// the pool array correctly.
+	LIST_Init(&sdata->channelFree, (struct Item *)&sdata->channelStatsPrev[0], sizeof(struct ChannelStats), 0x18);
 
 	SpuSetReverbVoice(0, 0xffffff);
 
@@ -96,7 +99,7 @@ void Voiceline_PoolClear(void)
 	LIST_Clear(&sdata->Voiceline2);
 
 	// put them all on free list
-	LIST_Init(&sdata->Voiceline1, (struct Item *)&sdata->voicelinePool[0].next, 0x10, 8);
+	LIST_Init(&sdata->Voiceline1, (struct Item *)&sdata->voicelinePool[0].next, sizeof(sdata->voicelinePool[0]), 8);
 
 	Voiceline_ClearTimeStamp();
 }
