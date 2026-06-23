@@ -1,9 +1,9 @@
 #include <common.h>
 
-_Static_assert(sizeof(TILE_1) == 0x0C);
-_Static_assert(offsetof(TILE_1, tag) == 0x00);
-_Static_assert(offsetof(TILE_1, r0) == 0x04);
-_Static_assert(offsetof(TILE_1, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(TILE_1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(TILE_1, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(TILE_1, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(TILE_1, x0) == 0x08);
 
 static s32 RenderStars_MulLowShift(s32 value, s32 scale)
 {
