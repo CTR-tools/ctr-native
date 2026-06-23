@@ -208,8 +208,8 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 
 		DrawSync(0);
 
-		gGT->db[0].primMem.end = (void *)((int)gGT->db[0].primMem.end + 0xc800);
-		gGT->db[1].primMem.end = (void *)((int)gGT->db[1].primMem.end + 0xc800);
+		gGT->db[0].primMem.end = (void *)((uintptr_t)gGT->db[0].primMem.end + 0xc800);
+		gGT->db[1].primMem.end = (void *)((uintptr_t)gGT->db[1].primMem.end + 0xc800);
 
 		// Enable all instances
 		ElimBG_ToggleAllInstances(gGT, 0);
