@@ -11,7 +11,7 @@ struct GhostPacket
 	// 0x10 -- size of packet
 };
 
-_Static_assert(sizeof(struct GhostPacket) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct GhostPacket) == 0x10);
 
 struct GhostTape
 {
@@ -99,4 +99,4 @@ struct GhostHeader
 	// char recordBuffer[0]; // yes, zero bytes
 };
 
-#define GHOSTHEADER_GETRECORDBUFFER(x) (char *)((u32)x + sizeof(struct GhostHeader))
+#define GHOSTHEADER_GETRECORDBUFFER(x) (char *)((char *)x + sizeof(struct GhostHeader))
