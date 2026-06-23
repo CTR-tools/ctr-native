@@ -342,7 +342,10 @@ struct ModelHeader
 	s16 _pad_scale;
 
 	// 0x20
-	u32 ptrCommandList;
+	// NOTE(native): holds a real pointer to the GPU command list (cast to u32*
+	// and dereferenced, e.g. RB_Banner.c). Widened to pointer-width so the
+	// address survives on LP64 hosts; uintptr_t is 4 bytes on the -m32 builds.
+	uintptr_t ptrCommandList;
 
 	// 0x24
 	// null if there are animations
