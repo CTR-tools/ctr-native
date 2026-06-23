@@ -21,13 +21,13 @@ enum
 	RB_BANNER_TEMP_VERTEX_SCRATCH_OFFSET = 0x300,
 };
 
-_Static_assert(sizeof(union RBBannerScratchVertex) == 0x8);
-_Static_assert(offsetof(union RBBannerScratchVertex, x) == 0x0);
-_Static_assert(offsetof(union RBBannerScratchVertex, z) == 0x2);
-_Static_assert(offsetof(union RBBannerScratchVertex, y) == 0x4);
-_Static_assert(offsetof(union RBBannerScratchVertex, residue) == 0x6);
-_Static_assert(offsetof(union RBBannerScratchVertex, xz) == 0x0);
-_Static_assert(offsetof(union RBBannerScratchVertex, yResidue) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(union RBBannerScratchVertex) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, x) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, z) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, y) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, residue) == 0x6);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, xz) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(union RBBannerScratchVertex, yResidue) == 0x4);
 
 static inline u8 *RB_Banner_FirstVertex(struct ModelHeader *mh)
 {
