@@ -143,7 +143,7 @@ struct AnimTex
 	// struct IconGroup4* ptrarray[0];
 };
 
-#define ANIMTEX_GETARRAY(x) (struct IconGroup4 **)((u32)x + sizeof(struct AnimTex))
+#define ANIMTEX_GETARRAY(x) (struct IconGroup4 **)((char *)x + sizeof(struct AnimTex))
 
 struct PVS
 {
@@ -263,10 +263,10 @@ struct QuadBlock
 	// full struct is 0x5c bytes large
 };
 
-_Static_assert(sizeof(struct QuadBlock) == 0x5c);
-_Static_assert(offsetof(struct QuadBlock, index) == 0x0);
-_Static_assert(sizeof(((struct QuadBlock *)0)->index[0]) == 0x2);
-_Static_assert(sizeof(QuadBlockFlags) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct QuadBlock) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, index) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct QuadBlock *)0)->index[0]) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(QuadBlockFlags) == 0x2);
 _Static_assert(QUADBLOCK_FLAG_REFLECT_SPLIT_LINE_1 == 0x0001);
 _Static_assert(QUADBLOCK_FLAG_LOW_GRAVITY == 0x0002);
 _Static_assert(QUADBLOCK_FLAG_REFLECT_SPLIT_LINE_0 == 0x0004);
@@ -280,11 +280,11 @@ _Static_assert(QUADBLOCK_FLAG_GROUND == 0x1000);
 _Static_assert(QUADBLOCK_FLAG_COLLISION_SURFACE == 0x2000);
 _Static_assert(QUADBLOCK_FLAG_NO_CAMERA_RESPAWN_PROBE == 0x4000);
 _Static_assert(QUADBLOCK_FLAG_SKIP_WATER_LIST == 0x8000);
-_Static_assert(offsetof(struct QuadBlock, quadFlags) == 0x12);
-_Static_assert(offsetof(struct QuadBlock, checkpointIndex) == 0x3e);
-_Static_assert(offsetof(struct QuadBlock, ptr_texture_low) == 0x40);
-_Static_assert(offsetof(struct QuadBlock, pvs) == 0x44);
-_Static_assert(offsetof(struct QuadBlock, triNormalVecDividend) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, quadFlags) == 0x12);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, checkpointIndex) == 0x3e);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, ptr_texture_low) == 0x40);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, pvs) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct QuadBlock, triNormalVecDividend) == 0x48);
 _Static_assert(QUADBLOCK_TRI_NORMAL_DIVIDEND_HI_0 == 0);
 _Static_assert(QUADBLOCK_TRI_NORMAL_DIVIDEND_HI_7 == 7);
 _Static_assert(QUADBLOCK_TRI_NORMAL_DIVIDEND_LO_0 == 8);
@@ -405,33 +405,33 @@ enum BspHitboxClass
 	BSP_HITBOX_CLASS_TOUCH = 4,
 };
 
-_Static_assert(sizeof(struct BSP) == 0x20);
-_Static_assert(sizeof(BspChildId) == 0x2);
-_Static_assert(sizeof(BspChildIdEncoding) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct BSP) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspChildId) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspChildIdEncoding) == 0x2);
 _Static_assert(BSP_CHILD_ID_INDEX_MASK == 0x3fff);
 _Static_assert(BSP_CHILD_ID_LEAF_FLAG == 0x4000);
 _Static_assert(BSP_CHILD_ID_NONE == 0xffff);
-_Static_assert(sizeof(BspNodeFlag) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspNodeFlag) == 0x2);
 _Static_assert(BSP_NODE_FLAG_LEAF == 0x0001);
-_Static_assert(sizeof(BspRenderLeafFlag) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspRenderLeafFlag) == 0x2);
 _Static_assert(BSP_RENDER_LEAF_FLAG_4X1 == 0x0008);
 _Static_assert(BSP_RENDER_LEAF_FLAG_4X2 == 0x0010);
 _Static_assert(BSP_RENDER_LEAF_FLAG_DYNAMIC_SUBDIV == 0x0020);
 _Static_assert(BSP_RENDER_LEAF_FLAG_4X4 == 0x0080);
-_Static_assert(sizeof(BspHitboxFlag) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspHitboxFlag) == 0x2);
 _Static_assert(BSP_HITBOX_LINC_USES_INSTDEF == 0x10);
 _Static_assert(BSP_HITBOX_CHECK_Y_RANGE == 0x20);
 _Static_assert(BSP_HITBOX_USE_Y_AXIS == 0x40);
 _Static_assert(BSP_HITBOX_COLLIDABLE == 0x80);
-_Static_assert(sizeof(BspLeafFlag) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(BspLeafFlag) == 0x2);
 _Static_assert(BSP_LEAF_FLAG_WATER == 0x2);
-_Static_assert(offsetof(struct BSP, flag) == 0x0);
-_Static_assert(offsetof(struct BSP, id) == 0x2);
-_Static_assert(offsetof(struct BSP, box) == 0x4);
-_Static_assert(offsetof(struct BSP, data.branch.childID) == 0x18);
-_Static_assert(offsetof(struct BSP, data.hitbox.center) == 0x10);
-_Static_assert(offsetof(struct BSP, data.hitbox.radius) == 0x16);
-_Static_assert(offsetof(struct BSP, data.hitbox.instDef) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, flag) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, id) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, box) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, data.branch.childID) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, data.hitbox.center) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, data.hitbox.radius) == 0x16);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BSP, data.hitbox.instDef) == 0x1C);
 
 struct VisMemBspListNode
 {
@@ -439,7 +439,7 @@ struct VisMemBspListNode
 	struct BSP *bsp;
 };
 
-_Static_assert(sizeof(struct VisMemBspListNode) == 8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct VisMemBspListNode) == 8);
 
 struct LevVertex
 {
@@ -618,7 +618,7 @@ struct SpawnType1
 
 	// void* pointers[0];
 };
-#define ST1_GETPOINTERS(x) (void **)((u32)x + sizeof(struct SpawnType1))
+#define ST1_GETPOINTERS(x) (void **)((char *)x + sizeof(struct SpawnType1))
 
 struct SpawnPosRot
 {
@@ -691,7 +691,7 @@ struct Skybox
 
 	// struct SkyboxFace allFaces[0];
 };
-#define SKY_GETFACES(x) ((u32)x + sizeof(struct Skybox))
+#define SKY_GETFACES(x) ((char *)x + sizeof(struct Skybox))
 
 struct LevTexLookup
 {
@@ -927,13 +927,13 @@ struct Level
 	char footer[0x60];
 };
 
-_Static_assert(sizeof(struct RainBuffer) == 0x30);
-_Static_assert(sizeof(struct SpawnPosRot) == 0xc);
-_Static_assert(offsetof(struct SpawnPosRot, pos) == 0x0);
-_Static_assert(offsetof(struct SpawnPosRot, rot) == 0x6);
-_Static_assert(sizeof(struct SpawnType2) == 0x8);
-_Static_assert(offsetof(struct SpawnType2, numCoords) == 0x0);
-_Static_assert(offsetof(struct SpawnType2, posCoords) == 0x4);
-_Static_assert(offsetof(struct SpawnType2, positions) == 0x4);
-_Static_assert(offsetof(struct SpawnType2, posRot) == 0x4);
-_Static_assert(offsetof(struct Level, jumpVerticalSpeedCap) == 0x18C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RainBuffer) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct SpawnPosRot) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnPosRot, pos) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnPosRot, rot) == 0x6);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct SpawnType2) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnType2, numCoords) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnType2, posCoords) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnType2, positions) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct SpawnType2, posRot) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Level, jumpVerticalSpeedCap) == 0x18C);
