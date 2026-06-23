@@ -20,6 +20,7 @@ ctr_native/
   game_includes.h     Ordered include chain for all game source files
   build.bat           Windows build (MinGW32)
   build.sh            Linux build
+  build_macos.sh      macOS build (Apple Silicon)
   README.md           This file
 	  game/               Our copies of all decompiled game source (943 files)
 	  include/            Project headers (structs, globals, declarations)
@@ -50,17 +51,40 @@ sudo apt install gcc-multilib
 sudo apt install libx11-dev libxext-dev libgl1-mesa-dev libasound2-dev libudev-dev libdbus-1-dev
 ```
 
+### macOS (Apple Silicon)
+
+1. Install Xcode Command Line Tools: `xcode-select --install`
+2. Install CMake: `brew install cmake`
+3. Run `./build_macos.sh`
+
+Unlike Windows and Linux, the macOS build is 64-bit (arm64) -- macOS has not
+supported 32-bit executables since Catalina (2019).
+
+**Status: compiles, links, and launches as an arm64 binary; not yet known to
+run a game.** The retail-offset asserts that previously blocked the 64-bit
+build are now routed through `CTR_STATIC_ASSERT_LAYOUT` (active on the 32-bit
+Win/Linux builds, compiled out on 64-bit hosts where embedded host pointers
+legitimately shift struct offsets). What remains before the game actually runs
+is the runtime pointer-truncation gap: retail code stores and relocates
+pointers in 32-bit slots (e.g. `LOAD_RunPtrMap`), which is only lossless when
+those addresses fit in 32 bits. On macOS that cannot be arranged by address
+placement -- the kernel SIGKILLs any arm64 binary with a non-default
+`__PAGEZERO`, so all process memory lives above 4 GiB -- so the truncation must
+be fixed in code. See "Known Gap" sections in `docs/MEMORY_MODEL.md`.
+
 ## Building
 
 ```
 build.bat            # Windows
 chmod +x build.sh
 ./build.sh           # Linux
+chmod +x build_macos.sh
+./build_macos.sh     # macOS
 ```
 
 First build compiles SDL3 from source. This is cached as a static library in `build/` -- subsequent builds only recompile touched native sources.
 
-Output: `build/ctr_native.exe` (Windows) or `build/ctr_native` (Linux)
+Output: `build/ctr_native.exe` (Windows) or `build/ctr_native` (Linux, macOS)
 
 ### Clean build
 
@@ -68,8 +92,9 @@ Output: `build/ctr_native.exe` (Windows) or `build/ctr_native` (Linux)
 rmdir /s /q build    # Windows: delete cached libraries
 build.bat            # Windows: rebuild everything
 
-rm -rf build/        # Linux: delete cached libraries
+rm -rf build/        # Linux/macOS: delete cached libraries
 ./build.sh           # Linux: rebuild everything
+./build_macos.sh     # macOS: rebuild everything
 ```
 
 ## Running
@@ -136,7 +161,7 @@ main.c (entrypoint)
 ```
 
 - `CTR_NATIVE` is defined for native host/platform-specific code
-- The default build uses 32-bit mode while remaining PSX address-shaped data and host-pointer contracts are audited. GPU primitive links are bridged through 24-bit native tokens; see `docs/MEMORY_MODEL.md`.
+- Windows and Linux build in 32-bit mode while remaining PSX address-shaped data and host-pointer contracts are audited. macOS has no 32-bit support at all, so that build is 64-bit. GPU primitive links are bridged through 24-bit native tokens; see `docs/MEMORY_MODEL.md`.
 - Struct field widths match PSX hardware layouts. Enums that back struct fields use GCC/Clang fixed-underlying syntax (`typedef enum Name : s16`, `: u8`, etc.) so `sizeof` matches the retail field width without relying on default enum size.
 
 ## Roadmap
