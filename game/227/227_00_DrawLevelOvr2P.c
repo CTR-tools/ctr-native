@@ -2,10 +2,10 @@
 
 static void Ovr227_800ab45c_CopyClipRecordJumpTable(void);
 
-_Static_assert(sizeof(struct OverlayRDATA_227) == 0x564);
-_Static_assert(sizeof(struct OverlayRDATA_227_BucketSetupRecord) == 0x64);
-_Static_assert(sizeof(((struct OverlayRDATA_227 *)0)->scratchInitTable) == 0x60);
-_Static_assert(sizeof(((struct OverlayRDATA_227 *)0)->clipRecordJumpTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_227) == 0x564);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_227_BucketSetupRecord) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_227 *)0)->scratchInitTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_227 *)0)->clipRecordJumpTable) == 0x60);
 
 static u32 Ovr227_TranslateCopiedLabel(u32 address)
 {
