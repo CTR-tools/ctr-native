@@ -52,101 +52,101 @@ struct RenderBucketQueueState
 	uint32_t *otCurr;
 	uint32_t *otEndMinusOne;
 };
-_Static_assert(sizeof(struct RenderBucketEntry) == 0x8);
-_Static_assert(offsetof(struct RenderBucketEntry, inst) == 0x0);
-_Static_assert(offsetof(struct RenderBucketEntry, instPlayerBase) == 0x4);
-_Static_assert(offsetof(struct Item, next) == 0x0);
-_Static_assert(offsetof(struct Item, prev) == 0x4);
-_Static_assert(sizeof(struct Item) == 0x8);
-_Static_assert(offsetof(struct CameraDC, visInstSrc) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketEntry) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketEntry, inst) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketEntry, instPlayerBase) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Item, next) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Item, prev) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Item) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CameraDC, visInstSrc) == 0x28);
 #if BUILD >= UsaRetail
-_Static_assert(sizeof(struct CameraDC) == 0xdc);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct CameraDC) == 0xdc);
 #endif
-_Static_assert(offsetof(MATRIX, m[0][0]) == 0x0);
-_Static_assert(offsetof(MATRIX, m[0][2]) == 0x4);
-_Static_assert(offsetof(MATRIX, m[1][1]) == 0x8);
-_Static_assert(offsetof(MATRIX, m[2][0]) == 0xc);
-_Static_assert(offsetof(MATRIX, m[2][2]) == 0x10);
-_Static_assert(offsetof(MATRIX, t[0]) == 0x14);
-_Static_assert(offsetof(MATRIX, t[1]) == 0x18);
-_Static_assert(offsetof(MATRIX, t[2]) == 0x1c);
-_Static_assert(sizeof(MATRIX) == 0x20);
-_Static_assert(offsetof(struct ModelFrame, pos.x) == 0x0);
-_Static_assert(offsetof(struct ModelFrame, pos.y) == 0x2);
-_Static_assert(offsetof(struct ModelFrame, pos.z) == 0x4);
-_Static_assert(offsetof(struct ModelFrame, vertexOffset) == 0x18);
-_Static_assert(sizeof(struct ModelFrame) == 0x1c);
-_Static_assert(offsetof(struct Instance, next) == 0x0);
-_Static_assert(offsetof(struct Instance, prev) == 0x4);
-_Static_assert(offsetof(struct Instance, model) == 0x18);
-_Static_assert(offsetof(struct Instance, scale.x) == 0x1c);
-_Static_assert(offsetof(struct Instance, scale.y) == 0x1e);
-_Static_assert(offsetof(struct Instance, scale.z) == 0x20);
-_Static_assert(offsetof(struct Instance, alphaScale) == 0x22);
-_Static_assert(offsetof(struct Instance, flags) == 0x28);
-_Static_assert(offsetof(struct Instance, matrix) == 0x30);
-_Static_assert(offsetof(struct Instance, matrix.t[0]) == 0x44);
-_Static_assert(offsetof(struct Instance, matrix.t[1]) == 0x48);
-_Static_assert(offsetof(struct Instance, matrix.t[2]) == 0x4c);
-_Static_assert(offsetof(struct Instance, depthBiasNormal) == 0x50);
-_Static_assert(offsetof(struct Instance, depthBiasSecondary) == 0x51);
-_Static_assert(offsetof(struct Instance, animIndex) == 0x52);
-_Static_assert(offsetof(struct Instance, animFrame) == 0x54);
-_Static_assert(offsetof(struct Instance, vertSplit) == 0x56);
-_Static_assert(offsetof(struct Instance, funcPtr) == 0x5c);
-_Static_assert(offsetof(struct Instance, funcPtr[0]) == 0x5c);
-_Static_assert(offsetof(struct Instance, funcPtr[1]) == 0x60);
-_Static_assert(offsetof(struct Instance, funcPtr[2]) == 0x64);
-_Static_assert(offsetof(struct Instance, funcPtr[3]) == 0x68);
-_Static_assert(offsetof(struct Instance, thread) == 0x6c);
-_Static_assert(offsetof(struct Instance, bitCompressed_NormalVector_AndDriverIndex) == 0x70);
-_Static_assert(sizeof(struct Instance) == 0x74);
-_Static_assert(offsetof(struct Thread, object) == 0x30);
-_Static_assert(offsetof(struct Driver, driverID) == 0x4a);
-_Static_assert(offsetof(struct Model, numHeaders) == 0x12);
-_Static_assert(offsetof(struct Model, headers) == 0x14);
-_Static_assert(offsetof(struct ModelHeader, maxDistanceLOD) == 0x14);
-_Static_assert(offsetof(struct ModelHeader, flags) == 0x16);
-_Static_assert(offsetof(struct ModelHeader, scale) == 0x18);
-_Static_assert(offsetof(struct ModelHeader, ptrCommandList) == 0x20);
-_Static_assert(offsetof(struct ModelHeader, ptrFrameData) == 0x24);
-_Static_assert(offsetof(struct ModelHeader, ptrTexLayout) == 0x28);
-_Static_assert(offsetof(struct ModelHeader, ptrColors) == 0x2c);
-_Static_assert(offsetof(struct ModelHeader, unk3) == 0x30);
-_Static_assert(offsetof(struct ModelHeader, numAnimations) == 0x34);
-_Static_assert(offsetof(struct ModelHeader, ptrAnimations) == 0x38);
-_Static_assert(sizeof(struct ModelHeader) == 0x40);
-_Static_assert(offsetof(struct ModelAnim, numFrames) == 0x10);
-_Static_assert(offsetof(struct ModelAnim, frameSize) == 0x12);
-_Static_assert(offsetof(struct ModelAnim, ptrDeltaArray) == 0x14);
-_Static_assert(sizeof(struct ModelAnim) == 0x18);
-_Static_assert(offsetof(struct InstDrawPerPlayer, pushBuffer) == 0x0);
-_Static_assert(offsetof(struct InstDrawPerPlayer, mvp) == 0x4);
-_Static_assert(offsetof(struct InstDrawPerPlayer, mvp.t[0]) == 0x18);
-_Static_assert(offsetof(struct InstDrawPerPlayer, mvp.t[1]) == 0x1c);
-_Static_assert(offsetof(struct InstDrawPerPlayer, mvp.t[2]) == 0x20);
-_Static_assert(offsetof(struct InstDrawPerPlayer, m3x3) == 0x24);
-_Static_assert(offsetof(struct InstDrawPerPlayer, instFlags) == 0x44);
-_Static_assert(offsetof(struct InstDrawPerPlayer, alphaScale) == 0x48);
-_Static_assert(offsetof(struct InstDrawPerPlayer, splitLine) == 0x4a);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrCurrFrame) == 0x4c);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrNextFrame) == 0x50);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrCommandList) == 0x54);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrTexLayout) == 0x58);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrColorLayout) == 0x5c);
-_Static_assert(offsetof(struct InstDrawPerPlayer, ptrDeltaArray) == 0x60);
-_Static_assert(offsetof(struct InstDrawPerPlayer, lodIndex) == 0x64);
-_Static_assert(offsetof(struct InstDrawPerPlayer, depthOffset) == 0x68);
-_Static_assert(offsetof(struct InstDrawPerPlayer, mh) == 0x6c);
-_Static_assert(offsetof(struct InstDrawPerPlayer, otRangeNormal) == 0x70);
-_Static_assert(offsetof(struct InstDrawPerPlayer, otRangeSecondary) == 0x74);
-_Static_assert(offsetof(struct InstDrawPerPlayer, unkEC) == 0x78);
-_Static_assert(offsetof(struct InstDrawPerPlayer, unkF0) == 0x7c);
-_Static_assert(sizeof(struct InstDrawPerPlayer) == 0x88);
-_Static_assert(sizeof(uint32_t) == 0x4);
-_Static_assert(offsetof(struct PushBuffer, pos.x) == 0x0);
-_Static_assert(offsetof(struct PushBuffer, pos.y) == 0x2);
-_Static_assert(offsetof(struct PushBuffer, pos.z) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, m[0][0]) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, m[0][2]) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, m[1][1]) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, m[2][0]) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, m[2][2]) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, t[0]) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, t[1]) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(MATRIX, t[2]) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(MATRIX) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelFrame, pos.x) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelFrame, pos.y) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelFrame, pos.z) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelFrame, vertexOffset) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ModelFrame) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, next) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, prev) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, model) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, scale.x) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, scale.y) == 0x1e);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, scale.z) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, alphaScale) == 0x22);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, flags) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, matrix) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, matrix.t[0]) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, matrix.t[1]) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, matrix.t[2]) == 0x4c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, depthBiasNormal) == 0x50);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, depthBiasSecondary) == 0x51);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, animIndex) == 0x52);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, animFrame) == 0x54);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, vertSplit) == 0x56);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, funcPtr) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, funcPtr[0]) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, funcPtr[1]) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, funcPtr[2]) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, funcPtr[3]) == 0x68);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, thread) == 0x6c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Instance, bitCompressed_NormalVector_AndDriverIndex) == 0x70);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Instance) == 0x74);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, object) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Driver, driverID) == 0x4a);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Model, numHeaders) == 0x12);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Model, headers) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, maxDistanceLOD) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, flags) == 0x16);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, scale) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, ptrCommandList) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, ptrFrameData) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, ptrTexLayout) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, ptrColors) == 0x2c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, unk3) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, numAnimations) == 0x34);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelHeader, ptrAnimations) == 0x38);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ModelHeader) == 0x40);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelAnim, numFrames) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelAnim, frameSize) == 0x12);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ModelAnim, ptrDeltaArray) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ModelAnim) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, pushBuffer) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, mvp) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, mvp.t[0]) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, mvp.t[1]) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, mvp.t[2]) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, m3x3) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, instFlags) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, alphaScale) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, splitLine) == 0x4a);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrCurrFrame) == 0x4c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrNextFrame) == 0x50);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrCommandList) == 0x54);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrTexLayout) == 0x58);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrColorLayout) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, ptrDeltaArray) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, lodIndex) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, depthOffset) == 0x68);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, mh) == 0x6c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, otRangeNormal) == 0x70);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, otRangeSecondary) == 0x74);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, unkEC) == 0x78);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct InstDrawPerPlayer, unkF0) == 0x7c);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct InstDrawPerPlayer) == 0x88);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(uint32_t) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct PushBuffer, pos.x) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct PushBuffer, pos.y) == 0x2);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct PushBuffer, pos.z) == 0x4);
 
 typedef struct
 {
@@ -242,44 +242,44 @@ enum
 	RENDER_BUCKET_PAYLOAD_SCRATCH_OFFSET = 0x140,
 };
 
-_Static_assert(sizeof(struct RenderBucketPackedVertex) == 0x8);
-_Static_assert(sizeof(struct RenderBucketFrameOriginScratch) == 0x8);
-_Static_assert(offsetof(struct RenderBucketFrameOriginScratch, xy) == 0x00);
-_Static_assert(offsetof(struct RenderBucketFrameOriginScratch, z) == 0x04);
-_Static_assert(sizeof(union RenderBucketScratchColor) == 0x4);
-_Static_assert(sizeof(struct RenderBucketSplitScratch) == 0x64);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, savedSp) == 0x00);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, nextEntryPtr32) == 0x04);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, pushBufferPtr32) == 0x08);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, primMemPtr32) == 0x0c);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, instPtr32) == 0x10);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, geomW) == 0x1c);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, geomH) == 0x1e);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, instFlags) == 0x24);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, frameOrigin) == 0x30);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, splitLinePrimary) == 0x44);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, splitInstanceUnk53) == 0x48);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, splitFunc3Ptr32) == 0x4c);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, setupDrawClear) == 0x58);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, setupDispatch) == 0x94);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, rawView) == 0xb4);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, primDispatch) == 0xc4);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split) == 0xc4);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, splitLineSecondary) == 0x16);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, splitCounterPrimary) == 0x1c);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, splitLineTertiary) == 0x2e);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, splitCounterSecondary) == 0x34);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, splitFixedLine) == 0x58);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, alphaScale) == 0x5c);
-_Static_assert(offsetof(struct RenderBucketSplitScratch, fadeColor) == 0x60);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.splitLineSecondary) == 0xda);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.splitCounterPrimary) == 0xe0);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.splitLineTertiary) == 0xf2);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.splitCounterSecondary) == 0xf8);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.splitFixedLine) == 0x11c);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.alphaScale) == 0x120);
-_Static_assert(offsetof(struct RenderBucketExecuteScratch, split.fadeColor) == 0x124);
-_Static_assert(sizeof(struct RenderBucketExecuteScratch) == 0x128);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketPackedVertex) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketFrameOriginScratch) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketFrameOriginScratch, xy) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketFrameOriginScratch, z) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(union RenderBucketScratchColor) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketSplitScratch) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, savedSp) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, nextEntryPtr32) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, pushBufferPtr32) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, primMemPtr32) == 0x0c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, instPtr32) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, geomW) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, geomH) == 0x1e);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, instFlags) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, frameOrigin) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, splitLinePrimary) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, splitInstanceUnk53) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, splitFunc3Ptr32) == 0x4c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, setupDrawClear) == 0x58);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, setupDispatch) == 0x94);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, rawView) == 0xb4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, primDispatch) == 0xc4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split) == 0xc4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, splitLineSecondary) == 0x16);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, splitCounterPrimary) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, splitLineTertiary) == 0x2e);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, splitCounterSecondary) == 0x34);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, splitFixedLine) == 0x58);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, alphaScale) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitScratch, fadeColor) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.splitLineSecondary) == 0xda);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.splitCounterPrimary) == 0xe0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.splitLineTertiary) == 0xf2);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.splitCounterSecondary) == 0xf8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.splitFixedLine) == 0x11c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.alphaScale) == 0x120);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketExecuteScratch, split.fadeColor) == 0x124);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketExecuteScratch) == 0x128);
 
 struct RenderBucketUncompressResult
 {
@@ -298,14 +298,14 @@ struct RenderBucketSplitVertex
 	u32 sz;
 };
 
-_Static_assert(sizeof(struct RenderBucketSplitVertex) == 0x18);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, xy) == 0x0);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, z) == 0x4);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, color) == 0x8);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, uv) == 0xc);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, splitDist) == 0xe);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, sxy) == 0x10);
-_Static_assert(offsetof(struct RenderBucketSplitVertex, sz) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketSplitVertex) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, xy) == 0x0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, z) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, color) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, uv) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, splitDist) == 0xe);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, sxy) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketSplitVertex, sz) == 0x14);
 
 struct RenderBucketGhostMaskPacket
 {
@@ -355,43 +355,43 @@ struct RenderBucketGhostTexturedPacket
 	struct RenderBucketTaglessGT3 body;
 };
 
-_Static_assert(sizeof(struct RenderBucketGhostMaskPacket) == 0x1C);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, tag) == 0x00);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, drawMode) == 0x04);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, pad) == 0x08);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, colorAndCode) == 0x0C);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, xy0) == 0x10);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, xy1) == 0x14);
-_Static_assert(offsetof(struct RenderBucketGhostMaskPacket, xy2) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketGhostMaskPacket) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, drawMode) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, pad) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, colorAndCode) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, xy0) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, xy1) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostMaskPacket, xy2) == 0x18);
 
-_Static_assert(sizeof(struct RenderBucketTaglessG3) == 0x18);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, color0AndCode) == 0x00);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, xy0) == 0x04);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, color1) == 0x08);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, xy1) == 0x0C);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, color2) == 0x10);
-_Static_assert(offsetof(struct RenderBucketTaglessG3, xy2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketTaglessG3) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, color0AndCode) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, xy0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, color1) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, xy1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, color2) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessG3, xy2) == 0x14);
 
-_Static_assert(sizeof(struct RenderBucketTaglessGT3) == 0x24);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, color0AndCode) == 0x00);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, xy0) == 0x04);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, uv0) == 0x08);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, color1) == 0x0C);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, xy1) == 0x10);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, uv1) == 0x14);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, color2) == 0x18);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, xy2) == 0x1C);
-_Static_assert(offsetof(struct RenderBucketTaglessGT3, uv2) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketTaglessGT3) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, color0AndCode) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, xy0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, uv0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, color1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, xy1) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, uv1) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, color2) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, xy2) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketTaglessGT3, uv2) == 0x20);
 
-_Static_assert(sizeof(struct RenderBucketGhostFlatPacket) == 0x3C);
-_Static_assert(offsetof(struct RenderBucketGhostFlatPacket, mask) == 0x00);
-_Static_assert(offsetof(struct RenderBucketGhostFlatPacket, drawMode) == 0x1C);
-_Static_assert(offsetof(struct RenderBucketGhostFlatPacket, pad) == 0x20);
-_Static_assert(offsetof(struct RenderBucketGhostFlatPacket, body) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketGhostFlatPacket) == 0x3C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostFlatPacket, mask) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostFlatPacket, drawMode) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostFlatPacket, pad) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostFlatPacket, body) == 0x24);
 
-_Static_assert(sizeof(struct RenderBucketGhostTexturedPacket) == 0x40);
-_Static_assert(offsetof(struct RenderBucketGhostTexturedPacket, mask) == 0x00);
-_Static_assert(offsetof(struct RenderBucketGhostTexturedPacket, body) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RenderBucketGhostTexturedPacket) == 0x40);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostTexturedPacket, mask) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RenderBucketGhostTexturedPacket, body) == 0x1C);
 
 #define RB_RETAIL_INST_FUNC3_SPLIT_WHITE  ((u32)0x8006d404U)
 #define RB_RETAIL_INST_FUNC3_SPLIT_INTERP ((u32)0x8006d428U)
@@ -702,12 +702,12 @@ static void RenderBucket_LinkPrimRaw(uint32_t *otEntry, void *prim, u32 lenWord)
 static const u32 sRenderBucketDispatchTable8008a428[8] = {
     0x8006c948, 0x8006c974, 0x8006c928, 0x8006c928, 0x8006c948, 0x8006c948, 0x8006c984, 0x8006ad88,
 };
-_Static_assert(sizeof(sRenderBucketDispatchTable8008a428) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(sRenderBucketDispatchTable8008a428) == 0x20);
 
 static const u32 sRenderBucketDispatchTable8008a444[8] = {
     0x8006ad88, 0x8006b968, 0x8006ae90, 0x8006c778, 0x8006bad0, 0x8006ad6c, 0x8006d670, 0x8006d55c,
 };
-_Static_assert(sizeof(sRenderBucketDispatchTable8008a444) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(sRenderBucketDispatchTable8008a444) == 0x20);
 
 static const u32 sRenderBucketInstanceFunc2Table8008a460[4] = {
     0x8006d55c,
@@ -715,7 +715,7 @@ static const u32 sRenderBucketInstanceFunc2Table8008a460[4] = {
     0x8006d5b8,
     0x8006d59c,
 };
-_Static_assert(sizeof(sRenderBucketInstanceFunc2Table8008a460) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(sRenderBucketInstanceFunc2Table8008a460) == 0x10);
 
 static const u32 sRenderBucketInstanceFunc3Table8008a470[4] = {
     0x8006d428,
@@ -723,7 +723,7 @@ static const u32 sRenderBucketInstanceFunc3Table8008a470[4] = {
     0x8006d404,
     0x8006d428,
 };
-_Static_assert(sizeof(sRenderBucketInstanceFunc3Table8008a470) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(sRenderBucketInstanceFunc3Table8008a470) == 0x10);
 
 static const u8 sRenderBucketKeyRelicBrightness8008a2c4[0x80] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
