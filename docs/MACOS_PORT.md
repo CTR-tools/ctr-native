@@ -115,11 +115,35 @@ literal changes, identical in behaviour on the 32-bit builds:
 - `ptrMPK` retyped from `int` to a real pointer (`regionsEXE.h` + callback).
 - A sweep of `(T *)((int|u32)ptr …)` truncating casts across `game/`.
 
-### M3 — Asset pointer relocation (NOT done — the architectural task)
+### M3 — Asset pointer relocation (in progress — Option A adopted)
 
-The boot now reaches `LibraryOfModels_Store`, walking the MPK model-pointer
-table, and this is where mechanical fixes stop working. The MPK (and level)
-data are binary overlays whose **on-disc pointers are 4 bytes**:
+**Approach chosen: Option A (load-time transform).** A native-only module
+(`platform/native_reloc.c`, `#ifdef CTR_RELOC64`) rebuilds each binary-overlay
+asset into native structs with real 8-byte pointers right after load, so every
+`game/` dereference site stays byte-identical to retail. The 32-bit Win/Linux
+builds keep `LOAD_RunPtrMap` and compile none of it.
+
+**Phase 1 (model pack / MPK) — done and verified.** The boot used to fault in
+`LibraryOfModels_Store` walking the MPK model-pointer table; it now boots past it
+and runs stably (renderer up). `Reloc64_ModelPack` rebuilds the `PLYROBJECTLIST`
+table and the full `Model → ModelHeader → {TextureLayout[], ModelAnim[], AnimTex}`
+graph plus the `mpkIcons → LevTexLookup → IconGroup` icon graph; leaf blobs
+(command lists, vertex/frame data, CLUTs) stay resident in the original buffer
+and are pointed at directly. Length-less pointer arrays (e.g. `ptrTexLayout`) are
+bounded by the embedded DRAM pointer-map; arrays with a stored count
+(`numHeaders`, `numAnimations`, `numIconGroup`) use it. Hooked in
+`LOAD_DramFileCallback` (dispatched by `callback == LOAD_Callback_DriverModels`);
+the few raw-offset reads (`ptrMPK+4`, `*ptrMPK`, `mpkIcons+4`) now go through
+`Reloc64_Mpk*` accessors / struct fields. `ModelHeader.ptrCommandList` and
+`gGT->mpkIcons` were widened to `uintptr_t`.
+
+**Remaining (Phase 2/3):** the level format (`struct Level` via
+`LOAD_Callback_PatchMem`) + instances, then the individually-loaded driver models
+(`driverModelExtras`, the `-2` SetPointer path) and any other overlays, found via
+the crash-driven loop. Same pattern, new walkers.
+
+Background on why this is the architectural task — the MPK (and level) data are
+binary overlays whose **on-disc pointers are 4 bytes**:
 
 - Pointer *tables* (e.g. `PLYROBJECTLIST = ptrMPK + 4`) are arrays of 4-byte
   entries; reading them as native `struct Model **` (8-byte) is a stride
@@ -159,6 +183,15 @@ same crash-driven way.
 Ad-hoc `codesign` is already applied by the linker. For shipping: a proper
 signed/notarised `.app` bundle, a Universal binary if x86_64 is also wanted, and
 bundling `assets/` per the layout in `README.md`.
+
+**Longevity risk — OpenGL → Metal.** The native renderer
+(`platform/native_renderer.c`, `native_glad.c`) uses an OpenGL 3.3 Core context.
+Apple deprecated OpenGL in macOS 10.14 and caps it at 4.1 (we run on Apple's
+"4.1 Metal" GL-over-Metal shim — see the boot log). It works today and is not a
+"does it run" blocker, but Apple could remove it. The long-term escape is to move
+the backend onto Metal — either via SDL3's `SDL_GPU` abstraction or by translating
+GL through ANGLE/MoltenVK. This is a renderer concern, fully orthogonal to the
+64-bit memory work above; flagged here so it is on the distribution radar.
 
 ## Conventions for new 64-bit fixes
 
