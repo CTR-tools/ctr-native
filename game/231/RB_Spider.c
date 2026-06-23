@@ -17,8 +17,8 @@ void RB_Spider_DrawWebs(struct Thread *t, struct PushBuffer *pb)
 		s32 z;
 	} WebLine;
 
-	_Static_assert(sizeof(multiCmdPacket) == 0x18);
-	_Static_assert(sizeof(WebLine) == 0xc);
+	CTR_STATIC_ASSERT_LAYOUT(sizeof(multiCmdPacket) == 0x18);
+	CTR_STATIC_ASSERT_LAYOUT(sizeof(WebLine) == 0xc);
 
 	struct GameTracker *gGT;
 	struct PrimMem *primMem;
