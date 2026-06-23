@@ -197,7 +197,7 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	if (bucketID >= NUM_BUCKETS)
 	{
 		if (stackObj != 0)
-			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+			PROC_DestroyObject((void *)((uintptr_t)stackObj + 8), flags);
 		return 0;
 	}
 
@@ -205,7 +205,7 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	if ((u32)(flags >> 0x10) >= (stackPool->itemSize - 8))
 	{
 		if (stackObj != 0)
-			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+			PROC_DestroyObject((void *)((uintptr_t)stackObj + 8), flags);
 		return 0;
 	}
 
@@ -219,7 +219,7 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	// check thread allocated
 	if (th == 0)
 	{
-		PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+		PROC_DestroyObject((void *)((uintptr_t)stackObj + 8), flags);
 		return 0;
 	}
 
