@@ -118,7 +118,7 @@ struct TorchScratch
 	struct TorchRingScratch rings[3];
 };
 
-_Static_assert(sizeof(struct TorchRingScratch) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct TorchRingScratch) == 0x24);
 _Static_assert(TORCH_POINT_CENTER == 0x00);
 _Static_assert(TORCH_POINT_TOP == 0x04);
 _Static_assert(TORCH_POINT_TOP_RIGHT == 0x08);
@@ -128,22 +128,22 @@ _Static_assert(TORCH_POINT_BOTTOM == 0x14);
 _Static_assert(TORCH_POINT_BOTTOM_LEFT == 0x18);
 _Static_assert(TORCH_POINT_LEFT == 0x1c);
 _Static_assert(TORCH_POINT_TOP_LEFT == 0x20);
-_Static_assert(offsetof(struct TorchScratch, firstParticlePtr32) == 0x30);
-_Static_assert(offsetof(struct TorchScratch, swapchainIndex) == 0x38);
-_Static_assert(offsetof(struct TorchScratch, color) == 0x44);
-_Static_assert(offsetof(struct TorchScratch, screenWFP) == 0x48);
-_Static_assert(offsetof(struct TorchScratch, screenHFP) == 0x4c);
-_Static_assert(offsetof(struct TorchScratch, rectX) == 0x50);
-_Static_assert(offsetof(struct TorchScratch, rectYWithSwapchain) == 0x52);
-_Static_assert(offsetof(struct TorchScratch, maxX) == 0x54);
-_Static_assert(offsetof(struct TorchScratch, maxY) == 0x56);
-_Static_assert(offsetof(struct TorchScratch, tileUBase) == 0x58);
-_Static_assert(offsetof(struct TorchScratch, uv0) == 0x5c);
-_Static_assert(offsetof(struct TorchScratch, uv1) == 0x60);
-_Static_assert(offsetof(struct TorchScratch, uv23) == 0x64);
-_Static_assert(offsetof(struct TorchScratch, rings) == TORCH_RING0_SCRATCH_OFFSET);
-_Static_assert(offsetof(struct TorchScratch, rings[1]) == TORCH_RING1_SCRATCH_OFFSET);
-_Static_assert(offsetof(struct TorchScratch, rings[2]) == TORCH_RING2_SCRATCH_OFFSET);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, firstParticlePtr32) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, swapchainIndex) == 0x38);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, color) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, screenWFP) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, screenHFP) == 0x4c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, rectX) == 0x50);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, rectYWithSwapchain) == 0x52);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, maxX) == 0x54);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, maxY) == 0x56);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, tileUBase) == 0x58);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, uv0) == 0x5c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, uv1) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, uv23) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, rings) == TORCH_RING0_SCRATCH_OFFSET);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, rings[1]) == TORCH_RING1_SCRATCH_OFFSET);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct TorchScratch, rings[2]) == TORCH_RING2_SCRATCH_OFFSET);
 
 static u32 Torch_ReadWord(const void *base, int offset)
 {
