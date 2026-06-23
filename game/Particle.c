@@ -546,11 +546,11 @@ struct ParticleRenderListScratch
 	s32 depth;
 };
 
-_Static_assert(offsetof(struct ParticleRenderListScratch, viewProjWords) == 0x00);
-_Static_assert(offsetof(struct ParticleRenderListScratch, viewProjR33Low) == 0x10);
-_Static_assert(offsetof(struct ParticleRenderListScratch, ot) == 0x20);
-_Static_assert(offsetof(struct ParticleRenderListScratch, cameraOffset) == 0x24);
-_Static_assert(offsetof(struct ParticleRenderListScratch, depth) == 0x30);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleRenderListScratch, viewProjWords) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleRenderListScratch, viewProjR33Low) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleRenderListScratch, ot) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleRenderListScratch, cameraOffset) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleRenderListScratch, depth) == 0x30);
 
 struct ParticleSpecialLineBody
 {
@@ -568,17 +568,17 @@ struct ParticleSpecialPacket
 	struct ParticleSpecialLineBody line;
 };
 
-_Static_assert(sizeof(struct ParticleSpecialLineBody) == 0x10);
-_Static_assert(offsetof(struct ParticleSpecialLineBody, color0AndCode) == 0x00);
-_Static_assert(offsetof(struct ParticleSpecialLineBody, xy0) == 0x04);
-_Static_assert(offsetof(struct ParticleSpecialLineBody, color1) == 0x08);
-_Static_assert(offsetof(struct ParticleSpecialLineBody, xy1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ParticleSpecialLineBody) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialLineBody, color0AndCode) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialLineBody, xy0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialLineBody, color1) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialLineBody, xy1) == 0x0C);
 
-_Static_assert(sizeof(struct ParticleSpecialPacket) == 0x1C);
-_Static_assert(offsetof(struct ParticleSpecialPacket, tag) == 0x00);
-_Static_assert(offsetof(struct ParticleSpecialPacket, drawMode) == 0x04);
-_Static_assert(offsetof(struct ParticleSpecialPacket, pad) == 0x08);
-_Static_assert(offsetof(struct ParticleSpecialPacket, line) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ParticleSpecialPacket) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialPacket, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialPacket, drawMode) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialPacket, pad) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct ParticleSpecialPacket, line) == 0x0C);
 
 static struct ParticleRenderListTrig Particle_RenderList_ReadTrig(s32 angle)
 {
