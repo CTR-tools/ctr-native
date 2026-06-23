@@ -22,8 +22,8 @@ struct RaceFlagScratch
 	union RaceFlagScreenBuffer screen[2];
 };
 
-_Static_assert(sizeof(union RaceFlagScreenBuffer) == 0x78);
-_Static_assert(sizeof(struct RaceFlagScratch) == 0xf0);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(union RaceFlagScreenBuffer) == 0x78);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RaceFlagScratch) == 0xf0);
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80043e34-0x80043f1c.
 int RaceFlag_MoveModels(int frameIndex, int numFrames)
