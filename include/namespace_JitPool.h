@@ -10,4 +10,4 @@ struct JitPool
 	void *ptrPoolData;
 };
 
-_Static_assert(sizeof(struct JitPool) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct JitPool) == 0x28);
