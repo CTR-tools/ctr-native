@@ -10,12 +10,12 @@ struct RedBeakerRng
 	s32 z;
 };
 
-_Static_assert(sizeof(LINE_G2) == 0x14);
-_Static_assert(offsetof(LINE_G2, tag) == 0x00);
-_Static_assert(offsetof(LINE_G2, r0) == 0x04);
-_Static_assert(offsetof(LINE_G2, x0) == 0x08);
-_Static_assert(offsetof(LINE_G2, r1) == 0x0C);
-_Static_assert(offsetof(LINE_G2, x1) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(LINE_G2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, r1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(LINE_G2, x1) == 0x10);
 
 static u32 RedBeaker_ReadWord(const void *base, int offset)
 {
@@ -167,9 +167,9 @@ struct RedBeakerRainScratch
 	u32 colorBottom;
 };
 
-_Static_assert(offsetof(struct RedBeakerRainScratch, centerXY) == 0x00);
-_Static_assert(offsetof(struct RedBeakerRainScratch, colorTop) == 0x18);
-_Static_assert(offsetof(struct RedBeakerRainScratch, colorBottom) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RedBeakerRainScratch, centerXY) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RedBeakerRainScratch, colorTop) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RedBeakerRainScratch, colorBottom) == 0x1C);
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8006dc30-0x8006e26c
 void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct JitPool *rain, char numPlyr, int gameMode1)
