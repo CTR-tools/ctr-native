@@ -317,11 +317,11 @@ void UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 		// Need to finish Driver struct
 
 		// if ghost not initialized
-		if (*(s16 *)((int)d + 0x632) == 0)
+		if (*(s16 *)((uintptr_t)d + 0x632) == 0)
 			continue;
 
 		// ghost made by player
-		if (*(s16 *)((int)d + 0x630) == 0)
+		if (*(s16 *)((uintptr_t)d + 0x630) == 0)
 		{
 			// flash red and blue
 
