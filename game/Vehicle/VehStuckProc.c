@@ -1262,27 +1262,27 @@ struct VehWarpDustPacket
 	struct VehWarpDustG4Body rightStrip;
 };
 
-_Static_assert(sizeof(struct VehWarpDustG4Body) == 0x20);
-_Static_assert(offsetof(struct VehWarpDustG4Body, color0AndCode) == 0x00);
-_Static_assert(offsetof(struct VehWarpDustG4Body, xy0) == 0x04);
-_Static_assert(offsetof(struct VehWarpDustG4Body, color1) == 0x08);
-_Static_assert(offsetof(struct VehWarpDustG4Body, xy1) == 0x0C);
-_Static_assert(offsetof(struct VehWarpDustG4Body, color2) == 0x10);
-_Static_assert(offsetof(struct VehWarpDustG4Body, xy2) == 0x14);
-_Static_assert(offsetof(struct VehWarpDustG4Body, color3) == 0x18);
-_Static_assert(offsetof(struct VehWarpDustG4Body, xy3) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct VehWarpDustG4Body) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, color0AndCode) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, xy0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, color1) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, xy1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, color2) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, xy2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, color3) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustG4Body, xy3) == 0x1C);
 
-_Static_assert(sizeof(struct VehWarpDustPacket) == 0x48);
-_Static_assert(offsetof(struct VehWarpDustPacket, tag) == 0x00);
-_Static_assert(offsetof(struct VehWarpDustPacket, drawMode) == 0x04);
-_Static_assert(offsetof(struct VehWarpDustPacket, leftStrip) == 0x08);
-_Static_assert(offsetof(struct VehWarpDustPacket, rightStrip) == 0x28);
-_Static_assert(offsetof(struct VehWarpDustScratch, points) == 0x108);
-_Static_assert(offsetof(struct VehWarpDustScratch, projectLeft) == 0x190);
-_Static_assert(offsetof(struct VehWarpDustScratch, projectRight) == 0x198);
-_Static_assert(offsetof(struct VehWarpDustScratch, prev) == 0x1a0);
-_Static_assert(offsetof(struct VehWarpDustScratch, curr) == 0x1b0);
-_Static_assert(offsetof(struct VehWarpDustScratch, jitterScale) == 0x1c0);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct VehWarpDustPacket) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustPacket, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustPacket, drawMode) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustPacket, leftStrip) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustPacket, rightStrip) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, points) == 0x108);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, projectLeft) == 0x190);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, projectRight) == 0x198);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, prev) == 0x1a0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, curr) == 0x1b0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehWarpDustScratch, jitterScale) == 0x1c0);
 
 static s16 VehWarpDust_AddHalf(s16 value, int delta)
 {
