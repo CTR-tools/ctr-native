@@ -151,9 +151,9 @@ struct RectMenu
 #endif
 };
 
-_Static_assert(sizeof(struct MenuRow) == 6);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct MenuRow) == 6);
 #if BUILD != SepReview
-_Static_assert(sizeof(struct RectMenu) == 0x2C);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RectMenu) == 0x2C);
 #else
-_Static_assert(sizeof(struct RectMenu) == 0x34);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RectMenu) == 0x34);
 #endif
