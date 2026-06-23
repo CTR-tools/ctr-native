@@ -178,8 +178,8 @@ struct RainCloud
 
 	// size - 0x8
 };
-_Static_assert(offsetof(struct RainCloud, effect) == 0x6);
-_Static_assert(sizeof(struct RainCloud) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RainCloud, effect) == 0x6);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct RainCloud) == 0x8);
 
 struct Shield
 {
@@ -328,7 +328,7 @@ struct Crate
 	// 0x8 bytes large
 };
 
-_Static_assert(sizeof(struct Crate) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Crate) == 0x8);
 
 struct Crystal
 {
@@ -636,9 +636,9 @@ struct Spider
 
 	// 0x10 bytes large
 };
-_Static_assert(offsetof(struct Spider, delay) == 0x4);
-_Static_assert(offsetof(struct Spider, shadowInst) == 0xc);
-_Static_assert(sizeof(struct Spider) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Spider, delay) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Spider, shadowInst) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Spider) == 0x10);
 
 struct Teeth
 {
@@ -656,7 +656,7 @@ struct Teeth
 
 	// 0x8 bytes large
 };
-_Static_assert(sizeof(struct Teeth) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Teeth) == 0x8);
 
 struct Turtle
 {
@@ -684,9 +684,9 @@ struct Turtle
 
 	// 0xC bytes large
 };
-_Static_assert(offsetof(struct Turtle, turtleID) == 0x4);
-_Static_assert(offsetof(struct Turtle, state) == 0x8);
-_Static_assert(sizeof(struct Turtle) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Turtle, turtleID) == 0x4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Turtle, state) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Turtle) == 0xc);
 
 struct OverlayRDATA_231
 {
