@@ -222,7 +222,7 @@ void CS_Credits_Init(void)
 
 	for (i = 0; i < creditsBSS.numStrings; i++)
 	{
-		ptrStrings[i] = (char *)((u32)ptrStrings[i] + (u32)creditsDst);
+		ptrStrings[i] = (char *)((uintptr_t)ptrStrings[i] + (u32)creditsDst);
 	}
 
 	creditsObj->credits_posY = 340;
