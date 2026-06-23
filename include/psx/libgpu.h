@@ -831,39 +831,39 @@ extern void SetPsyXDebugMarker(DR_PSYX_DBGMARKER *p, const char *str);
 
 #define PSYX_DBG_MARKER_RESET(primptr, ot) PSYX_DBG_MARKER_TEXT(primptr, ot, nullptr)
 
-_Static_assert(sizeof(POLY_G3) == 0x1C);
-_Static_assert(offsetof(POLY_G3, tag) == 0x00);
-_Static_assert(offsetof(POLY_G3, r0) == 0x04);
-_Static_assert(offsetof(POLY_G3, x0) == 0x08);
-_Static_assert(offsetof(POLY_G3, r1) == 0x0C);
-_Static_assert(offsetof(POLY_G3, x1) == 0x10);
-_Static_assert(offsetof(POLY_G3, r2) == 0x14);
-_Static_assert(offsetof(POLY_G3, x2) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(POLY_G3) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, r1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, x1) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, r2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G3, x2) == 0x18);
 
-_Static_assert(sizeof(POLY_G4) == 0x24);
-_Static_assert(offsetof(POLY_G4, tag) == 0x00);
-_Static_assert(offsetof(POLY_G4, r0) == 0x04);
-_Static_assert(offsetof(POLY_G4, x0) == 0x08);
-_Static_assert(offsetof(POLY_G4, r1) == 0x0C);
-_Static_assert(offsetof(POLY_G4, x1) == 0x10);
-_Static_assert(offsetof(POLY_G4, r2) == 0x14);
-_Static_assert(offsetof(POLY_G4, x2) == 0x18);
-_Static_assert(offsetof(POLY_G4, r3) == 0x1C);
-_Static_assert(offsetof(POLY_G4, x3) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(POLY_G4) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, r1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, x1) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, r2) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, x2) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, r3) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_G4, x3) == 0x20);
 
-_Static_assert(sizeof(POLY_F3) == 0x14);
-_Static_assert(offsetof(POLY_F3, tag) == 0x00);
-_Static_assert(offsetof(POLY_F3, r0) == 0x04);
-_Static_assert(offsetof(POLY_F3, x0) == 0x08);
-_Static_assert(offsetof(POLY_F3, x1) == 0x0C);
-_Static_assert(offsetof(POLY_F3, x2) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(POLY_F3) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F3, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F3, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F3, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F3, x1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F3, x2) == 0x10);
 
-_Static_assert(sizeof(POLY_F4) == 0x18);
-_Static_assert(offsetof(POLY_F4, tag) == 0x00);
-_Static_assert(offsetof(POLY_F4, r0) == 0x04);
-_Static_assert(offsetof(POLY_F4, x0) == 0x08);
-_Static_assert(offsetof(POLY_F4, x1) == 0x0C);
-_Static_assert(offsetof(POLY_F4, x2) == 0x10);
-_Static_assert(offsetof(POLY_F4, x3) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(POLY_F4) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, r0) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, x0) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, x1) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, x2) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(POLY_F4, x3) == 0x14);
 
 #endif
