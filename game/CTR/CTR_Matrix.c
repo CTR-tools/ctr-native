@@ -58,14 +58,14 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 		// based on sqrt result, calculate vector
 		if (iVar2 < 0x11)
 		{
-			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((int)matrix->m + t2value1 * 8));
-			rot->vy = (s16)ratan2(iVar2, (s32) * (s16 *)((int)matrix->m + t1value * 8));
+			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((uintptr_t)matrix->m + t2value1 * 8));
+			rot->vy = (s16)ratan2(iVar2, (s32) * (s16 *)((uintptr_t)matrix->m + t1value * 8));
 			rot->vz = (s16)0;
 		}
 		else
 		{
 			rot->vx = (s16)ratan2((int)*psVar5, (int)*psVar11);
-			rot->vy = (s16)ratan2(iVar2, (int)*(s16 *)((int)matrix->m + t1value * 8));
+			rot->vy = (s16)ratan2(iVar2, (int)*(s16 *)((uintptr_t)matrix->m + t1value * 8));
 			rot->vz = (s16)ratan2((int)matrix->m[t2value1][t1value], -(int)matrix->m[t2value2][t1value]);
 		}
 	}
@@ -74,7 +74,7 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 		// TODO: there's definitely more elegant way for this
 		// probably it was smth like matrix->m[val1][val2]
 
-		psVar5 = (s16 *)((int)matrix->m + t1value * 8);
+		psVar5 = (s16 *)((uintptr_t)matrix->m + t1value * 8);
 		iVar2 = (int)*psVar5;
 
 		psVar11 = matrix->m[t2value1] + t1value;
@@ -85,13 +85,13 @@ void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 		// based on sqrt result, calculate vector
 		if (iVar2 < 0x11)
 		{
-			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((int)matrix->m + t2value1 * 8));
+			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((uintptr_t)matrix->m + t2value1 * 8));
 			rot->vy = (s16)ratan2(-(int)matrix->m[t2value2][t1value], iVar2);
 			rot->vz = (s16)0;
 		}
 		else
 		{
-			rot->vx = (s16)ratan2((int)matrix->m[t2value2][t2value1], (int)*(s16 *)((int)matrix->m + t2value2 * 8));
+			rot->vx = (s16)ratan2((int)matrix->m[t2value2][t2value1], (int)*(s16 *)((uintptr_t)matrix->m + t2value2 * 8));
 			rot->vy = (s16)ratan2(-(int)matrix->m[t2value2][t1value], iVar2);
 			rot->vz = (s16)ratan2((int)*psVar11, (int)*psVar5);
 		}
