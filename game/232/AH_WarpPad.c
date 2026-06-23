@@ -84,7 +84,7 @@ void AH_WarpPad_SetNumModelData(struct Instance *inst, struct ModelHeader *mh)
 {
 	struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
 
-	idpp[0].ptrCommandList = mh->ptrCommandList;
+	idpp[0].ptrCommandList = (u32)mh->ptrCommandList;
 	idpp[0].ptrColorLayout = (u32)mh->ptrColors;
 	idpp[0].ptrTexLayout = mh->ptrTexLayout;
 	idpp[0].ptrCurrFrame = mh->ptrFrameData;
