@@ -316,7 +316,7 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// clear and reset
 		LibraryOfModels_Clear(gGT);
 
-		sdata->PLYROBJECTLIST = (int **)((u32)sdata->ptrMPK + 4);
+		sdata->PLYROBJECTLIST = (int **)((uintptr_t)sdata->ptrMPK + 4);
 		if (sdata->ptrMPK == 0)
 			sdata->PLYROBJECTLIST = 0;
 
