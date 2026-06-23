@@ -243,11 +243,16 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 	for (int i = 0; i < 3; i++)
 	{
 		struct JitPool *pool = (struct JitPool *)((char *)&gGT->JitPools.smallStack + (sizeof(struct JitPool) * i));
-		int *pointer = (int *)pool->free.first;
-		while (pointer != (int *)0x0)
+		// Retail walks the free list via a 4-byte next link at offset 0 and seeds a
+		// self-pointer at the payload start (right after the 8-byte Item header).
+		// On a 64-bit host the Item links are 8 bytes, so follow Item.next directly
+		// and seed the self-pointer at the real payload start (item + 1).
+		struct Item *item = pool->free.first;
+		while (item != NULL)
 		{
-			*(int **)(pointer + 2) = pointer + 2;
-			pointer = (int *)*pointer;
+			void **payload = (void **)(item + 1);
+			*payload = payload;
+			item = item->next;
 		}
 	}
 
