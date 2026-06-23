@@ -185,6 +185,6 @@ void LIST_Init(struct LinkedList *L, struct Item *item, int itemSize, int numIte
 		LIST_AddBack(L, item);
 
 		numItems--;
-		item = (struct Item *)((int)item + itemSize);
+		item = (struct Item *)((char *)item + itemSize);
 	}
 }
