@@ -61,7 +61,7 @@ static u32 CC_EndEvent_GetRewardBitMask(s32 rewardBit)
 }
 
 #if defined(CTR_NATIVE)
-_Static_assert(OFFSETOF(struct sData, gameOptions) + sizeof(struct GameOptions) == OFFSETOF(struct sData, advProgress));
+CTR_STATIC_ASSERT_LAYOUT(OFFSETOF(struct sData, gameOptions) + sizeof(struct GameOptions) == OFFSETOF(struct sData, advProgress));
 
 static u8 *CC_EndEvent_GetNativeRewardWordBytes(s32 rewardBit)
 {
