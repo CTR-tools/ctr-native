@@ -7,9 +7,9 @@ struct RBDefaultScratch
 	struct ScratchpadStruct sps;
 };
 
-_Static_assert(offsetof(struct RBDefaultScratch, probeTop) == 0x00);
-_Static_assert(offsetof(struct RBDefaultScratch, probeBottom) == 0x08);
-_Static_assert(offsetof(struct RBDefaultScratch, sps) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RBDefaultScratch, probeTop) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RBDefaultScratch, probeBottom) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct RBDefaultScratch, sps) == 0x10);
 
 // NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 231 0x800b4fe4-0x800b5090.
 
