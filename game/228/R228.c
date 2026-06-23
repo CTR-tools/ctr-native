@@ -1,9 +1,9 @@
 #include <common.h>
 
-_Static_assert(sizeof(struct OverlayRDATA_228) == 0x420);
-_Static_assert(sizeof(struct OverlayRDATA_228_BucketSetupRecord) == 0x64);
-_Static_assert(sizeof(((struct OverlayRDATA_228 *)0)->scratchInitTable) == 0x60);
-_Static_assert(sizeof(((struct OverlayRDATA_228 *)0)->clipRecordJumpTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_228) == 0x420);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_228_BucketSetupRecord) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_228 *)0)->scratchInitTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_228 *)0)->clipRecordJumpTable) == 0x60);
 
 struct OverlayRDATA_228 R228 = {
     .bucketSetupAddresses =
