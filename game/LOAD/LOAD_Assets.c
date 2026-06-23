@@ -134,7 +134,7 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 			data.characterIDs[3] = KOMODO_JOE;
 			data.characterIDs[4] = PINSTRIPE;
 
-			return sdata->ptrMPK;
+			return (int)(intptr_t)sdata->ptrMPK;
 		}
 
 		if ((gameMode1 & (TIME_TRIAL | MAIN_MENU)) != MAIN_MENU)
@@ -170,12 +170,12 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		}
 
 		LOAD_Robots2P(bigfile, data.characterIDs[0], data.characterIDs[1], callback);
-		return sdata->ptrMPK;
+		return (int)(intptr_t)sdata->ptrMPK;
 	}
 
 QueueLastPack:
 	LOAD_AppendQueue(bigfile, LT_GETADDR, lastFileIndexMPK, NULL, callback);
-	return sdata->ptrMPK;
+	return (int)(intptr_t)sdata->ptrMPK;
 }
 
 struct LngFile
@@ -188,7 +188,7 @@ struct LngFile
 // param_1 - Pointer to "cd position of bigfile"
 // param_2 - language index - 0 ja, 1 en, 2 en2, 3 fr, 4 de, 5 it, 6 es, 7 ne
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80032b50-0x80032c24
-void LOAD_LangFile(int bigfilePtr, int lang)
+void LOAD_LangFile(struct BigHeader *bigfile, int lang)
 {
 	struct LngFile *lngFile;
 	int size;
@@ -210,20 +210,34 @@ void LOAD_LangFile(int bigfilePtr, int lang)
 
 	lngFile = sdata->lngFile;
 
-	lngFile = LOAD_ReadFile_ex((struct BigHeader *)bigfilePtr, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
+	lngFile = LOAD_ReadFile_ex(bigfile, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
 	if (lngFile == NULL)
 		return;
 
 	numStrings = lngFile->numStrings;
-	strArray = (char **)((u32)lngFile + lngFile->offsetToPtrArr);
+
+#if defined(__LP64__) || defined(_WIN64)
+	// The on-disc string-pointer table is packed 4-byte (PSX) offsets, but
+	// sdata->lngStrings is consumed as a native char*[] (8-byte elements).
+	// Read the u32 offsets and resolve them into a separate native array
+	// rather than rewriting the 4-byte table in place. See docs/MEMORY_MODEL.md.
+	{
+		const u32 *offs = (const u32 *)((uintptr_t)lngFile + lngFile->offsetToPtrArr);
+		strArray = MEMPACK_AllocMem((int)((u32)numStrings * sizeof(char *)));
+		for (i = 0; i < numStrings; i++)
+			strArray[i] = (char *)((uintptr_t)lngFile + offs[i]);
+	}
+#else
+	strArray = (char **)((uintptr_t)lngFile + lngFile->offsetToPtrArr);
+	for (i = 0; i < numStrings; i++)
+	{
+		strArray[i] = (char *)((uintptr_t)strArray[i] + (uintptr_t)lngFile);
+	}
+#endif
 
 	sdata->numLngStrings = numStrings;
 	sdata->lngStrings = strArray;
 
-	for (i = 0; i < numStrings; i++)
-	{
-		strArray[i] = (char *)((u32)strArray[i] + (u32)lngFile);
-	}
 #if BUILD == EurRetail
 	// set voicelines to new lang
 	CDSYS_SetXAToLang(lang);
