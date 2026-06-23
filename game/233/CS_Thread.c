@@ -7,8 +7,8 @@ struct CSThreadParentFrameScratch
 	SVec3Slot parentRot;
 };
 
-_Static_assert(offsetof(struct CSThreadParentFrameScratch, parentPos) == 0x00);
-_Static_assert(offsetof(struct CSThreadParentFrameScratch, parentRot) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSThreadParentFrameScratch, parentPos) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSThreadParentFrameScratch, parentRot) == 0x10);
 
 static void CS_SaveDecodedOpcode(const struct CutsceneObj *cs, int out[5])
 {
@@ -1106,13 +1106,13 @@ struct CSInterpolateLinePacket
 	u32 xy1;
 };
 
-_Static_assert(sizeof(struct CSInterpolateLinePacket) == 0x18);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, tag) == 0x00);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, drawMode) == 0x04);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, pad) == 0x08);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, colorAndCode) == 0x0C);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, xy0) == 0x10);
-_Static_assert(offsetof(struct CSInterpolateLinePacket, xy1) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct CSInterpolateLinePacket) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, drawMode) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, pad) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, colorAndCode) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, xy0) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct CSInterpolateLinePacket, xy1) == 0x14);
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ae318-0x800ae54c
 void CS_Thread_InterpolateFramesMS(struct Thread *t)
