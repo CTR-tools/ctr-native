@@ -358,7 +358,7 @@ void MainLoadVLC_Callback(struct LoadQueueSlot *param_1);
 void LOAD_InitCD(void);
 int LOAD_InitCDvol(void);
 void LOAD_RunPtrMap(char *origin, int *patchArr, int numPtrs); // 1st param might be `struct Level*`, 2nd param might be `char*`
-void LOAD_LangFile(int bigfilePtr, int lang);
+void LOAD_LangFile(struct BigHeader *bigfile, int lang);
 
 void LOAD_NextQueuedFile(void);
 
