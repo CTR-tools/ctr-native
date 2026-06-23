@@ -71,6 +71,7 @@ typedef enum
 #include "platform/native_checkpoint_file.c"
 #include "platform/native_cd.c"
 #include "platform/native_gpu_links.c"
+#include "platform/native_reloc.c"
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
 #include "platform/native_glad.c"
