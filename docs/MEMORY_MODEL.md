@@ -161,3 +161,96 @@ not a truncated host pointer.
 
 Keep game-visible primitive packets retail-shaped; do not reintroduce
 PsyCross's widened primitive packets.
+
+## Known Gap: Loaded-Asset Pointer Relocation (64-bit hosts)
+
+`LOAD_RunPtrMap` (`game/LOAD/LOAD_Assets.c`) patches file-relative offsets into
+absolute pointers in place, directly inside loaded asset blobs (model data,
+level data, etc. -- anything using the `DramPointerMap` scheme):
+
+```c
+*(int *)&origin[offset] = *(int *)&origin[offset] + (int)origin;
+```
+
+This is a 4-byte read-modify-write that truncates `origin` (the load buffer's
+base pointer) to `int`. On a 64-bit host this silently corrupts every
+pointer field relocated this way -- including fields already declared with a
+real pointer type in their C struct (e.g. `ModelHeader.ptrFrameData`), since
+the relocator only ever touches 4 of those 8 bytes regardless of the field's
+declared width.
+
+This is distinct from, and deeper than, a simple "field typed `u32` instead of
+a pointer" bug: the structs this scheme patches (e.g. `struct ModelHeader`,
+size-pinned via `_Static_assert(sizeof(struct ModelHeader) == 0x40)`) are
+direct binary overlays of the on-disk file format, so widening a patched field
+to a real 64-bit pointer would misalign every subsequent record read from
+disk -- it would not even fix the bug, since the relocator still performs a
+4-byte patch regardless of the C struct's field width.
+
+Known affected fields include `ModelHeader.ptrCommandList` (declared `u32`,
+inconsistently with its already-pointer-typed siblings) and the runtime copies
+made from it in `InstDrawPerPlayer.ptrCommandList`/`.ptrColorLayout` and
+`InstDrawPerPlayer.ptrDeltaArray` (copied from `ModelAnim.ptrDeltaArray`) in
+`game/RenderBucket/RenderBucket_QueueExecute.c`. These are left unfixed for
+now -- not because the field types are correct, but because correcting them
+requires redesigning `LOAD_RunPtrMap` itself (most likely: keep relocated
+fields as file-relative offsets and resolve them against the asset's base
+pointer at the point of use, mirroring the token-bridge pattern already used
+for GPU primitive/OT links above, rather than patching absolute pointers in
+place). That is a separate, larger piece of work, not a mechanical retype.
+
+This means assets loaded through `LOAD_RunPtrMap` are not yet known-safe on a
+genuinely 64-bit host (e.g. macOS) where heap/static addresses can exceed
+4GB. The Linux/Windows builds are unaffected today only because they are
+forced 32-bit.
+
+**Address placement cannot rescue this on macOS.** The obvious shortcut --
+keep every truncated pointer lossless by mapping the game's memory below 4 GiB
+-- is not available on Apple Silicon: with the default 4 GiB `__PAGEZERO` the
+entire low 4 GiB is reserved (statics land at `0x1_xxxx_xxxx`, `malloc` at
+`0x8_xxxx_xxxx`, `mmap` at `0x1_xxxx_xxxx`), and shrinking `__PAGEZERO` to free
+that region makes recent macOS kernels SIGKILL the binary at launch (confirmed
+on Darwin 25.x / macOS arm64, even after re-signing, for any non-default
+pagezero size). So the relocation must be made 64-bit-correct in code -- most
+likely the offset-resolved-at-use / token-bridge redesign described above --
+rather than by where the buffers live.
+
+## Known Gap: Retail-Offset Asserts vs. Embedded Pointers (64-bit hosts)
+
+Many structs carry ASM-verified layout checks like
+`_Static_assert(offsetof(struct CameraDC, driverOffset_CamLookAtPos) == 0x7c)`
+(there are roughly 1,065 `offsetof`/`sizeof` static asserts across `include/`
+and `game/`). These assume every field is retail/32-bit-pointer-shaped. When a
+struct embeds a real C pointer field ahead of the asserted field, the pointer
+is 4 bytes in retail but 8 bytes on a 64-bit host, so every later field's real
+offset grows -- and the assert (correctly) fails to compile.
+
+`struct CameraDC` is a confirmed example: building 64-bit (attempted for the
+macOS port) hits this immediately and exhausts the compiler's error limit on
+that one struct alone. This is a structural property of the codebase, not a
+handful of bad casts, and it almost certainly recurs in other structs once
+`CameraDC` is addressed.
+
+Fixing this for real requires, per struct, working out whether each failing
+assert is a pure ASM-parity diagnostic (safe to relax for native 64-bit
+builds) or backed by actual hardcoded-offset pointer math elsewhere in `game/`
+(which would need a real fix, not just relaxing an assert) -- not a blanket
+search-and-replace.
+
+**Resolved for the compile blocker.** All `offsetof`/`sizeof` layout asserts
+are now written through `CTR_STATIC_ASSERT_LAYOUT`
+(`include/platform/native_static_assert.h`, force-included via `CMakeLists.txt`):
+it expands to a real `_Static_assert` on 32-bit hosts (so the Win/Linux builds
+remain the byte-parity guardians) and to nothing on 64-bit hosts (`__LP64__`),
+where embedded host pointers make the retail offsets unsatisfiable. Value
+asserts (enum/flag constants, anything without `offsetof`/`sizeof`) stay as
+plain `_Static_assert` everywhere. With this in place `./build_macos.sh`
+produces a working arm64 executable that launches and reaches asset loading.
+
+This trades away the 64-bit build's compile-time layout checks for structs that
+embed host pointers; that is acceptable because (a) pure PSX-shaped structs have
+identical layout at 64-bit anyway and (b) the 32-bit builds still verify every
+assert. It does **not** fix the runtime consequences -- code that reads a
+pointer-shifted struct field via a hardcoded byte offset (rather than by C
+field name) would still be wrong on 64-bit. Auditing for such hardcoded-offset
+access is part of the same remaining work as the pointer-truncation gap above.
