@@ -2,14 +2,17 @@ cmake_minimum_required(VERSION 3.20)
 project(CTR-Native C)
 
 set(CMAKE_C_STANDARD 99)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CTR_NATIVE_VERSION "0.1.0-beta.5")
 
-if(NOT CMAKE_C_COMPILER_TARGET MATCHES "i.86" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
+if(NOT APPLE AND NOT CMAKE_C_COMPILER_TARGET MATCHES "i.86" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
     set(CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
-set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc ${CMAKE_EXE_LINKER_FLAGS}")
+if(NOT APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc ${CMAKE_EXE_LINKER_FLAGS}")
+endif()
 
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
@@ -43,7 +46,14 @@ set(GAME_INCLUDES
     ${CMAKE_SOURCE_DIR}/include
 )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse -Wno-error -Wno-incompatible-pointer-types -g")
+if(NOT APPLE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse")
+endif()
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error -Wno-incompatible-pointer-types -g")
+
+# Force-include the layout-assert shim so CTR_STATIC_ASSERT_LAYOUT is defined
+# before the first offsetof/sizeof assert in any header (see the header for why).
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include ${CMAKE_SOURCE_DIR}/include/platform/native_static_assert.h")
 
 # SDL3
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
@@ -81,6 +91,17 @@ target_compile_options(ctr_native PRIVATE -O2)
 target_link_libraries(ctr_native SDL3::SDL3)
 if(WIN32)
     target_link_options(ctr_native PRIVATE -static -static-libgcc -Wl,--image-base,0x400000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section)
+elseif(APPLE)
+    # ld64 has no equivalent of --image-base/-no-pie/--allow-multiple-definition.
+    # The whole game is one translation unit (main.c #includes everything), so
+    # a multiple-definition failure here would mean a real name collision with
+    # SDL3/libc/system frameworks -- fix that by renaming, not by reaching for a flag.
+    #
+    # NOTE: shrinking __PAGEZERO to make the low 4 GiB mappable (so retail 32-bit
+    # pointer slots round-trip) is NOT viable: recent macOS kernels SIGKILL any
+    # arm64 binary with a non-default __PAGEZERO at launch. All process memory
+    # therefore lives above 4 GiB, so the pointer-truncation gap (LOAD_RunPtrMap
+    # etc.) must be fixed in code, not by address placement. See docs/MEMORY_MODEL.md.
 else()
     target_link_options(ctr_native PRIVATE -static-libgcc -Wl,--image-base,0x400000 -no-pie -Wl,--allow-multiple-definition)
 endif()
