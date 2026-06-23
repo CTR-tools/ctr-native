@@ -169,11 +169,11 @@ static const struct DrawLevelOvr1PBucket sDrawLevelOvr1PBuckets[] = {
     {0x28, DRAW_LEVEL_OVR1P_BUCKET_BSP_LIST, DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST, DRAW_LEVEL_OVR1P_LOD_LOW},
 };
 
-_Static_assert(sizeof(sDrawLevelOvr1PBuckets) / sizeof(sDrawLevelOvr1PBuckets[0]) == OVR226_BUCKET_COUNT);
-_Static_assert(sizeof(struct OverlayRDATA_226) == 0x564);
-_Static_assert(sizeof(struct OverlayRDATA_226_BucketSetupRecord) == 0x64);
-_Static_assert(sizeof(((struct OverlayRDATA_226 *)0)->scratchInitTable) == 0x60);
-_Static_assert(sizeof(((struct OverlayRDATA_226 *)0)->clipRecordJumpTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(sDrawLevelOvr1PBuckets) / sizeof(sDrawLevelOvr1PBuckets[0]) == OVR226_BUCKET_COUNT);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_226) == 0x564);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct OverlayRDATA_226_BucketSetupRecord) == 0x64);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_226 *)0)->scratchInitTable) == 0x60);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(((struct OverlayRDATA_226 *)0)->clipRecordJumpTable) == 0x60);
 
 static void DrawLevelOvr1P_SetGridFaceSlot(const struct DrawLevelOvr1PScratchVertex *projected, int faceIndex);
 static int DrawLevelOvr1P_IsDeepestSubdivisionFrame(const struct DrawLevelOvr1PScratchVertex *projected);
