@@ -49,19 +49,19 @@ struct VehGroundShadowScratch
 	struct TextureLayout shadowTex[2];
 };
 
-_Static_assert(sizeof(struct VehGroundShadowEntry) == 0x28);
-_Static_assert(offsetof(struct VehGroundShadowEntry, local) == 0x00);
-_Static_assert(offsetof(struct VehGroundShadowEntry, state) == 0x12);
-_Static_assert(offsetof(struct VehGroundShadowEntry, depthBias) == 0x13);
-_Static_assert(offsetof(struct VehGroundShadowEntry, driver) == 0x14);
-_Static_assert(offsetof(struct VehGroundShadowEntry, inst) == 0x18);
-_Static_assert(offsetof(struct VehGroundShadowEntry, idppFlags) == 0x1c);
-_Static_assert(offsetof(struct VehGroundShadowEntry, pos) == 0x20);
-_Static_assert(offsetof(struct VehGroundShadowEntry, instFlags) == 0x26);
-_Static_assert(offsetof(struct VehGroundShadowScratch, entries) == 0xa4);
-_Static_assert(offsetof(struct VehGroundShadowScratch, sentinelDriver) == 0x1f8);
-_Static_assert(offsetof(struct VehGroundShadowScratch, shadowTex[0]) == 0x224);
-_Static_assert(offsetof(struct VehGroundShadowScratch, shadowTex[1]) == 0x230);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct VehGroundShadowEntry) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, local) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, state) == 0x12);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, depthBias) == 0x13);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, driver) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, inst) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, idppFlags) == 0x1c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, pos) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowEntry, instFlags) == 0x26);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowScratch, entries) == 0xa4);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowScratch, sentinelDriver) == 0x1f8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowScratch, shadowTex[0]) == 0x224);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct VehGroundShadowScratch, shadowTex[1]) == 0x230);
 
 static u32 VehGroundShadow_ReadWord(const void *base, int offset)
 {
