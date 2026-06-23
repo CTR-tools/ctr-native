@@ -1143,9 +1143,9 @@ extern struct OVR_230_VideoBSS V230;
 
 
 #if BUILD >= EurRetail
-_Static_assert(sizeof(struct MainMenu_LevelRow) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct MainMenu_LevelRow) == 0x14);
 #else
-_Static_assert(sizeof(struct MainMenu_LevelRow) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct MainMenu_LevelRow) == 0x10);
 #endif
-_Static_assert(sizeof(struct CharacterSelectMeta) == 0xC);
-_Static_assert(sizeof(struct TransitionMeta) == 0xA);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct CharacterSelectMeta) == 0xC);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct TransitionMeta) == 0xA);
