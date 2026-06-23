@@ -3377,12 +3377,21 @@ struct Data
                                           {&data.voiceData[15].index[20], 1},
                                       }}},
 
+// voiceSetPtr is a retail table of 32-bit pointers into data.voiceData[].voiceSet.
+// On a 64-bit host (int)&global is not a constant expression (the relocation
+// cannot be truncated to 32 bits), and this table is never read by the native
+// port anyway -- so it is left zeroed there. See the pointer-truncation gap in
+// docs/MEMORY_MODEL.md.
+#if defined(__LP64__) || defined(_WIN64)
+            .voiceSetPtr = {0},
+#else
             .voiceSetPtr = {(int)&data.voiceData[0].voiceSet[0], (int)&data.voiceData[1].voiceSet[0], (int)&data.voiceData[2].voiceSet[0],
                             (int)&data.voiceData[3].voiceSet[0], (int)&data.voiceData[4].voiceSet[0], (int)&data.voiceData[5].voiceSet[0],
                             (int)&data.voiceData[6].voiceSet[0], (int)&data.voiceData[7].voiceSet[0], (int)&data.voiceData[8].voiceSet[0],
                             (int)&data.voiceData[9].voiceSet[0], (int)&data.voiceData[10].voiceSet[0], (int)&data.voiceData[11].voiceSet[0],
                             (int)&data.voiceData[12].voiceSet[0], (int)&data.voiceData[13].voiceSet[0], (int)&data.voiceData[14].voiceSet[0],
                             (int)&data.voiceData[15].voiceSet[0]},
+#endif
 
             .voiceID = {4, 1, 5, 2, 1, 1, 1, 3, 6, 6, 7, 7, 7, 7, 7, 4, 0, 0, 0, 0, 0, 8, 8, 8},
 
