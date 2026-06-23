@@ -70,7 +70,9 @@ pointers in 32-bit slots (e.g. `LOAD_RunPtrMap`), which is only lossless when
 those addresses fit in 32 bits. On macOS that cannot be arranged by address
 placement -- the kernel SIGKILLs any arm64 binary with a non-default
 `__PAGEZERO`, so all process memory lives above 4 GiB -- so the truncation must
-be fixed in code. See "Known Gap" sections in `docs/MEMORY_MODEL.md`.
+be fixed in code. See "Known Gap" sections in `docs/MEMORY_MODEL.md`, and
+`docs/MACOS_PORT.md` for the milestone roadmap (status, build/debug recipe, and
+the remaining asset-relocation work).
 
 ## Building
 
