@@ -28,8 +28,8 @@ struct SelectProfileLoadSaveObj
 	struct SelectProfileLoadSaveIcon *icons;
 };
 
-_Static_assert(sizeof(struct SelectProfileLoadSaveIcon) == 0xc);
-_Static_assert(sizeof(struct SelectProfileLoadSaveObj) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct SelectProfileLoadSaveIcon) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct SelectProfileLoadSaveObj) == 0x8);
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047dfc-0x80047f20 for the retail path.
 void SelectProfile_ThTick(struct Thread *t)
