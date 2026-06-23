@@ -26,9 +26,9 @@ struct DrawConfettiScratch
 	u8 colorTable[36];
 };
 
-_Static_assert(offsetof(struct DrawConfettiScratch, remainingParticles) == 0x00);
-_Static_assert(offsetof(struct DrawConfettiScratch, color) == 0x04);
-_Static_assert(offsetof(struct DrawConfettiScratch, colorTable) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DrawConfettiScratch, remainingParticles) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DrawConfettiScratch, color) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DrawConfettiScratch, colorTable) == 0x28);
 
 static u32 DrawConfetti_ReadWord(const void *base, int offset)
 {
