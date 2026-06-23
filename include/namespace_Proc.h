@@ -171,20 +171,20 @@ struct DriverCollisionSearch
 	s16 padding_0x1e;
 };
 
-_Static_assert(offsetof(struct DriverCollisionSearch, bucket) == 0);
-_Static_assert(offsetof(struct DriverCollisionSearch, hitDir) == sizeof(struct BucketSearchParams));
-_Static_assert(offsetof(struct Thread, driverHitRadiusSquared) == 0x38);
-_Static_assert(offsetof(struct Thread, driverCollisionReserved_0x3c) == 0x3c);
-_Static_assert(offsetof(struct Thread, driverCollisionReserved_0x3e) == 0x3e);
-_Static_assert(offsetof(struct Thread, driverCollisionReserved_0x40) == 0x40);
-_Static_assert(offsetof(struct Thread, driverHitRadius) == 0x42);
-_Static_assert(offsetof(struct Thread, modelIndex) == 0x44);
-_Static_assert(sizeof(struct Thread) == 0x48);
-_Static_assert(offsetof(struct BucketSearchParams, th) == 0x8);
-_Static_assert(offsetof(struct BucketSearchParams, bestDistSq) == 0xc);
-_Static_assert(offsetof(struct BucketSearchParams, dist) == 0x10);
-_Static_assert(sizeof(struct BucketSearchParams) == 0x18);
-_Static_assert(sizeof(struct DriverCollisionSearch) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DriverCollisionSearch, bucket) == 0);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DriverCollisionSearch, hitDir) == sizeof(struct BucketSearchParams));
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, driverHitRadiusSquared) == 0x38);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, driverCollisionReserved_0x3c) == 0x3c);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, driverCollisionReserved_0x3e) == 0x3e);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, driverCollisionReserved_0x40) == 0x40);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, driverHitRadius) == 0x42);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct Thread, modelIndex) == 0x44);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct Thread) == 0x48);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BucketSearchParams, th) == 0x8);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BucketSearchParams, bestDistSq) == 0xc);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct BucketSearchParams, dist) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct BucketSearchParams) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct DriverCollisionSearch) == 0x20);
 _Static_assert(THREAD_FLAG_DEAD == 0x0800);
 _Static_assert(THREAD_FLAG_DISABLE_COLLISION == 0x1000);
 
@@ -219,4 +219,4 @@ struct ThreadBucket
 	// size is 0x14
 };
 
-_Static_assert(sizeof(struct ThreadBucket) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct ThreadBucket) == 0x14);
