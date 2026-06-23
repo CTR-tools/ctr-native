@@ -375,7 +375,10 @@ struct GameTracker
 	// 1b28
 	// handles character icons,
 	// traffic light sprites, etc
-	u32 mpkIcons;
+	// NOTE(native): holds a real pointer to the MPK's LevTexLookup (cast to
+	// struct LevTexLookup*); widened to pointer-width so it survives on LP64.
+	// uintptr_t is 4 bytes on the -m32 builds, so layout there is unchanged.
+	uintptr_t mpkIcons;
 
 	// 0x1b2c - 0x1c93
 	struct ThreadBucket threadBuckets[NUM_BUCKETS];
