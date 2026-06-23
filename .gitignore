@@ -19,3 +19,4 @@ compile_commands.json
 *~
 *.log
 memcards/
+.DS_Store
