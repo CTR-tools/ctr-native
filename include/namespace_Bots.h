@@ -79,9 +79,9 @@ struct NavHeader
 	// 0x4C
 	// struct NavFrame frame[0];
 };
-#define NAVHEADER_GETFRAME(x)    ((struct NavFrame *)((u32)x + sizeof(struct NavHeader)))
+#define NAVHEADER_GETFRAME(x)    ((struct NavFrame *)((char *)x + sizeof(struct NavHeader)))
 
 #define NAVFRAME_GETNEXTFRAME(x) (((struct NavFrame *)x) + 1)
 
-_Static_assert(sizeof(struct NavFrame) == 0x14);
-_Static_assert(sizeof(struct NavHeader) == 0x4c);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct NavFrame) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct NavHeader) == 0x4c);
