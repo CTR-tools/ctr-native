@@ -229,10 +229,10 @@ void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst)
 
 		// pointer to instance in pool,
 		// add 8 bytes to skip Prev and Next
-		dst = (int *)((int)inst + 8);
+		dst = (int *)((uintptr_t)inst + 8);
 
 		// copy InstDef data from LEV to instance pool
-		while (src != (int *)((int)levInstDef + 0x20))
+		while (src != (int *)((uintptr_t)levInstDef + 0x20))
 		{
 			dst[0] = src[0];
 			dst[1] = src[1];
