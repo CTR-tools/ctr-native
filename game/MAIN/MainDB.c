@@ -42,9 +42,9 @@ void MainDB_PrimMem(struct PrimMem *primMem, u32 size)
 	primMem->start = pvVar1;
 
 	alignedSize = (size >> 2) << 2;
-	pvVar1 = (void *)((int)pvVar1 + alignedSize);
+	pvVar1 = (void *)((uintptr_t)pvVar1 + alignedSize);
 	primMem->end = pvVar1;
-	primMem->guardEnd = (void *)((int)pvVar1 - 0x100);
+	primMem->guardEnd = (void *)((uintptr_t)pvVar1 - 0x100);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80034a28-0x80034a80.
@@ -59,5 +59,5 @@ void MainDB_OTMem(struct OTMem *otMem, u32 size)
 	otMem->start = pvVar1;
 
 	alignedSize = (size >> 2) << 2;
-	otMem->end = (void *)((int)pvVar1 + alignedSize);
+	otMem->end = (void *)((uintptr_t)pvVar1 + alignedSize);
 }
