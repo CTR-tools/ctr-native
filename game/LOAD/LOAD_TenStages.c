@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_reloc.h>
 
 void (*mainMenuInit[])() = {MM_JumpTo_Title_FirstTime, MM_JumpTo_Characters, MM_JumpTo_TrackSelect, MM_JumpTo_BattleSetup, CS_Garage_Init, MM_JumpTo_Scrapbook};
 
@@ -316,9 +317,16 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// clear and reset
 		LibraryOfModels_Clear(gGT);
 
+#ifdef CTR_RELOC64
+		// ptrMPK is a native MPK header (see native_reloc.c), not the raw file
+		// body, so PLYROBJECTLIST / icons come from accessors rather than the
+		// retail +4 / *ptrMPK byte offsets.
+		sdata->PLYROBJECTLIST = (sdata->ptrMPK != 0) ? (int **)Reloc64_MpkModels(sdata->ptrMPK) : 0;
+#else
 		sdata->PLYROBJECTLIST = (int **)((uintptr_t)sdata->ptrMPK + 4);
 		if (sdata->ptrMPK == 0)
 			sdata->PLYROBJECTLIST = 0;
+#endif
 
 		LOAD_GlobalModelPtrs_MPK();
 		DecalGlobal_Clear(gGT);
@@ -326,7 +334,11 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		gGT->mpkIcons = 0;
 		if (sdata->ptrMPK != 0)
 		{
+#ifdef CTR_RELOC64
+			gGT->mpkIcons = Reloc64_MpkIcons(sdata->ptrMPK);
+#else
 			gGT->mpkIcons = *(int *)sdata->ptrMPK;
+#endif
 
 			if (gGT->mpkIcons != 0)
 				DecalGlobal_Store(gGT, (struct LevTexLookup *)gGT->mpkIcons);
@@ -479,7 +491,13 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// if linked list of icons exists
 		if (gGT->mpkIcons != 0)
 		{
+#ifdef CTR_RELOC64
+			// gGT->mpkIcons is a native LevTexLookup*; read firstIcon by field
+			// rather than the retail `+4` byte offset (which moved and widened).
+			u32 *mpkIconList = (u32 *)((struct LevTexLookup *)gGT->mpkIcons)->firstIcon;
+#else
 			u32 *mpkIconList = (u32 *)*(u32 *)(gGT->mpkIcons + 4);
+#endif
 
 			gGT->trafficLightIcon[0] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredoff);
 			gGT->trafficLightIcon[1] = (struct Icon *)DecalGlobal_FindInMPK(mpkIconList, rdata.s_lightredon);
