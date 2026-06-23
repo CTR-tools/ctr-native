@@ -8,10 +8,10 @@ struct AHSignScratch
 	struct ScratchpadStruct sps;
 };
 
-_Static_assert(offsetof(struct AHSignScratch, probeTop) == 0x00);
-_Static_assert(offsetof(struct AHSignScratch, probeBottom) == 0x08);
-_Static_assert(offsetof(struct AHSignScratch, normal) == 0x10);
-_Static_assert(offsetof(struct AHSignScratch, sps) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct AHSignScratch, probeTop) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct AHSignScratch, probeBottom) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct AHSignScratch, normal) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct AHSignScratch, sps) == 0x18);
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 232 0x800b4c80-0x800b4ddc.
 void AH_Sign_LInB(struct Instance *inst)
