@@ -96,7 +96,7 @@ struct QuipMetaRaw
 	int dataSize;
 };
 
-_Static_assert(sizeof(struct QuipMetaRaw) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct QuipMetaRaw) == 0x18);
 
 static u8 *UI_VsQuipData(void)
 {
