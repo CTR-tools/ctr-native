@@ -14,17 +14,17 @@ struct DisplayBlurFlatPacket
 	u32 maskBitDisable;
 };
 
-_Static_assert(sizeof(struct DisplayBlurFlatPacket) == 0x28);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, tag) == 0x00);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, drawModeStart) == 0x04);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, maskBitEnable) == 0x08);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, colorAndCode) == 0x0C);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, xy0) == 0x10);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, xy1) == 0x14);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, xy2) == 0x18);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, xy3) == 0x1C);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, drawModeEnd) == 0x20);
-_Static_assert(offsetof(struct DisplayBlurFlatPacket, maskBitDisable) == 0x24);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct DisplayBlurFlatPacket) == 0x28);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, tag) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, drawModeStart) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, maskBitEnable) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, colorAndCode) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, xy0) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, xy1) == 0x14);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, xy2) == 0x18);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, xy3) == 0x1C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, drawModeEnd) == 0x20);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurFlatPacket, maskBitDisable) == 0x24);
 
 struct DisplayBlurTile
 {
@@ -38,15 +38,15 @@ struct DisplayBlurTile
 	s16 dstH;
 };
 
-_Static_assert(sizeof(struct DisplayBlurTile) == 0x10);
-_Static_assert(offsetof(struct DisplayBlurTile, srcX) == 0x00);
-_Static_assert(offsetof(struct DisplayBlurTile, srcY) == 0x02);
-_Static_assert(offsetof(struct DisplayBlurTile, srcW) == 0x04);
-_Static_assert(offsetof(struct DisplayBlurTile, srcH) == 0x06);
-_Static_assert(offsetof(struct DisplayBlurTile, dstX) == 0x08);
-_Static_assert(offsetof(struct DisplayBlurTile, dstY) == 0x0A);
-_Static_assert(offsetof(struct DisplayBlurTile, dstW) == 0x0C);
-_Static_assert(offsetof(struct DisplayBlurTile, dstH) == 0x0E);
+CTR_STATIC_ASSERT_LAYOUT(sizeof(struct DisplayBlurTile) == 0x10);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, srcX) == 0x00);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, srcY) == 0x02);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, srcW) == 0x04);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, srcH) == 0x06);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, dstX) == 0x08);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, dstY) == 0x0A);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, dstW) == 0x0C);
+CTR_STATIC_ASSERT_LAYOUT(offsetof(struct DisplayBlurTile, dstH) == 0x0E);
 
 static u32 DISPLAY_Blur_PackS16Pair(int x, int y)
 {
