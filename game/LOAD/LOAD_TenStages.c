@@ -71,8 +71,10 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			sdata->boolFirstBoot = 0;
 
 			// Load Intro TIM for Copyright Page from VRAM file
-			LOAD_VramFile(bigfile, 0x1fe, NULL, &vramSize, -1);
-			MainInit_VRAMDisplay();
+			if (!g_config.skipIntro) {
+				LOAD_VramFile(bigfile, 0x1fe, NULL, &vramSize, -1);
+				MainInit_VRAMDisplay();
+			} 
 
 #ifdef CTR_NATIVE
 			// NOTE(aalhendi): SCEA is already held by XA playback in MainMain. The copyright
