@@ -374,7 +374,19 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		for (int i = 0; i < 3; i++)
 		{
 			if (data.driverModelExtras[i] != 0)
+			{
+#ifdef CTR_RELOC64
+				// arm64: driverModelExtras[i] is a native MPK header (rebuilt by
+				// Reloc64_ModelPack via the LOAD_DramFile -2 sentinel path, see
+				// LOAD_File.c), not the raw file body, so the model comes from
+				// the PLYROBJECTLIST accessor rather than retail's +4 byte
+				// offset. Each individually-loaded driver pack has exactly one
+				// model.
+				data.driverModelExtras[i] = (uintptr_t)Reloc64_MpkModels((void *)data.driverModelExtras[i])[0];
+#else
 				data.driverModelExtras[i] += 4;
+#endif
+			}
 		}
 
 		// == banks are done parsing ===
