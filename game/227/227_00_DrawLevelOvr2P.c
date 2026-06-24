@@ -228,7 +228,7 @@ static int Ovr227_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 	if ((VisMem10 == NULL) || (VisMem14 == NULL))
 		return 1;
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
+	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = waterEnvMap;
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[0] = (u32)(uintptr_t)&pb[0];
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[1] = (u32)(uintptr_t)&pb[1];
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[0] = (u32)(uintptr_t)clipCursors[0];

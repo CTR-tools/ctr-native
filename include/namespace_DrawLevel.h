@@ -170,7 +170,7 @@ struct DrawLevelOvr1PStableScratch
 	u32 drawOrderOrHeader;
 	u32 clipRecordHeader;
 	u32 mosaicTextureWord;
-	u32 waterEnvMapPtr32;
+	struct TextureLayout* waterEnvMapPtr32;
 	u8 pad_08c[0x10];
 	u32 previousDirectHandlerAddress;
 	u8 pad_0a0[0x1c];
