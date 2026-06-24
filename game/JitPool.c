@@ -40,7 +40,7 @@ void JitPool_Init(struct JitPool *AP, int maxItems, int itemSize, char *name)
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800310d4-0x8003112c.
-int JitPool_Add(struct JitPool *AP)
+void *JitPool_Add(struct JitPool *AP)
 {
 	struct Item *item;
 	item = AP->free.first;
@@ -51,7 +51,7 @@ int JitPool_Add(struct JitPool *AP)
 		LIST_AddFront(&AP->taken, item);
 	}
 
-	return (int)item;
+	return item;
 }
 
 

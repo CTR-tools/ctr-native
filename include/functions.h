@@ -293,7 +293,7 @@ u16 INSTANCE_GetNumAnimFrames(struct Instance *pInstance, int animIndex);
 void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst);
 
 // JitPool
-int JitPool_Add(struct JitPool *AP);
+void *JitPool_Add(struct JitPool *AP);
 void JitPool_Clear(struct JitPool *AP);
 void JitPool_Init(struct JitPool *AP, int maxItems, int itemSize, char *name);
 void JitPool_Remove(struct JitPool *AP, struct Item *item);
@@ -626,7 +626,7 @@ int UI_ConvertX_2(int oldPosX, int newPosX);
 int UI_ConvertY_2(int oldPosY, int newPosY);
 
 void UI_INSTANCE_InitAll(void);
-struct Instance *UI_INSTANCE_BirthWithThread(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6);
+struct Instance *UI_INSTANCE_BirthWithThread(int param_1, void *param_2, int param_3, int param_4, struct PushBuffer *param_5, const char *param_6);
 
 void UI_DrawBattleScores(int posX, int posY, struct Driver *d);
 void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d);
