@@ -131,6 +131,17 @@ void LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 				// MPK format, same transform.
 				lqs->ptrDestination = Reloc64_ModelPack(realFileBuf, DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
 			}
+			else if (callback == LOAD_Callback_LEV)
+			{
+				// arm64: normal (non-Adventure-Hub) tracks load their LEV
+				// through this callback and never go through
+				// LOAD_Callback_PatchMem (that path is Adv-Hub-only, see its
+				// comment), so it needs its own Reloc64_Level call here --
+				// otherwise sdata->ptrLevelFile ends up pointing at the raw,
+				// truncating-relocated buffer misread as a native struct
+				// Level (garbage numModels, NULL ptrModelsPtrArray, etc.).
+				lqs->ptrDestination = Reloc64_Level(realFileBuf, DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
+			}
 			else
 #endif
 			{
