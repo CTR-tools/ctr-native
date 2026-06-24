@@ -201,13 +201,43 @@ follow-up work, not part of M3:
   `ptrDeltaArray` fields are truncating (see M4 below).
 
 With Phase 4's fixes, a real track now loads all the way to driver/vehicle
-spawn before hitting the next crash: `VehBirth_Player` (`VehBirth.c:673`)
-`memset(d, 0, 0x62c)`s a `struct Driver *d = t->object` that's already a bad
-pointer (`EXC_BAD_ACCESS` inside the `memset`, not from the hardcoded
-`0x62c` retail size itself) — likely a truncated pointer somewhere in
-`PROC_BirthWithObject`'s thread/object chain. Not yet diagnosed; this is the
-next item in the crash-driven loop, and squarely M4 (driver/vehicle init)
-territory rather than asset relocation.
+spawn and beyond. The `VehBirth_Player` crash and five more along the same
+crash-driven chain are fixed (one commit each):
+
+- `PROC_BirthWithObject` truncated `th->object` (`(u32)stackObj` instead of
+  `(uintptr_t)stackObj`, inconsistent with three other casts in the same
+  function) — the actual `VehBirth_Player` `memset` crash.
+- `JitPool_Add` returned `(int)item` instead of a real pointer — corrupted
+  every instance/thread spawned from a JitPool (next hit:
+  `INSTANCE_Birth3D`).
+- `Reloc64_InstDefPtrArray` wasn't NULL-terminated; consumers walk it as a
+  NULL-terminated list, so they read one slot past the array into heap
+  garbage (`LevInstDef_UnPack`). Mirror of the already-correct
+  `ptrModelsPtrArray` pattern.
+- `CutsceneObj.frameOverrideRoot` read only the low 32 bits of an 8-byte
+  pointer (retail aliases it onto a struct's leading 4-byte field) — hit
+  during a kart's intro cutscene.
+- `UI_INSTANCE_BirthWithThread` carried a function pointer, a name string,
+  and a `PushBuffer*` through `int` parameters, truncating all three at
+  every one of 13 call sites — HUD/pickup-display init.
+
+All found via the same technique: attach `lldb` at the crash (or set a
+breakpoint just before it once the failure mode is understood), inspect the
+actual pointer value, recognize it as a 32-bit-truncated address, find the
+narrow field/parameter upstream.
+
+**Next crash (start of M4, paused here deliberately):** with all of the
+above fixed, the game reaches `MainFrame_RenderFrame` — the actual per-frame
+render path — before crashing in `RenderBucket_CopyScratchColorCache`
+reading `ctx->idpp->ptrCommandList`. This is `struct InstDrawPerPlayer`'s
+already-known truncating fields (`ptrCommandList`/`ptrColorLayout` are
+`u32`, `ptrDeltaArray` is `int`) — see M4 below. Tracing the write side shows
+this cascades further: `RenderBucket_GetFrame`'s `deltaArrayOut` parameter is
+`int *`, and `ModelHeader.unk3` (aliased the same way as `ptrDeltaArray`) is
+also still `u32`. Deliberately stopped here rather than starting M4's wider
+scope unannounced — picking up M4 means widening this whole field/parameter
+cluster across `RenderBucket_QueueExecute.c` and `AH_WarpPad.c`, not just the
+one struct.
 
 Background on why this is the architectural task — the MPK (and level) data are
 binary overlays whose **on-disc pointers are 4 bytes**:
