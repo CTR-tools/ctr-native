@@ -1,5 +1,7 @@
 #include <common.h>
 
+#include <platform/native_reloc.h>
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800319e8-0x800319f4.
 void LOAD_Callback_Overlay_Generic(struct LoadQueueSlot *lqs)
 {
@@ -78,7 +80,13 @@ void LOAD_Callback_PatchMem(struct LoadQueueSlot *lqs)
 
 	sdata->load_inProgress = 0;
 
+#ifdef CTR_RELOC64
+	// arm64: rebuild the level into native-pointer structs instead of the
+	// truncating in-place LOAD_RunPtrMap. See platform/native_reloc.c.
+	sdata->ptrLevelFile = Reloc64_Level((char *)sdata->ptrLevelFile, (int *)patchStart, patchNum);
+#else
 	LOAD_RunPtrMap((char *)sdata->ptrLevelFile, (int *)patchStart, patchNum);
+#endif
 
 	MEMPACK_SwapPacks(0);
 	MEMPACK_ClearHighMem();
