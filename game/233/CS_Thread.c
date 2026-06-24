@@ -1473,7 +1473,13 @@ struct Thread *CS_Thread_Init(s16 modelID, const char *name, s16 *param_3, s16 p
 
 			if ((u32)(modelID - NDI_KART0) < 4)
 			{
-				cs->frameOverrideRoot = (int *)&D233.cs_initMatrixTable[modelID - NDI_KART0];
+				// NOTE(native): point at the entry's `.data` field directly
+				// rather than the whole table-entry struct -- retail relied
+				// on `.data` being the struct's leading 4-byte field so a
+				// raw int* read off the struct's address worked; on native
+				// `.data` is an 8-byte pointer, so frameOverrideRoot must
+				// alias the field itself (see ovr_233.h).
+				cs->frameOverrideRoot = &D233.cs_initMatrixTable[modelID - NDI_KART0].data;
 			}
 
 			goto after_opcode;

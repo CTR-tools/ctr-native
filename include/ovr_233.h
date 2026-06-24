@@ -185,7 +185,11 @@ struct CutsceneObj
 	u8 animIndex;
 
 	// 0x48
-	int *frameOverrideRoot;
+	// NOTE(native): retail aliases this onto the leading `void *data` field
+	// of an Ovr233InitMatrixTableEntry and reads it with a raw `int` load
+	// (4-byte pointers on PS1). Typed as a real pointer-to-pointer so the
+	// CS_Thread.c:281 dereference yields the full 8-byte address natively.
+	void **frameOverrideRoot;
 
 	// 0x4c
 	struct CsOpcodeMeta decodedOpcode;
