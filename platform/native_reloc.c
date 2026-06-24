@@ -136,8 +136,25 @@ static void Reloc64_VisitedPut(struct Reloc64Ctx *ctx, uint32_t srcOff, void *ds
 
 // Persistent allocation for the rebuilt "spine"; lives in the same MEMPACK
 // region as the source asset so the existing pack swap/clear frees both.
+//
+// MEMPACK_AllocMem never reports OOM (retail shows an error screen and halts
+// forever, see MEMPACK.c) -- a decode bug that turns a stray count into
+// garbage previously manifested as that permanent halt with no diagnostic,
+// burning the whole pool one call at a time. Catch absurd requests here
+// instead and fail loudly; this is native-only relocation-walker plumbing,
+// not shipped retail behavior.
 static void *Reloc64_Alloc(int size)
 {
+	enum
+	{
+		RELOC64_ALLOC_SANITY_MAX = 16 * 1024 * 1024
+	};
+	if (size < 0 || size > RELOC64_ALLOC_SANITY_MAX)
+	{
+		fprintf(stderr, "[Reloc64] refusing to allocate %d bytes (sanity cap %d) -- a relocation walker likely misread a count/offset\n", size,
+		        (int)RELOC64_ALLOC_SANITY_MAX);
+		abort();
+	}
 	return MEMPACK_AllocMem(size);
 }
 
@@ -271,7 +288,13 @@ static struct ModelAnim *Reloc64_ModelAnim(struct Reloc64Ctx *ctx, uint32_t off)
 		return cached;
 
 	char *src = ctx->base + off;
-	int numFrames = *(u16 *)(src + DISC_ANIM_NUMFRAMES);
+	// Top bit of numFrames is an interpolation flag, not part of the count
+	// (see INSTANCE.c:407 "remember it's masked due to interp flag", and the
+	// same `& 0x7fff` at CS_Instance.c:155 / VehFrame.c:44 /
+	// RenderBucket_QueueExecute.c:1876). Masking here only sizes the frame
+	// blob; dst->numFrames below keeps the raw value so retail's own masking
+	// at each read site still works unchanged.
+	int numFrames = *(u16 *)(src + DISC_ANIM_NUMFRAMES) & 0x7fff;
 	int frameSize = *(s16 *)(src + DISC_ANIM_FRAMESIZE);
 	int framesBytes = numFrames * frameSize;
 	if (framesBytes < 0)
