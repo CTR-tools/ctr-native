@@ -40,6 +40,13 @@ void *Reloc64_ModelPack(void *mpkBase, const int *ptrMapOffsets, int numPtrs);
 uintptr_t Reloc64_MpkIcons(const void *mpkHeader);
 struct Model **Reloc64_MpkModels(const void *mpkHeader);
 
+// Rebuild a just-loaded level file into a native structure and return the
+// pointer to store as sdata->ptrLevelFile. `levelBase` is the loaded file
+// body; `ptrMapOffsets`/`numPtrs` is the embedded DRAM pointer map (kept for
+// signature symmetry with Reloc64_ModelPack, unused since every level array
+// has an explicit stored count or fixed size).
+void *Reloc64_Level(void *levelBase, const int *ptrMapOffsets, int numPtrs);
+
 #endif // CTR_RELOC64
 
 #endif // NATIVE_RELOC_H
