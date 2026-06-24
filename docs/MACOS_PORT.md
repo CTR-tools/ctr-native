@@ -158,9 +158,40 @@ discarding the rebuilt native pointer `Reloc64_ModelPack` stores into
 `data.currSlot.ptrDestination` — the `-2` path's result capture in
 `LOAD_DramFile` now re-reads that field under `CTR_RELOC64`.
 
-**Remaining:** none known in the asset-relocation (Option A) work itself.
-Two issues found during this investigation are tracked as separate follow-up
-work, not part of M3:
+**Phase 4 (the actual post-splash freeze) — done, committed.** Phases 1-3
+above were verified by "boots and idles," which never drove the loader far
+enough to hit any of this. Driving a real load past the splash screen
+surfaced three more bugs, all found by attaching `lldb` to the "frozen"
+process rather than guessing — it wasn't a hang, the main thread was
+permanently parked in `MEMPACK_AllocMem`'s retail OOM halt
+(`CTR_ErrorScreen(0xFF,0,0); for(;;){}`, see `game/MEMPACK.c`), which looks
+identical to a frozen window from the outside (no more frames presented) but
+shows up immediately in a backtrace:
+- `ModelAnim.numFrames`' top bit is an interpolation flag (retail masks it
+  with `& 0x7fff` at every read site — `INSTANCE.c:407`, `CS_Instance.c:155`,
+  `VehFrame.c:44`, `RenderBucket_QueueExecute.c:1876`). `Reloc64_ModelAnim`
+  read it raw, so any compressed animation sized its frame-data allocation in
+  the megabytes instead of low hundreds of bytes.
+- Normal race tracks load their LEV through `LOAD_Callback_LEV`, not
+  `LOAD_Callback_PatchMem` (that path is Adventure-Hub-only). It was never
+  wired into the `CTR_RELOC64` dispatch, so it fell through to the
+  truncating `LOAD_RunPtrMap` — `sdata->ptrLevelFile` ended up misread at
+  native struct offsets, crashing in `LibraryOfModels_Store` with garbage
+  `numModels`/NULL `ptrModelsPtrArray`.
+- The native MEMPACK arena was pinned to retail's exact ~1.3 MiB MPK window
+  (`CTR_NATIVE_MEMPACK_RETAIL_PRESSURE`). That budget assumed retail's packed
+  4-byte pointers; Option A's rebuilt native structs (8-byte pointers, plus
+  the original file buffer staying resident alongside the rebuilt spine) need
+  more headroom for a whole level's instance/model/animation graph — not a
+  decode bug, a real budget increase. Defaulted off on `__LP64__`/`_WIN64`.
+
+Also added a sanity cap in `Reloc64_Alloc`: since `MEMPACK_AllocMem` can't
+report OOM (it halts forever instead), a future bug of this shape would
+otherwise burn the whole pool with no diagnostic.
+
+**Remaining:** none known in the asset-relocation (Option A) work itself. Two
+issues found during Phase 3's investigation are still tracked as separate
+follow-up work, not part of M3:
 - `game/INSTANCE.c` (`INSTANCE_LevInitAll`) copies `InstDef` fields into
   `Instance` via a raw `int*` blit at hardcoded retail byte offsets/strides —
   corrupts every placed level instance on 64-bit once a real track loads
@@ -169,9 +200,14 @@ work, not part of M3:
 - `struct InstDrawPerPlayer`'s `ptrCommandList`/`ptrColorLayout`/
   `ptrDeltaArray` fields are truncating (see M4 below).
 
-Full runtime verification (actually loading a race and confirming driver
-characters render with correct, non-corrupted models) still needs a manual
-play session — idle-boot testing alone doesn't exercise these paths.
+With Phase 4's fixes, a real track now loads all the way to driver/vehicle
+spawn before hitting the next crash: `VehBirth_Player` (`VehBirth.c:673`)
+`memset(d, 0, 0x62c)`s a `struct Driver *d = t->object` that's already a bad
+pointer (`EXC_BAD_ACCESS` inside the `memset`, not from the hardcoded
+`0x62c` retail size itself) — likely a truncated pointer somewhere in
+`PROC_BirthWithObject`'s thread/object chain. Not yet diagnosed; this is the
+next item in the crash-driven loop, and squarely M4 (driver/vehicle init)
+territory rather than asset relocation.
 
 Background on why this is the architectural task — the MPK (and level) data are
 binary overlays whose **on-disc pointers are 4 bytes**:
