@@ -18,6 +18,8 @@
 #include <ctr_scratchpad.h>
 #include <prim.h>
 #include <psx/libpad.h>
+#include <platform/native_config.h>
+
 
 #include <psn00bsdk/include/sys/fcntl.h>
 

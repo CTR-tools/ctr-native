@@ -79,6 +79,13 @@ set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
+# Copy default config.ini to build directory if config.ini doesn't exist
+if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.ini")
+    configure_file("${CMAKE_SOURCE_DIR}/default_config.ini"
+                   "${CMAKE_BINARY_DIR}/config.ini" COPYONLY)
+    message(STATUS "Copied default_config.ini → ${CMAKE_BINARY_DIR}/config.ini")
+endif()
+
 # CTR Native
 add_executable(ctr_native main.c)
 target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
