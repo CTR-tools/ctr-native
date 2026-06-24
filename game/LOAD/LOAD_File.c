@@ -120,12 +120,15 @@ void LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 			struct DramPointerMap *dpm = (struct DramPointerMap *)&realFileBuf[ptrMapOffset];
 
 #ifdef CTR_RELOC64
-			if (callback == LOAD_Callback_DriverModels)
+			if (callback == LOAD_Callback_DriverModels || callback == (void (*)(struct LoadQueueSlot *))-2)
 			{
 				// arm64: rebuild the model pack into native-pointer structs
 				// instead of the truncating in-place LOAD_RunPtrMap. The file
 				// body stays resident (leaf data is pointed at directly), so no
-				// realloc trim here. See platform/native_reloc.c.
+				// realloc trim here. See platform/native_reloc.c. The -2
+				// sentinel (LOAD_DriverMPK_SetPointer) loads individually-
+				// loaded driver model packs (game/LOAD/LOAD_Assets.c) — same
+				// MPK format, same transform.
 				lqs->ptrDestination = Reloc64_ModelPack(realFileBuf, DRAM_GETOFFSETS(dpm), dpm->numBytes >> 2);
 			}
 			else
@@ -192,6 +195,18 @@ void *LOAD_DramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, in
 	if (callbackOrFlags == -2)
 	{
 		loadedFile = LOAD_ReadFile_ex(bigfilePtr, LT_GETADDR, subfileIndex, NULL, sizePtr, LOAD_DramFileCallback);
+
+#ifdef CTR_RELOC64
+		// arm64: LOAD_ReadFile_ex always returns the raw (pre-relocation) buffer
+		// it allocated; on retail that's fine because LOAD_RunPtrMap relocates
+		// in place, so "raw buffer + 4" (done by the caller later) still lands
+		// on the relocated data. Reloc64_ModelPack instead rebuilds into a new
+		// native allocation and stores it in data.currSlot.ptrDestination
+		// (LOAD_DramFileCallback, this same callback chain) — pick that up
+		// instead of the stale raw pointer.
+		loadedFile = data.currSlot.ptrDestination;
+#endif
+
 		data.currSlot.ptrDestination = loadedFile;
 		*(void **)ptrDestination = loadedFile;
 		return loadedFile;
