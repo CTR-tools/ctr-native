@@ -1,7 +1,11 @@
 #include <common.h>
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004cae8-0x8004cec4.
-struct Instance *UI_INSTANCE_BirthWithThread(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6)
+// NOTE(native): param_2 (funcThTick), param_5 (pushBuffer), and param_6 (name)
+// are real pointers carried through retail's int-sized parameters -- every
+// call site truncated them with an `(int)` cast. Widened to their actual
+// pointee types; PROC_BirthWithObject already required this for funcThTick.
+struct Instance *UI_INSTANCE_BirthWithThread(int param_1, void *param_2, int param_3, int param_4, struct PushBuffer *param_5, const char *param_6)
 
 {
 	s16 modelID;
@@ -42,7 +46,7 @@ struct Instance *UI_INSTANCE_BirthWithThread(int param_1, int param_2, int param
 		// 0 = no relation to param4
 		// 0x300 = SmallStackPool
 		// 0x10 = hud thread bucket
-		hudThread = PROC_BirthWithObject(0x380310, (void *)param_2, (char *)param_6, NULL);
+		hudThread = PROC_BirthWithObject(0x380310, param_2, param_6, NULL);
 
 		// Get the object attached to the thread
 		ui3D = hudThread->object;
@@ -156,7 +160,7 @@ struct Instance *UI_INSTANCE_BirthWithThread(int param_1, int param_2, int param
 		else
 		{
 			struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
-			idpp[0].pushBuffer = (struct PushBuffer *)param_5;
+			idpp[0].pushBuffer = param_5;
 
 			inst->flags |= PUSHBUFFER_EXISTS;
 
@@ -221,11 +225,11 @@ void UI_INSTANCE_InitAll(void)
 	// If you're in Crystal Challenge
 	if ((gameMode1 & CRYSTAL_CHALLENGE) != 0)
 	{
-		sdata->ptrMenuCrystal = UI_INSTANCE_BirthWithThread(0x60, (int)UI_ThTick_Reward, 0x11, 0, 0, (int)rdata.s_crystal1);
-		sdata->ptrHudCrystal = UI_INSTANCE_BirthWithThread(0x60, (int)UI_ThTick_Reward, 0x11, 0, 0, (int)rdata.s_crystal1);
+		sdata->ptrMenuCrystal = UI_INSTANCE_BirthWithThread(0x60, (void *)UI_ThTick_Reward, 0x11, 0, 0, rdata.s_crystal1);
+		sdata->ptrHudCrystal = UI_INSTANCE_BirthWithThread(0x60, (void *)UI_ThTick_Reward, 0x11, 0, 0, rdata.s_crystal1);
 
 		// Make a token
-		sdata->ptrToken = UI_INSTANCE_BirthWithThread(0x7d, (int)UI_ThTick_Reward, 0x12, 0, 0, (int)sdata->s_token);
+		sdata->ptrToken = UI_INSTANCE_BirthWithThread(0x7d, (void *)UI_ThTick_Reward, 0x12, 0, 0, sdata->s_token);
 
 		// make Crystal invisible
 #if defined(CTR_NATIVE)
@@ -257,9 +261,9 @@ void UI_INSTANCE_InitAll(void)
 	if ((gameMode1 & ADVENTURE_ARENA) != 0)
 	{
 		// is ignoring the return value of these calls intentional?
-		UI_INSTANCE_BirthWithThread(0x61, (int)UI_ThTick_Reward, 0xe, 1, 0, (int)sdata->s_relic1);
-		UI_INSTANCE_BirthWithThread(99, (int)UI_ThTick_Reward, 0xf, 1, 0, (int)sdata->s_key1);
-		UI_INSTANCE_BirthWithThread(0x62, (int)UI_ThTick_Reward, 0x10, 0, 0, (int)sdata->s_trophy1);
+		UI_INSTANCE_BirthWithThread(0x61, (void *)UI_ThTick_Reward, 0xe, 1, 0, sdata->s_relic1);
+		UI_INSTANCE_BirthWithThread(99, (void *)UI_ThTick_Reward, 0xf, 1, 0, sdata->s_key1);
+		UI_INSTANCE_BirthWithThread(0x62, (void *)UI_ThTick_Reward, 0x10, 0, 0, sdata->s_trophy1);
 
 		GAMEPROG_AdvPercent(&sdata->advProgress);
 
@@ -294,8 +298,8 @@ void UI_INSTANCE_InitAll(void)
 		}
 
 		// The rest of this block only happens in Relic Mode
-		sdata->ptrRelic = UI_INSTANCE_BirthWithThread(0x61, (int)UI_ThTick_Reward, 0xe, 1, 0, (int)sdata->s_relic1);
-		sdata->ptrTimebox1 = UI_INSTANCE_BirthWithThread(0x5c, (int)UI_ThTick_CountPickup, 0x13, 1, 0, (int)rdata.s_timebox1);
+		sdata->ptrRelic = UI_INSTANCE_BirthWithThread(0x61, (void *)UI_ThTick_Reward, 0xe, 1, 0, sdata->s_relic1);
+		sdata->ptrTimebox1 = UI_INSTANCE_BirthWithThread(0x5c, (void *)UI_ThTick_CountPickup, 0x13, 1, 0, rdata.s_timebox1);
 
 		// if instance
 		if (sdata->ptrRelic != 0)
@@ -338,10 +342,10 @@ void UI_INSTANCE_InitAll(void)
 	}
 
 	// used for multiplayer wumpa
-	sdata->ptrPushBufferUI = (int)NULL;
+	sdata->ptrPushBufferUI = 0;
 	if (gGT->numPlyrCurrGame >= 2)
 	{
-		sdata->ptrPushBufferUI = (int)&sdata->pushBuffer_DecalMP;
+		sdata->ptrPushBufferUI = (uintptr_t)&sdata->pushBuffer_DecalMP;
 	}
 
 	sdata->pushBuffer_DecalMP.matrix_ViewProj = gGT->pushBuffer_UI.matrix_ViewProj;
@@ -350,14 +354,15 @@ void UI_INSTANCE_InitAll(void)
 	sdata->pushBuffer_DecalMP.ptrOT = gGT->pushBuffer_UI.ptrOT;
 	sdata->pushBuffer_DecalMP.distanceToScreen_PREV = gGT->pushBuffer_UI.distanceToScreen_PREV;
 
-	sdata->ptrFruitDisp = (int)UI_INSTANCE_BirthWithThread(0x37, (int)UI_ThTick_CountPickup, 3, 1, sdata->ptrPushBufferUI, (int)rdata.s_fruitdisp);
+	sdata->ptrFruitDisp =
+	    (uintptr_t)UI_INSTANCE_BirthWithThread(0x37, (void *)UI_ThTick_CountPickup, 3, 1, (struct PushBuffer *)sdata->ptrPushBufferUI, rdata.s_fruitdisp);
 
 	if ((gGT->numPlyrCurrGame < 3) &&
 
 	    // If you're not in Battle Mode
 	    ((gameMode1 & BATTLE_MODE) == 0))
 	{
-		UI_INSTANCE_BirthWithThread(0x38, (int)UI_ThTick_big1, 2, 0, 0, (int)sdata->s_big1);
+		UI_INSTANCE_BirthWithThread(0x38, (void *)UI_ThTick_big1, 2, 0, 0, sdata->s_big1);
 	}
 
 	// If you're not in Adventure Mode
@@ -366,12 +371,12 @@ void UI_INSTANCE_InitAll(void)
 		return;
 	}
 
-	sdata->ptrHudC = UI_INSTANCE_BirthWithThread(0x93, (int)UI_ThTick_CtrLetters, 0x12, 0, 0, (int)sdata->s_hudc);
-	sdata->ptrHudT = UI_INSTANCE_BirthWithThread(0x94, (int)UI_ThTick_CtrLetters, 0x12, 0, 0, (int)sdata->s_hudt);
-	sdata->ptrHudR = UI_INSTANCE_BirthWithThread(0x95, (int)UI_ThTick_CtrLetters, 0x12, 0, 0, (int)sdata->s_hudr);
+	sdata->ptrHudC = UI_INSTANCE_BirthWithThread(0x93, (void *)UI_ThTick_CtrLetters, 0x12, 0, 0, sdata->s_hudc);
+	sdata->ptrHudT = UI_INSTANCE_BirthWithThread(0x94, (void *)UI_ThTick_CtrLetters, 0x12, 0, 0, sdata->s_hudt);
+	sdata->ptrHudR = UI_INSTANCE_BirthWithThread(0x95, (void *)UI_ThTick_CtrLetters, 0x12, 0, 0, sdata->s_hudr);
 
 	// Make a token
-	sdata->ptrToken = UI_INSTANCE_BirthWithThread(0x7d, (int)UI_ThTick_Reward, 0x12, 0, 0, (int)sdata->s_token);
+	sdata->ptrToken = UI_INSTANCE_BirthWithThread(0x7d, (void *)UI_ThTick_Reward, 0x12, 0, 0, sdata->s_token);
 
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): PSX writes the hidden C/T/R flags through null HUD pointers in Garage; native cannot.

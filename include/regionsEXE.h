@@ -3436,10 +3436,10 @@ struct sData
 	// 8008c40c JpnTrial
 	// 8008d858 EurRetail
 	// 800908cc JpnRetail
-	int ptrPushBufferUI;
+	uintptr_t ptrPushBufferUI;
 
 	// 8008d4b8
-	int ptrFruitDisp; // should maybe be `struct Instance*` instead of `int`?
+	uintptr_t ptrFruitDisp; // should maybe be `struct Instance*` instead of `int`?
 
 	// 8008d4bc
 	int menuReadyToPass;
