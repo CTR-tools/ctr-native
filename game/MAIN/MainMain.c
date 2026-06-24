@@ -600,8 +600,11 @@ void StateZero()
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 
-	gGT->levelID = NAUGHTY_DOG_CRATE;
-	// gGT->levelID = OXIDE_TRUE_ENDING;
+	if (g_config.skipIntro) {
+		gGT->levelID = MAIN_MENU_LEVEL;
+	} else {
+		gGT->levelID = NAUGHTY_DOG_CRATE;
+	}
 
 	InitGeom();
 	SetGeomOffset(0x100, 0x78); // width/2, height/2
@@ -623,35 +626,40 @@ void StateZero()
 	PutDispEnv(&gGT->db[1].dispEnv);
 	PutDrawEnv(&gGT->db[1].drawEnv);
 	DrawSync(0);
+	
+	if (!g_config.skipIntro) {
+		// Load Intro TIM for "SCEA Presents" from VRAM file
+		LOAD_VramFile(sdata->ptrBigfile1, 0x1fd, NULL, &vramSize, -1);
+		MainInit_VRAMDisplay();
 
-	// Load Intro TIM for "SCEA Presents" from VRAM file
-	LOAD_VramFile(sdata->ptrBigfile1, 0x1fd, NULL, &vramSize, -1);
-	MainInit_VRAMDisplay();
-
-	// \SOUNDS\KART.HWL;1
-	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c8e0-0x8003c928 for startup HOWL/music/XA setup.
+		// \SOUNDS\KART.HWL;1
+		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c8e0-0x8003c928 for startup HOWL/music/XA setup.
+	}
 	howl_InitGlobals(data.kartHwlPath);
+
 
 	VSyncCallback(MainDrawCb_Vsync);
 
-	Music_SetIntro();
-	CseqMusic_StopAll();
-	CseqMusic_Start(CSEQ_SONG_LEVEL, 0, NULL, 0, 0);
-	Music_Start(0);
+	if (!g_config.skipIntro) {
+		Music_SetIntro();
+		CseqMusic_StopAll();
+		CseqMusic_Start(CSEQ_SONG_LEVEL, 0, NULL, 0, 0);
+		Music_Start(0);
 
-	// "Start your engines, for Sony Computer..."
-	CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, 0x50);
+		// "Start your engines, for Sony Computer..."
+		CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, 0x50);
 
-	while (sdata->XA_State != 0)
-	{
-		// WARNING: Read-only address (ram, 0x8008d888) is written
-		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c940-0x8003c948 for startup XA pause polling.
-#ifdef CTR_NATIVE
-		// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
-		// this loop spins. Native owns VBlank in VSync(), so pump it here.
-		VSync(0);
-#endif
-		CDSYS_XAPauseAtEnd();
+		while (sdata->XA_State != 0)
+		{
+			// WARNING: Read-only address (ram, 0x8008d888) is written
+			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c940-0x8003c948 for startup XA pause polling.
+	#ifdef CTR_NATIVE
+			// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
+			// this loop spins. Native owns VBlank in VSync(), so pump it here.
+			VSync(0);
+	#endif
+			CDSYS_XAPauseAtEnd();
+		}
 	}
 
 	DecalGlobal_Clear(gGT);
