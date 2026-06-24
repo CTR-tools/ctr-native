@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 NativeConfig g_config = {1, 1};
 
-static int ParseBool(const char *s)
+static bool ParseBool(const char *s)
 {
     return strcmp(s, "true") == 0 || strcmp(s, "1") == 0;
 }
@@ -13,7 +14,7 @@ static int ParseBool(const char *s)
 typedef struct {
     const char *section;
     const char *key;
-    int *field;
+    bool *field;
 } ConfigBoolEntry;
 
 static const ConfigBoolEntry s_boolEntries[] = {
