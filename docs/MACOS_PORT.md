@@ -14,10 +14,10 @@ below.
 - macOS has no 32-bit support, so the macOS build is **64-bit arm64**. Every
   place the retail code treats a pointer as a 32-bit value has to be made
   pointer-width-correct.
-- **Current state:** the arm64 binary builds, links, launches, and runs ~16 s of
-  startup (audio, init, early rendering) against real NTSC-U assets, then stops
-  at the model/level loader. That last stop is the one genuinely *architectural*
-  task left (see Milestone M3).
+- **Current state:** the arm64 binary builds, links, launches, and boots/idles
+  stably against real NTSC-U assets — the model pack, level, and driver-model
+  relocation gaps (Milestone M3) are all fixed. Driving an actual race
+  (Milestone M4) hasn't been verified yet; that's the next manual play session.
 
 ## Why this is hard
 
@@ -115,7 +115,7 @@ literal changes, identical in behaviour on the 32-bit builds:
 - `ptrMPK` retyped from `int` to a real pointer (`regionsEXE.h` + callback).
 - A sweep of `(T *)((int|u32)ptr …)` truncating casts across `game/`.
 
-### M3 — Asset pointer relocation (in progress — Option A adopted)
+### M3 — Asset pointer relocation (done — Option A adopted)
 
 **Approach chosen: Option A (load-time transform).** A native-only module
 (`platform/native_reloc.c`, `#ifdef CTR_RELOC64`) rebuilds each binary-overlay
@@ -137,10 +137,41 @@ the few raw-offset reads (`ptrMPK+4`, `*ptrMPK`, `mpkIcons+4`) now go through
 `Reloc64_Mpk*` accessors / struct fields. `ModelHeader.ptrCommandList` and
 `gGT->mpkIcons` were widened to `uintptr_t`.
 
-**Remaining (Phase 2/3):** the level format (`struct Level` via
-`LOAD_Callback_PatchMem`) + instances, then the individually-loaded driver models
-(`driverModelExtras`, the `-2` SetPointer path) and any other overlays, found via
-the crash-driven loop. Same pattern, new walkers.
+**Phase 2 (level + instances) — done, committed.** `Reloc64_Level`
+(`platform/native_reloc.c`) rebuilds `struct Level` and its full graph (PVS, BSP
+tree + hitbox array, QuadBlock array, mesh info, skybox, water verts, spawn
+types, nav header/table, vis mem, InstDef array/ptr array, AnimTex chains).
+Wired into `LOAD_Callback_PatchMem`. Boots and idles stably; not yet exercised
+by an actual race load.
+
+**Phase 3 (individually-loaded driver models) — done, committed.** The `-2`
+sentinel callback (`LOAD_DriverMPK_SetPointer`) queues per-character driver
+model files through the same MPK format as the main model pack, but
+dispatched to `LOAD_DramFileCallback` differently — that branch only matched
+`LOAD_Callback_DriverModels`, so these files fell through to the truncating
+`LOAD_RunPtrMap`. Fixed by also matching the `-2` sentinel and routing through
+`Reloc64_ModelPack`/`Reloc64_MpkModels`; `driverModelExtras` widened to
+`uintptr_t[3]` (`VehBirth_GetModelByName` reinterprets its address as
+`struct Model**`, needing a real 8-byte stride). Also fixed a related bug:
+`LOAD_ReadFile_ex` always returns the raw pre-relocation buffer it allocated,
+discarding the rebuilt native pointer `Reloc64_ModelPack` stores into
+`data.currSlot.ptrDestination` — the `-2` path's result capture in
+`LOAD_DramFile` now re-reads that field under `CTR_RELOC64`.
+
+**Remaining:** none known in the asset-relocation (Option A) work itself.
+Two issues found during this investigation are tracked as separate follow-up
+work, not part of M3:
+- `game/INSTANCE.c` (`INSTANCE_LevInitAll`) copies `InstDef` fields into
+  `Instance` via a raw `int*` blit at hardcoded retail byte offsets/strides —
+  corrupts every placed level instance on 64-bit once a real track loads
+  instances (pointer fields grow 4→8 bytes, shifting every field after them).
+  Needs a field-by-field assignment instead of the blit.
+- `struct InstDrawPerPlayer`'s `ptrCommandList`/`ptrColorLayout`/
+  `ptrDeltaArray` fields are truncating (see M4 below).
+
+Full runtime verification (actually loading a race and confirming driver
+characters render with correct, non-corrupted models) still needs a manual
+play session — idle-boot testing alone doesn't exercise these paths.
 
 Background on why this is the architectural task — the MPK (and level) data are
 binary overlays whose **on-disc pointers are 4 bytes**:
