@@ -8,7 +8,20 @@
 #include <string.h>
 
 #ifndef CTR_NATIVE_MEMPACK_RETAIL_PRESSURE
+#if defined(__LP64__) || defined(_WIN64)
+// arm64/Win64 (Option A relocation, see native_reloc.c): native structs widen
+// every on-disc pointer 4->8 bytes and the rebuilt "spine" persists alongside
+// the original file buffer rather than reusing its bytes in place, so this
+// is a real memory-budget increase over retail, not a decode bug -- retail's
+// exact pressure-matched ~1.3 MiB MPK window is too tight once a level's full
+// instance/model/animation graph is rebuilt at native width. CTR_RELOC64
+// builds already diverge from retail numbers by construction, so use the
+// full backing buffer here. 32-bit Win/Linux builds keep the original
+// retail-pressure-tested window untouched.
+#define CTR_NATIVE_MEMPACK_RETAIL_PRESSURE 0
+#else
 #define CTR_NATIVE_MEMPACK_RETAIL_PRESSURE 1
+#endif
 #endif
 
 // TODO(aalhendi): Re-audit LOAD_ReadFile_ex, LOAD_DramFileCallback, LEV/PTR
