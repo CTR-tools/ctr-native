@@ -783,16 +783,17 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80035e20-0x80035e70.
 void MainFrame_RequestMaskHint(s16 hintId, char interruptWarpPad)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	if (!g_config.skipHints) {
+		struct GameTracker *gGT = sdata->gGT;
+		if (((gGT->gameMode1 & PAUSE_ALL) == 0) && (sdata->AkuHint_RequestedHint == -1))
+		{
+			sdata->AkuAkuHintState = 1;
 
-	if (((gGT->gameMode1 & PAUSE_ALL) == 0) && (sdata->AkuHint_RequestedHint == -1))
-	{
-		sdata->AkuAkuHintState = 1;
+			gGT->drivers[0]->funcPtrs[DRIVER_FUNC_INIT] = VehPhysProc_FreezeEndEvent_Init;
 
-		gGT->drivers[0]->funcPtrs[DRIVER_FUNC_INIT] = VehPhysProc_FreezeEndEvent_Init;
-
-		sdata->AkuHint_RequestedHint = hintId;
-		sdata->AkuHint_boolInterruptWarppad = interruptWarpPad;
+			sdata->AkuHint_RequestedHint = hintId;
+			sdata->AkuHint_boolInterruptWarppad = interruptWarpPad;
+		}
 	}
 	return;
 }

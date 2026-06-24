@@ -2,8 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
-NativeConfig g_config = {1};
+NativeConfig g_config = {1, 1};
+
+static bool ParseBool(const char *s)
+{
+    return strcmp(s, "true") == 0 || strcmp(s, "1") == 0;
+}
+
+typedef struct {
+    const char *section;
+    const char *key;
+    bool *field;
+} ConfigBoolEntry;
+
+static const ConfigBoolEntry s_boolEntries[] = {
+    {"General",   "skip_intro", &g_config.skipIntro},
+    {"Adventure", "skip_hints", &g_config.skipHints},
+};
+
 
 static char *trimWhitespace(char *s)
 {
@@ -35,8 +53,6 @@ void NativeConfig_Load(void)
 	while (fgets(line, sizeof(line), f))
 	{
 		char *p = trimWhitespace(line);
-        printf("[Config] Raw line: '%s'\n", p);
-
 
 		if (*p == '\0' || *p == ';' || *p == '#')
 			continue;
@@ -54,9 +70,6 @@ void NativeConfig_Load(void)
 			continue;
 		}
 
-		if (strcmp(section, "General") != 0)
-			continue;
-
 		char *eq = strchr(p, '=');
 		if (!eq)
 			continue;
@@ -65,12 +78,15 @@ void NativeConfig_Load(void)
 		char *key = trimWhitespace(p);
 		char *value = trimWhitespace(eq + 1);
 
-        printf("[Config] Key='%s' Value='%s'\n", key, value);
-
-		if (strcmp(key, "skip_intro") == 0) {
-			g_config.skipIntro = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0);
-            printf("[Config] skip_intro = %d\n", g_config.skipIntro);
-        }
+		for (int i = 0; i < (int)(sizeof(s_boolEntries) / sizeof(s_boolEntries[0])); i++) {
+			if (strcmp(section, s_boolEntries[i].section) == 0 &&
+			    strcmp(key, s_boolEntries[i].key) == 0)
+			{
+				*s_boolEntries[i].field = ParseBool(value);
+				printf("[Config] %s/%s = %d\n", s_boolEntries[i].section, s_boolEntries[i].key, *s_boolEntries[i].field);
+				break;
+			}
+		}
 
 	}
 

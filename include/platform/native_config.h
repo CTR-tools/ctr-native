@@ -1,8 +1,11 @@
+#include <stdbool.h>
+
 #ifndef NATIVE_CONFIG_H
 #define NATIVE_CONFIG_H
 
 typedef struct {
-    int skipIntro;  // 0 = off (default), 1 = skip all intros
+    bool skipIntro;  // false = off (default), true = skip all intros
+    bool skipHints;  // false = off (default), true = skip all mask hints in adventure mode
 } NativeConfig;
 
 extern NativeConfig g_config;
