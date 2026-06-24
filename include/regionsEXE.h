@@ -1725,7 +1725,7 @@ struct Data
 	// 80082910 -- JpnTrial
 	// 80083ce8 -- EurRetail
 	// 80086ca4 -- JpnRetail
-	int driverModelExtras[3]; // maybe should be `struct Model**[3]`
+	uintptr_t driverModelExtras[3];
 
 	// 80083a1c
 	int podiumModel_firstPlace;
