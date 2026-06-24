@@ -935,10 +935,19 @@ static struct InstDef **Reloc64_InstDefPtrArray(struct Reloc64Ctx *ctx, uint32_t
 
 	// Shares identity with ptrInstDefs via the visited cache -- must run
 	// after Reloc64_InstDefArray.
-	struct InstDef **arr = Reloc64_Alloc(count * (int)sizeof(void *));
+	//
+	// Consumers (LevInstDef_UnPack/RePack) walk this as a NULL-terminated
+	// list (`visInstSrc[0] != 0`), not bounded by numInstances -- allocate
+	// one extra slot and terminate it explicitly, same as
+	// dst->ptrModelsPtrArray below. Without it, the walk reads past the
+	// array into whatever heap data follows until it happens to hit a zero
+	// (or, as found via lldb, a non-zero "pointer" that then gets
+	// dereferenced and crashes).
+	struct InstDef **arr = Reloc64_Alloc((count + 1) * (int)sizeof(void *));
 	const uint32_t *srcArr = (const uint32_t *)(ctx->base + off);
 	for (int i = 0; i < count; i++)
 		arr[i] = Reloc64_VisitedGet(ctx, srcArr[i]);
+	arr[count] = NULL;
 
 	return arr;
 }
