@@ -15,7 +15,9 @@ void SubmitName_RestoreName(s16 param_1)
 	// "A" or "SAVE"
 	s16 cursor = 0;
 	if (gGT->currNameEntered[0] != 0)
+	{
 		cursor = 1001;
+	}
 
 	gGT->typeCursorPosition = cursor;
 }

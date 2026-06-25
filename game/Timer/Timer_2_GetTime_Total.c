@@ -8,7 +8,9 @@ int Timer_GetTime_Total()
 	int sysClock = rcntTotal + rcnt;
 
 	if (rcnt < 100)
+	{
 		sysClock = sdata->rcntTotalUnits + rcnt;
+	}
 
 	return (sysClock * 1000) / 0x147e;
 }

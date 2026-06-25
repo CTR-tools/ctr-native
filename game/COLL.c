@@ -6,7 +6,9 @@ struct MetaDataMODEL *COLL_LevModelMeta(u32 id)
 {
 	// use unsigned so -1 is positive
 	if (id >= NUM_MDM)
+	{
 		id = 0;
+	}
 
 	return &data.MetaDataModels[id];
 }
@@ -85,11 +87,15 @@ internal void COLL_SearchBSP_CallbackPARAM_PushChild(struct BSP *root, BspChildI
 {
 	u16 rawChildID = (u16)childID;
 	if (rawChildID == BSP_CHILD_ID_NONE)
+	{
 		return;
+	}
 
 	struct BSP *child = &root[rawChildID & BSP_CHILD_ID_INDEX_MASK];
 	if (!COLL_SearchBSP_CallbackPARAM_Overlaps(child, bounds))
+	{
 		return;
+	}
 
 	**stackTop = childID;
 	(*stackTop)++;
@@ -106,7 +112,9 @@ internal void COLL_SearchBSP_CallbackPARAM_PushChildren(struct BSP *root, struct
 void COLL_SearchBSP_CallbackPARAM(struct BSP *root, struct BoundingBox *bbox, CollBspLeafCallback callback, struct ScratchpadStruct *sps)
 {
 	if (root == NULL)
+	{
 		return;
+	}
 
 	struct BoundingBox bounds = *bbox;
 
@@ -377,7 +385,9 @@ u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node)
 	scratch->centerDot = dotCenter;
 
 	if (dotCenter <= 0)
+	{
 		return 0;
+	}
 
 	CollFixed_GteLoadLZCS(dotCenter);
 	s32 shift = CollFixed_GteReadLZCR() - 2;
@@ -394,7 +404,9 @@ u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node)
 	dotCenter = CTR_MipsSll(dotCenter, shift);
 
 	if (divisor < 0)
+	{
 		return 0;
+	}
 
 	s32 factor = 0;
 	if (divisor != 0)
@@ -433,7 +445,9 @@ u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node)
 
 	s32 remaining = CTR_MipsSubLo(radiusSquared, distSquared);
 	if (remaining < 0)
+	{
 		return 0;
+	}
 
 	if (remaining != 0)
 	{
@@ -445,7 +459,9 @@ u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node)
 	}
 
 	if (sps->hitFraction < factor)
+	{
 		return 0;
+	}
 
 	s32 hitX = 0;
 	s32 hitY = 0;
@@ -461,7 +477,9 @@ u32 COLL_FIXED_INSTANC_TestPoint(struct ScratchpadStruct *sps, struct BSP *node)
 	{
 		s32 centerY = node->data.hitbox.center.y;
 		if ((hitY < centerY) && (CTR_MipsAddLo(centerY, node->id) < hitY))
+		{
 			return 0;
+		}
 	}
 
 	sps->bspHitbox = node;
@@ -523,7 +541,9 @@ void COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *
 	struct BSP *bspArray = node->data.leaf.bspHitboxArray;
 
 	if (bspArray == NULL)
+	{
 		return;
+	}
 
 	// check every instance hitbox until
 	// end of list (null flag) is found
@@ -536,7 +556,9 @@ void COLL_FIXED_BSPLEAF_TestInstance(struct BSP *node, struct ScratchpadStruct *
 		for (; arraySize >= 0; arraySize--)
 		{
 			if (bspArray == sps->bspHitboxesHit[arraySize])
+			{
 				goto NextBSP;
+			}
 		}
 
 		if ((
@@ -651,7 +673,9 @@ internal void COLL_FIXED_TRIANGL_TestPoint_Body(struct ScratchpadStruct *sps, st
 	s32 planeDot = CTR_MipsSubLo(CollFixed_GteReadMAC1(), normalZW);
 
 	if (lineDot >= 0)
+	{
 		return;
+	}
 
 	s32 factor = CTR_MipsDiv(CTR_MipsNegLo(planeDot), CTR_MipsSra(lineDot, 12));
 
@@ -660,7 +684,9 @@ internal void COLL_FIXED_TRIANGL_TestPoint_Body(struct ScratchpadStruct *sps, st
 	CollFixed_GteLoadIR0(factor);
 
 	if ((factor < 0) || (factor > COLL_FRACTION_ONE))
+	{
 		return;
+	}
 
 	CollFixed_GteGPL12();
 	s32 hitX = CollFixed_GteReadMAC1();
@@ -759,7 +785,9 @@ internal void COLL_FIXED_TRIANGL_TestPoint_Body(struct ScratchpadStruct *sps, st
 	else
 	{
 		if (projection.firstB == 0)
+		{
 			return;
+		}
 
 		baryB = CTR_MipsDiv(CTR_MipsSll(projection.firstHit, 12), projection.firstB);
 
@@ -772,7 +800,9 @@ internal void COLL_FIXED_TRIANGL_TestPoint_Body(struct ScratchpadStruct *sps, st
 	struct QuadBlock *quad = sps->candidate.ptrQuadblock;
 
 	if ((baryA < 0) || (CTR_MipsSubLo(CTR_MipsAddLo(baryA, baryB), COLL_FRACTION_ONE) > 0))
+	{
 		return;
+	}
 
 	if ((quad->quadFlags & QUADBLOCK_FLAG_TRIGGER) != 0)
 	{
@@ -1087,10 +1117,14 @@ enum
 internal s32 COLL_FIXED_PlayerSearch_ClampByte(s32 value)
 {
 	if (value < 0)
+	{
 		return 0;
+	}
 
 	if (value > COLL_FIXED_PLAYER_SEARCH_COLOR_MAX)
+	{
 		return COLL_FIXED_PLAYER_SEARCH_COLOR_MAX;
+	}
 
 	return value;
 }
@@ -1196,7 +1230,9 @@ internal void COLL_FIXED_PlayerSearch_UpdateLighting(struct ScratchpadStruct *sp
 	struct LevVertex *v2 = sps->hitLevelTriangle.v2;
 
 	if ((v0 == NULL) || (v1 == NULL) || (v2 == NULL))
+	{
 		return;
+	}
 
 	s32 baryA = sps->hitBarycentrics.v1;
 	s32 baryB = sps->hitBarycentrics.v2;
@@ -1267,11 +1303,15 @@ internal b32 COLL_FIXED_PlayerSearch_CheckMaskGrabProgress(struct Driver *d, str
 	struct Level *level = gGT->level1;
 
 	if ((quad->quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
+	{
 		return 1;
+	}
 
 	if ((d->kartState == KS_MASK_GRABBED) || ((d->collisionFlags & DRIVER_COLL_FLAG_MASK_GRAB_REQUEST) != 0) ||
 	    ((quad->quadFlags & QUADBLOCK_FLAG_GROUND) == 0))
+	{
 		return 0;
+	}
 
 	if (quad->checkpointIndex == 0xff)
 	{
@@ -1754,12 +1794,16 @@ s32 COLL_MOVED_TRIANGL_ReorderNormals(struct BspSearchResult *candidate, struct 
 	if (projection.firstA == 0)
 	{
 		if (projection.firstB == 0)
+		{
 			return COLL_TRIANGLE_CLIP_MISS;
+		}
 
 		baryB = CTR_MipsDiv(CTR_MipsSll(projection.firstHit, 12), projection.firstB);
 
 		if (projection.secondA != 0)
+		{
 			baryA = CTR_MipsDiv(CTR_MipsSubLo(CTR_MipsSll(projection.secondHit, 12), CTR_MipsMulLo(baryB, projection.secondB)), projection.secondA);
+		}
 	}
 	else
 	{
@@ -1775,7 +1819,9 @@ s32 COLL_MOVED_TRIANGL_ReorderNormals(struct BspSearchResult *candidate, struct 
 	}
 
 	if (baryA == COLL_FRACTION_INVALID)
+	{
 		return COLL_TRIANGLE_CLIP_MISS;
+	}
 
 	s32 sum = CTR_MipsSubLo(CTR_MipsAddLo(baryA, baryB), COLL_FRACTION_ONE);
 
@@ -1833,7 +1879,9 @@ void COLL_MOVED_TRIANGL_TestPoint(struct ScratchpadStruct *sps, struct BspSearch
 	s32 normalZW = (s32)CTR_PackS16Pair(sps->candidate.plane.normal.z, sps->candidate.plane.halfDistance);
 
 	if (((quad->quadFlags & QUADBLOCK_FLAG_DOOR) != 0) && (((s32)(s8)quad->terrain_type & sdata->doorAccessFlags) != 0))
+	{
 		return;
+	}
 
 	CollFixed_GteLoadR11R12(CTR_PackS16Pair(sps->Input1.pos.x, sps->Input1.pos.y));
 	CollFixed_GteLoadR13R21(CTR_PackS16Pair(sps->Input1.pos.z, sps->Union.QuadBlockColl.pos.x));
@@ -1850,7 +1898,9 @@ void COLL_MOVED_TRIANGL_TestPoint(struct ScratchpadStruct *sps, struct BspSearch
 	if (planeFar < 0)
 	{
 		if (((quad->quadFlags & QUADBLOCK_FLAG_TRIGGER) == 0) && ((quad->draw_order_low & QUADBLOCK_DRAW_ORDER_LOW_DOUBLE_SIDED) == 0))
+		{
 			goto KeepNormal;
+		}
 
 		planeNear = CTR_MipsNegLo(planeNear);
 		planeFar = CTR_MipsNegLo(planeFar);
@@ -1865,13 +1915,19 @@ KeepNormal:;
 	sps->numTrianglesTested = (s16)CTR_MipsAddLo(sps->numTrianglesTested, 1);
 
 	if (CTR_MipsSubLo(planeNear, sps->Input1.hitRadius) >= 0)
+	{
 		return;
+	}
 
 	if (planeFar < 0)
+	{
 		return;
+	}
 
 	if (((quadFlags & QUADBLOCK_FLAG_TRIGGER) == 0) && (CTR_MipsSubLo(planeNear, planeFar) > 0))
+	{
 		return;
+	}
 
 	if (planeNear >= 0)
 	{
@@ -1901,7 +1957,9 @@ KeepNormal:;
 
 	s32 reorderResult = COLL_MOVED_TRIANGL_ReorderNormals(&sps->candidate, v1, v2, v3);
 	if (reorderResult < 0)
+	{
 		return;
+	}
 
 	if (usedSegmentProjection != 0)
 	{
@@ -1924,7 +1982,9 @@ KeepNormal:;
 	s32 distanceSq = CollFixed_GteReadMAC1();
 
 	if (CTR_MipsSubLo(distanceSq, sps->Input1.hitRadiusSquared) > 0)
+	{
 		return;
+	}
 
 	if ((quadFlags & QUADBLOCK_FLAG_TRIGGER) != 0)
 	{
@@ -1937,15 +1997,21 @@ KeepNormal:;
 
 	s32 distance = CTR_MipsSubLo(planeFar, planeNear);
 	if (distance != 0)
+	{
 		distance = CTR_MipsSubLo(COLL_FRACTION_ONE, CTR_MipsDiv(CTR_MipsSll(CTR_MipsSubLo(sps->Input1.hitRadius, planeNear), 12), distance));
+	}
 
 	if (CTR_MipsSubLo(distance, sps->hitFraction) >= 0)
+	{
 		return;
+	}
 
 	if ((quadFlags & QUADBLOCK_FLAG_NO_COLLISION_RESPONSE) != 0)
 	{
 		if ((quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
+		{
 			sps->collision.stepFlags |= COLL_STEP_FLAG_KILL_PLANE;
+		}
 
 		return;
 	}
@@ -2157,25 +2223,35 @@ internal int CollMoved_PlayerSearch_RunHitboxLInC(struct ScratchpadStruct *sps, 
 	{
 		struct InstDef *instDef = bsp->data.hitbox.instDef;
 		if (instDef == NULL)
+		{
 			return 1;
+		}
 
 		linCInstance = instDef->ptrInstance;
 		if (linCInstance == NULL)
+		{
 			return 1;
+		}
 
 		if ((linCInstance->flags & DRAW_COLLISION_MASK) == 0)
+		{
 			return 1;
+		}
 
 		modelID = instDef->modelID;
 	}
 	else
 	{
 		if ((bsp->flag & BSP_HITBOX_LINC_USES_INSTDEF) == 0)
+		{
 			return 1;
+		}
 
 		struct InstDef *instDef = bsp->data.hitbox.instDef;
 		if (instDef == NULL)
+		{
 			return 1;
+		}
 
 		// Retail passes the InstDef pointer for these hitboxes, not ptrInstance.
 		linCInstance = (struct Instance *)instDef;
@@ -2576,7 +2652,9 @@ u32 COLL_MOVED_ScrubImpact(struct Driver *d, struct Thread *t, struct Scratchpad
 					s32 dotSq = CTR_MipsSra(CTR_MipsMulLo(dot, dot), 15);
 
 					if (angleLimit >= dotSq)
+					{
 						return 1;
+					}
 				}
 
 				if ((d->kartState != KS_MASK_GRABBED) && (transformedImpactXZ > 0x1900000))

@@ -15,7 +15,9 @@ void Podium_InitModels(struct GameTracker *gGT)
 		struct Driver *driver = gGT->drivers[i];
 
 		if (driver == NULL)
+		{
 			continue;
+		}
 
 		s16 rank = driver->driverRank;
 
@@ -25,7 +27,9 @@ void Podium_InitModels(struct GameTracker *gGT)
 			podiumModelIndexArr[rank] = characterID + STATIC_CRASHDANCE;
 
 			if (rank != 0)
+			{
 				continue;
+			}
 
 			switch (characterID)
 			{

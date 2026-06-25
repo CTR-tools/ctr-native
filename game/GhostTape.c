@@ -50,7 +50,9 @@ void GhostTape_End(void)
 
 	// quit, if ghost cant be saved
 	if (sdata->boolCanSaveGhost == 0)
+	{
 		return;
+	}
 
 	// dont save ghost twice
 	sdata->boolCanSaveGhost = 0;
@@ -310,7 +312,9 @@ void GhostTape_WriteBoosts(int addReserve, u8 type, int speedCap)
 
 	// quit, if ghost cant be saved
 	if (sdata->boolCanSaveGhost == 0)
+	{
 		return;
+	}
 
 	puVar1 = sdata->GhostRecording.ptrCurrOffset;
 
