@@ -4,7 +4,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-NativeConfig g_config = {1, 1};
+NativeConfig g_config = {false, false, 100};
 
 static bool ParseBool(const char *s)
 {
@@ -20,6 +20,16 @@ typedef struct {
 static const ConfigBoolEntry s_boolEntries[] = {
     {"General",   "skip_intro", &g_config.skipIntro},
     {"Adventure", "skip_hints", &g_config.skipHints},
+};
+
+typedef struct {
+    const char *section;
+    const char *key;
+    int *field;
+} ConfigIntEntry;
+
+static const ConfigIntEntry s_intEntries[] = {
+    {"Vehicle", "speed_stat_multiplier", &g_config.speedMultiplier},
 };
 
 
@@ -84,6 +94,16 @@ void NativeConfig_Load(void)
 			{
 				*s_boolEntries[i].field = ParseBool(value);
 				printf("[Config] %s/%s = %d\n", s_boolEntries[i].section, s_boolEntries[i].key, *s_boolEntries[i].field);
+				break;
+			}
+		}
+
+		for (int i = 0; i < (int)(sizeof(s_intEntries) / sizeof(s_intEntries[0])); i++) {
+			if (strcmp(section, s_intEntries[i].section) == 0 &&
+			    strcmp(key, s_intEntries[i].key) == 0)
+			{
+				*s_intEntries[i].field = atoi(value);
+				printf("[Config] %s/%s = %d\n", s_intEntries[i].section, s_intEntries[i].key, *s_intEntries[i].field);
 				break;
 			}
 		}

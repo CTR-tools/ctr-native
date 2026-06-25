@@ -544,6 +544,11 @@ void VehBirth_SetConsts(struct Driver *driver)
 		metaPhysSize = metaPhys->size;
 
 		u32 rawValue = (u32)metaPhys->value[engineID];
+
+		if (metaPhys->offset == SPEED_CLASS_STAT_OFFSET) {
+			rawValue = rawValue * g_config.speedMultiplier / 100;
+		}
+
 		u8 *dst = &d[metaPhys->offset];
 
 		if (metaPhysSize == 1)
