@@ -47,7 +47,7 @@ That's it. SDL3 is compiled from vendored source -- no separate install needed.
 
 ```
 sudo apt install gcc-multilib
-sudo apt install libx11-dev libxext-dev libgl1-mesa-dev libasound2-dev libudev-dev libdbus-1-dev
+sudo apt install libx11-dev libxext-dev libgl1-mesa-dev libasound2-dev libudev-dev libdbus-1-dev libxtst-dev
 ```
 
 ## Building
