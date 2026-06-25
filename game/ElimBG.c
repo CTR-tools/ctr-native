@@ -8,7 +8,9 @@ void ElimBG_SaveScreenshot_Chunk(u16 *param_1, u16 *param_2, int param_3)
 	u16 *puVar2;
 
 	if (param_3 == 0)
+	{
 		return;
+	}
 
 	puVar2 = param_2 + 3;
 
@@ -134,9 +136,13 @@ void ElimBG_ToggleInstance(struct Instance *inst, char boolGameIsPaused)
 		flags = inst->flags;
 
 		if (!(flags & HIDE_MODEL))
+		{
 			flags &= ~INVISIBLE_BEFORE_PAUSE;
+		}
 		else
+		{
 			flags |= INVISIBLE_BEFORE_PAUSE;
+		}
 
 		inst->flags = flags;
 		inst->flags |= (INVISIBLE_DURING_PAUSE | HIDE_MODEL);
@@ -145,7 +151,9 @@ void ElimBG_ToggleInstance(struct Instance *inst, char boolGameIsPaused)
 	}
 
 	if ((inst->flags & (INVISIBLE_BEFORE_PAUSE | INVISIBLE_DURING_PAUSE)) == INVISIBLE_DURING_PAUSE)
+	{
 		inst->flags &= ~(INVISIBLE_DURING_PAUSE | HIDE_MODEL);
+	}
 }
 
 
@@ -164,7 +172,9 @@ void ElimBG_ToggleAllInstances(struct GameTracker *gGT, b32 boolGameIsPaused)
 		inst = ptrInstDefs->ptrInstance;
 
 		if (inst != 0)
+		{
 			ElimBG_ToggleInstance(inst, boolGameIsPaused);
+		}
 	}
 
 	// Loop through all instances in Instance Pool

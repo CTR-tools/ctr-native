@@ -14,7 +14,9 @@ int RB_Hazard_HurtDriver(struct Driver *driverVictim, int damageType, struct Dri
 	else
 	{
 		if ((gGT->levelID == OXIDE_STATION) && (IS_BOSS_RACE(gGT->gameMode1)))
+		{
 			damageType = 1;
+		}
 
 		result = (int)BOTS_ChangeState(driverVictim, damageType, driverAttacker, reason);
 	}
@@ -39,9 +41,13 @@ struct Instance *RB_Hazard_CollideWithDrivers(struct Instance *weaponInst, char 
 		driver = sdata->gGT->drivers[i];
 
 		if (driver == 0)
+		{
 			continue;
+		}
 		if (driver->kartState == KS_MASK_GRABBED)
+		{
 			continue;
+		}
 		driverInst = driver->instSelf;
 
 		for (j = 0; j < 3; j++)
@@ -69,7 +75,9 @@ struct Instance *RB_Hazard_CollideWithDrivers(struct Instance *weaponInst, char 
 		if (distCheck < (u32)hitRadius)
 		{
 			if ((boolCanSkipParent != 0) && (driverInst == mineDriverInst))
+			{
 				continue;
+			}
 
 			// wasted check for 3D sphere,
 			// also upgrades 2D collision to 3D cylinder
@@ -109,7 +117,9 @@ struct Instance *RB_Hazard_CollideWithBucket(struct Instance *weaponInst, struct
 		if (distCheck < (u32)hitRadius)
 		{
 			if ((boolCanSkipParent != 0) && (threadInst == mineDriverInst))
+			{
 				continue;
+			}
 
 			return threadInst;
 		}
@@ -270,7 +280,9 @@ u16 RB_Hazard_CollLevInst(struct ScratchpadStruct *sps, struct Thread *th)
 	{
 		inst = instdef->ptrInstance;
 		if (inst == NULL)
+		{
 			return 1;
+		}
 
 		model = inst->model->id;
 
@@ -317,7 +329,9 @@ u16 RB_Hazard_CollLevInst(struct ScratchpadStruct *sps, struct Thread *th)
 int RB_Hazard_InterpolateValue(s16 currRot, s16 desiredRot, s16 rotSpeed)
 {
 	if (currRot == desiredRot)
+	{
 		return currRot;
+	}
 
 	int delta = (rotSpeed * sdata->gGT->elapsedTimeMS) >> 5;
 
@@ -325,19 +339,29 @@ int RB_Hazard_InterpolateValue(s16 currRot, s16 desiredRot, s16 rotSpeed)
 	// compared to range of degrees [0-0xfff]
 	int diff = ((desiredRot - currRot) & 0xfff);
 	if (diff > 0x7ff)
+	{
 		diff -= 0x1000;
+	}
 
 	// skip to end if close enough
 	int diffAbs = diff;
 	if (diffAbs < 0)
+	{
 		diffAbs = -diffAbs;
+	}
 	if (diffAbs < rotSpeed)
+	{
 		return desiredRot & 0xfff;
+	}
 
 	// interpolate
 	if (diff < 0)
+	{
 		currRot -= delta;
+	}
 	else
+	{
 		currRot += delta;
+	}
 	return currRot & 0xfff;
 }

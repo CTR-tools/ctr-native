@@ -10,13 +10,17 @@ int MATH_Cos(u32 angle)
 	{
 		cosine = (s32)(trig << 0x10) >> 0x10;
 		if ((angle & 0x800) == 0)
+		{
 			cosine = -cosine;
+		}
 	}
 	else
 	{
 		cosine = (s32)trig >> 0x10;
 		if ((angle & 0x800) != 0)
+		{
 			cosine = -cosine;
+		}
 	}
 
 	return cosine;

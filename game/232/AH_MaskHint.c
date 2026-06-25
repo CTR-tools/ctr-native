@@ -167,10 +167,14 @@ void AH_MaskHint_SpawnParticles(s16 numParticles, struct ParticleEmitter *emSet,
 	{
 		particle = Particle_Init(0, ig, emSet);
 		if (particle == NULL)
+		{
 			continue;
+		}
 
 		for (j = 0; j < 3; j++)
+		{
 			particle->axis[j].startVal += maskInst->matrix.t[j] * 0x100;
+		}
 
 		particle->axis[5].startVal = (particle->axis[5].startVal * maskAnim) >> 0xc;
 		particle->axis[5].velocity = (particle->axis[5].velocity * maskAnim) >> 0xc;
@@ -207,7 +211,9 @@ force_inline void AH_MaskHint_DrawRepeatPrompt(void)
 	b32 boolFound = false;
 
 	if (sdata->AkuAkuHintState != 5)
+	{
 		return;
+	}
 
 	s16 *ptrLngID = &D232.hintMenu_lngIndexArr[0];
 	struct GameTracker *gGT = sdata->gGT;
@@ -223,14 +229,20 @@ force_inline void AH_MaskHint_DrawRepeatPrompt(void)
 	}
 
 	if (!boolFound)
+	{
 		return;
+	}
 
 	// Retail finds the hint subtitle entry above, but the shipped path draws a
 	// generic "press start to repeat" prompt instead of that hint text.
 	if (VehPickupItem_MaskBoolGoodGuy(d))
+	{
 		lngIndex = 0x177;
+	}
 	else
+	{
 		lngIndex = 0x232;
+	}
 
 	RECT r;
 	r.x = -10;
@@ -254,7 +266,9 @@ void AH_MaskHint_Update()
 	{
 	case 0:
 		if (sdata->XA_State != 0)
+		{
 			return;
+		}
 
 		sdata->AkuAkuHintState++;
 		break;
@@ -263,9 +277,13 @@ void AH_MaskHint_Update()
 	{
 		int absSpeedApprox = d->speedApprox;
 		if (absSpeedApprox < 0)
+		{
 			absSpeedApprox = -absSpeedApprox;
+		}
 		if (absSpeedApprox > 0x31)
+		{
 			return;
+		}
 
 		if ((D232.maskWarppadBoolInterrupt & 1) == 0)
 		{
@@ -321,27 +339,34 @@ void AH_MaskHint_Update()
 
 		// first frame "whoosh" sound
 		if (D232.maskFrameCurr == 0)
+		{
 			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b46d4-0x800b46e4 for mask spawn-start SFX.
 			OtherFX_Play_LowLevel(0x100, 1, 0xff8080);
+		}
 
 		// if 3-second spawn, play more sounds
 		if (D232.maskSpawnFrame == 0x5a)
 		{
 			if (D232.maskFrameCurr == 10)
+			{
 				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b470c-0x800b4774 for mask spawn pulse 10 SFX.
 				OtherFX_Play_LowLevel(0x100, 0, 0xd78a80);
-
+			}
 			else if (D232.maskFrameCurr == 20)
+			{
 				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4728-0x800b4774 for mask spawn pulse 20 SFX.
 				OtherFX_Play_LowLevel(0x100, 1, 0xaf9480);
-
+			}
 			else if (D232.maskFrameCurr == 25)
+			{
 				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4744-0x800b4774 for mask spawn pulse 25 SFX.
 				OtherFX_Play_LowLevel(0x100, 0, 0x879e80);
-
+			}
 			else if (D232.maskFrameCurr == 30)
+			{
 				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b4760-0x800b4774 for mask spawn pulse 30 SFX.
 				OtherFX_Play_LowLevel(0x100, 1, 0x5fa880);
+			}
 		}
 
 		int timer4096 = (D232.maskFrameCurr << 0xc) / D232.maskSpawnFrame;
@@ -446,7 +471,9 @@ void AH_MaskHint_Update()
 
 			D232.maskWarppadDelayFrames = 0;
 			if ((D232.maskWarppadBoolInterrupt & 1) != 0)
+			{
 				D232.maskWarppadDelayFrames = 30;
+			}
 
 			sdata->AkuAkuHintState++;
 		}

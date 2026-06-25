@@ -288,9 +288,13 @@ void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 param_2, struct Driver
 	param_2 &= 0xff;
 
 	if (d == 0)
+	{
 		return;
+	}
 	if (param_2 == 0xff)
+	{
 		return;
+	}
 
 	struct CheckpointNode *first = &sdata->gGT->level1->ptr_restart_points[0];
 

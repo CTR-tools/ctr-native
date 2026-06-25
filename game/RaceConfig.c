@@ -8,7 +8,9 @@ void RaceConfig_LoadGameOptions(void)
 	s16 *volumes;
 
 	if (sdata->boolHasLoadedOptions != 0)
+	{
 		return;
+	}
 
 	sdata->boolHasLoadedOptions = 1;
 	volumes = &sdata->gameOptions.volFx;
@@ -33,7 +35,9 @@ void RaceConfig_SaveGameOptions(void)
 	volumes = &sdata->gameOptions.volFx;
 
 	for (i = 0; i < 3; i++)
+	{
 		volumes[i] = howl_VolumeGet(i) & 0xff;
+	}
 
 	memcpy(&sdata->gameOptions.rwd[0], &data.rwd[0], sizeof(data.rwd));
 	sdata->gameOptions.gameMode1_0xf00 = sdata->gGT->gameMode1 & 0xf00;

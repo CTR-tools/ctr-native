@@ -22,13 +22,19 @@ void RB_Bubbles_RoosTubes()
 	// 1P mode Roo's Tubes only
 	gGT = sdata->gGT;
 	if (gGT->numPlyrCurrGame > 1)
+	{
 		return;
+	}
 	if (gGT->levelID != ROO_TUBES)
+	{
 		return;
+	}
 
 	level1 = gGT->level1;
 	if (level1->numSpawnType2 < 2)
+	{
 		return;
+	}
 
 	// [1], unused beta [0]?
 	spawnType2 = &level1->ptrSpawnType2[1];
@@ -58,9 +64,13 @@ void RB_Bubbles_RoosTubes()
 		velX = (((d->posCurr.x - d->posPrev.x) >> 4) + (d->posCurr.x >> 8)) - spawnPos->x;
 		velZ = (((d->posCurr.z - d->posPrev.z) >> 4) + (d->posCurr.z >> 8)) - spawnPos->z;
 		if (velX < 0)
+		{
 			velX = -velX;
+		}
 		if (velZ < 0)
+		{
 			velZ = -velZ;
+		}
 
 		// if speed is fast
 		if (velX + velZ > 0x1680)
@@ -74,7 +84,9 @@ void RB_Bubbles_RoosTubes()
 		p = Particle_Init(0, gGT->iconGroup[7], &emSet_TubeBubbles[0]);
 
 		if (p == 0)
+		{
 			return;
+		}
 
 		numFreeParticles--;
 
@@ -82,7 +94,9 @@ void RB_Bubbles_RoosTubes()
 		p->otIndexOffset = 8;
 
 		for (i = 0; i < 3; i++)
+		{
 			p->axis[i].startVal += spawnPos->v[i] * 0x100;
+		}
 	}
 }
 

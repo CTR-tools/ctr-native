@@ -137,7 +137,9 @@ int RB_Turtle_LInC(struct Instance *inst, struct Thread *driverTh, struct Scratc
 	// absolute value
 	speed = driver->speedApprox;
 	if (speed < 0)
+	{
 		speed = -speed;
+	}
 
 	if (speed > 0x1400)
 	{
@@ -170,7 +172,9 @@ void RB_Turtle_LInB(struct Instance *inst)
 	inst->flags |= SPLIT_LINE;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -182,7 +186,9 @@ void RB_Turtle_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 

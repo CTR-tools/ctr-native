@@ -30,7 +30,9 @@ void MM_Characters_AnimateColors(u8 *colorData, s16 playerID, s16 flag)
 		trigApprox = trigApprox >> 0x10;
 
 		if ((trigApproximationIndex & 0x800) != 0)
+		{
 			trigApprox = -(int)trigApprox;
+		}
 	}
 
 	colorAdjustmentValue = 0;
@@ -111,11 +113,15 @@ struct Model *MM_Characters_GetModelByName(int *name)
 
 	// if LEV is invalid
 	if (level1 == NULL)
+	{
 		return NULL;
+	}
 
 	models = level1->ptrModelsPtrArray;
 	if (models == NULL)
+	{
 		return NULL;
+	}
 
 	// loop through all models in array
 	// of model pointers, until nullptr
@@ -704,7 +710,9 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 
 		// If you have a lot of characters unlocked, do not draw SELECT CHARACTER
 		if (D230.isRosterExpanded)
+		{
 			goto dontDrawSelectCharacter;
+		}
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CHARACTER_SELECT], posX + 0x9c, posY + 0x14, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 		characterSelectType = FONT_BIG;
@@ -720,7 +728,9 @@ void MM_Characters_MenuProc(struct RectMenu *unused)
 
 		// If Fake Crash is unlocked, do not draw "Select Character"
 		if (sdata->gameProgress.unlockFlags & UNLOCK_FAKE_CRASH)
+		{
 			goto dontDrawSelectCharacter;
+		}
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_SELECT_CHARACTER_SELECT], posX + 0xfc, posY + 8, FONT_CREDITS, (JUSTIFY_CENTER | ORANGE));
 		characterSelectType = FONT_CREDITS;
@@ -797,7 +807,9 @@ dontDrawSelectCharacter:
 
 							// If you press Left
 							if ((button & BTN_LEFT) != 0)
+							{
 								goto LAB_800aec08;
+							}
 
 							// At this point, you must have pressed Right
 
@@ -907,7 +919,9 @@ dontDrawSelectCharacter:
 							bVar3 = !bVar2;
 							bVar2 = false;
 							if (bVar3)
+							{
 								break;
+							}
 							globalIconPerPlayerCopy2 = (u32)*globalIconPerPlayerPtr2;
 						}
 						globalIconPerPlayerCopy3 = globalIconPerPlayerCopy2;
@@ -1100,16 +1114,22 @@ dontDrawSelectCharacter:
 
 			// if number of players is 3 or 4
 			if (numPlyrNextGame >= 3)
+			{
 				fontType = FONT_SMALL;
+			}
 
 			iVar8 = (int)&D230.ptrTransitionMeta[j + 0x10];
 			sVar10 = ((struct TransitionMeta *)iVar8)->currY + D230.characterSelect_ptrWindowXY[j * 2 + 1];
 			sVar6 = (s16)((((u32)(numPlyrNextGame < 3) ^ 1) << 0x12) >> 0x10);
 
 			if ((numPlyrNextGame == 4) && (j > 1))
+			{
 				sVar6 = sVar10 + sVar6 - 6;
+			}
 			else
+			{
 				sVar6 = sVar10 + D230.textPos + sVar6;
+			}
 
 			// draw string
 			DecalFont_DrawLine(sdata->lngStrings[data.MetaDataCharacters[csm_Active->characterID].name_LNG_long],

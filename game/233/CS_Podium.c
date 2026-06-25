@@ -15,7 +15,9 @@ void CS_DestroyPodium_StartDriving(void)
 	while (t != NULL)
 	{
 		if (t->funcThDestroy != CS_Podium_Prize_ThDestroy)
+		{
 			t->flags |= THREAD_FLAG_DEAD;
+		}
 
 		t = t->siblingThread;
 	}
@@ -50,7 +52,9 @@ void CS_DestroyPodium_StartDriving(void)
 void CS_Podium_Stand_ThTick(struct Thread *t)
 {
 	if (D233.isCutsceneOver != 0)
+	{
 		t->flags |= THREAD_FLAG_DEAD;
+	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b0248-0x800b0300
@@ -60,7 +64,9 @@ void CS_Podium_Stand_Init(s16 *podiumData)
 
 	// if the instance was built
 	if (inst == NULL)
+	{
 		return;
+	}
 
 	// set funcThDestroy to remove instance from instance pool
 	inst->thread->funcThDestroy = PROC_DestroyInstance;
@@ -96,17 +102,23 @@ void CS_Podium_Prize_Spin(struct Instance *inst, s16 *prize)
 	gGS = sdata->gGamepads;
 
 	if ((inst->flags & USE_SPECULAR_LIGHT) == 0)
+	{
 		return;
+	}
 
 	prevAngle = prize[0x10];
 	prize[0x10] = prevAngle + 0x3f;
 
 	if ((gGS->gamepad[1].buttonsHeldCurrFrame & BTN_L1) != 0)
+	{
 		prize[0x10] = prevAngle;
+	}
 
 	ratio = (prize[0x10] & 0xfff) - 0x800;
 	if (ratio < 0)
+	{
 		ratio = -ratio;
+	}
 
 	angle = prize[0xc] + (((prize[0xe] - prize[0xc]) * ratio) >> 11);
 
@@ -134,7 +146,9 @@ void CS_Podium_Prize_Spin(struct Instance *inst, s16 *prize)
 
 		ratio = (prize[0x10] & 0xfff) - 0x800;
 		if (ratio < 0)
+		{
 			ratio = -ratio;
+		}
 
 		angle = prize[0xd] + (((prize[0xf] - prize[0xd]) * ratio) >> 11);
 
@@ -186,19 +200,25 @@ void CS_Podium_Prize_ThTick3(struct Thread *th)
 
 		x = (prize[8] + xInterp / frameMax - 0x100) * -inst->matrix.t[2];
 		if (x < 0)
+		{
 			x += 0xff;
+		}
 
 		inst->matrix.t[0] = x >> 8;
 
 		y = (prize[9] + yInterp / frameMax - 0x6c) * inst->matrix.t[2];
 		if (y < 0)
+		{
 			y += 0xff;
+		}
 
 		inst->matrix.t[1] = y >> 8;
 
 		scale = inst->scale.x - 0x4b0;
 		if (scale < 0x1001)
+		{
 			scale = 0x1000;
+		}
 
 		inst->scale.x = scale;
 		inst->scale.y = scale;
@@ -214,22 +234,38 @@ void CS_Podium_Prize_ThTick3(struct Thread *th)
 		s16 hintID = 0;
 
 		if ((rewards & ADV_REWARD_HINT_MAP_INFORMATION_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_MAP_INFORMATION;
+		}
 		else if ((rewards & ADV_REWARD_HINT_WUMPA_FRUIT_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_WUMPA_FRUIT;
+		}
 		else if ((rewards & ADV_REWARD_HINT_TNT_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_TNT;
+		}
 		else if ((rewards & ADV_REWARD_HINT_HANG_TIME_TURBO_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_HANG_TIME_TURBO;
+		}
 		else if ((rewards & ADV_REWARD_HINT_POWER_SLIDE_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_POWER_SLIDE;
+		}
 		else if ((rewards & ADV_REWARD_HINT_TURBO_BOOST_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_TURBO_BOOST;
+		}
 		else if ((rewards & ADV_REWARD_HINT_BRAKE_SLIDE_MASK) == 0)
+		{
 			hintID = ADV_MASK_HINT_ID_BRAKE_SLIDE;
+		}
 
 		if (hintID != 0)
+		{
 			MainFrame_RequestMaskHint(hintID, 0);
+		}
 	}
 
 	gGT = sdata->gGT;
@@ -309,7 +345,9 @@ void CS_Podium_Prize_ThTick1(struct Thread *th)
 	if (D233.PodiumInitUnk3 != 0)
 	{
 		if (th->modelIndex != STATIC_BIG1)
+		{
 			inst->flags &= ~HIDE_MODEL;
+		}
 
 		prize[0x12] = VehCalc_InterpBySpeed(prize[0x12], 0x14, 0);
 		prize[0x11] = VehCalc_InterpBySpeed(prize[0x11], 1, 0);
@@ -378,7 +416,9 @@ void CS_Podium_Prize_Init(u32 prizeModel, const char *prizeName, s16 *posOnScree
 	if (inst == NULL)
 	{
 		if (D233.cutsceneState < CS_WAIT_INPUT)
+		{
 			D233.cutsceneState = CS_WAIT_INPUT;
+		}
 
 		gGT->gameMode2 &= ~VEH_FREEZE_PODIUM;
 		return;
@@ -450,9 +490,13 @@ void CS_Podium_Prize_Init(u32 prizeModel, const char *prizeName, s16 *posOnScree
 			bitIndex = gGT->prevLEV + ADV_REWARD_FIRST_GOLD_RELIC;
 
 			if (CHECK_ADV_BIT(sdata->advProgress.rewards, bitIndex) == 0)
+			{
 				relicColor = 0x20a5ff0;
+			}
 			else
+			{
 				relicColor = 0xd8d2090;
+			}
 		}
 		else
 		{

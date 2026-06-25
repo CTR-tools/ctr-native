@@ -10,12 +10,16 @@ u8 CS_Camera_BoolGotoBoss(void)
 	{
 		// If Oxide was not beaten twice yet
 		if (CHECK_ADV_BIT(sdata->advProgress.rewards, ADV_REWARD_BEAT_OXIDE_SECOND) == 0)
+		{
 			return 1;
+		}
 	}
 
 	// If just unlocked Key
 	if (gGT->podiumRewardID == STATIC_KEY)
+	{
 		return 1;
+	}
 
 	struct Instance *inst = gGT->drivers[0]->instSelf;
 	const SVec3 *podiumPos = &gGT->level1->ptrSpawnType2_PosRot[1].posRot->pos;
@@ -47,7 +51,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		cutsceneID = (levID - GEM_STONE_VALLEY) * 2;
 
 		if (gGT->podiumRewardID == STATIC_KEY)
+		{
 			cutsceneID++;
+		}
 	}
 
 	else
@@ -73,7 +79,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 
 		// wait for fade
 		if (gGT->pushBuffer_UI.fadeFromBlack_currentValue != 0)
+		{
 			break;
+		}
 
 		// kill all podium "other" threads
 		t = gGT->threadBuckets[OTHER].thread;
@@ -85,7 +93,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 
 		// wait one frame, for the thread recycler to finish
 		if (gGT->threadBuckets[OTHER].thread != 0)
+		{
 			break;
+		}
 
 		CS_LoadBoss(bcd);
 		D233.cutsceneState = CS_LOADING;
@@ -99,7 +109,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		// NULLPTR checks if load finished,
 		// because CS_LoadBossCallback writes this last
 		if (D233.ptrModelBossHead == 0)
+		{
 			break;
+		}
 
 		struct Model **mArr = &D233.ptrModelBossHead;
 
@@ -108,7 +120,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 			if (mArr[i] != NULL)
 			{
 				if (i != 0)
+				{
 					mArr[i] = (struct Model *)((char *)mArr[i] + 4);
+				}
 
 				gGT->modelPtr[mArr[i]->id] = mArr[i];
 			}
@@ -134,11 +148,15 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		for (i = 1; i >= 0; i--)
 		{
 			if (mArr[i] == NULL)
+			{
 				continue;
+			}
 
 			t = CS_Thread_Init(mArr[i]->id, mArr[i]->name, &initData, 0, t);
 			if (t == NULL)
+			{
 				continue;
+			}
 
 			inst = t->inst;
 			cs = t->object;
@@ -177,7 +195,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 
 		// wait for fade
 		if (gGT->pushBuffer_UI.fadeFromBlack_currentValue != 0x1000)
+		{
 			break;
+		}
 
 		D233.cutsceneState = CS_WAIT_END;
 		break;
@@ -186,7 +206,9 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 
 		// wait for cutscene to end
 		if (D233.isCutsceneOver != 1)
+		{
 			break;
+		}
 
 		gGT->podiumRewardID = NOFUNC; // 0
 		t->flags |= THREAD_FLAG_DEAD;
@@ -200,12 +222,16 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 	u16 *podium = th->object;
 
 	if (podium[0] == 0)
+	{
 		gGT->drivers[0]->funcPtrs[DRIVER_FUNC_INIT] = VehStuckProc_RIP_Init;
+	}
 
 	if (gGT->cameraDC[0].cameraMode != 3)
 	{
 		if (D233.cutsceneState < CS_WAIT_INPUT)
+		{
 			D233.cutsceneState = CS_WAIT_INPUT;
+		}
 
 		D233.PodiumInitUnk3 = 1;
 	}
@@ -215,7 +241,9 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 		s16 stringIndex = 0x236;
 
 		if ((gGT->gameMode2 & CUP_NEW_BATTLE) != 0)
+		{
 			stringIndex = 0x237;
+		}
 
 		TakeCupProgress_Activate(stringIndex);
 		gGT->gameMode2 &= ~(CUP_NEW_WIN | CUP_NEW_BATTLE);
@@ -236,14 +264,18 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 			int frame;
 
 			if (maxFrame - 0x12c0 < frameTimeSigned)
+			{
 				D233.PodiumInitUnk3 = 1;
+			}
 
 			if (maxFrame <= frameTimeSigned)
 			{
 				frameTime = numPoints * 0x20 - 1;
 
 				if (D233.cutsceneState < CS_WAIT_INPUT)
+				{
 					D233.cutsceneState = CS_WAIT_INPUT;
+				}
 			}
 
 			frame = ((int)frameTime << 16) >> 21;
@@ -259,7 +291,9 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 	else
 	{
 		if ((gGT->gameMode2 & CUP_NEW_WIN) != 0)
+		{
 			goto check_skip_button;
+		}
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 	}
@@ -323,7 +357,9 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 				}
 
 				if ((VehPickupItem_MaskBoolGoodGuy(gGT->drivers[0]) & 0xffff) == 0)
+				{
 					hintID += 0x1f;
+				}
 
 				CDSYS_XAPauseForce();
 				CDSYS_XAPlay(1, hintID);
@@ -374,5 +410,7 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 
 check_skip_button:
 	if ((sdata->gGamepads->gamepad[0].buttonsTapped & BTN_START) != 0)
+	{
 		D233.boolStartToSkip = 1;
+	}
 }

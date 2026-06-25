@@ -158,7 +158,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 					if (uVar3 == 0)
 					{
 						if ((gGT->clockEffectEnabled & 1) == 0)
+						{
 							goto LAB_80034e74;
+						}
 						uVar3 = 10000;
 					}
 				}
@@ -282,10 +284,14 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 #ifdef CTR_NATIVE
 				// NOTE(aalhendi): Retail may read PSX low memory before driver 0 appears.
 				if (psVar8 == NULL)
+				{
 					continue;
+				}
 #endif
 				if ((u8)psVar9->numTimesAttacking < (u8)psVar8->numTimesAttacking)
+				{
 					goto LAB_80035098;
+				}
 			}
 		}
 #endif
@@ -319,7 +325,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 							// if PLYR converted to robotcar at end of race,
 							// dont run funcPtrs from inside driver struct
 							if (psVar12->funcThTick != 0)
+							{
 								continue;
+							}
 
 							psVar9 = (struct Driver *)psVar12->object;
 
@@ -417,8 +425,11 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 		else if (gGT->cooldownFromUnpauseUntilPause == 0)
 		{
 			if ((uVar3 & (GAME_CUTSCENE | END_OF_RACE | MAIN_MENU)) == 0)
+			{
 				if (sdata->ptrActiveMenu == 0)
+				{
 					if (sdata->AkuAkuHintState == 0)
+					{
 						if (RaceFlag_IsFullyOnScreen() == 0)
 						{
 							for (iVar4 = 0; iVar4 < gGT->numPlyrCurrGame; iVar4++)
@@ -441,6 +452,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 								}
 							}
 						}
+					}
+				}
+			}
 		}
 		else
 		{
@@ -556,16 +570,22 @@ int MainFrame_HaveAllPads(s16 numPlyrNextGame)
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[0];
 
 		if (numPlyrNextGame == 0)
+		{
 			return 0;
+		}
 
 		for (int i = 0; i < numPlyrNextGame; i++)
 		{
 			struct ControllerPacket *packet = gb->ptrControllerPacket;
 
 			if (packet == NULL)
+			{
 				return 0;
+			}
 			if (packet->plugged != PLUGGED)
+			{
 				return 0;
+			}
 
 			gb++;
 		}
@@ -616,11 +636,15 @@ static void MainFrame_VisMemAddDriverPVS(struct GameTracker *gGT, int playerInde
 	struct PVS *pvs;
 
 	if (quad == NULL)
+	{
 		return;
+	}
 
 	pvs = quad->pvs;
 	if (pvs == NULL)
+	{
 		return;
+	}
 
 	if (pvs->visLeafSrc != NULL)
 	{
@@ -642,13 +666,19 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 
 	visMem = gGT->visMem1;
 	if (visMem == NULL)
+	{
 		return;
+	}
 
 	if (level == NULL)
+	{
 		return;
+	}
 
 	if (gGT->numPlyrCurrGame == 0)
+	{
 		return;
+	}
 
 	mesh = level->ptr_mesh_info;
 
@@ -660,7 +690,9 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 		struct PVS *driverPVS = NULL;
 
 		if (driverQuad != NULL)
+		{
 			driverPVS = driverQuad->pvs;
+		}
 
 		camDC->flags &= ~0x4000;
 

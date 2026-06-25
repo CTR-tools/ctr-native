@@ -78,7 +78,9 @@ void *LOAD_ReadDirectory(char *filename)
 	CDSYS_SetMode_StreamData();
 
 	if (CdSearchFile(&cdlFile, filename) == NULL)
+	{
 		return NULL;
+	}
 
 	struct BigHeader *bh = MEMPACK_AllocMem(0x4000 /*, filename*/);
 
@@ -88,10 +90,14 @@ void *LOAD_ReadDirectory(char *filename)
 	// Wait for read to end
 	CdControl(CdlSetloc, (u8 *)&cdlFile, buf);
 	if (CdRead(8, (u32 *)bh, 0x80) == 0)
+	{
 		return NULL;
+	}
 
 	if (CdReadSync(0, 0) != 0)
+	{
 		return NULL;
+	}
 
 	// Save position
 	bh->cdpos = CdPosToInt(&cdlFile.pos);
@@ -230,7 +236,9 @@ void *LOAD_VramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, in
 	void *loadedFile;
 
 	if (ptrDestination == NULL)
+	{
 		MEMPACK_PushState();
+	}
 
 	if (callbackOrFlags == -1)
 	{
@@ -250,7 +258,9 @@ void *LOAD_VramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, in
 		sdata->frameFinishedVRAM = 0;
 
 		if (ptrDestination == NULL)
+		{
 			MEMPACK_PopState();
+		}
 
 		return loadedFile;
 	}
@@ -326,7 +336,9 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 	// NOTE(aalhendi): CTR_NATIVE preserves existing queues that pass 0 for the
 	// default bigfile; retail callers are expected to pass the real pointer.
 	if (bigfile == NULL)
+	{
 		bigfile = sdata->ptrBigfile1;
+	}
 #endif
 
 	// get size and offset of subfile
@@ -357,7 +369,9 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 		sectorSize = sectorCount << 0xb;
 		ptrDst = (void *)MEMPACK_AllocMem(sectorSize); // "FILE"
 		if (ptrDst == NULL)
+		{
 			return NULL;
+		}
 	}
 	else
 	{
@@ -400,7 +414,9 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 
 		// If either command failed, or sync read did not finish, retry.
 		if ((uVar5 != 0) && (readComplete != 0))
+		{
 			break;
+		}
 	}
 
 	if ((callback == NULL) && (originalDst == NULL))
@@ -421,7 +437,9 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 	CDSYS_SetMode_StreamData();
 
 	if (CdSearchFile(&cdlFile, filename) == 0)
+	{
 		return 0;
+	}
 
 	*size = cdlFile.size;
 
@@ -433,20 +451,28 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 		int sectorSize = (cdlFile.size + 0x7ffU) & 0xfffff800;
 		ptrDestination = MEMPACK_AllocMem(sectorSize /*, fileName*/);
 		if (ptrDestination == NULL)
+		{
 			return NULL;
+		}
 	}
 
 	char buf[8];
 	CdControl(CdlSetloc, (u8 *)&cdlFile, buf);
 
 	if (CdRead((cdlFile.size + 0x7ff) >> 0xb, ptrDestination, 0x80) == 0)
+	{
 		return 0;
+	}
 
 	if (CdReadSync(0, 0))
+	{
 		return 0;
+	}
 
 	if (allocated)
+	{
 		MEMPACK_ReallocMem(cdlFile.size);
+	}
 
 	return ptrDestination;
 }
@@ -455,9 +481,13 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 int LOAD_FindFile(char *filename, CdlFILE *cdlFile)
 {
 	if (filename == 0)
+	{
 		return 0;
+	}
 	if (cdlFile == 0)
+	{
 		return 0;
+	}
 
 	CDSYS_SetMode_StreamData();
 	LOAD_StringToUpper(filename);

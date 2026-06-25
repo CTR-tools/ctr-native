@@ -50,7 +50,9 @@ static void CS_ScriptCmd_ReadOpcode_Main(struct CutsceneObj *cs)
 	opcodes = cs->currOpcode[0];
 
 	if (opcodes == cs->prevOpcode)
+	{
 		return;
+	}
 
 	local_cursor = opcodes + 1;
 	decoded = &cs->decodedOpcode;
@@ -62,48 +64,78 @@ static void CS_ScriptCmd_ReadOpcode_Main(struct CutsceneObj *cs)
 	meta = cs_opcodeMeta[(u8)offsets[0]];
 
 	if (meta & 1)
+	{
 		offsets[1] = CS_ScriptCmd_ReadOpcode_GetShort(&local_cursor);
+	}
 	else
+	{
 		offsets[1] = 0;
+	}
 
 	if (meta & 2)
+	{
 		offsets[2] = CS_ScriptCmd_ReadOpcode_GetShort(&local_cursor);
+	}
 	else
+	{
 		offsets[2] = 0;
+	}
 
 	if (meta & 4)
+	{
 		offsets[3] = CS_ScriptCmd_ReadOpcode_GetShort(&local_cursor);
+	}
 	else
+	{
 		offsets[3] = 0;
+	}
 
 	if (meta & 8)
+	{
 		decoded->arg0.u = CS_ScriptCmd_ReadOpcode_GetInt(&local_cursor);
+	}
 	else
+	{
 		decoded->arg0.u = 0;
+	}
 
 	if (meta & 0x10)
+	{
 		decoded->arg1.u = CS_ScriptCmd_ReadOpcode_GetInt(&local_cursor);
+	}
 	else
+	{
 		decoded->arg1.u = 0;
+	}
 
 	if (meta & 0x20)
 	{
 		while ((uintptr_t)local_cursor & 3)
+		{
 			local_cursor++;
+		}
 
 		decoded->arg1.u = CS_ScriptCmd_ReadOpcode_GetInt_dup(&local_cursor);
 		local_cursor += 1;
 	}
 
 	if (meta & 0x40)
+	{
 		offsets[8] = CS_ScriptCmd_ReadOpcode_GetShort(&local_cursor);
+	}
 	else
+	{
 		offsets[8] = 0;
+	}
 
 	if (meta & 0x80)
+	{
 		offsets[9] = CS_ScriptCmd_ReadOpcode_GetShort(&local_cursor);
+	}
 	else
+	{
 		offsets[9] = 0;
+	}
 
 	cs->prevOpcode = local_cursor;
 }

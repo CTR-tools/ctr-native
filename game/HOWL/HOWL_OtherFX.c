@@ -42,7 +42,9 @@ void OtherFX_Play_Echo(u32 soundID, int flags, int echoFlag)
 	int otherFlags = 0xff8080;
 
 	if (echoFlag != 0)
+	{
 		otherFlags |= 0x1000000;
+	}
 
 	OtherFX_Play_LowLevel(soundID & 0xffff, flags & 0xff, otherFlags);
 }
@@ -62,20 +64,26 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 	struct ChannelAttr channelAttr;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return 0;
+	}
 
 	id = soundID & 0xffff;
 
 	// quit if out of bounds
 	if (id >= sdata->ptrHowlHeader->numOtherFX)
+	{
 		return 0;
+	}
 
 	// get pointer to cseq audio, given soundID
 	ptrOtherFX = &sdata->howl_metaOtherFX[id];
 
 	// quit if effect is not loaded
 	if (sdata->howl_spuAddrs[ptrOtherFX->spuIndex].spuAddr == 0)
+	{
 		return 0;
+	}
 
 	howl_InitChannelAttr_OtherFX(ptrOtherFX, &channelAttr, volume, LR, distortion);
 
@@ -145,11 +153,15 @@ u32 OtherFX_Modify(u32 soundId, u32 flags)
 	u16 LR;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return 0;
+	}
 
 	// quit if out of bounds
 	if ((sdata->ptrHowlHeader->numOtherFX) <= (int)(soundId & 0xffff))
+	{
 		return 0;
+	}
 
 	// metaOtherFX
 	ptrOtherFX = &sdata->howl_metaOtherFX[soundId & 0xffff];

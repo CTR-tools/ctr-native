@@ -71,16 +71,22 @@ void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer
 	struct ModelHeader *pHeader;
 
 	if (pModelArray == NULL)
+	{
 		return;
+	}
 
 	if (numModels == 0)
+	{
 		return;
+	}
 
 	while (true)
 	{
 		pModel = *pModelArray;
 		if (pModel == NULL)
+		{
 			return;
+		}
 
 		// iterate over all model headers
 		for (int j = 0; j < pModel->numHeaders; j++)
@@ -95,7 +101,9 @@ void CTR_CycleTex_AllModels(u32 numModels, struct Model **pModelArray, int timer
 
 		numModels--;
 		if (numModels == 0)
+		{
 			return;
+		}
 
 		pModelArray++;
 	}

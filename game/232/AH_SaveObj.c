@@ -140,8 +140,12 @@ void AH_SaveObj_ThTick(struct Thread *t)
 				// keep this save object ticking during that transition, so do not
 				// restore the hub HUD/map until loading is idle again.
 				if (sdata->Loading.stage == LOAD_IDLE)
+				{
 #endif
 					gGT->hudFlags = save->hudFlagBackup;
+#if defined(CTR_NATIVE)
+				}
+#endif
 			}
 
 			// if camera is transitioning

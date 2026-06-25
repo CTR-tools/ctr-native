@@ -141,16 +141,24 @@ void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2)
 	u32 canQueue;
 
 	if (voiceID >= 0x18)
+	{
 		return;
+	}
 
 	if (characterID >= 0x10)
+	{
 		return;
+	}
 
 	if (characterID2 >= 0x11)
+	{
 		return;
+	}
 
 	if ((sdata->gGT->gameMode1 & 0x200000) != 0)
+	{
 		return;
+	}
 
 	voiceType = data.voiceID[voiceID];
 
@@ -169,7 +177,9 @@ void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2)
 		}
 
 		if (rng != 0)
+		{
 			return;
+		}
 	}
 
 	elapsedFrames = (u32)CTR_MipsSubLo(sdata->gGT->frameTimer_MainFrame_ResetDB, sdata->timeSet2[characterID]);
@@ -210,11 +220,15 @@ void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2)
 	else
 	{
 		if (canImmediate == 0)
+		{
 			return;
+		}
 	}
 
 	if (canImmediate == 0)
+	{
 		goto queueVoiceline;
+	}
 
 playImmediate:
 	if (voiceType == 0)
@@ -231,7 +245,9 @@ playImmediate:
 
 queueVoiceline:
 	if (canQueue == 0)
+	{
 		return;
+	}
 
 	sdata->timeSet1[characterID] |= 1 << (voiceID & 0x1f);
 
@@ -240,7 +256,9 @@ queueVoiceline:
 		u8 *itemBytes = (u8 *)item;
 
 		if ((voiceID == (u32) * (s16 *)(itemBytes + 8)) && (characterID == itemBytes[0xa]))
+		{
 			return;
+		}
 	}
 
 	struct Item *item = sdata->Voiceline1.first;
@@ -321,17 +339,23 @@ void Voiceline_Update(void)
 	struct GameTracker *gGT = sdata->gGT;
 
 	if (sdata->boolCanPlayVoicelines == 0)
+	{
 		return;
+	}
 
 	if (sdata->voicelineCooldown != 0)
 	{
 		sdata->voicelineCooldown = (s16)CTR_MipsSubLo((u16)sdata->voicelineCooldown, 1);
 		if (sdata->voicelineCooldown != 0)
+		{
 			return;
+		}
 	}
 
 	if (sdata->XA_State != 0)
+	{
 		return;
+	}
 
 	if (sdata->boolCanPlayWrongWaySFX != 0)
 	{
@@ -364,7 +388,9 @@ void Voiceline_Update(void)
 		}
 
 		if (sdata->boolCanPlayWrongWaySFX != 0)
+		{
 			goto playQueuedVoice;
+		}
 	}
 
 	if ((sdata->WrongWayDirection_bool == 0) && (sdata->framesDrivingSameDirection > 0x1e))

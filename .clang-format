@@ -17,6 +17,8 @@ BraceWrapping:
   BeforeElse: true
   BeforeCatch: true
   IndentBraces: false
+  # NOTE(aalhendi): Prefer scoped case bodies when touching switches.
+  # clang-format formats braced cases, but it does not insert braces.
   AfterCaseLabel: true
 
 PointerAlignment: Right
@@ -46,11 +48,13 @@ SortIncludes: Never
 IncludeBlocks: Preserve
 
 AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: true
 IndentCaseLabels: false
+IndentCaseBlocks: false
 KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 2
 SpaceInEmptyBlock: false

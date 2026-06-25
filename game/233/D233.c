@@ -145,7 +145,9 @@ char *CS_OVR233_TranslateRetailOpcodePointer(char *opCodeAt)
 	{
 		const struct Ovr233RetailPointerRange *range = &ranges[i];
 		if ((ptr >= range->retailStart) && (ptr < range->retailEnd))
+		{
 			return range->nativeStart + (ptr - range->retailStart);
+		}
 	}
 
 	return opCodeAt;

@@ -46,7 +46,10 @@ void RB_Blade_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
+
 	inst->thread = t;
 	t->inst = inst;
 

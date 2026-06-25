@@ -33,9 +33,13 @@ void CalculateVolumeFromDistance(u32 *soundIDCount, u32 soundID, int distance)
 		}
 
 		if (distance < 301)
+		{
 			volume = 0xff;
+		}
 		else
+		{
 			volume = VehCalc_MapToRange(distance, 300, 6000, 0xff, 0);
+		}
 
 		if (soundID != (u32)-1)
 		{
@@ -49,7 +53,9 @@ void CalculateVolumeFromDistance(u32 *soundIDCount, u32 soundID, int distance)
 				{
 					int distort = ((u32)sdata->gGT->frameTimer_VsyncCallback >> 2 & 0x7f) - 0x40;
 					if (distort < 0)
+					{
 						distort = -distort;
+					}
 
 					volume = ((volume & 0xff) << 0x10) | (((distort + 100U) & 0xff) << 8) | 0x80;
 				}
@@ -103,7 +109,9 @@ void Level_SoundLoopFade(int *fade, u32 soundID, int desiredVolume, int fadeStep
 	b32 clamped;
 
 	if (currentVolume == desiredVolume)
+	{
 		return;
+	}
 
 	fade[1] = desiredVolume;
 
@@ -115,14 +123,18 @@ void Level_SoundLoopFade(int *fade, u32 soundID, int desiredVolume, int fadeStep
 	else
 	{
 		if (currentVolume <= desiredVolume)
+		{
 			goto updateSound;
+		}
 
 		fade[2] = currentVolume - fadeStep;
 		clamped = currentVolume - fadeStep < desiredVolume;
 	}
 
 	if (clamped)
+	{
 		fade[2] = desiredVolume;
+	}
 
 updateSound:
 	Level_SoundLoopSet(&fade[3], soundID, fade[2]);
@@ -166,7 +178,9 @@ void Level_AmbientSound(void)
 	int closestIndex[2];
 
 	if ((levelID >= 0x19) || ((u8)gGT->numPlyrCurrGame >= 3))
+	{
 		return;
+	}
 
 	if (levelID == 6)
 	{
@@ -180,14 +194,20 @@ void Level_AmbientSound(void)
 			s16 sound = driver->terrainMeta2->sound;
 
 			if ((terrain == 0) || (terrain == 1) || (terrain == 11))
+			{
 				playDrops = true;
+			}
 
 			if ((sound != -1) && (sound == 0x87))
+			{
 				playLoop = true;
+			}
 		}
 
 		if (playDrops)
+		{
 			Level_RandomFX(&sdata->SoundFadeInput[0].unk, 0x86, 6, 0x5a, 0xff);
+		}
 
 		Level_SoundLoopFade((int *)&sdata->SoundFadeInput[1], 0x87, playLoop ? 0xff : 0, 8);
 		return;
@@ -205,10 +225,14 @@ void Level_AmbientSound(void)
 			if (sound != -1)
 			{
 				if (sound == 0x88)
+				{
 					playFirstLoop = true;
+				}
 
 				if (sound == 0x8b)
+				{
 					playSecondLoop = true;
+				}
 			}
 		}
 
@@ -229,14 +253,18 @@ void Level_AmbientSound(void)
 		int spawnIndex = soundSlot + 5;
 
 		if (soundID == 0)
+		{
 			continue;
+		}
 
 		if (spawnIndex < level->numSpawnType2)
 		{
 			struct SpawnType2 *spawn = &level->ptrSpawnType2[spawnIndex];
 
 			if (spawn->numCoords > 9)
+			{
 				goto invalidSpawn;
+			}
 
 			for (int coordIndex = 0; coordIndex < spawn->numCoords; coordIndex++)
 			{
@@ -284,7 +312,9 @@ void Level_AmbientSound(void)
 		{
 		invalidSpawn:
 			if (sdata->audioDefaults[6] == 0)
+			{
 				sdata->audioDefaults[6] = 1;
+			}
 		}
 	}
 }
@@ -295,16 +325,24 @@ static u32 PlaySound3D_CalculateLR(s32 *dir)
 	int lr = CTR_MipsSra(CTR_MipsNegLo(CTR_MipsSll(angle, 20)), 23);
 
 	if (lr >= 0x81)
+	{
 		lr = 0x100 - lr;
+	}
 	else if (lr <= -0x81)
+	{
 		lr = -0x100 - lr;
+	}
 
 	lr += 0x80;
 	if (lr < 0)
+	{
 		return 0;
+	}
 
 	if (lr > 0xff)
+	{
 		return 0xff;
+	}
 
 	return lr;
 }
@@ -315,9 +353,13 @@ static u32 PlaySound3D_BuildFlags(struct GameTracker *gGT, int cameraIndex, u32 
 	u32 echo = ((u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO) << 0x18;
 
 	if (distance < 301)
+	{
 		volume = 0xff;
+	}
 	else
+	{
 		volume = VehCalc_MapToRange(distance, 300, 9000, 0xff, 0);
+	}
 
 	return echo | ((volume & 0xff) << 0x10) | (lr & 0xff) | 0x8000;
 }
@@ -348,7 +390,9 @@ void PlaySound3D(u32 soundID, struct Instance *inst)
 	}
 
 	if (closestDistance == 9000)
+	{
 		return;
+	}
 
 	GTE_AudioLR_Inst(&gGT->pushBuffer[closestCamera].matrix_Camera, dir[closestCamera]);
 
@@ -361,9 +405,13 @@ static u32 PlaySound3D_Flags_BuildFlags(struct GameTracker *gGT, int cameraIndex
 	u32 echo = ((u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO) << 0x18;
 
 	if (distance < 301)
+	{
 		volume = 0xff;
+	}
 	else
+	{
 		volume = VehCalc_MapToRange(distance, 300, 9000, 0xff, 0);
+	}
 
 	return echo | ((volume & 0xff) << 0x10) | (lr & 0xff) | 0x8000;
 }
@@ -385,7 +433,9 @@ void PlaySound3D_Flags(u32 *flags, u32 soundID, struct Instance *inst)
 	}
 
 	if (soundID == (u32)-1)
+	{
 		return;
+	}
 
 	for (int i = 0; i < (u8)gGT->numPlyrCurrGame; i++)
 	{
@@ -404,13 +454,19 @@ void PlaySound3D_Flags(u32 *flags, u32 soundID, struct Instance *inst)
 	}
 
 	if (closestDistance == 9000)
+	{
 		return;
+	}
 
 	GTE_AudioLR_Inst(&gGT->pushBuffer[closestCamera].matrix_Camera, dir[closestCamera]);
 
 	modifyFlags = PlaySound3D_Flags_BuildFlags(gGT, closestCamera, closestDistance, PlaySound3D_CalculateLR(dir[closestCamera]));
 	if (*flags == 0)
+	{
 		*flags = OtherFX_Play_LowLevel(soundID & 0xffff, 0, modifyFlags);
+	}
 	else
+	{
 		OtherFX_Modify(*flags, modifyFlags);
+	}
 }

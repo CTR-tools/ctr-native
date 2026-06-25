@@ -26,7 +26,8 @@ void MEMCARD_StringSet(char *dstString, int slotIdx, char *srcString)
 
 	// fast strlen
 	for (i = 0; dstString[i] != '\0'; i++)
-		;
+	{
+	}
 
 	// copy string from src to dst
 	for (int j = 0; (srcString[j] != '\0' && i < 63); j++)

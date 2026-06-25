@@ -8,7 +8,9 @@ void LOAD_Hub_ReadFile(struct BigHeader *bigfile, int levID, int packID)
 
 	// if level is already loaded, quit
 	if (gGT->levID_in_each_mempack[packID] == levID)
+	{
 		return;
+	}
 
 	sdata->modelMaskHints3D = 0;
 
@@ -144,7 +146,9 @@ void LOAD_Hub_Main(struct BigHeader *bigfilePtr)
 
 	// quit if already loading
 	if (sdata->Loading.stage != LOAD_IDLE)
+	{
 		return;
+	}
 
 	gGT = sdata->gGT;
 
@@ -173,7 +177,9 @@ void LOAD_Hub_Main(struct BigHeader *bigfilePtr)
 
 			// ctr hubs are 0-4
 			if (currLevelID >= 5)
+			{
 				return;
+			}
 
 			LOAD_Hub_ReadFile(bigfilePtr, LOAD_HUB_CONNECTED_LEV(currLevelID, nextLevelID - 1), 3 - gGT->activeMempackIndex);
 		}

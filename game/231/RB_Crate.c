@@ -46,7 +46,9 @@ struct Driver *RB_CrateAny_GetDriver(struct Thread *t, struct ScratchpadStruct *
 
 		// it's odd that it casts "1" as struct Driver*, but callers of this function *do* check the return value == 1, so it must be intentional.
 		if ((driver->actionsFlagSet & ACTION_BOT) != 0)
+		{
 			return (struct Driver *)1;
+		}
 
 		return driver;
 	}
@@ -205,7 +207,9 @@ static struct Thread *RB_CrateAny_LInC_Birth(struct Instance *crateInst, void *f
 	);
 
 	if (crateThread == 0)
+	{
 		return 0;
+	}
 
 	crateInst->thread = crateThread;
 	crateThread->inst = crateInst;
@@ -235,7 +239,9 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 	if (crateObj->cooldown == 0)
 	{
 		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
+		{
 			return 0;
+		}
 
 		crateObj->cooldown = 0x1e;
 
@@ -245,25 +251,37 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 
 			driver = RB_CrateAny_GetDriver(collidingTh, sps);
 			if ((int)driver == 1)
+			{
 				return 1;
+			}
 
 			if ((driver->heldItemID != 0xf) && (driver->noItemTimer == 0))
+			{
 				return 1;
+			}
 
 			if (driver->numHeldItems != 0)
+			{
 				return 1;
+			}
 
 			if ((driver->actionsFlagSet & ACTION_WEAPON_FIRE_REQUEST) != 0)
+			{
 				return 1;
+			}
 
 			if (driver->thCloud != 0)
 			{
 				if (((struct RainCloud *)driver->thCloud->object)->effect == RAIN_CLOUD_EFFECT_ITEM_ROLL)
+				{
 					return 1;
+				}
 			}
 
 			if (driver->clockReceive != 0)
+			{
 				return 1;
+			}
 
 			driver->heldItemID = 0x10;
 			driver->numTimesHitWeaponBox++;
@@ -279,7 +297,9 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 			driver->noItemTimer = 0;
 
 			if (driver->numWumpas == 10)
+			{
 				driver->BattleHUD.juicedUpCooldown = 10;
+			}
 
 			pb = &sdata->gGT->pushBuffer[driver->driverID];
 			RB_Fruit_GetScreenCoords(pb, crateInst, &posScreen[0]);
@@ -295,7 +315,9 @@ int RB_CrateWeapon_ThCollide(struct Thread *crateThread, struct Thread *collidin
 	hitModelIDValue = hitModelID & COLL_MODELID_VALUE_MASK;
 
 	if ((hitModelID & COLL_MODELID_BLOCKAGE_FLAG) == 0)
+	{
 		return 0;
+	}
 
 	sps->Input1.modelID = hitModelIDValue;
 	RB_CrateAny_CheckBlockage(crateThread, hitModelIDValue);
@@ -312,11 +334,15 @@ int RB_CrateWeapon_LInC(struct Instance *crateInst, struct Thread *collidingTh, 
 	{
 		crateThread = RB_CrateAny_LInC_Birth(crateInst, (void *)RB_CrateWeapon_ThCollide, "crate");
 		if (crateThread == NULL)
+		{
 			return 0;
+		}
 	}
 
 	if (crateThread->funcThCollide == NULL)
+	{
 		return 0;
+	}
 
 	return ((CrateCollideFunc)crateThread->funcThCollide)(crateThread, collidingTh, crateThread->funcThCollide, sps);
 }
@@ -340,7 +366,9 @@ int RB_CrateFruit_ThCollide(struct Thread *crateThread, struct Thread *colliding
 	if (crateObj->cooldown == 0)
 	{
 		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
+		{
 			return 0;
+		}
 
 		crateObj->cooldown = 0x1e;
 
@@ -350,12 +378,16 @@ int RB_CrateFruit_ThCollide(struct Thread *crateThread, struct Thread *colliding
 
 			driver = RB_CrateAny_GetDriver(collidingTh, sps);
 			if ((int)driver == 1)
+			{
 				return 1;
+			}
 
 			random = MixRNG_Scramble();
 			newWumpa = random;
 			if (random < 0)
+			{
 				newWumpa = random + 3;
+			}
 			newWumpa = random + (newWumpa >> 2) * -4 + 5;
 
 			driver->PickupWumpaHUD.cooldown = 5;
@@ -375,7 +407,9 @@ int RB_CrateFruit_ThCollide(struct Thread *crateThread, struct Thread *colliding
 	hitModelIDValue = hitModelID & COLL_MODELID_VALUE_MASK;
 
 	if ((hitModelID & COLL_MODELID_BLOCKAGE_FLAG) == 0)
+	{
 		return 0;
+	}
 
 	sps->Input1.modelID = hitModelIDValue;
 	RB_CrateAny_CheckBlockage(crateThread, hitModelIDValue);
@@ -392,11 +426,15 @@ int RB_CrateFruit_LInC(struct Instance *crateInst, struct Thread *collidingTh, s
 	{
 		crateThread = RB_CrateAny_LInC_Birth(crateInst, (void *)RB_CrateFruit_ThCollide, "fruit_crate");
 		if (crateThread == NULL)
+		{
 			return 0;
+		}
 	}
 
 	if (crateThread->funcThCollide == NULL)
+	{
 		return 0;
+	}
 
 	return ((CrateCollideFunc)crateThread->funcThCollide)(crateThread, collidingTh, crateThread->funcThCollide, sps);
 }
@@ -420,7 +458,9 @@ int RB_CrateTime_ThCollide(struct Thread *crateThread, struct Thread *driverTh, 
 	if (crateObj->cooldown == 0)
 	{
 		if ((crateInst->scale.x != 0) && (crateInst->scale.x != 0x1000))
+		{
 			return 0;
+		}
 
 		crateObj->cooldown = 0x1e;
 
@@ -431,12 +471,16 @@ int RB_CrateTime_ThCollide(struct Thread *crateThread, struct Thread *driverTh, 
 			gGT = sdata->gGT;
 			driver = RB_CrateAny_GetDriver(driverTh, sps);
 			if ((int)driver == 1)
+			{
 				return 1;
+			}
 
 			modelID = crateInst->model->id;
 
 			if ((driver->actionsFlagSet & ACTION_BOT) != 0)
+			{
 				return 1;
+			}
 
 			driver->numTimeCrates++;
 
@@ -477,7 +521,9 @@ int RB_CrateTime_ThCollide(struct Thread *crateThread, struct Thread *driverTh, 
 	hitModelIDValue = hitModelID & COLL_MODELID_VALUE_MASK;
 
 	if ((hitModelID & COLL_MODELID_BLOCKAGE_FLAG) == 0)
+	{
 		return 0;
+	}
 
 	sps->Input1.modelID = hitModelIDValue;
 	RB_CrateAny_CheckBlockage(crateThread, hitModelIDValue);
@@ -494,11 +540,15 @@ int RB_CrateTime_LInC(struct Instance *crateInst, struct Thread *driverTh, struc
 	{
 		crateThread = RB_CrateAny_LInC_Birth(crateInst, (void *)RB_CrateTime_ThCollide, "fruit_crate");
 		if (crateThread == NULL)
+		{
 			return 0;
+		}
 	}
 
 	if (crateThread->funcThCollide == NULL)
+	{
 		return 0;
+	}
 
 	return ((CrateCollideFunc)crateThread->funcThCollide)(crateThread, driverTh, crateThread->funcThCollide, sps);
 }

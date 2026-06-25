@@ -22,7 +22,9 @@ void RB_Follower_ProcessBucket(struct Thread *t)
 	{
 		// skip dead threads
 		if ((t->flags & THREAD_FLAG_DEAD) != 0)
+		{
 			continue;
+		}
 
 		fObj = t->object;
 		driverID = fObj->driver->driverID;
@@ -32,8 +34,12 @@ void RB_Follower_ProcessBucket(struct Thread *t)
 
 		// make Follower invisible to all other players
 		for (i = 0; i < numPlyr; i++)
+		{
 			if (i != driverID)
+			{
 				idpp[i].instFlags &= ~DRAW_SUCCESSFUL;
+			}
+		}
 
 		// make Mine invisible to this player
 		inst = fObj->mineTh->inst;
@@ -94,21 +100,29 @@ void RB_Follower_Init(struct Driver *d, struct Thread *mineTh)
 
 	// disable for slow speed
 	if (d->speedApprox <= 0x1e00)
+	{
 		return;
+	}
 
 	// disable for AI
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	// disable for airborne camera
 	if (((sdata->gGT->cameraDC[d->driverID].flags) & 0x10000) != 0)
+	{
 		return;
+	}
 
 	// create a thread and an Instance
 	iVar1 = INSTANCE_BirthWithThread(mineTh->modelIndex, "follower", SMALL, FOLLOWER, RB_Follower_ThTick, sizeof(struct Follower), 0);
 
 	if (iVar1 == NULL)
+	{
 		return;
+	}
 
 	// followerInst scale
 	iVar1->scale.x = 0x200;

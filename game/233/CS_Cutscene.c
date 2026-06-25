@@ -21,7 +21,9 @@ void CS_Cutscene_Start(void)
 	}
 
 	if (gGT->levelID != NAUGHTY_DOG_CRATE)
+	{
 		return;
+	}
 
 	CS_Instance_InitMatrix();
 

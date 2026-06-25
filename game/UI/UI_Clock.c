@@ -281,7 +281,9 @@ void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver)
 				{
 					// If you're in Arcade Mode
 					if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+					{
 						goto LAB_8004f84c;
+					}
 
 					// Set lap number in "Ln" string
 					sdata->s_Ln[1] = (char)numLaps + '1';
@@ -376,7 +378,9 @@ void UI_DrawRaceClock(u16 paramX, u16 paramY, u32 flags, struct Driver *driver)
 	{
 		// if owned plat, draw plat
 		if (CHECK_ADV_BIT(rewardsSet, gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC) != 0)
+		{
 			goto DrawPlatinum;
+		}
 
 		// if own gold, draw gold,
 		// if own blue, draw blue

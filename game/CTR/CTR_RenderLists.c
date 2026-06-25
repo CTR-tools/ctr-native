@@ -4,7 +4,9 @@
 void CTR_ClearRenderLists_1P2P(struct GameTracker *gGT, int numPlyrCurrGame)
 {
 	if (numPlyrCurrGame <= 0)
+	{
 		return;
+	}
 
 	for (int i = 0; i < numPlyrCurrGame; i++)
 	{
@@ -25,7 +27,9 @@ void CTR_ClearRenderLists_1P2P(struct GameTracker *gGT, int numPlyrCurrGame)
 void CTR_ClearRenderLists_3P4P(struct GameTracker *gGT, int numPlyrCurrGame)
 {
 	if (numPlyrCurrGame <= 0)
+	{
 		return;
+	}
 
 	for (int i = 0; i < numPlyrCurrGame; i++)
 	{

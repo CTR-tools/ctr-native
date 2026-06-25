@@ -31,9 +31,10 @@ void MM_Title_MenuUpdate(void)
 
 		// If not transitioning in
 		if (D230.MM_State != 0)
-
+		{
 			// error, just skip everything
 			goto END_FUNCTION;
+		}
 
 		// assume main menu state = 0,
 		// if you are transitioning in
@@ -112,7 +113,9 @@ void MM_Title_MenuUpdate(void)
 
 	// If the "fade-out" animation is not over, skip "switch" statemenet
 	if (D230.countMeta0xD <= D230.title_numFrameTotal)
+	{
 		goto END_FUNCTION;
+	}
 
 	// If you are transitioning out of the menu,
 	// and if the "fade-out" animation is done,
@@ -296,14 +299,18 @@ void MM_Title_SetTrophyDPP(void)
 	int dc;
 
 	if (title == NULL)
+	{
 		return;
+	}
 
 	idpp1 = INST_GETIDPP(title->i[1]); // "title"
 	idpp2 = INST_GETIDPP(title->i[2]); // another "title"
 
 	idpp2_b8 = idpp2->instFlags;
 	if ((idpp2_b8 & 0x100) != 0)
+	{
 		return;
+	}
 
 	idpp2_b8 |= 0xffffffbf;
 	idpp1->instFlags &= idpp2_b8;
@@ -410,7 +417,9 @@ void MM_Title_ThTick(struct Thread *title)
 
 	// cap at 230
 	if (timer > 230)
+	{
 		timer = 230;
+	}
 
 	// play 8 sounds, one on each frame
 	for (i = 0; i < 8; i++)
@@ -587,7 +596,9 @@ void MM_Title_CameraReset(void)
 	struct Title *title = D230.titleObj;
 
 	if (title == NULL)
+	{
 		return;
+	}
 
 	title->cameraPosOffset.x = 2000;
 }

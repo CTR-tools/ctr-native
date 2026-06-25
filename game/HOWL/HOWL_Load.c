@@ -24,7 +24,9 @@ u32 howl_InstrumentPitch(int basePitch, int pitchIndex, u32 distort)
 int howl_InitGlobals(char *filename)
 {
 	if (sdata->boolAudioEnabled == 1)
+	{
 		return 0;
+	}
 
 	sdata->vol_FX = 215;
 	sdata->vol_Music = 175;
@@ -112,7 +114,9 @@ int howl_LoadHeader(char *filename)
 	int ret;
 
 	if (LOAD_FindFile(filename, &sdata->KartHWL_CdFile) == 0)
+	{
 		return 0;
+	}
 
 	MEMPACK_PushState();
 
@@ -212,7 +216,9 @@ int howl_LoadSong()
 	if (sdata->songLoadStage == 1)
 	{
 		if (LOAD_HowlSectorChainEnd() == 0)
+		{
 			return 0;
+		}
 
 		// CseqHeader->songSize, aligned up to sector size
 		int numSector = CTR_MipsSrl(CTR_MipsAddLo(*(s32 *)&sdata->sampleBlock1[0], 0x7ff), 11);
@@ -235,7 +241,9 @@ int howl_LoadSong()
 	if (sdata->songLoadStage == 2)
 	{
 		if (LOAD_HowlSectorChainEnd() == 0)
+		{
 			return 0;
+		}
 
 		howl_ParseCseqHeader((struct CseqHeader *)sdata->sampleBlock1);
 

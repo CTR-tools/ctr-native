@@ -76,7 +76,9 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 		child->dstY = tile->dstY;
 
 		if (tile->dstW != 0)
+		{
 			prim = DISPLAY_Blur_SubFunc(prim, child);
+		}
 
 		child->srcX = (s16)(child->srcW + child->srcX + 1);
 		child->srcW = (s16)(tile->srcW - child->srcW - 1);
@@ -84,7 +86,9 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 		child->dstW = (s16)(tile->dstW - child->dstW);
 
 		if (tile->dstW != 0)
+		{
 			prim = DISPLAY_Blur_SubFunc(prim, child);
+		}
 
 		return prim;
 	}
@@ -104,7 +108,9 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 		child->dstY = tile->dstY;
 
 		if (tile->dstH != 0)
+		{
 			prim = DISPLAY_Blur_SubFunc(prim, child);
+		}
 
 		child->srcY = (s16)(child->srcH + child->srcY + 1);
 		child->srcH = (s16)(tile->srcH - child->srcH - 1);
@@ -112,7 +118,9 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 		child->dstH = (s16)(tile->dstH - child->dstH);
 
 		if (tile->dstH != 0)
+		{
 			prim = DISPLAY_Blur_SubFunc(prim, child);
+		}
 
 		return prim;
 	}
@@ -188,15 +196,21 @@ void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength)
 		int insetY;
 
 		if ((cameraID & 1) != 0)
+		{
 			wave = -wave;
+		}
 
 		blur = MATH_Sin(wave * 100);
 		if (blur < 0)
+		{
 			blur = -blur;
+		}
 
 		blur = (blur >> 2) + 0x400;
 		if (strength < 0x1000)
+		{
 			blur = (blur * strength) >> 12;
+		}
 
 		ot = gGT->otSwapchainDB[gGT->swapchainIndex];
 		oldTag = *ot;

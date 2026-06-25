@@ -15,7 +15,9 @@ void RB_MakeInstanceReflective(struct ScratchpadStruct *sps, struct Instance *in
 		inst->bitCompressed_NormalVector_AndDriverIndex = INST_CompressNormalVector(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z);
 
 		if (1 < gGT->numPlyrCurrGame)
+		{
 			return;
+		}
 
 		quadFlags = sps->hit.ptrQuadblock->quadFlags;
 

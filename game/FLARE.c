@@ -49,7 +49,9 @@ void FLARE_ThTick(struct Thread *th)
 
 	POLY_GT4 *prim = gGT->backBuffer->primMem.cursor;
 	if ((char *)(prim + 4) >= (char *)gGT->backBuffer->primMem.guardEnd)
+	{
 		return;
+	}
 
 	PushBuffer_SetPsyqGeom(pb);
 	gte_SetLightMatrix(&pb->matrix_ViewProj);
@@ -114,7 +116,9 @@ void FLARE_ThTick(struct Thread *th)
 
 	struct Icon *icon = gGT->ptrIcons[0x87];
 	if (icon == NULL)
+	{
 		return;
+	}
 
 	u32 texWord1 = (*(u32 *)&icon->texLayout.u1 & 0xff9fffff) | 0x00200000;
 	POLY_GT4 *p0 = prim;
@@ -158,9 +162,13 @@ void FLARE_ThTick(struct Thread *th)
 
 	depth = (depth >> 8) - 2;
 	if (depth < 0)
+	{
 		depth = 0;
+	}
 	if (depth > 0x3ff)
+	{
 		depth = 0x3ff;
+	}
 
 	uint32_t *ot = &pb->ptrOT[depth];
 	p0->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p1), 0x0c000000);

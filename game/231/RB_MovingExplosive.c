@@ -48,7 +48,9 @@ void RB_MovingExplosive_ThTick(struct Thread *t)
 		else
 		{
 			if ((modelID != DYNAMIC_SHIELD) && (modelID != DYNAMIC_SHIELD_GREEN))
+			{
 				goto LAB_800adc08;
+			}
 
 			// if model is blue or green shield
 			sound = 0x59;
@@ -101,7 +103,9 @@ LAB_800adc08:;
 	    (driverTarget == 0) || (tw->frameCount_Blind != 0))
 	{
 		if (tw->frameCount_Blind != 0)
+		{
 			tw->frameCount_Blind--;
+		}
 	}
 	else
 	{
@@ -303,7 +307,9 @@ LAB_800adc08:;
 
 			// if still nothing, then explode
 			if (sps->boolDidTouchQuadblock == 0)
+			{
 				goto LAB_800ae42c;
+			}
 
 			// if quadblock under,
 			// then set fall rate and fall
@@ -383,7 +389,9 @@ LAB_800adc08:;
 			{
 			LAB_800ae440:
 				if (tw->frameCount_DontHurtParent != 0)
+				{
 					tw->frameCount_DontHurtParent--;
+				}
 
 				return;
 			}
@@ -397,7 +405,9 @@ LAB_800adc08:;
 			if (hitInst == 0)
 			{
 				if ((tw->flags & 2) == 0)
+				{
 					goto LAB_800ae440;
+				}
 			}
 
 			// if bomb collides with Tracker

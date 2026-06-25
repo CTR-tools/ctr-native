@@ -149,7 +149,9 @@ void RB_Fireball_ThTick(struct Thread *t)
 		fireObj->cooldown -= elapsedTimeMS;
 
 		if (fireObj->cooldown < 0)
+		{
 			fireObj->cooldown = 0;
+		}
 
 		return;
 	}
@@ -198,9 +200,13 @@ void RB_Fireball_ThTick(struct Thread *t)
 
 			// range check
 			if (velY < -0x7fff)
+			{
 				velY = -0x7fff;
+			}
 			if (velY > 0x7fff)
+			{
 				velY = 0x7fff;
+			}
 			velY = (s16)velY;
 
 			particle->axis[1].velocity = (int)velY;
@@ -228,7 +234,9 @@ void RB_Fireball_ThTick(struct Thread *t)
 	}
 
 	if ((oldVelY >= 0) && (fireObj->velY < 0))
+	{
 		fireObj->direction = 1;
+	}
 
 	// if cycle is over
 	if (fireObj->cycleTimer < 1)
@@ -260,7 +268,9 @@ void RB_Fireball_LInB(struct Instance *inst)
 	int fireballID;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -272,7 +282,9 @@ void RB_Fireball_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Fireball_ThCollide;

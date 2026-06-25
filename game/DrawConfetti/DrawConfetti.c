@@ -69,9 +69,13 @@ static struct DrawConfettiTrigPair DrawConfetti_TrigAngleSinCos(int angle)
 		pair.cos = (s16)packed;
 
 		if ((angle & 0x800) != 0)
+		{
 			pair.sin = -pair.sin;
+		}
 		else
+		{
 			pair.cos = -pair.cos;
+		}
 	}
 
 	return pair;
@@ -111,13 +115,19 @@ static u32 DrawConfetti_BuildColor(u32 cycle, u8 shade)
 	u32 color = 0x28000000;
 
 	if ((cycle & 1) != 0)
+	{
 		color |= shade;
+	}
 
 	if ((cycle & 2) != 0)
+	{
 		color |= (u32)shade << 8;
+	}
 
 	if ((cycle & 4) != 0)
+	{
 		color |= (u32)shade << 16;
+	}
 
 	return color;
 }
@@ -131,7 +141,9 @@ static int DrawConfetti_BoundsVisible(u32 sxy0, u32 sxy1, u32 sxy2, u32 sxy3, u3
 	// Retail uses the raw fourth SXY here, not `sxy3 - screenBounds`.
 	bounds = ~((sxy0 - screenBounds) | (sxy1 - screenBounds) | (sxy2 - screenBounds) | sxy3) | overlap;
 	if ((s32)bounds < 0)
+	{
 		return 0;
+	}
 
 	return (s32)(bounds << 16) >= 0;
 }
@@ -170,7 +182,9 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 	CTC2(0, 7);
 
 	for (int i = 0; i < (int)sizeof(sDrawConfettiColorTable8008a2a0); i++)
+	{
 		scratch->colorTable[i] = sDrawConfettiColorTable8008a2a0[i];
+	}
 
 	CTC2(DrawConfetti_ReadWord(&pb->matrix_ViewProj, 0x00), 0);
 	CTC2(DrawConfetti_ReadWord(&pb->matrix_ViewProj, 0x04), 1);
@@ -199,13 +213,17 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 			{
 				currentParticles -= vanishRate;
 				if ((s32)(diff + vanishRate) > 0)
+				{
 					currentParticles = maxParticles;
+				}
 			}
 			else
 			{
 				currentParticles += vanishRate;
 				if ((s32)(diff - vanishRate) < 0)
+				{
 					currentParticles = maxParticles;
+				}
 			}
 
 			DrawConfetti_WriteWord(confetti, 0x00, currentParticles);
@@ -259,10 +277,14 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 		cycle--;
 		timer += 23;
 		if (cycle == 0)
+		{
 			cycle = 6;
+		}
 
 		if (particleCount == 0)
+		{
 			break;
+		}
 
 		particleCount--;
 		scratch->remainingParticles = particleCount;

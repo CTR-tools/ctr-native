@@ -6,7 +6,9 @@ void LOAD_AppendQueue(struct BigHeader *bigfile, int type, int fileIndex, void *
 	struct LoadQueueSlot *lqs;
 
 	if (sdata->queueLength >= 8)
+	{
 		return;
+	}
 
 	lqs = &sdata->queueSlots[sdata->queueLength];
 	lqs->ptrBigfileCdPos_UNUSED = bigfile;
@@ -49,7 +51,9 @@ void LOAD_NextQueuedFile()
 			*curr = sdata->queueSlots[0];
 
 			for (int i = 1; i < sdata->queueLength; i++)
+			{
 				sdata->queueSlots[i - 1] = sdata->queueSlots[i];
+			}
 		}
 
 		switch (curr->type_UNUSED)
@@ -78,7 +82,9 @@ void LOAD_NextQueuedFile()
 		if ((u32)(sdata->gGT->frameTimer_VsyncCallback - sdata->frameFinishedVRAM) >= 3)
 		{
 			if (curr->callbackFuncPtr != NULL)
+			{
 				curr->callbackFuncPtr(curr);
+			}
 
 			sdata->frameFinishedVRAM = 0;
 

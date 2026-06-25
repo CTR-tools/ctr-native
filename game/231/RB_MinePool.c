@@ -26,9 +26,13 @@ void RB_MinePool_Init(void)
 	if ((gameMode & ADVENTURE_BOSS) != 0)
 	{
 		if (sdata->gGT->levelID == DRAGON_MINES)
+		{
 			numMines = 3;
+		}
 		if (sdata->gGT->levelID == ROO_TUBES)
+		{
 			numMines = 7;
+		}
 	}
 
 	// add all mines
@@ -44,7 +48,9 @@ void RB_MinePool_Remove(struct MineWeapon *mw)
 	struct WeaponSlot231 *ws = mw->weaponSlot231;
 
 	if (ws == NULL)
+	{
 		return;
+	}
 
 	// remove from taken, add to free
 	LIST_RemoveMember(&D231.minePoolTaken, (struct Item *)ws);

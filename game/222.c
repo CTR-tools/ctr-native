@@ -80,7 +80,9 @@ void AA_EndEvent_DrawMenu(void)
 	s32 elapsedFrames = sdata->framesSinceRaceEnded;
 
 	if (elapsedFrames < AA_RESULT_MAX_FRAMES)
+	{
 		elapsedFrames++;
+	}
 
 	sdata->framesSinceRaceEnded = elapsedFrames;
 
@@ -163,7 +165,9 @@ void AA_EndEvent_DrawMenu(void)
 				{
 					// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fc48-0x8009fc50 for CTR token unlock SFX.
 					if (hudC->scale.x == AA_CTR_LETTER_BASE_SCALE)
+					{
 						OtherFX_Play(0x67, 1);
+					}
 
 					// NOTE(aalhendi): Retail scales until X reaches target, with no separate scale cap.
 					if (letterPos.x != hudCTR->x - 0x10)
@@ -276,7 +280,9 @@ void AA_EndEvent_DrawMenu(void)
 
 	// If C-T-R token race, add requirement of C-T-R letters.
 	if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+	{
 		didWin = didEarnCtrToken;
+	}
 
 	for (s32 i = 0; i < numPlayers; i++)
 	{
@@ -288,7 +294,9 @@ void AA_EndEvent_DrawMenu(void)
 
 	// If it hasn't been 1 second from race ended
 	if (elapsedFrames < AA_RESULT_WAIT_FRAMES)
+	{
 		return;
+	}
 
 	// If there is one player
 	if (numPlayers == 1)
@@ -356,7 +364,10 @@ void AA_EndEvent_DrawMenu(void)
 
 	// 0x78 + 0x6e = 0xe6 (230) frames waited for Token Race
 	if ((elapsedFrames - lerpStartY) < AA_CONTINUE_DELAY_FRAMES)
+	{
 		return;
+	}
+
 	if (
 	    // If you are in Adventure cup
 	    ((gGT->gameMode1 & ADVENTURE_CUP) != 0) ||
@@ -371,7 +382,9 @@ void AA_EndEvent_DrawMenu(void)
 
 		// If you do not "Press X to continue"
 		if ((sdata->AnyPlayerTap & AA_CONFIRM_BUTTON_MASK) == 0)
+		{
 			return;
+		}
 
 		// If you are here, it means you pressed X to continue
 
@@ -392,7 +405,9 @@ void AA_EndEvent_DrawMenu(void)
 
 	// if the menu is already drawing
 	if (sdata->menuReadyToPass & AA_MENU_READY_FLAG)
+	{
 		return;
+	}
 
 	// If you're in Arcade mode
 	if ((gGT->gameMode1 & ARCADE_MODE) != 0)
@@ -406,13 +421,17 @@ void AA_EndEvent_DrawMenu(void)
 
 	// If you are in adventure mode
 	if ((gGT->gameMode1 & ADVENTURE_MODE) == 0)
+	{
 		return;
+	}
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 	// If you have not pressed X
 	if ((sdata->AnyPlayerTap & AA_CONFIRM_BUTTON_MASK) == 0)
+	{
 		return;
+	}
 
 	// === If Pressed X ===
 
@@ -476,7 +495,9 @@ void AA_EndEvent_DrawMenu(void)
 			adv->storyFlags |= ADV_REWARD_OXIDE_FIRST_WIN_FLAGS;
 
 			if (gGT->bossID == AA_OXIDE_SECOND_WIN_BOSS_ID)
+			{
 				adv->storyFlags |= ADV_REWARD_OXIDE_SECOND_WIN_FLAGS;
+			}
 		}
 	}
 
@@ -577,7 +598,9 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 	lerpEndY = 0x41;
 
 	if (driverId == 0)
+	{
 		lerpEndY = -0x3d;
+	}
 
 	// If race ended more than 10 seconds ago.
 	if (isLateDisplay)
@@ -619,7 +642,9 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 	lerpEndY = 0x89;
 
 	if (driverId == 0)
+	{
 		lerpEndY = 9;
+	}
 
 	if (isLateDisplay)
 	{
@@ -642,7 +667,9 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 
 	lerpEndY = 0xc3;
 	if (driverId == 0)
+	{
 		lerpEndY = 0x3e;
+	}
 
 	if (isLateDisplay)
 	{

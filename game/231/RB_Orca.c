@@ -85,7 +85,9 @@ static void RB_Orca_SpawnSplash(struct Instance *orcaInst)
 		particle = Particle_Init(0, gGT->iconGroup[1], &emSet_OrcaSplash[0]);
 
 		if (particle == 0)
+		{
 			continue;
+		}
 
 		particle->axis[0].startVal += (orcaInst->matrix.t[0] << 8) + (particle->axis[0].velocity << 4);
 		particle->axis[1].startVal += (orcaInst->matrix.t[1] << 8) + (particle->axis[1].velocity << 1);
@@ -113,7 +115,9 @@ void RB_Orca_ThTick(struct Thread *t)
 		orcaObj->cooldown--;
 
 		if ((u16)orcaObj->cooldown != 0)
+		{
 			return;
+		}
 
 		orcaInst->flags &= ~HIDE_MODEL;
 		return;
@@ -123,7 +127,9 @@ void RB_Orca_ThTick(struct Thread *t)
 	pathFrame = orcaObj->animIndex;
 
 	if ((numFrames - 0x14) < pathFrame)
+	{
 		pathFrame = numFrames - 0x14;
+	}
 
 	direction = orcaObj->direction;
 	denominator = numFrames - 0x17;
@@ -131,7 +137,9 @@ void RB_Orca_ThTick(struct Thread *t)
 	if (direction == 0)
 	{
 		if ((numFrames - 0x1A) < (s16)pathFrame)
+		{
 			pathFrame = numFrames - 0x1A;
+		}
 	}
 	else
 	{
@@ -139,7 +147,9 @@ void RB_Orca_ThTick(struct Thread *t)
 	}
 
 	if ((s16)pathFrame < 0)
+	{
 		pathFrame = 0;
+	}
 
 	orcaInst->matrix.t[0] = orcaObj->startPos.x - ((pathFrame * orcaObj->midpoint[0]) / denominator);
 	orcaInst->matrix.t[1] = orcaObj->startPos.y - ((pathFrame * orcaObj->midpoint[1]) / denominator);
@@ -152,14 +162,20 @@ void RB_Orca_ThTick(struct Thread *t)
 		gGT = sdata->gGT;
 
 		if ((gGT->numPlyrCurrGame < 2) && ((nextFrame == 5) || (nextFrame == 0x31)))
+		{
 			RB_Orca_SpawnSplash(orcaInst);
+		}
 
 		orcaInst->animFrame = nextFrame;
 
 		if (direction == 0)
+		{
 			orcaObj->animIndex--;
+		}
 		else
+		{
 			orcaObj->animIndex++;
+		}
 
 		return;
 	}
@@ -191,7 +207,9 @@ void RB_Orca_LInB(struct Instance *inst)
 	int orcaID;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -203,7 +221,9 @@ void RB_Orca_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 
 	inst->thread = t;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Orca_ThCollide;
@@ -239,12 +259,16 @@ void RB_Orca_LInB(struct Instance *inst)
 	orcaObj->numFrames = INSTANCE_GetNumAnimFrames(inst, 0);
 
 	if (sdata->gGT->level1->ptrSpawnType1->count <= 0)
+	{
 		return;
+	}
 
 	pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
 	metaArray = (s16 *)pointers[ST1_SPAWN];
 	orcaObj->cooldown = metaArray[orcaObj->orcaID];
 
 	if (orcaObj->cooldown != 0)
+	{
 		inst->flags |= HIDE_MODEL;
+	}
 }

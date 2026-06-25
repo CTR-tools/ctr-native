@@ -50,7 +50,9 @@ int RB_Fruit_ThCollide(struct Thread *fruitTh, struct Thread *driverTh, void *fu
 
 	// wumpa fruit can be grabbed by players and robotcars
 	if ((modelID != DYNAMIC_PLAYER) && (modelID != DYNAMIC_ROBOT_CAR))
+	{
 		return 0;
+	}
 
 	driver = driverTh->object;
 	if (modelID == DYNAMIC_PLAYER)
@@ -104,7 +106,9 @@ int RB_Fruit_LInC(struct Instance *fruitInst, struct Thread *driverTh, struct Sc
 
 		fruitInst->thread = fruitTh;
 		if (fruitTh == NULL)
+		{
 			return 0;
+		}
 
 		fruitTh->inst = fruitInst;
 		fruitTh->funcThCollide = (void (*)(struct Thread *))RB_Fruit_ThCollide;
@@ -112,10 +116,14 @@ int RB_Fruit_LInC(struct Instance *fruitInst, struct Thread *driverTh, struct Sc
 	}
 
 	if ((fruitTh == NULL) || (fruitTh->funcThCollide == NULL))
+	{
 		return 0;
+	}
 
 	if (fruitInst->scale.x == 0)
+	{
 		return 0;
+	}
 
 	return ((FruitCollideFunc)fruitTh->funcThCollide)(fruitTh, driverTh, fruitTh->funcThCollide, sps);
 }

@@ -33,7 +33,9 @@ void Garage_Enter(char charId)
 
 	//>=8
 	if (charId >= PINSTRIPE)
+	{
 		return;
+	}
 
 	// characterID to the left/right
 	charLeft = (charId + -1) & 7;
@@ -149,7 +151,9 @@ void Garage_LerpFX(void)
 		}
 
 		if (targetLR == garageSounds->LR && targetVolume == garageSounds->volume)
+		{
 			continue;
+		}
 
 		if (targetVolume != garageSounds->volume)
 		{
@@ -182,7 +186,9 @@ void Garage_LerpFX(void)
 			garageSounds->gsp_prev = garageSounds->gsp_curr;
 
 			if (garageSounds->gsp_curr == GSP_GONE)
+			{
 				OtherFX_RecycleMute((int *)audioPtrRef);
+			}
 		}
 	}
 }
@@ -197,7 +203,9 @@ void Garage_MoveLR(int desiredId)
 
 	// shouldn't ever happen
 	if (desiredId > 7)
+	{
 		return;
+	}
 
 	charLeft = (desiredId + -1) & 7;
 	charRight = (desiredId + 1) & 7;

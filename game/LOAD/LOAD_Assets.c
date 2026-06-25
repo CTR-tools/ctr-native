@@ -43,7 +43,9 @@ void LOAD_Robots2P(struct BigHeader *bigfile, int p1, int p2, void (*callback)(s
 		}
 
 		if (!boolFoundRepeat)
+		{
 			break;
+		}
 	}
 
 	if (i > 6)
@@ -69,7 +71,9 @@ void LOAD_Robots1P(int characterID)
 	for (int i = 1; i < 8; i++, newCharacterID++)
 	{
 		if (newCharacterID == characterID)
+		{
 			newCharacterID++;
+		}
 
 		data.characterIDs[i] = newCharacterID;
 	}
@@ -104,7 +108,9 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 	else if (levelLOD == 1)
 	{
 		if ((gameMode1 & (TIME_TRIAL | MAIN_MENU)) == TIME_TRIAL)
+		{
 			goto LoadHighAndPack;
+		}
 
 		if (
 		    // adv/cutscene mpk when we just need text from MPK
@@ -121,7 +127,9 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		}
 
 		if ((gameMode1 & ADVENTURE_BOSS) != 0)
+		{
 			goto LoadHighAndPack;
+		}
 
 		if (
 		    // If you are in Adventure cup
@@ -145,7 +153,9 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		}
 
 		if ((gameMode1 & (TIME_TRIAL | MAIN_MENU)) != MAIN_MENU)
+		{
 			LOAD_Robots1P(data.characterIDs[0]);
+		}
 
 		// arcade mpk
 		lastFileIndexMPK = BI_1PARCADEPACK + data.characterIDs[0];
@@ -219,7 +229,9 @@ void LOAD_LangFile(int bigfilePtr, int lang)
 
 	lngFile = LOAD_ReadFile_ex((struct BigHeader *)bigfilePtr, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
 	if (lngFile == NULL)
+	{
 		return;
+	}
 
 	numStrings = lngFile->numStrings;
 	strArray = (char **)((u32)lngFile + lngFile->offsetToPtrArr);
@@ -241,31 +253,49 @@ void LOAD_LangFile(int bigfilePtr, int lang)
 int LOAD_GetBigfileIndex(u32 levelID, int lod, int fileIndexInGroup)
 {
 	if (levelID < NITRO_COURT)
+	{
 		return BI_ARCADETRACKS + levelID * 8 + sdata->levBigLodIndex[lod - 1] + fileIndexInGroup;
+	}
 
 	if ((u32)(levelID - NITRO_COURT) < 7)
+	{
 		return BI_BATTLETRACKS + (levelID - NITRO_COURT) * 8 + sdata->levBigLodIndex[lod - 1] + fileIndexInGroup;
+	}
 
 	if ((u32)(levelID - INTRO_RACE_TODAY) < 9)
+	{
 		return BI_CUTSCENES_INTRO + (levelID - INTRO_RACE_TODAY) * 3 + fileIndexInGroup;
+	}
 
 	if ((u32)(levelID - OXIDE_ENDING) < 2)
+	{
 		return BI_CUTSCENES_OUTRO + (levelID - OXIDE_ENDING) * 2 + fileIndexInGroup;
+	}
 
 	if (levelID == ADVENTURE_GARAGE)
+	{
 		return BI_MAINMENUFILE + 2 + fileIndexInGroup;
+	}
 
 	if (levelID == NAUGHTY_DOG_CRATE)
+	{
 		return BI_NDBOX + fileIndexInGroup;
+	}
 
 	if ((u32)(levelID - CREDITS_CRASH) < 20)
+	{
 		return BI_CREDITS + (levelID - CREDITS_CRASH) * 3 + fileIndexInGroup;
+	}
 
 	if (levelID == MAIN_MENU_LEVEL)
+	{
 		return BI_MAINMENUFILE + fileIndexInGroup;
+	}
 
 	if (levelID == SCRAPBOOK)
+	{
 		return BI_SCRAPBOOK + fileIndexInGroup;
+	}
 
 	return BI_ADVENTUREHUB + (levelID - GEM_STONE_VALLEY) * 3 + fileIndexInGroup;
 }

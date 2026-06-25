@@ -91,9 +91,13 @@ u32 Music_AsyncParseBanks(void)
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
 	if (arr[1] == 5)
+	{
 		return 1;
+	}
 	if (arr[1] > 4)
+	{
 		return 0;
+	}
 
 	// loading state of song (one byte)
 	switch (arr[1])
@@ -102,13 +106,17 @@ u32 Music_AsyncParseBanks(void)
 	case 0:
 		// unsuccessful
 		if (Bank_AssignSpuAddrs() == 0)
+		{
 			goto PARSE_FINISH;
+		}
 
 		// If you're in a Boss Race
 		if (IS_BOSS_RACE(gGT->gameMode1))
 		{
 			if (gGT->bossID >= 6)
+			{
 				break;
+			}
 
 			index = sdata->songBankBossID[gGT->bossID];
 		}
@@ -144,7 +152,9 @@ u32 Music_AsyncParseBanks(void)
 
 		// go to next stage
 		else
+		{
 			break;
+		}
 
 		Bank_Load(index, &thisBank);
 
@@ -155,7 +165,9 @@ u32 Music_AsyncParseBanks(void)
 	case 1:
 		// unsuccessful
 		if (Bank_AssignSpuAddrs() == 0)
+		{
 			goto PARSE_FINISH;
+		}
 
 		sdata->bankCount = 0;
 		sdata->bankPodiumStage = 0;
@@ -163,7 +175,9 @@ u32 Music_AsyncParseBanks(void)
 
 		// if not driving track, skip
 		if (level >= GEM_STONE_VALLEY)
+		{
 			break;
+		}
 
 		uVar4 = gGT->gameMode1;
 
@@ -199,7 +213,9 @@ u32 Music_AsyncParseBanks(void)
 	case 2:
 
 		if (Bank_AssignSpuAddrs() == 0)
+		{
 			goto PARSE_FINISH;
+		}
 
 		// If you're on any Arcade or Battle map
 		if (level < GEM_STONE_VALLEY)
@@ -275,9 +291,13 @@ u32 Music_AsyncParseBanks(void)
 			// if no podium reward, or all podium banks
 			// are loaded, then go to next "case 3:" stage
 			if (gGT->podiumRewardID == NOFUNC)
+			{
 				break; // 0
+			}
 			if (sdata->bankPodiumStage >= 3)
+			{
 				break;
+			}
 
 			switch (sdata->bankPodiumStage)
 			{
@@ -287,14 +307,18 @@ u32 Music_AsyncParseBanks(void)
 
 			case 1:
 				if (gGT->podium_modelIndex_Second == 0)
+				{
 					goto PODIUM_STAGE_DONE;
+				}
 
 				bVar1 = gGT->podium_modelIndex_Second;
 				break;
 
 			default:
 				if (gGT->podium_modelIndex_Third == 0)
+				{
 					goto PODIUM_STAGE_DONE;
+				}
 
 				bVar1 = gGT->podium_modelIndex_Third;
 				break;
@@ -312,14 +336,18 @@ u32 Music_AsyncParseBanks(void)
 	case 3:
 
 		if (Bank_AssignSpuAddrs() == 0)
+		{
 			goto PARSE_FINISH;
+		}
 
 		// If you're in a Boss Race
 		// 0x80000000
 		if (IS_BOSS_RACE(gGT->gameMode1))
 		{
 			if (gGT->bossID >= 6)
+			{
 				break;
+			}
 
 			index = HOWL_SONG_BOSS_RACE;
 		}
@@ -364,7 +392,9 @@ u32 Music_AsyncParseBanks(void)
 		}
 
 		else
+		{
 			break;
+		}
 
 		howl_SetSong(index);
 		break;
@@ -373,7 +403,9 @@ u32 Music_AsyncParseBanks(void)
 	case 4:
 
 		if (howl_LoadSong() == 0)
+		{
 			goto PARSE_FINISH;
+		}
 
 		// go to next stage
 		break;
@@ -498,7 +530,9 @@ void Music_Stop(void)
 {
 	// quit if no music is playing
 	if (sdata->cseqBoolPlay == 0)
+	{
 		return;
+	}
 
 	CseqMusic_Stop(sdata->cseqHighestIndex & 0xffff);
 

@@ -38,9 +38,13 @@ void MainStats_RestartRaceCountLoss(void)
 		// 4th place in a 2P battle, cause of other inactive
 		// teams with zero points
 		if ((gGT->battleSetup.teamFlags & (1 << i)) == 0)
+		{
 			gGT->battleSetup.pointsPerTeam[i] = -500;
+		}
 		else
+		{
 			gGT->battleSetup.pointsPerTeam[i] = 0;
+		}
 	}
 
 	sdata->TurboDisplayPos_Only1P = 0;
@@ -56,7 +60,9 @@ void MainStats_RestartRaceCountLoss(void)
 
 	// only count if inside Adv Mode, but not Cup/Relic
 	if ((gameMode1 & (ADVENTURE_MODE | RELIC_RACE | ADVENTURE_CUP)) != ADVENTURE_MODE)
+	{
 		return;
+	}
 
 	// only count loss if you rage-quit on lap 3
 	if (gGT->drivers[0]->lapIndex != 2)
@@ -76,5 +82,7 @@ void MainStats_RestartRaceCountLoss(void)
 	}
 
 	if (countPtr[index] < 10)
+	{
 		countPtr[index]++;
+	}
 }

@@ -22,7 +22,9 @@ void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL)
 	struct IconGroup **currGroup;
 
 	if (LTL == 0)
+	{
 		return;
+	}
 
 	for (
 	    // array of Icon
@@ -30,7 +32,9 @@ void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL)
 	{
 		// uint, in case of negatives
 		if ((u32)currIcon->global_IconArray_Index < 0x88)
+		{
 			gGT->ptrIcons[currIcon->global_IconArray_Index] = currIcon;
+		}
 	}
 
 	for (
@@ -39,7 +43,9 @@ void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL)
 	{
 		// use '[0]' to dereference pointer
 		if ((u32)currGroup[0]->groupID < 0x11)
+		{
 			gGT->iconGroup[currGroup[0]->groupID] = currGroup[0];
+		}
 	}
 }
 
@@ -50,7 +56,9 @@ int *DecalGlobal_FindInLEV(struct Level *level, char *str)
 	struct LevTexLookup *ltl = level->levTexLookup;
 
 	if (ltl == NULL)
+	{
 		return NULL;
+	}
 
 	struct IconGroup **curr = ltl->firstIconGroupPtr;
 	struct IconGroup **end = &ltl->firstIconGroupPtr[ltl->numIconGroup];

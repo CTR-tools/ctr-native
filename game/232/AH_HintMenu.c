@@ -8,7 +8,9 @@ void AH_HintMenu_FiveArrows(int param_1, s16 rotation)
 
 	ptrColor = &D232.fiveArrow_col1[0];
 	if ((sdata->frameCounter & 2) != 0)
+	{
 		ptrColor = &D232.fiveArrow_col2[0];
+	}
 
 	for (i = 0; i < 5; i++)
 	{
@@ -92,7 +94,9 @@ void AH_HintMenu_MenuProc(struct RectMenu *menu)
 	sVar9 = numHintsFound + 1;
 
 	if (menu->rowSelected > numHintsFound)
+	{
 		menu->rowSelected = numHintsFound;
+	}
 
 	if ((D232.hintMenu_scrollIndex > (numHintsFound + -4)) && (D232.hintMenu_scrollIndex = (s16)(numHintsFound + -4), D232.hintMenu_scrollIndex < 0))
 	{
@@ -107,7 +111,9 @@ void AH_HintMenu_MenuProc(struct RectMenu *menu)
 		AH_HintMenu_MaskPosRot();
 
 		if (D232.maskCooldown > 0)
+		{
 			D232.maskCooldown--;
+		}
 
 		// If you press Cross, Square, Triangle, or Circle
 		if (((sdata->buttonTapPerPlayer[0] & 0x40070) != 0) &&
@@ -224,7 +230,9 @@ void AH_HintMenu_MenuProc(struct RectMenu *menu)
 
 						idpp[0].pushBuffer = &gGT->pushBuffer_UI;
 						for (int j = 1; j < gGT->numPlyrCurrGame; j++)
+						{
 							idpp[j].pushBuffer = 0;
+						}
 
 						// now viewing a hint
 						D232.hintMenu_boolViewHint = 1;

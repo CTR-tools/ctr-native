@@ -168,7 +168,9 @@ void MM_ParseCheatCodes(void)
 	tap = gpad->buttonsTapped;
 
 	if (tap == 0)
+	{
 		return;
+	}
 
 	// at this point, must be holding L1 and R1,
 	// and also must have tapped a buttons
@@ -200,7 +202,9 @@ void MM_ParseCheatCodes(void)
 
 		// skip to next cheat if needed
 		if (!boolPass)
+		{
 			continue;
+		}
 
 		if (D230.cheats[j].funcPtr != NULL)
 		{

@@ -53,7 +53,9 @@ void LOAD_Callback_Podiums(struct LoadQueueSlot *lqs)
 void LOAD_Callback_LEV(struct LoadQueueSlot *lqs)
 {
 	if ((lqs->flags & LT_GETADDR) == 0)
+	{
 		sdata->load_inProgress = 0;
+	}
 
 	sdata->ptrLevelFile = (struct Level *)lqs->ptrDestination;
 }

@@ -67,7 +67,9 @@ void RR_EndEvent_UnlockAward(void)
 
 	// 10 seconds for getting all crates
 	if (driver->numTimeCrates == gGT->timeCratesInLEV)
+	{
 		raceTime -= RR_RACE_TIME_TEN_SECONDS;
+	}
 
 	for (s32 relicIndex = 0; relicIndex < RR_RELIC_TIERS; relicIndex++)
 	{
@@ -75,13 +77,17 @@ void RR_EndEvent_UnlockAward(void)
 
 		// if driver did not beat relic time, check next relic
 		if (raceTime > relicTime)
+		{
 			continue;
+		}
 
 		s32 rewardBit = ADV_REWARD_FIRST_SAPPHIRE_RELIC + ADV_REWARD_RELIC_TIER_STRIDE * relicIndex + levelID;
 
 		// if relic already unlocked, check next relic
 		if (CHECK_ADV_BIT(adv->rewards, rewardBit) != 0)
+		{
 			continue;
+		}
 
 		// == beat relic, and unlocked relic ==
 
@@ -164,11 +170,14 @@ void RR_EndEvent_DrawMenu(void)
 	sdata->ptrTimebox1->scale = (SVec3){{RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE}};
 
 	if (sdata->framesSinceRaceEnded < RR_RESULT_MAX_FRAMES)
+	{
 		sdata->framesSinceRaceEnded++;
+	}
 
 	if (sdata->framesSinceRaceEnded >= RR_HIGH_SCORE_REVEAL_FRAME)
+	{
 		gGT->gameModeEnd |= DRAW_HIGH_SCORES;
-
+	}
 
 	// Did not get all crates, prepare skips in the menus
 	if (driver->numTimeCrates != gGT->timeCratesInLEV)

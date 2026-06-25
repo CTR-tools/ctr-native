@@ -12,7 +12,9 @@ static void RB_Baron_SetPathFrame(struct Instance *inst, struct SpawnType2 *spaw
 	rot = frame->rot;
 
 	if (flipRotX)
+	{
 		rot.x = -rot.x;
+	}
 
 	ConvertRotToMatrix(&inst->matrix, &rot);
 
@@ -40,12 +42,18 @@ void RB_Baron_ThTick(struct Thread *t)
 	level = gGT->level1;
 
 	if ((baronInst->animFrame + 1) < INSTANCE_GetNumAnimFrames(baronInst, 0))
+	{
 		baronInst->animFrame++;
+	}
 	else
+	{
 		baronInst->animFrame = 0;
+	}
 
 	if (level->numSpawnType2_PosRot == 0)
+	{
 		return;
+	}
 
 	spawn = &level->ptrSpawnType2_PosRot[0];
 	pointIndex = (baronObj->pointIndex + 1) % spawn->numCoords;
@@ -55,12 +63,18 @@ void RB_Baron_ThTick(struct Thread *t)
 	if (modelID == DYNAMIC_DRUM)
 	{
 		if (pointIndex == 0x10)
+		{
 			PlaySound3D(0xc, baronInst);
+		}
 
 		if (pointIndex < 0x11)
+		{
 			OtherFX_RecycleMute(&baronObj->soundID_flags);
+		}
 		else
+		{
 			PlaySound3D_Flags(&baronObj->soundID_flags, 0x74, baronInst);
+		}
 
 		RB_Baron_SetPathFrame(baronInst, spawn, pointIndex, 0x111, -0x110, 0);
 	}
@@ -95,7 +109,9 @@ void RB_Baron_LInB(struct Instance *inst)
 	s16 pointIndex;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -107,7 +123,9 @@ void RB_Baron_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 
@@ -119,7 +137,9 @@ void RB_Baron_LInB(struct Instance *inst)
 	pointIndex = 1;
 
 	if (inst->name[strlen(inst->name) - 1] == '0')
+	{
 		pointIndex = sdata->gGT->level1->ptrSpawnType2->numCoords / 2;
+	}
 
 	baronObj->pointIndex = pointIndex;
 	baronObj->unk1A = 4;
@@ -128,7 +148,9 @@ void RB_Baron_LInB(struct Instance *inst)
 	baronObj->otherInst = 0;
 
 	if (inst->model->id == DYNAMIC_VONLABASS)
+	{
 		inst->flags |= HIDE_MODEL;
+	}
 
 	baronObj->soundID_flags = 0;
 }

@@ -8,13 +8,19 @@ void RB_Player_KillPlayer(struct Driver *attacker, struct Driver *victim)
 	u8 numPlyr = gGT->numPlyrCurrGame;
 
 	if ((gameMode & BATTLE_MODE) == 0)
+	{
 		return;
+	}
 
 	if (attacker == NULL)
+	{
 		return;
+	}
 
 	if (victim == NULL)
+	{
 		return;
+	}
 
 	if ((gameMode & POINT_LIMIT) != 0)
 	{
@@ -26,7 +32,9 @@ void RB_Player_KillPlayer(struct Driver *attacker, struct Driver *victim)
 			int score = gGT->battleSetup.pointsPerTeam[victimTeam] - 1;
 
 			if (score < -9)
+			{
 				return;
+			}
 
 			gGT->battleSetup.pointsPerTeam[victimTeam] = score;
 			return;
@@ -40,10 +48,14 @@ void RB_Player_KillPlayer(struct Driver *attacker, struct Driver *victim)
 		}
 
 		if (gGT->battleSetup.pointsPerTeam[attackerTeam] != gGT->battleSetup.killLimit)
+		{
 			return;
+		}
 
 		if ((gameMode & TIME_LIMIT) != 0)
+		{
 			return;
+		}
 
 		for (int i = 0; i < numPlyr; i++)
 		{
@@ -53,7 +65,9 @@ void RB_Player_KillPlayer(struct Driver *attacker, struct Driver *victim)
 	else
 	{
 		if ((gameMode & LIFE_LIMIT) == 0)
+		{
 			return;
+		}
 
 		int lives = victim->BattleHUD.numLives - 1;
 
@@ -110,7 +124,9 @@ void RB_Player_KillPlayer(struct Driver *attacker, struct Driver *victim)
 		}
 
 		if (teamsAlive != 1)
+		{
 			return;
+		}
 
 		for (int i = 0; i < numPlyr; i++)
 		{
@@ -128,7 +144,9 @@ void RB_Player_ModifyWumpa(struct Driver *driver, int wumpaDelta)
 
 	// if using unlimited wumpa, quit
 	if ((sdata->gGT->gameMode2 & CHEAT_WUMPA) != 0)
+	{
 		return;
+	}
 
 	if (
 	    // if wumpa is being subtracted
