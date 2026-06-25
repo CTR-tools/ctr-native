@@ -411,7 +411,8 @@ static int Ovr228_800a81bc_ConsumeClipRecords(struct PushBuffer *pb, struct Prim
 }
 
 static int Ovr228_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10,
-                                              void *VisMem14, void *VisMem18, struct TextureLayout* waterEnvMap, Ovr228BucketDispatch dispatch, Ovr228ClipConsumer consume)
+                                              void *VisMem14, void *VisMem18, const struct TextureLayout *waterEnvMap, Ovr228BucketDispatch dispatch,
+                                              Ovr228ClipConsumer consume)
 {
 	struct DrawLevelOvr1PRenderList *renderLists = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
@@ -443,7 +444,7 @@ static int Ovr228_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBu
 		return 1;
 	}
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = waterEnvMap;
+	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
 	DrawLevelOvr1P_Scratch()->primMemEndPtr32 = (u32)(uintptr_t)primMem->end;
 
 	if (mesh->ptrQuadBlockArray == NULL)
@@ -497,7 +498,7 @@ static int Ovr228_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBu
 }
 
 int Ovr228_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
-                          void *VisMem18, struct TextureLayout* waterEnvMap)
+                          void *VisMem18, const struct TextureLayout *waterEnvMap)
 {
 	return Ovr228_800a0cbc_EntryWithCallbacks(LevRenderList, pb, bspList, primMem, VisMem10, VisMem14, VisMem18, waterEnvMap,
 	                                          Ovr228_800a10c4_800a81bc_BucketDispatch, Ovr228_800a81bc_ConsumeClipRecords);

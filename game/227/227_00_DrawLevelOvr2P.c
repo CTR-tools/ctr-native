@@ -248,7 +248,7 @@ static int Ovr227_ConsumeClipRecordsForViewport(struct PushBuffer *pb, struct Pr
 }
 
 static int Ovr227_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
-                                 void *waterEnvMap)
+                                 const struct TextureLayout *waterEnvMap)
 {
 	struct DrawLevelOvr1PRenderList *renderLists = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
@@ -270,7 +270,7 @@ static int Ovr227_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, str
 		return 1;
 	}
 
-	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = waterEnvMap;
+	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[0] = (u32)(uintptr_t)&pb[0];
 	DrawLevelOvr1P_Scratch()->pushBufferPtr32[1] = (u32)(uintptr_t)&pb[1];
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[0] = (u32)(uintptr_t)clipCursors[0];
@@ -318,7 +318,8 @@ static void Ovr227_800ab45c_CopyClipRecordJumpTable(void)
 	}
 }
 
-void DrawLevelOvr2P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14, void *waterEnvMap)
+void DrawLevelOvr2P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
+                    const struct TextureLayout *waterEnvMap)
 {
 	(void)Ovr227_800a0cbc_Entry(LevRenderList, pb, bspList, primMem, VisMem10, VisMem14, waterEnvMap);
 }
