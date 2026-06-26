@@ -246,7 +246,9 @@ void UI_RenderFrame_Racing()
 
 						// if timer is already running, set new timer value
 						if (playerStruct->PickupWumpaHUD.numCollected != 0)
+						{
 							goto LAB_80053498;
+						}
 					}
 					else
 					{
@@ -388,7 +390,9 @@ void UI_RenderFrame_Racing()
 							fmt = &sdata->s_subtractInt[0];
 
 							if (partTimeVariable1 < 0)
+							{
 								partTimeVariable1 = -partTimeVariable1;
+							}
 						}
 						else
 						{
@@ -452,7 +456,9 @@ void UI_RenderFrame_Racing()
 				{
 					// if numPlyrCurrGame is less than 3
 					if (numPlyr < 3)
+					{
 						goto LAB_80053af4;
+					}
 
 					bVar3 = (gGT->timer & 1) == 0;
 					sVar17 = (u16)bVar3 << 2;
@@ -602,7 +608,9 @@ void UI_RenderFrame_Racing()
 			{
 				// If pointer == nullptr
 				if (turboThread == 0)
+				{
 					goto LAB_80053c98;
+				}
 			LAB_80053cac:
 
 				// Set sVar1 to current display counter position
@@ -946,7 +954,9 @@ void UI_RenderFrame_CrystChall(void)
 		// NOTE(aalhendi): Menu-storage can enter crystal HUD flow without
 		// a published crystal HUD model.
 		if (hudCrystal == NULL)
+		{
 			goto LAB_800545e8;
+		}
 #endif
 
 		// make invisible
@@ -959,8 +969,10 @@ void UI_RenderFrame_CrystChall(void)
 	// make visible
 #if defined(CTR_NATIVE)
 	if (hudCrystal != NULL)
+	{
 #endif
 		hudCrystal->flags &= 0xffffff7f;
+	}
 
 	// if cooldown between grabbing items is over,
 	// which also means item has moved to the hud icon
@@ -986,7 +998,9 @@ void UI_RenderFrame_CrystChall(void)
 		OtherFX_Play(0x42, 1);
 
 		if (player->PickupWumpaHUD.numCollected != 0)
+		{
 			player->PickupWumpaHUD.cooldown = 5;
+		}
 	}
 
 	// if cooldown is not done
@@ -1031,11 +1045,17 @@ LAB_800545e8:
 	// quit if game is paused, or item is
 	// rolling, or not drawing roulette
 	if ((gGT->gameMode1 & PAUSE_ALL) != 0)
+	{
 		return;
+	}
 	if (player->itemRollTimer != 0)
+	{
 		return;
+	}
 	if ((gGT->gameMode1 & ROLLING_ITEM) == 0)
+	{
 		return;
+	}
 
 	// if not paused, item stopped rolling, and
 	// weapon roulette sound is playing, then
@@ -1073,7 +1093,9 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 
 	viewport = &viewport2P;
 	if (gGT->numPlyrCurrGame >= 3)
+	{
 		viewport = &viewport3P4P;
+	}
 
 	// NOTE(aalhendi): Retail reads the gp slot populated by UI_INSTANCE_InitAll
 	// with ptrPushBufferUI, not the adjacent ptrFruitDisp instance slot.
@@ -1099,7 +1121,9 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 	}
 
 	if (gGT->numPlyrCurrGame < 2)
+	{
 		return;
+	}
 
 	struct UiElement2D *hud = data.hudStructPtr[gGT->numPlyrCurrGame - 1];
 
@@ -1108,10 +1132,14 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 		struct Driver *driver = gGT->drivers[playerIndex];
 
 		if ((driver->actionsFlagSet & ACTION_RACE_FINISHED) != 0)
+		{
 			continue;
+		}
 
 		if ((gGT->gameMode1 & END_OF_RACE) != 0)
+		{
 			continue;
+		}
 
 		s16 posX = hud[3].x + wumpaPushBuffer->rect.x - (viewport->w >> 1);
 		s16 posY = hud[3].y + wumpaPushBuffer->rect.y - (viewport->h >> 1);

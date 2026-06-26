@@ -199,7 +199,9 @@ static void MATH_Matrix_MulIfNonZero(s32 angle, u32 *r0, u32 *r1, u32 *r2, u32 *
 	u32 cosine;
 
 	if (angle == 0)
+	{
 		return;
+	}
 
 	MATH_Matrix_TrigSinCos(angle, &sine, &cosine);
 
@@ -334,7 +336,9 @@ s32 SquareRoot0_stub(s32 value)
 {
 	MTC2((u32)value, 30);
 	if (value == 0)
+	{
 		return 0;
+	}
 
 	u32 shifted = (u32)value;
 	s32 leading = MFC2(31) & 0x1e;

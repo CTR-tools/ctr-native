@@ -326,13 +326,17 @@ internal b32 NativeAudio_OutputOpen(void)
 internal void NativeAudio_LockOutput(void)
 {
 	if (s_audio.output.stream != NULL)
+	{
 		SDL_LockAudioStream(s_audio.output.stream);
+	}
 }
 
 internal void NativeAudio_UnlockOutput(void)
 {
 	if (s_audio.output.stream != NULL)
+	{
 		SDL_UnlockAudioStream(s_audio.output.stream);
+	}
 }
 
 global_variable const int s_posTable[5] = {0, 60, 115, 98, 122};
@@ -499,18 +503,26 @@ global_variable const struct NativeAudioReverbPreset s_reverbPresets[] = {
 internal int NativeAudio_Clamp16(int value)
 {
 	if (value > 32767)
+	{
 		return 32767;
+	}
 	if (value < -32768)
+	{
 		return -32768;
+	}
 	return value;
 }
 
 internal int NativeAudio_VolumeScale(s16 volume)
 {
 	if (volume < 0)
+	{
 		return 0;
+	}
 	if (volume > NATIVE_AUDIO_DIRECT_VOL_MAX)
+	{
 		return NATIVE_AUDIO_DIRECT_VOL_MAX;
+	}
 	return volume;
 }
 
@@ -535,7 +547,9 @@ internal const struct NativeAudioReverbPreset *NativeAudio_FindReverbPreset(int 
 	for (i = 0; i < (int)(sizeof(s_reverbPresets) / sizeof(s_reverbPresets[0])); i++)
 	{
 		if (s_reverbPresets[i].mode == mode)
+		{
 			return &s_reverbPresets[i];
+		}
 	}
 
 	return &s_reverbPresets[0];
@@ -545,7 +559,9 @@ internal int NativeAudio_ReverbModeFromRaw(int mode)
 {
 	mode &= 0xff;
 	if ((mode < SPU_REV_MODE_OFF) || (mode >= SPU_REV_MODE_MAX))
+	{
 		mode = SPU_REV_MODE_OFF;
+	}
 	return mode;
 }
 
@@ -557,11 +573,15 @@ internal int NativeAudio_ReverbOffsetSamples(s16 reg)
 internal int NativeAudio_ReverbWrapIndex(int index, int sizeSamples)
 {
 	if (sizeSamples <= 0)
+	{
 		return 0;
+	}
 
 	index %= sizeSamples;
 	if (index < 0)
+	{
 		index += sizeSamples;
+	}
 	return index;
 }
 
@@ -570,7 +590,9 @@ internal int NativeAudio_ReverbRead(const struct NativeAudioReverbPreset *preset
 	int index;
 
 	if (s_audio.reverb.sizeSamples <= 0)
+	{
 		return 0;
+	}
 
 	index = s_audio.reverb.cursor + NativeAudio_ReverbOffsetSamples(preset->reg[reg]) + deltaSamples;
 	index = NativeAudio_ReverbWrapIndex(index, s_audio.reverb.sizeSamples);
@@ -582,7 +604,9 @@ internal int NativeAudio_ReverbReadAtOffset(int offsetSamples)
 	int index;
 
 	if (s_audio.reverb.sizeSamples <= 0)
+	{
 		return 0;
+	}
 
 	index = NativeAudio_ReverbWrapIndex(s_audio.reverb.cursor + offsetSamples, s_audio.reverb.sizeSamples);
 	return s_audio.reverb.buffer[index];
@@ -593,7 +617,9 @@ internal void NativeAudio_ReverbWrite(const struct NativeAudioReverbPreset *pres
 	int index;
 
 	if (s_audio.reverb.sizeSamples <= 0)
+	{
 		return;
+	}
 
 	index = s_audio.reverb.cursor + NativeAudio_ReverbOffsetSamples(preset->reg[reg]);
 	index = NativeAudio_ReverbWrapIndex(index, s_audio.reverb.sizeSamples);
@@ -667,10 +693,14 @@ internal void NativeAudio_ReverbConfigureModeNoLock(int rawMode)
 	s_audio.reverb.sizeSamples = preset->sizeBytes / (int)sizeof(s16);
 
 	if ((s_audio.reverb.sizeSamples < 0) || (s_audio.reverb.sizeSamples > NATIVE_AUDIO_REVERB_MAX_SAMPLES))
+	{
 		s_audio.reverb.sizeSamples = 0;
+	}
 
 	if (clearWorkArea || (oldMode != s_audio.reverb.mode) || (oldSizeSamples != s_audio.reverb.sizeSamples))
+	{
 		NativeAudio_ReverbClearBufferNoLock();
+	}
 }
 
 internal int NativeAudio_ReverbRunReflectionStage(const struct NativeAudioReverbPreset *preset, int input, int feedbackReg, int writeReg)
@@ -700,7 +730,9 @@ internal int NativeAudio_ReverbRunApfStage(const struct NativeAudioReverbPreset 
 	int stored = input - NativeAudio_ReverbMul(delayed, preset->reg[volumeReg]);
 
 	if (s_audio.reverbEnabled)
+	{
 		NativeAudio_ReverbWrite(preset, apfReg, stored);
+	}
 	delayed = NativeAudio_ReverbReadAtOffset(delta);
 	return NativeAudio_ReverbMul(stored, preset->reg[volumeReg]) + delayed;
 }
@@ -775,13 +807,19 @@ internal s16 NativeAudio_GetVoicePcmSample(const struct NativeAudioVoice *voice,
 		int loopLen = voice->loopEnd - voice->loopStart;
 
 		while (sampleIndex < voice->loopStart)
+		{
 			sampleIndex += loopLen;
+		}
 		while (sampleIndex >= voice->loopEnd)
+		{
 			sampleIndex -= loopLen;
+		}
 	}
 
 	if ((sampleIndex < 0) || (sampleIndex >= voice->sampleCount))
+	{
 		return 0;
+	}
 
 	return voice->pcm[sampleIndex];
 }
@@ -807,12 +845,18 @@ internal int NativeAudio_InterpolateVoiceSample(const struct NativeAudioVoice *v
 internal u64 NativeAudio_GetXAOutputFrameCount(int frameCount, int sampleRate)
 {
 	if ((frameCount <= 0) || (sampleRate <= 0))
+	{
 		return 0;
+	}
 
 	if (sampleRate == XA_SAMPLE_RATE_37800)
+	{
 		return (((u64)frameCount * NATIVE_AUDIO_XA_ZIGZAG_PHASES) + (NATIVE_AUDIO_XA_ZIGZAG_INPUTS - 1)) / NATIVE_AUDIO_XA_ZIGZAG_INPUTS;
+	}
 	if (sampleRate == XA_SAMPLE_RATE_18900)
+	{
 		return (((u64)frameCount * NATIVE_AUDIO_XA_ZIGZAG_PHASES) + ((NATIVE_AUDIO_XA_ZIGZAG_INPUTS / 2) - 1)) / (NATIVE_AUDIO_XA_ZIGZAG_INPUTS / 2);
+	}
 
 	return (((u64)frameCount * NATIVE_AUDIO_SAMPLE_RATE) + ((u64)sampleRate - 1)) / (u64)sampleRate;
 }
@@ -845,7 +889,9 @@ internal void NativeAudio_AdvanceXAOutputFrameNoLock(void)
 internal int NativeAudio_GetXAPcmSampleAtFrameNoLock(int channel, u64 frameIndex)
 {
 	if ((s_audio.xa.pcm == NULL) || (frameIndex >= (u64)s_audio.xa.frameCount))
+	{
 		return 0;
+	}
 
 	return s_audio.xa.pcm[(size_t)frameIndex * NATIVE_AUDIO_CHANNELS + (size_t)channel];
 }
@@ -855,12 +901,16 @@ internal int NativeAudio_GetXAPseudo37800SampleNoLock(int channel, s64 pseudoFra
 	u64 frameIndex;
 
 	if (pseudoFrameIndex < 0)
+	{
 		return 0;
+	}
 
 	frameIndex = (u64)pseudoFrameIndex;
 	// NOTE(aalhendi): 18.9kHz XA feeds the same 37.8kHz->44.1kHz zig-zag path with each decoded source frame held twice.
 	if (s_audio.xa.sampleRate == XA_SAMPLE_RATE_18900)
+	{
 		frameIndex >>= 1;
+	}
 
 	return NativeAudio_GetXAPcmSampleAtFrameNoLock(channel, frameIndex);
 }
@@ -890,7 +940,9 @@ internal int NativeAudio_InterpolateXALinearSampleNoLock(int channel)
 	int b = a;
 
 	if (frameIndex + 1 < (u64)s_audio.xa.frameCount)
+	{
 		b = NativeAudio_GetXAPcmSampleAtFrameNoLock(channel, frameIndex + 1);
+	}
 
 	return a + (int)(((s64)(b - a) * frac) >> NATIVE_AUDIO_FP_SHIFT);
 }
@@ -898,7 +950,9 @@ internal int NativeAudio_InterpolateXALinearSampleNoLock(int channel)
 internal int NativeAudio_GetXAMixSampleNoLock(int channel)
 {
 	if ((s_audio.xa.sampleRate == XA_SAMPLE_RATE_37800) || (s_audio.xa.sampleRate == XA_SAMPLE_RATE_18900))
+	{
 		return NativeAudio_ZigZagInterpolateXASampleNoLock(channel);
+	}
 
 	return NativeAudio_InterpolateXALinearSampleNoLock(channel);
 }
@@ -908,9 +962,13 @@ internal int NativeAudio_GetXAMixSampleNoLock(int channel)
 internal int NativeAudio_ClampAdsrLevel(int level)
 {
 	if (level < NATIVE_AUDIO_ADSR_MIN)
+	{
 		return NATIVE_AUDIO_ADSR_MIN;
+	}
 	if (level > NATIVE_AUDIO_ADSR_MAX)
+	{
 		return NATIVE_AUDIO_ADSR_MAX;
+	}
 	return level;
 }
 
@@ -934,7 +992,9 @@ internal int NativeAudio_AdsrSustainTarget(const struct NativeAudioVoice *voice)
 	int target = ((int)voice->attr.sl + 1) * 0x800;
 
 	if (target > NATIVE_AUDIO_ADSR_MAX)
+	{
 		target = NATIVE_AUDIO_ADSR_MAX;
+	}
 	return target;
 }
 
@@ -964,9 +1024,13 @@ internal void NativeAudio_AdsrKeyOn(struct NativeAudioVoice *voice)
 internal void NativeAudio_AdsrKeyOff(struct NativeAudioVoice *voice)
 {
 	if (voice->adsrPhase != NATIVE_AUDIO_ADSR_OFF)
+	{
 		NativeAudio_AdsrSetPhase(voice, NATIVE_AUDIO_ADSR_RELEASE);
+	}
 	else
+	{
 		NativeAudio_AdsrForceOff(voice);
+	}
 }
 
 internal b32 NativeAudio_AdsrRateIsAllOnes(int shiftValue, int stepValue, int bitCount)
@@ -984,14 +1048,20 @@ internal void NativeAudio_AdsrRunEnvelopeStep(struct NativeAudioVoice *voice, in
 	u32 counter;
 
 	if (rateAllOnes)
+	{
 		return;
+	}
 
 	adsrStep = 7 - stepValue;
 	if (decreasing != phaseNegative)
+	{
 		adsrStep = ~adsrStep;
+	}
 
 	if (shiftValue < 11)
+	{
 		adsrStep <<= 11 - shiftValue;
+	}
 
 	counterIncrement = NATIVE_AUDIO_ADSR_STEP_BIT;
 	if (shiftValue > 11)
@@ -1020,16 +1090,22 @@ internal void NativeAudio_AdsrRunEnvelopeStep(struct NativeAudioVoice *voice, in
 	{
 		adsrStep = (int)(((s64)adsrStep * voice->adsrLevel) / 0x8000);
 		if (voice->adsrPhase == NATIVE_AUDIO_ADSR_RELEASE && adsrStep == 0 && voice->adsrLevel > 0)
+		{
 			adsrStep = -1;
+		}
 	}
 
 	if (counterIncrement == 0)
+	{
 		counterIncrement = 1;
+	}
 
 	counter = voice->adsrCounter + counterIncrement;
 	voice->adsrCounter = counter & (NATIVE_AUDIO_ADSR_STEP_BIT - 1);
 	if ((counter & NATIVE_AUDIO_ADSR_STEP_BIT) == 0)
+	{
 		return;
+	}
 
 	voice->adsrLevel += adsrStep;
 	if (!decreasing)
@@ -1039,9 +1115,13 @@ internal void NativeAudio_AdsrRunEnvelopeStep(struct NativeAudioVoice *voice, in
 	else if (phaseNegative)
 	{
 		if (voice->adsrLevel < NATIVE_AUDIO_ADSR_MIN)
+		{
 			voice->adsrLevel = NATIVE_AUDIO_ADSR_MIN;
+		}
 		if (voice->adsrLevel > 0)
+		{
 			voice->adsrLevel = 0;
+		}
 	}
 	else if (voice->adsrLevel < 0)
 	{
@@ -1117,7 +1197,9 @@ internal void NativeAudio_AdsrAdvance(struct NativeAudioVoice *voice)
 		NativeAudio_AdsrRunEnvelopeStep(voice, shift, 0, NativeAudio_AdsrModeIsExponential(voice->attr.r_mode), 1,
 		                                NativeAudio_AdsrModeIsPhaseNegative(voice->attr.r_mode), shift == 0x1f);
 		if (voice->adsrLevel <= 0)
+		{
 			NativeAudio_AdsrForceOff(voice);
+		}
 		break;
 	}
 
@@ -1132,9 +1214,13 @@ internal int NativeAudio_ApplyAdsrEnvelope(int sample, int adsrLevel)
 	int scaleMax;
 
 	if (adsrLevel == 0)
+	{
 		return 0;
+	}
 	if (adsrLevel >= NATIVE_AUDIO_ADSR_MAX)
+	{
 		return sample;
+	}
 
 	scaleMax = adsrLevel < 0 ? 0x8000 : NATIVE_AUDIO_ADSR_MAX;
 	return NativeAudio_Clamp16((int)(((s64)sample * adsrLevel) / scaleMax));
@@ -1168,9 +1254,13 @@ internal void NativeAudio_DecodePackedAdsrToFields(struct NativeAudioVoice *voic
 		voice->attr.r_mode = (voice->attr.adsr2 & 0x20) != 0 ? SPU_VOICE_EXPDec : SPU_VOICE_LINEARDecN;
 		voice->attr.sr = (voice->attr.adsr2 >> 6) & 0x7f;
 		if (sustainExponential)
+		{
 			voice->attr.s_mode = sustainDecreasing ? SPU_VOICE_EXPDec : SPU_VOICE_EXPIncN;
+		}
 		else
+		{
 			voice->attr.s_mode = sustainDecreasing ? SPU_VOICE_LINEARDecN : SPU_VOICE_LINEARIncN;
+		}
 	}
 }
 
@@ -1189,7 +1279,9 @@ internal int NativeAudio_AlignUpInt(int value, int align)
 	int mask = align - 1;
 
 	if ((value < 0) || (align <= 0) || ((align & mask) != 0) || (value > INT_MAX - mask))
+	{
 		return -1;
+	}
 
 	return (value + mask) & ~mask;
 }
@@ -1213,9 +1305,13 @@ internal int NativeAudio_ArenaEnsureCapacity(struct NativeAudioDecodeArena *aren
 	int newCapacity;
 
 	if (capacity < 0)
+	{
 		return 0;
+	}
 	if (capacity <= arena->capacity)
+	{
 		return 1;
+	}
 
 	newCapacity = arena->capacity > 0 ? arena->capacity : (256 * 1024);
 	while (newCapacity < capacity)
@@ -1230,7 +1326,9 @@ internal int NativeAudio_ArenaEnsureCapacity(struct NativeAudioDecodeArena *aren
 
 	newMemory = (u8 *)malloc((size_t)newCapacity);
 	if (newMemory == NULL)
+	{
 		return 0;
+	}
 
 	free(arena->memory);
 	arena->memory = newMemory;
@@ -1245,18 +1343,26 @@ internal void *NativeAudio_ArenaPush(struct NativeAudioDecodeArena *arena, int s
 	int end;
 
 	if (size < 0)
+	{
 		return NULL;
+	}
 
 	marker = NativeAudio_AlignUpInt(arena->used, align);
 	if ((marker < 0) || (size > INT_MAX - marker))
+	{
 		return NULL;
+	}
 
 	end = marker + size;
 	if (end > arena->capacity)
+	{
 		return NULL;
+	}
 
 	if (markerOut != NULL)
+	{
 		*markerOut = marker;
+	}
 	arena->used = end;
 	return &arena->memory[marker];
 }
@@ -1264,7 +1370,9 @@ internal void *NativeAudio_ArenaPush(struct NativeAudioDecodeArena *arena, int s
 internal void NativeAudio_ArenaRewind(struct NativeAudioDecodeArena *arena, int marker)
 {
 	if ((marker >= 0) && (marker <= arena->used))
+	{
 		arena->used = marker;
+	}
 }
 
 internal void NativeAudio_ArenaSwap(struct NativeAudioDecodeArena *a, struct NativeAudioDecodeArena *b)
@@ -1284,9 +1392,13 @@ internal int NativeAudio_VoiceArenaEnsureCapacityNoLock(int capacity)
 	int i;
 
 	if (capacity < 0)
+	{
 		return 0;
+	}
 	if (capacity <= arena->capacity)
+	{
 		return 1;
+	}
 
 	newCapacity = arena->capacity > 0 ? arena->capacity : (256 * 1024);
 	while (newCapacity < capacity)
@@ -1302,10 +1414,14 @@ internal int NativeAudio_VoiceArenaEnsureCapacityNoLock(int capacity)
 	oldMemory = arena->memory;
 	newMemory = (u8 *)malloc((size_t)newCapacity);
 	if (newMemory == NULL)
+	{
 		return 0;
+	}
 
 	if ((oldMemory != NULL) && (arena->used > 0))
+	{
 		memcpy(newMemory, oldMemory, (size_t)arena->used);
+	}
 
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
 	{
@@ -1313,7 +1429,9 @@ internal int NativeAudio_VoiceArenaEnsureCapacityNoLock(int capacity)
 		{
 			u8 *pcm = (u8 *)s_audio.voices[i].pcm;
 			if ((pcm >= oldMemory) && (pcm < oldMemory + arena->used))
+			{
 				s_audio.voices[i].pcm = (s16 *)(newMemory + (pcm - oldMemory));
+			}
 		}
 	}
 
@@ -1334,7 +1452,9 @@ internal int NativeAudio_ReadFileBytes(const char *path, struct NativeAudioByteB
 
 	fp = NativeAssets_Open(path, "rb");
 	if (fp == NULL)
+	{
 		return 0;
+	}
 
 	if (fseek(fp, 0, SEEK_END) != 0)
 	{
@@ -1388,7 +1508,9 @@ internal int NativeAudio_PcmReserve(struct NativeAudioPcmBuffer *pcm, int extra)
 	int target;
 
 	if ((pcm == NULL) || (extra <= 0) || (pcm->count < 0) || (pcm->capacity < 0) || (extra > INT_MAX - pcm->count))
+	{
 		return 0;
+	}
 
 	target = pcm->count + extra;
 	return target <= pcm->capacity;
@@ -1397,7 +1519,9 @@ internal int NativeAudio_PcmReserve(struct NativeAudioPcmBuffer *pcm, int extra)
 internal int NativeAudio_PcmPush(struct NativeAudioPcmBuffer *pcm, s16 sample)
 {
 	if (!NativeAudio_PcmReserve(pcm, 1))
+	{
 		return 0;
+	}
 
 	pcm->samples[pcm->count++] = sample;
 	return 1;
@@ -1410,10 +1534,14 @@ internal int NativeAudio_DecodeAdpcmNibble(u8 soundParameter, int nibble, int *o
 	int sample;
 
 	if (weight > 4)
+	{
 		weight = 4;
+	}
 
 	if (nibble > 7)
+	{
 		nibble -= 16;
+	}
 
 	sample = (nibble << 12);
 	sample >>= shift;
@@ -1438,7 +1566,9 @@ internal int NativeAudio_DecodeSpuSample(u32 addr, u32 loopAddr, struct NativeAu
 	int hasRepeat = 0;
 
 	if (addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+	{
 		return 0;
+	}
 
 	for (block = (int)addr; block + 16 <= NATIVE_AUDIO_SPU_MEMSIZE; block += 16)
 	{
@@ -1461,9 +1591,13 @@ internal int NativeAudio_DecodeSpuSample(u32 addr, u32 loopAddr, struct NativeAu
 		{
 			u8 packed = s_audio.spu.memory[block + 2 + i];
 			if (!NativeAudio_PcmPush(pcm, (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, packed & 0xf, &old, &older)))
+			{
 				return 0;
+			}
 			if (!NativeAudio_PcmPush(pcm, (s16)NativeAudio_DecodeAdpcmNibble(soundParameter, (packed >> 4) & 0xf, &old, &older)))
+			{
 				return 0;
+			}
 		}
 
 		if ((flags & ADPCM_LOOP_END) != 0)
@@ -1502,7 +1636,9 @@ internal void NativeAudio_ResetVoicePcmArenaNoLock(int markDirty)
 
 		NativeAudio_FreeVoicePcm(&s_audio.voices[i]);
 		if (markDirty && wasActive)
+		{
 			s_audio.voices[i].sampleDirty = 1;
+		}
 	}
 }
 
@@ -1511,14 +1647,18 @@ internal void NativeAudio_ReclaimVoicePcmArenaIfIdleNoLock(void)
 	int i;
 
 	if (s_audio.voicePcmArena.used == 0)
+	{
 		return;
+	}
 
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
 	{
 		struct NativeAudioVoice *voice = &s_audio.voices[i];
 
 		if (voice->active && voice->pcm != NULL && voice->sampleCount > 0 && voice->adsrPhase != NATIVE_AUDIO_ADSR_OFF)
+		{
 			return;
+		}
 	}
 
 	NativeAudio_ResetVoicePcmArenaNoLock(0);
@@ -1531,23 +1671,33 @@ internal int NativeAudio_PrepareVoicePcmBuffer(u32 addr, struct NativeAudioPcmBu
 	int marker;
 
 	if (addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+	{
 		return 0;
+	}
 
 	maxSamples = ((NATIVE_AUDIO_SPU_MEMSIZE - (int)addr) / 16) * XA_SAMPLES_PER_SOUND_UNIT;
 	if ((maxSamples <= 0) || (maxSamples > (INT_MAX / (int)sizeof(s16))))
+	{
 		return 0;
+	}
 
 	maxBytes = maxSamples * (int)sizeof(s16);
 	marker = NativeAudio_AlignUpInt(s_audio.voicePcmArena.used, NATIVE_AUDIO_ARENA_ALIGN);
 	if ((marker < 0) || (maxBytes > INT_MAX - marker))
+	{
 		return 0;
+	}
 
 	if (!NativeAudio_VoiceArenaEnsureCapacityNoLock(marker + maxBytes))
+	{
 		return 0;
+	}
 
 	pcm->samples = (s16 *)NativeAudio_ArenaPush(&s_audio.voicePcmArena, maxBytes, NATIVE_AUDIO_ARENA_ALIGN, markerOut);
 	if (pcm->samples == NULL)
+	{
 		return 0;
+	}
 
 	pcm->count = 0;
 	pcm->capacity = maxSamples;
@@ -1666,13 +1816,21 @@ internal void NativeAudio_CopyXAToState(struct NativeAudioXAState *dst, const st
 internal int NativeAudio_ValidateVoiceSnapshot(const struct NativeAudioVoiceState *voice)
 {
 	if (voice->active && (voice->attr.addr >= NATIVE_AUDIO_SPU_MEMSIZE))
+	{
 		return 0;
+	}
 	if (voice->attr.loop_addr >= NATIVE_AUDIO_SPU_MEMSIZE)
+	{
 		return 0;
+	}
 	if (voice->adsrPhase > NATIVE_AUDIO_ADSR_RELEASE)
+	{
 		return 0;
+	}
 	if ((voice->adsrLevel < NATIVE_AUDIO_ADSR_MIN) || (voice->adsrLevel > NATIVE_AUDIO_ADSR_MAX))
+	{
 		return 0;
+	}
 	return 1;
 }
 
@@ -1681,43 +1839,75 @@ internal int NativeAudio_ValidateXASnapshot(const struct NativeAudioXAState *xa)
 	u64 outputFrameCount;
 
 	if ((xa->active != 0) && (xa->active != 1))
+	{
 		return 0;
+	}
 	if ((xa->hasTrackIdentity != 0) && (xa->hasTrackIdentity != 1))
+	{
 		return 0;
+	}
 	if ((xa->frameCount < 0) || (xa->sampleRate < 0))
+	{
 		return 0;
+	}
 	if (!xa->active && !xa->hasTrackIdentity)
+	{
 		return 1;
+	}
 	if ((xa->categoryID < 0) || (xa->categoryID >= XA_NUM_TYPES))
+	{
 		return 0;
+	}
 	if (xa->xaID < 0)
+	{
 		return 0;
+	}
 	if (xa->active && ((xa->frameCount <= 0) || (xa->sampleRate <= 0)))
+	{
 		return 0;
+	}
 	outputFrameCount = NativeAudio_GetXAOutputFrameCount(xa->frameCount, xa->sampleRate);
 	if (xa->active && ((outputFrameCount == 0) || (xa->outputFrame >= outputFrameCount)))
+	{
 		return 0;
+	}
 	if (xa->active && ((xa->positionFp >> NATIVE_AUDIO_FP_SHIFT) >= (u64)xa->frameCount))
+	{
 		return 0;
+	}
 	return 1;
 }
 
 internal int NativeAudio_ValidateReverbSnapshot(const struct NativeAudioReverbState *reverb)
 {
 	if ((reverb->mode < SPU_REV_MODE_OFF) || (reverb->mode >= SPU_REV_MODE_MAX))
+	{
 		return 0;
+	}
 	if ((reverb->sizeSamples < 0) || (reverb->sizeSamples > NATIVE_AUDIO_REVERB_MAX_SAMPLES))
+	{
 		return 0;
+	}
 	if ((reverb->inputHistoryCursor < 0) || (reverb->inputHistoryCursor >= NATIVE_AUDIO_REVERB_FIR_TAPS))
+	{
 		return 0;
+	}
 	if ((reverb->outputHistoryCursor < 0) || (reverb->outputHistoryCursor >= NATIVE_AUDIO_REVERB_FIR_TAPS))
+	{
 		return 0;
+	}
 	if ((reverb->samplePhase < 0) || (reverb->samplePhase > 1))
+	{
 		return 0;
+	}
 	if (reverb->sizeSamples == 0)
+	{
 		return reverb->cursor == 0;
+	}
 	if ((reverb->cursor < 0) || (reverb->cursor >= reverb->sizeSamples))
+	{
 		return 0;
+	}
 	return 1;
 }
 
@@ -1727,7 +1917,9 @@ internal void NativeAudio_ClearOutputQueueNoLock(void)
 	s_audio.output.scheduledFrameCount = 0;
 
 	if (s_audio.output.stream != NULL)
+	{
 		SDL_ClearAudioStream(s_audio.output.stream);
+	}
 }
 
 internal int NativeAudio_OpenDevice(void);
@@ -1746,7 +1938,9 @@ internal void NativeAudio_SelectDriverHint(void)
 	}
 #endif
 	if (SDL_GetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES) == NULL)
+	{
 		SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "1024");
+	}
 }
 
 internal int NativeAudio_BuildXAPath(char *path, size_t pathSize, int categoryID, int fileNumber)
@@ -1755,13 +1949,21 @@ internal int NativeAudio_BuildXAPath(char *path, size_t pathSize, int categoryID
 	int written;
 
 	if (categoryID == 0)
+	{
 		dir = "XA/MUSIC";
+	}
 	else if (categoryID == 1)
+	{
 		dir = "XA/ENG/EXTRA";
+	}
 	else if (categoryID == 2)
+	{
 		dir = "XA/ENG/GAME";
+	}
 	else
+	{
 		return 0;
+	}
 
 	written = snprintf(path, pathSize, "%s/S%02d.XA", dir, fileNumber);
 	return (written > 0) && ((size_t)written < pathSize);
@@ -1780,10 +1982,14 @@ internal int NativeAudio_LookupXATrackInfo(int categoryID, int xaID, struct Nati
 	const u8 *entry;
 
 	if ((categoryID < 0) || (categoryID >= XA_NUM_TYPES) || (xaID < 0))
+	{
 		return 0;
+	}
 
 	if (!NativeAudio_ReadFileBytes("XA/ENG.XNF", &xnf))
+	{
 		return 0;
+	}
 
 	if (xnf.size < XA_HEADER_SIZE)
 	{
@@ -1849,14 +2055,22 @@ internal int NativeAudio_GetXASectorLayout(int byteCount, int *sectorSizeOut, in
 	int sectorSize;
 
 	if (byteCount <= 0)
+	{
 		return 0;
+	}
 
 	if ((byteCount % XA_FULL_SECTOR_SIZE) == 0)
+	{
 		sectorSize = XA_FULL_SECTOR_SIZE;
+	}
 	else if ((byteCount % XA_FORM2_SECTOR_SIZE) == 0)
+	{
 		sectorSize = XA_FORM2_SECTOR_SIZE;
+	}
 	else
+	{
 		return 0;
+	}
 
 	*sectorSizeOut = sectorSize;
 	*sectorBaseOut = (sectorSize == XA_FULL_SECTOR_SIZE) ? 16 : 0;
@@ -1886,15 +2100,21 @@ internal int NativeAudio_CountXAAudioSectors(const u8 *bytes, int byteCount, int
 	*totalSectorsOut = 0;
 
 	if ((bytes == NULL) || (channelFilter < 0) || (channelFilter > 0xff))
+	{
 		return 0;
+	}
 	if (!NativeAudio_GetXASectorLayout(byteCount, &sectorSize, &sectorBase, &totalSectors))
+	{
 		return 0;
+	}
 
 	for (sector = 0; sector < totalSectors; sector++)
 	{
 		const u8 *src = &bytes[sector * sectorSize];
 		if (NativeAudio_IsXAAudioSector(src, sectorBase, channelFilter))
+		{
 			audioSectors++;
+		}
 	}
 
 	*audioSectorsOut = audioSectors;
@@ -1913,7 +2133,9 @@ internal int NativeAudio_DecodeXA28Nibbles(const u8 *sector, int frameOff, int b
 	int i;
 
 	if (weight > 4)
+	{
 		weight = 4;
+	}
 
 	w0 = s_posTable[weight];
 	w1 = s_negTable[weight];
@@ -1932,7 +2154,9 @@ internal int NativeAudio_DecodeXA28Nibbles(const u8 *sector, int frameOff, int b
 		state->older[channel] = state->old[channel];
 		state->old[channel] = sample;
 		if (!NativeAudio_PcmPush(out, (s16)sample))
+		{
 			return 0;
+		}
 	}
 
 	return 1;
@@ -1959,7 +2183,9 @@ internal int NativeAudio_DecodeXASectorMono(const u8 *sector, int sectorBase, st
 			int i;
 
 			if (weight > 4)
+			{
 				weight = 4;
+			}
 
 			w0 = s_posTable[weight];
 			w1 = s_negTable[weight];
@@ -1978,7 +2204,9 @@ internal int NativeAudio_DecodeXASectorMono(const u8 *sector, int sectorBase, st
 				state->older[0] = state->old[0];
 				state->old[0] = sample;
 				if (!NativeAudio_PcmPush(out, (s16)sample))
+				{
 					return 0;
+				}
 			}
 		}
 	}
@@ -2007,20 +2235,30 @@ internal int NativeAudio_DecodeXASectorStereo(const u8 *sector, int sectorBase, 
 			tmp.samples = tmpSamples;
 			tmp.capacity = XA_SAMPLES_PER_SOUND_UNIT;
 			if (!NativeAudio_DecodeXA28Nibbles(sector, frameOff, block, 0, 0, state, &tmp) || (tmp.count < XA_SAMPLES_PER_SOUND_UNIT))
+			{
 				return 0;
+			}
 			for (i = 0; i < XA_SAMPLES_PER_SOUND_UNIT; i++)
+			{
 				left[i] = tmp.samples[i];
+			}
 			tmp.count = 0;
 
 			if (!NativeAudio_DecodeXA28Nibbles(sector, frameOff, block, 1, 1, state, &tmp) || (tmp.count < XA_SAMPLES_PER_SOUND_UNIT))
+			{
 				return 0;
+			}
 			for (i = 0; i < XA_SAMPLES_PER_SOUND_UNIT; i++)
+			{
 				right[i] = tmp.samples[i];
+			}
 
 			for (i = 0; i < XA_SAMPLES_PER_SOUND_UNIT; i++)
 			{
 				if (!NativeAudio_PcmPush(out, left[i]) || !NativeAudio_PcmPush(out, right[i]))
+				{
 					return 0;
+				}
 			}
 		}
 	}
@@ -2039,9 +2277,13 @@ internal int NativeAudio_DecodeXAFile(const u8 *bytes, int byteCount, int channe
 	int sector;
 
 	if ((bytes == NULL) || (maxSectors <= 0))
+	{
 		return 0;
+	}
 	if (!NativeAudio_GetXASectorLayout(byteCount, &sectorSize, &sectorBase, &totalSectors))
+	{
 		return 0;
+	}
 
 	sectorsToScan = maxSectors < totalSectors ? maxSectors : totalSectors;
 	memset(&state, 0, sizeof(state));
@@ -2058,7 +2300,9 @@ internal int NativeAudio_DecodeXAFile(const u8 *bytes, int byteCount, int channe
 		int srBits = (coding >> 2) & 0x03;
 
 		if (!NativeAudio_IsXAAudioSector(src, sectorBase, channelFilter))
+		{
 			continue;
+		}
 
 		*sampleRate = (srBits == 0) ? XA_SAMPLE_RATE_37800 : XA_SAMPLE_RATE_18900;
 		*numChannels = isStereo ? 2 : 1;
@@ -2066,7 +2310,9 @@ internal int NativeAudio_DecodeXAFile(const u8 *bytes, int byteCount, int channe
 		if (isStereo)
 		{
 			if (!NativeAudio_DecodeXASectorStereo(src, sectorBase, &state, pcm))
+			{
 				return 0;
+			}
 		}
 		else if (!NativeAudio_DecodeXASectorMono(src, sectorBase, &state, pcm))
 		{
@@ -2082,11 +2328,15 @@ internal int NativeAudio_GetXAMaxStereoSamples(int numSectors, int *sampleCountO
 	int samplesPerSector;
 
 	if (numSectors <= 0)
+	{
 		return 0;
+	}
 
 	samplesPerSector = XA_FRAMES_PER_SECTOR * XA_SUBFRAMES_PER_FRAME * XA_SAMPLES_PER_SOUND_UNIT * NATIVE_AUDIO_CHANNELS;
 	if (numSectors > (INT_MAX / samplesPerSector))
+	{
 		return 0;
+	}
 
 	*sampleCountOut = numSectors * samplesPerSector;
 	return 1;
@@ -2098,18 +2348,26 @@ internal int NativeAudio_PrepareXAPcmBuffer(struct NativeAudioDecodeArena *arena
 	int maxBytes;
 
 	if (!NativeAudio_GetXAMaxStereoSamples(numSectors, &maxSamples))
+	{
 		return 0;
+	}
 	if (maxSamples > (INT_MAX / (int)sizeof(s16)))
+	{
 		return 0;
+	}
 
 	maxBytes = maxSamples * (int)sizeof(s16);
 	NativeAudio_ArenaReset(arena);
 	if (!NativeAudio_ArenaEnsureCapacity(arena, maxBytes))
+	{
 		return 0;
+	}
 
 	pcm->samples = (s16 *)NativeAudio_ArenaPush(arena, maxBytes, NATIVE_AUDIO_ARENA_ALIGN, markerOut);
 	if (pcm->samples == NULL)
+	{
 		return 0;
+	}
 
 	pcm->count = 0;
 	pcm->capacity = maxSamples;
@@ -2133,11 +2391,17 @@ internal int NativeAudio_LoadXATrackPcm(struct NativeAudioDecodeArena *arena, in
 	*sampleRateOut = 0;
 
 	if (!NativeAudio_LookupXATrackInfo(categoryID, xaID, &info))
+	{
 		return 0;
+	}
 	if (!NativeAudio_BuildXAPath(path, sizeof(path), categoryID, info.fileNumber))
+	{
 		return 0;
+	}
 	if (!NativeAudio_ReadFileBytes(path, &data))
+	{
 		return 0;
+	}
 
 	memset(&pcm, 0, sizeof(pcm));
 	if (!NativeAudio_PrepareXAPcmBuffer(arena, info.numSectors, &pcm, &arenaMarker))
@@ -2202,9 +2466,13 @@ internal int NativeAudio_LoadXAFilePcm(struct NativeAudioDecodeArena *arena, con
 	*sampleRateOut = 0;
 
 	if ((relativePath == NULL) || (channelFilter < 0) || (channelFilter > 0xff))
+	{
 		return 0;
+	}
 	if (!NativeAudio_ReadFileBytes(relativePath, &data))
+	{
 		return 0;
+	}
 	if (!NativeAudio_CountXAAudioSectors(data.data, data.size, channelFilter, &audioSectors, &totalSectors))
 	{
 		NativeAudio_FreeByteBuffer(&data);
@@ -2272,7 +2540,9 @@ internal int NativeAudio_GetQueuedFramesNoLock(void)
 	{
 		queuedBytes = SDL_GetAudioStreamQueued(s_audio.output.stream);
 		if (queuedBytes > 0)
+		{
 			queuedFrames += queuedBytes / frameBytes;
+		}
 	}
 
 	return queuedFrames;
@@ -2282,12 +2552,18 @@ internal void NativeAudio_AddUnderrunFramesNoLock(int frameCount)
 {
 #ifdef CTR_INTERNAL
 	if (frameCount <= 0)
+	{
 		return;
+	}
 
 	if (frameCount > INT_MAX - s_audio.output.underrunFrames)
+	{
 		s_audio.output.underrunFrames = INT_MAX;
+	}
 	else
+	{
 		s_audio.output.underrunFrames += frameCount;
+	}
 #else
 	(void)frameCount;
 #endif
@@ -2297,12 +2573,18 @@ internal void NativeAudio_AddOverflowFramesNoLock(int frameCount)
 {
 #ifdef CTR_INTERNAL
 	if (frameCount <= 0)
+	{
 		return;
+	}
 
 	if (frameCount > INT_MAX - s_audio.output.overflowFrames)
+	{
 		s_audio.output.overflowFrames = INT_MAX;
+	}
 	else
+	{
 		s_audio.output.overflowFrames += frameCount;
+	}
 #else
 	(void)frameCount;
 #endif
@@ -2314,7 +2596,9 @@ internal int NativeAudio_QueueRenderedFramesNoLock(const s16 *frames, int frameC
 	int framesQueued = 0;
 
 	if ((frames == NULL) || (frameCount <= 0))
+	{
 		return 0;
+	}
 
 	while ((framesQueued < frameCount) && (s_audio.output.scheduledFrameCount < NATIVE_AUDIO_SCHEDULED_QUEUE_FRAMES))
 	{
@@ -2325,9 +2609,13 @@ internal int NativeAudio_QueueRenderedFramesNoLock(const s16 *frames, int frameC
 		int chunkFrames = remaining;
 
 		if (chunkFrames > writable)
+		{
 			chunkFrames = writable;
+		}
 		if (chunkFrames > contiguous)
+		{
 			chunkFrames = contiguous;
+		}
 
 		memcpy(&s_audio.output.scheduledPcm[writeFrame * frameSamples], &frames[framesQueued * frameSamples], (size_t)chunkFrames * frameSamples * sizeof(s16));
 		s_audio.output.scheduledFrameCount += chunkFrames;
@@ -2335,7 +2623,9 @@ internal int NativeAudio_QueueRenderedFramesNoLock(const s16 *frames, int frameC
 	}
 
 	if (framesQueued < frameCount)
+	{
 		NativeAudio_AddOverflowFramesNoLock(frameCount - framesQueued);
+	}
 
 	return framesQueued;
 }
@@ -2346,7 +2636,9 @@ internal int NativeAudio_DrainRenderedFramesNoLock(s16 *out, int frameCount)
 	int framesDrained = 0;
 
 	if ((out == NULL) || (frameCount <= 0))
+	{
 		return 0;
+	}
 
 	while ((framesDrained < frameCount) && (s_audio.output.scheduledFrameCount > 0))
 	{
@@ -2355,9 +2647,13 @@ internal int NativeAudio_DrainRenderedFramesNoLock(s16 *out, int frameCount)
 		int chunkFrames = remaining;
 
 		if (chunkFrames > s_audio.output.scheduledFrameCount)
+		{
 			chunkFrames = s_audio.output.scheduledFrameCount;
+		}
 		if (chunkFrames > contiguous)
+		{
 			chunkFrames = contiguous;
+		}
 
 		memcpy(&out[framesDrained * frameSamples], &s_audio.output.scheduledPcm[s_audio.output.scheduledReadFrame * frameSamples],
 		       (size_t)chunkFrames * frameSamples * sizeof(s16));
@@ -2380,12 +2676,16 @@ internal void SDLCALL NativeAudio_StreamCallback(void *userdata, SDL_AudioStream
 	(void)total_amount;
 
 	if ((stream == NULL) || (additional_amount <= 0))
+	{
 		return;
+	}
 
 	framesNeeded = (additional_amount + frameBytes - 1) / frameBytes;
 #ifdef CTR_INTERNAL
 	if (framesNeeded > s_audio.output.callbackMaxRequestFrames)
+	{
 		s_audio.output.callbackMaxRequestFrames = framesNeeded;
+	}
 #endif
 
 	while (framesNeeded > 0)
@@ -2408,7 +2708,9 @@ internal void SDLCALL NativeAudio_StreamCallback(void *userdata, SDL_AudioStream
 		{
 			framesReady = NativeAudio_RenderFramesNoLock(out, chunkFrames);
 			if (framesReady < chunkFrames)
+			{
 				memset(&out[framesReady * NATIVE_AUDIO_CHANNELS], 0, (size_t)(chunkFrames - framesReady) * frameBytes);
+			}
 		}
 
 		if (!SDL_PutAudioStreamData(stream, out, chunkFrames * frameBytes))
@@ -2461,14 +2763,20 @@ int NativeAudio_QueueRenderedFrames(const s16 *frames, int frameCount)
 	int framesQueued;
 
 	if (frameCount <= 0)
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
 	if (s_audio.output.deterministicRenderMode)
+	{
 		framesQueued = NativeAudio_QueueRenderedFramesNoLock(frames, frameCount);
+	}
 	else
+	{
 		framesQueued = 0;
+	}
 
 	NativeAudio_UnlockOutput();
 
@@ -2481,11 +2789,17 @@ void NativeAudio_GetOutputStats(int *underrunFrames, int *overflowFrames, int *q
 	NativeAudio_LockOutput();
 
 	if (underrunFrames != NULL)
+	{
 		*underrunFrames = s_audio.output.underrunFrames;
+	}
 	if (overflowFrames != NULL)
+	{
 		*overflowFrames = s_audio.output.overflowFrames;
+	}
 	if (queuedFrames != NULL)
+	{
 		*queuedFrames = NativeAudio_GetQueuedFramesNoLock();
+	}
 
 	NativeAudio_UnlockOutput();
 }
@@ -2505,7 +2819,9 @@ internal int NativeAudio_ShouldReportOutputStatsNoLock(int *underrunFrames, int 
 	*queuedFrames = NativeAudio_GetQueuedFramesNoLock();
 
 	if ((*underrunFrames == 0) && (*overflowFrames == 0))
+	{
 		return 0;
+	}
 
 	if ((*underrunFrames == s_audio.output.lastReportedUnderrunFrames) && (*overflowFrames == s_audio.output.lastReportedOverflowFrames) &&
 	    (s_audio.output.callbackMaxRequestFrames == s_audio.output.lastReportedCallbackMaxRequestFrames))
@@ -2531,7 +2847,9 @@ int NativeAudio_CaptureState(void *dst, int dstSize)
 	int i;
 
 	if ((dst == NULL) || (dstSize < (int)sizeof(*snapshot)))
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -2554,7 +2872,9 @@ int NativeAudio_CaptureState(void *dst, int dstSize)
 	snapshot->reverb = s_audio.reverb;
 	snapshot->commonAttr = s_audio.commonAttr;
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
+	{
 		NativeAudio_CopyVoiceToState(&snapshot->voices[i], &s_audio.voices[i]);
+	}
 	NativeAudio_CopyXAToState(&snapshot->xa, &s_audio.xa);
 	memcpy(snapshot->spuSampleMem, s_audio.spu.memory, sizeof(snapshot->spuSampleMem));
 
@@ -2573,31 +2893,49 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 	int restoreInit;
 
 	if ((src == NULL) || (srcSize < (int)sizeof(*snapshot)))
+	{
 		return 0;
+	}
 	if ((snapshot->magic != NATIVE_AUDIO_STATE_MAGIC) || (snapshot->version != NATIVE_AUDIO_STATE_VERSION) || (snapshot->size != sizeof(*snapshot)))
+	{
 		return 0;
+	}
 	if ((snapshot->spuAllocCursor < 0) || (snapshot->spuAllocCursor > NATIVE_AUDIO_SPU_MEMSIZE))
+	{
 		return 0;
+	}
 	if ((snapshot->spuTransferOffset < 0) || (snapshot->spuTransferOffset > NATIVE_AUDIO_SPU_MEMSIZE))
+	{
 		return 0;
+	}
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
 	{
 		if (!NativeAudio_ValidateVoiceSnapshot(&snapshot->voices[i]))
+		{
 			return 0;
+		}
 	}
 	if (!NativeAudio_ValidateXASnapshot(&snapshot->xa))
+	{
 		return 0;
+	}
 	if (!NativeAudio_ValidateReverbSnapshot(&snapshot->reverb))
+	{
 		return 0;
+	}
 
 	restoreInit = snapshot->init != 0;
 	if (restoreInit && !NativeAudio_OpenDevice())
+	{
 		return 0;
+	}
 
 	if (snapshot->xa.active && snapshot->xa.hasTrackIdentity)
 	{
 		if (!NativeAudio_LoadXATrackPcm(&s_audio.xaPendingPcmArena, snapshot->xa.categoryID, snapshot->xa.xaID, &xaPcm, &xaFrameCount, &xaSampleRate))
+		{
 			return 0;
+		}
 	}
 
 	NativeAudio_LockOutput();
@@ -2621,7 +2959,9 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 	memcpy(s_audio.spu.memory, snapshot->spuSampleMem, sizeof(s_audio.spu.memory));
 	s_audio.spu.transferOffset = snapshot->spuTransferOffset;
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
+	{
 		NativeAudio_CopyStateToVoice(&s_audio.voices[i], &snapshot->voices[i]);
+	}
 
 	if (snapshot->xa.active && snapshot->xa.hasTrackIdentity)
 	{
@@ -2713,16 +3053,22 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 			int right;
 
 			if (voice->active && ((voice->pcm == NULL) || voice->sampleDirty) && !NativeAudio_UpdateVoiceSample(voice))
+			{
 				voiceStopped = 1;
+			}
 
 			if (!voice->active || voice->pcm == NULL || voice->sampleCount <= 0 || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
+			{
 				continue;
+			}
 
 			if (voice->attr.pitch == 0)
 			{
 				NativeAudio_AdsrAdvance(voice);
 				if (!voice->active || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
+				{
 					voiceStopped = 1;
+				}
 				continue;
 			}
 
@@ -2754,17 +3100,23 @@ internal void NativeAudio_MixFrame(s16 *outLeft, s16 *outRight)
 			}
 			NativeAudio_AdsrAdvance(voice);
 			if (!voice->active || voice->adsrPhase == NATIVE_AUDIO_ADSR_OFF)
+			{
 				voiceStopped = 1;
+			}
 
 			stepFp = ((u32)voice->attr.pitch << NATIVE_AUDIO_FP_SHIFT) / 0x1000u;
 			voice->positionFp += stepFp;
 
 			if (voice->loopEnabled && ((voice->positionFp >> NATIVE_AUDIO_FP_SHIFT) >= (u64)voice->loopEnd))
+			{
 				NativeAudio_WrapVoiceLoop(voice);
+			}
 		}
 
 		if (voiceStopped)
+		{
 			NativeAudio_ReclaimVoicePcmArenaIfIdleNoLock();
+		}
 	}
 
 	NativeAudio_ReverbProcessNoLock(reverbSendLeft, reverbSendRight, &reverbWetLeft, &reverbWetRight);
@@ -2780,12 +3132,16 @@ internal int NativeAudio_RenderFramesNoLock(s16 *out, int frameCount)
 	int frame;
 
 	if ((out == NULL) || (frameCount <= 0) || (frameCount > INT_MAX / NATIVE_AUDIO_CHANNELS))
+	{
 		return 0;
+	}
 
 	for (frame = 0; frame < frameCount; frame++)
 	{
 		if (s_audio.init)
+		{
 			NativeAudio_MixFrame(&out[frame * NATIVE_AUDIO_CHANNELS], &out[frame * NATIVE_AUDIO_CHANNELS + 1]);
+		}
 		else
 		{
 			out[frame * NATIVE_AUDIO_CHANNELS] = 0;
@@ -2801,7 +3157,9 @@ int NativeAudio_RenderFrames(s16 *out, int frameCount)
 	int framesRendered;
 
 	if ((out == NULL) || (frameCount <= 0))
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -2822,7 +3180,9 @@ void NativeAudio_StepVBlank(void)
 #endif
 
 	if (!s_audio.init)
+	{
 		return;
+	}
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_AUDIO_VBLANK);
 	NativeAudio_LockOutput();
@@ -2862,12 +3222,16 @@ internal int NativeAudio_OpenDevice(void)
 	int deviceSampleFrames = 0;
 
 	if (NativeAudio_OutputOpen())
+	{
 		return 1;
+	}
 
 	NativeAudio_SelectDriverHint();
 
 	if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
+	{
 		return 0;
+	}
 
 	memset(&want, 0, sizeof(want));
 	memset(&srcSpec, 0, sizeof(srcSpec));
@@ -2886,7 +3250,9 @@ internal int NativeAudio_OpenDevice(void)
 
 	s_audio.output.device = SDL_GetAudioStreamDevice(s_audio.output.stream);
 	if (!SDL_GetAudioDeviceFormat(s_audio.output.device, &deviceSpec, &deviceSampleFrames))
+	{
 		deviceSampleFrames = 0;
+	}
 	if (!SDL_GetAudioStreamFormat(s_audio.output.stream, &srcSpec, &dstSpec))
 	{
 		fprintf(stderr, "[CTR Native] SDL audio stream format unavailable: %s\n", SDL_GetError());
@@ -2950,7 +3316,9 @@ s32 NativeAudio_SpuInit(void)
 	}
 
 	if (!NativeAudio_OpenDevice())
+	{
 		return 0;
+	}
 
 	s_audio.init = 1;
 	return 1;
@@ -2961,7 +3329,9 @@ u32 NativeAudio_SpuSetTransferStartAddr(u32 addr)
 	u32 result;
 
 	if (addr > NATIVE_AUDIO_SPU_MEMSIZE)
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -3001,7 +3371,9 @@ void NativeAudio_SpuSetVoiceAttr(SpuVoiceAttr *psxAttrib)
 	int i;
 
 	if (!s_audio.init || psxAttrib == NULL)
+	{
 		return;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -3010,54 +3382,88 @@ void NativeAudio_SpuSetVoiceAttr(SpuVoiceAttr *psxAttrib)
 		struct NativeAudioVoice *voice;
 
 		if ((psxAttrib->voice & SPU_VOICECH(i)) == 0)
+		{
 			continue;
+		}
 
 		voice = &s_audio.voices[i];
 
 		if (psxAttrib->mask & SPU_VOICE_WDSA)
 		{
 			if (voice->attr.addr != psxAttrib->addr)
+			{
 				voice->sampleDirty = 1;
+			}
 			voice->attr.addr = psxAttrib->addr;
 		}
 
 		if (psxAttrib->mask & SPU_VOICE_LSAX)
 		{
 			if (voice->attr.loop_addr != psxAttrib->loop_addr)
+			{
 				voice->sampleDirty = 1;
+			}
 			voice->attr.loop_addr = psxAttrib->loop_addr;
 		}
 
 		if (psxAttrib->mask & SPU_VOICE_VOLL)
+		{
 			voice->attr.volume.left = psxAttrib->volume.left;
+		}
 		if (psxAttrib->mask & SPU_VOICE_VOLR)
+		{
 			voice->attr.volume.right = psxAttrib->volume.right;
+		}
 		if (psxAttrib->mask & SPU_VOICE_PITCH)
+		{
 			voice->attr.pitch = psxAttrib->pitch;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_AR)
+		{
 			voice->attr.ar = psxAttrib->ar;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_DR)
+		{
 			voice->attr.dr = psxAttrib->dr;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_SR)
+		{
 			voice->attr.sr = psxAttrib->sr;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_RR)
+		{
 			voice->attr.rr = psxAttrib->rr;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_SL)
+		{
 			voice->attr.sl = psxAttrib->sl;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_AMODE)
+		{
 			voice->attr.a_mode = psxAttrib->a_mode;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_SMODE)
+		{
 			voice->attr.s_mode = psxAttrib->s_mode;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_RMODE)
+		{
 			voice->attr.r_mode = psxAttrib->r_mode;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_ADSR1)
+		{
 			voice->attr.adsr1 = psxAttrib->adsr1;
+		}
 		if (psxAttrib->mask & SPU_VOICE_ADSR_ADSR2)
+		{
 			voice->attr.adsr2 = psxAttrib->adsr2;
+		}
 		NativeAudio_DecodePackedAdsrToFields(voice, (psxAttrib->mask & SPU_VOICE_ADSR_ADSR1) != 0, (psxAttrib->mask & SPU_VOICE_ADSR_ADSR2) != 0);
 		if (psxAttrib->mask & (SPU_VOICE_ADSR_AR | SPU_VOICE_ADSR_DR | SPU_VOICE_ADSR_SR | SPU_VOICE_ADSR_RR | SPU_VOICE_ADSR_SL | SPU_VOICE_ADSR_AMODE |
 		                       SPU_VOICE_ADSR_SMODE | SPU_VOICE_ADSR_RMODE | SPU_VOICE_ADSR_ADSR1 | SPU_VOICE_ADSR_ADSR2))
+		{
 			NativeAudio_UpdatePackedAdsrFromFields(voice);
+		}
 	}
 
 	NativeAudio_UnlockOutput();
@@ -3068,7 +3474,9 @@ void NativeAudio_SpuSetKey(s32 on_off, u32 voice_bit)
 	int i;
 
 	if (!s_audio.init)
+	{
 		return;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -3077,28 +3485,40 @@ void NativeAudio_SpuSetKey(s32 on_off, u32 voice_bit)
 		struct NativeAudioVoice *voice;
 
 		if ((voice_bit & SPU_VOICECH(i)) == 0)
+		{
 			continue;
+		}
 
 		voice = &s_audio.voices[i];
 		if (on_off && !s_audio.muted)
 		{
 			if ((voice->pcm == NULL) || voice->sampleDirty)
+			{
 				NativeAudio_UpdateVoiceSample(voice);
+			}
 
 			voice->positionFp = 0;
 			voice->looped = 0;
 			voice->active = voice->pcm != NULL;
 			if (voice->active)
+			{
 				NativeAudio_AdsrKeyOn(voice);
+			}
 			else
+			{
 				NativeAudio_AdsrForceOff(voice);
+			}
 		}
 		else
 		{
 			if (on_off)
+			{
 				NativeAudio_AdsrForceOff(voice);
+			}
 			else
+			{
 				NativeAudio_AdsrKeyOff(voice);
+			}
 		}
 	}
 
@@ -3126,7 +3546,9 @@ s32 NativeAudio_SpuSetReverbModeParam(SpuReverbAttr *attr)
 	u32 mask;
 
 	if (attr == NULL)
+	{
 		return SPU_INVALID_ARGS;
+	}
 
 	mask = attr->mask != 0 ? attr->mask : (SPU_REV_MODE | SPU_REV_DEPTHL | SPU_REV_DEPTHR | SPU_REV_DELAYTIME | SPU_REV_FEEDBACK);
 
@@ -3136,16 +3558,26 @@ s32 NativeAudio_SpuSetReverbModeParam(SpuReverbAttr *attr)
 	{
 		s_audio.reverbAttr.mode = attr->mode;
 		if (attr->mode != SPU_REV_MODE_CHECK)
+		{
 			NativeAudio_ReverbConfigureModeNoLock(attr->mode);
+		}
 	}
 	if (mask & SPU_REV_DEPTHL)
+	{
 		s_audio.reverbAttr.depth.left = attr->depth.left;
+	}
 	if (mask & SPU_REV_DEPTHR)
+	{
 		s_audio.reverbAttr.depth.right = attr->depth.right;
+	}
 	if (mask & SPU_REV_DELAYTIME)
+	{
 		s_audio.reverbAttr.delay = attr->delay;
+	}
 	if (mask & SPU_REV_FEEDBACK)
+	{
 		s_audio.reverbAttr.feedback = attr->feedback;
+	}
 	s_audio.reverbAttr.mask |= mask;
 
 	NativeAudio_UnlockOutput();
@@ -3171,14 +3603,20 @@ u32 NativeAudio_SpuSetReverbVoice(s32 on_off, u32 voice_bit)
 	NativeAudio_LockOutput();
 
 	if (on_off)
+	{
 		s_audio.reverbVoiceBits |= voice_bit;
+	}
 	else
+	{
 		s_audio.reverbVoiceBits &= ~voice_bit;
+	}
 
 	for (i = 0; i < NATIVE_AUDIO_SPU_VOICE_COUNT; i++)
 	{
 		if ((voice_bit & SPU_VOICECH(i)) != 0)
+		{
 			s_audio.voices[i].reverb = on_off != 0;
+		}
 	}
 
 	NativeAudio_UnlockOutput();
@@ -3239,7 +3677,9 @@ int NativeAudio_GetXATrackLength(int categoryID, int xaID)
 	struct NativeAudioXaTrackInfo info;
 
 	if (!NativeAudio_LookupXATrackInfo(categoryID, xaID, &info))
+	{
 		return 0;
+	}
 
 	return info.numSectors;
 }
@@ -3286,10 +3726,14 @@ int NativeAudio_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volume
 	int frameCount;
 
 	if (!NativeAudio_SpuInit())
+	{
 		return 0;
+	}
 
 	if (!NativeAudio_LoadXATrackPcm(&s_audio.xaPendingPcmArena, categoryID, xaID, &pcm, &frameCount, &sampleRate))
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -3323,10 +3767,14 @@ int NativeAudio_PlayXAFile(const char *relativePath, int channelFilter, int volu
 	int frameCount;
 
 	if (!NativeAudio_SpuInit())
+	{
 		return 0;
+	}
 
 	if (!NativeAudio_LoadXAFilePcm(&s_audio.xaPendingPcmArena, relativePath, channelFilter, &pcm, &frameCount, &sampleRate))
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 
@@ -3372,7 +3820,9 @@ int NativeAudio_GetXACurrOffset(void)
 		outputFrame = s_audio.xa.outputFrame;
 		outputFrameCount = NativeAudio_GetXAOutputFrameCount(s_audio.xa.frameCount, s_audio.xa.sampleRate);
 		if ((outputFrameCount > 0) && (outputFrame > outputFrameCount))
+		{
 			outputFrame = outputFrameCount;
+		}
 		outputFrame >>= 8;
 		offset = outputFrame > (u64)INT_MAX ? INT_MAX : (int)outputFrame;
 	}
@@ -3395,20 +3845,30 @@ internal int NativeAudio_GetXAMaxSampleAtSourceFrameNoLock(u64 frameIndex)
 			int right;
 
 			if (frameIndex + (u64)frame >= (u64)s_audio.xa.frameCount)
+			{
 				break;
+			}
 
 			left = s_audio.xa.pcm[((size_t)frameIndex + (size_t)frame) * 2];
 			right = s_audio.xa.pcm[((size_t)frameIndex + (size_t)frame) * 2 + 1];
 
 			if (left < 0)
+			{
 				left = -left;
+			}
 			if (right < 0)
+			{
 				right = -right;
+			}
 
 			if (max < left)
+			{
 				max = left;
+			}
 			if (max < right)
+			{
 				max = right;
+			}
 		}
 	}
 
@@ -3435,7 +3895,9 @@ int NativeAudio_GetXAMaxSampleAtOffset(int xaCurrOffset)
 	int max = 0;
 
 	if (xaCurrOffset < 0)
+	{
 		return 0;
+	}
 
 	NativeAudio_LockOutput();
 

@@ -40,10 +40,14 @@ int RaceFlag_MoveModels(int frameIndex, int numFrames)
 	int result;
 
 	if (frameIndex < 0)
+	{
 		return 0;
+	}
 
 	if (frameIndex > numFrames)
+	{
 		return 0x1000;
+	}
 
 	// cut in half
 	midpoint = numFrames / 2;
@@ -200,7 +204,9 @@ u32 *RaceFlag_GetOT(void)
 	{
 		// set fully "off" to start transition "on"
 		if (sdata->RaceFlag_Position < 0)
+		{
 			sdata->RaceFlag_Position = 5000;
+		}
 
 		sdata->RaceFlag_TransitionSpeed = 300;
 
@@ -211,9 +217,11 @@ u32 *RaceFlag_GetOT(void)
 		{
 			// skip last 8 frames to zero
 			if (iVar2 < 8)
+			{
 				sdata->RaceFlag_Position = 0;
 
 			// transition for frame >= 8
+			}
 			else
 			{
 				// rate of transition
@@ -237,7 +245,9 @@ u32 *RaceFlag_GetOT(void)
 			if (sdata->RaceFlag_DrawOrder != 1)
 			{
 				if (sdata->RaceFlag_DrawOrder != -1)
+				{
 					return otDrawFirst_FarthestDepth;
+				}
 
 				sdata->RaceFlag_DrawOrder = 0;
 			}
@@ -359,7 +369,9 @@ void RaceFlag_DrawLoadingString(void)
 					// if frame > 0x4f,
 					// if letter is fully off-screen
 					if (0x4f < iVar3)
+					{
 						goto LAB_800443c4;
+					}
 
 					// letter is moving off-screen
 					iVar4 = (0x4b - iVar3) * 0x3c + 0x100;
@@ -485,7 +497,9 @@ void RaceFlag_DrawSelf()
 	SVECTOR pos[3] = {0};
 
 	if (sdata->RaceFlag_CanDraw == 0)
+	{
 		return;
+	}
 
 	if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
 	{
@@ -495,7 +509,9 @@ void RaceFlag_DrawSelf()
 		}
 
 		if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
+		{
 			goto SKIP_LOADING_TEXT;
+		}
 	}
 
 	RaceFlag_DrawLoadingString();

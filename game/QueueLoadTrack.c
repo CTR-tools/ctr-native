@@ -17,7 +17,9 @@ void QueueLoadTrack_MenuProc(struct RectMenu *menu)
 	// If you're in Adventure Mode,
 	// go to Adventure Arena from Title Screen
 	if ((gGT->gameMode1 & ADVENTURE_MODE) != 0)
+	{
 		gGT->gameMode1 |= ADVENTURE_ARENA;
+	}
 
 	// If you're not in Battle Mode,
 	// clear battle related variables

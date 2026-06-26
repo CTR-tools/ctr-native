@@ -38,14 +38,18 @@ static void CC_EndEvent_LogUnmodeledRewardOffset(const s32 levelID)
 		u64 *levelMask = &s_loggedLevelMask[levelID >> 6];
 
 		if ((*levelMask & levelBit) != 0)
+		{
 			return;
+		}
 
 		*levelMask |= levelBit;
 	}
 	else
 	{
 		if (s_loggedOutOfRangeLevel)
+		{
 			return;
+		}
 
 		s_loggedOutOfRangeLevel = true;
 	}
@@ -117,7 +121,9 @@ static u8 *CC_EndEvent_GetNativeRewardWordBytes(s32 rewardBit)
 	// advProgress.rewards, so Dingo Bingo can touch adjacent gameOptions words.
 	// Native bounds that retail window without doing host out-of-bounds access.
 	if ((rewardByteOffset < windowStart) || (rewardByteOffset > windowEnd - (s32)sizeof(u32)))
+	{
 		return NULL;
+	}
 
 	return (u8 *)sdata + (s32)rewardByteOffset;
 }
@@ -129,7 +135,9 @@ static b32 CC_EndEvent_HasRewardBit(struct AdvProgress *adv, s32 rewardBit)
 	(void)adv;
 	u8 *wordBytes = CC_EndEvent_GetNativeRewardWordBytes(rewardBit);
 	if (wordBytes == NULL)
+	{
 		return true;
+	}
 
 	u32 rewardWord;
 	memcpy(&rewardWord, wordBytes, sizeof(rewardWord));
@@ -145,7 +153,9 @@ static void CC_EndEvent_UnlockRewardBit(struct AdvProgress *adv, s32 rewardBit)
 	(void)adv;
 	u8 *wordBytes = CC_EndEvent_GetNativeRewardWordBytes(rewardBit);
 	if (wordBytes == NULL)
+	{
 		return;
+	}
 
 	u32 rewardWord;
 	memcpy(&rewardWord, wordBytes, sizeof(rewardWord));
@@ -170,7 +180,9 @@ void CC_EndEvent_DrawMenu()
 	s32 elapsedFrames = sdata->framesSinceRaceEnded;
 
 	if (elapsedFrames < CTR_SECONDS_TO_FRAMES(30))
+	{
 		elapsedFrames++;
+	}
 
 	sdata->framesSinceRaceEnded = elapsedFrames;
 #if defined(CTR_NATIVE)
@@ -178,7 +190,9 @@ void CC_EndEvent_DrawMenu()
 	// crystal HUD instances; keep reward/menu logic and skip missing models.
 	if (sdata->ptrHudCrystal != NULL)
 #endif
+	{
 		sdata->ptrHudCrystal->flags |= HIDE_MODEL;
+	}
 
 	// fly in from left
 	UI_Lerp2D_Linear(pos.v, -0x64, 0x18, 0x100, 0x18, elapsedFrames, CC_FLY_IN_FRAMES);
@@ -200,7 +214,9 @@ void CC_EndEvent_DrawMenu()
 
 	s32 resultStringIndex = LNG_YOU_WIN;
 	if (didLose)
+	{
 		resultStringIndex = LNG_TRY_AGAIN;
+	}
 
 	// YOU WIN, or TRY AGAIN
 	DecalFont_DrawLine(sdata->lngStrings[resultStringIndex], pos.x + 0x33, pos.y + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
@@ -210,12 +226,16 @@ void CC_EndEvent_DrawMenu()
 	{
 		// If you pressed X/O to continue, quit function
 		if ((sdata->menuReadyToPass & 1) != 0)
+		{
 			return;
+		}
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
 		if ((sdata->AnyPlayerTap & CC_CONFIRM_BUTTON_MASK) == 0)
+		{
 			return;
+		}
 
 		RECTMENU_ClearInput();
 		RECTMENU_Show(&menu221); // Retry / Exit To Map menu
@@ -228,7 +248,9 @@ void CC_EndEvent_DrawMenu()
 	struct Instance *token = sdata->ptrToken;
 	s32 color = (JUSTIFY_CENTER | ORANGE);
 	if (gGT->timer == 0)
+	{
 		color = (JUSTIFY_CENTER | WHITE);
+	}
 
 	UI_Lerp2D_Linear(pos.v, -0x64, 0xA2, 0x100, 0xA2, elapsedFrames, CC_FLY_IN_FRAMES);
 
@@ -266,7 +288,9 @@ void CC_EndEvent_DrawMenu()
 
 	// if still waiting to press X/O, quit function
 	if ((sdata->AnyPlayerTap & CC_CONFIRM_BUTTON_MASK) == 0)
+	{
 		return;
+	}
 
 	// if pressed X/O,
 	// unlock token and leave level

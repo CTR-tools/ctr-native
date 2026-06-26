@@ -20,7 +20,9 @@ void PROC_DestroyTracker(struct Thread *t)
 	struct GameTracker *gGT = sdata->gGT;
 
 	if (gGT->numMissiles > 0)
+	{
 		gGT->numMissiles--;
+	}
 
 	PROC_DestroyInstance(t);
 }
@@ -39,14 +41,22 @@ void PROC_DestroyObject(void *object, int threadFlags)
 	struct JitPool *myPool;
 
 	if (object == NULL)
+	{
 		return;
+	}
 
 	if ((threadFlags & 0x300) == 0x100)
+	{
 		myPool = &sdata->gGT->JitPools.largeStack;
+	}
 	else if ((threadFlags & 0x300) == 0x200)
+	{
 		myPool = &sdata->gGT->JitPools.mediumStack;
+	}
 	else
+	{
 		myPool = &sdata->gGT->JitPools.smallStack;
+	}
 
 	// in allocation, "next" and "prev" are abstracted
 	// with obj+=8, so not all structs need "next" and "prev",
@@ -63,11 +73,15 @@ void PROC_DestroySelf(struct Thread *t)
 {
 	// thread must exist
 	if (t == 0)
+	{
 		return;
+	}
 
 	// this is usuallly PROC_DestroyInstance
 	if (t->funcThDestroy != 0)
+	{
 		t->funcThDestroy(t);
+	}
 
 	// used by RB_Follower
 	t->timesDestroyed++;
@@ -90,7 +104,9 @@ void PROC_DestroyBloodline(struct Thread *t)
 
 		// recursively find all children
 		if (t->childThread != 0)
+		{
 			PROC_DestroyBloodline(t->childThread);
+		}
 
 		siblingThread = t->siblingThread;
 		PROC_DestroySelf(t);
@@ -115,7 +131,9 @@ void PROC_CheckBloodlineForDead(struct Thread **replaceSelf, struct Thread *th)
 
 			// recursively find all children
 			if (th->childThread != 0)
+			{
 				PROC_CheckBloodlineForDead(&th->childThread, th->childThread);
+			}
 
 			// current thread is alive, doesn't need to be overwritten,
 			// next check sibling, so sibling will be replaced by the
@@ -128,7 +146,9 @@ void PROC_CheckBloodlineForDead(struct Thread **replaceSelf, struct Thread *th)
 		{
 			// recursively find all children
 			if (th->childThread != 0)
+			{
 				PROC_DestroyBloodline(th->childThread);
+			}
 
 			PROC_DestroySelf(th);
 
@@ -172,9 +192,13 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 
 	// determine bucketID from relativeTh or flags
 	if (relativeTh != 0)
+	{
 		bucketID = relativeTh->flags & 0xff;
+	}
 	else
+	{
 		bucketID = flags & 0xff;
+	}
 
 	// select stack pool based on flags & 0x300
 	switch (flags & 0x300)
@@ -197,7 +221,9 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	if (bucketID >= NUM_BUCKETS)
 	{
 		if (stackObj != 0)
+		{
 			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+		}
 		return 0;
 	}
 
@@ -205,13 +231,17 @@ struct Thread *PROC_BirthWithObject(int flags, void *funcThTick, const char *nam
 	if ((u32)(flags >> 0x10) >= (stackPool->itemSize - 8))
 	{
 		if (stackObj != 0)
+		{
 			PROC_DestroyObject((void *)((u32)stackObj + 8), flags);
+		}
 		return 0;
 	}
 
 	// check stack object allocated
 	if (stackObj == 0)
+	{
 		return 0;
+	}
 
 	// allocate thread SECOND
 	th = (struct Thread *)LIST_RemoveFront(&gGT->JitPools.thread.free);
@@ -281,7 +311,9 @@ void PROC_CollidePointWithSelf(struct Thread *th, struct BucketSearchParams *buf
 	int dist;
 
 	if ((th->flags & (THREAD_FLAG_DEAD | THREAD_FLAG_DISABLE_COLLISION)) != 0)
+	{
 		return;
+	}
 
 	inst = th->inst;
 
@@ -294,17 +326,25 @@ void PROC_CollidePointWithSelf(struct Thread *th, struct BucketSearchParams *buf
 	distZ = (int)buf->pos.z - (int)inst->matrix.t[2];
 
 	if (distX * distX >= 0x10000000)
+	{
 		return;
+	}
 	if (distY * distY >= 0x10000000)
+	{
 		return;
+	}
 	if (distZ * distZ >= 0x10000000)
+	{
 		return;
+	}
 
 	dist = distX * distX + distY * distY + distZ * distZ;
 
 	// if outside hit radius
 	if (dist >= buf->bestDistSq)
+	{
 		return;
+	}
 
 	// return distance to center
 	buf->bestDistSq = dist;
@@ -340,12 +380,16 @@ struct Thread *PROC_SearchForModel(struct Thread *th, s16 modelID)
 	{
 		// if found, quit
 		if (th->modelIndex == modelID)
+		{
 			return th;
+		}
 
 		// check children recursively, quit if found
 		struct Thread *other = PROC_SearchForModel(th->childThread, modelID);
 		if (other != 0)
+		{
 			return other;
+		}
 
 		th = th->siblingThread;
 	}
@@ -372,19 +416,27 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 
 	bspHitbox = bspLeaf->data.leaf.bspHitboxArray;
 	if (bspHitbox == NULL)
+	{
 		return;
+	}
 
 	if (*(int *)bspHitbox == 0)
+	{
 		return;
+	}
 
 	for (/**/; *(int *)bspHitbox != 0; bspHitbox++)
 	{
 		if ((bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
+		{
 			continue;
+		}
 
 		instDef = bspHitbox->data.hitbox.instDef;
 		if ((instDef != NULL) && ((instDef->ptrInstance->flags & DRAW_COLLISION_MASK) == 0))
+		{
 			continue;
+		}
 
 		distX = (int)sps->Input1.pos.x - (int)bspHitbox->data.hitbox.center.x;
 		distY = (int)sps->Input1.pos.y - (int)bspHitbox->data.hitbox.center.y;
@@ -392,20 +444,28 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 
 		dist = PROC_PerBspLeaf_MipsSquare(distX);
 		if (dist > 0x0fffffff)
+		{
 			continue;
+		}
 
 		s32 distYSquared = PROC_PerBspLeaf_MipsSquare(distY);
 		dist += distYSquared;
 		if (distYSquared > 0x0fffffff)
+		{
 			continue;
+		}
 
 		s32 distZSquared = PROC_PerBspLeaf_MipsSquare(distZ);
 		dist += distZSquared;
 		if (distZSquared > 0x0fffffff)
+		{
 			continue;
+		}
 
 		if (dist >= sps->Input1.hitRadiusSquared)
+		{
 			continue;
+		}
 
 		CTR_SET_VEC3(sps->Union.ThBuckColl.centerDelta.v, (s16)distX, (s16)distY, (s16)distZ);
 
@@ -455,13 +515,19 @@ void PROC_CollideHitboxWithBucket(struct Thread *collThread, struct ScratchpadSt
 	for (/**/; collThread != NULL; collThread = collThread->siblingThread)
 	{
 		if (collThread->childThread != NULL)
+		{
 			PROC_CollideHitboxWithBucket(collThread->childThread, sps, ignoredThread);
+		}
 
 		if (collThread == ignoredThread)
+		{
 			continue;
+		}
 
 		if ((collThread->flags & 0x1800) != 0)
+		{
 			continue;
+		}
 
 		inst = collThread->inst;
 
@@ -471,20 +537,28 @@ void PROC_CollideHitboxWithBucket(struct Thread *collThread, struct ScratchpadSt
 
 		dist = PROC_CollideHitbox_MipsSquare(distX);
 		if (dist > 0x0fffffff)
+		{
 			continue;
+		}
 
 		s32 distYSquared = PROC_CollideHitbox_MipsSquare(distY);
 		dist += distYSquared;
 		if (distYSquared > 0x0fffffff)
+		{
 			continue;
+		}
 
 		s32 distZSquared = PROC_CollideHitbox_MipsSquare(distZ);
 		dist += distZSquared;
 		if (distZSquared > 0x0fffffff)
+		{
 			continue;
+		}
 
 		if (dist >= sps->Input1.hitRadiusSquared)
+		{
 			continue;
+		}
 
 		CTR_SET_VEC3(sps->Union.ThBuckColl.centerDelta.v, (s16)distX, (s16)distY, (s16)distZ);
 
@@ -502,10 +576,14 @@ enum
 static void ThTick_PushPending(struct Thread **pending, int *count, struct Thread *thread)
 {
 	if (thread == NULL)
+	{
 		return;
+	}
 
 	if (*count >= THTICK_MAX_PENDING)
+	{
 		return;
+	}
 
 	pending[*count] = thread;
 	(*count)++;
@@ -533,7 +611,9 @@ void ThTick_RunBucket(struct Thread *thread)
 		ThTick_PushPending(pending, &count, t->siblingThread);
 
 		if (t->cooldownFrameCount < 0)
+		{
 			continue;
+		}
 
 		if (t->cooldownFrameCount != 0)
 		{
@@ -546,7 +626,9 @@ void ThTick_RunBucket(struct Thread *thread)
 #if defined(CTR_NATIVE)
 			context.currentThread = t;
 			if (setjmp(context.env) == 0)
+			{
 				t->funcThTick(t);
+			}
 			t = context.currentThread;
 #else
 			t->funcThTick(t);
@@ -578,7 +660,9 @@ void ThTick_SetAndExec(struct Thread *thread, void (*funcThTick)(struct Thread *
 	// scratchpad after the replacement tick returns. Native must not resume the
 	// stale caller that requested the tick switch.
 	if (s_thTickContext != NULL && s_thTickContext->currentThread != NULL)
+	{
 		longjmp(s_thTickContext->env, 1);
+	}
 #endif
 }
 

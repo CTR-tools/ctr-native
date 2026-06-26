@@ -44,7 +44,9 @@ void RB_Explosion_InitPotion(struct Instance *inst)
 
 	// if red beaker, red explosion
 	if (inst->model->id == STATIC_BEAKER_RED)
+	{
 		shatterColor = STATIC_SHOCKWAVE_RED;
+	}
 
 	// create thread for shatter
 	shatterInst = INSTANCE_BirthWithThread(shatterColor, 0, SMALL, OTHER, RB_Explosion_ThTick, 0, 0);
@@ -74,7 +76,9 @@ void RB_Explosion_InitPotion(struct Instance *inst)
 		p = Particle_Init(0, sdata->gGT->iconGroup[1], (struct ParticleEmitter *)s_potionShatterEmitter);
 
 		if (p == NULL)
+		{
 			continue;
+		}
 
 		p->axis[0].startVal += shatterInst->matrix.t[0] * 0x100;
 		p->axis[1].startVal += shatterInst->matrix.t[1] * 0x100;

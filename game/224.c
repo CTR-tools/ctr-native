@@ -165,9 +165,13 @@ void TT_EndEvent_DrawMenu(void)
 
 			char *nTropyString;
 			if ((gameModeEnd & NTROPY_JUST_OPENED) != 0)
+			{
 				nTropyString = lngStrings[LNG_N_TROPY_OPENED];
+			}
 			else
+			{
 				nTropyString = lngStrings[LNG_N_TROPY_BEATEN];
+			}
 
 			DecalFont_DrawLine(nTropyString, pos.x, pos.y, FONT_BIG, textColor);
 		}

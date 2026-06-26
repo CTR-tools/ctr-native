@@ -48,9 +48,13 @@ void UI_JumpMeter_Update(struct Driver *d)
 			{
 				int param = 0;
 				if (d->jumpMeter >= 960)
+				{
 					param = 0x80;
+				}
 				if (d->jumpMeter >= 1440)
+				{
 					param = 0x100;
+				}
 
 				// add one second reserves
 				VehFire_Increment(d, 960, POWER_SLIDE_HANG_TIME, param);

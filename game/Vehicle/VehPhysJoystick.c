@@ -6,7 +6,9 @@ extern struct RacingWheelData rwd_default;
 int VehPhysJoystick_ReturnToRest(int stickVal, int half, struct RacingWheelData *rwd)
 {
 	if (rwd == 0)
+	{
 		rwd = &rwd_default;
+	}
 
 	stickVal = CTR_MipsSubLo(stickVal, rwd->gamepadCenter);
 
@@ -46,12 +48,16 @@ int VehPhysJoystick_GetStrength(int val, int max, struct RacingWheelData *rwd)
 	}
 
 	if (val < dead)
+	{
 		return 0;
+	}
 
 	dead = CTR_MipsSubLo(val, dead);
 
 	if (range <= val)
+	{
 		return max;
+	}
 
 	int halfDist = CTR_MipsSra(CTR_MipsAddLo(dist, (u32)dist >> 31), 1);
 	int maxFifth = max / 5;
@@ -73,7 +79,9 @@ int VehPhysJoystick_GetStrengthAbsolute(int stickVal, int maxSteer, struct Racin
 {
 	int center = 0x80;
 	if (rwd != NULL)
+	{
 		center = rwd->gamepadCenter;
+	}
 
 	int distFromCenter = CTR_MipsSubLo(stickVal, center);
 

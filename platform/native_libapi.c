@@ -26,7 +26,9 @@ int SetRCnt(int spec, unsigned short target, int mode)
 {
 	spec &= 0xffff;
 	if (spec > 2)
+	{
 		return 0;
+	}
 
 	(void)target;
 	(void)mode;
@@ -41,7 +43,9 @@ int GetRCnt(int spec)
 
 	counts = s_rootCounterValue - s_rootCounterBase;
 	if (counts > 0x7fffffff)
+	{
 		return 0x7fffffff;
+	}
 
 	return (int)counts;
 }
@@ -50,7 +54,9 @@ int StartRCnt(int spec)
 {
 	spec &= 0xffff;
 	if (spec > 2)
+	{
 		return 0;
+	}
 
 	return 1;
 }

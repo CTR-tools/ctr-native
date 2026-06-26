@@ -428,7 +428,9 @@ static struct DrawTiresReflectionProjectedWheel DrawTiresReflection_SelectProjec
 	angleValue = MFC2_S(9);
 	spriteIndex = DrawTiresSolid_SelectSpriteIndex(angleValue);
 	if (angleValue < 0)
+	{
 		selected.jumpIndex += 4;
+	}
 
 	selected.wheelSprite = scratch->wheelSprites[spriteIndex];
 
@@ -529,10 +531,14 @@ static void DrawTiresReflection_LinkPrimitive(struct DrawTiresReflectionScratch 
 	int otRangeEnd = DrawTiresReflection_ReadS32(scratch, 0x174);
 
 	if ((otRangeStart - selectedOTSlot) > 0)
+	{
 		selectedOTSlot = otRangeStart;
+	}
 
 	if ((otRangeEnd - selectedOTSlot) < 0)
+	{
 		selectedOTSlot = otRangeEnd;
+	}
 
 	otSlot = (uint32_t *)(uintptr_t)selectedOTSlot;
 	p->tag = CtrGpu_PackOTTag(*otSlot, 0x09000000);
@@ -550,7 +556,9 @@ static void DrawTiresReflection_EmitProjectedWheel(struct DrawTiresReflectionScr
 	*(u32 *)&p->r0 = scratch->tireColor;
 
 	if (selected->wheelSprite == 0)
+	{
 		return;
+	}
 
 	DrawTiresReflection_CopyIconUV(p, selected->wheelSprite);
 
@@ -564,11 +572,15 @@ static void DrawTiresReflection_EmitProjectedWheel(struct DrawTiresReflectionScr
 #endif
 
 	if (DrawTiresReflection_ApplyCornerOrder(scratch, selected->jumpIndex, &selectedOTSlot, sxy) == 0)
+	{
 		return;
+	}
 
 	splitDelta = DrawTiresReflection_ReadS16(scratch, 0x50) - DrawTiresReflection_ReadS16(scratch, centerOffset + 2);
 	if (splitDelta < 0)
+	{
 		return;
+	}
 
 	DrawTiresReflection_WritePrimitiveCorners(p, sxy);
 	DrawTiresReflection_LinkPrimitive(scratch, p, selectedOTSlot);
@@ -620,16 +632,24 @@ static int DrawTiresReflection_StagePlayer(struct DrawTiresReflectionScratch *sc
 	scratch->instFlags = flags;
 
 	if ((flags & DRAW_SUCCESSFUL) == 0)
+	{
 		return 0;
+	}
 
 	if ((flags & 0x4000) == 0)
+	{
 		return 0;
+	}
 
 	if ((idpp->lodIndex - scratch->lodThreshold) > 0)
+	{
 		return 0;
+	}
 
 	if (pb == 0)
+	{
 		return 0;
+	}
 
 	scratch->wheelSprites = driver->wheelSprites;
 	scratch->tireColor = ((flags & PUSHBUFFER_EXISTS) != 0) ? 0x2e808080 : driver->tireColor;
@@ -668,7 +688,9 @@ void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, char n
 	// offset-checked stack state and explicit helpers; PSX backfeed must restore
 	// the retail scratchpad/register entry protocol.
 	if (primMem == 0)
+	{
 		return;
+	}
 
 	primCount = primMem->primitiveCount;
 	DrawTiresReflection_InitScratch(&scratch, numPlyr);
@@ -679,12 +701,16 @@ void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, char n
 		struct Instance *inst = currThread->inst;
 
 		if (driver == 0 || inst == 0)
+		{
 			continue;
+		}
 
 		for (int playerIndex = 0; playerIndex < (int)(u8)numPlyr; playerIndex++)
 		{
 			if (DrawTiresReflection_StagePlayer(&scratch, driver, inst, playerIndex, primMem, &primCount) == 0)
+			{
 				continue;
+			}
 		}
 	}
 

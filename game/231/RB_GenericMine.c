@@ -13,12 +13,16 @@ void RB_GenericMine_LInB(struct Instance *inst)
 	RB_Default_LInB(inst);
 
 	if (inst->thread != NULL)
+	{
 		return;
+	}
 
 	// if loaded Rocky Road or Nitro Court
 	// from outside crystal challenge, skip boxes
 	if ((gGT->gameMode1 & CRYSTAL_CHALLENGE) == 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -30,7 +34,9 @@ void RB_GenericMine_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 
@@ -112,7 +118,9 @@ void RB_GenericMine_ThTick(struct Thread *t)
 	mw->cooldown -= gGT->elapsedTimeMS;
 
 	if (mw->cooldown < 0)
+	{
 		mw->cooldown = 0;
+	}
 
 	numFrames = (int)INSTANCE_GetNumAnimFrames(inst, 0);
 
@@ -143,7 +151,9 @@ void RB_GenericMine_ThTick(struct Thread *t)
 
 	// terminal velocity
 	if (mw->velocity.y < -0x60)
+	{
 		mw->velocity.y = -0x60;
+	}
 
 	// If scale is not big enough
 	if (inst->scale.x < 0x1000)
@@ -172,7 +182,9 @@ void RB_GenericMine_ThTick(struct Thread *t)
 
 	// if no collision
 	if (coll == 0)
+	{
 		goto LAB_800ad17c;
+	}
 
 	// get driver who hit tnt (or nitro)
 	// from the object attached to thread
@@ -297,7 +309,9 @@ void RB_GenericMine_ThTick(struct Thread *t)
 			crate = (struct Crate *)RB_Hazard_HurtDriver(d, 0, mw->instParent->thread->object, 2);
 
 			if (crate == 0)
+			{
 				goto LAB_800ad174;
+			}
 
 			// if Instance has no InstDef,
 			// if this TNT is not part of the level,
@@ -399,7 +413,9 @@ void RB_GenericMine_ThTick(struct Thread *t)
 LAB_800ad17c:
 
 	if (mw->frameCount_DontHurtParent != 0)
+	{
 		mw->frameCount_DontHurtParent--;
+	}
 
 	// if mineWeapon->boolDestroyed == 0
 	if (mw->boolDestroyed == 0)

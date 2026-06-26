@@ -32,7 +32,9 @@ internal s32 NativeCD_NormalizeFilename(char *dst, s32 dstCount, const char *src
 	size_t i;
 
 	if ((dstCount <= 0) || (src == NULL))
+	{
 		return 0;
+	}
 
 	for (i = 0; i < filename.len; i++)
 	{
@@ -49,7 +51,9 @@ internal s32 NativeCD_NormalizeFilename(char *dst, s32 dstCount, const char *src
 internal NativeStr8 NativeCD_PathAfterRoot(NativeStr8 filename)
 {
 	if ((filename.len != 0) && NativePath_IsSeparator(filename.ptr[0]))
+	{
 		return NativeStr8_Skip(filename, 1);
+	}
 
 	return filename;
 }
@@ -64,19 +68,27 @@ internal s32 NativeCD_OpenHostFile(const char *filename, s32 *outSize)
 	long fileSize;
 
 	if (s_nativeCdFileCount >= NATIVE_CD_MAX_OPEN_FILES)
+	{
 		return -1;
+	}
 
 	if (NativeCD_NormalizeFilename(normalized, sizeof(normalized), filename) == 0)
+	{
 		return -1;
+	}
 
 	rootless = NativeCD_PathAfterRoot(NativeStr8_FromCString(normalized));
 
 	file = NativeAssets_OpenStr8(rootless, "rb");
 	if ((file == NULL) && NativeStr8_CopyToCString(rootlessPath, sizeof(rootlessPath), rootless))
+	{
 		file = fopen(rootlessPath, "rb");
+	}
 
 	if (file == NULL)
+	{
 		return -1;
+	}
 
 	if (fseek(file, 0, SEEK_END) != 0)
 	{
@@ -113,18 +125,26 @@ internal s32 NativeCD_SearchHostFile(CdlFILE *loc, const char *filename)
 	s32 encodedPos;
 
 	if ((loc == NULL) || (filename == NULL))
+	{
 		return 0;
+	}
 
 	fileIndex = NativeCD_OpenHostFile(filename, &fileSize);
 	if (fileIndex < 0)
+	{
 		return 0;
+	}
 
 	if (NativeCD_NormalizeFilename(normalized, sizeof(normalized), filename) == 0)
+	{
 		return 0;
+	}
 
 	rootless = NativeCD_PathAfterRoot(NativeStr8_FromCString(normalized));
 	if (!NativeStr8_CopyToCString(rootlessPath, sizeof(rootlessPath), rootless))
+	{
 		return 0;
+	}
 
 	encodedPos = fileIndex << 24;
 
@@ -160,7 +180,9 @@ internal s32 NativeCD_SetHostLoc(const CdlLOC *pos)
 	sector = encodedPos & 0xffffff;
 
 	if ((fileIndex < 0) || (fileIndex >= s_nativeCdFileCount) || (s_nativeCdFiles[fileIndex] == NULL))
+	{
 		return 0;
+	}
 
 	s_nativeCdCurrentFile = fileIndex;
 
@@ -172,7 +194,9 @@ internal s32 NativeCD_ReadHostSectors(s32 sectors, void *dst)
 	size_t byteCount;
 
 	if ((s_nativeCdCurrentFile < 0) || (s_nativeCdCurrentFile >= s_nativeCdFileCount) || (s_nativeCdFiles[s_nativeCdCurrentFile] == NULL))
+	{
 		return 0;
+	}
 
 	byteCount = (size_t)sectors * NATIVE_CD_SECTOR_SIZE;
 
@@ -233,11 +257,15 @@ int CdGetSector(void *madr, int size)
 	u32 byteCount;
 
 	if ((madr == NULL) || (size <= 0))
+	{
 		return 1;
+	}
 
 	byteCount = (u32)size * sizeof(u32);
 	if (byteCount > sizeof(s_cdSectorData))
+	{
 		byteCount = sizeof(s_cdSectorData);
+	}
 
 	memcpy(madr, s_cdSectorData, byteCount);
 	return 1;
@@ -264,7 +292,9 @@ CdlLOC *CdIntToPos(int val, CdlLOC *p)
 CdlFILE *CdSearchFile(CdlFILE *loc, char *filename)
 {
 	if (NativeCD_SearchHostFile(loc, filename) == 0)
+	{
 		return NULL;
+	}
 
 	return loc;
 }
@@ -276,15 +306,21 @@ int CdControl(uint8_t com, uint8_t *param, uint8_t *result)
 	NativeCD_SetLastCom(com);
 
 	if ((com == CdlSetloc) && (param != NULL))
+	{
 		NativeCD_SetHostLoc((const CdlLOC *)param);
+	}
 
 	if ((com == CdlSetmode) && (param != NULL))
 	{
 		if (param[0] == 0xE8)
+		{
 			boolDecodeXaDuringVsyncCallback = 1;
+		}
 
 		if (param[0] == CdlModeSpeed)
+		{
 			boolDecodeXaDuringVsyncCallback = 0;
+		}
 	}
 
 	return 1;
@@ -297,7 +333,9 @@ int CdRead(int sectors, uint32_t *buf, int mode)
 	NativeCD_ReadHostSectors(sectors, buf);
 
 	if (s_nativeCdReadCallback != 0)
+	{
 		s_nativeCdReadCallback(CdlComplete, 0);
+	}
 
 	return 1;
 }

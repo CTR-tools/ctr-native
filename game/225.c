@@ -146,7 +146,9 @@ void VB_EndEvent_DrawMenu(void)
 
 	s32 visiblePlaces = VB_STANDINGS_VISIBLE_PLACES_MIN;
 	if (standingsEntryCount >= 3)
+	{
 		visiblePlaces = standingsEntryCount - 1;
+	}
 
 	s32 rowDelay = VB_ROW_INITIAL_DELAY_FRAMES;
 	s16 displayedRankOffset = 0;
@@ -193,7 +195,9 @@ void VB_EndEvent_DrawMenu(void)
 				struct Driver *driver = gGT->drivers[player];
 
 				if (driver->BattleHUD.teamID != entityID)
+				{
 					continue;
+				}
 
 				struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[driver->driverID]].iconID];
 				DecalHUD_DrawPolyFT4(icon, pos.x, currRowY + iconSlot * VB_BATTLE_PLAYER_ICON_SPACING, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
@@ -210,7 +214,9 @@ void VB_EndEvent_DrawMenu(void)
 
 			s32 placeTextColor = JUSTIFY_RIGHT | RED;
 			if (place == entityRank)
+			{
 				placeTextColor = (gGT->timer & 1) ? (JUSTIFY_RIGHT | RED) : (JUSTIFY_RIGHT | WHITE);
+			}
 
 			sprintf(text, "%d%s-%2.02ld", place + 1, sdata->lngStrings[VB_STANDINGS_SUFFIX_FIRST + place],
 			        CTR_PRINTF_PSX_LONG(gGT->standingsPoints[entityID * VB_STANDINGS_POINTS_PER_ENTRY + place]));
@@ -221,9 +227,13 @@ void VB_EndEvent_DrawMenu(void)
 		}
 
 		if (gGT->battleSetup.standingsScore[entityID] == previousStandingsScore)
+		{
 			displayedRankOffset++;
+		}
 		else
+		{
 			displayedRankOffset = 0;
+		}
 
 		s32 displayedRank = standingsIndex - displayedRankOffset;
 

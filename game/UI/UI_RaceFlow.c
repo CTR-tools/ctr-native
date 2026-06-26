@@ -84,34 +84,36 @@ void UI_RaceStart_IntroText1P(void)
 	gameMode = gGT->gameMode1;
 
 	// If you are not in a relic race
-	if ((gameMode & 0x4000000) == 0)
+	if ((gameMode & RELIC_RACE) == 0)
 	{
 		// BONUS ROUND
 		textID = 0xbe;
 
 		// If you are not in Crystal challenge
-		if ((gameMode & 0x8000000) == 0)
+		if ((gameMode & CRYSTAL_CHALLENGE) == 0)
 		{
 			// If you are not in Adventure Cup
-			if ((gameMode & 0x10000000) == 0)
+			if ((gameMode & ADVENTURE_CUP) == 0)
 			{
 				// If you are not in Arcade or VS cup
-				if ((gGT->gameMode2 & 0x10) == 0)
+				if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
 				{
 					// ARCADE
 					textID = 0x4e;
 
 					if (
 					    // If you're in Arcade Mode
-					    ((gameMode & 0x400000) != 0) ||
+					    ((gameMode & ARCADE_MODE) != 0) ||
 
 					    (
 					        // TIME TRIAL
 					        textID = 0x4d,
 
 					        // if you are in time trial mode
-					        (gameMode & 0x20000) != 0))
+					        (gameMode & TIME_TRIAL) != 0))
+					{
 						goto LAB_80055930;
+					}
 
 					if (-1 < gameMode)
 					{
@@ -119,7 +121,7 @@ void UI_RaceStart_IntroText1P(void)
 						textID = 0xb7;
 
 						// If you're in a CTR Token Race
-						if ((gGT->gameMode2 & 8) != 0)
+						if ((gGT->gameMode2 & TOKEN_RACE) != 0)
 						{
 							// CTR CHALLENGE
 							textID = 0x176;
@@ -184,10 +186,10 @@ LAB_80055930:
 		if (
 
 		    // If you are not in Adventure cup
-		    ((gameMode & 0x10000000) == 0) &&
+		    ((gameMode & ADVENTURE_CUP) == 0) &&
 
 		    // If you are not in Arcade or VS cup
-		    (((gGT->gameMode2 & 0x10) == 0)))
+		    (((gGT->gameMode2 & CUP_ANY_KIND) == 0)))
 		{
 			// X-value, X + W/2
 			posX = gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11);
@@ -303,14 +305,18 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 
 		// if more than 2 screens
 		if (2 < gGT->numPlyrCurrGame)
+		{
 			menu->drawStyle |= 0x100;
+		}
 
 		return;
 	}
 
 	int row = menu->rowSelected;
 	if (row < 0)
+	{
 		return;
+	}
 
 	option = menu->rows[row].stringIndex;
 
@@ -356,7 +362,9 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		gGT->hudFlags &= 0xfe;
 
 		if (RaceFlag_IsFullyOffScreen() == 1)
+		{
 			RaceFlag_BeginTransition(1);
+		}
 
 		sdata->Loading.stage = LOAD_RESTART;
 
@@ -369,7 +377,9 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		// if did not improve time, then dont
 		// overwrite old ghost with new ghost
 		if ((gGT->gameModeEnd & PLAYER_GHOST_BEAT) == 0)
+		{
 			break;
+		}
 
 		sdata->boolReplayHumanGhost = 1;
 
@@ -400,7 +410,7 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 
 		// when loading is done
 		// add flag for "in menus"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// load LEV of main menu
 		MainRaceTrack_RequestLoad(0x27);

@@ -10,7 +10,8 @@ Checks: >
   bugprone-macro-repeated-side-effects,
   bugprone-misplaced-widening-cast,
   bugprone-sizeof-expression,
-  bugprone-suspicious-memset-usage
+  bugprone-suspicious-memset-usage,
+  readability-braces-around-statements
 
 WarningsAsErrors: ''
 

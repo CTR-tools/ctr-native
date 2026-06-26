@@ -547,8 +547,7 @@ struct GameOptions
 
 
 	// 8008fb9c
-	// backup of gameMode1 flag
-	u32 gameMode1_0xf00;
+	u32 gameMode1_vibrationFlags;
 
 #if BUILD >= UsaRetail
 	// 8008fba0

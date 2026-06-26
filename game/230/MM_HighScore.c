@@ -192,7 +192,9 @@ void MM_HighScore_MenuProc(struct RectMenu *menu_unused)
 		}
 		D230.highScore_transitionFrames[0] = sVar2;
 		if (D230.highScore_transitionState != IN_MENU)
+		{
 			goto LAB_OVR_230__800b3c78;
+		}
 	}
 	if ((sdata->buttonTapPerPlayer[0] & 1) == 0)
 	{

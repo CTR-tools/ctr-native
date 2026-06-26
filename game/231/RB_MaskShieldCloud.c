@@ -55,7 +55,9 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 	MatrixRotate(m, m, &mhs->m);
 
 	if (maskBeamInst->alphaScale < 0x1000)
+	{
 		maskBeamInst->alphaScale += 0x200;
+	}
 
 	totalTime = mask->duration;
 
@@ -64,7 +66,9 @@ void RB_MaskWeapon_FadeAway(struct Thread *t)
 		totalTime += sdata->gGT->elapsedTimeMS;
 
 		if (totalTime > 0x200)
+		{
 			totalTime = 0x200;
+		}
 
 		mask->duration = totalTime;
 		return;
@@ -122,7 +126,9 @@ void RB_MaskWeapon_ThTick(struct Thread *maskTh)
 		for (i = 0; i < numPlyr; i++)
 		{
 			if (i == d->driverID)
+			{
 				continue;
+			}
 
 			maskIdpp[i].pushBuffer = NULL;
 			beamIdpp[i].pushBuffer = NULL;
@@ -221,7 +227,9 @@ void RB_MaskWeapon_ThTick(struct Thread *maskTh)
 		mask->duration -= gGT->elapsedTimeMS;
 
 		if (mask->duration < 0)
+		{
 			mask->duration = 0;
+		}
 	}
 
 	// first pass
@@ -354,7 +362,9 @@ void RB_ShieldDark_ThTick_Grow(struct Thread *th)
 
 		int iVar8 = rotY;
 		if (rotY < 0)
+		{
 			iVar8 = rotY + 0xfff;
+		}
 
 		// if highlight is finished
 		if ((rotY + (iVar8 >> 12) * -0x1000) == 0x400)
@@ -405,7 +415,9 @@ void RB_ShieldDark_ThTick_Grow(struct Thread *th)
 		for (i = 0; i < gGT->numPlyrCurrGame; i++)
 		{
 			if (i == player->driverID)
+			{
 				continue;
+			}
 
 			idpp[i].pushBuffer = 0;
 			colorIdpp[i].pushBuffer = 0;
@@ -549,7 +561,9 @@ void RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	}
 
 	if ((shieldFlags & 2) == 0)
+	{
 		return;
+	}
 
 	player->instBubbleHold = NULL;
 	player->numTimesMissileLaunched++;
@@ -735,16 +749,24 @@ void RB_RainCloud_ThTick(struct Thread *t)
 		{
 			rcloud->timeMS -= gGT->elapsedTimeMS;
 			if (rcloud->timeMS < 0)
+			{
 				rcloud->timeMS = 0;
+			}
 
 			if (rcloud->effect != RAIN_CLOUD_EFFECT_ITEM_ROLL)
+			{
 				return;
+			}
 
 			if (d->heldItemID == 0xf)
+			{
 				return;
+			}
 
 			if (d->noItemTimer != 0)
+			{
 				return;
+			}
 
 			// set weapon to "weapon roulette" to make it spin
 			d->heldItemID = 0x10;

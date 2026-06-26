@@ -8,7 +8,9 @@ void Smart_EnterCriticalSection(void)
 	sdata->criticalSectionCount = count + 1;
 
 	if (count == 0)
+	{
 		EnterCriticalSection();
+	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002b508-0x8002b540
@@ -17,20 +19,26 @@ void Smart_ExitCriticalSection(void)
 	int count = sdata->criticalSectionCount;
 
 	if (count == 0)
+	{
 		return;
+	}
 
 	count--;
 	sdata->criticalSectionCount = count;
 
 	if (count == 0)
+	{
 		ExitCriticalSection();
+	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002b540-0x8002b5b4
 void Channel_SetVolume(struct ChannelAttr *attr, int volume, int LR)
 {
 	if ((u32)volume >= 0x4000)
+	{
 		volume = 0x3fff;
+	}
 
 	if (sdata->boolStereoEnabled == 1)
 	{
@@ -134,7 +142,9 @@ struct ChannelStats *Channel_AllocSlot(int flags, struct ChannelAttr *attr)
 
 	// quit if no free slots
 	if (stats == NULL)
+	{
 		return NULL;
+	}
 
 	// allocate
 	LIST_RemoveMember(&sdata->channelFree, (struct Item *)stats);
@@ -303,9 +313,13 @@ void Channel_ParseSongToChannels()
 	b32 boolVolumeChange;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 
 	boolVolumeChange = false;
 
@@ -313,11 +327,15 @@ void Channel_ParseSongToChannels()
 	{
 		// if not playing, skip
 		if ((song->flags & 1) == 0)
+		{
 			continue;
+		}
 
 		// if paused, skip
 		if ((song->flags & 2) != 0)
+		{
 			continue;
+		}
 
 		// song playing offset?
 		song->unk10 += song->tempo;
@@ -408,7 +426,9 @@ void Channel_ParseSongToChannels()
 				{
 					// if reached end, quit
 					if ((seq->flags & 1) == 0)
+					{
 						break;
+					}
 
 					seq->NoteTimeElapsed -= seq->NoteLength;
 
@@ -423,7 +443,9 @@ void Channel_ParseSongToChannels()
 
 						// if reached end, quit
 						if ((seq->flags & 1) == 0)
+						{
 							break;
+						}
 
 						// if song restarting (opcode03)
 						if ((seq->flags & 8) != 0)
@@ -538,29 +560,45 @@ void Channel_UpdateChannels()
 				int RRmode;
 
 				if ((s16)ad < 0)
+				{
 					local_38 = 5;
+				}
 				else
+				{
 					local_38 = 1;
+				}
 
 				if ((s16)sr < 0)
 				{
 					if ((sr >> 0xe & 1) == 0)
+					{
 						local_34 = 5;
+					}
 					else
+					{
 						local_34 = 7;
+					}
 				}
 				else
 				{
 					if ((sr >> 0xe & 1) == 0)
+					{
 						local_34 = 1;
+					}
 					else
+					{
 						local_34 = 3;
+					}
 				}
 
 				if ((sr >> 5 & 1) == 0)
+				{
 					RRmode = 3;
+				}
 				else
+				{
 					RRmode = 7;
+				}
 
 				SpuSetVoiceADSRAttr(vNum, (ad >> 8) & 0x7f, (ad >> 4) & 0xf, (sr >> 6) & 0x7f, sr & 0x1f, ad & 0xf, local_38, local_34, RRmode);
 			}

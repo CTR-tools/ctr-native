@@ -11,9 +11,15 @@ void RB_Potion_OnShatter_TeethCallback(struct ScratchpadStruct *sps, void *hitOb
 
 	instDef = bspHitbox->data.hitbox.instDef;
 	if (instDef != NULL)
+	{
 		if (teethInst = instDef->ptrInstance, teethInst != NULL)
+		{
 			if (instDef->modelID == STATIC_TEETH) // tiger temple door
+			{
 				RB_Teeth_OpenDoor(teethInst);
+			}
+		}
+	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800ac638-0x800ac6b4.
@@ -63,12 +69,16 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 
 	// terminal velocity
 	if (mw->velocity.y < -0x60)
+	{
 		mw->velocity.y = -0x60;
+	}
 
 	mw->cooldown -= gGT->elapsedTimeMS;
 
 	if (mw->cooldown < 0)
+	{
 		mw->cooldown = 0;
+	}
 
 	posBottom.x = inst->matrix.t[0];
 	posBottom.y = inst->matrix.t[1] - 0x40;
@@ -112,7 +122,9 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 			iVar5 = inst->matrix.t[1];
 
 			if (iVar4 + 0x30 < iVar5)
+			{
 				return;
+			}
 
 			// if no cooldown
 			if (mw->cooldown == 0)
@@ -133,11 +145,15 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 
 			// if instance is under hitPos, move up
 			if (iVar5 <= iVar4)
+			{
 				inst->matrix.t[1] = iVar4;
+			}
 
 			// if distance to move back to quadblock < velocity
 			if (mw->velocity.y < (inst->matrix.t[1] - iVar5) + 0x28)
+			{
 				mw->velocity.y = (inst->matrix.t[1] - iVar5) + 0x28;
+			}
 
 			return;
 		}
@@ -154,7 +170,9 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 
 		// quadblock exists far below potion, dont destroy
 		if (sps->boolDidTouchQuadblock != 0)
+		{
 			return;
+		}
 	}
 
 	// hit BSP hitbox, and instance is TEETH
@@ -176,7 +194,9 @@ void RB_Potion_ThTick_InAir(struct Thread *t)
 		{
 			// if door is open, quit
 			if ((sdata->doorAccessFlags & 1) == 1)
+			{
 				return;
+			}
 
 			// open door if door is closed,
 			// then destroy mine right after

@@ -217,30 +217,39 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		// if XA has not paused since CDSYS_XAPauseRequest in stage #0,
 		// then quit the function and try again next frame
 		if (sdata->XA_State == 4)
+		{
 			return loadingStage;
+		}
 
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80033b38-0x80033c00 for end-event overlay selection.
 		if ((gGT->gameMode1 & CRYSTAL_CHALLENGE) != 0)
+		{
 			ovrRegion1 = 0;
-
+		}
 		else if ((gGT->gameMode1 & TIME_TRIAL) != 0)
+		{
 			ovrRegion1 = 3;
-
+		}
 		else if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+		{
 			ovrRegion1 = 1;
-
+		}
 		else if ((gGT->gameMode1 & RELIC_RACE) != 0)
+		{
 			ovrRegion1 = 2;
-
+		}
 		else if ((gGT->gameMode1 & ADVENTURE_MODE) != 0)
+		{
 			ovrRegion1 = 1;
-
+		}
 		else
 		{
 			ovrRegion1 = 4;
 
 			if ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
+			{
 				break;
+			}
 		}
 
 		LOAD_OvrEndRace(ovrRegion1);
@@ -264,7 +273,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			ovrRegion3 = 3;
 
 			if (gGT->podiumRewardID == NOFUNC)
+			{
 				ovrRegion3 = 2;
+			}
 		}
 		else if ((gGT->podiumRewardID != NOFUNC) || ((gGT->gameMode1 & GAME_CUTSCENE) != 0) || ((gGT->gameMode2 & CREDITS) != 0) ||
 		         (levelID == ADVENTURE_GARAGE))
@@ -276,7 +287,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			ovrRegion3 = 1;
 
 			if (gGT->overlayIndex_Threads == 1)
+			{
 				break;
+			}
 		}
 
 		LOAD_OvrThreads(ovrRegion3);
@@ -294,7 +307,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		if ((gGT->gameMode1 & MAIN_MENU) != 0)
 		{
 			if ((u32)sdata->mainMenuState < len(mainMenuInit))
+			{
 				mainMenuInit[sdata->mainMenuState]();
+			}
 		}
 
 		// Needed, or else Post-Boss Outro
@@ -319,7 +334,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 
 		sdata->PLYROBJECTLIST = (int **)((u32)sdata->ptrMPK + 4);
 		if (sdata->ptrMPK == 0)
+		{
 			sdata->PLYROBJECTLIST = 0;
+		}
 
 		LOAD_GlobalModelPtrs_MPK();
 		DecalGlobal_Clear(gGT);
@@ -330,7 +347,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			gGT->mpkIcons = *(int *)sdata->ptrMPK;
 
 			if (gGT->mpkIcons != 0)
+			{
 				DecalGlobal_Store(gGT, (struct LevTexLookup *)gGT->mpkIcons);
+			}
 		}
 
 		if (!boolPlayMusicDuringLoading)
@@ -363,7 +382,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		for (int i = 0; i < 3; i++)
 		{
 			if (data.driverModelExtras[i].fileBase != NULL)
+			{
 				data.driverModelExtras[i].model = (struct Model *)((u8 *)data.driverModelExtras[i].fileBase + 4);
+			}
 		}
 
 		// == banks are done parsing ===
@@ -498,18 +519,24 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		}
 
 		if ((gGT->gameMode2 & LEV_SWAP) == 0)
+		{
 			break;
+		}
 
 		// === Assume LEV_SWAP Active ===
 
 		if ((gGT->gameMode1 & ADVENTURE_ARENA) == 0)
+		{
 			break;
+		}
 
 		// === Assume AdventureArena Active ===
 
 		// podium reward
 		if (gGT->podiumRewardID == 0)
+		{
 			break;
+		}
 
 		// === Assume PodiumReward Active ===
 
@@ -576,7 +603,7 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		LOAD_AppendQueue(0, LT_GETADDR, BI_PODIUM + iVar9, NULL, LOAD_Callback_Podiums);
 
 		// Disable LEV instances on Adv Hub, for podium scene
-		gGT->gameMode2 = gGT->gameMode2 | 0x100;
+		gGT->gameMode2 = gGT->gameMode2 | NO_LEV_INSTANCE;
 		break;
 	}
 	case 8:
@@ -592,7 +619,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 				struct Model *m = modelPtrArr[i];
 
 				if (m == 0)
+				{
 					continue;
+				}
 
 				if (i < 7)
 				{
@@ -601,7 +630,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 				}
 
 				if (m->id == -1)
+				{
 					continue;
+				}
 
 				gGT->modelPtr[m->id] = m;
 			}
@@ -664,13 +695,17 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		uVar16 = 1;
 
 		if (iVar9 - 0x2aU < 2)
+		{
 			goto LAB_800346b0;
+		}
 		break;
 	}
 	case 9:
 	{
 		if (sdata->XA_State == 2)
+		{
 			return loadingStage;
+		}
 
 		// MAIN_MENU is used for main menu, scrapbook, and adventure garage.
 		if (((gGT->gameMode1 & MAIN_MENU) != 0) && (gGT->levelID != ADVENTURE_GARAGE))
@@ -679,7 +714,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			gGT->renderFlags = (gGT->renderFlags & 0x1000) | 0x20;
 
 			if (RaceFlag_IsFullyOffScreen() == 1)
+			{
 				RaceFlag_BeginTransition(1);
+			}
 		}
 
 		else if ((gGT->gameMode2 & CREDITS) != 0)

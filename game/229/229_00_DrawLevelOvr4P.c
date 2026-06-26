@@ -39,7 +39,9 @@ static const struct OverlayRDATA_229_BucketSetupRecord *Ovr229_800a106c_FindBuck
 		if (recordAddress == setupAddress)
 		{
 			if (setupIndex != NULL)
+			{
 				*setupIndex = i;
+			}
 
 			return &R229.bucketSetups[i];
 		}
@@ -56,10 +58,14 @@ static const u32 *Ovr229_800a106c_GetCopySource(const struct OverlayRDATA_229_Bu
 	u32 copy1Address = recordAddress + OFFSETOF(struct OverlayRDATA_229_BucketSetupRecord, copy1);
 
 	if (copy->sourceAddress == copy0Address)
+	{
 		return setup->copy0;
+	}
 
 	if (copy->sourceAddress == copy1Address)
+	{
 		return setup->copy1;
+	}
 
 	return NULL;
 }
@@ -69,26 +75,42 @@ static u32 Ovr229_800a106c_TranslateCopiedWord(int setupIndex, const struct Over
 	int canonicalSetupIndex = -1;
 
 	if (setupIndex == OVR229_SPLIT_GROUND_RENDERED_A_SETUP_INDEX)
+	{
 		canonicalSetupIndex = OVR229_CANONICAL_DYNAMIC_RENDERED_SETUP_INDEX;
+	}
 	else if (setupIndex == OVR229_SPLIT_GROUND_LIST_B_SETUP_INDEX)
+	{
 		canonicalSetupIndex = OVR229_CANONICAL_GROUND_4X2_LIST_SETUP_INDEX;
+	}
 	else if (setupIndex == OVR229_SPLIT_GROUND_RENDERED_B_SETUP_INDEX)
+	{
 		canonicalSetupIndex = OVR229_CANONICAL_GROUND_4X2_RENDERED_SETUP_INDEX;
+	}
 	else if (setupIndex == OVR229_WIDE_DYNAMIC_SETUP_INDEX)
+	{
 		canonicalSetupIndex = OVR229_CANONICAL_WIDE_DYNAMIC_SETUP_INDEX;
+	}
 	else if (setupIndex == OVR229_QUAD_4X4_RENDERED_SETUP_INDEX)
+	{
 		canonicalSetupIndex = OVR229_CANONICAL_QUAD_4X4_RENDERED_SETUP_INDEX;
+	}
 	else
+	{
 		return value;
+	}
 
 	// NOTE(aalhendi): Some 229 helper/direct labels overlap 228 virtual labels.
 	// Keep R229 exact, then alias copied scratch setup words to canonical 226
 	// helper tables only after target objdump proof.
 	if ((copy->scratchOffset == 0x14c) && (wordIndex < OVR226_SETUP_COPY0_WORD_COUNT))
+	{
 		return R226.bucketSetups[canonicalSetupIndex].copy0[wordIndex];
+	}
 
 	if ((copy->scratchOffset == 0x188) && (wordIndex < OVR226_SETUP_COPY1_WORD_COUNT))
+	{
 		return R226.bucketSetups[canonicalSetupIndex].copy1[wordIndex];
+	}
 
 	return value;
 }
@@ -98,7 +120,9 @@ static u32 Ovr229_800a8ebc_TranslateClipRecordLabel(u32 address)
 	for (int i = 0; i < OVR229_CLIP_RECORD_JUMP_WORD_COUNT; i++)
 	{
 		if (R229.clipRecordJumpTable[i] == address)
+		{
 			return R226.clipRecordJumpTable[i];
+		}
 	}
 
 	return address;
@@ -111,10 +135,14 @@ static void Ovr229_800a106c_CopyScratchWords(const struct OverlayRDATA_229_Bucke
 	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, copy->scratchOffset);
 
 	if (source == NULL)
+	{
 		return;
+	}
 
 	for (u32 i = 0; i <= copy->loopCounter; i++)
+	{
 		scratch[i] = Ovr229_800a106c_TranslateCopiedWord(setupIndex, copy, i, source[i]);
+	}
 }
 
 static void Ovr229_800a106c_ApplyBucketSetup(u32 setupAddress, u32 handlerAddress)
@@ -129,7 +157,9 @@ static void Ovr229_800a106c_ApplyBucketSetup(u32 setupAddress, u32 handlerAddres
 			const struct OverlayRDATA_229_BucketSetupCopy *copy = &setup->copies[i];
 
 			if (copy->loopCounter == 0)
+			{
 				break;
+			}
 
 			Ovr229_800a106c_CopyScratchWords(setup, setupIndex, copy);
 		}
@@ -143,7 +173,9 @@ static void Ovr229_800a0da0_CopyScratchInitTable(void)
 	u32 *scratch = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_SCRATCH_INIT_TABLE_OFFSET);
 
 	for (int i = 0; i < OVR229_SCRATCH_INIT_WORD_COUNT; i++)
+	{
 		scratch[i] = R229.scratchInitTable[i];
+	}
 }
 
 static void Ovr229_800a8ebc_CopyClipRecordJumpTable(void)
@@ -151,7 +183,9 @@ static void Ovr229_800a8ebc_CopyClipRecordJumpTable(void)
 	u32 *clipRecordJumpTable = CTR_SCRATCHPAD_PTR(u32, DRAW_LEVEL_OVR1P_GT3_CLIP_RECORD_JUMP_TABLE_OFFSET);
 
 	for (int i = 0; i < OVR229_CLIP_RECORD_JUMP_WORD_COUNT; i++)
+	{
 		clipRecordJumpTable[i] = Ovr229_800a8ebc_TranslateClipRecordLabel(R229.clipRecordJumpTable[i]);
+	}
 }
 
 static void Ovr229_800a10c8_SetViewportContext(struct PushBuffer *pb, const int *visFaceList, u8 *clipStart, u8 *clipCursor,
@@ -170,7 +204,9 @@ static void Ovr229_ClearRenderedOverflowBase(int playerIndex)
 	struct QuadBlock **renderedOverflowBase = (struct QuadBlock **)data.ptrRenderedQuadblockDestination_forEachPlayer[playerIndex];
 
 	if (renderedOverflowBase != NULL)
+	{
 		*renderedOverflowBase = NULL;
+	}
 }
 
 static int Ovr229_DrawViewportBucket(struct DrawLevelOvr1PRenderList *renderList, s32 renderListOffset, struct PushBuffer *pb, struct mesh_info *mesh,
@@ -192,11 +228,15 @@ static int Ovr229_DrawViewportBucket(struct DrawLevelOvr1PRenderList *renderList
 	}
 
 	if (applySetup)
+	{
 		Ovr229_800a106c_ApplyBucketSetup(setupAddress, handlerAddress);
+	}
 
 	Ovr229_800a10c8_SetViewportContext(pb, visFaceList, data.PtrClipBuffer[playerIndex], *clipCursor, renderedOverflowBase);
 	if (!dispatch(handlerAddress, bucketValue, pb, mesh, primMem, visFaceList))
+	{
 		return 0;
+	}
 
 	*clipCursor = DrawLevelOvr1P_GetClipRecordCursor();
 	*didDispatch = 1;
@@ -216,22 +256,30 @@ static int Ovr229_800a0dd0_DispatchBucketTable(struct DrawLevelOvr1PRenderList *
 
 		if (!Ovr229_DrawViewportBucket(&renderLists[0], renderListOffset, &pushBuffers[0], mesh, primMem, visFaceList0, &clipCursors[0], 0, 1, dispatch,
 		                               &didDispatch))
+		{
 			return 0;
+		}
 		setupApplied |= didDispatch;
 
 		if (!Ovr229_DrawViewportBucket(&renderLists[1], renderListOffset, &pushBuffers[1], mesh, primMem, visFaceList1, &clipCursors[1], 1, !setupApplied,
 		                               dispatch, &didDispatch))
+		{
 			return 0;
+		}
 		setupApplied |= didDispatch;
 
 		if (!Ovr229_DrawViewportBucket(&renderLists[2], renderListOffset, &pushBuffers[2], mesh, primMem, visFaceList2, &clipCursors[2], 2, !setupApplied,
 		                               dispatch, &didDispatch))
+		{
 			return 0;
+		}
 		setupApplied |= didDispatch;
 
 		if (!Ovr229_DrawViewportBucket(&renderLists[3], renderListOffset, &pushBuffers[3], mesh, primMem, visFaceList3, &clipCursors[3], 3, !setupApplied,
 		                               dispatch, &didDispatch))
+		{
 			return 0;
+		}
 	}
 
 	return 1;
@@ -316,28 +364,44 @@ static int Ovr229_800a1178_800a8270_BucketDispatch(u32 handlerAddress, void *buc
                                                    struct PrimMem *primMem, const int *visFaceList)
 {
 	if (handlerAddress == OVR229_WATER_BSP_LIST_HANDLER)
+	{
 		return Ovr229_800a1178_DrawWaterBspList(bucketValue, pb, mesh, primMem, visFaceList);
+	}
 
 	if (handlerAddress == OVR229_WATER_RENDERED_HANDLER)
+	{
 		return Ovr229_800a1c3c_DrawWaterRenderedList(bucketValue, pb, mesh, primMem);
+	}
 
 	if (handlerAddress == OVR229_SPLIT_GROUND_LIST_A_HANDLER)
+	{
 		return Ovr229_800a29dc_DrawSplitGroundListA(bucketValue, pb, mesh, primMem, visFaceList);
+	}
 
 	if (handlerAddress == OVR229_SPLIT_GROUND_RENDERED_A_HANDLER)
+	{
 		return Ovr229_800a386c_DrawSplitGroundRenderedA(bucketValue, pb, mesh, primMem);
+	}
 
 	if (handlerAddress == OVR229_SPLIT_GROUND_LIST_B_HANDLER)
+	{
 		return Ovr229_800a481c_DrawSplitGroundListB(bucketValue, pb, mesh, primMem, visFaceList);
+	}
 
 	if (handlerAddress == OVR229_SPLIT_GROUND_RENDERED_B_HANDLER)
+	{
 		return Ovr229_800a56ac_DrawSplitGroundRenderedB(bucketValue, pb, mesh, primMem);
+	}
 
 	if (handlerAddress == OVR229_WIDE_DYNAMIC_HANDLER)
+	{
 		return Ovr229_800a665c_DrawWideDynamicList(bucketValue, pb, mesh, primMem, visFaceList);
+	}
 
 	if (handlerAddress == OVR229_QUAD_4X4_RENDERED_HANDLER)
+	{
 		return Ovr229_800a72b0_DrawQuad4x4RenderedList(bucketValue, pb, mesh, primMem);
+	}
 
 	// NOTE(aalhendi): Reject handler addresses that are not present in the
 	// recovered R229 bucket table.
@@ -354,8 +418,8 @@ static int Ovr229_800a8270_ConsumeClipRecords(struct PushBuffer *pb, struct Prim
 }
 
 static int Ovr229_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10,
-                                              void *VisMem14, void *VisMem18, void *VisMem1C, void *waterEnvMap, Ovr229BucketDispatch dispatch,
-                                              Ovr229ClipConsumer consume)
+                                              void *VisMem14, void *VisMem18, void *VisMem1C, const struct TextureLayout *waterEnvMap,
+                                              Ovr229BucketDispatch dispatch, Ovr229ClipConsumer consume)
 {
 	struct DrawLevelOvr1PRenderList *renderLists = LevRenderList;
 	struct mesh_info *mesh = (struct mesh_info *)bspList;
@@ -372,25 +436,35 @@ static int Ovr229_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBu
 	DrawLevelOvr1P_Scratch()->savedStackPtr32 = (u32)(uintptr_t)&hostStackAnchor;
 	DrawLevelOvr1P_Scratch()->visFaceListArgPtr32[0] = (u32)(uintptr_t)VisMem10;
 	if (VisMem10 == NULL)
+	{
 		return 1;
+	}
 
 	DrawLevelOvr1P_Scratch()->visFaceListArgPtr32[1] = (u32)(uintptr_t)VisMem14;
 	if (VisMem14 == NULL)
+	{
 		return 1;
+	}
 
 	DrawLevelOvr1P_Scratch()->visFaceListArgPtr32[2] = (u32)(uintptr_t)VisMem18;
 	if (VisMem18 == NULL)
+	{
 		return 1;
+	}
 
 	DrawLevelOvr1P_Scratch()->visFaceListArgPtr32[3] = (u32)(uintptr_t)VisMem1C;
 	if (VisMem1C == NULL)
+	{
 		return 1;
+	}
 
 	DrawLevelOvr1P_Scratch()->waterEnvMapPtr32 = (u32)(uintptr_t)waterEnvMap;
 	DrawLevelOvr1P_Scratch()->primMemEndPtr32 = (u32)(uintptr_t)primMem->end;
 
 	if (mesh->ptrQuadBlockArray == NULL)
+	{
 		return 1;
+	}
 
 	clipCursors[0] = data.PtrClipBuffer[0];
 	clipCursors[1] = data.PtrClipBuffer[1];
@@ -413,7 +487,9 @@ static int Ovr229_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBu
 	DrawLevelOvr1P_Scratch()->renderListPtr32 = (u32)(uintptr_t)LevRenderList;
 
 	if (!Ovr229_800a0dd0_DispatchBucketTable(renderLists, pb, mesh, primMem, visFaceList0, visFaceList1, visFaceList2, visFaceList3, clipCursors, dispatch))
+	{
 		return 0;
+	}
 
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[0] = (u32)(uintptr_t)clipCursors[0];
 	DrawLevelOvr1P_Scratch()->playerClipCursorPtr32[1] = (u32)(uintptr_t)clipCursors[1];
@@ -422,22 +498,30 @@ static int Ovr229_800a0cbc_EntryWithCallbacks(void *LevRenderList, struct PushBu
 
 	Ovr229_800a8ebc_CopyClipRecordJumpTable();
 	if (!Ovr229_ConsumeClipRecordsForViewport(&pb[0], primMem, clipCursors[0], 0, consume))
+	{
 		return 0;
+	}
 
 	if (!Ovr229_ConsumeClipRecordsForViewport(&pb[1], primMem, clipCursors[1], 1, consume))
+	{
 		return 0;
+	}
 
 	if (!Ovr229_ConsumeClipRecordsForViewport(&pb[2], primMem, clipCursors[2], 2, consume))
+	{
 		return 0;
+	}
 
 	if (!Ovr229_ConsumeClipRecordsForViewport(&pb[3], primMem, clipCursors[3], 3, consume))
+	{
 		return 0;
+	}
 
 	return 1;
 }
 
 int Ovr229_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
-                          void *VisMem18, void *VisMem1C, void *waterEnvMap)
+                          void *VisMem18, void *VisMem1C, const struct TextureLayout *waterEnvMap)
 {
 	return Ovr229_800a0cbc_EntryWithCallbacks(LevRenderList, pb, bspList, primMem, VisMem10, VisMem14, VisMem18, VisMem1C, waterEnvMap,
 	                                          Ovr229_800a1178_800a8270_BucketDispatch, Ovr229_800a8270_ConsumeClipRecords);

@@ -21,10 +21,12 @@ void RB_TNT_ThTick_ThrowOffHead(struct Thread *t)
 	// NOTE(aalhendi): Retail reads through driverTarget blindly here. Boss-thrown TNT can have
 	// no target, and native cannot mirror PS1 low-memory null reads.
 	if ((mw->stopFallAtY == 0x3fff) && (mw->driverTarget != NULL))
+	{
 #else
 	if (mw->stopFallAtY == 0x3fff)
 #endif
 		mw->stopFallAtY = mw->driverTarget->instSelf->matrix.t[1];
+	}
 
 	if (inst->matrix.t[1] <= mw->stopFallAtY)
 	{
@@ -48,14 +50,18 @@ void RB_TNT_ThTick_ThrowOffHead(struct Thread *t)
 		// NOTE(aalhendi) Retail writes through driverTarget blindly; boss-thrown TNT has no
 		// driver-owned instTntRecv slot to clear.
 		if (mw->driverTarget != NULL)
+		{
 #endif
 			mw->driverTarget->instTntRecv = 0;
+		}
 	}
 
 	// decrease velocity (artificial gravity)
 	mw->velocity.y -= ((gGT->elapsedTimeMS << 2) >> 5);
 	if (mw->velocity.y < -0x60)
+	{
 		mw->velocity.y = -0x60;
+	}
 }
 
 static const s16 s_tntSitScale[(0x5a + 1) * 2] = {
@@ -136,7 +142,9 @@ void RB_TNT_ThTick_SitOnHead(struct Thread *t)
 	{
 		// if player did not start jumping this frame
 		if ((mw->driverTarget->actionsFlagSet & ACTION_JUMP_STARTED) == 0)
+		{
 			goto LAB_800ad5f8;
+		}
 
 		if (mw->jumpsRemaining != 0)
 		{
@@ -149,7 +157,9 @@ void RB_TNT_ThTick_SitOnHead(struct Thread *t)
 	{
 		rng = MixRNG_Scramble();
 		if (rng != (rng / 0x10e) * 0x10e)
+		{
 			goto LAB_800ad5f8;
+		}
 	}
 
 	// set scale (x, y, z)
@@ -294,7 +304,9 @@ void RB_TNT_ThTick_ThrowOnHead(struct Thread *t)
 
 	// set a minimum value (-0x60)
 	if (mw->velocity.y < -0x60)
+	{
 		mw->velocity.y = -0x60;
+	}
 
 	// rotation
 	mw->tntSpinY += 0x100;

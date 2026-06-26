@@ -38,7 +38,9 @@ void RB_Spider_DrawWebs(struct Thread *t, struct PushBuffer *pb)
 
 	// quit if there are no spiders
 	if (t == NULL)
+	{
 		return;
+	}
 
 	scratchpad = CTR_SCRATCHPAD_PTR(WebLine, 0);
 	line = scratchpad;
@@ -66,7 +68,9 @@ void RB_Spider_DrawWebs(struct Thread *t, struct PushBuffer *pb)
 	p = primMem->cursor;
 	nextPrim = p + (numSpiders * numPlyr);
 	if (nextPrim >= (multiCmdPacket *)primMem->guardEnd)
+	{
 		return;
+	}
 
 	// loop through all players
 	for (i = 0; i < numPlyr; i++)
@@ -112,7 +116,9 @@ void RB_Spider_DrawWebs(struct Thread *t, struct PushBuffer *pb)
 
 				depth = depth >> 6;
 				if (depth > 0x3ff)
+				{
 					depth = 0x3ff;
+				}
 
 				// pushBuffer 0xf4, ptrOT
 				ot = (u32 *)&pb->ptrOT[depth];
@@ -319,12 +325,16 @@ void RB_Spider_LInB(struct Instance *inst)
 	int spiderID;
 
 	if (inst->thread != NULL)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Spider), NONE, SMALL, SPIDER), RB_Spider_ThTick, "spider", 0);
 	inst->thread = t;
 	if (t == NULL)
+	{
 		return;
+	}
 
 	spider = t->object;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Spider_ThCollide;

@@ -144,7 +144,9 @@ void Vector_SpecLightNoSpin3D(struct Instance *inst, const SVec3 *rot, const SVe
 static s16 Vector_BakeMatrixTable_Div4TowardZero(s32 value)
 {
 	if (value < 0)
+	{
 		value += 3;
+	}
 
 	return (s16)(value >> 2);
 }
@@ -155,7 +157,9 @@ static void Vector_BakeMatrixTable_PrepareBlastedFrames(void)
 	int count = data.bakedGteMath[6].numEntries;
 
 	if ((entries == NULL) || (count <= 0))
+	{
 		return;
+	}
 
 	for (int i = 0; i < count; i++)
 	{
@@ -182,7 +186,9 @@ static void Vector_BakeMatrixTable_BakeRotScaleEntries(void)
 		int count = data.bakedGteMath[i].numEntries;
 
 		if ((entries == NULL) || (count <= 0))
+		{
 			continue;
+		}
 
 		for (int j = 0; j < count; j++)
 		{
@@ -205,7 +211,9 @@ static void Vector_BakeMatrixTable_BakeBlastedOffsets(void)
 	int count = data.bakedGteMath[6].numEntries;
 
 	if ((entries == NULL) || (count <= 0))
+	{
 		return;
+	}
 
 	for (int i = 0; i < count; i++)
 	{
@@ -227,7 +235,9 @@ void Vector_BakeMatrixTable(void)
 	// Retail bakes authored rot/scale vehicle-animation entries in-place before
 	// VehPhysForce_TranslateMatrix consumes entry+8 as a MATRIX.
 	if (sdata->matrixTableBaked != 0)
+	{
 		return;
+	}
 
 	sdata->matrixTableBaked = 1;
 

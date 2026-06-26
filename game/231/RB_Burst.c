@@ -32,13 +32,19 @@ void RB_Burst_ProcessBucket(struct Thread *thread)
 			struct Instance *warpedBurstInst = (struct Instance *)(uintptr_t)burst[2];
 
 			if (burstInst == NULL)
+			{
 				continue;
+			}
 
 			if (shockwaveInst != NULL)
+			{
 				RB_Burst_CopyDrawState(shockwaveInst, burstInst, i);
+			}
 
 			if (warpedBurstInst != NULL)
+			{
 				RB_Burst_CopyDrawState(warpedBurstInst, burstInst, i);
+			}
 		}
 	}
 }
@@ -50,7 +56,9 @@ static void RB_Burst_UpdateSlot(int *slot)
 
 	inst = (struct Instance *)*slot;
 	if (inst == NULL)
+	{
 		return;
+	}
 
 	nextFrame = inst->animFrame + 1;
 	if (nextFrame < INSTANCE_GetNumAnimFrames(inst, 0))
@@ -74,7 +82,9 @@ void RB_Burst_ThTick(struct Thread *t)
 	RB_Burst_UpdateSlot(&burst[0]);
 
 	if ((burst[1] == 0) && (burst[2] == 0))
+	{
 		t->flags |= THREAD_FLAG_DEAD;
+	}
 }
 
 typedef int (*BurstThreadCollideFunc)(struct Thread *, struct Thread *, void *, int);
@@ -130,7 +140,9 @@ void RB_Burst_CollThBucket(struct ScratchpadStruct *sps, void *hitObject)
 			RB_Hazard_HurtDriver(victim, 2, attacker, reason);
 
 			if (attacker->longestShot < tw->timeAlive)
+			{
 				attacker->longestShot = tw->timeAlive;
+			}
 		}
 
 		// if this driver is not an AI
@@ -165,7 +177,9 @@ void RB_Burst_CollThBucket(struct ScratchpadStruct *sps, void *hitObject)
 		{
 			// return if anything that isn't beakers
 			if ((STATIC_BEAKER_GREEN < model) || (model < STATIC_BEAKER_RED))
+			{
 				return;
+			}
 		}
 	}
 
@@ -188,15 +202,21 @@ void RB_Burst_CollLevInst(struct ScratchpadStruct *sps, void *hitObject)
 
 	instdef = bspHitbox->data.hitbox.instDef;
 	if (instdef == NULL)
+	{
 		return;
+	}
 
 	inst = instdef->ptrInstance;
 	if (inst == NULL)
+	{
 		return;
+	}
 
 	model = instdef->modelID;
 	if (model < PU_FRUIT_CRATE)
+	{
 		return;
+	}
 
 	// check 7 and 8,
 	// 7: PU_FRUIT_CRATE
@@ -205,17 +225,23 @@ void RB_Burst_CollLevInst(struct ScratchpadStruct *sps, void *hitObject)
 	{
 		meta = COLL_LevModelMeta(model);
 		if (meta == NULL)
+		{
 			return;
+		}
 
 		if (meta->LInC == NULL)
+		{
 			return;
+		}
 
 		meta->LInC(inst, sps->Union.ThBuckColl.thread, sps);
 		return;
 	}
 
 	if (model == STATIC_TEETH)
+	{
 		RB_Teeth_OpenDoor(inst);
+	}
 
 	return;
 }
@@ -319,7 +345,9 @@ void RB_Burst_Init(struct Instance *weaponInst)
 		currInst->matrix.m[2][2] = 0x1000;
 
 		if (i == 2)
+		{
 			break;
+		}
 
 		// identity matrix (x, y)
 		*(int *)&currInst->matrix.m[0][0] = 0x1000;
@@ -407,7 +435,9 @@ static struct InstDrawPerPlayer *RB_Burst_DrawAll_GetIDPP(struct Instance *inst,
 static void RB_Burst_DrawAll_SetPushBuffer(struct Instance *inst, int playerIndex, struct PushBuffer *pb)
 {
 	if (inst != NULL)
+	{
 		RB_Burst_DrawAll_GetIDPP(inst, playerIndex)->pushBuffer = pb;
+	}
 }
 
 static struct Instance *RB_Burst_DrawAll_GetSlot(u32 *burst, int index)
@@ -447,7 +477,9 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 #ifdef CTR_NATIVE
 			// NOTE(aalhendi): Retail can survive the one-frame null low-RAM read.
 			if (burstInst == NULL)
+			{
 				continue;
+			}
 #endif
 
 			pos.vx = burstInst->matrix.t[0];
@@ -460,15 +492,21 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 
 			absX = transformed.vx;
 			if (absX < 0)
+			{
 				absX = -absX;
+			}
 
 			absY = transformed.vy;
 			if (absY < 0)
+			{
 				absY = -absY;
+			}
 
 			absZ = transformed.vz;
 			if (absZ < 0)
+			{
 				absZ = -absZ;
+			}
 
 			if ((absX < 0x100) && (absY < 0x100) && (absZ < (pb->distanceToScreen_PREV << 1)))
 			{
@@ -498,7 +536,9 @@ void RB_Burst_DrawAll(struct GameTracker *gGT)
 			struct PushBuffer *targetPB = pb;
 
 			if ((selectedThread[playerIndex] != NULL) && (selectedThread[playerIndex] != thread))
+			{
 				targetPB = NULL;
+			}
 
 			RB_Burst_DrawAll_SetPushBuffer(RB_Burst_DrawAll_GetSlot(burst, 1), playerIndex, targetPB);
 			RB_Burst_DrawAll_SetPushBuffer(RB_Burst_DrawAll_GetSlot(burst, 2), playerIndex, targetPB);

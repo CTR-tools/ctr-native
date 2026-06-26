@@ -42,10 +42,14 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 	}
 
 	if ((gGT->gameMode1 & TIME_TRIAL) == 0)
+	{
 		return;
+	}
 
 	if ((gGT->gameModeEnd & 4) != 0)
+	{
 		return;
+	}
 
 	gGT->gameModeEnd |= 4;
 
@@ -57,7 +61,9 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 		if ((track->timeTrialFlags & 1) == 0)
 		{
 			if (data.metaDataLEV[gGT->levelID].timeTrial <= playerTime)
+			{
 				goto CheckOxideAllTracks;
+			}
 
 			track->timeTrialFlags |= 1;
 			gGT->gameModeEnd |= 0x08008000;
@@ -65,7 +71,9 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 		else
 		{
 			if (gGT->timeToBeatInTimeTrial_ForCurrentEvent <= playerTime)
+			{
 				goto CheckOxideAllTracks;
+			}
 
 			track->timeTrialFlags |= 1 << (data.bitIndex_timeTrialFlags_saveData.nTropyOpen & 0x1f);
 			gGT->gameModeEnd |= data.bitIndex_timeTrialFlags_flashingText.nOxideOpen;
@@ -74,7 +82,9 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 	else
 	{
 		if (gGT->timeToBeatInTimeTrial_ForCurrentEvent <= playerTime)
+		{
 			goto CheckOxideAllTracks;
+		}
 
 		track->timeTrialFlags |= 1 << (data.bitIndex_timeTrialFlags_saveData.nOxideOpen & 0x1f);
 		gGT->gameModeEnd |= data.bitIndex_timeTrialFlags_flashingText.nTropyOpen;
@@ -98,7 +108,9 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 	u32 gameModeEnd = gGT->gameModeEnd;
 
 	if ((gameModeEnd & HIGH_SCORE_SAVED) != 0)
+	{
 		return;
+	}
 
 	gGT->gameModeEnd = gameModeEnd | HIGH_SCORE_SAVED;
 
@@ -115,7 +127,9 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 	int highScoreIndex = (s8)gGT->newHighScoreIndex;
 
 	if (highScoreIndex < 0)
+	{
 		return;
+	}
 
 	entry = &sdata->ptrActiveHighScoreEntry[highScoreIndex + 1];
 
@@ -156,14 +170,20 @@ static void MainGameEnd_SetBattleConfetti(struct GameTracker *gGT)
 static void MainGameEnd_UpdateAdventureLosses(struct GameTracker *gGT, struct Driver *player)
 {
 	if ((gGT->gameMode1 & (ADVENTURE_CUP | RELIC_RACE | ADVENTURE_MODE)) != ADVENTURE_MODE)
+	{
 		return;
+	}
 
 	if (player->driverRank == 0)
 	{
 		if (IS_BOSS_RACE(gGT->gameMode1))
+		{
 			sdata->advProgress.timesLostBossRace[gGT->bossID] = 0;
+		}
 		else
+		{
 			sdata->advProgress.timesLostRacePerLev[gGT->levelID] = 0;
+		}
 
 		return;
 	}
@@ -171,12 +191,18 @@ static void MainGameEnd_UpdateAdventureLosses(struct GameTracker *gGT, struct Dr
 	char *lossCounter;
 
 	if (IS_BOSS_RACE(gGT->gameMode1))
+	{
 		lossCounter = &sdata->advProgress.timesLostBossRace[gGT->bossID];
+	}
 	else
+	{
 		lossCounter = &sdata->advProgress.timesLostRacePerLev[gGT->levelID];
+	}
 
 	if (*lossCounter < 10)
+	{
 		(*lossCounter)++;
+	}
 }
 
 static void MainGameEnd_RecordNonBattleStandings(struct GameTracker *gGT)
@@ -188,14 +214,18 @@ static void MainGameEnd_RecordNonBattleStandings(struct GameTracker *gGT)
 		int rank = driver->driverRank;
 
 		if (rank < 3)
+		{
 			gGT->standingsPoints[i * 3 + rank]++;
+		}
 	}
 }
 
 static int MainGameEnd_BattleTeamActive(struct GameTracker *gGT, int team)
 {
 	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
+	{
 		return 1;
+	}
 
 	return (gGT->battleSetup.teamFlags & (1u << team)) != 0;
 }
@@ -213,12 +243,16 @@ static void MainGameEnd_RankBattlePointLimit(struct GameTracker *gGT)
 		for (int team = 3; team >= 0; team--)
 		{
 			if ((usedTeams & (1u << team)) != 0)
+			{
 				continue;
+			}
 
 			int score = gGT->battleSetup.pointsPerTeam[team];
 
 			if (score < bestScore)
+			{
 				continue;
+			}
 
 			if (score > bestScore)
 			{
@@ -230,7 +264,9 @@ static void MainGameEnd_RankBattlePointLimit(struct GameTracker *gGT)
 		}
 
 		if (numTies == 0)
+		{
 			break;
+		}
 
 		for (int i = 0; i < numTies; i++)
 		{
@@ -240,7 +276,9 @@ static void MainGameEnd_RankBattlePointLimit(struct GameTracker *gGT)
 			gGT->battleSetup.finishedRankOfEachTeam[team] = rank;
 
 			if (rank < 3)
+			{
 				gGT->standingsPoints[team * 3 + rank]++;
+			}
 		}
 
 		rank += numTies - 1;
@@ -276,7 +314,9 @@ static int MainGameEnd_BattleLifeSlotNumLives(struct GameTracker *gGT, int slot)
 	// NOTE(aalhendi): Retail NULL slots read low mirrored RAM instead of
 	// faulting. Native preserves the unused-slot zero-lives effect directly.
 	if (driver == NULL)
+	{
 		return 0;
+	}
 #endif
 
 	return driver->BattleHUD.numLives;
@@ -290,7 +330,9 @@ static int MainGameEnd_BattleLifeSlotTeam(struct GameTracker *gGT, int slot)
 	// NOTE(aalhendi): Preserve the same low-RAM NULL-slot quirk for retail's
 	// later team read without changing the mixed teamID/slot algorithm.
 	if (driver == NULL)
+	{
 		return 0;
+	}
 #endif
 
 	return driver->BattleHUD.teamID;
@@ -305,7 +347,9 @@ static void MainGameEnd_MarkBattleTeamSlotsUsed(struct GameTracker *gGT, int rep
 		struct Driver *driver = gGT->drivers[i];
 
 		if (driver->BattleHUD.teamID == team)
+		{
 			*usedSlots |= 1u << i;
+		}
 	}
 }
 
@@ -324,12 +368,16 @@ static void MainGameEnd_UpdateBattleLifeLimit(struct GameTracker *gGT)
 			int lives = MainGameEnd_BattleLifeSlotNumLives(gGT, slot);
 
 			if (lives == 0)
+			{
 				continue;
+			}
 
 			if (lives == bestLives)
 			{
 				if ((usedSlots & (1u << slot)) != 0)
+				{
 					continue;
+				}
 
 				numTies++;
 				tiedSlots[numTies] = slot;
@@ -338,17 +386,23 @@ static void MainGameEnd_UpdateBattleLifeLimit(struct GameTracker *gGT)
 			}
 
 			if (lives < bestLives)
+			{
 				continue;
+			}
 
 			if ((usedSlots & (1u << slot)) != 0)
+			{
 				continue;
+			}
 
 			for (int i = 0; i < numTies + 1; i++)
 			{
 				int oldSlot = tiedSlots[i];
 
 				if (oldSlot != -1)
+				{
 					usedSlots &= ~(1u << oldSlot);
+				}
 			}
 
 			bestLives = lives;
@@ -392,7 +446,9 @@ static void MainGameEnd_UpdateStandingsOrder(struct GameTracker *gGT)
 		int score = 0;
 
 		for (int rank = 0; rank < 3; rank++)
+		{
 			score += gGT->standingsPoints[team * 3 + rank] * (3 - rank);
+		}
 
 		gGT->battleSetup.standingsScore[team] = (s16)score;
 	}
@@ -407,13 +463,19 @@ static void MainGameEnd_UpdateStandingsOrder(struct GameTracker *gGT)
 		for (int team = 3; team >= 0; team--)
 		{
 			if ((usedTeams & (1u << team)) != 0)
+			{
 				continue;
+			}
 
 			if (!MainGameEnd_BattleTeamActive(gGT, team))
+			{
 				continue;
+			}
 
 			if (gGT->battleSetup.standingsScore[team] < bestScore)
+			{
 				continue;
+			}
 
 			bestScore = gGT->battleSetup.standingsScore[team];
 			bestTeam = team;
@@ -422,7 +484,9 @@ static void MainGameEnd_UpdateStandingsOrder(struct GameTracker *gGT)
 		gGT->battleSetup.standingsOrder[rank] = bestTeam;
 
 		if (bestTeam >= 0)
+		{
 			usedTeams |= 1u << bestTeam;
+		}
 	}
 }
 
@@ -447,7 +511,9 @@ static void MainGameEnd_CheckTimeTrialGhost(struct GameTracker *gGT, struct Driv
 
 	if ((sdata->boolReplayHumanGhost != 0) &&
 	    ((sdata->boolGhostTooBigToSave != 0) || (player->timeElapsedInRace >= sdata->ptrGhostTapePlaying->timeElapsedInRace)))
+	{
 		return;
+	}
 
 	GhostTape_End();
 	gGT->gameModeEnd |= PLAYER_GHOST_BEAT;
@@ -465,7 +531,9 @@ void MainGameEnd_Initialize(void)
 			struct Driver *driver = gGT->drivers[i];
 
 			if (driver != NULL)
+			{
 				sdata->kartSpawnOrderArray[i] = driver->driverRank;
+			}
 		}
 
 		gGT->newHighScoreIndex = -1;
@@ -479,12 +547,14 @@ void MainGameEnd_Initialize(void)
 		MainGameEnd_UpdateAdventureLosses(gGT, player);
 
 		gGT->gameMode1 |= END_OF_RACE;
-		gGT->gameModeEnd = gGT->gameMode1 & 0x3e0020;
+		gGT->gameModeEnd = gGT->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK;
 
 		if ((gGT->gameMode1 & BATTLE_MODE) == 0)
 		{
 			if (gGT->numPlyrCurrGame != 0)
+			{
 				MainGameEnd_RecordNonBattleStandings(gGT);
+			}
 		}
 		else if ((gGT->gameMode1 & POINT_LIMIT) != 0)
 		{

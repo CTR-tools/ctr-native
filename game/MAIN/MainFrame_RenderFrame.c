@@ -25,16 +25,26 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	ElimBG_HandleState(gGT);
 
 	if (lev != 0)
+	{
 		ptr_mesh_info = lev->ptr_mesh_info;
+	}
 
 	if ((gGT->renderFlags & 0x21) != 0)
+	{
 		MainFrame_VisMemFullFrame(gGT, gGT->level1);
+	}
 
 
 	if ((gGT->renderFlags & 1) != 0)
+	{
 		if (gGT->visMem1 != 0)
+		{
 			if (lev != 0)
+			{
 				CTR_CycleTex_LEV(lev->ptr_anim_tex, gGT->timer);
+			}
+		}
+	}
 
 	if ((sdata->ptrActiveMenu != 0) || ((gGT->gameMode1 & END_OF_RACE) != 0))
 	{
@@ -42,8 +52,12 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	}
 
 	if (sdata->ptrActiveMenu != 0)
+	{
 		if (sdata->Loading.stage == LOAD_IDLE)
+		{
 			RECTMENU_ProcessState();
+		}
+	}
 
 	RainLogic(gGT);
 	DropRain_MakeSound(gGT);
@@ -55,10 +69,14 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	RenderAllConfetti(gGT);
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 subrange 0x800364f8-0x80036538.
 	if ((gGT->renderFlags & 8) != 0 && gGT->stars.numStars != 0)
+	{
 		RenderStars(&gGT->pushBuffer[0], &gGT->backBuffer->primMem, &gGT->stars, gGT->numPlyrCurrGame);
+	}
 
 	if (((gGT->renderFlags & 0x100) != 0) && (gGT->numPlyrCurrGame > 1))
+	{
 		DecalMP_01(gGT);
+	}
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_HUD);
@@ -81,7 +99,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	RenderDispEnv_World(gGT); // == RenderDispEnv_World ==
 
 	if (((gGT->renderFlags & 0x100) != 0) && (gGT->numPlyrCurrGame > 1))
+	{
 		DecalMP_02(gGT);
+	}
 
 	RenderAllFlag0x40(gGT); // I need a better name
 	RenderAllTitleDPP(gGT);
@@ -116,10 +136,14 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 		RenderDispEnv_World(gGT); // == RenderDispEnv_World ==
 
 		if (((gGT->hudFlags & 1) != 0) && (gGT->numPlyrCurrGame > 1))
+		{
 			UI_RenderFrame_Wumpa3D_2P3P4P(gGT);
+		}
 
 		if (((gGT->renderFlags & 0x100) != 0) && (gGT->numPlyrCurrGame > 1))
+		{
 			DecalMP_03(gGT);
+		}
 
 		int dotLightsLoadReady = sdata->Loading.stage != LOAD_REQUESTED;
 
@@ -153,8 +177,12 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 			// restart table. Retail lap stats assume the table exists whenever
 			// this caller reaches them; keep the ASM-verified lap function intact.
 			if ((gGT->level1 != NULL) && (gGT->level1->ptr_restart_points != NULL) && (gGT->level1->cnt_restart_points != 0))
-#endif
+			{
 				PlayLevel_UpdateLapStats();
+			}
+#else
+			PlayLevel_UpdateLapStats();
+#endif
 		}
 		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_POST_LEVEL);
 	}
@@ -210,23 +238,34 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 	{
 		// if main menu is open, assume 230 loaded,
 		// quit if menu is at highest level (no ptrNext to draw)
-		if (sdata->ptrActiveMenu == (struct RectMenu *)0x800B4540) // maybe a member of D230.c?
+		// maybe a member of D230.c?
+		if (sdata->ptrActiveMenu == (struct RectMenu *)0x800B4540)
+		{
 			skipMainMenuTopLevel = ((*(int *)0x800b4548 & 0x10) == 0);
+		}
 	}
 
 	// dont draw error in cutscene, if no controllers are missing currently,
 	// in demo mode, or at the highest main-menu level.
 	if ((gGT->gameMode1 & GAME_CUTSCENE) != 0)
+	{
 		return;
+	}
 
 	if (MainFrame_HaveAllPads(gGT->numPlyrNextGame) == 1)
+	{
 		return;
+	}
 
 	if (gGT->boolDemoMode != 0)
+	{
 		return;
+	}
 
 	if (skipMainMenuTopLevel != 0)
+	{
 		return;
+	}
 
 	// position of error
 	posY = data.errorPosY[sdata->errorMessagePosIndex];
@@ -251,8 +290,12 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 		struct ControllerPacket *ptrControllerPacket = gGamepads->gamepad[i].ptrControllerPacket;
 
 		if (ptrControllerPacket != 0)
+		{
 			if (ptrControllerPacket->plugged == PLUGGED)
+			{
 				continue;
+			}
+		}
 
 		// if controller is unplugged
 
@@ -293,7 +336,9 @@ void DrawFinalLap(struct GameTracker *gGT)
 
 		// skip if not drawing "FINAL LAP"
 		if (textTimer == 0)
+		{
 			continue;
+		}
 
 		// turn "time remaining" into "time elapsed",
 		// 90 frames total in animation, 1.5 seconds
@@ -359,7 +404,9 @@ void RainLogic(struct GameTracker *gGT)
 
 		// skip if camera isn't over quadblock
 		if (camQB == 0)
+		{
 			continue;
+		}
 
 		// assume numPlayers is never zero,
 		// assume weather_intensity is always valid
@@ -391,12 +438,16 @@ void RenderAllWeather(struct GameTracker *gGT)
 
 	// only if rain is enabled
 	if ((gGT->renderFlags & 2) == 0)
+	{
 		return;
+	}
 
 	// only for single player,
 	// probably Naughty Dog's last-minute hack
 	if (numPlyrCurrGame > 1)
+	{
 		return;
+	}
 
 	RenderWeather(&gGT->pushBuffer[0], &gGT->backBuffer->primMem, &gGT->rainBuffer[0], numPlyrCurrGame, gGT->gameMode1 & PAUSE_ALL);
 }
@@ -408,11 +459,15 @@ void RenderAllConfetti(struct GameTracker *gGT)
 
 	// only if confetti is enabled
 	if ((gGT->renderFlags & 4) == 0)
+	{
 		return;
+	}
 
 	// only if someone needs confetti
 	if (numWinners == 0)
+	{
 		return;
+	}
 
 	for (i = 0; i < numWinners; i++)
 	{
@@ -535,7 +590,9 @@ void RenderAllHUD(struct GameTracker *gGT)
 				{
 					gGT->overlayTransition--;
 					if (gGT->overlayTransition == 1)
+					{
 						LOAD_OvrThreads(2);
+					}
 				}
 
 				// if 233 is still loaded
@@ -592,11 +649,15 @@ void RenderAllBeakerRain(struct GameTracker *gGT)
 
 	// only if beaker rain is enabled
 	if ((gGT->renderFlags & 0x10) == 0)
+	{
 		return;
+	}
 
 	// only for 1P/2P
 	if (numPlyrCurrGame > 2)
+	{
 		return;
+	}
 
 	RedBeaker_RenderRain(&gGT->pushBuffer[0], &gGT->backBuffer->primMem, &gGT->JitPools.rain, numPlyrCurrGame, gGT->gameMode1 & PAUSE_ALL);
 }
@@ -620,11 +681,15 @@ void RenderBucket_QueueAllInstances(struct GameTracker *gGT)
 	int numPlyrCurrGame = gGT->numPlyrCurrGame;
 
 	if ((gGT->renderFlags & 0x20) == 0)
+	{
 		return;
+	}
 
 	lod = numPlyrCurrGame - 1;
 	if ((gGT->gameMode1 & RELIC_RACE) != 0)
+	{
 		lod |= 4;
+	}
 
 	RBI = RenderBucket_QueueLevInstances(&gGT->cameraDC[0], (uint32_t *)&gGT->backBuffer->otMem, gGT->ptrRenderBucketInstance,
 	                                     (char *)(u32)(u8)sdata->LOD[lod], // this weird cast is what ghidra does
@@ -652,7 +717,9 @@ void RenderAllNormalParticles(struct GameTracker *gGT)
 	int i;
 
 	if ((gGT->renderFlags & 0x200) == 0)
+	{
 		return;
+	}
 
 	for (i = 0; i < gGT->numPlyrCurrGame; i++)
 	{
@@ -675,7 +742,9 @@ void RenderDispEnv_World(struct GameTracker *gGT)
 void RenderAllFlag0x40(struct GameTracker *gGT)
 {
 	if ((gGT->renderFlags & 0x40) == 0)
+	{
 		return;
+	}
 
 	if (LOAD_IsOpen_RacingOrBattle() != 0)
 	{
@@ -712,16 +781,22 @@ void RenderAllFlag0x40(struct GameTracker *gGT)
 void RenderAllTitleDPP(struct GameTracker *gGT)
 {
 	if ((gGT->gameMode1 & MAIN_MENU) == 0)
+	{
 		return;
+	}
 	if (LOAD_IsOpen_MainMenu() == 0)
+	{
 		return;
+	}
 	MM_Title_SetTrophyDPP();
 }
 
 void RenderBucket_ExecuteAllInstances(struct GameTracker *gGT)
 {
 	if ((gGT->renderFlags & 0x20) == 0)
+	{
 		return;
+	}
 
 	RenderBucket_Execute(gGT->ptrRenderBucketInstance, &gGT->backBuffer->primMem);
 }
@@ -732,7 +807,9 @@ void RenderAllTires(struct GameTracker *gGT)
 	struct PrimMem *gGT_primMem;
 
 	if ((gGT->renderFlags & 0x80) == 0)
+	{
 		return;
+	}
 
 	gGT_primMem = &gGT->backBuffer->primMem;
 	numPlyrCurrGame = gGT->numPlyrCurrGame;
@@ -759,14 +836,18 @@ void RenderAllTires(struct GameTracker *gGT)
 void RenderAllShadows(struct GameTracker *gGT)
 {
 	if ((gGT->renderFlags & 0x400) == 0)
+	{
 		return;
+	}
 	VehGroundShadow_Main();
 }
 
 void RenderAllHeatParticles(struct GameTracker *gGT)
 {
 	if ((gGT->renderFlags & 0x800) == 0)
+	{
 		return;
+	}
 
 	Torch_Main(gGT->particleList_heatWarp, &gGT->pushBuffer[0], &gGT->backBuffer->primMem, gGT->numPlyrCurrGame, gGT->swapchainIndex * 0x128);
 }
@@ -776,7 +857,9 @@ static s32 RenderAllLevelGeometry_ScaleDistanceShift8(s32 distToScreen, s32 scal
 	s32 product = CTR_MipsMulLo(distToScreen, scale);
 
 	if (product < 0)
+	{
 		product = CTR_MipsAddLo(product, 0xff);
+	}
 
 	return CTR_MipsSra(product, 8);
 }
@@ -790,10 +873,14 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 	struct PushBuffer *pushBuffer;
 
 	if (level1 == 0)
+	{
 		return;
+	}
 
 	if (ptr_mesh_info == 0)
+	{
 		return;
+	}
 
 	numPlyrCurrGame = gGT->numPlyrCurrGame;
 
@@ -971,9 +1058,13 @@ void WindowBoxLines(struct GameTracker *gGT)
 
 	// only battle and 3P4P mode allowed
 	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
+	{
 		return;
+	}
 	if (gGT->numPlyrCurrGame < 3)
+	{
 		return;
+	}
 
 	for (i = 0; i < gGT->numPlyrCurrGame; i++)
 	{

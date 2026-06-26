@@ -48,7 +48,9 @@ internal void Platform_CalcFPS(void)
 	const u64 now = SDL_GetPerformanceCounter();
 
 	if (freq == 0)
+	{
 		return;
+	}
 
 	if (s_fpsLastCounter == 0)
 	{
@@ -59,7 +61,9 @@ internal void Platform_CalcFPS(void)
 
 	s_fpsFrameCount++;
 	if (s_fpsFrameCount < NATIVE_FPS_REPORT_FRAME_WINDOW)
+	{
 		return;
+	}
 
 	if (now > s_fpsLastCounter)
 	{
@@ -93,12 +97,18 @@ internal void Platform_HandleWindowResize(int width, int height)
 internal void Platform_UpdateCursorVisibility(void)
 {
 	if (g_window == NULL)
+	{
 		return;
+	}
 
 	if ((SDL_GetWindowFlags(g_window) & SDL_WINDOW_FULLSCREEN) != 0)
+	{
 		SDL_HideCursor();
+	}
 	else
+	{
 		SDL_ShowCursor();
+	}
 }
 
 internal void Platform_HandleFullscreenToggle(void)
@@ -130,9 +140,13 @@ internal void Platform_TakeScreenshot(void)
 internal void Platform_HandleKey(int key, char down)
 {
 	if (down == 0)
+	{
 		SubmitName_UseKeyboard(0);
+	}
 	else
+	{
 		SubmitName_UseKeyboard(key);
+	}
 
 #ifdef CTR_INTERNAL
 	if (!down)
@@ -157,7 +171,9 @@ internal void Platform_HandleKey(int key, char down)
 			break;
 		case SDL_SCANCODE_F9:
 			if (NativeReplayScheduler_RequestStart() != 0)
+			{
 				break;
+			}
 			break;
 		case SDL_SCANCODE_F10:
 			NativeReplayScheduler_RequestStop();
@@ -225,7 +241,9 @@ void Platform_Init(const char *title, int width, int height)
 void Platform_Shutdown(void)
 {
 	if (s_platformInitialized == 0)
+	{
 		return;
+	}
 
 	s_platformInitialized = 0;
 #if defined(CTR_INTERNAL)
@@ -258,7 +276,9 @@ void Platform_BeginFrame(void)
 int Platform_BeginScene(void)
 {
 	if (s_platformBeginScene)
+	{
 		return 0;
+	}
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_PLATFORM_BEGIN_SCENE);
 	// NOTE(aalhendi): CTR already throttles through the retail VSync/draw-sync
@@ -289,7 +309,9 @@ int Platform_BeginScene(void)
 void Platform_EndScene(void)
 {
 	if (!s_platformBeginScene)
+	{
 		return;
+	}
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_PLATFORM_END_SCENE);
 	s_platformBeginScene = 0;
@@ -303,13 +325,19 @@ void Platform_EndScene(void)
 		// into PSX VRAM after a movie/frame upload.
 		NativeRenderer_DiscardFramebufferReadback();
 		if (s_pinnedVramDisplayCustomRect)
+		{
 			NativeRenderer_PresentVRAMRect(s_pinnedVramDisplayX, s_pinnedVramDisplayY, s_pinnedVramDisplayW, s_pinnedVramDisplayH);
+		}
 		else
+		{
 			NativeRenderer_PresentVRAMDisplay();
+		}
 		NativeRenderer_SwapWindow();
 		s_pinnedVramDisplayFrames--;
 		if (s_pinnedVramDisplayFrames <= 0)
+		{
 			s_pinnedVramDisplayCustomRect = 0;
+		}
 		NativePerf_EndScope(NATIVE_PERF_BUCKET_PLATFORM_END_SCENE);
 		return;
 	}
@@ -349,7 +377,9 @@ void Platform_PinVRAMDisplayFrames(int frameCount)
 void Platform_PinVRAMDisplayRect(int x, int y, int w, int h, int frameCount)
 {
 	if ((frameCount <= 0) || (w <= 0) || (h <= 0))
+	{
 		return;
+	}
 
 	s_pinnedVramDisplayX = x;
 	s_pinnedVramDisplayY = y;
@@ -399,16 +429,24 @@ void Platform_PollHostEvents(void)
 			else if (key == SDL_SCANCODE_RETURN)
 			{
 				if ((s_hostAltKeyState != 0) && (down != 0))
+				{
 					Platform_HandleFullscreenToggle();
+				}
 				break;
 			}
 
 			if (key == SDL_SCANCODE_RSHIFT)
+			{
 				key = SDL_SCANCODE_LSHIFT;
+			}
 			else if (key == SDL_SCANCODE_RCTRL)
+			{
 				key = SDL_SCANCODE_LCTRL;
+			}
 			else if (key == SDL_SCANCODE_RALT)
+			{
 				key = SDL_SCANCODE_LALT;
+			}
 
 			if ((key == SDL_SCANCODE_F4) && (down == 0))
 			{
@@ -423,9 +461,13 @@ void Platform_PollHostEvents(void)
 #ifdef CTR_INTERNAL
 				int player = Platform_InputCycleGamepadController();
 				if (player == 0)
+				{
 					Platform_LogWarn("[CTR Native] No gamepad connected\n");
+				}
 				else
+				{
 					Platform_LogWarn("[CTR Native] Gamepad assigned to player %d\n", player);
+				}
 #endif
 				break;
 			}
@@ -526,7 +568,9 @@ internal void Native_WaitUntilVBlankTarget(void)
 
 		sleepMs = ((remaining - spinWindow) * 1000) / freq;
 		if (sleepMs > 0)
+		{
 			SDL_Delay((u32)sleepMs);
+		}
 	}
 }
 
@@ -535,7 +579,9 @@ internal void Native_EmitVBlank(void)
 	NativeRCnt_EmitVBlank();
 
 	if (vsync_callback != NULL)
+	{
 		vsync_callback();
+	}
 
 	NativeAudio_StepVBlank();
 	s_nativeVBlankCount++;
@@ -585,7 +631,9 @@ int VSync(int mode)
 	int emittedVBlanks;
 
 	if (mode < 0)
+	{
 		return s_nativeVBlankCount;
+	}
 
 	requestedVBlanks = (mode == 0) ? 1 : mode;
 	emittedVBlanks = 0;
@@ -594,7 +642,9 @@ int VSync(int mode)
 	if (NativeReplayScheduler_ConsumeVSyncPacket(requestedVBlanks, &emittedVBlanks))
 	{
 		for (s32 i = 0; i < emittedVBlanks; i++)
+		{
 			Native_WaitAndEmitVBlank();
+		}
 
 		return s_nativeVBlankCount;
 	}
@@ -626,13 +676,17 @@ void Platform_WaitUntilVBlank(int targetVBlank)
 	int requestedVBlanks = targetVBlank - s_nativeVBlankCount;
 
 	if (requestedVBlanks <= 0)
+	{
 		return;
+	}
 
 #if defined(CTR_INTERNAL)
 	if (NativeReplayScheduler_ConsumeVSyncPacket(requestedVBlanks, &emittedVBlanks))
 	{
 		for (s32 i = 0; i < emittedVBlanks; i++)
+		{
 			Native_WaitAndEmitVBlank();
+		}
 
 		return;
 	}

@@ -10,7 +10,9 @@ void AH_Pause_Destroy(void)
 
 	// check register
 	if (ptrPauseObject == 0)
+	{
 		return;
+	}
 
 	// loop through 14 instances, destroy them
 	for (i = 0; i < 0xe; i++)
@@ -34,7 +36,9 @@ void AH_Pause_Draw(int pageID, int posX)
 	adv = &sdata->advProgress;
 
 	if (lngIndex < 0)
+	{
 		lngIndex = data.metaDataLEV[levelID].name_LNG;
+	}
 
 	char *str = sdata->lngStrings[lngIndex];
 
@@ -47,7 +51,9 @@ void AH_Pause_Draw(int pageID, int posX)
 	// orange/red
 	int colorIndex = 0;
 	if ((sdata->frameCounter & 4) == 0)
+	{
 		colorIndex = 3;
+	}
 
 	int *ptrColor = data.ptrColor[colorIndex];
 
@@ -110,7 +116,9 @@ void AH_Pause_Draw(int pageID, int posX)
 			struct MetaDataLEV *mdLev = &data.metaDataLEV[trackID];
 
 			if (mdLev->hubID != hubID)
+			{
 				continue;
+			}
 
 			if (trackID >= 0x12)
 			{
@@ -189,7 +197,9 @@ void AH_Pause_Draw(int pageID, int posX)
 
 			// set to grey (if beaten oxide at least once)
 			if (CHECK_ADV_BIT(adv->rewards, data.BeatBossPrize[0]) != 0)
+			{
 				color = 1;
+			}
 
 			u32 *starColor;
 			starColor = data.ptrColor[color];
@@ -264,14 +274,18 @@ void AH_Pause_Draw(int pageID, int posX)
 		for (int i = 0; i < 0x10; i++)
 		{
 			if (CHECK_ADV_BIT(adv->rewards, i + ADV_REWARD_FIRST_CTR_TOKEN) != 0)
+			{
 				tokenCount[data.metaDataLEV[i].ctrTokenGroupID]++;
+			}
 		}
 
 		// NOTE(aalhendi): Purple tokens are stored in a separate reward bit range not in ctrTokenGroupID.
 		for (int i = 0; i < 4; i++)
 		{
 			if (CHECK_ADV_BIT(adv->rewards, i + ADV_REWARD_FIRST_PURPLE_TOKEN) != 0)
+			{
 				tokenCount[4]++;
+			}
 		}
 
 		for (int i = 0; i < 5; i++)
@@ -308,15 +322,19 @@ void AH_Pause_Draw(int pageID, int posX)
 		{
 			// platinum
 			if (CHECK_ADV_BIT(adv->rewards, i + ADV_REWARD_FIRST_PLATINUM_RELIC) != 0)
+			{
 				count[2]++;
-
+			}
 			// gold
 			else if (CHECK_ADV_BIT(adv->rewards, i + ADV_REWARD_FIRST_GOLD_RELIC) != 0)
+			{
 				count[1]++;
-
+			}
 			// sapphire
 			else if (CHECK_ADV_BIT(adv->rewards, i + ADV_REWARD_FIRST_SAPPHIRE_RELIC) != 0)
+			{
 				count[0]++;
+			}
 		}
 
 		for (int i = 0; i < 3; i++)
@@ -410,9 +428,13 @@ void AH_Pause_Draw(int pageID, int posX)
 			int scale = D232.advPauseInst[index].scale;
 
 			if (type == 1)
+			{
 				scale = 0x1000;
+			}
 			else if (type != 0)
+			{
 				scale = scale << 2;
+			}
 
 			inst->scale.x = scale;
 			inst->scale.y = scale;
@@ -483,7 +505,9 @@ void AH_Pause_Update()
 
 			idpp[0].pushBuffer = &gGT->pushBuffer_UI;
 			for (int j = 1; j < gGT->numPlyrCurrGame; j++)
+			{
 				idpp[j].pushBuffer = 0;
+			}
 
 			*(int *)&inst->matrix.m[0][0] = 0x1000;
 			*(int *)&inst->matrix.m[0][2] = 0;
@@ -504,7 +528,9 @@ void AH_Pause_Update()
 			gGT->advPausePage += -1;
 
 			if (gGT->advPausePage < 0)
+			{
 				gGT->advPausePage = 6;
+			}
 		}
 
 		// assume BTN_RIGHT
@@ -514,7 +540,9 @@ void AH_Pause_Update()
 			gGT->advPausePage += 1;
 
 			if (gGT->advPausePage > 6)
+			{
 				gGT->advPausePage = 0;
+			}
 		}
 
 		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b3340-0x800b3350 for adventure pause page-turn SFX.
@@ -523,8 +551,9 @@ void AH_Pause_Update()
 
 	// page is flipping
 	if (D232.pausePageTimer > 0)
+	{
 		D232.pausePageTimer--;
-
+	}
 	// page is not flipping, flip desired
 	else if (gGT->advPausePage != D232.pausePageCurr)
 	{

@@ -782,8 +782,8 @@ struct Level
 	struct Icon *ptr_named_tex_array;
 
 	// 0x44
-	// pointer to environment map, used by water rendering
-	void *ptr_tex_waterEnvMap;
+	// pointer to environment map texture layout, used by water rendering
+	struct TextureLayout *ptr_tex_waterEnvMap;
 
 	// 0x48
 	// used for additional skybox gradients (e.g. papu's pyramid)

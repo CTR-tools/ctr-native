@@ -7,9 +7,13 @@ void MEMCARD_SetIcon(int icon)
 	int *dst;
 
 	if ((icon & 0xffff) == 0)
+	{
 		src = &data.memcardIcon_Ghost[0];
+	}
 	else
+	{
 		src = &data.memcardIcon_CrashHead[0];
+	}
 
 	dst = &data.memcardIcon_PsyqHand[0];
 

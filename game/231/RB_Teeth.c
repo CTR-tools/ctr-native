@@ -32,7 +32,9 @@ void RB_Teeth_BSP_Callback(struct ScratchpadStruct *sps, void *hitObject)
 
 	b32 canOpenTeeth = (model == DYNAMIC_PLAYER) || (model == PU_EXPLOSIVE_CRATE) || (model == DYNAMIC_POISON) || (model == STATIC_CRATE_TNT);
 	if (!canOpenTeeth)
+	{
 		return;
+	}
 
 	teethTh = sps->Union.ThBuckColl.thread;
 
@@ -81,7 +83,9 @@ void RB_Teeth_ThTick(struct Thread *t)
 	{
 		// if timer is zero
 		if (teeth->timeOpen == 0)
+		{
 			goto LAB_800b9ff8;
+		}
 
 		// reduce timer by milliseconds
 		iVar1 = teeth->timeOpen - gGT->elapsedTimeMS;
@@ -151,7 +155,9 @@ void RB_Teeth_ThTick(struct Thread *t)
 		{
 		LAB_800b9ff8:
 			if (-1 < teeth->direction)
+			{
 				goto LAB_800ba084;
+			}
 		}
 	}
 
@@ -208,7 +214,9 @@ int RB_Teeth_LInC(struct Instance *teethInst, struct Thread *t, struct Scratchpa
 	// If in relic race, ignore the function,
 	// there are no weapons to activate door anyways
 	if ((sdata->gGT->gameMode1 & RELIC_RACE) != 0)
+	{
 		return 2;
+	}
 
 	teethTh = teethInst->thread;
 	d = t->object;
@@ -283,7 +291,9 @@ void RB_Teeth_OpenDoor(struct Instance *inst)
 		teethTh = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct Teeth), NONE, SMALL, STATIC), RB_Teeth_ThTick, s_teeth, NULL);
 		inst->thread = teethTh;
 		if (teethTh == NULL)
+		{
 			return;
+		}
 		teethTh->inst = inst;
 		((struct Teeth *)teethTh->object)->timeOpen = 0;
 	}

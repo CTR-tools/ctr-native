@@ -32,7 +32,9 @@ internal s32 NativeSaveState_PathExists(const char *path)
 	struct stat st;
 
 	if (path == NULL)
+	{
 		return 0;
+	}
 
 	return stat(path, &st) == 0;
 }
@@ -40,7 +42,9 @@ internal s32 NativeSaveState_PathExists(const char *path)
 internal s32 NativeSaveState_MakeDir(const char *path)
 {
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 
 #if defined(_WIN32)
 	if (_mkdir(path) == 0)
@@ -95,7 +99,9 @@ internal s32 NativeSaveState_SaveQuick(void)
 	}
 
 	if (!NativeSaveState_PreparePayload())
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpoint_Capture(s_quickPayload, s_quickPayloadSize))
 	{
@@ -118,7 +124,9 @@ internal s32 NativeSaveState_LoadQuick(void)
 	struct NativeCheckpointFileRecordInfo info;
 
 	if (!NativeSaveState_PreparePayload())
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpointFile_ReadSingle(NATIVE_SAVESTATE_QUICK_PATH, s_quickPayload, s_quickPayloadSize, &info))
 	{

@@ -102,7 +102,9 @@ void DecalFont_DrawLineStrlen(u8 *str, s16 len, int posX, s16 posY, s16 fontType
 		int alignX = DecalFont_GetLineWidthStrlen(str, len, fontType);
 
 		if (flags & JUSTIFY_CENTER)
+		{
 			alignX /= 2;
+		}
 
 		posX -= alignX;
 	}
@@ -156,7 +158,9 @@ void DecalFont_DrawLineStrlen(u8 *str, s16 len, int posX, s16 posY, s16 fontType
 #endif
 
 		if (*strcopy == ':' || *strcopy == '.')
+		{
 			charWidth = data.font_puncPixWidth[fontType];
+		}
 
 		// if the character is one of the PSX buttons
 		// @ is circle, [ is square, ^ is triangle, * is X
@@ -326,7 +330,9 @@ void DecalFont_DrawLineStrlen(u8 *str, s16 len, int posX, s16 posY, s16 fontType
 				iconID -= 0x80;
 				s16 kanaIconGroupID = 15;
 				if (iconGroupID == 4)
+				{
 					kanaIconGroupID = 14;
+				}
 				iconGroupID = kanaIconGroupID;
 			}
 
@@ -439,6 +445,7 @@ void DecalFont_DrawLineStrlen(u8 *str, s16 len, int posX, s16 posY, s16 fontType
 // NOTE(aalhendi): Native can boot before every retail icon group is loaded.
 #ifdef CTR_NATIVE
 			if (gGT->iconGroup[iconGroupID] != 0)
+			{
 #endif
 
 				if (iconID < gGT->iconGroup[iconGroupID]->numIcons)
@@ -455,6 +462,7 @@ void DecalFont_DrawLineStrlen(u8 *str, s16 len, int posX, s16 posY, s16 fontType
 
 					                     0, iconScale);
 				}
+			}
 
 #elif BUILD == JpnTrial || BUILD == JpnRetail
 
@@ -594,7 +602,9 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 
 				// if nullptr, or out of letters, quit the loop
 				if ((strCharacter == '\0') || (lettersRemaining == 0))
+				{
 					break;
+				}
 
 				// if this is a letter, number, or symbol
 				if ((strCharacter != ' ') && (strCharacter != '\r'))
@@ -615,7 +625,9 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 						// or a space (end of word),
 						// or the end of the line '\r'
 						if (((strCharacter == '\0') || (strCharacter == ' ')) || (strCharacter == '\r'))
+						{
 							break;
+						}
 					}
 				}
 
@@ -635,7 +647,9 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 
 				                                  // check if this is new line
 				                                  strCharacter == '\r'))
+				{
 					break;
+				}
 			}
 		}
 
@@ -685,7 +699,9 @@ int DecalFont_DrawMultiLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 ma
 			len = len + -1;
 		}
 		if ((*strPointer == '\0') || (str = strPointer, len == 0))
+		{
 			goto EndFunction;
+		}
 	} while (1);
 }
 

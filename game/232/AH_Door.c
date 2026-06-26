@@ -23,19 +23,29 @@ void AH_Door_ThDestroy(struct Thread *t)
 static char AH_Door_IsOpenByRewards(s16 levelID, s16 doorID)
 {
 	if ((levelID == N_SANITY_BEACH) && (doorID == 4))
+	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_BEACH_TO_GLACIER_PARK_MASK) != 0;
+	}
 
 	if ((levelID == N_SANITY_BEACH) && (doorID == 5))
+	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_BEACH_TO_GEMSTONE_VALLEY_MASK) != 0;
+	}
 
 	if (levelID == GEM_STONE_VALLEY)
+	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_GEMSTONE_VALLEY_TO_CUPS_MASK) != 0;
+	}
 
 	if (levelID == THE_LOST_RUINS)
+	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_LOST_RUINS_TO_GLACIER_PARK_MASK) != 0;
+	}
 
 	if (levelID == GLACIER_PARK)
+	{
 		return (sdata->advProgress.storyFlags & ADV_REWARD_DOOR_GLACIER_PARK_TO_CITADEL_CITY_MASK) != 0;
+	}
 
 	return false;
 }
@@ -136,7 +146,9 @@ void AH_Door_ThTick(struct Thread *t)
 	// if in a state where you're seeing the boss key open an adv door,
 	// or some other kind of cutscene where you can't move
 	if ((gGT->gameMode2 & 4) != 0)
+	{
 		return;
+	}
 
 	// If door is open
 	if (doorIsOpen)
@@ -236,7 +248,7 @@ void AH_Door_ThTick(struct Thread *t)
 		}
 
 		// If the game is paused
-		if ((gGT->gameMode1 & 0xf) != 0)
+		if ((gGT->gameMode1 & PAUSE_ALL) != 0)
 		{
 			return;
 		}
@@ -559,7 +571,9 @@ void AH_Door_LInB(struct Instance *inst)
 
 	// If this Instance already has a thread
 	if (inst->thread != NULL)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct WoodDoor), NONE, SMALL, STATIC),
 	                         AH_Door_ThTick, // behavior
@@ -571,7 +585,9 @@ void AH_Door_LInB(struct Instance *inst)
 
 	// if the thread failed to build
 	if (t == NULL)
+	{
 		return;
+	}
 
 	woodDoor = t->object;
 

@@ -4,14 +4,18 @@
 static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_info *mesh)
 {
 	if (mesh == NULL || mesh->bspRoot == NULL)
+	{
 		return;
+	}
 
 	for (int playerIndex = 0; playerIndex < 4; playerIndex++)
 	{
 		struct VisMemBspListNode *bspList = visMem->bspList[playerIndex];
 
 		if (bspList == NULL)
+		{
 			continue;
+		}
 
 		for (int bspIndex = 0; bspIndex < mesh->numBspNodes; bspIndex++)
 		{
@@ -30,7 +34,9 @@ void MainInit_VisMem(struct GameTracker *gGT)
 	gGT->visMem1 = visMem;
 
 	if (visMem == NULL)
+	{
 		return;
+	}
 
 	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
 	{
@@ -51,7 +57,9 @@ void MainInit_RainBuffer(struct GameTracker *gGT)
 	u8 numPlyr = gGT->numPlyrCurrGame;
 
 	if (numPlyr == 0)
+	{
 		return;
+	}
 
 	for (int i = 0; i < numPlyr; i++)
 	{
@@ -78,11 +86,15 @@ static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 
 	// adv garage
 	if (gGT->levelID == ADVENTURE_GARAGE)
+	{
 		return 0x1b800;
+	}
 
 	// main menu
 	if ((gGT->gameMode1 & MAIN_MENU) != 0)
+	{
 		return 0x17c00;
+	}
 
 	levelID = gGT->levelID;
 
@@ -93,26 +105,36 @@ static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 
 	case 1:
 		if ((gGT->gameMode1 & ADVENTURE_ARENA) != 0)
+		{
 			return 0x1c000;
+		}
 
 		if ((u32)(levelID - INTRO_RACE_TODAY) < 9)
+		{
 			return 0x1e000;
+		}
 
 		if (levelID < GEM_STONE_VALLEY)
+		{
 			return data.primMem_SizePerLEV_1P[levelID] << 10;
+		}
 
 		return 0x17c00;
 
 	case 2:
 		if (levelID < GEM_STONE_VALLEY)
+		{
 			return data.primMem_SizePerLEV_2P[levelID] << 10;
+		}
 
 		return 0x1e000;
 
 	case 3:
 	case 4:
 		if (levelID < GEM_STONE_VALLEY)
+		{
 			return data.primMem_SizePerLEV_4P[levelID] << 10;
+		}
 
 		return 0x25800;
 
@@ -127,7 +149,9 @@ void MainInit_PrimMem(struct GameTracker *gGT)
 	int size = MainInit_GetPrimMemSize(gGT);
 
 	if (size == 0)
+	{
 		return;
+	}
 
 	MainDB_PrimMem(&gGT->db[0].primMem, size);
 	MainDB_PrimMem(&gGT->db[1].primMem, size);
@@ -200,7 +224,9 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 	{
 		poolScale = 0x1000;
 		if ((gameMode & MAIN_MENU) != 0)
+		{
 			poolScale = 0x400;
+		}
 	}
 
 	int renderBucketSize = 0x800;
@@ -211,7 +237,9 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 		{
 			renderBucketSize = 0x400;
 			if (gGT->levelID == ADVENTURE_GARAGE)
+			{
 				renderBucketSize = 0x800;
+			}
 		}
 	}
 
@@ -225,7 +253,9 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 
 	int numDriver = poolScale >> 9;
 	if ((gameMode & MAIN_MENU) != 0)
+	{
 		numDriver = 4;
+	}
 	JitPool_Init(&gGT->JitPools.largeStack, numDriver, 0x670, rdata.s_LargeStackPool);
 
 	int numParticle = poolScale >> 5;
@@ -268,7 +298,9 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	struct Driver *d;
 
 	for (i = 0; i < 8; i++)
+	{
 		gGT->drivers[i] = NULL;
+	}
 
 	gGT->numBotsNextGame = 0;
 
@@ -346,8 +378,8 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	if (gGT->numBotsNextGame != 0)
 	{
 		// Init AI engine sounds
-		EngineAudio_InitOnce(0x10, 0x8080);
-		EngineAudio_InitOnce(0x11, 0x8080);
+		EngineAudio_InitOnce(0x10, HOWL_SFX_CENTER_NO_DISTORTION);
+		EngineAudio_InitOnce(0x11, HOWL_SFX_CENTER_NO_DISTORTION);
 	}
 
 	// if this is main menu
@@ -360,9 +392,9 @@ void MainInit_Drivers(struct GameTracker *gGT)
 		}
 	}
 
-	// if you're in time trial, not main menu, not loading.
+	// if you're in time trial, not main menu, not cutscene.
 	// basically, if you're in time trial gameplay
-	if ((gameMode & 0x20022000) == TIME_TRIAL)
+	if ((gameMode & GAME_MODE_TIME_TRIAL_GAMEPLAY_MASK) == TIME_TRIAL)
 	{
 		GhostReplay_Init2();
 
@@ -407,7 +439,9 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	// reset root thread for each bucket
 	for (int i = 0; i < NUM_BUCKETS; i++)
+	{
 		gGT->threadBuckets[i].thread = 0;
+	}
 
 	// particles
 	gGT->particleList_ordinary = NULL;
@@ -481,7 +515,9 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 		// if pointer is not nullptr
 		if (d == NULL)
+		{
 			continue;
+		}
 
 		inst = d->instSelf;
 		if (inst != 0)
@@ -497,11 +533,11 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 			if (((gGT->gameMode1 & MAIN_MENU) == 0) || (i < 1))
 			{
 				// remove frozen camera flag
-				gGT->cameraDC[i].flags &= 0xffff7fff;
+				gGT->cameraDC[i].flags &= ~CAMERA_FLAG_FROZEN;
 			}
 			else
 			{
-				gGT->cameraDC[i].flags |= 0x8000;
+				gGT->cameraDC[i].flags |= CAMERA_FLAG_FROZEN;
 			}
 		}
 	}
@@ -558,8 +594,12 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	}
 
 	if (lev1 != NULL)
+	{
 		if (lev1->ptr_mesh_info != NULL)
+		{
 			LevInstDef_UnPack(lev1->ptr_mesh_info);
+		}
+	}
 
 	MainInit_VisMem(gGT);
 
@@ -606,8 +646,13 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	}
 
 	if ((gGT->gameMode1 & ADVENTURE_ARENA) != 0)
-		if (gGT->podiumRewardID != NOFUNC) // 0
+	{
+		// 0
+		if (gGT->podiumRewardID != NOFUNC)
+		{
 			CS_Podium_FullScene_Init();
+		}
+	}
 
 	PickupBots_Init();
 }
@@ -620,7 +665,9 @@ int MainInit_StringToLevID(char *str)
 		char *debugName = data.metaDataLEV[levelID].name_Debug;
 
 		if (strncmp(debugName, str, strlen(debugName)) == 0)
+		{
 			return levelID;
+		}
 	}
 
 	return 0;

@@ -33,14 +33,20 @@ void Seal_CheckColl(struct Instance *sealInst, struct Thread *sealTh, int damage
 
 		// if failed, due to mask grab or mask weapon
 		if (boolHurt == 0)
+		{
 			return;
+		}
 
 		// if driver was already spinning out
 		if (kartStatePrev == KS_SPINNING)
+		{
 			return;
+		}
 
 		if (sound == 0)
+		{
 			return;
+		}
 
 		// play seal sound, with echo if driver is on an echo quadblock
 		OtherFX_Play_Echo(sound, 1, hitDriver->actionsFlagSet & ACTION_ENGINE_ECHO);
@@ -237,7 +243,9 @@ void RB_Seal_LInB(struct Instance *inst)
 	struct Thread *t;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -249,7 +257,9 @@ void RB_Seal_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Seal_ThCollide;

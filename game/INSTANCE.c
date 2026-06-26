@@ -314,7 +314,9 @@ void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst)
 		else if ((gGT->gameMode1 & RELIC_RACE) != 0)
 		{
 			if (boolArcadeOnly)
+			{
 				inst->flags &= ~DRAW_COLLISION_MASK;
+			}
 
 			if (boolRelicOnly)
 			{
@@ -328,10 +330,13 @@ void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst)
 		else if ((gGT->gameMode1 & CRYSTAL_CHALLENGE) != 0)
 		{
 			if (modelID == STATIC_CRYSTAL)
+			{
 				gGT->numCrystalsInLEV++;
-
+			}
 			else if (modelID == PU_FRUIT_CRATE)
+			{
 				inst->flags &= ~DRAW_COLLISION_MASK;
+			}
 		}
 
 		// If NOT crystal challenge
@@ -350,7 +355,9 @@ void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst)
 		{
 			// disable C-T-R letters
 			if ((u32)(modelID - STATIC_C) < 3)
+			{
 				inst->flags &= ~DRAW_COLLISION_MASK;
+			}
 		}
 
 		// next InstDef
@@ -367,7 +374,9 @@ void INSTANCE_LevDelayedLInBs(struct InstDef *instDef, int numInstances)
 		struct MetaDataMODEL *meta = COLL_LevModelMeta(instDef->model->id);
 
 		if ((meta != NULL) && (meta->LInB != NULL))
+		{
 			meta->LInB(instDef->ptrInstance);
+		}
 
 		instDef++;
 	}
@@ -386,25 +395,31 @@ u16 INSTANCE_GetNumAnimFrames(struct Instance *pInstance, int animIndex)
 
 	// get model from instance and validate
 	if (pModel = pInstance->model, pModel != NULL)
-
+	{
 		// if model got headers
 		if (pModel->numHeaders > 0)
-
+		{
 			// get first header ptr and validate
 			if (pHeader = pModel->headers, pHeader != NULL)
-
+			{
 				// if header got animations
 				if (pHeader->ptrAnimations != NULL)
-
+				{
 					// validate anim index param
 					if (animIndex < (int)pHeader->numAnimations)
-
+					{
 						// get proper animation ptr and validate
 						if (pAnim = *(pHeader->ptrAnimations + animIndex), pAnim != NULL)
-
+						{
 							// we're finally there, get number of frames
 							// remember it's masked due to interp flag
 							return pAnim->numFrames & 0x7fff;
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// any other case
 	return 0;

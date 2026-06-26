@@ -46,5 +46,5 @@ void MainGameStart_Initialize(struct GameTracker *gGT, char boolStopAudio)
 		howl_StopAudio(0, 0, 1);
 	}
 
-	VehBirth_TeleportAll(gGT, 2);
+	VehBirth_TeleportAll(gGT, VEH_BIRTH_SPAWN_INIT_RACE_STATE);
 }

@@ -85,7 +85,9 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 	int count = 0;
 
 	if ((s16)(*(u16 *)(void *)mh->ptrCommandList) < 0x40)
+	{
 		return 0;
+	}
 
 	vertex = RB_Banner_FirstVertex(mh);
 	cmd = (u32 *)((u8 *)mh->ptrCommandList + 4);
@@ -149,7 +151,9 @@ int RB_Banner_Animate_Init(struct ModelHeader *mh)
 	{
 		vertex = RB_Banner_FirstVertex(mh);
 		for (int i = 0; i < count; i++, vertex += 3)
+		{
 			vertex[1] = 0x80;
+		}
 	}
 
 	return count;
@@ -163,11 +167,15 @@ void RB_Banner_Animate_Play(struct ModelHeader *mh, s16 numVertices)
 	u8 *vertex;
 
 	for (int i = 0; i < 0x3f; i++)
+	{
 		colors[i] = colors[i + 1];
+	}
 	colors[0x3f] = firstColor;
 
 	if (numVertices <= 0)
+	{
 		return;
+	}
 
 	vertex = (u8 *)mh->ptrFrameData + mh->ptrFrameData->vertexOffset;
 	for (int i = 0; i < numVertices; i++, vertex += 3)
@@ -177,9 +185,13 @@ void RB_Banner_Animate_Play(struct ModelHeader *mh, s16 numVertices)
 		int wave = (int)color - 0x80;
 
 		if (x < 0x40)
+		{
 			wave = (wave * ((int)x << 2)) >> 8;
+		}
 		else if (x > 0xc0)
+		{
 			wave = (wave * ((0x100 - (int)x) << 2)) >> 8;
+		}
 
 		vertex[1] = (u8)(wave + 0x80);
 	}
@@ -191,7 +203,9 @@ void RB_Banner_ThTick(struct Thread *t)
 	struct StartBanner *banner = t->object;
 
 	if (banner->numVertices != 0)
+	{
 		RB_Banner_Animate_Play(t->inst->model->headers, banner->numVertices);
+	}
 }
 
 static char s_startbanner[] = "startbanner";
@@ -205,15 +219,21 @@ void RB_Banner_LInB(struct Instance *inst)
 	struct Model *model;
 
 	if (inst->thread != NULL)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(sizeof(struct StartBanner), NONE, SMALL, STATIC), RB_Banner_ThTick, s_startbanner, NULL);
 	inst->thread = t;
 	if (t == NULL)
+	{
 		return;
+	}
 
 	if (gGT->numPlyrCurrGame >= 4)
+	{
 		t->funcThTick = NULL;
+	}
 
 	banner = t->object;
 	t->inst = inst;
@@ -222,12 +242,16 @@ void RB_Banner_LInB(struct Instance *inst)
 
 	model = gGT->modelPtr[STATIC_STARTBANNERWAVE];
 	if (model == NULL)
+	{
 		return;
+	}
 
 	inst->model = model;
 	banner->numVertices = RB_Banner_Animate_Init(model->headers);
 	if (banner->numVertices == 0)
+	{
 		return;
+	}
 
 	for (int i = 0; i < 0x40; i++)
 	{
@@ -235,7 +259,9 @@ void RB_Banner_LInB(struct Instance *inst)
 		int value = (MATH_Sin((u32)i << 7) >> 6) + 0x80;
 
 		if (gGT->numPlyrCurrGame >= 4)
+		{
 			value = 0x80;
+		}
 
 		color[0] = (u8)value;
 		color[1] = (u8)value;

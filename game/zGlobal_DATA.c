@@ -4362,7 +4362,7 @@ struct Data
                 },
 #endif
 
-            .gGT_gameMode1_VibPerPlayer = {0x100, 0x200, 0x400, 0x800},
+            .gGT_gameMode1_VibPerPlayer = {P1_VIBRATE, P2_VIBRATE, P3_VIBRATE, P4_VIBRATE},
 
             .Options_StringIDs_Gamepads = {0x151, 0x152, 0x153, 0x154, 0x155, 0x156},
 

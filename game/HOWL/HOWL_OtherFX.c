@@ -20,12 +20,7 @@ int CountSounds(void)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80028468-0x80028494
 int OtherFX_Play(u32 soundID, int flags)
 {
-	// ff8080:
-	// 0x00 - no echo
-	// 0xff - volume
-	// 0x80 - distortion (none)
-	// 0x80 - LR (center of left and right)
-	return OtherFX_Play_LowLevel(soundID & 0xffff, flags & 0xff, 0xff8080);
+	return OtherFX_Play_LowLevel(soundID & 0xffff, flags & 0xff, HOWL_SFX_DEFAULT_FLAGS);
 }
 
 // param_3:
@@ -34,15 +29,12 @@ int OtherFX_Play(u32 soundID, int flags)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80028494-0x800284d0
 void OtherFX_Play_Echo(u32 soundID, int flags, int echoFlag)
 {
-	// ff8080:
-	// 0x00 - no echo
-	// 0xff - volume
-	// 0x80 - distortion (none)
-	// 0x80 - LR (center of left and right)
-	int otherFlags = 0xff8080;
+	int otherFlags = HOWL_SFX_DEFAULT_FLAGS;
 
 	if (echoFlag != 0)
-		otherFlags |= 0x1000000;
+	{
+		otherFlags |= HOWL_SFX_ECHO_FLAG;
+	}
 
 	OtherFX_Play_LowLevel(soundID & 0xffff, flags & 0xff, otherFlags);
 }
@@ -55,27 +47,33 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 	int count;
 	s16 id;
 	struct OtherFX *ptrOtherFX;
-	u32 LR = (flags) & 0xff;
-	u32 distortion = (flags >> 8) & 0xff;
-	u32 volume = (flags >> 0x10) & 0xff;
-	u16 echo = (flags >> 0x18) & 0xff;
+	u32 LR = HowlSfx_LR(flags);
+	u32 distortion = HowlSfx_Distortion(flags);
+	u32 volume = HowlSfx_Volume(flags);
+	u16 echo = (u16)HowlSfx_Echo(flags);
 	struct ChannelAttr channelAttr;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return 0;
+	}
 
 	id = soundID & 0xffff;
 
 	// quit if out of bounds
 	if (id >= sdata->ptrHowlHeader->numOtherFX)
+	{
 		return 0;
+	}
 
 	// get pointer to cseq audio, given soundID
 	ptrOtherFX = &sdata->howl_metaOtherFX[id];
 
 	// quit if effect is not loaded
 	if (sdata->howl_spuAddrs[ptrOtherFX->spuIndex].spuAddr == 0)
+	{
 		return 0;
+	}
 
 	howl_InitChannelAttr_OtherFX(ptrOtherFX, &channelAttr, volume, LR, distortion);
 
@@ -145,18 +143,22 @@ u32 OtherFX_Modify(u32 soundId, u32 flags)
 	u16 LR;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return 0;
+	}
 
 	// quit if out of bounds
 	if ((sdata->ptrHowlHeader->numOtherFX) <= (int)(soundId & 0xffff))
+	{
 		return 0;
+	}
 
 	// metaOtherFX
 	ptrOtherFX = &sdata->howl_metaOtherFX[soundId & 0xffff];
-	volume = flags >> 0x10 & 0xff;
-	distort = flags >> 8 & 0xff;
-	echo = flags >> 0x18;
-	LR = flags & 0xff;
+	volume = HowlSfx_Volume(flags);
+	distort = HowlSfx_Distortion(flags);
+	echo = (u16)HowlSfx_Echo(flags);
+	LR = (u16)HowlSfx_LR(flags);
 
 	// volume of FX
 	modify = sdata->vol_FX;

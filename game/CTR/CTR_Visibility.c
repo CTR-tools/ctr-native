@@ -11,7 +11,9 @@ void CTR_unknownMaybeThunk1(void *dst, void *src)
 		int count = *rle;
 
 		if (count == 0)
+		{
 			return;
+		}
 
 		if (count < 0)
 		{
@@ -20,7 +22,9 @@ void CTR_unknownMaybeThunk1(void *dst, void *src)
 			rle += 2;
 
 			while (repeat-- != 0)
+			{
 				*out++ = value;
+			}
 		}
 
 		else
@@ -28,7 +32,9 @@ void CTR_unknownMaybeThunk1(void *dst, void *src)
 			rle++;
 
 			while (count-- != 0)
+			{
 				*out++ = (u8)*rle++;
+			}
 		}
 	}
 }
@@ -44,7 +50,9 @@ void CTR_unknownMaybeThunk2(void *dst, void *src)
 		int count = *rle;
 
 		if (count == 0)
+		{
 			return;
+		}
 
 		if (count < 0)
 		{
@@ -53,7 +61,9 @@ void CTR_unknownMaybeThunk2(void *dst, void *src)
 			rle += 2;
 
 			while (repeat-- != 0)
+			{
 				*out++ |= value;
+			}
 		}
 
 		else
@@ -61,7 +71,9 @@ void CTR_unknownMaybeThunk2(void *dst, void *src)
 			rle++;
 
 			while (count-- != 0)
+			{
 				*out++ |= (u8)*rle++;
+			}
 		}
 	}
 }

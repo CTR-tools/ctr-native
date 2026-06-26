@@ -15,7 +15,9 @@ void DotLights_Video(struct GameTracker *gGT, int red1, int red2, int red3, int 
 	int sizeX;
 
 	if (gGT->numPlyrCurrGame == 0)
+	{
 		return;
+	}
 
 	iconState[0] = red1;
 	iconState[1] = red2;
@@ -28,9 +30,13 @@ void DotLights_Video(struct GameTracker *gGT, int red1, int red2, int red3, int 
 
 		scale = FP(0.5);
 		if (gGT->numPlyrCurrGame == 1)
+		{
 			scale = FP(1.0);
+		}
 		else if (gGT->numPlyrCurrGame == 2)
+		{
 			scale = 0xaaa;
+		}
 
 		icon = gGT->trafficLightIcon[0];
 		sizeX = FP_Mult(icon->texLayout.u1 - icon->texLayout.u0, scale);
@@ -68,7 +74,9 @@ void DotLights_AudioAndVideo(struct GameTracker *gGT)
 		if (timer < 1)
 		{
 			if (sdata->trafficLightsTimer_prevFrame > 0)
+			{
 				OtherFX_Play(0x46, 0);
+			}
 
 			red1 = 1;
 			red2 = 1;
@@ -79,7 +87,9 @@ void DotLights_AudioAndVideo(struct GameTracker *gGT)
 		else if (timer < 0x3c1)
 		{
 			if (sdata->trafficLightsTimer_prevFrame > 0x3c0)
+			{
 				OtherFX_Play(0x45, 0);
+			}
 
 			red1 = 1;
 			red2 = 1;
@@ -90,7 +100,9 @@ void DotLights_AudioAndVideo(struct GameTracker *gGT)
 		else if (timer < 0x781)
 		{
 			if (sdata->trafficLightsTimer_prevFrame > 0x780)
+			{
 				OtherFX_Play(0x45, 0);
+			}
 
 			red1 = 1;
 			red2 = 1;
@@ -101,7 +113,9 @@ void DotLights_AudioAndVideo(struct GameTracker *gGT)
 		else if (timer < 0xb41)
 		{
 			if (sdata->trafficLightsTimer_prevFrame > 0xb40)
+			{
 				OtherFX_Play(0x45, 0);
+			}
 
 			red1 = 1;
 			red2 = 0;

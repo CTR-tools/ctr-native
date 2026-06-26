@@ -108,7 +108,9 @@ internal int NativeState_InitHeader(struct NativeStateHeader *header)
 		const int regionSize = NativeState_GetRegionSize(regionKinds[regionCount]);
 
 		if (regionSize <= 0)
+		{
 			return 0;
+		}
 
 		header->regions[regionCount].kind = regionKinds[regionCount];
 		header->regions[regionCount].offset = offset;
@@ -125,7 +127,9 @@ int NativeState_GetSize(void)
 	struct NativeStateHeader header;
 
 	if (!NativeState_InitHeader(&header))
+	{
 		return 0;
+	}
 
 	return (int)header.size;
 }
@@ -137,9 +141,13 @@ int NativeState_Capture(void *dst, int dstSize)
 	u32 i;
 
 	if (!NativeState_InitHeader(&header))
+	{
 		return 0;
+	}
 	if ((dst == NULL) || (dstSize < (int)header.size))
+	{
 		return 0;
+	}
 
 	memset(dst, 0, header.size);
 	memcpy(dst, &header, sizeof(header));
@@ -149,7 +157,9 @@ int NativeState_Capture(void *dst, int dstSize)
 		struct NativeStateRegion *region = &header.regions[i];
 
 		if (!NativeState_CaptureRegion(region->kind, &bytes[region->offset], (int)region->size))
+		{
 			return 0;
+		}
 	}
 
 	return 1;
@@ -162,13 +172,21 @@ int NativeState_Restore(const void *src, int srcSize)
 	u32 i;
 
 	if ((src == NULL) || (srcSize < (int)sizeof(*header)))
+	{
 		return 0;
+	}
 	if ((header->magic != NATIVE_STATE_MAGIC) || (header->version != NATIVE_STATE_VERSION))
+	{
 		return 0;
+	}
 	if ((header->size < sizeof(*header)) || (header->size > (u32)srcSize))
+	{
 		return 0;
+	}
 	if (header->regionCount > len(header->regions))
+	{
 		return 0;
+	}
 
 	for (i = 0; i < header->regionCount; i++)
 	{
@@ -176,9 +194,13 @@ int NativeState_Restore(const void *src, int srcSize)
 		const u32 end = region->offset + region->size;
 
 		if ((region->size == 0) || (region->offset < sizeof(*header)) || (end < region->offset) || (end > header->size))
+		{
 			return 0;
+		}
 		if (NativeState_GetRegionSize(region->kind) != (int)region->size)
+		{
 			return 0;
+		}
 	}
 
 	// NOTE(aalhendi): Restore in the same stable order as capture: input first
@@ -190,7 +212,9 @@ int NativeState_Restore(const void *src, int srcSize)
 		const struct NativeStateRegion *region = &header->regions[i];
 
 		if (!NativeState_RestoreRegion(region->kind, &bytes[region->offset], (int)region->size))
+		{
 			return 0;
+		}
 	}
 
 	return 1;

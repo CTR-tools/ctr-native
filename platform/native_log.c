@@ -36,7 +36,9 @@ internal void Platform_LogV(FILE *consoleStream, const char *fmt, va_list args)
 	int written = vsnprintf(text, sizeof(text), fmt, args);
 
 	if (written < 0)
+	{
 		return;
+	}
 
 	text[sizeof(text) - 1] = '\0';
 	Platform_LogWrite(consoleStream, text);
@@ -47,7 +49,9 @@ int Platform_LogSetPath(const char *path)
 	int written;
 
 	if (s_logStream != NULL)
+	{
 		return 0;
+	}
 
 	if ((path == NULL) || (path[0] == '\0'))
 	{
@@ -88,7 +92,9 @@ void Platform_LogInit(const char *appName)
 	s_logStream = fopen(s_logPath, "wb");
 
 	if (s_logStream == NULL)
+	{
 		fprintf(stderr, "[CTR Native] Error: cannot create log file '%s'\n", s_logPath);
+	}
 }
 
 void Platform_LogShutdown(void)
@@ -96,7 +102,9 @@ void Platform_LogShutdown(void)
 	Platform_LogWarn("---- LOG CLOSED ----\n");
 
 	if (s_logStream != NULL)
+	{
 		fclose(s_logStream);
+	}
 
 	s_logStream = NULL;
 }
@@ -104,7 +112,9 @@ void Platform_LogShutdown(void)
 void Platform_LogFlush(void)
 {
 	if (s_logStream != NULL)
+	{
 		fflush(s_logStream);
+	}
 }
 
 void Platform_Log(const char *fmt, ...)

@@ -402,7 +402,9 @@ force_inline void IDENTIFYGAMEPADS_MainFreeze_MenuPtrOptions(struct RectMenu *me
 	// these labels can appear at once
 	b32 areBothControllerLabelsNecessary = false;
 	if (gamepad->numGamepads != 0)
+	{
 		areBothControllerLabelsNecessary = (gamepad->numAnalogs != 0);
+	}
 
 	// set amount of menu rows to hide/remove
 	// used for the dualshock and/or "analog" rows which are variable
@@ -435,13 +437,17 @@ force_inline b32 PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, 
 		{
 			menu->rowSelected = (menu->rowSelected + (9 - 1)) % 9;
 			if (menu->rowSelected == 7)
+			{
 				menu->rowSelected = gGT->numPlyrCurrGame + 3;
+			}
 		}
 		else if (sdata->AnyPlayerTap & BTN_DOWN)
 		{
 			menu->rowSelected = (menu->rowSelected + 1) % 9;
 			if (menu->rowSelected > (gGT->numPlyrCurrGame + 3))
+			{
 				menu->rowSelected = 8;
+			}
 		}
 	}
 	else
@@ -469,9 +475,13 @@ force_inline b32 PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, 
 				}
 
 				if (volume < 0)
+				{
 					volume = 0;
+				}
 				if (volume > 0xff)
+				{
 					volume = 0xff;
+				}
 
 				howl_VolumeSet(menu->rowSelected, volume);
 			}
@@ -551,7 +561,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 
 	int analogRowPosY = 0;
 	if (gamepad->numGamepads != 0)
+	{
 		analogRowPosY = (gamepad->numGamepads + 1) * 10;
+	}
 
 	// cursor location for exit button, which will change depending on how many dualshock rows there need to be
 	data.Options_HighlightBar[8].posY = gamepad->menuRowsToRemove * -10 + 119;
@@ -572,7 +584,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		{
 			b32 areBothControllerLabelsNecessary = false;
 			if (gamepad->numGamepads != 0)
+			{
 				areBothControllerLabelsNecessary = (gamepad->numAnalogs != 0);
+			}
 
 			data.Options_HighlightBar[gamepad->numGamepads + i + 4].posY = ((gamepad->numGamepads + i + areBothControllerLabelsNecessary) * 10) + 79;
 		}
@@ -581,7 +595,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 	// drawStyle needs research...
 	menu->drawStyle &= 0xfeff;
 	if (gGT->numPlyrCurrGame > 2)
+	{
 		menu->drawStyle |= 0x100;
+	}
 
 	int volumeSliderTriangleLeftMargin = 0;
 
@@ -590,7 +606,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		//"FX:", "MUSIC:", "VOICE:"
 		int lineWidth = DecalFont_GetLineWidth(sdata->lngStrings[data.Options_StringIDs_Audio[i]], FONT_SMALL);
 		if (volumeSliderTriangleLeftMargin < lineWidth)
+		{
 			volumeSliderTriangleLeftMargin = lineWidth;
+		}
 	}
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_OPTIONS_TITLE], 256, 26 + (menuRowsNegativePadding / 2), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
@@ -610,7 +628,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		s16 volumeSliderPosY = (menuRowsNegativePadding / 2) + (i * 10);
 
 		if (volumeSliderValue < 0)
+		{
 			volumeSliderValue += 0xff;
+		}
 
 		int volumeSliderTriangleLeftPosX = 30 + volumeSliderTriangleLeftMargin;
 		int volumeSliderBarPosX = 0x38 + volumeSliderTriangleLeftPosX + (s16)((u32)volumeSliderValue >> 8);
@@ -661,7 +681,9 @@ force_inline void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *men
 		int lineWidth_vibrateOff = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_OFF], FONT_SMALL);
 		int lineWidth_vibrateOn = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_ON], FONT_SMALL);
 		if (lineWidth_vibrateOn < lineWidth_vibrateOff)
+		{
 			lineWidth_vibrateOn = lineWidth_vibrateOff;
+		}
 
 		lineWidth_vibrateOn = (lineWidth_controller1A + lineWidth_vibrateOn + 10);
 		lineWidth_vibrateOn = 256 - (lineWidth_vibrateOn >> 1);
@@ -791,7 +813,7 @@ void MainFreeze_MenuPtrQuit(struct RectMenu *menu)
 			sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_ARENA;
 
 			// Unpause game
-			gGT->gameMode1 &= ~1;
+			gGT->gameMode1 &= ~PAUSE_1;
 
 			// Level ID for main menu (39)
 			MainRaceTrack_RequestLoad(0x27);
@@ -823,11 +845,15 @@ void MainFreeze_SafeAdvDestroy(void)
 {
 	// If you're in Adventure Arena
 	if ((sdata->gGT->gameMode1 & ADVENTURE_ARENA) == 0)
+	{
 		return;
+	}
 
 	// check if Adv Hub is loaded
 	if (LOAD_IsOpen_AdvHub() == 0)
+	{
 		return;
+	}
 
 	AH_Pause_Destroy();
 	return;
@@ -847,7 +873,9 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 	// if you have not waited 5 frames since the game was paused then quit
 	if (gGT->cooldownfromPauseUntilUnpause != 0)
+	{
 		return;
+	}
 
 	// assume 5 frames have passed since paused
 
@@ -868,14 +896,18 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// quit adv hub if it's not loaded
 		if (LOAD_IsOpen_AdvHub() == 0)
+		{
 			return;
+		}
 
 		AH_Pause_Update();
 		return;
 	}
 
 	if (menu->rowSelected < 0)
+	{
 		return;
+	}
 
 	// get stringID from selected row
 	stringID = menu->rows[menu->rowSelected].stringIndex;
@@ -939,11 +971,15 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// if you are not showing a ghost during a race
 		if (sdata->boolReplayHumanGhost == 0)
+		{
 			return;
+		}
 
 		// If the ghost playing buffer is nullptr
 		if (sdata->ptrGhostTapePlaying == 0)
+		{
 			return;
+		}
 
 		// Make P2 the character that is saved in the header of the
 		// ghost that you will see in the race
@@ -979,7 +1015,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 		sdata->mainMenuState = MAIN_MENU_CHARACTERS;
 
 		// when loading is done, add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -999,7 +1035,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1016,7 +1052,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1027,15 +1063,15 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add this bit for In Adventure Arena
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x100000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
 
 		// when loading is done
 		// remove bits for Relic Race or Crystal Challenge
-		sdata->Loading.OnBegin.RemBitsConfig0 |= 0xc000000;
+		sdata->Loading.OnBegin.RemBitsConfig0 |= RELIC_RACE | CRYSTAL_CHALLENGE;
 
 		// when loading is done
 		// remove bit for CTR Token Challenge
-		sdata->Loading.OnBegin.RemBitsConfig8 |= 8;
+		sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1048,7 +1084,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 			if ((int)gameMode < 0)
 			{
 				// when loading is done remove bit for Boss Race, relic, and crystal challenge
-				sdata->Loading.OnBegin.RemBitsConfig0 |= 0x8c000000;
+				sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_BOSS | RELIC_RACE | CRYSTAL_CHALLENGE;
 
 				// When loading is done add bit to spawn driver near boss door
 				sdata->Loading.OnBegin.AddBitsConfig8 |= SPAWN_AT_BOSS;
@@ -1064,7 +1100,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 			levID = GEM_STONE_VALLEY;
 
 			// when loading is done remove bits for Adventure Cup, relic, and crystal challenge
-			sdata->Loading.OnBegin.RemBitsConfig0 |= 0x1c000000;
+			sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_CUP | RELIC_RACE | CRYSTAL_CHALLENGE;
 
 			// Level ID
 			gGT->levelID = gGT->cup.cupID + ADV_CUP;
@@ -1088,7 +1124,9 @@ struct RectMenu *MainFreeze_GetMenuPtr(void)
 	{
 		s32 hintString = LNG_UKA_UKA_HINTS;
 		if (VehPickupItem_MaskBoolGoodGuy(gGT->drivers[0]) != 0)
+		{
 			hintString = LNG_AKU_AKU_HINTS;
+		}
 
 		data.rowsAdvHub[1].stringIndex = hintString;
 		return &data.menuAdvHub;
@@ -1097,16 +1135,22 @@ struct RectMenu *MainFreeze_GetMenuPtr(void)
 	if ((gameMode & ADVENTURE_MODE) != 0)
 	{
 		if ((gameMode & ADVENTURE_CUP) != 0)
+		{
 			return &data.menuAdvCup;
+		}
 
 		return &data.menuAdvRace;
 	}
 
 	if ((gameMode & BATTLE_MODE) != 0)
+	{
 		return &data.menuBattle;
+	}
 
 	if ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
+	{
 		return &data.menuArcadeCup;
+	}
 
 	return &data.menuArcadeRace;
 }
@@ -1119,39 +1163,61 @@ void MainFreeze_IfPressStart(void)
 	struct RectMenu *menu;
 
 	if (RaceFlag_IsFullyOnScreen() != 0)
+	{
 		return;
+	}
 
 	if ((gGT->renderFlags & 0x1000) != 0)
+	{
 		return;
+	}
 
 	if (sdata->AkuAkuHintState != 0)
+	{
 		return;
+	}
 
 	if (sdata->ptrActiveMenu != NULL)
+	{
 		return;
+	}
 
 	gameMode1 = gGT->gameMode1;
 
 	if ((gameMode1 & (END_OF_RACE | PAUSE_ALL)) != 0)
+	{
 		return;
+	}
 
 	if (gGT->levelID == MAIN_MENU_LEVEL)
+	{
 		return;
+	}
 
 	if ((gameMode1 & GAME_CUTSCENE) != 0)
+	{
 		return;
+	}
 
 	if (gGT->boolDemoMode != 0)
+	{
 		return;
+	}
 
 	if ((u32)(gGT->levelID - OXIDE_ENDING) < 2)
+	{
 		return;
+	}
 
 	if (sdata->load_inProgress != 0)
+	{
 		return;
+	}
 
 	if ((gGT->gameMode2 & VEH_FREEZE_PODIUM) != 0)
+	{
 		return;
+	}
 
 	gGT->gameMode1 = gameMode1 | PAUSE_1;
 

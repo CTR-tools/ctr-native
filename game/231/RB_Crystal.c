@@ -104,7 +104,9 @@ int RB_Crystal_LInC(struct Instance *crystalInst, struct Thread *driverTh, struc
 
 		crystalInst->thread = crystalTh;
 		if (crystalTh == NULL)
+		{
 			return 0;
+		}
 
 		crystalTh->inst = crystalInst;
 		crystalTh->funcThCollide = (void (*)(struct Thread *))RB_Crystal_ThCollide;
@@ -112,10 +114,14 @@ int RB_Crystal_LInC(struct Instance *crystalInst, struct Thread *driverTh, struc
 	}
 
 	if ((crystalTh == NULL) || (crystalTh->funcThCollide == NULL))
+	{
 		return 0;
+	}
 
 	if (crystalInst->scale.x == 0)
+	{
 		return 0;
+	}
 
 	return ((CrystalCollideFunc)crystalTh->funcThCollide)(crystalTh, driverTh, crystalTh->funcThCollide, sps);
 }
@@ -139,7 +145,9 @@ void RB_Crystal_LInB(struct Instance *inst)
 
 		inst->thread = t;
 		if (t == 0)
+		{
 			return;
+		}
 
 		crystalObj = ((struct Crystal *)t->object);
 		t->inst = inst;

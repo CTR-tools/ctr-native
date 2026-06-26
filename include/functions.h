@@ -84,9 +84,9 @@ void DropRain_MakeSound(struct GameTracker *gGT);
 void DropRain_Reset(struct GameTracker *gGT);
 
 int Ovr228_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
-                          void *VisMem18, void *waterEnvMap);
+                          void *VisMem18, const struct TextureLayout *waterEnvMap);
 int Ovr229_800a0cbc_Entry(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, void *VisMem10, void *VisMem14,
-                          void *VisMem18, void *VisMem1C, void *waterEnvMap);
+                          void *VisMem18, void *VisMem1C, const struct TextureLayout *waterEnvMap);
 
 void EngineSound_Player(struct Driver *driver);
 int EngineSound_VolumeAdjust(int desired, int current, int step);

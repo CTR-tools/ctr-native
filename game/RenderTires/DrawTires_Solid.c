@@ -202,7 +202,9 @@ s32 Unknown_8006ef98(s32 radicand)
 
 	// NOTE(aalhendi): Retail input is s5 and output is s6.
 	if (radicand == 0)
+	{
 		return 0;
+	}
 
 	bitCount = DrawTiresSolid_CountLeadingSignBits(radicand) & 0x1e;
 	work = ((u32)radicand) << bitCount;
@@ -464,10 +466,14 @@ static int DrawTiresSolid_SelectSpriteIndex(int angleValue)
 	int tableIndex = angleValue >> 5;
 
 	if (angleValue < 0)
+	{
 		tableIndex = -tableIndex;
+	}
 
 	if ((tableIndex - 0x80) > 0)
+	{
 		tableIndex = 0x80;
+	}
 
 	return sDrawTiresSpriteIndexTable[tableIndex];
 }
@@ -490,7 +496,9 @@ static struct DrawTiresSolidProjectedWheel DrawTiresSolid_SelectProjectedWheel(s
 	gte_avsz4_b();
 
 	if (splitDelta >= 0)
+	{
 		selectedOT = DrawTiresSolid_ReadS32(scratch, 0x44);
+	}
 
 	MTC2(DrawTiresSolid_ReadS32(scratch, outputBase + 0x98), 0);
 	MTC2(DrawTiresSolid_ReadS32(scratch, outputBase + 0x9c), 1);
@@ -507,7 +515,9 @@ static struct DrawTiresSolidProjectedWheel DrawTiresSolid_SelectProjectedWheel(s
 	angleValue = MFC2_S(9);
 	spriteIndex = DrawTiresSolid_SelectSpriteIndex(angleValue);
 	if (angleValue < 0)
+	{
 		selected.jumpIndex += 4;
+	}
 
 	selected.wheelSprite = scratch->wheelSprites[spriteIndex];
 
@@ -608,10 +618,14 @@ static void DrawTiresSolid_LinkPrimitive(struct DrawTiresSolidScratch *scratch, 
 	int otRangeEnd = DrawTiresSolid_ReadS32(scratch, 0x174);
 
 	if ((otRangeStart - selectedOTSlot) > 0)
+	{
 		selectedOTSlot = otRangeStart;
+	}
 
 	if ((otRangeEnd - selectedOTSlot) < 0)
+	{
 		selectedOTSlot = otRangeEnd;
+	}
 
 	otSlot = (uint32_t *)(uintptr_t)selectedOTSlot;
 	p->tag = CtrGpu_PackOTTag(*otSlot, 0x09000000);
@@ -628,7 +642,9 @@ static int DrawTiresSolid_EmitProjectedWheel(struct DrawTiresSolidScratch *scrat
 	*(u32 *)&p->r0 = scratch->tireColor;
 
 	if (selected->wheelSprite == 0)
+	{
 		return 1;
+	}
 
 	DrawTiresSolid_CopyIconUV(p, selected->wheelSprite);
 
@@ -642,10 +658,14 @@ static int DrawTiresSolid_EmitProjectedWheel(struct DrawTiresSolidScratch *scrat
 #endif
 
 	if (DrawTiresSolid_ApplyCornerOrder(scratch, selected->jumpIndex, &selectedOTSlot, sxy) == 0)
+	{
 		return 1;
+	}
 
 	if (DrawTiresSolid_ReadS32(scratch, 0x44) == selected->selectedOT && (scratch->instFlags & 0x4000) != 0)
+	{
 		return 0;
+	}
 
 	DrawTiresSolid_WritePrimitiveCorners(p, sxy);
 	DrawTiresSolid_LinkPrimitive(scratch, p, selectedOTSlot);
@@ -681,7 +701,9 @@ static int DrawTiresSolid_ProjectWheelQuads(struct DrawTiresSolidScratch *scratc
 		projectedWheel = DrawTiresSolid_SelectProjectedWheel(scratch, centerOffset, outputBase, wheelIndex);
 
 		if (DrawTiresSolid_EmitProjectedWheel(scratch, &projectedWheel, primMem, primCount) == 0)
+		{
 			return 0;
+		}
 	}
 
 	return 1;
@@ -701,19 +723,27 @@ static int DrawTiresSolid_StagePlayer(struct DrawTiresSolidScratch *scratch, str
 	scratch->instFlags = flags;
 
 	if ((flags & DRAW_SUCCESSFUL) == 0)
+	{
 		return 0;
+	}
 
 	if ((flags & HIDE_MODEL) != 0)
+	{
 		return 0;
+	}
 
 	if ((idpp->lodIndex - scratch->lodThreshold) > 0)
+	{
 		return 0;
+	}
 
 	scratch->wheelSprites = driver->wheelSprites;
 	scratch->tireColor = ((flags & PUSHBUFFER_EXISTS) != 0) ? 0x2e808080 : driver->tireColor;
 
 	if (pb == 0)
+	{
 		return 0;
+	}
 
 #ifdef CTR_INTERNAL
 	if (CtrTireDebug_ShouldLog(CTR_TIREDBG_SOLID_STAGE) != 0)
@@ -755,7 +785,9 @@ void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, char numPly
 	// offset-checked stack state and explicit helpers; PSX backfeed must restore
 	// the retail scratchpad/register entry protocol.
 	if (primMem == 0)
+	{
 		return;
+	}
 
 	primCount = primMem->primitiveCount;
 	DrawTiresSolid_InitScratch(&scratch, numPlyr);
@@ -766,12 +798,16 @@ void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, char numPly
 		struct Instance *inst = currThread->inst;
 
 		if (driver == 0 || inst == 0)
+		{
 			continue;
+		}
 
 		for (int playerIndex = 0; playerIndex < (int)(u8)numPlyr; playerIndex++)
 		{
 			if (DrawTiresSolid_StagePlayer(&scratch, driver, inst, playerIndex, primMem, &primCount) == 0)
+			{
 				continue;
+			}
 		}
 	}
 

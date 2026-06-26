@@ -116,13 +116,17 @@ u32 main(void)
 			if (gGT->levelID == MAIN_MENU_LEVEL)
 			{
 				if (RaceFlag_IsFullyOffScreen() != 0)
+				{
 					RaceFlag_SetFullyOnScreen();
+				}
 			}
 
 			else
 			{
 				if (RaceFlag_IsFullyOnScreen() != 0)
+				{
 					RaceFlag_BeginTransition(2);
+				}
 			}
 
 			DropRain_Reset(gGT);
@@ -192,7 +196,9 @@ u32 main(void)
 					// if VLC is not loaded, quit
 					// we know when it's done from a load callback
 					if (sdata->bool_IsLoaded_VlcTable != 1)
+					{
 						break;
+					}
 
 					// if == 1, finish the loading
 					goto FinishLoading;
@@ -249,7 +255,9 @@ u32 main(void)
 					}
 
 					else if (RaceFlag_IsFullyOffScreen() == 1)
+					{
 						RaceFlag_BeginTransition(1);
+					}
 
 					// do not BREAK,
 					// keep rendering the scene
@@ -316,7 +324,9 @@ u32 main(void)
 				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(gGT);
 
 				if (NativeReplayScheduler_BeginFrame(&replayFrameInfo) != 0)
+				{
 					return 0;
+				}
 				NativeSaveState_BeginFrame();
 				gGT = sdata->gGT;
 				gGS = sdata->gGamepads;
@@ -436,7 +446,9 @@ u32 main(void)
 				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(gGT);
 
 				if (NativeReplayScheduler_EndFrame(&replayFrameInfo) != 0)
+				{
 					return 0;
+				}
 			}
 			{
 				struct NativePerfFrameInfo perfFrameInfo = MainPerf_FrameInfo(gGT);

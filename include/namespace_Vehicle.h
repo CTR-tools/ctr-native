@@ -5,6 +5,15 @@ struct Driver;
 struct PushBuffer;
 typedef void (*DriverFunc)(struct Thread *thread, struct Driver *driver);
 
+enum VehBirthSpawnFlag
+{
+	VEH_BIRTH_SPAWN_USE_LEVEL_POSITION = 0x1,
+	VEH_BIRTH_SPAWN_INIT_RACE_STATE = 0x2,
+	VEH_BIRTH_SPAWN_RACE_START = VEH_BIRTH_SPAWN_USE_LEVEL_POSITION | VEH_BIRTH_SPAWN_INIT_RACE_STATE,
+};
+
+CTR_STATIC_ASSERT(VEH_BIRTH_SPAWN_RACE_START == 0x3);
+
 enum DriverFuncSlot
 {
 	DRIVER_FUNC_INIT = 0,
@@ -2100,6 +2109,8 @@ CTR_STATIC_ASSERT(offsetof(struct Driver, funcPtrs) == 0x54);
 #else
 CTR_STATIC_ASSERT(offsetof(struct Driver, funcPtrs) == 0x58);
 #endif
+CTR_STATIC_ASSERT(offsetof(struct Driver, velocity) == 0x88);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->velocity) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct Driver, collisionFlags) == 0xaa);
 CTR_STATIC_ASSERT(offsetof(struct Driver, spsHitPos) == 0xac);
 CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0xb2) == 0xb2);
@@ -2114,6 +2125,9 @@ CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->spsNormalVecRaw) == 0x8);
 CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x3e) == 0x3e);
 CTR_STATIC_ASSERT(offsetof(struct Driver, actionsFlagSet) == 0x2c8);
 CTR_STATIC_ASSERT(offsetof(struct Driver, actionsFlagSetPrevFrame) == 0x2cc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, quadBlockHeight) == 0x2d0);
+CTR_STATIC_ASSERT(offsetof(struct Driver, posCurr) == 0x2d4);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->posCurr) == 0xc);
 CTR_STATIC_ASSERT(offsetof(struct Driver, forcedJumpType) == 0x366);
 CTR_STATIC_ASSERT(offsetof(struct Driver, AxisAngle2_normalVec) == 0x368);
 CTR_STATIC_ASSERT(offsetof(struct Driver, speedometerNeedleValue) == 0x36e);
@@ -2130,6 +2144,8 @@ CTR_STATIC_ASSERT(offsetof(struct Driver, tireColorCycleStep) == 0x3be);
 CTR_STATIC_ASSERT(offsetof(struct Driver, accelTapWindowTimer) == 0x3c0);
 CTR_STATIC_ASSERT(offsetof(struct Driver, accelTapCount) == 0x3c2);
 CTR_STATIC_ASSERT(offsetof(struct Driver, terrainScaledBaseSpeed) == 0x3c4);
+CTR_STATIC_ASSERT(offsetof(struct Driver, accel) == 0x3cc);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->accel) == 0x6);
 CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleAngle) == 0x3d4);
 CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleVelocity) == 0x3d6);
 CTR_STATIC_ASSERT(offsetof(struct Driver, turnWobbleTimer) == 0x3d8);

@@ -76,6 +76,7 @@ set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
+set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
 # Copy default config.ini to build directory if config.ini doesn't exist

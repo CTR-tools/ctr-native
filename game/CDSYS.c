@@ -95,16 +95,22 @@ void CDSYS_SetMode_StreamData()
 	// callers (CDSYS_Init, bigfile load, HOWL load) that run before gGT or
 	// any XA playback exists are no-ops.
 	if (sdata->XA_State != XA_IDLE)
+	{
 		CDSYS_XAPauseForce();
+	}
 	return;
 #endif
 
 	// quit if using parallel
 	if (sdata->boolUseDisc == 0)
+	{
 		return;
+	}
 
 	if (sdata->discMode == DM_DATA)
+	{
 		return;
+	}
 
 	// if XAs "might" be in play, cause XNF loaded
 	if (sdata->bool_XnfLoaded != 0)
@@ -140,13 +146,19 @@ void CDSYS_SetMode_StreamAudio()
 	char buf[8];
 
 	if (sdata->boolUseDisc == 0)
+	{
 		return;
+	}
 
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return;
+	}
 
 	if (sdata->discMode == DM_AUDIO)
+	{
 		return;
+	}
 
 	// https://www.cybdyn-systems.com.au/forum/viewtopic.php?t=1956
 	// CdControl('\x0e',local_10,(u8 *)0x0);
@@ -174,9 +186,13 @@ int CDSYS_SetXAToLang(int lang)
 	struct XNF *xnf;
 
 	if (sdata->boolUseDisc == 0)
+	{
 		return 1;
+	}
 	if (lang >= 8)
+	{
 		return 0;
+	}
 
 	sdata->bool_XnfLoaded = 0;
 	CDSYS_SetMode_StreamData();
@@ -193,19 +209,27 @@ int CDSYS_SetXAToLang(int lang)
 
 	// read error
 	if (xnf == 0)
+	{
 		return 0;
+	}
 
 	// header error
 	if (xnf->magic != *(int *)&sdata->s_XINF[0])
+	{
 		return 0;
+	}
 
 	// Aug5=100, Sep3=101, Retail=102
 	if (xnf->version != 102)
+	{
 		return 0;
+	}
 
 	sdata->xa_numTypes = xnf->numTypes;
 	if (sdata->xa_numTypes != CDSYS_XA_NUM_TYPES)
+	{
 		return 0;
+	}
 
 	sdata->ptrArray_NumXAs = &xnf->numXA[0];
 	sdata->ptrArray_firstXaIndex = &xnf->firstXaIndex[0];
@@ -228,7 +252,9 @@ int CDSYS_SetXAToLang(int lang)
 
 			// quit on error to find XA file
 			if (CDSYS_GetFilePosInt(am->name, returnPtr_xaCdPos) == 0)
+			{
 				return 0;
+			}
 		}
 	}
 
@@ -345,9 +371,13 @@ half.
 void CDSYS_SpuCallbackTransfer()
 {
 	if (sdata->irqAddr == 0)
+	{
 		sdata->irqAddr = 0x200;
+	}
 	else
+	{
 		sdata->irqAddr = 0;
+	}
 
 	SpuSetIRQAddr(sdata->irqAddr);
 	SpuSetIRQ(1);
@@ -362,7 +392,9 @@ void CDSYS_SpuCallbackTransfer()
 void CDSYS_SpuEnableIRQ()
 {
 	for (int i = 0; i < 0x200; i++)
+	{
 		sdata->SpuDecodedBuf[i] = 0;
+	}
 
 	sdata->XA_MaxSampleVal = 0;
 	sdata->XA_MaxSampleValInArr = 0;
@@ -395,13 +427,19 @@ void CDSYS_SpuDisableIRQ()
 internal s32 CDSYS_NativeGetXAFadeAmount(s32 fadeSteps)
 {
 	if (fadeSteps <= 0)
+	{
 		fadeSteps = 1;
+	}
 
 	if (sdata->XA_VolumeDeduct <= 0)
+	{
 		return sdata->XA_VolumeBitshift;
+	}
 
 	if (fadeSteps >= (sdata->XA_VolumeBitshift + sdata->XA_VolumeDeduct - 1) / sdata->XA_VolumeDeduct)
+	{
 		return sdata->XA_VolumeBitshift;
+	}
 
 	return sdata->XA_VolumeDeduct * fadeSteps;
 }
@@ -415,10 +453,14 @@ static void CDSYS_SaveMaxSample(int max)
 	// Cycle through ring buffer
 	sdata->XA_MaxSampleIndex++;
 	if (sdata->XA_MaxSampleIndex >= 3)
+	{
 		sdata->XA_MaxSampleIndex = 0;
+	}
 
 	if (sdata->XA_MaxSampleNumSaved < 3)
+	{
 		sdata->XA_MaxSampleNumSaved++;
+	}
 
 	// Find max of last 3 block maxes,
 	// as long as 3 blocks have already passed
@@ -428,10 +470,14 @@ static void CDSYS_SaveMaxSample(int max)
 	{
 		index--;
 		if (index < 0)
+		{
 			index = 2;
+		}
 
 		if (sdata->XA_MaxSampleValInArr < sdata->XA_MaxSampleValArr[index])
+		{
 			sdata->XA_MaxSampleValInArr = sdata->XA_MaxSampleValArr[index];
+		}
 	}
 }
 
@@ -466,7 +512,9 @@ void CDSYS_SpuGetMaxSample(void)
 #endif
 
 	if (sdata->boolUseDisc == 0)
+	{
 		return;
+	}
 
 	int start = 0x100;
 	int end = 0x200;
@@ -483,9 +531,13 @@ void CDSYS_SpuGetMaxSample(void)
 	{
 		sample = *ptrSpuBuf++;
 		if (sample < 0)
+		{
 			sample = -sample;
+		}
 		if (max < sample)
+		{
 			max = sample;
+		}
 	}
 
 #if defined(CTR_NATIVE)
@@ -524,9 +576,13 @@ void CDSYS_SpuGetMaxSample(void)
 int CDSYS_XAGetNumTracks(int categoryID)
 {
 	if (sdata->boolUseDisc == 0)
+	{
 		return 0;
+	}
 	if (categoryID >= CDSYS_XA_NUM_TYPES)
+	{
 		return 0;
+	}
 
 	return sdata->ptrArray_numSongs[categoryID];
 }
@@ -539,19 +595,29 @@ int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID)
 	int com;
 
 	if (sdata->boolUseDisc == 0)
+	{
 		return 1;
+	}
 
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return 0;
+	}
 
 	if (categoryID >= CDSYS_XA_NUM_TYPES)
+	{
 		return 0;
+	}
 
 	if (xaID >= CDSYS_XAGetNumTracks(categoryID))
+	{
 		return 0;
+	}
 
 	if (sdata->discMode != DM_AUDIO)
+	{
 		CDSYS_SetMode_StreamAudio();
+	}
 
 	struct XaSize *xas = &sdata->ptrArray_XaSize[sdata->ptrArray_firstSongIndex[categoryID] + xaID];
 	int sum = sdata->ptrArray_XaCdPos[sdata->ptrArray_firstXaIndex[categoryID] + xas->XaPrefix];
@@ -562,7 +628,9 @@ int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID)
 
 	com = CdlSeekP;
 	if (boolCdControl != 0)
+	{
 		com = CdlSeekL;
+	}
 
 	CdControl(com, (u8 *)&loc, 0);
 
@@ -582,13 +650,19 @@ int CDSYS_XAGetTrackLength(int categoryID, int xaID)
 	}
 
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return 0;
+	}
 
 	if (categoryID >= CDSYS_XA_NUM_TYPES)
+	{
 		return 0;
+	}
 
 	if (xaID >= CDSYS_XAGetNumTracks(categoryID))
+	{
 		return 0;
+	}
 
 	int sizeIndex = sdata->ptrArray_firstSongIndex[categoryID] + xaID;
 
@@ -611,7 +685,9 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 		// XA assets to the native audio backend and synthesize the minimal
 		// retail XA state gates.
 		if (NativeAudio_PlayXATrack(categoryID, xaID, nativeVol << 7, nativeVol << 7) == 0)
+		{
 			return 0;
+		}
 
 		sdata->XA_State = XA_PLAYING;
 		sdata->XA_Playing_Index = xaID;
@@ -632,13 +708,19 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	}
 
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return 0;
+	}
 
 	if (categoryID >= CDSYS_XA_NUM_TYPES)
+	{
 		return 0;
+	}
 
 	if (xaID >= CDSYS_XAGetNumTracks(categoryID))
+	{
 		return 0;
+	}
 
 	if (sdata->load_inProgress != 0)
 	{
@@ -647,13 +729,17 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	}
 
 	if (sdata->discMode != DM_AUDIO)
+	{
 		CDSYS_SetMode_StreamAudio();
+	}
 
 	sdata->XA_State = XA_STARTING;
 
 	int vol = sdata->vol_Voice;
 	if (categoryID == CDSYS_XA_TYPE_MUSIC)
+	{
 		vol = sdata->vol_Music;
+	}
 
 	sdata->XA_VolumeBitshift = vol << 7;
 	SpuSetCommonCDVolume((s16)sdata->XA_VolumeBitshift, (s16)sdata->XA_VolumeBitshift);
@@ -715,11 +801,17 @@ void CDSYS_XAPauseRequest()
 		return;
 	}
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return;
+	}
 	if (sdata->XA_State < XA_STARTING)
+	{
 		return;
+	}
 	if (sdata->XA_State > XA_PLAYING)
+	{
 		return;
+	}
 
 	sdata->XA_State = XA_FADING;
 	sdata->XA_VolumeDeduct = 0x400;
@@ -740,9 +832,13 @@ void CDSYS_XAPauseForce()
 		return;
 	}
 	if (sdata->bool_XnfLoaded == 0)
+	{
 		return;
+	}
 	if (sdata->XA_State == XA_IDLE)
+	{
 		return;
+	}
 
 	sdata->XA_boolFinished = 0;
 	sdata->XA_State = XA_IDLE;
@@ -772,10 +868,14 @@ void CDSYS_XAPauseAtEnd()
 			int firstOffset = -1;
 
 			if (currOffset < prevOffset)
+			{
 				prevOffset = currOffset;
+			}
 
 			if (currOffset > prevOffset)
+			{
 				fadeSteps = currOffset - prevOffset;
+			}
 
 			if (sdata->XA_MaxSampleNumSaved == 0)
 			{
@@ -785,13 +885,19 @@ void CDSYS_XAPauseAtEnd()
 			{
 				firstOffset = currOffset - 2;
 				if (firstOffset < prevOffset + 1)
+				{
 					firstOffset = prevOffset + 1;
+				}
 				if (firstOffset < 0)
+				{
 					firstOffset = 0;
+				}
 			}
 
 			for (int offset = firstOffset; offset >= 0 && offset <= currOffset; offset++)
+			{
 				CDSYS_SpuGetMaxSampleAtOffset(offset);
+			}
 
 			sdata->XA_CurrOffset = currOffset;
 		}
@@ -817,7 +923,9 @@ void CDSYS_XAPauseAtEnd()
 		else if (xaPlaying == 0)
 		{
 			if (sdata->XA_State != XA_IDLE)
+			{
 				sdata->XA_PauseFrame = sdata->gGT->frameTimer_MainFrame_ResetDB;
+			}
 			sdata->XA_State = XA_IDLE;
 			sdata->XA_MaxSampleVal = 0;
 			sdata->XA_MaxSampleValInArr = 0;
@@ -828,7 +936,9 @@ void CDSYS_XAPauseAtEnd()
 
 	// wait until IRQ says XA is finished
 	if (sdata->XA_boolFinished == 0)
+	{
 		return;
+	}
 
 	CDSYS_XAPauseForce();
 }

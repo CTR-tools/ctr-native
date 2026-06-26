@@ -250,9 +250,13 @@ int GAMEPAD_GetNumConnected(struct GamepadSystem *gGamepads)
 	*ptrToSet = bitwiseConnected;
 
 	if (oldVal == -1)
+	{
 		return 0;
+	}
 	if (oldVal == bitwiseConnected)
+	{
 		return 0;
+	}
 
 	// return change
 	return (u32)((bitwiseConnected ^ oldVal) & oldVal) != 0;
@@ -347,7 +351,9 @@ int GAMEPAD_ProcessHold(struct GamepadSystem *gGamepads)
 			if (uVar5 == 0)
 			{
 				if (pad->framesSinceLastInput < 65000)
+				{
 					pad->framesSinceLastInput++;
+				}
 			}
 
 			// if buttons were pressed
@@ -377,13 +383,17 @@ static s16 GAMEPAD_ProcessSticks_StepTowardZero(s16 value)
 	{
 		step -= 0xff;
 		if (step < 0)
+		{
 			step = 0;
+		}
 	}
 	else
 	{
 		step += 0xff;
 		if (step > 0)
+		{
 			step = 0;
+		}
 	}
 
 	return step;
@@ -397,13 +407,17 @@ static s16 GAMEPAD_ProcessSticks_StepTowardMax(s16 value)
 	{
 		step -= 0xff;
 		if (step < 0xff)
+		{
 			step = 0xff;
+		}
 	}
 	else
 	{
 		step += 0xff;
 		if (step >= 0x100)
+		{
 			step = 0xff;
+		}
 	}
 
 	return step;
@@ -417,13 +431,17 @@ static s16 GAMEPAD_ProcessSticks_StepTowardCenter(s16 value)
 	{
 		step -= 0xff;
 		if (step < 0x80)
+		{
 			step = 0x80;
+		}
 	}
 	else
 	{
 		step += 0xff;
 		if (step >= 0x81)
+		{
 			step = 0x80;
+		}
 	}
 
 	return step;
@@ -432,13 +450,19 @@ static s16 GAMEPAD_ProcessSticks_StepTowardCenter(s16 value)
 static s16 GAMEPAD_ProcessSticks_ResolveAxis(s16 axis, s16 rawAxis, int held, int negativeButton, int positiveButton, int useRaw)
 {
 	if ((held & negativeButton) != 0)
+	{
 		return GAMEPAD_ProcessSticks_StepTowardZero(axis);
+	}
 
 	if ((held & positiveButton) != 0)
+	{
 		return GAMEPAD_ProcessSticks_StepTowardMax(axis);
+	}
 
 	if (useRaw)
+	{
 		return rawAxis;
+	}
 
 	return GAMEPAD_ProcessSticks_StepTowardCenter(axis);
 }
@@ -463,10 +487,14 @@ static void GAMEPAD_ProcessSticks_CheckIdleAxis(struct GamepadBuffer *pad, s16 a
 	int delta = axis - 0x80;
 
 	if (delta < 0)
+	{
 		delta = -delta;
+	}
 
 	if (delta >= 0x31)
+	{
 		pad->framesSinceLastInput = 0;
+	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80025854-0x80025d10.
@@ -502,9 +530,13 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				pad->stickLX_dontUse1 = packet->analog.leftX;
 
 				if (packet->analog.leftY == 0xff && pad->unk_1 != 0xff)
+				{
 					pad->stickLY_dontUse1 = pad->unk_1;
+				}
 				else
+				{
 					pad->stickLY_dontUse1 = packet->analog.leftY;
+				}
 
 				pad->unk_1 = packet->analog.leftY;
 				pad->stickRX = packet->analog.rightX;
@@ -514,7 +546,9 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 			else if (controllerData == ((PAD_ID_NEGCON << 4) | 3))
 			{
 				if (i < 4)
+				{
 					pad->rwd = rwd;
+				}
 
 				pad->stickLX_dontUse1 = packet->neGcon.twist;
 				pad->stickLY_dontUse1 = 0x80;
@@ -525,7 +559,9 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 			else if (controllerData == ((PAD_ID_JOGCON << 4) | 3))
 			{
 				if (i < 4)
+				{
 					pad->rwd = rwd;
+				}
 
 				sVar8 = packet->jogcon.jog_rot;
 				iVar4 = (int)sVar8;
@@ -534,9 +570,13 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				{
 					iVar7 = ((-10 - iVar4) - rwd->deadZone) * 8;
 					if (iVar7 < 0)
+					{
 						iVar7 = 0;
+					}
 					if (iVar7 > 0xff)
+					{
 						iVar7 = 0xff;
+					}
 
 					sVar8 += 0x80;
 					if (iVar4 < -0x80)
@@ -549,9 +589,13 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				{
 					iVar7 = ((iVar4 - 10) - rwd->deadZone) * 8;
 					if (iVar7 < 0)
+					{
 						iVar7 = 0;
+					}
 					if (iVar7 > 0xff)
+					{
 						iVar7 = 0xff;
+					}
 
 					sVar8 += 0x80;
 					if (0x7f < iVar4)
@@ -599,7 +643,9 @@ int GAMEPAD_ProcessTapRelease(struct GamepadSystem *gGamepads)
 	int numConnected = gGamepads->numGamepadsConnected;
 
 	if (numConnected <= 0)
+	{
 		return 0;
+	}
 
 	char cVar1;
 	cVar1 = sdata->unkPadSetActAlign[6];
@@ -669,7 +715,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		struct GamepadBuffer *pad = &gGS->gamepad[i];
 		struct ControllerPacket *packet = pad->ptrControllerPacket;
 
-		if ((packet != 0) && (gGT->boolDemoMode == 0) && ((gGT->gameMode1 & 0xf) == 0) && (RaceFlag_IsTransitioning() == 0))
+		if ((packet != 0) && (gGT->boolDemoMode == 0) && ((gGT->gameMode1 & PAUSE_ALL) == 0) && (RaceFlag_IsTransitioning() == 0))
 		{
 			if (packet->controllerData == ((PAD_ID_JOGCON << 4) | 3))
 			{
@@ -726,8 +772,12 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 				pad->motorDesired[0] = 0;
 
 				if (pad->shockFrameFreq != 0)
+				{
 					if ((gGT->timer & pad->shockValFreq) == 0)
+					{
 						pad->motorDesired[0] = 0xff;
+					}
+				}
 
 				// Strength Control (percentage)
 				pad->motorDesired[1] = 0;
@@ -754,11 +804,17 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 			}
 
 			if (pad->shockFrameFreq != 0)
+			{
 				pad->shockFrameFreq--;
+			}
 			if (pad->shockFrameForce1 != 0)
+			{
 				pad->shockFrameForce1--;
+			}
 			if (pad->shockFrameForce2 != 0)
+			{
 				pad->shockFrameForce2--;
+			}
 		}
 
 		else
@@ -784,14 +840,20 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		}
 
 		if (pad->unk44 != 0)
+		{
 			pad->unk44--;
+		}
 
 		// Calculate Total Power
 		// 1 standard DualShock uses 30 units of power
 		if (pad->motorDesired[0] != 0)
+		{
 			totalPower += pad->motorPower[0];
+		}
 		if (pad->motorDesired[1] != 0)
+		{
 			totalPower += pad->motorPower[1];
+		}
 	}
 
 	// PlayStation can not exceed 60 units
@@ -913,12 +975,16 @@ int GAMEPAD_ProcessAnyoneVars(struct GamepadSystem *gGamepads)
 void GAMEPAD_JogCon1(struct Driver *d, char val, u16 timeMS)
 {
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
 	if ((gb->unk45 & 0xf) > (val & 0xf))
+	{
 		return;
+	}
 
 	gb->unk45 = val;
 	gb->unk46 = timeMS;
@@ -929,7 +995,9 @@ void GAMEPAD_JogCon1(struct Driver *d, char val, u16 timeMS)
 void GAMEPAD_JogCon2(struct Driver *d, char val, s16 timeMS)
 {
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
@@ -942,20 +1010,28 @@ void GAMEPAD_JogCon2(struct Driver *d, char val, s16 timeMS)
 void GAMEPAD_ShockFreq(struct Driver *d, int frame, int val)
 {
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
+	{
 		return;
+	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
 	if (gb->framesSinceLastInput >= 0x385)
+	{
 		return;
+	}
 
 	if (gb->shockFrameFreq >= frame)
+	{
 		return;
+	}
 
 	gb->shockFrameFreq = frame;
 	gb->shockValFreq = val;
@@ -966,20 +1042,28 @@ void GAMEPAD_ShockFreq(struct Driver *d, int frame, int val)
 void GAMEPAD_ShockForce1(struct Driver *d, int frame, int val)
 {
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
+	{
 		return;
+	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
 	if (gb->framesSinceLastInput >= 0x385)
+	{
 		return;
+	}
 
 	if (gb->shockValForce1 >= val)
+	{
 		return;
+	}
 
 	gb->shockFrameForce1 = frame;
 	gb->shockValForce1 = val;
@@ -990,20 +1074,28 @@ void GAMEPAD_ShockForce1(struct Driver *d, int frame, int val)
 void GAMEPAD_ShockForce2(struct Driver *d, int frame, int val)
 {
 	if ((d->actionsFlagSet & ACTION_BOT) != 0)
+	{
 		return;
+	}
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
+	{
 		return;
+	}
 
 	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
 	if (gb->framesSinceLastInput >= 0x385)
+	{
 		return;
+	}
 
 	if (gb->shockValForce2 >= val)
+	{
 		return;
+	}
 
 	gb->shockFrameForce2 = frame;
 	gb->shockValForce2 = val;

@@ -121,7 +121,9 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 		{
 			// Make text flash
 			if ((sdata->frameCounter & 2) != 0)
+			{
 				txtColor |= 4;
+			}
 		}
 
 		startX = (s16)D230.transitionMeta_cupSel[cupIndex].currX + (cupIndex & 1) * 200;

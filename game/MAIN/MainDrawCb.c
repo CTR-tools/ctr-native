@@ -23,7 +23,9 @@ void MainDrawCb_Vsync()
 	gGT = sdata->gGT;
 	gGT->frameTimer_VsyncCallback++;
 	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
+	{
 		gGT->frameTimer_Confetti++;
+	}
 
 	sdata->vsyncTillFlip--;
 	gGT->vSync_between_drawSync++;

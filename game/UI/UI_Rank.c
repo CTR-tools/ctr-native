@@ -272,7 +272,9 @@ void UI_DrawRankedDrivers(void)
 				uVar18 = (u16)uVar18;
 
 				if ((s16)uVar18 < 0)
+				{
 					goto LAB_80052b00;
+				}
 			}
 
 			// posX
@@ -343,7 +345,9 @@ void UI_DrawRankedDrivers(void)
 
 			// if not warpball, skip
 			if (warpballInst->model->id != DYNAMIC_WARPBALL)
+			{
 				continue;
+			}
 
 			// pointer to path data
 			struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
@@ -354,7 +358,9 @@ void UI_DrawRankedDrivers(void)
 			iVar12 = 0;
 
 			if (((u32)(gGT->level1->cnt_restart_points - 1) >= 0xff) || (iVar4 < 0))
+			{
 				continue;
+			}
 
 			int pos[4];
 			pos[0] = warpballInst->matrix.t[0];
@@ -387,7 +393,9 @@ void UI_DrawRankedDrivers(void)
 			iVar15 = gGT->level1->ptr_restart_points[0].distToFinish * 8;
 			iVar12 = iVar3 % iVar15;
 			if (iVar12 == 0)
+			{
 				continue;
+			}
 
 #if 0
 	  	if (uVar1 == 0) trap(0x1c00);

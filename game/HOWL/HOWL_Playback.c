@@ -51,7 +51,9 @@ void howl_PlayAudio_Update()
 		{
 			sdata->currentVolume -= 2;
 			if (sdata->currentVolume < 0)
+			{
 				sdata->currentVolume = 0;
+			}
 
 			sdata->criticalSectionCount = 1;
 			howl_VolumeSet(0, sdata->currentVolume);
@@ -65,12 +67,16 @@ void howl_PlayAudio_Update()
 			// if sound has no timer (plays inf)
 			statFlags = curr->flags;
 			if ((statFlags & 4) != 0)
+			{
 				continue;
+			}
 
 			// play sound until timer runs out
 			curr->timeLeft -= 5;
 			if (curr->timeLeft > 0)
+			{
 				continue;
+			}
 
 			ptrFlag = &sdata->ChannelUpdateFlags[curr->channelID];
 			*ptrFlag |= 1;
@@ -96,7 +102,9 @@ void howl_InitChannelAttr_EngineFX(struct EngineFX *engineFX, struct ChannelAttr
 	s16 pitch = engineFX->pitch;
 
 	if (distort != 0x80)
+	{
 		pitch = ((u32)pitch * data.distortConst_Engine[distort]) >> 0x10;
+	}
 
 	attr->pitch = pitch;
 
@@ -115,14 +123,18 @@ void howl_InitChannelAttr_OtherFX(struct OtherFX *otherFX, struct ChannelAttr *a
 	otherVol = sdata->vol_FX;
 
 	if ((otherFX->flags & 4) != 0)
+	{
 		otherVol = sdata->vol_Voice;
+	}
 
 	Channel_SetVolume(attr, (otherVol * otherFX->volume * vol) >> 10, LR);
 
 	s16 pitch = otherFX->pitch;
 
 	if (distort != 0x80)
+	{
 		pitch = ((int)pitch * (int)data.distortConst_OtherFX[distort]) >> 0x10;
+	}
 
 	attr->pitch = pitch;
 
@@ -144,7 +156,9 @@ void howl_PauseAudio()
 
 	// if already paused, quit
 	if (sdata->numBackup_ChannelStats != 0)
+	{
 		return;
+	}
 
 	pausedStats = &sdata->channelStatsCurr[0];
 
@@ -234,7 +248,9 @@ void howl_UnPauseAudio()
 
 	// if no paused audio, skip
 	if (sdata->numBackup_ChannelStats == 0)
+	{
 		return;
+	}
 
 	pausedStats = &sdata->channelStatsCurr[0];
 
@@ -278,12 +294,16 @@ void howl_UnPauseAudio()
 void howl_StopAudio(b32 boolErasePauseBackup, b32 boolEraseMusic, b32 boolDestroyAllFX)
 {
 	if (boolEraseMusic != 0)
+	{
 		CseqMusic_StopAll();
+	}
 
 	Smart_EnterCriticalSection();
 	Channel_DestroyAll_LowLevel(boolDestroyAllFX, boolEraseMusic == 0, 2);
 	Smart_ExitCriticalSection();
 
 	if (boolErasePauseBackup != 0)
+	{
 		sdata->numBackup_ChannelStats = 0;
+	}
 }

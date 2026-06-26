@@ -48,7 +48,9 @@ static s32 CAM_SkyboxGlow_CalcCenterY(struct PushBuffer *pb)
 	s32 height = (s16)pb->rect.h;
 
 	if (pitch < 0)
+	{
 		pitch += 0x3ff;
+	}
 
 	return (pitch >> 10) + CAM_SkyboxGlow_Div2TowardZero(height);
 }
@@ -57,7 +59,9 @@ static s32 CAM_SkyboxGlow_CalcTilt(struct PushBuffer *pb)
 {
 	s32 cosine = MATH_Cos(pb->rot.z);
 	if (cosine == 0)
+	{
 		cosine = 1;
+	}
 
 	s32 ratio = (MATH_Sin(pb->rot.z) << 12) / cosine;
 	s32 shifted = (s32)((u32)ratio << 8);
@@ -159,13 +163,21 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 		u32 mask = 0;
 
 		if (toLeft >= 0)
+		{
 			mask |= 1;
+		}
 		if (toRight >= 0)
+		{
 			mask |= 2;
+		}
 		if (fromLeft >= 0)
+		{
 			mask |= 4;
+		}
 		if (fromRight >= 0)
+		{
 			mask |= 8;
+		}
 
 		switch (mask)
 		{
@@ -211,7 +223,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 			                      colorTo, toX);
 
 			if (CAM_SkyboxGlow_HasClearGradient(i))
+			{
 				CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, 0, CAM_SkyboxGlow_PackXY(0, fromLeft));
+			}
 			break;
 		}
 		case 7:
@@ -226,7 +240,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 			                      CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
 
 			if (CAM_SkyboxGlow_HasClearGradient(i))
+			{
 				CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, 0, CAM_SkyboxGlow_PackXY(0, fromLeft));
+			}
 			break;
 		}
 		case 10:
@@ -240,7 +256,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 			CAM_SkyboxGlow_EmitG4(primMem, ptrOT, colorFrom, fromX, colorFrom, fromRightXY, colorTo, toX, colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
 
 			if (CAM_SkyboxGlow_HasClearGradient(i))
+			{
 				CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, screenWidthXY, fromRightXY);
+			}
 			break;
 		}
 		case 11:
@@ -256,7 +274,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 			                      CAM_SkyboxGlow_PackXY(screenWidth, toRight));
 
 			if (CAM_SkyboxGlow_HasClearGradient(i))
+			{
 				CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, screenWidthXY, fromRightXY);
+			}
 			break;
 		}
 		case 15:
@@ -267,7 +287,9 @@ void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, stru
 			                      CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
 
 			if (CAM_SkyboxGlow_HasClearGradient(i))
+			{
 				CAM_SkyboxGlow_EmitF4(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), 0, screenWidthXY, CAM_SkyboxGlow_PackXY(0, fromLeft), fromRightXY);
+			}
 			break;
 		}
 		}
@@ -298,11 +320,15 @@ void CAM_ClearScreen(struct GameTracker *gGT)
 		s32 splitLine = (((s32)pb->rot.x - 0x800) >> 3) + (h >> 1);
 
 		if (splitLine < 0)
+		{
 			splitLine = 0;
+		}
 
 		s32 topHeight = h;
 		if (splitLine < h)
+		{
 			topHeight = splitLine;
+		}
 
 		// top half
 		if ((level1->clearColor[0].enable != 0) && (0 < topHeight))
@@ -380,21 +406,29 @@ s32 CAM_Path_GetNumPoints(void)
 	gGT = sdata->gGT;
 	level1 = gGT->level1;
 	if (level1 == NULL)
+	{
 		return 0;
+	}
 
 	ptrSpawnType1 = level1->ptrSpawnType1;
 	if (ptrSpawnType1->count < 3)
+	{
 		return 0;
+	}
 
 	void **ptrs = ST1_GETPOINTERS(ptrSpawnType1);
 	introCam = ptrs[ST1_CAMERA_PATH];
 	if (introCam == NULL)
+	{
 		return 0;
+	}
 
 	while (1)
 	{
 		if (introCam[0] == 0)
+		{
 			break;
+		}
 		uVar4 += introCam[0];
 		introCam += introCam[0] * 6 + 2;
 	}
@@ -409,9 +443,13 @@ u8 CAM_Path_Move(s32 frameIndex, s16 *position, s16 *rotation, s16 *getPath)
 	s16 numPos = CAM_Path_GetNumPoints();
 
 	if (frame < 0)
+	{
 		return 0;
+	}
 	if (frame >= numPos)
+	{
 		return 0;
+	}
 
 	void **ptrs = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);
 	s16 *ptrCam = ptrs[ST1_CAMERA_PATH];
@@ -722,9 +760,13 @@ void CAM_FollowDriver_AngleAxis(struct CameraDC *cDC, struct Driver *d, struct C
 
 	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80019128-0x800194c8.
 	if (cDC->cameraMode == 0xe)
+	{
 		VehPhysForce_RotAxisAngle(axisMatrix, d->AxisAngle2_normalVec.v, d->angle);
+	}
 	else
+	{
 		VehPhysForce_RotAxisAngle(axisMatrix, d->AxisAngle2_normalVec.v, d->rotCurr.y);
+	}
 
 	CAM_FollowDriver_AngleAxis_LoadGteMatrix(axisMatrix, d);
 	CAM_FollowDriver_AngleAxis_TransformOffset(&cDC->driverOffset_CamEyePos, eye);
@@ -786,7 +828,9 @@ void CAM_StartLine_FlyIn(struct FlyInData *flyInData, s16 maxFrames, s32 frame, 
 	s32 pathRatioEnd;
 
 	if (count < countEnd)
+	{
 		count = countEnd;
+	}
 
 	s16 pathIndex = (s16)(count * frameRatio >> 0xc);
 	if (pathIndex < countEnd - 1)
@@ -867,13 +911,17 @@ static struct CheckpointNode *CAM_FollowDriver_TrackPath_GetNode(struct CameraDC
 	{
 		nodeIndex = node->nextIndex_backward;
 		if ((cDC->flags & CAMERA_FLAG_TRACK_PATH_ALT_BRANCH) != 0 && node->nextIndex_right != 0xff)
+		{
 			nodeIndex = node->nextIndex_right;
+		}
 	}
 	else
 	{
 		nodeIndex = node->nextIndex_forward;
 		if ((cDC->flags & CAMERA_FLAG_TRACK_PATH_ALT_BRANCH) != 0 && node->nextIndex_left != 0xff)
+		{
 			nodeIndex = node->nextIndex_left;
+		}
 	}
 
 	return &nodes[nodeIndex];
@@ -907,12 +955,18 @@ u32 CAM_FollowDriver_TrackPath(struct CameraDC *cDC, SVec3 *pos, s32 speed, s32 
 
 	segmentLength = CAM_FollowDriver_TrackPath_Length(curr, next, &dx, &dy, &dz);
 
-	if ((sdata->gGT->gameMode1 & 0xf) != 0)
+	if ((sdata->gGT->gameMode1 & PAUSE_ALL) != 0)
+	{
 		pathProgress = 0;
+	}
 	else if (speed > 0)
+	{
 		pathProgress = cDC->trackPathProgress + speed;
+	}
 	else
+	{
 		pathProgress = cDC->trackPathProgress - speed;
+	}
 
 	while (pathProgress >= segmentLength)
 	{
@@ -929,9 +983,13 @@ u32 CAM_FollowDriver_TrackPath(struct CameraDC *cDC, SVec3 *pos, s32 speed, s32 
 	}
 
 	if (segmentLength != 0)
+	{
 		ratio = (pathProgress << 12) / segmentLength;
+	}
 	else
+	{
 		ratio = 0;
+	}
 
 	pos->x = curr->pos.x + (s16)((CAM_FollowDriver_TrackPath_MulLo(dx, ratio)) >> 12);
 	pos->y = curr->pos.y + (s16)((CAM_FollowDriver_TrackPath_MulLo(dy, ratio)) >> 12) + 0x80;
@@ -943,7 +1001,9 @@ u32 CAM_FollowDriver_TrackPath(struct CameraDC *cDC, SVec3 *pos, s32 speed, s32 
 
 	yawDelta = (nextYaw - yaw) & 0xfff;
 	if (yawDelta >= 0x800)
+	{
 		yawDelta -= 0x1000;
+	}
 
 	return (yaw + (CAM_FollowDriver_TrackPath_MulLo(yawDelta, ratio) >> 12)) & 0xfff;
 }
@@ -1106,7 +1166,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		// absolute value driver speed
 		x = (s32)d->speedApprox;
 		if (x < 0)
+		{
 			x = -x;
+		}
 
 		cDC->cameraMoveSpeed = x;
 	}
@@ -1146,18 +1208,24 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 			cDC->fireSpeedZoom.distanceOffset -= gGT->elapsedTimeMS * 0x10;
 
 			if (cDC->fireSpeedZoom.distanceOffset < 0)
+			{
 				cDC->fireSpeedZoom.distanceOffset = 0;
+			}
 		}
 	}
 	else
 	{
 		cDC->fireSpeedZoom.distanceOffset += gGT->elapsedTimeMS * 0x40;
 		if (cDC->fireSpeedZoom.distanceOffset > 0x6000)
+		{
 			cDC->fireSpeedZoom.distanceOffset = 0x6000;
+		}
 
 		cDC->fireSpeedZoom.timer -= gGT->elapsedTimeMS;
 		if (cDC->fireSpeedZoom.timer < 0)
+		{
 			cDC->fireSpeedZoom.timer = 0;
+		}
 	}
 	cam->rot.z += cDC->fireSpeedZoom.distanceOffset >> 8;
 
@@ -1198,7 +1266,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 
 	uVar8 = 0;
 	if (gGT->numPlyrCurrGame != 2)
+	{
 		uVar8 = 0xff9c;
+	}
 
 	// rotX
 	cam->rot.x = uVar8;
@@ -1218,7 +1288,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	{
 		cDC->damagePitchOffset -= 8;
 		if (cDC->damagePitchOffset < -0x20)
+		{
 			cDC->damagePitchOffset = -0x20;
+		}
 	}
 
 	// if racer is damaged,
@@ -1227,7 +1299,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	{
 		cDC->damagePitchOffset += 8;
 		if (cDC->damagePitchOffset > 0)
+		{
 			cDC->damagePitchOffset = 0;
+		}
 	}
 
 	// Z, Y, X
@@ -1288,7 +1362,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	if (((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) == 0) && (cDC->cameraMode == 0))
 	{
 		if ((d->kartState != KS_BLASTED) && (cDC->BlastedLerp.boolLerpPending == 0))
+		{
 			goto LAB_8001a8c0;
+		}
 
 		if (cDC->BlastedLerp.boolLerpPending == 0)
 		{
@@ -1306,7 +1382,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	LAB_8001a8b0:
 
 		if (cDC->BlastedLerp.boolLerpPending == 0)
+		{
 			goto LAB_8001a8c0;
+		}
 	}
 
 	// if this is arcade end-of-race
@@ -1422,7 +1500,9 @@ LAB_8001ab04:
 		{
 			pb->rot.x += 0x10;
 			if (pb->rot.x > 0x800)
+			{
 				pb->rot.x = 0x800;
+			}
 		}
 	}
 
@@ -1458,18 +1538,30 @@ LAB_8001ab04:
 	cDC->pushBufferPosCorrection.z -= (cam->pos.z - cDC->cameraPos.z);
 
 	if (cDC->pushBufferPosCorrection.x > 2)
+	{
 		cDC->pushBufferPosCorrection.x = 2;
+	}
 	if (cDC->pushBufferPosCorrection.y > 2)
+	{
 		cDC->pushBufferPosCorrection.y = 2;
+	}
 	if (cDC->pushBufferPosCorrection.z > 2)
+	{
 		cDC->pushBufferPosCorrection.z = 2;
+	}
 
 	if (cDC->pushBufferPosCorrection.x < -2)
+	{
 		cDC->pushBufferPosCorrection.x = -2;
+	}
 	if (cDC->pushBufferPosCorrection.y < -2)
+	{
 		cDC->pushBufferPosCorrection.y = -2;
+	}
 	if (cDC->pushBufferPosCorrection.z < -2)
+	{
 		cDC->pushBufferPosCorrection.z = -2;
+	}
 
 	if (d->kartState != KS_MASK_GRABBED)
 	{
@@ -1555,7 +1647,9 @@ LAB_8001ab04:
 				x = 0xa5 - (u16)cDC->transitionFrame;
 
 				if ((s16)x > 0x96)
+				{
 					x = 0x96;
+				}
 
 				CAM_StartLine_FlyIn(&flyInData, 0x96, x, &local_40, &local_38);
 
@@ -1666,7 +1760,9 @@ LAB_8001ab04:
 	{
 		// If game is paused
 		if ((gGT->gameMode1 & PAUSE_ALL) != 0)
+		{
 			return;
+		}
 
 	CountdownTransitionFrame:
 
@@ -1777,18 +1873,24 @@ void CAM_ThTick(struct Thread *t)
 
 	ptrZoomData = &data.NearCam4x3;
 	if (gGT->numPlyrCurrGame == 2)
+	{
 		ptrZoomData = &data.NearCam8x3;
+	}
 
 	ptrZoomData = &ptrZoomData[cDC->nearOrFar * 2];
 
 	if ((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) == 0)
+	{
 		goto SkipNewCameraEOR;
+	}
 
 	psVar14 = gGT->level1->ptrSpawnType1;
 
 	psVar21 = 0;
 	if (psVar14->count < 3)
+	{
 		goto SkipNewCameraEOR;
+	}
 
 	void **ptrs = ST1_GETPOINTERS(psVar14);
 	psVar19 = ptrs[ST1_CAMERA_EOR];
@@ -1834,7 +1936,9 @@ void CAM_ThTick(struct Thread *t)
 
 	// if no EOR found, or EOR is already in-use
 	if ((psVar21 == 0) || (psVar21 == cDC->currEOR))
+	{
 		goto SkipNewCameraEOR;
+	}
 
 	cDC->currEOR = (void *)psVar21;
 
@@ -2095,9 +2199,13 @@ SkipNewCameraEOR:
 
 						pb->rot.x = sdata->FirstPersonCamera.rotOffset.x + (d->rotCurr).x;
 						if (cDC->cameraMode == 0x10)
+						{
 							pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + d->angle;
+						}
 						else
+						{
 							pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + (d->rotCurr).y;
+						}
 						pb->rot.z = sdata->FirstPersonCamera.rotOffset.z + (d->rotCurr).z;
 					}
 					else
@@ -2125,7 +2233,7 @@ SkipNewCameraEOR:
 						}
 						if ((cDC->cameraMode == 9) || (psVar21 = scratchpad, cDC->cameraMode == 0xd))
 						{
-							if ((gGT->level1->cnt_restart_points != 0) && ((gGT->gameMode1 & 0xf) == 0))
+							if ((gGT->level1->cnt_restart_points != 0) && ((gGT->gameMode1 & PAUSE_ALL) == 0))
 							{
 								SVec3 *trackPathPos = &scratchWork->trackPathPos;
 								SVec3 *trackPathLookaheadPos = &scratchWork->trackPathLookaheadPos;
@@ -2135,7 +2243,9 @@ SkipNewCameraEOR:
 
 								iVar7 = -0xc0;
 								if (-1 < cDC->eorModeData.trackPathSpeed)
+								{
 									iVar7 = 0xc0;
+								}
 
 								uVar10 = CAM_FollowDriver_TrackPath(cDC, trackPathLookaheadPos, iVar7, 0);
 
@@ -2170,7 +2280,9 @@ SkipNewCameraEOR:
 							}
 							psVar21 = scratchpad;
 							if (cDC->cameraMode == 0xd)
+							{
 								goto LAB_8001c11c;
+							}
 						}
 					}
 					goto LAB_8001c128;

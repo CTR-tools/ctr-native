@@ -20,7 +20,9 @@ int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 	case PAPU_PYRAMID:
 	case POLAR_PASS:
 		if (numPlyrCurrGame < 3)
+		{
 			return 3000;
+		}
 
 		return 2500;
 

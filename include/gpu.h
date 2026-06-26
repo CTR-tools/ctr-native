@@ -29,7 +29,9 @@ force_inline b32 CtrGpu_IsCurrentOTRange(const struct DB *db, const uint32_t *st
 	uintptr_t otCursor;
 
 	if ((db == NULL) || (start == NULL) || (end == NULL))
+	{
 		return false;
+	}
 
 	rangeStart = (uintptr_t)start;
 	rangeEnd = (uintptr_t)end;
@@ -37,7 +39,9 @@ force_inline b32 CtrGpu_IsCurrentOTRange(const struct DB *db, const uint32_t *st
 	otCursor = (uintptr_t)db->otMem.cursor;
 
 	if (rangeEnd < rangeStart)
+	{
 		return false;
+	}
 
 	return (rangeStart >= otStart) && (rangeEnd < otCursor);
 }

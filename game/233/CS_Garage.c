@@ -61,7 +61,9 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 
 	// if mid-transition, skip some code
 	if (gGarage.numFramesCurr_GarageMove != 0)
+	{
 		goto SKIP_CONTROLS;
+	}
 
 	// At this point, there must not be a transition
 	// between drivers, so start drawing the UI
@@ -79,9 +81,13 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 #define BAR_RATE 3
 
 		if (*barLen < stat)
+		{
 			*barLen = *barLen + BAR_RATE;
+		}
 		if (stat < *barLen)
+		{
 			*barLen = stat;
+		}
 	}
 
 	if (
@@ -115,11 +121,15 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 
 	// 0x24A - Advanced
 	if (engineID == SPEED)
+	{
 		i = 2;
+	}
 
 	// 0x249 - Intermediate
 	if (engineID < SPEED)
+	{
 		i = 1;
+	}
 
 	// 7 pixels tall
 	u16 statBarStart_Y = 33;
@@ -181,7 +191,9 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 
 				// quit if prim mem runs out
 				if (primMem->end < (void *)p)
+				{
 					return;
+				}
 
 				primMem->cursor = p + 1;
 
@@ -281,8 +293,9 @@ void CS_Garage_MenuProc(struct RectMenu *param_1)
 
 	        // If you dont press D-pad
 	        ((sdata->AnyPlayerHold & 0xc) == 0)))
-
+	{
 		goto SKIP_CONTROLS;
+	}
 
 	// If you dont press D-pad
 	if ((sdata->AnyPlayerHold & 0xc) == 0)
@@ -466,19 +479,24 @@ SKIP_CONTROLS:
 
 	// Pura->Crash
 	if ((currSelectIndex == 0) && (prevSelectIndex == 7))
+	{
 		garageFrames = 240 - gGarage.numFramesCurr_GarageMove;
-
+	}
 	// Crash->Pura
 	else if ((currSelectIndex == 7) && (prevSelectIndex == 0))
+	{
 		garageFrames = gGarage.numFramesCurr_GarageMove + 210;
-
+	}
 	// Move Right
 	else if (prevSelectIndex < currSelectIndex)
+	{
 		garageFrames = currSelectIndex * 30 - gGarage.numFramesCurr_GarageMove;
-
+	}
 	// Move Left
 	else
+	{
 		garageFrames = currSelectIndex * 30 + gGarage.numFramesCurr_GarageMove;
+	}
 
 	// animation frame index,
 	// pointer to position,

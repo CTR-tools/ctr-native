@@ -14,7 +14,9 @@ void LIST_AddFront(struct LinkedList *L, struct Item *I)
 	struct Item *oldFirst;
 
 	if (I == 0)
+	{
 		return;
+	}
 
 	I->prev = 0;
 
@@ -40,7 +42,9 @@ void LIST_AddBack(struct LinkedList *L, struct Item *I)
 	struct Item *oldLast;
 
 	if (I == 0)
+	{
 		return;
+	}
 
 	I->next = 0;
 
@@ -76,7 +80,9 @@ void *LIST_GetFirstItem(struct LinkedList *L)
 struct Item *LIST_RemoveMember(struct LinkedList *L, struct Item *I)
 {
 	if (I == 0)
+	{
 		return 0;
+	}
 
 	if (L->first != 0)
 	{
@@ -113,7 +119,9 @@ struct Item *LIST_RemoveFront(struct LinkedList *L)
 	struct Item *I = L->first;
 
 	if (I == 0)
+	{
 		return 0;
+	}
 
 	if (I->prev != 0)
 	{
@@ -146,7 +154,9 @@ struct Item *LIST_RemoveBack(struct LinkedList *L)
 	struct Item *I = L->last;
 
 	if (I == 0)
+	{
 		return 0;
+	}
 
 	if (L->first != 0)
 	{

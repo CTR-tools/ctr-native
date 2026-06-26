@@ -140,8 +140,12 @@ void AH_SaveObj_ThTick(struct Thread *t)
 				// keep this save object ticking during that transition, so do not
 				// restore the hub HUD/map until loading is idle again.
 				if (sdata->Loading.stage == LOAD_IDLE)
+				{
 #endif
 					gGT->hudFlags = save->hudFlagBackup;
+#if defined(CTR_NATIVE)
+				}
+#endif
 			}
 
 			// if camera is transitioning
@@ -232,7 +236,7 @@ LAB_800af72c:
 
 			// Play save/load screen sound
 			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800af7a8-0x800af7c0 for save/load screen loop SFX.
-			OtherFX_Play_LowLevel(0x99, 1, (uVar6 & 0xff) << 0x10 | 0x8080);
+			OtherFX_Play_LowLevel(0x99, 1, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, uVar6, 0));
 
 			// reset animation
 			saveInst->animFrame = 0;

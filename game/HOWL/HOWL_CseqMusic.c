@@ -7,12 +7,18 @@ int CseqMusic_Start(u16 songID, int p2, struct SongSet *p3, int p4, int p5)
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return 0;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return 0;
+	}
 
 	if (sdata->ptrCseqHeader->numSongs <= songID)
+	{
 		return 0;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -43,9 +49,13 @@ void CseqMusic_Pause()
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -72,9 +82,13 @@ void CseqMusic_Resume()
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -100,11 +114,17 @@ void CseqMusic_ChangeVolume(u16 songID, int p2, int p3)
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader->numSongs <= songID)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -129,11 +149,17 @@ void CseqMusic_Restart(u16 songID, int p2)
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader->numSongs <= songID)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -159,11 +185,17 @@ void CseqMusic_ChangeTempo(u16 songID, int p2)
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader->numSongs <= songID)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -188,11 +220,17 @@ void CseqMusic_AdvHubSwap(u16 songId, struct SongSet *songSet, int songSetActive
 	int i;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader->numSongs <= songId)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -221,11 +259,17 @@ void CseqMusic_Stop(u16 songID)
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader->numSongs <= songID)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 
@@ -250,9 +294,13 @@ void CseqMusic_StopAll()
 	struct Song *song;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 	if (sdata->ptrCseqHeader == 0)
+	{
 		return;
+	}
 
 	Smart_EnterCriticalSection();
 

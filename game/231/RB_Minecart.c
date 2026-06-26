@@ -82,7 +82,9 @@ void RB_Minecart_ThTick(struct Thread *t)
 	}
 
 	if (level->numSpawnType2 == 0)
+	{
 		return;
+	}
 
 	// path coordinates for minecarts
 	spawnType2 = &level->ptrSpawnType2[0];
@@ -154,7 +156,9 @@ void RB_Minecart_LInB(struct Instance *inst)
 	int startIndex;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -166,7 +170,9 @@ void RB_Minecart_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 
@@ -219,7 +225,9 @@ void RB_Minecart_LInB(struct Instance *inst)
 
 		// #2 and any other non-0/non-1 suffix
 		if (minecartID != 1)
+		{
 			startIndex = startIndex << 1;
+		}
 
 		startIndex = startIndex / 3;
 	}

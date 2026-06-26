@@ -83,7 +83,9 @@ int Bank_AssignSpuAddrs()
 	if (sdata->bankLoadStage == 1)
 	{
 		if (LOAD_HowlSectorChainEnd() == 0)
+		{
 			return 0;
+		}
 
 		sdata->audioAllocSize = 0;
 
@@ -128,7 +130,9 @@ int Bank_AssignSpuAddrs()
 		);
 
 		if (ret == 0)
+		{
 			return 0;
+		}
 
 		// not last bank needed?
 		if (sdata->bankFlags == 0)
@@ -177,7 +181,9 @@ int Bank_AssignSpuAddrs()
 	if (sdata->bankLoadStage == 2)
 	{
 		if (LOAD_HowlSectorChainEnd() == 0)
+		{
 			return 0;
+		}
 
 		int spuAddrStart = (u32)sdata->ptrLastBank->min * 8;
 
@@ -199,10 +205,14 @@ int Bank_AssignSpuAddrs()
 	if (sdata->bankLoadStage == 3)
 	{
 		if (SpuIsTransferCompleted(SPU_TRANSFER_PEEK) == 0)
+		{
 			return 0;
+		}
 
 		if (sdata->bankFlags == 0)
+		{
 			sdata->audioAllocPtr += sdata->audioAllocSize >> 3;
+		}
 
 		sdata->ptrLastBank->flags |= 2;
 
@@ -222,7 +232,9 @@ void Bank_Destroy(struct Bank *ptrLastBank)
 	u16 flags;
 
 	if (sdata->boolAudioEnabled == 0)
+	{
 		return;
+	}
 
 	flags = ptrLastBank->flags;
 
@@ -249,9 +261,13 @@ void Bank_ClearInRange(u16 min, u16 max)
 	for (i = 0; i < sdata->ptrHowlHeader->numSpuAddrs; i++)
 	{
 		if (sae[i].spuAddr < min)
+		{
 			continue;
+		}
 		if (sae[i].spuAddr >= end)
+		{
 			continue;
+		}
 		sae[i].spuAddr = 0;
 	}
 }
@@ -263,16 +279,22 @@ int Bank_Load(int bankID, struct Bank *ptrBank)
 
 	// if out of banks, quit
 	if (numBanks >= 8)
+	{
 		return 0;
+	}
 
 	sdata->bank[numBanks].bankID = bankID & 0xffff;
 
 	// if bank is in use, quit
 	if ((sdata->bank[numBanks].flags & 3) != 0)
+	{
 		return 0;
+	}
 
 	if (Bank_Alloc(bankID, &sdata->bank[numBanks]) == 0)
+	{
 		return 0;
+	}
 
 	// starting to think this isn't really a bank...
 	ptrBank->bankID = sdata->numAudioBanks++;
@@ -283,7 +305,9 @@ int Bank_Load(int bankID, struct Bank *ptrBank)
 int Bank_DestroyLast()
 {
 	if (sdata->numAudioBanks == 0)
+	{
 		return 0;
+	}
 
 	Bank_Destroy(&sdata->bank[--sdata->numAudioBanks]);
 	return 1;
@@ -300,7 +324,9 @@ void Bank_DestroyUntilIndex(int index)
 		ptrLastBank = &sdata->bank[sdata->numAudioBanks - 1];
 
 		if ((u16)ptrLastBank->bankID == bankID)
+		{
 			return;
+		}
 
 		Bank_DestroyLast();
 	}

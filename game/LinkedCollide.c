@@ -25,12 +25,16 @@ struct Instance *LinkedCollide_Radius(struct Instance *objInst, struct Thread *_
 		{
 			// Cylinder collision
 			if ((diff_dist < hitRadius) && (-0x20 < diff_y))
+			{
 				return thInst;
+			}
 		}
 
 		// Spherical collision for everything else
 		else if (diff_dist + diff_y * diff_y < hitRadius)
+		{
 			return thInst;
+		}
 
 		// next thread in the list (thread bucket)
 		thBucket = thBucket->siblingThread;

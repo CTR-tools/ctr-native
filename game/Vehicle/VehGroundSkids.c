@@ -23,7 +23,9 @@ void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroun
 	POLY_GT4 *nextPrim = poly + 1;
 
 	if ((char *)backBuffer->primMem.guardEnd < (char *)nextPrim)
+	{
 		return;
+	}
 
 	backBuffer->primMem.cursor = nextPrim;
 
@@ -42,9 +44,13 @@ void VehGroundSkids_Subset1(u32 *currXY, u32 *prevXY, int depth, struct VehGroun
 
 	u32 tpage = VehGroundSkids_ReadTexWord(&icon->texLayout, 0x4);
 	if ((scratch->segmentFlags & 1) != 0)
+	{
 		tpage = (tpage & 0xff9fffff) | 0x00600000;
+	}
 	else
+	{
 		tpage = (tpage & 0xff9fffff) | 0x00400000;
+	}
 	CtrGpu_WritePackedUVWord(&poly->u1, tpage);
 
 	CtrGpu_WritePackedUV(&poly->u2, VehGroundSkids_ReadTexHalf(&icon->texLayout, 0x8));
@@ -96,15 +102,21 @@ static int VehGroundSkids_InitPoint(SVECTOR *scratch, const SVECTOR *point, cons
 	// NOTE(aalhendi): Retail uses lh/lw/subu/sll here; preserve unsigned 32-bit wraparound.
 	s32 x = (s32)(((u32)(s32)point->vx - (u32)origin[0]) << 2);
 	if (VehGroundSkids_Abs(x) >= 0x1771)
+	{
 		return 0;
+	}
 
 	s32 y = (s32)(((u32)(s32)point->vy - (u32)origin[1]) << 2);
 	if (VehGroundSkids_Abs(y) >= 0x1771)
+	{
 		return 0;
+	}
 
 	s32 z = (s32)(((u32)(s32)point->vz - (u32)origin[2]) << 2);
 	if (VehGroundSkids_Abs(z) >= 0x1771)
+	{
 		return 0;
+	}
 
 	scratch[0].vx = x;
 	scratch[0].vy = y;
@@ -116,16 +128,22 @@ static int VehGroundSkids_IntensityFromDepth(int depth)
 {
 	depth >>= 2;
 	if (depth < 0x180)
+	{
 		return 0x7f;
+	}
 
 	MTC2(depth - 0x180, 30);
 	int shift = 0x1a - MFC2(31);
 	if (shift < 0)
+	{
 		shift = 0;
+	}
 
 	int intensity = 0x7f >> (shift & 0x1f);
 	if (intensity < 0x10)
+	{
 		return -1;
+	}
 
 	return intensity;
 }
@@ -155,11 +173,17 @@ static void VehGroundSkids_TryEmitSegment(struct VehGroundSkidsScratch *scratch,
                                           u32 prevFlags, int bit, const union VehEmitterSkidmark *mark, int pointIndex)
 {
 	if ((flags & prevFlags & bit) == 0)
+	{
 		return;
+	}
 	if (currDepth[pointIndex] <= 0x20 || currDepth[pointIndex + 1] <= 0x20)
+	{
 		return;
+	}
 	if (prevDepth[pointIndex] <= 0x20 || prevDepth[pointIndex + 1] <= 0x20)
+	{
 		return;
+	}
 
 	scratch->segmentFlagsLow = mark->flags;
 	int depth = (currDepth[pointIndex] >> 2) + (mark->color << 6);
@@ -256,7 +280,9 @@ void VehGroundSkids_Main(struct Thread *thread, struct PushBuffer *pb)
 						}
 
 						if (scratch->colorFar == 0)
+						{
 							break;
+						}
 					}
 				}
 			}

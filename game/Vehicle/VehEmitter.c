@@ -11,10 +11,14 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *exhaustPos, VECTOR
 	struct Instance *dInst = d->instSelf;
 
 	if (d->invisibleTimer != 0)
+	{
 		return 0;
+	}
 
 	if ((dInst->flags & HIDE_MODEL) != 0)
+	{
 		return 0;
+	}
 
 	// low LOD exhaust (4p or ai car)
 	exhaustType = 1;
@@ -50,7 +54,9 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *exhaustPos, VECTOR
 	p = Particle_Init(0, gGT->iconGroup[exhaustType], emSet);
 
 	if (p == NULL)
+	{
 		return p;
+	}
 
 	p->axis[0].startVal += exhaustPos->vx - exhaustVel->vx;
 	p->axis[0].velocity = (s16)exhaustVel->vx;
@@ -123,7 +129,9 @@ void VehEmitter_Sparks_Ground(struct Driver *d, struct ParticleEmitter *emSet)
 		struct Particle *p = Particle_Init(0, gGT->iconGroup[0], emSet);
 
 		if (p == NULL)
+		{
 			continue;
+		}
 
 		u32 rng = (u32)(RngDeadCoed(&gGT->deadcoed_struct.unk1) & 0x7ff);
 
@@ -162,24 +170,34 @@ void VehEmitter_Terrain_Ground(struct Driver *d, struct ParticleEmitter *emSet)
 
 	// not touching quadblock
 	if ((flags & 1) == 0)
+	{
 		return;
+	}
 
 	// in accel prevention (holding square)
 	if ((flags & 8) != 0)
+	{
 		return;
+	}
 
 	// abs fireSpeed < 0x300
 	speed = d->fireSpeed;
 	if (speed < 0)
+	{
 		speed = -speed;
+	}
 	if (speed < 0x300)
 	{
 		// abs speedApprox < 0x300
 		speed = d->speedApprox;
 		if (speed < 0)
+		{
 			speed = -speed;
+		}
 		if (speed < 0x300)
+		{
 			return;
+		}
 	}
 
 	// if sliding, spawn on 4 tires, otherwise just 2
@@ -198,7 +216,9 @@ void VehEmitter_Terrain_Ground(struct Driver *d, struct ParticleEmitter *emSet)
 		struct Particle *p = Particle_Init(0, ig, emSet);
 
 		if (p == NULL)
+		{
 			continue;
+		}
 
 		SVECTOR velInput = {p->axis[0].velocity, p->axis[1].velocity, p->axis[2].velocity, 0};
 
@@ -222,7 +242,9 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 {
 	int speedAbs = d->speedApprox;
 	if (speedAbs < 0)
+	{
 		speedAbs = -speedAbs;
+	}
 
 	// must have speed, or gas pedal, for vibration
 	if (((d->fireSpeed != 0) || (speedAbs > 0x200)) && (d->frameAgainstWall < 450))
@@ -240,7 +262,9 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 
 	// must reach minimum speed for sparks
 	if (speedAbs <= 0x200)
+	{
 		return;
+	}
 
 	union VehEmitterWallScratch *scratch = CTR_SCRATCHPAD_PTR(union VehEmitterWallScratch, 0);
 	s32 *tireLeftOutWord = &scratch->word[0];
@@ -256,7 +280,9 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 
 	int valZ = -0x1400;
 	if (d->speedApprox > 0)
+	{
 		valZ = 0x2800;
+	}
 
 	// s16[3] array
 	tireLeftOutWord[1] = valZ;
@@ -273,7 +299,9 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 	// this compresses TireLeft and TireRight from int to s16,
 	// which then doubles in usage as a matrix (3x2)
 	for (int i = 0; i < 6; i++)
+	{
 		tireLeftOutHalf[i] = (u16)scratch->word[i];
+	}
 
 #ifdef CTR_NATIVE
 
@@ -318,7 +346,9 @@ void VehEmitter_Sparks_Wall(struct Driver *d, struct ParticleEmitter *emSet)
 	struct Particle *p = Particle_Init(0, sdata->gGT->iconGroup[0], emSet);
 
 	if (p == NULL)
+	{
 		return;
+	}
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -448,7 +478,9 @@ static void VehEmitter_MudSplash(struct Driver *d)
 		struct Particle *p = Particle_Init(0, gGT->iconGroup[0xd], &data.emSet_MudSplash[0]);
 
 		if (p == NULL)
+		{
 			continue;
+		}
 
 		p->otIndexOffset = d->instSelf->depthBiasNormal;
 		p->driverInst = d->instSelf;
@@ -468,20 +500,28 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 	MATRIX *m = &inst->matrix;
 
 	if (gGT->numPlyrCurrGame >= 2)
+	{
 		return;
+	}
 
 	int absSpeed = d->speed;
 	if (absSpeed < 0)
+	{
 		absSpeed = -absSpeed;
+	}
 
 	if ((absSpeed > 0x500) && (d->currentTerrain == TERRAIN_MUD))
+	{
 		VehEmitter_MudSplash(d);
+	}
 
 	if (((terrainFlags & TERRAIN_FLAG_LANDING_SPARKS) != 0) && ((d->actionsFlagSet & ACTION_STARTED_TOUCH_GROUND) != 0) && (absSpeedApprox > 0x600))
 	{
 		int absJump = d->jumpHeightPrev;
 		if (absJump < 0)
+		{
 			absJump = -absJump;
+		}
 
 		if (absJump > 0x1600)
 		{
@@ -495,7 +535,9 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 		struct ParticleEmitter *emSet = terrain->em_OddFrame;
 
 		if ((terrain->em_EvenFrame != NULL) && ((gGT->timer & 1) != 0))
+		{
 			emSet = terrain->em_EvenFrame;
+		}
 
 		VehEmitter_SetRotTransMatrix(m);
 		VehEmitter_Terrain_Ground(d, emSet);
@@ -511,31 +553,35 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 
 		engineVol += 0x14;
 		if (engineVol > 0xff)
+		{
 			engineVol = 0xff;
+		}
 	}
 	else
 	{
 		if (d->wallRubTimer == 0)
+		{
 			d->frameAgainstWall = 0;
+		}
 
 		engineVol -= 0x14;
 		if (engineVol < 0)
+		{
 			engineVol = 0;
+		}
 
 		if (engineVol == 0)
+		{
 			wallSound = -1;
+		}
 	}
 
 	d->engineVol = (u16)engineVol;
 
 	if (thread->modelIndex == DYNAMIC_PLAYER)
 	{
-		u32 flags = (u32)((s16)d->engineVol) << 16;
-
-		if ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-			flags |= 0x1008080;
-		else
-			flags |= 0x8080;
+		u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+		u32 flags = HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, (u32)(s16)d->engineVol, echo);
 
 		OtherFX_RecycleNew((u32 *)&d->driverAudioPtrs[2], wallSound, flags);
 	}
@@ -544,20 +590,21 @@ static void VehEmitter_TerrainEffects(struct Thread *thread, struct Driver *d, s
 static void VehEmitter_TerrainAudioAndFeedback(struct Thread *thread, struct Driver *d, struct Terrain *terrain, TerrainFlags terrainFlags, int absSpeedApprox)
 {
 	if (thread->modelIndex != DYNAMIC_PLAYER)
+	{
 		return;
+	}
 
 	int soundID = -1;
 
 	if (((d->actionsFlagSet & ACTION_TOUCH_GROUND) != 0) && ((terrainFlags & TERRAIN_FLAG_ONESHOT_GROUND_SOUND) == 0))
+	{
 		soundID = terrain->sound;
+	}
 
 	int vol = VehCalc_MapToRange(absSpeedApprox, 0, 5000, 0, 200);
-	int distort = VehCalc_MapToRange(absSpeedApprox, 0, 12000, 0x6c, 0xd2) << 8;
-
-	if ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-		distort |= 0x1000000;
-
-	OtherFX_RecycleNew((u32 *)&d->driverAudioPtrs[1], soundID, ((u32)vol << 16) | (u32)distort | 0x80);
+	int distort = VehCalc_MapToRange(absSpeedApprox, 0, 12000, 0x6c, 0xd2);
+	u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+	OtherFX_RecycleNew((u32 *)&d->driverAudioPtrs[1], soundID, HowlSfx_Pack(HOWL_SFX_LR_CENTER, (u32)distort, (u32)vol, echo));
 
 	if ((d->actionsFlagSet & ACTION_BOT) == 0)
 	{
@@ -571,10 +618,14 @@ static void VehEmitter_TerrainAudioAndFeedback(struct Thread *thread, struct Dri
 		{
 			int absJump = d->jumpHeightPrev;
 			if (absJump < 0)
+			{
 				absJump = -absJump;
+			}
 
 			if (absJump > 0x1600)
+			{
 				GAMEPAD_ShockForce1(d, 3, 0xff);
+			}
 		}
 	}
 }
@@ -595,7 +646,9 @@ static void VehEmitter_SkidmarkAudio(struct Thread *thread, struct Driver *d, st
 	{
 		int absTurn = d->simpTurnState;
 		if (absTurn < 0)
+		{
 			absTurn = -absTurn;
+		}
 
 		int vol = VehCalc_MapToRange(absSpeedApprox, 2000, 12000, 0x14, 0xaa);
 		int distort = VehCalc_MapToRange(absSpeedApprox, 2000, 12000, 0x92, 0x78);
@@ -604,21 +657,26 @@ static void VehEmitter_SkidmarkAudio(struct Thread *thread, struct Driver *d, st
 		{
 			int drift = d->turnWobbleAngle;
 			if (drift < 0)
+			{
 				drift = -drift;
+			}
 
 			distort -= drift;
 			if (distort < 0)
+			{
 				distort = 0;
+			}
 		}
 
 		distort += absTurn;
 		if (distort > 0x92)
+		{
 			distort = 0x92;
+		}
 
-		u32 flags = (u32)((vol + (absTurn >> 1)) << 16) | (u32)(distort << 8) | (0x80u - (((u32)(u8)d->simpTurnState << 24) >> 26));
-
-		if ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-			flags |= 0x1000000;
+		u32 lr = 0x80u - (((u32)(u8)d->simpTurnState << 24) >> 26);
+		u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+		u32 flags = HowlSfx_Pack(lr, (u32)distort, (u32)(vol + (absTurn >> 1)), echo);
 
 		OtherFX_RecycleNew((u32 *)&d->driverAudioPtrs[0], terrain->skidSound, flags);
 	}
@@ -633,19 +691,25 @@ static int VehEmitter_ShouldSkipExhaust(struct Thread *thread, struct Driver *d)
 	if (thread->modelIndex == DYNAMIC_ROBOT_CAR)
 	{
 		if ((gGT->timer & 3) != (d->driverID & 3))
+		{
 			return 1;
+		}
 	}
 	else
 	{
 		if (d->revEngineState == 2)
+		{
 			return 1;
+		}
 
 		u32 numPlyr = gGT->numPlyrCurrGame;
 
 		if (numPlyr > 1)
 		{
 			if (((numPlyr != 2) || ((gGT->timer & 1) != d->driverID)) && ((gGT->timer & 3) != d->driverID))
+			{
 				return 1;
+			}
 		}
 
 		if (d->failedBoostExhaustTimer == 0)
@@ -655,13 +719,17 @@ static int VehEmitter_ShouldSkipExhaust(struct Thread *thread, struct Driver *d)
 			if ((meterLeft < 0x81) || (((d->const_turboLowRoomWarning + 2) * 0x20) < meterLeft))
 			{
 				if (PROC_SearchForModel(thread->childThread, STATIC_TURBO_EFFECT) != NULL)
+				{
 					return 1;
+				}
 			}
 		}
 	}
 
 	if (d->failedBoostExhaustTimer != 0)
+	{
 		d->failedBoostExhaustTimer--;
+	}
 
 	return 0;
 }
@@ -704,18 +772,24 @@ void VehEmitter_DriverMain(struct Thread *thread, struct Driver *d)
 	d->skidmarkFrameIndex = (d->skidmarkFrameIndex - 1) & 7;
 
 	if (absSpeedApprox < 0)
+	{
 		absSpeedApprox = -absSpeedApprox;
+	}
 
 	VehEmitter_TerrainAudioAndFeedback(thread, d, terrain, terrainFlags, absSpeedApprox);
 	VehEmitter_TerrainEffects(thread, d, terrain, terrainFlags, absSpeedApprox);
 
 	if ((terrainFlags & TERRAIN_FLAG_FORCE_SKIDMARKS) != 0)
+	{
 		d->actionsFlagSet |= ACTION_BACK_SKID | ACTION_FRONT_SKID;
+	}
 
 	if ((d->matrixArray != 0) && (d->matrixArray < 4))
 	{
 		if (d->matrixArray == 1)
+		{
 			d->actionsFlagSet |= ACTION_BACK_SKID;
+		}
 
 		d->actionsFlagSet &= ~ACTION_FRONT_SKID;
 	}
@@ -723,7 +797,9 @@ void VehEmitter_DriverMain(struct Thread *thread, struct Driver *d)
 	VehEmitter_SkidmarkAudio(thread, d, terrain, terrainFlags, absSpeedApprox);
 
 	if (!VehEmitter_ShouldSkipExhaust(thread, d))
+	{
 		VehEmitter_ExhaustPair(thread, d);
+	}
 
 	if (d->burnTimer != 0)
 	{
@@ -732,17 +808,23 @@ void VehEmitter_DriverMain(struct Thread *thread, struct Driver *d)
 	}
 
 	if (d->invisibleTimer != 0)
+	{
 		thread->inst->alphaScale = 0x1000;
+	}
 
 	if ((d->kartState != KS_NORMAL) && (d->kartState != KS_DRIFTING))
+	{
 		d->actionsFlagSet &= ~ACTION_AIRBORNE;
+	}
 
 	if ((d->kartState == KS_ENGINE_REVVING) || (d->kartState == KS_MASK_GRABBED) || ((d->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
 	{
 		GAMEPAD_JogCon2(d, 0x27, 0);
 
 		if (d->turnWobbleAngle == 0)
+		{
 			return;
+		}
 
 		int jogValue = ((sdata->gGT->timer & 3) == 0) ? 0x27 : 0xf0;
 		GAMEPAD_JogCon2(d, jogValue, 0x100);
@@ -754,7 +836,9 @@ void VehEmitter_DriverMain(struct Thread *thread, struct Driver *d)
 		int jogValue = 0x12;
 
 		if ((d->simpTurnState < 0) || ((jogValue = 0x22), (d->simpTurnState > 0)))
+		{
 			GAMEPAD_JogCon1(d, jogValue, 0x20);
+		}
 	}
 
 	GAMEPAD_JogCon2(d, 0, 0);

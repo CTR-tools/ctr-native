@@ -17,12 +17,16 @@ char *CS_Credits_GetNextString(char *str)
 	while (c != '\0')
 	{
 		if (c == '\r')
+		{
 			return str + 1;
+		}
 		str++;
 		c = *str;
 	}
 	if (*str != '\r')
+	{
 		return 0;
+	}
 	return str + 1;
 }
 
@@ -55,7 +59,9 @@ void CS_Credits_AnimateCreditGhost(struct Instance *dst, struct Instance *src, i
 
 	dst->flags &= ~0x80;
 	if ((int)dst->model == 0)
+	{
 		dst->flags |= 0x80;
+	}
 
 	dst->alphaScale = (index + 1) * 630;
 
@@ -235,7 +241,9 @@ int CS_Credits_IsTextValid(void)
 	struct CreditsObj *creditsObj = &creditsBSS.creditsObj;
 
 	if (creditsObj->epilogue_topString != 0)
+	{
 		return 0;
+	}
 
 	creditsObj->countdown = 360;
 	return 1;
@@ -293,7 +301,9 @@ int CS_Credits_NewCreditGhosts(void)
 	for (i = 0; i < 5; i++)
 	{
 		if (creditsBSS.creditsObj.creditGhostModel[i] != model)
+		{
 			return 0;
+		}
 	}
 
 	return 1;
@@ -303,7 +313,9 @@ int CS_Credits_NewCreditGhosts(void)
 static void CS_Credits_RestorePodiumAudioForNativeHandoff(void)
 {
 	if ((D233.CutsceneManipulatesAudio == 0) || (howl_VolumeGet(0) != 0) || (D233.FXVolumeBackup == 0))
+	{
 		return;
+	}
 
 	// NOTE(aalhendi): Boss scripts can mute HOWL with opcode 0x30; normal
 	// podium exits restore it in CS_DestroyPodium_StartDriving. Credits do not
@@ -358,7 +370,9 @@ void CS_Credits_End(void)
 void CS_Credits_DrawNames(struct CreditsObj *co)
 {
 	if (co->credits_topString == 0)
+	{
 		return;
+	}
 
 	co->credits_posY--;
 
@@ -407,9 +421,13 @@ void CS_Credits_DrawNames(struct CreditsObj *co)
 		s16 strLen;
 
 		if (nextStr == 0)
+		{
 			strLen = strlen(str);
+		}
 		else
+		{
 			strLen = (s16)(nextStr - str) - 1;
+		}
 
 		int clampedY = posY;
 		int fadeAmount = 20;
@@ -417,7 +435,9 @@ void CS_Credits_DrawNames(struct CreditsObj *co)
 		if (clampedY < 0x83)
 		{
 			if (clampedY < 0x14)
+			{
 				fadeAmount = clampedY;
+			}
 		}
 		else
 		{
@@ -458,7 +478,9 @@ void CS_Credits_DrawNames(struct CreditsObj *co)
 		posY += 20;
 
 		if (nextStr == 0)
+		{
 			return;
+		}
 
 		str = nextStr;
 	}
@@ -468,7 +490,9 @@ void CS_Credits_DrawNames(struct CreditsObj *co)
 void CS_Credits_DrawEpilogue(struct CreditsObj *co)
 {
 	if (co->epilogue_topString == 0)
+	{
 		return;
+	}
 
 	co->epilogueCount200--;
 
@@ -480,7 +504,9 @@ void CS_Credits_DrawEpilogue(struct CreditsObj *co)
 	}
 
 	if (co->epilogue_topString == 0)
+	{
 		return;
+	}
 
 	s16 timeRemaining = co->epilogueCount200;
 	s16 fadeAmount = 20;

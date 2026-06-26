@@ -44,7 +44,9 @@ void PlayLevel_UpdateLapStats(void)
 		currDriver = gGT->drivers[iVar10];
 
 		if (currDriver == NULL)
+		{
 			continue;
+		}
 
 		// before and after
 		distToFinish_prev = currDriver->distanceToFinish_curr;
@@ -55,11 +57,15 @@ void PlayLevel_UpdateLapStats(void)
 
 		// clamp minimum
 		if (drivenBackwards < 0)
+		{
 			drivenBackwards = 0;
+		}
 
 		// clamp to max
 		else if (drivenBackwards > 1000)
+		{
 			drivenBackwards = 1000;
+		}
 
 		// update distance driven backwards
 		currDriver->distanceDrivenBackwards = drivenBackwards;
@@ -102,7 +108,7 @@ void PlayLevel_UpdateLapStats(void)
 				    // If you're in Arcade, or
 				    // If you're in Adventure, or
 				    // If you're in Time Trial
-				    ((gGT->gameMode1 & 0x4a0000) != 0) &&
+				    ((gGT->gameMode1 & GAME_MODE_SAVE_LAP_TIME_MASK) != 0) &&
 
 				    // player of any kind
 				    (currDriver->instSelf->thread->modelIndex == DYNAMIC_PLAYER))
@@ -141,7 +147,9 @@ void PlayLevel_UpdateLapStats(void)
 
 			// If did not just finish race
 			if (lapCounter != gGT->numLaps)
+			{
 				goto LAB_800418b4;
+			}
 
 			// === If did just finish race ===
 
@@ -152,7 +160,7 @@ void PlayLevel_UpdateLapStats(void)
 				// === Run on first frame that race ends ===
 
 				// if total event hasn't finished (gGT->gameMode1)
-				if ((gGT->gameMode1 & 0x200000) == 0)
+				if ((gGT->gameMode1 & END_OF_RACE) == 0)
 				{
 					// set driver placement rank, based on
 					// how many drivers have finished the race
@@ -281,16 +289,22 @@ void PlayLevel_UpdateLapStats(void)
 			currDriver = gGT->drivers[iVar10];
 
 			if (currDriver == 0)
+			{
 				continue;
+			}
 
 			if (currDriver->driverRank != -1)
+			{
 				continue;
+			}
 
 			// driver lap index
 			iVar4 = currDriver->lapIndex;
 
 			if ((currDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
+			{
 				iVar4 -= 1;
+			}
 
 			if (
 			    // new highest lap
@@ -343,7 +357,9 @@ void PlayLevel_UpdateLapStats(void)
 		currDriver = gGT->drivers[iVar10];
 
 		if (currDriver == 0)
+		{
 			continue;
+		}
 
 		// should be impossible to be -1 here
 		if (currDriver->driverRank > -1)
@@ -358,7 +374,9 @@ void PlayLevel_UpdateLapStats(void)
 		currDriver = gGT->drivers[iVar10];
 
 		if (currDriver == NULL)
+		{
 			continue;
+		}
 
 		int currRank = currDriver->driverRank;
 
@@ -374,7 +392,9 @@ void PlayLevel_UpdateLapStats(void)
 
 	// If already finished race
 	if ((gGT->gameMode1 & END_OF_RACE) != 0)
+	{
 		return;
+	}
 
 	int numPlyr = gGT->numPlyrCurrGame;
 
@@ -400,10 +420,14 @@ void PlayLevel_UpdateLapStats(void)
 			currDriver = gGT->drivers[currRank];
 
 			if (currDriver == NULL)
+			{
 				continue;
+			}
 
 			if ((currDriver->actionsFlagSet & ACTION_RACE_FINISHED) != 0)
+			{
 				continue;
+			}
 
 			currDriver->actionsFlagSet |= ACTION_RACE_FINISHED;
 
@@ -412,7 +436,9 @@ void PlayLevel_UpdateLapStats(void)
 
 			// skip AIs
 			if ((currDriver->actionsFlagSet & ACTION_BOT) != 0)
+			{
 				continue;
+			}
 
 			// === VS Mode ===
 

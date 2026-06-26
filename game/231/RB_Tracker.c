@@ -19,7 +19,9 @@ struct Thread *RB_GetThread_ClosestTracker(struct Driver *d)
 		struct TrackerWeapon *tw = currThread->object;
 
 		if (tw->driverTarget != d)
+		{
 			continue;
+		}
 
 		struct Instance *dInst = d->instSelf;
 		struct Instance *currInst = currThread->inst;

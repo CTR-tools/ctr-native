@@ -91,7 +91,9 @@ static inline void *CTR_PsyqMemmove(void *dest, const void *src, s32 count)
 	// immediately for signed lengths <= 0. Host libc takes size_t, so native
 	// must preserve the signed PSYQ contract for ASM-verified game code.
 	if (count <= 0)
+	{
 		return dest;
+	}
 
 	return memmove(dest, src, (size_t)count);
 }

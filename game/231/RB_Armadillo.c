@@ -86,9 +86,13 @@ void RB_Armadillo_ThTick_Rolling(struct Thread *t)
 		armObj->timeRolling += 0x20;
 
 		if (armObj->direction == 0)
+		{
 			armObj->distFromSpawn++;
+		}
 		else
+		{
 			armObj->distFromSpawn--;
+		}
 
 		armInst->matrix.t[0] += armObj->velX;
 		armInst->matrix.t[2] += armObj->velZ;
@@ -140,7 +144,9 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	struct Thread *t;
 
 	if (inst->thread != 0)
+	{
 		return;
+	}
 
 	t = PROC_BirthWithObject(
 	    // creation flags
@@ -152,7 +158,9 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	);
 
 	if (t == 0)
+	{
 		return;
+	}
 	inst->thread = t;
 	t->inst = inst;
 	t->funcThCollide = (void (*)(struct Thread *))RB_Armadillo_ThCollide;
@@ -181,7 +189,9 @@ void RB_Armadillo_LInB(struct Instance *inst)
 	armObj->velZ = inst->matrix.m[2][2] >> 7;
 
 	if (sdata->gGT->level1->ptrSpawnType1->count <= 0)
+	{
 		return;
+	}
 
 	// puts armadillos on separate cycles
 	pointers = ST1_GETPOINTERS(sdata->gGT->level1->ptrSpawnType1);

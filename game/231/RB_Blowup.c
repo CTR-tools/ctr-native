@@ -31,7 +31,9 @@ void RB_Blowup_ProcessBucket(struct Thread *thread)
 			struct Instance *explosionInst = (struct Instance *)(uintptr_t)blowup[1];
 
 			if (shockwaveInst == NULL || explosionInst == NULL)
+			{
 				continue;
+			}
 
 			RB_Blowup_CopyDrawState(explosionInst, shockwaveInst, i);
 		}
@@ -45,7 +47,9 @@ static void RB_Blowup_UpdateSlot(int *slot)
 
 	inst = (struct Instance *)*slot;
 	if (inst == NULL)
+	{
 		return;
+	}
 
 	nextFrame = inst->animFrame + 1;
 	if (nextFrame < INSTANCE_GetNumAnimFrames(inst, 0))
@@ -68,7 +72,9 @@ void RB_Blowup_ThTick(struct Thread *t)
 	RB_Blowup_UpdateSlot(&blowup[0]);
 
 	if ((blowup[1] == 0) && (blowup[0] == 0))
+	{
 		t->flags |= THREAD_FLAG_DEAD;
+	}
 
 	ThTick_FastRET(t);
 }

@@ -5,7 +5,9 @@
 void DecalHUD_DrawPolyFT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, uint32_t *ot, char transparency, s16 scale)
 {
 	if (!icon)
+	{
 		return;
+	}
 
 	POLY_FT4 *p = (POLY_FT4 *)primMem->cursor;
 	addPolyFT4(ot, p);
@@ -35,7 +37,9 @@ void DecalHUD_DrawWeapon(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *
 {
 #if BUILD > SepReview
 	if (!icon)
+	{
 		return;
+	}
 #endif
 
 	POLY_FT4 *p = (POLY_FT4 *)primMem->cursor;
@@ -96,7 +100,9 @@ void DecalHUD_DrawPolyGT4(struct Icon *icon, s16 posX, s16 posY, struct PrimMem 
 {
 #if BUILD > SepReview
 	if (!icon)
+	{
 		return;
+	}
 #endif
 
 	// setInt32RGB4 needs to go before addPolyGT4
@@ -189,7 +195,9 @@ void DecalHUD_Arrow2D(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *pri
 	{
 		iVar10 = (int)sVar8;
 		if ((rot & 0x800) == 0)
+		{
 			goto LAB_800232d8;
+		}
 		iVar12 = -iVar13;
 	}
 	else

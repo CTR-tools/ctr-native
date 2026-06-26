@@ -242,10 +242,14 @@ static void Torch_LoadRadiusVectors(u32 radius)
 static s32 Torch_ClampSignedCoord(s32 value, u16 max)
 {
 	if (value < 0)
+	{
 		return 0;
+	}
 
 	if ((s32)(value - (s32)max) >= 0)
+	{
 		return max;
+	}
 
 	return value;
 }
@@ -255,7 +259,9 @@ static u16 Torch_ClampPackedCoord(u16 coord, u16 max)
 	u32 value = coord;
 
 	if ((s32)(value - max) >= 0)
+	{
 		value = max;
+	}
 
 	return (u16)value;
 }
@@ -452,13 +458,17 @@ static int Torch_IsCardVisible(const struct TorchCardRegs *regs, u32 screenSize)
 	u32 bounds;
 
 	if ((((s32)regs->top >> 16) - 0x18) <= 0)
+	{
 		return 0;
+	}
 
 	bounds = ~((regs->left - screenSize) | (regs->right - screenSize) | (regs->top - screenSize) | (regs->bottom - screenSize)) |
 	         (regs->left & regs->right & regs->top & regs->bottom);
 
 	if ((s32)bounds < 0)
+	{
 		return 0;
+	}
 
 	return (s32)(bounds << 16) >= 0;
 }
@@ -616,9 +626,13 @@ void Torch_Main(void *particleList_heatWarp, struct PushBuffer *pb, struct PrimM
 
 							otIndex = (viewZ >> 6) + Torch_ReadS8(particle, 0x18);
 							if (otIndex < 0)
+							{
 								otIndex = 0;
+							}
 							else if ((otIndex - 0x400) >= 0)
+							{
 								otIndex = 0x3ff;
+							}
 
 							ot = (uint32_t *)(void *)((char *)otBase + (otIndex << 2));
 							sxy0 = MFC2(12);
@@ -633,11 +647,15 @@ void Torch_Main(void *particleList_heatWarp, struct PushBuffer *pb, struct PrimM
 				particlesLeft--;
 				particle = particle->next;
 				if (particlesLeft < 1)
+				{
 					goto done;
+				}
 			}
 
 			if (playerPassesLeft <= 0)
+			{
 				break;
+			}
 
 			playerPassesLeft--;
 			pb++;
