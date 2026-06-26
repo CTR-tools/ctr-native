@@ -36,7 +36,7 @@ struct RectMenu g_configMenu = {
 static void MM_MenuProc_Config(struct RectMenu *menu)
 {
 	struct GameTracker *gGT = sdata->gGT;
-	uint32_t *ot = &gGT->backBuffer->otMem.uiOT[3];
+	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
 	char buf[32];
 	int i;
@@ -92,21 +92,9 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		}
 	}
 
-	// Draw background box
-	RECT bg = {0x46, 0x28, 0x1D4, 0x9C};
-	RECTMENU_DrawInnerRect(&bg, 4, ot);
-
-	// Draw menu title
+	// Draw menu title (text first so it renders on top)
 	DecalFont_DrawLineOT(sdata->lngStrings[LNG_OPTIONS],
-		0x100, 0x3C, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
-
-	// Draw separator line
-	{
-		RECT sep = {0x64, 0x4E, 0x198, 2};
-		Color sepColor;
-		sepColor.self = sdata->battleSetup_Color_UI_1;
-		RECTMENU_DrawOuterRect_Edge(&sep, sepColor, 0x20, ot);
-	}
+		0x100, 0x28, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 
 	// Draw section headers and config rows
 	static char *s_sectionLabels[] = {
@@ -115,24 +103,20 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		"Vehicle",
 	};
 
-	int labelX = 0x72;
-	int valueX = 0x1E0;
-	int sectionX = 0x5C;
+	int labelX = 0x38;
+	int valueX = 0x1DC;
+	int sectionX = 0x24;
+
+	int sectionStartY = 0x42;
+	int sectionSpacing = 0x22;
 
 	for (i = 0; i < 3; i++)
 	{
-		int sectionY = 0x54 + i * 0x24;
+		int sectionY = sectionStartY + i * sectionSpacing;
 		int rowY = sectionY + 0x0C;
 
 		// Section header
 		DecalFont_DrawLineOT(s_sectionLabels[i], sectionX, sectionY, FONT_SMALL, PERIWINKLE, ot);
-
-		// Highlight bar on selected row
-		if (i == menu->rowSelected)
-		{
-			RECT sel = {0x50, rowY - 2, 0x1C0, 0x10};
-			CTR_Box_DrawClearBox(&sel, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
-		}
 
 		switch (i)
 		{
@@ -154,4 +138,28 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 				break;
 		}
 	}
+
+	// Highlight bar on selected row (drawn after text, rendered between text and separator)
+	for (i = 0; i < 3; i++)
+	{
+		if (i == menu->rowSelected)
+		{
+			int rowY = sectionStartY + i * sectionSpacing + 0x0C;
+			RECT sel = {0x18, rowY - 2, 0x1D0, 0x10};
+			CTR_Box_DrawClearBox(&sel, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
+			break;
+		}
+	}
+
+	// Separator line (drawn after highlight, rendered between highlight and box)
+	{
+		RECT sep = {0x20, 0x3C, 0x1C0, 2};
+		Color sepColor;
+		sepColor.self = sdata->battleSetup_Color_UI_1;
+		RECTMENU_DrawOuterRect_Edge(&sep, sepColor, 0x20, ot);
+	}
+
+	// Background box last (rendered behind everything)
+	RECT bg = {0x10, 0x10, 0x1E0, 0xA0};
+	RECTMENU_DrawInnerRect(&bg, 4, ot);
 }
