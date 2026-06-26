@@ -53,12 +53,12 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	// Navigation (D-pad up/down, wrap around)
 	if ((pad->buttonsTapped & BTN_UP) != 0)
 	{
-		menu->rowSelected = (menu->rowSelected > 0) ? menu->rowSelected - 1 : 2;
+		menu->rowSelected = (menu->rowSelected > 0) ? menu->rowSelected - 1 : numConfigOptions - 1;
 		OtherFX_Play(0, 1);
 	}
 	if ((pad->buttonsTapped & BTN_DOWN) != 0)
 	{
-		menu->rowSelected = (menu->rowSelected < 2) ? menu->rowSelected + 1 : 0;
+		menu->rowSelected = (menu->rowSelected < numConfigOptions - 1) ? menu->rowSelected + 1 : 0;
 		OtherFX_Play(0, 1);
 	}
 
@@ -70,6 +70,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		{
 			case 0: g_config.skipIntro ^= 1; break;
 			case 1: g_config.skipHints ^= 1; break;
+			case 3: g_config.unlockAllCharacters ^=1; break;
 			default: break;
 		}
 	}
@@ -101,6 +102,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		"General",
 		"Adventure",
 		"Vehicle",
+		"Unlocks",
 	};
 
 	int labelX = 0x38;
@@ -110,7 +112,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	int sectionStartY = 0x3C;
 	int sectionSpacing = 0x1A;
 
-	for (i = 0; i < 3; i++)
+	for (i = 0; i < numConfigSections; i++)
 	{
 		int sectionY = sectionStartY + i * sectionSpacing;
 		int rowY = sectionY + 0x0A;
@@ -136,11 +138,15 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 				DecalFont_DrawLineOT(buf,
 					valueX, rowY, FONT_SMALL, JUSTIFY_RIGHT | WHITE, ot);
 				break;
+			case 3:
+				DecalFont_DrawLineOT("Unlock All Characters", labelX, rowY, FONT_SMALL, ORANGE, ot);
+				DecalFont_DrawLineOT(g_config.unlockAllCharacters ? "ON" : "OFF", 
+					valueX, rowY, FONT_SMALL, JUSTIFY_RIGHT | WHITE, ot);
 		}
 	}
 
 	// Highlight bar on selected row (drawn after text, rendered between text and separator)
-	for (i = 0; i < 3; i++)
+	for (i = 0; i < numConfigSections; i++)
 	{
 		if (i == menu->rowSelected)
 		{

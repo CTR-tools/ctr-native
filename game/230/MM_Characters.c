@@ -65,9 +65,10 @@ int MM_Characters_GetNextDriver(s16 dpad, char characterID)
 
 	if (
 	    // if desired driver is not unlocked by default
-	    (unlocked != -1) &&
+	    ((unlocked != -1) &&
 
-	    (((sdata->gameProgress.unlocks[unlocked >> 5] >> (unlocked & 0x1f)) & 1) == 0))
+	    (((sdata->gameProgress.unlocks[unlocked >> 5] >> (unlocked & 0x1f)) & 1) == 0)) &&
+		!g_config.unlockAllCharacters) 
 	{
 		// set new driver to the driver you already have
 		newDriver = characterID;
@@ -1039,7 +1040,8 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from 4-byte variable that handles all rewards
 		    // also the variable written by cheats
-		    (((sdata->gameProgress.unlocks[iVar8 >> 5] >> (iVar8 & 0x1f)) & 1) != 0))
+		    (((sdata->gameProgress.unlocks[iVar8 >> 5] >> (iVar8 & 0x1f)) & 1) != 0) ||
+			g_config.unlockAllCharacters) 
 		{
 			iconColor = D230.characterSelect_NeutralColor;
 
@@ -1157,7 +1159,8 @@ dontDrawSelectCharacter:
 		    // if character is unlocked
 		    // from 4-byte variable that handles all rewards
 		    // also the variable written by cheats
-		    ((sdata->gameProgress.unlocks[iVar8 >> 5] >> (iVar8 & 0x1fU) & 1) != 0))
+		    ((sdata->gameProgress.unlocks[iVar8 >> 5] >> (iVar8 & 0x1fU) & 1) != 0) ||
+			g_config.unlockAllCharacters) 
 		{
 			iVar8 = (int)&D230.ptrTransitionMeta[i];
 
