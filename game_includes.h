@@ -262,6 +262,7 @@
 #include "game/230/D230.c"
 #include "game/230/MM_Battle.c"
 #include "game/230/MM_MenuFlow.c"
+#include "game/230/MM_ConfigMenu.c"
 #include "game/230/MM_Title.c"
 #include "game/230/MM_CheatCodes.c"
 #include "game/230/MM_Characters.c"

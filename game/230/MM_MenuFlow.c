@@ -1,5 +1,9 @@
 #include <common.h>
 
+extern struct MenuRow s_rowsMainMenuBasicConfig[];
+extern struct MenuRow s_rowsMainMenuWithSBConfig[];
+extern struct RectMenu g_configMenu;
+
 // NOTE(aalhendi): ASM-verified against retail 230 0x800abaf0-0x800abcac.
 u8 MM_TransitionInOut(struct TransitionMeta *meta, int framesPassed, int numFrames)
 {
@@ -55,7 +59,9 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 
 	// if scrapbook is unlocked, change "rows" to extended array
 	if (CHECK_ADV_BIT(sdata->gameProgress.unlocks, GAME_UNLOCK_BIT_SCRAPBOOK) != 0)
-		mainMenu->rows = &D230.rowsMainMenuWithScrapbook[0];
+		mainMenu->rows = &s_rowsMainMenuWithSBConfig[0];
+	else
+		mainMenu->rows = &s_rowsMainMenuBasicConfig[0];
 
 	MM_ParseCheatCodes();
 	MM_ToggleRows_Difficulty();
@@ -256,6 +262,13 @@ void MM_MenuProc_Main(struct RectMenu *mainMenu)
 		// Leave main menu hierarchy
 		D230.MM_State = 2;
 
+		return;
+	}
+
+	// Config / Options
+	if (choose == 0x0E)
+	{
+		sdata->ptrDesiredMenu = &g_configMenu;
 		return;
 	}
 }
@@ -680,3 +693,5 @@ void MM_JumpTo_Scrapbook(void)
 
 	MM_Scrapbook_Init();
 }
+
+

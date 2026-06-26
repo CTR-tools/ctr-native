@@ -6,11 +6,12 @@
 typedef struct {
     bool skipIntro;         // false = off (default), true = skip all intros
     bool skipHints;         // false = off (default), true = skip all mask hints in adventure mode
-    int speedMultiplier;    // percent, 100 = 1.0x (default)
+    int speedMultiplier;    // percent, 10%..200%, 100 = 1.0x (default)
 } NativeConfig;
 
 extern NativeConfig g_config;
 
 void NativeConfig_Load(void);
+void NativeConfig_Save(void);
 
 #endif

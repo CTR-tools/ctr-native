@@ -56,6 +56,7 @@ void NativeConfig_Load(void)
     }
 
     printf("[Config] config.ini opened OK\n");
+    printf("[Config] speedMultiplier DEFAULT = %d\n", g_config.speedMultiplier);
 
 	char line[256];
 	char section[64] = "";
@@ -112,4 +113,22 @@ void NativeConfig_Load(void)
 
 	fclose(f);
 
+}
+
+void NativeConfig_Save(void)
+{
+	FILE *f = fopen("build/config.ini", "w");
+	if (!f)
+		return;
+
+	fprintf(f, "[General]\n");
+	fprintf(f, "skip_intro = %s\n", g_config.skipIntro ? "true" : "false");
+	fprintf(f, "\n");
+	fprintf(f, "[Adventure]\n");
+	fprintf(f, "skip_hints = %s\n", g_config.skipHints ? "true" : "false");
+	fprintf(f, "\n");
+	fprintf(f, "[Vehicle]\n");
+	fprintf(f, "speed_stat_multiplier = %d\n", g_config.speedMultiplier);
+
+	fclose(f);
 }
