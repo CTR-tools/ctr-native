@@ -44,6 +44,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	// Exit (Triangle / Start)
 	if ((pad->buttonsTapped & (BTN_TRIANGLE | BTN_START)) != 0)
 	{
+		OtherFX_Play(2, 1);
 		NativeConfig_Save();
 		sdata->ptrDesiredMenu = &D230.menuMainMenu;
 		return;
@@ -51,13 +52,20 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 
 	// Navigation (D-pad up/down, wrap around)
 	if ((pad->buttonsTapped & BTN_UP) != 0)
+	{
 		menu->rowSelected = (menu->rowSelected > 0) ? menu->rowSelected - 1 : 2;
+		OtherFX_Play(0, 1);
+	}
 	if ((pad->buttonsTapped & BTN_DOWN) != 0)
+	{
 		menu->rowSelected = (menu->rowSelected < 2) ? menu->rowSelected + 1 : 0;
+		OtherFX_Play(0, 1);
+	}
 
 	// Row-specific actions
 	if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0)
 	{
+		OtherFX_Play(1, 1);
 		switch (menu->rowSelected)
 		{
 			case 0: g_config.skipIntro ^= 1; break;
