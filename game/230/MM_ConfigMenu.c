@@ -94,7 +94,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 
 	// Draw menu title (text first so it renders on top)
 	DecalFont_DrawLineOT(sdata->lngStrings[LNG_OPTIONS],
-		0x100, 0x28, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		0x100, 0x18, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 
 	// Draw section headers and config rows
 	static char *s_sectionLabels[] = {
@@ -107,13 +107,13 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	int valueX = 0x1DC;
 	int sectionX = 0x24;
 
-	int sectionStartY = 0x42;
-	int sectionSpacing = 0x22;
+	int sectionStartY = 0x3C;
+	int sectionSpacing = 0x1A;
 
 	for (i = 0; i < 3; i++)
 	{
 		int sectionY = sectionStartY + i * sectionSpacing;
-		int rowY = sectionY + 0x0C;
+		int rowY = sectionY + 0x0A;
 
 		// Section header
 		DecalFont_DrawLineOT(s_sectionLabels[i], sectionX, sectionY, FONT_SMALL, PERIWINKLE, ot);
@@ -144,7 +144,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	{
 		if (i == menu->rowSelected)
 		{
-			int rowY = sectionStartY + i * sectionSpacing + 0x0C;
+			int rowY = sectionStartY + i * sectionSpacing + 0x0A;
 			RECT sel = {0x18, rowY - 2, 0x1D0, 0x10};
 			CTR_Box_DrawClearBox(&sel, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot);
 			break;
@@ -153,13 +153,13 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 
 	// Separator line (drawn after highlight, rendered between highlight and box)
 	{
-		RECT sep = {0x20, 0x3C, 0x1C0, 2};
+		RECT sep = {0x20, 0x2C, 0x1C0, 2};
 		Color sepColor;
 		sepColor.self = sdata->battleSetup_Color_UI_1;
 		RECTMENU_DrawOuterRect_Edge(&sep, sepColor, 0x20, ot);
 	}
 
 	// Background box last (rendered behind everything)
-	RECT bg = {0x10, 0x10, 0x1E0, 0xA0};
+	RECT bg = {0x10, 4, 0x1E0, 0xCE};
 	RECTMENU_DrawInnerRect(&bg, 4, ot);
 }
