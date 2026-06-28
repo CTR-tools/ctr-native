@@ -1679,8 +1679,31 @@ static struct RenderBucketSplitState RenderBucket_BuildSplitState(struct Instanc
 #ifdef CTR_NATIVE
 	if (matrixState->scratch76 == 0)
 	{
-		// NOTE(aalhendi): Retail reaches raw split-line divs by this value;
-		// native preserves stability for degenerate matrix input.
+		// NOTE(aalhendi): Retail reaches raw MIPS divs by this value. PS1 div
+		// by zero writes HI/LO instead of trapping; see PSX-SPX CPU
+		// Specifications:
+		// https://psx-spx.consoledev.net/cpuspecifications/#cpu-alu-opcodes
+		// Native cannot execute host C division by zero, so preserve the retail
+		// reflective zero-scale path instead of selecting the special mirrored
+		// handler with stale MVP state.
+		if ((*instFlags & REFLECTIVE) != 0)
+		{
+			*instFlags &= ~PUSHBUFFER_EXISTS;
+			split.scratch6c = -257;
+		}
+
+		if (RenderBucket_NeedsCustomMatrix(*instFlags, mh) != 0)
+		{
+			RenderBucket_BuildCustomMatrix(idpp, *instFlags, matrixState, projectionMvp);
+		}
+		else if ((*instFlags & REFLECTIVE) != 0)
+		{
+			RenderBucket_BuildSplitViewMvp(pb, idpp, projectionMvp);
+		}
+		else
+		{
+			RenderBucket_BuildMvp(pb, idpp, projectionMvp);
+		}
 		return split;
 	}
 #endif
