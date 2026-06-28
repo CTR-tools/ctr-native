@@ -4,6 +4,7 @@
 #include <platform/native_str.h>
 #include <psx/libgpu.h>
 
+
 #include <stdio.h>
 #include <string.h>
 
@@ -33,6 +34,10 @@ enum NativeSTRFormat
 	NATIVE_STR_FORMAT_CD_STREAM,
 };
 
+//read str track preview files from bigfile.big directly like retail
+//ideally i think we should use native_assets.c macro or something more global -penta3
+#define NATIVE_STR_BIGFILE_PATH             "BIGFILE.BIG"
+
 struct NativeSTRState
 {
 	FILE *file;
@@ -40,6 +45,7 @@ struct NativeSTRState
 	s32 format;
 	s32 loop;
 	s32 bigfileIndex;
+	u32 baseOffset;
 	s32 frameIndex;
 	s32 frameLimit;
 	s32 frameSize;
@@ -579,7 +585,7 @@ internal s32 NativeSTR_ReadNextFrame(void)
 				return 0;
 			}
 
-			rewind(s_str.file);
+			fseek(s_str.file, (long)s_str.baseOffset, SEEK_SET);
 			s_str.frameIndex = 0;
 		}
 
@@ -594,13 +600,16 @@ internal s32 NativeSTR_ReadNextFrame(void)
 			return 0;
 		}
 
-		rewind(s_str.file);
+		fseek(s_str.file, (long)s_str.baseOffset, SEEK_SET);
 		s_str.frameIndex = 0;
 	}
 
 	return 0;
 }
 
+/*
+//Retail does not need "bigfile.txt" to read track previews, it read throught bigfile.bigfile
+//keep this commented since is unused
 internal s32 NativeSTR_ResolveBigfilePath(s32 bigfileIndex, char *dst, s32 dstCount)
 {
 	FILE *file;
@@ -648,33 +657,34 @@ internal s32 NativeSTR_ResolveBigfilePath(s32 bigfileIndex, char *dst, s32 dstCo
 	fclose(file);
 	return 0;
 }
+*/
 
-s32 NativeSTR_StartTrackPreview(s32 bigfileIndex, s32 frameCount)
+s32 NativeSTR_StartTrackPreview(s32 bigfileSector, s32 frameCount)
 {
-	char path[NATIVE_STR_PATH_MAX];
-
-	if ((s_str.active != 0) && (s_str.bigfileIndex == bigfileIndex))
+	if ((s_str.active != 0) && (s_str.bigfileIndex == bigfileSector))
 	{
 		return 1;
 	}
 
 	NativeSTR_Stop();
 
-	if (NativeSTR_ResolveBigfilePath(bigfileIndex, path, sizeof(path)) == 0)
+	s_str.file = NativeAssets_Open(NATIVE_STR_BIGFILE_PATH, "rb");
+	if (s_str.file == NULL)
 	{
 		return 0;
 	}
 
-	s_str.file = fopen(path, "rb");
-	if (s_str.file == NULL)
+	s_str.baseOffset = (u32)bigfileSector * NATIVE_STR_EXTRACTED_SECTOR_SIZE;
+	if (fseek(s_str.file, (long)s_str.baseOffset, SEEK_SET) != 0)
 	{
+		NativeSTR_Stop();
 		return 0;
 	}
 
 	s_str.active = 1;
 	s_str.format = NATIVE_STR_FORMAT_EXTRACTED;
 	s_str.loop = 1;
-	s_str.bigfileIndex = bigfileIndex;
+	s_str.bigfileIndex = bigfileSector;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = frameCount;
 	return 1;
@@ -701,6 +711,7 @@ s32 NativeSTR_StartScrapbook(void)
 	s_str.bigfileIndex = -1;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = NATIVE_STR_SCRAPBOOK_FRAME_COUNT;
+	s_str.baseOffset = 0;
 	return 1;
 }
 
