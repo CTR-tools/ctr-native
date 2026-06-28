@@ -501,19 +501,35 @@ struct OverlayDATA_230
 
 	// 800b4dcc - UsaRetail
 	// 800b55a8 - EurRetail
+#ifdef CTR_NATIVE
+	struct CharacterSelectMeta csm_1P2P_limited[0x10];
+#else
 	struct CharacterSelectMeta csm_1P2P_limited[0xF];
+#endif
 
 	// 800b4e80 - UsaRetail
 	// 800b565c - EurRetail
+#ifdef CTR_NATIVE
+	struct CharacterSelectMeta csm_1P2P[0x10];
+#else
 	struct CharacterSelectMeta csm_1P2P[0xF];
+#endif
 
 	// 800b4f34 - UsaRetail
 	// 800b5710 - EurRetail
+#ifdef CTR_NATIVE
+	struct CharacterSelectMeta csm_3P[0x10];
+#else
 	struct CharacterSelectMeta csm_3P[0xF];
+#endif
 
 	// 800b4fe8 - UsaRetail
 	// 800b57c4 - EurRetail
+#ifdef CTR_NATIVE
+	struct CharacterSelectMeta csm_4P[0x10];
+#else
 	struct CharacterSelectMeta csm_4P[0xF];
+#endif
 
 	// 800b509C - UsaRetail
 	// 800b5878 - EurRetail
@@ -532,18 +548,22 @@ struct OverlayDATA_230
 	// 800b50D4 - UsaRetail
 	// 800b58b0 - EurRetail
 	// 1P/2P mode
+#ifdef CTR_NATIVE
+	struct TransitionMeta transitionMeta_csm_1P2P[0x16];
+#else
 	struct TransitionMeta transitionMeta_csm_1P2P[0x15];
-
-	// 0x2 byte padding
 	s16 padding800b51A6;
+#endif
 
 	// 3P mode
 	// 800b51A8 - UsaRetail
 	// 800b5984 - EurRetail
+#ifdef CTR_NATIVE
+	struct TransitionMeta transitionMeta_csm_3P[0x16];
+#else
 	struct TransitionMeta transitionMeta_csm_3P[0x15];
-
-	// 0x2 byte padding
 	s16 padding800B527A;
+#endif
 
 	// 4P mode
 	// 800b527c - UsaRetail

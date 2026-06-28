@@ -20,3 +20,7 @@ compile_commands.json
 *~
 *.log
 memcards/
+
+ctr-native-beta-6_1-linux-x86/
+
+ctr_native
