@@ -45,7 +45,9 @@ void VehPhysGeneral_PhysAngular(struct Thread *thread, struct Driver *driver)
 			driver->forwardDir = -1;
 		}
 		if (-1 < speedApprox)
+		{
 			goto LAB_8005fd74;
+		}
 	}
 	else
 	{
@@ -858,7 +860,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 
 		// 5th Itemset (Battle Mode Default Itemset, 0x34de)
 		if (gGT->battleSetup.enabledWeapons == 0x34de)
+		{
 			itemSet = ITEMSET_BattleDefault;
+		}
 	}
 
 	// Not in Battle Mode
@@ -896,7 +900,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 
 				// if first place
 				if (driver->driverRank == 0)
+				{
 					goto Itemset1;
+				}
 
 				// default (2nd or 3rd place)
 				itemSet = ITEMSET_Race4;
@@ -909,7 +915,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 					itemSet = ITEMSET_Race3;
 					rng = MixRNG_Scramble();
 					if (rng & 1)
+					{
 						goto Itemset2;
+					}
 				}
 
 				break;
@@ -920,7 +928,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 				itemSet = driver->driverRank;
 				// 5th rank is 4th Itemset
 				if (itemSet == 4)
+				{
 					itemSet = 3;
+				}
 				break;
 
 			// 2P Arcade
@@ -931,16 +941,22 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 
 				// if 1st place, ItemSet1
 				if (itemSet == 0)
+				{
 					goto Itemset1;
+				}
 
 				// if 6th place, ItemSet4
 				if (itemSet == 5)
+				{
 					itemSet = ITEMSET_Race4;
+				}
 
 				// 2nd, 3rd place, gets 2nd Itemset
 				// 4th, 5th place, gets 3rd Itemset
 				else
+				{
 					itemSet = (itemSet - 1) / 2 + 1;
+				}
 
 				break;
 
@@ -965,7 +981,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 		// if you have 4th-place itemset on first lap,
 		// then override to 3rd place
 		if (itemSet == ITEMSET_Race4 && driver->lapIndex == 0)
+		{
 			itemSet = ITEMSET_Race3;
+		}
 	}
 
 	// Decide item for Driver
@@ -994,7 +1012,9 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 		// Item is turbo at Skull Rock and Rampage Ruins
 		item = 0x1;
 		if (gGT->levelID != SKULL_ROCK && gGT->levelID != RAMPAGE_RUINS)
+		{
 			goto SetItem;
+		}
 		driver->heldItemID = 0x0;
 		break;
 
@@ -1015,14 +1035,18 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 		{
 			// Replace Clock, Mask,  with 3 Missiles
 			if ((u32)driver->heldItemID - 0x7 < 0x3)
+			{
 				driver->heldItemID = 0xb;
+			}
 		}
 
 		else if (bossFails < 0x4)
 		{
 			// Replace Clock, Mask with 3 Missiles
 			if ((u32)driver->heldItemID - 0x7 < 0x2)
+			{
 				driver->heldItemID = 0xb;
+			}
 		}
 
 		else if (bossFails < 0x5 && driver->heldItemID == 0x8)
@@ -1033,23 +1057,31 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 
 		// Replace 3 Missiles with 1 Missile if racing Komodo Joe
 		if (gGT->levelID == DRAGON_MINES && driver->heldItemID == 0xb)
+		{
 			driver->heldItemID = 0x2;
+		}
 	}
 
 	// Replace unused Spring item with Turbo
 	if (driver->heldItemID == 0x5)
+	{
 		driver->heldItemID = 0x0;
+	}
 
 	// Make sure only 1 Warpball is instanced at once
 	if (driver->heldItemID == 0x9)
 	{
 		// if nobody has warpball, then set flag that somebody has it
 		if ((gGT->gameMode1 & WARPBALL_HELD) == 0)
+		{
 			gGT->gameMode1 |= WARPBALL_HELD;
+		}
 
 		// if somebody has warpball already, then give 3 missiles
 		else
+		{
 			driver->heldItemID = 0xb;
+		}
 	}
 
 	if (
@@ -1064,16 +1096,22 @@ void VehPhysGeneral_SetHeldItem(struct Driver *driver)
 	{
 		// if less than 2 drivers have 3 missiles, then increase number of drivers that have it
 		if (gGT->numPlayersWith3Missiles < 2)
+		{
 			gGT->numPlayersWith3Missiles++;
+		}
 
 		// if 2 drivers already have 3 missiles, now you have 1 missile
 		else
+		{
 			driver->heldItemID = 0x2;
+		}
 	}
 
 	// Set number of held items
 	if ((u32)driver->heldItemID - 0xA < 0x2)
+	{
 		driver->numHeldItems = 0x3;
+	}
 
 	return;
 }
@@ -1140,7 +1178,9 @@ int VehPhysGeneral_GetBaseSpeed(struct Driver *driver)
 	int subtract = 0;
 
 	if (driver->instTntRecv != 0)
+	{
 		subtract = CTR_MipsSra(driver->const_DamagedSpeed, 1);
+	}
 
 	if (
 	    // burn, squish, or raincloud
@@ -1155,7 +1195,9 @@ int VehPhysGeneral_GetBaseSpeed(struct Driver *driver)
 		int clockEffect = CTR_MipsSra(CTR_MipsMulLo(driver->const_DamagedSpeed, CTR_MipsSubLo(0x14, driver->driverRank)), 4);
 
 		if (subtract < clockEffect)
+		{
 			subtract = clockEffect;
+		}
 	}
 
 	netSpeed = CTR_MipsSubLo(CTR_MipsAddLo(statAdditional, speedAdditional), subtract);

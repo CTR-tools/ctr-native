@@ -153,7 +153,9 @@ void CTC2(u32 value, s32 reg)
 	case 31:
 		value = value & 0x7ffff000;
 		if ((value & 0x7f87e000) != 0)
+		{
 			value |= 0x80000000;
+		}
 		break;
 	}
 
@@ -177,7 +179,9 @@ void CTC2_S(s32 value, s32 reg)
 	case 31:
 		value = value & 0x7ffff000;
 		if ((value & 0x7f87e000) != 0)
+		{
 			value |= 0x80000000;
+		}
 		break;
 	}
 

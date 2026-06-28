@@ -430,19 +430,31 @@ VECTOR *ApplyRotMatrixLV(VECTOR *v0, VECTOR *v1)
 	gte_rtir();
 
 	if (tmpLO.vx < 0)
+	{
 		tmpLO.vx *= 8;
+	}
 	else
+	{
 		tmpLO.vx <<= 3;
+	}
 
 	if (tmpLO.vy < 0)
+	{
 		tmpLO.vy *= 8;
+	}
 	else
+	{
 		tmpLO.vy <<= 3;
+	}
 
 	if (tmpLO.vz < 0)
+	{
 		tmpLO.vz *= 8;
+	}
 	else
+	{
 		tmpLO.vz <<= 3;
+	}
 
 	CTR_GteStoreMAC(&tmpHI.vx);
 
@@ -513,19 +525,31 @@ VECTOR *ApplyMatrixLV(MATRIX *m, VECTOR *v0, VECTOR *v1)
 	gte_rtir();
 
 	if (tmpLO.vx < 0)
+	{
 		tmpLO.vx *= 8;
+	}
 	else
+	{
 		tmpLO.vx <<= 3;
+	}
 
 	if (tmpLO.vy < 0)
+	{
 		tmpLO.vy *= 8;
+	}
 	else
+	{
 		tmpLO.vy <<= 3;
+	}
 
 	if (tmpLO.vz < 0)
+	{
 		tmpLO.vz *= 8;
+	}
 	else
+	{
 		tmpLO.vz <<= 3;
+	}
 
 	CTR_GteStoreMAC(&tmpHI.vx);
 
@@ -765,19 +789,31 @@ MATRIX *CompMatrixLV(MATRIX *m0, MATRIX *m1, MATRIX *m2)
 	gte_rtir();
 
 	if (tmpLO.vx < 0)
+	{
 		tmpLO.vx = tmpLO.vx * 8;
+	}
 	else
+	{
 		tmpLO.vx = tmpLO.vx << 3;
+	}
 
 	if (tmpLO.vy < 0)
+	{
 		tmpLO.vy = tmpLO.vy * 8;
+	}
 	else
+	{
 		tmpLO.vy = tmpLO.vy << 3;
+	}
 
 	if (tmpLO.vz < 0)
+	{
 		tmpLO.vz = tmpLO.vz * 8;
+	}
 	else
+	{
 		tmpLO.vz = tmpLO.vz << 3;
+	}
 
 	CTR_GteStoreMAC(&tmpHI.vx);
 
@@ -833,7 +869,9 @@ void SetFogNear(int a, int h)
 void SetFogNearFar(int a, int b, int h)
 {
 	if (b - a < 100)
+	{
 		return;
+	}
 
 	assert((b - a));
 	assert((b - a) != -1 && (-a * b) != 32768);
@@ -851,7 +889,9 @@ void SetFogNearFar(int a, int b, int h)
 int rsin(int a)
 {
 	if (a < 0)
+	{
 		return -rcossin_tbl[(-a & 0xfffU) * 2];
+	}
 
 	return rcossin_tbl[(a & 0xfffU) * 2];
 }
@@ -859,7 +899,9 @@ int rsin(int a)
 int rcos(int a)
 {
 	if (a < 0)
+	{
 		return rcossin_tbl[(-a & 0xfffU) * 2 + 1];
+	}
 
 	return rcossin_tbl[(a & 0xfffU) * 2 + 1];
 }
@@ -874,38 +916,56 @@ int ratan2(int y, int x)
 	ylt0 = y < 0;
 
 	if (x == 0 && y == 0)
+	{
 		return 0;
+	}
 
 	if (x < 0)
+	{
 		x = -x;
+	}
 
 	if (y < 0)
+	{
 		y = -y;
+	}
 
 	if (y < x)
 	{
 		if (((u32)y & 0x7fe00000U) == 0)
+		{
 			ang = (y << 10) / x;
+		}
 		else
+		{
 			ang = y / (x >> 10);
+		}
 
 		v = ratan_tbl[ang];
 	}
 	else
 	{
 		if (((u32)x & 0x7fe00000U) == 0)
+		{
 			ang = (x << 10) / y;
+		}
 		else
+		{
 			ang = x / (y >> 10);
+		}
 
 		v = 1024 - ratan_tbl[ang];
 	}
 
 	if (xlt0)
+	{
 		v = 2048 - v;
+	}
 
 	if (ylt0)
+	{
 		v = -v;
+	}
 
 	return v;
 }
@@ -918,14 +978,20 @@ int SquareRoot0(int a)
 	lzcs = gte_leadingzerocount(a);
 
 	if (lzcs == 32)
+	{
 		return 0;
+	}
 
 	lzcs &= 0xfffffffe;
 
 	if ((lzcs - 24) < 0)
+	{
 		idx = a >> (24 - lzcs);
+	}
 	else
+	{
 		idx = a << (lzcs - 24);
+	}
 
 	return SQRT[idx - 64] << ((31 - lzcs) >> 1) >> 12;
 }

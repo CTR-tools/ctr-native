@@ -11,7 +11,9 @@ b32 VehGroundShadow_Subset1(struct TextureLayout *pDst, int iconIndex)
 
 	// validate icon pointer
 	if (!pIcon)
+	{
 		return false;
+	}
 
 	// copy entire struct
 	memcpy(pDst, &(pIcon->texLayout), sizeof(pIcon->texLayout));
@@ -152,7 +154,9 @@ static void VehGroundShadow_BuildEntry(struct VehGroundShadowEntry *entry, struc
 	entry->instFlags = (u16)inst->flags;
 
 	for (int playerIndex = numPlayers - 1; playerIndex >= 0; playerIndex--)
+	{
 		entry->idppFlags[playerIndex] = (u8)VehGroundShadow_GetIdpp(inst, playerIndex)->instFlags;
+	}
 
 	entry->pos.x = (s16)CTR_MipsSra(driver->posCurr.x, 8);
 	entry->pos.y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->quadBlockHeight, 8), 3);
@@ -178,7 +182,9 @@ static void VehGroundShadow_TransformLocalAxes(struct VehGroundShadowEntry *entr
 	}
 
 	if (height > 0x100)
+	{
 		height = 0x100;
+	}
 
 	VehPhysForce_RotAxisAngle(&axisMatrix, driver->AxisAngle3_normalVec.v, driver->rotCurr.y);
 	VehGroundShadow_LoadGteLightMatrix(&axisMatrix);
@@ -278,9 +284,13 @@ static void VehGroundShadow_EmitQuad(u32 **primCursor, uint32_t *otBase, const s
 	uint32_t *ot;
 
 	if (depthIndex < 0)
+	{
 		depthIndex = 0;
+	}
 	else if (depthIndex > 0x3ff)
+	{
 		depthIndex = 0x3ff;
+	}
 
 	CtrGpu_WriteColorCode(&poly->r0, color);
 	CtrGpu_WritePackedXY(&poly->x0, sxy[quadPointIndex[quadIndex][0]]);
@@ -308,15 +318,21 @@ void VehGroundShadow_Main(void)
 	int numPlayers;
 
 	if (!VehGroundShadow_Subset1(shadowTex0, 0))
+	{
 		return;
+	}
 
 	if (!VehGroundShadow_Subset1(shadowTex1, 1))
+	{
 		return;
+	}
 
 	primMem = &gGT->backBuffer->primMem;
 	prim = (u32 *)primMem->cursor;
 	if (prim + 0x140 >= (u32 *)primMem->guardEnd)
+	{
 		return;
+	}
 
 	CTC2(0, 5);
 	CTC2(0, 6);
@@ -330,7 +346,9 @@ void VehGroundShadow_Main(void)
 		struct Driver *driver = gGT->drivers[driverIndex];
 
 		if (driver != NULL)
+		{
 			VehGroundShadow_BuildEntry(entry, driver, numPlayers);
+		}
 		else
 		{
 			entry->driver = NULL;
@@ -371,10 +389,14 @@ void VehGroundShadow_Main(void)
 			s32 depth[VEH_GROUND_SHADOW_NUM_POINTS];
 
 			if (entry->driver == NULL)
+			{
 				break;
+			}
 
 			if (entry->state == -1)
+			{
 				continue;
+			}
 
 			if ((entry->instFlags & HIDE_MODEL) != 0)
 			{
@@ -383,7 +405,9 @@ void VehGroundShadow_Main(void)
 			}
 
 			if ((entry->idppFlags[playerIndex] & DRAW_SUCCESSFUL) == 0)
+			{
 				continue;
+			}
 
 			diffX = VehGroundShadow_DiffS16(entry->pos.x, camX);
 			diffY = VehGroundShadow_DiffS16(entry->pos.y, camY);
@@ -395,7 +419,9 @@ void VehGroundShadow_Main(void)
 			if (!isLargeGeomScreen)
 			{
 				if (scaledX >= 0x1771 || scaledY >= 0x1771 || scaledZ >= 0x1771 || scaledX < -0x1770 || scaledY < -0x1770 || scaledZ < -0x1770)
+				{
 					continue;
+				}
 			}
 
 			scaled[0] = (s16)scaledX;
@@ -407,7 +433,9 @@ void VehGroundShadow_Main(void)
 			groundDistance = (s32)MFC2(27) >> 2;
 
 			if (groundDistance < -0x34)
+			{
 				continue;
+			}
 
 			if (isLargeGeomScreen)
 			{
@@ -426,11 +454,15 @@ void VehGroundShadow_Main(void)
 					int fade = (0x200 - groundDistance) * 0x1f;
 
 					if (fade < 0)
+					{
 						fade += 0x7f;
+					}
 
 					intensity = fade >> 7;
 					if (intensity < 1)
+					{
 						continue;
+					}
 				}
 
 				color = 0x2e000000u | (u32)intensity | ((u32)intensity << 8) | ((u32)intensity << 16);
@@ -442,7 +474,9 @@ void VehGroundShadow_Main(void)
 				VehGroundShadow_LoadGteRotMatrix(&pb->matrix_ViewProj);
 
 				if (entry->state == -1)
+				{
 					continue;
+				}
 			}
 
 			VehGroundShadow_BuildProjectionPoints(entry, scaledX, scaledY, scaledZ, points);

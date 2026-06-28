@@ -12,7 +12,9 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 	victimCharacter = data.characterIDs[victimDriver->driverID];
 
 	if (victimState == KS_MASK_GRABBED)
+	{
 		return 0;
+	}
 
 	if (
 	    // If player is using mask weapon
@@ -41,7 +43,9 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 	voice = 0;
 
 	if (damageType == 0)
+	{
 		return 1;
+	}
 
 	// spinning
 	else if (damageType == 1)
@@ -61,11 +65,15 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 	{
 		// quit if already blasted
 		if (victimState == KS_BLASTED)
+		{
 			return 0;
+		}
 
 		// quit if already blasted
 		if (victimDriver->funcPtrs[DRIVER_FUNC_INIT] == VehStuckProc_Tumble_Init)
+		{
 			return 0;
+		}
 
 		victimDriver->funcPtrs[DRIVER_FUNC_INIT] = VehStuckProc_Tumble_Init;
 
@@ -152,7 +160,9 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 	}
 
 	if (attackDriver != 0)
+	{
 		if (attackDriver != victimDriver)
+		{
 			switch (reason)
 			{
 			// hit by bomb
@@ -186,6 +196,8 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 			default:
 				break;
 			}
+		}
+	}
 
 	victimDriver->kartState = KS_NORMAL;
 	victimDriver->reserves = 0;

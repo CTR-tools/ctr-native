@@ -18,7 +18,9 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 
 	// If you do have "no weapon icon"
 	if (itemID == 0xf)
+	{
 		return;
+	}
 
 	// If you are not shuffling through weapon roulette
 	if (itemID != 0x10)
@@ -36,7 +38,9 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 
 			// This is a bad guy, change icon to Uka
 			if (((maskBits >> currChar) & 1) == 0)
+			{
 				iconID = 0x32;
+			}
 		}
 
 		if ((d->numWumpas >= 10) &&
@@ -85,7 +89,9 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 
 				// replace spring with turbo
 				if (itemID == 5)
+				{
 					goto LAB_800508ec;
+				}
 			}
 
 			// if Battle Mode

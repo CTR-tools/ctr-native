@@ -38,7 +38,9 @@ void AnimateQuadVertex(int timer, struct SCVert *scVert, u32 *visBits)
 	*visBits = bits >> 1;
 
 	if ((bits & 1) == 0)
+	{
 		return;
+	}
 
 	struct LevVertex *levVert = scVert->v;
 	u32 offsetPosZw = (u32)scVert->offset_pos_zw;
@@ -108,7 +110,9 @@ void AnimateWaterVertex(struct WaterVert *waterVert, u16 colorOffset, int firstO
 	*visBits = bits >> 1;
 
 	if ((bits & 1) == 0)
+	{
 		return;
+	}
 
 	struct LevVertex *levVert = waterVert->v;
 	struct OVert *waterColor = waterVert->w;
@@ -152,7 +156,9 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 	// NOTE(aalhendi): CTR_NATIVE divergence, not retail ASM: native tracks can
 	// supply empty water lists with null water data.
 	if (numWaterVertices == 0)
+	{
 		return;
+	}
 #endif
 
 	u16 colorOffset = AnimateWater_ReadTextureHalf(waterEnvMap, 0);
@@ -188,7 +194,9 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 			visBits = 0;
 
 			for (int i = 0; i < numLists; i++)
+			{
 				visBits |= *visList[i]++;
+			}
 
 			bitCount = 31;
 		}

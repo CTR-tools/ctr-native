@@ -601,7 +601,7 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		LOAD_AppendQueue(0, LT_GETADDR, BI_PODIUM + iVar9, NULL, LOAD_Callback_Podiums);
 
 		// Disable LEV instances on Adv Hub, for podium scene
-		gGT->gameMode2 = gGT->gameMode2 | 0x100;
+		gGT->gameMode2 = gGT->gameMode2 | NO_LEV_INSTANCE;
 		break;
 	}
 	case 8:

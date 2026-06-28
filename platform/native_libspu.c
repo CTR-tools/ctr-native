@@ -21,9 +21,13 @@ unsigned int SpuWrite(unsigned char *addr, unsigned int size)
 	u32 result = NativeAudio_SpuWrite(addr, size);
 
 	if (s_transferCallback)
+	{
 		s_transferCallback();
+	}
 	else
+	{
 		s_inTransfer = 0;
+	}
 
 	return result;
 }
@@ -152,10 +156,14 @@ int SpuReadDecodedData(SpuDecodedData *d_data, int flag)
 	size_t byteCount = sizeof(*d_data);
 
 	if (flag == SPU_CDONLY)
+	{
 		byteCount = sizeof(d_data->cd_left) + sizeof(d_data->cd_right);
+	}
 
 	if (d_data != NULL)
+	{
 		memset(d_data, 0, byteCount);
+	}
 
 	return SPU_DECODED_FIRSTHALF;
 }

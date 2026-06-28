@@ -444,7 +444,7 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 								    (gGT->overlayIndex_Threads != -1))
 								{
 									// NOTE(aalhendi): Retail writes this before freezing the game for pause.
-									gGT->gameModeEnd = (gGT->gameMode1 & 0x3e0020) | PAUSE_1;
+									gGT->gameModeEnd = (gGT->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK) | PAUSE_1;
 
 									MainFreeze_IfPressStart();
 

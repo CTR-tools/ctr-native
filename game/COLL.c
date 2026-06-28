@@ -1489,7 +1489,7 @@ void COLL_FIXED_PlayerSearch(struct Thread *t, struct Driver *d)
 		goto DriverAirborne;
 	}
 
-	if ((d->rainCloudEffect == RAIN_CLOUD_EFFECT_ICE_TERRAIN) || ((gGT->gameMode2 & 0x80000) != 0))
+	if ((d->rainCloudEffect == RAIN_CLOUD_EFFECT_ICE_TERRAIN) || ((gGT->gameMode2 & CHEAT_ICY) != 0))
 	{
 		d->currentTerrain = TERRAIN_ICE;
 	}
@@ -1525,18 +1525,8 @@ void COLL_FIXED_PlayerSearch(struct Thread *t, struct Driver *d)
 
 			if (d->kartState != KS_MASK_GRABBED)
 			{
-				volume = (volume & 0xff) << 16;
-
-				if ((d->actionsFlagSet & ACTION_ENGINE_ECHO) == 0)
-				{
-					volume |= 0x8080;
-				}
-				else
-				{
-					volume |= 0x1008080;
-				}
-
-				OtherFX_Play_LowLevel(7, 1, volume);
+				u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+				OtherFX_Play_LowLevel(7, 1, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, echo));
 			}
 		}
 	}
@@ -1665,7 +1655,8 @@ UpdateGroundOffset:
 
 				if ((d->terrainMeta1->flags & TERRAIN_FLAG_ONESHOT_GROUND_SOUND) != 0)
 				{
-					u32 soundFlags = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0) ? 0x1808080 : 0x808080;
+					u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+					u32 soundFlags = HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, 0x80, echo);
 
 					OtherFX_Play_LowLevel(d->terrainMeta1->sound, 0, soundFlags);
 				}
@@ -2659,12 +2650,8 @@ u32 COLL_MOVED_ScrubImpact(struct Driver *d, struct Thread *t, struct Scratchpad
 
 				if ((d->kartState != KS_MASK_GRABBED) && (transformedImpactXZ > 0x1900000))
 				{
-					u32 soundFlags = 0xff8080;
-
-					if ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-					{
-						soundFlags = 0x1ff8080;
-					}
+					u32 echo = ((d->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+					u32 soundFlags = HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, HOWL_SFX_VOLUME_MAX, echo);
 
 					OtherFX_Play_LowLevel(6, 1, soundFlags);
 					Voiceline_RequestPlay(6, data.characterIDs[d->driverID], 0x10);

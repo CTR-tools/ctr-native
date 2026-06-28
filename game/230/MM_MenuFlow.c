@@ -430,7 +430,7 @@ void MM_ToggleRows_Difficulty(void)
 		    ((gGT->gameMode1 & ARCADE_MODE) != 0) &&
 
 		    // if you are in Arcade or VS cup
-		    ((gGT->gameMode2 & 0x10) != 0))
+		    ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
 		{
 			// use high bits for "LOCKED"
 			uVar5 = uVar5 | 0x8000;

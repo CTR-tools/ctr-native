@@ -83,7 +83,9 @@ void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
 	}
 
 	if ((total < 3) || (total > 4))
+	{
 		return;
+	}
 
 	if (id == 0)
 	{
@@ -169,7 +171,9 @@ void PushBuffer_SetDrawEnv_DecalMP(void *ot, struct DB *backBuffer, RECT *viewpo
 	// 24-bit OT tokens back to host pointers, so stale DecalMP range metadata
 	// must not splice a DR_ENV packet into unrelated current-frame memory.
 	if (!CtrGpu_IsCurrentOTRange(backBuffer, ot, ot))
+	{
 		return;
+	}
 #endif
 
 	// Copy DrawEnv from gGT->backBuffer
@@ -177,7 +181,9 @@ void PushBuffer_SetDrawEnv_DecalMP(void *ot, struct DB *backBuffer, RECT *viewpo
 	int *src = (int *)&backBuffer->drawEnv;
 
 	for (u32 i = 0; i < sizeof(DRAWENV) / 4; i++)
+	{
 		dst[i] = src[i];
+	}
 
 	// Now modify DrawEnv...
 
@@ -214,7 +220,9 @@ void PushBuffer_SetDrawEnv_DecalMP(void *ot, struct DB *backBuffer, RECT *viewpo
 	}
 
 	if (prim == NULL)
+	{
 		return;
+	}
 
 	// ofs[X]
 	newDrawEnv.ofs[0] = offsetX;
@@ -239,7 +247,9 @@ void PushBuffer_SetDrawEnv_Normal(void *ot, struct PushBuffer *pb, struct DB *ba
 	int *src = (int *)&backBuffer->drawEnv;
 
 	for (u32 i = 0; i < sizeof(DRAWENV) / 4; i++)
+	{
 		dst[i] = src[i];
+	}
 
 	// always?
 	if (copyDrawEnvNULL == 0)
@@ -487,11 +497,15 @@ int PushBuffer_SetFrustumPlane(struct PushBufferFrustumPlane *frustumPlane, stru
 
 	temp = PushBuffer_SetFrustumPlane_ReadLeadingZeroes((u32)PushBuffer_SetFrustumPlane_Abs(normalY));
 	if (temp < leadingZeroBits)
+	{
 		leadingZeroBits = temp;
+	}
 
 	temp = PushBuffer_SetFrustumPlane_ReadLeadingZeroes((u32)PushBuffer_SetFrustumPlane_Abs(normalZ));
 	if (temp < leadingZeroBits)
+	{
 		leadingZeroBits = temp;
+	}
 
 	if (leadingZeroBits < 0x12)
 	{
@@ -518,9 +532,13 @@ int PushBuffer_SetFrustumPlane(struct PushBufferFrustumPlane *frustumPlane, stru
 
 	u32 planeType = (u32)normalX >> 31;
 	if (normalY < 0)
+	{
 		planeType |= 2;
+	}
 	if (normalZ < 0)
+	{
 		planeType |= 4;
+	}
 
 	return planeType;
 }
@@ -749,18 +767,30 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 		// === Set 6 Min/Max X,Y,Z variables ===
 
 		if (min_X > spf->clippedFarPos.x)
+		{
 			min_X = spf->clippedFarPos.x;
+		}
 		if (min_Y > spf->clippedFarPos.y)
+		{
 			min_Y = spf->clippedFarPos.y;
+		}
 		if (min_Z > spf->clippedFarPos.z)
+		{
 			min_Z = spf->clippedFarPos.z;
+		}
 
 		if (max_X < spf->clippedFarPos.x)
+		{
 			max_X = spf->clippedFarPos.x;
+		}
 		if (max_Y < spf->clippedFarPos.y)
+		{
 			max_Y = spf->clippedFarPos.y;
+		}
 		if (max_Z < spf->clippedFarPos.z)
+		{
 			max_Z = spf->clippedFarPos.z;
+		}
 
 		// next corner to write
 		fcOUT--;

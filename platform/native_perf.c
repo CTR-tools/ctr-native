@@ -123,7 +123,9 @@ internal f64 NativePerf_CounterToMs(u64 counterDelta)
 	const u64 freq = SDL_GetPerformanceFrequency();
 
 	if (freq == 0)
+	{
 		return 0.0;
+	}
 
 	return ((f64)counterDelta * 1000.0) / (f64)freq;
 }
@@ -131,7 +133,9 @@ internal f64 NativePerf_CounterToMs(u64 counterDelta)
 internal const char *NativePerf_BucketName(enum NativePerfBucket bucket)
 {
 	if ((bucket < 0) || (bucket >= NATIVE_PERF_BUCKET_COUNT))
+	{
 		return "unknown_ms";
+	}
 
 	return s_bucketInfo[bucket].name;
 }
@@ -141,7 +145,9 @@ internal s32 NativePerf_PathExists(const char *path)
 	struct stat st;
 
 	if (path == NULL)
+	{
 		return 0;
+	}
 
 	return stat(path, &st) == 0;
 }
@@ -149,14 +155,18 @@ internal s32 NativePerf_PathExists(const char *path)
 internal s32 NativePerf_MakeDir(const char *path)
 {
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 1;
+	}
 
 #if defined(_WIN32)
 	if (_mkdir(path) == 0)
 		return 1;
 #else
 	if (mkdir(path, 0777) == 0)
+	{
 		return 1;
+	}
 #endif
 
 	return (errno == EEXIST) && NativePerf_PathExists(path);
@@ -169,14 +179,20 @@ internal s32 NativePerf_CreateDirs(const char *path)
 	s32 ok = 1;
 
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 
 	if (!NativePath_NormalizeSlashes(copy, sizeof(copy), NativeStr8_FromCString(path)))
+	{
 		return 0;
+	}
 
 	cursor = copy;
 	if (NativePath_IsSeparator((u8)cursor[0]))
+	{
 		cursor++;
+	}
 #if defined(_WIN32)
 	if ((cursor[0] != '\0') && (cursor[1] == ':') && NativePath_IsSeparator((u8)cursor[2]))
 		cursor += 3;
@@ -200,7 +216,9 @@ internal s32 NativePerf_CreateDirs(const char *path)
 	}
 
 	if ((ok != 0) && !NativePerf_MakeDir(copy))
+	{
 		ok = 0;
+	}
 
 	return ok;
 }
@@ -208,13 +226,19 @@ internal s32 NativePerf_CreateDirs(const char *path)
 internal s32 NativePerf_SetOutputDir(const char *path)
 {
 	if (!NativePath_NormalizeSlashes(s_outputDir, sizeof(s_outputDir), NativeStr8_FromCString(path)))
+	{
 		return 0;
+	}
 
 	if (!NativePath_Join(s_csvPath, sizeof(s_csvPath), NativeStr8_FromCString(s_outputDir), NATIVE_STR8_LIT(NATIVE_PERF_FRAME_CSV_NAME)))
+	{
 		return 0;
+	}
 
 	if (!NativePath_Join(s_summaryPath, sizeof(s_summaryPath), NativeStr8_FromCString(s_outputDir), NATIVE_STR8_LIT(NATIVE_PERF_SUMMARY_NAME)))
+	{
 		return 0;
+	}
 
 	return 1;
 }
@@ -226,7 +250,9 @@ internal void NativePerf_WriteCsvHeader(FILE *file)
 	              "audio_underrun_delta,audio_overflow_delta,audio_queued_frames");
 
 	for (s32 bucket = 0; bucket < NATIVE_PERF_BUCKET_COUNT; bucket++)
+	{
 		fprintf(file, ",%s", NativePerf_BucketName((enum NativePerfBucket)bucket));
+	}
 
 	fprintf(file, "\n");
 }
@@ -239,7 +265,9 @@ internal enum NativePerfBucket NativePerf_FindDominantBucket(f64 *dominantMsOut)
 	for (s32 bucket = 0; bucket < NATIVE_PERF_BUCKET_COUNT; bucket++)
 	{
 		if (s_bucketInfo[bucket].dominantCandidate == 0)
+		{
 			continue;
+		}
 
 		if (s_frameBucketMs[bucket] > dominantMs)
 		{
@@ -257,20 +285,28 @@ internal void NativePerf_InsertWorstFrame(const struct NativePerfWorstFrame *fra
 	s32 insertAt = s_worstFrameCount;
 
 	if (s_worstFrameCount == NATIVE_PERF_TOP_FRAME_COUNT && frame->workMs <= s_worstFrames[s_worstFrameCount - 1].workMs)
+	{
 		return;
+	}
 
 	while ((insertAt > 0) && (frame->workMs > s_worstFrames[insertAt - 1].workMs))
 	{
 		if (insertAt < NATIVE_PERF_TOP_FRAME_COUNT)
+		{
 			s_worstFrames[insertAt] = s_worstFrames[insertAt - 1];
+		}
 		insertAt--;
 	}
 
 	if (insertAt < NATIVE_PERF_TOP_FRAME_COUNT)
+	{
 		s_worstFrames[insertAt] = *frame;
+	}
 
 	if (s_worstFrameCount < NATIVE_PERF_TOP_FRAME_COUNT)
+	{
 		s_worstFrameCount++;
+	}
 }
 
 internal void NativePerf_WriteSummary(FILE *file)
@@ -291,7 +327,9 @@ internal void NativePerf_WriteSummary(FILE *file)
 
 	fprintf(file, "\nbucket_totals_ms:\n");
 	for (s32 bucket = 0; bucket < NATIVE_PERF_BUCKET_COUNT; bucket++)
+	{
 		fprintf(file, "  %s: %.3f\n", NativePerf_BucketName((enum NativePerfBucket)bucket), s_bucketTotals[bucket]);
+	}
 
 	fprintf(file, "\ntop_worst_work_frames:\n");
 	fprintf(file, "frame,total_ms,work_ms,over_budget_ms,work_over_budget_ms,dominant_bucket,dominant_ms,frameCounter,timer,level_id,game_mode1,loading_stage,"
@@ -315,7 +353,9 @@ internal const char *NativePerf_ArgValue(int argc, char **argv, const char *name
 	for (s32 i = 1; i < argc - 1; i++)
 	{
 		if (strcmp(argv[i], name) == 0)
+		{
 			return argv[i + 1];
+		}
 	}
 
 	return NULL;
@@ -326,7 +366,9 @@ internal s32 NativePerf_ArgPresent(int argc, char **argv, const char *name)
 	for (s32 i = 1; i < argc; i++)
 	{
 		if (strcmp(argv[i], name) == 0)
+		{
 			return 1;
+		}
 	}
 
 	return 0;
@@ -338,10 +380,14 @@ int NativePerf_ConfigureFromArgs(int argc, char **argv)
 	const s32 perfEnabled = NativePerf_ArgPresent(argc, argv, "--perf") || (outputDir != NULL);
 
 	if (!perfEnabled)
+	{
 		return 0;
+	}
 
 	if (outputDir == NULL)
+	{
 		outputDir = NATIVE_PERF_DEFAULT_DIR;
+	}
 
 	if (!NativePerf_SetOutputDir(outputDir))
 	{
@@ -375,10 +421,14 @@ void NativePerf_Shutdown(void)
 	FILE *summaryFile;
 
 	if (!s_enabled)
+	{
 		return;
+	}
 
 	if (s_frameOpen)
+	{
 		NativePerf_EndFrame(&s_frameBeginInfo);
+	}
 
 	if (s_csvFile != NULL)
 	{
@@ -409,10 +459,14 @@ void NativePerf_Shutdown(void)
 void NativePerf_BeginFrame(const struct NativePerfFrameInfo *info)
 {
 	if (!s_enabled || (info == NULL))
+	{
 		return;
+	}
 
 	if (s_frameOpen)
+	{
 		NativePerf_EndFrame(info);
+	}
 
 	memset(s_frameBucketMs, 0, sizeof(s_frameBucketMs));
 	memset(s_scopeDepth, 0, sizeof(s_scopeDepth));
@@ -439,12 +493,16 @@ void NativePerf_EndFrame(const struct NativePerfFrameInfo *info)
 	const struct NativePerfFrameInfo *rowInfo;
 
 	if (!s_enabled || !s_frameOpen)
+	{
 		return;
+	}
 
 	totalMs = NativePerf_CounterToMs(SDL_GetPerformanceCounter() - s_frameStartCounter);
 	workMs = totalMs - s_frameBucketMs[NATIVE_PERF_BUCKET_VSYNC_WAIT];
 	if (workMs < 0.0)
+	{
 		workMs = 0.0;
+	}
 
 	overBudgetMs = (totalMs > NATIVE_PERF_FRAME_BUDGET_MS) ? (totalMs - NATIVE_PERF_FRAME_BUDGET_MS) : 0.0;
 	workOverBudgetMs = (workMs > NATIVE_PERF_FRAME_BUDGET_MS) ? (workMs - NATIVE_PERF_FRAME_BUDGET_MS) : 0.0;
@@ -477,17 +535,29 @@ void NativePerf_EndFrame(const struct NativePerfFrameInfo *info)
 	s_totalFrameMs += totalMs;
 	s_totalWorkMs += workMs;
 	if (totalMs > s_maxFrameMs)
+	{
 		s_maxFrameMs = totalMs;
+	}
 	if (workMs > s_maxWorkMs)
+	{
 		s_maxWorkMs = workMs;
+	}
 	if (totalMs > NATIVE_PERF_FRAME_BUDGET_MS)
+	{
 		s_framesOverBudget++;
+	}
 	if (workMs > NATIVE_PERF_FRAME_BUDGET_MS)
+	{
 		s_workFramesOverBudget++;
+	}
 	if (totalMs > NATIVE_PERF_FRAME_WARN_40_MS)
+	{
 		s_framesOver40++;
+	}
 	if (totalMs > NATIVE_PERF_FRAME_WARN_50_MS)
+	{
 		s_framesOver50++;
+	}
 
 	worstFrame.frameIndex = s_frameIndex;
 	worstFrame.totalMs = totalMs;
@@ -509,22 +579,32 @@ void NativePerf_EndFrame(const struct NativePerfFrameInfo *info)
 void NativePerf_BeginScope(enum NativePerfBucket bucket)
 {
 	if (!s_enabled || !s_frameOpen || (bucket < 0) || (bucket >= NATIVE_PERF_BUCKET_COUNT))
+	{
 		return;
+	}
 
 	if (s_scopeDepth[bucket]++ == 0)
+	{
 		s_scopeStartCounter[bucket] = SDL_GetPerformanceCounter();
+	}
 }
 
 void NativePerf_EndScope(enum NativePerfBucket bucket)
 {
 	if (!s_enabled || !s_frameOpen || (bucket < 0) || (bucket >= NATIVE_PERF_BUCKET_COUNT))
+	{
 		return;
+	}
 
 	if (s_scopeDepth[bucket] <= 0)
+	{
 		return;
+	}
 
 	s_scopeDepth[bucket]--;
 	if (s_scopeDepth[bucket] == 0)
+	{
 		s_frameBucketMs[bucket] += NativePerf_CounterToMs(SDL_GetPerformanceCounter() - s_scopeStartCounter[bucket]);
+	}
 }
 #endif

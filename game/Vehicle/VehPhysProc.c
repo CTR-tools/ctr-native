@@ -20,7 +20,9 @@ static void VehPhysProc_Driving_DecrementTimer(s16 *timer, int elapsed)
 	{
 		int value = CTR_MipsSubLo(*timer, elapsed);
 		if (value < 0)
+		{
 			value = 0;
+		}
 
 		*timer = (s16)value;
 	}
@@ -145,11 +147,17 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	}
 
 	if (0 < driver->jump_TenBuffer)
+	{
 		driver->jump_TenBuffer = (s16)CTR_MipsSubLo(driver->jump_TenBuffer, 1);
+	}
 	if (9 < driver->numWumpas)
+	{
 		driver->timeSpentInTenWumpa = CTR_MipsAddLo(driver->timeSpentInTenWumpa, msPerFrame);
+	}
 	if (driver->currentTerrain == 0xE)
+	{
 		driver->timeSpentInMud = CTR_MipsAddLo(driver->timeSpentInMud, msPerFrame);
+	}
 
 
 	// === Check Last Place ===
@@ -168,7 +176,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 	// if you have a raincloud over your head from potion
 	if (driver->thCloud != 0)
+	{
 		rainCloudEffect = ((struct RainCloud *)driver->thCloud->object)->effect;
+	}
 
 	// get approximate speed
 	approximateSpeed = driver->speedApprox;
@@ -183,7 +193,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 	// absolute value of speed
 	if (approximateSpeed < 0)
+	{
 		approximateSpeed = CTR_MipsNegLo(approximateSpeed);
+	}
 
 	if ((
 	        // if you are not impacted by clock weapon
@@ -208,7 +220,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 		timerHazard = timerHazard & 0xfffe;
 		if (timerHazard > -1)
+		{
 			timerHazard = -2;
+		}
 
 		driver->hazardTimer = timerHazard;
 	}
@@ -223,7 +237,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		{
 			// if speed is low
 			if (approximateSpeed < 0x101)
+			{
 				goto speedIsLow;
+			}
 
 			// if speed is high...
 
@@ -247,7 +263,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 				driverTimerNegativePrelim = (u16)driver->hazardTimer;
 				driverTimerNegativeFinal = driverTimerNegativePrelim | 1;
 				if ((s16)driverTimerNegativePrelim > 0)
+				{
 					goto turndriverTimerNegative;
+				}
 			}
 
 			// if speed is high
@@ -264,7 +282,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 				driverTimer = CTR_MipsSra(driver->clockReceive, 6);
 				if (driverTimer > 0x40)
+				{
 					driverTimer = 0x40;
+				}
 
 				timerHazard = CTR_MipsSll(driver->clockReceive, 4);
 
@@ -273,7 +293,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 				approximateSpeed2 = CTR_MipsSra(approximateSpeed, 8);
 
 				if (approximateSpeed2 > 0x20)
+				{
 					approximateSpeed2 = 0x20;
+				}
 
 				// gamepad vibration
 				GAMEPAD_ShockForce1(driver, 4, CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsAddLo(driverTimer, CTR_MipsSra(approxTrig, 5)), approximateSpeed2), 0x18));
@@ -319,7 +341,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 
 		// if Item roll is not done
 		else
+		{
 			driver->itemRollTimer = (s16)CTR_MipsSubLo(driver->itemRollTimer, 1);
+		}
 	}
 
 
@@ -351,7 +375,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	{
 		driver->invincibleTimer = CTR_MipsSubLo(driver->invincibleTimer, msPerFrame);
 		if (driver->invincibleTimer < 0)
+		{
 			driver->invincibleTimer = 0;
+		}
 	}
 
 
@@ -378,7 +404,7 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	actionsFlagSetNext = actionsFlagSetCopy & VEH_PHYS_PROC_ACTION_CARRY_MASK;
 
 	// disable input if opening adv hub door with key
-	if ((gameMode2 & 0x4004) != 0)
+	if ((gameMode2 & GAME_MODE2_VEH_FREEZE_MASK) != 0)
 	{
 		driver->actionsFlagSet = actionsFlagSetNext;
 		return;
@@ -387,9 +413,13 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 	driver->normalVecID = 0;
 
 	if ((actionsFlagSetCopy & ACTION_TOUCH_GROUND) != 0)
+	{
 		driver->AxisAngle4_normalVec = driver->AxisAngle1_normalVec;
+	}
 	else
+	{
 		driver->AxisAngle4_normalVec = driver->AxisAngle2_normalVec;
+	}
 
 
 	// === Check Mask Weapon ===
@@ -472,7 +502,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 			// circle button ends timer, if
 			// less than 70 frames (2.3s) remain
 			if (driver->itemRollTimer < 70)
+			{
 				driver->itemRollTimer = 0;
+			}
 
 			// skip weapon firing check
 			goto CheckJumpButtons;
@@ -515,7 +547,9 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 				{
 					// only reduce numHeldItem if not using item cheats
 					if ((gameMode2 & (CHEAT_BOMBS | CHEAT_TURBO | CHEAT_MASK)) == 0)
+					{
 						driver->numHeldItems--;
+					}
 				}
 			}
 		}
@@ -549,7 +583,9 @@ CheckJumpButtons:
 		}
 		actionsFlagSetCopy &= ~ACTION_JUMP_BUTTON_HELD;
 		if (driver->jump_TenBuffer > 0)
+		{
 			driver->jump_TenBuffer = 0;
+		}
 	}
 
 	// if you're pressing jump buttons and not sliding
@@ -706,7 +742,9 @@ CheckJumpButtons:
 			scratchValue = CTR_MipsMulLo(driverBaseSpeed, scratchValue);
 			targetBaseSpeed = CTR_MipsSra(scratchValue, 7);
 			if (scratchValue < 0)
+			{
 				targetBaseSpeed = CTR_MipsSra(CTR_MipsAddLo(scratchValue, 0x7f), 7);
+			}
 
 			// remove flag for reversing
 			goto LAB_8006253c;
@@ -715,7 +753,9 @@ CheckJumpButtons:
 		{
 			scratchValue = CTR_MipsMulLo(driver->const_BackwardSpeed, scratchValue);
 			if (scratchValue < 0)
+			{
 				scratchValue = CTR_MipsAddLo(scratchValue, 0x7f);
+			}
 			approximateSpeed2 = CTR_MipsSra(scratchValue, 7);
 			buttonsTapped = ACTION_REVERSING_ENGINE;
 		LAB_800625c4:
@@ -725,7 +765,9 @@ CheckJumpButtons:
 		{
 			actionsFlagSetNext = actionsFlagSetCopy | ACTION_ACCEL_PREVENTION;
 			if (0 < (s8)driver->simpTurnState)
+			{
 				actionsFlagSetNext = actionsFlagSetCopy | ACTION_REVERSE_STEER_RIGHT | ACTION_ACCEL_PREVENTION;
+			}
 			if ((s8)driver->simpTurnState < 0)
 			{
 				buttonsTapped = ACTION_REVERSE_STEER_LEFT;
@@ -750,7 +792,9 @@ CheckJumpButtons:
 				{
 					scratchValue = CTR_MipsMulLo(driverBaseSpeed, CTR_MipsNegLo(scratchValue));
 					if (scratchValue < 0)
+					{
 						scratchValue = CTR_MipsAddLo(scratchValue, 0xff);
+					}
 					targetBaseSpeed = CTR_MipsSra(scratchValue, 8);
 
 					// gas and brake together
@@ -763,7 +807,9 @@ CheckJumpButtons:
 				{
 					scratchValue = CTR_MipsMulLo(driver->const_BackwardSpeed, CTR_MipsNegLo(scratchValue));
 					if (scratchValue < 0)
+					{
 						scratchValue = CTR_MipsAddLo(scratchValue, 0xff);
+					}
 					targetBaseSpeed = CTR_MipsSra(scratchValue, 8);
 
 					// reversing, and gas+brake
@@ -791,7 +837,9 @@ CheckJumpButtons:
 		scratchValue = CTR_MipsMulLo(driver->const_BackwardSpeed, -3);
 		targetBaseSpeed = CTR_MipsSra(scratchValue, 2);
 		if (scratchValue < 0)
+		{
 			targetBaseSpeed = CTR_MipsSra(CTR_MipsAddLo(scratchValue, 3), 2);
+		}
 
 	LAB_8006248c:
 		// reversing engine, and brakes
@@ -824,7 +872,9 @@ CheckJumpButtons:
 					// fire level, depending on numWumpa
 					superEngineFireLevel = 0x80;
 					if (driver->numWumpas > 9)
+					{
 						superEngineFireLevel = 0x100;
+					}
 
 					// add 0.12s reserves
 					VehFire_Increment(driver, 120, (TURBO_PAD | SUPER_ENGINE), superEngineFireLevel);
@@ -858,7 +908,9 @@ CheckJumpButtons:
 	{
 		// if Racer is moving, skip next 4 lines of code
 		if (approximateSpeed2 > 0)
+		{
 			goto LAB_800626d4;
+		}
 	LAB_800626fc:
 		// Racer struct + 0x39E = Racer's Base Speed
 		driver->fireSpeed = (s16)approximateSpeed2;
@@ -870,7 +922,9 @@ CheckJumpButtons:
 		{
 		LAB_800626d4:
 			if (driver->accelTapWindowTimer != 0)
+			{
 				driver->accelTapCount = (s16)CTR_MipsAddLo((u16)driver->accelTapCount, 1);
+			}
 			driver->accelTapWindowTimer = DRIVER_ACCEL_TAP_WINDOW_MS;
 			goto LAB_800626fc;
 		}
@@ -949,7 +1003,9 @@ CheckJumpButtons:
 	// absolute value driver speed
 	driverSpeedCopy = driver->speed;
 	if (driverSpeedCopy < 0)
+	{
 		driverSpeedCopy = CTR_MipsNegLo(driverSpeedCopy);
+	}
 
 	// As speed increases, turn rate decreases
 	steerStrength = VehCalc_MapToRange(driverSpeedCopy, 0x300, CTR_MipsSra(driver->const_Speed_ClassStat, 1), 0x40, steerStrength);
@@ -1001,7 +1057,9 @@ SkipSetSteer:
 
 	scratchValue = (int)driver->fireSpeed;
 	if (scratchValue < 0)
+	{
 		scratchValue = CTR_MipsNegLo(scratchValue);
+	}
 
 	if (((driver->actionsFlagSetPrevFrame & ACTION_TOUCH_GROUND) == 0) || (kartState == KS_DRIFTING))
 	{
@@ -1022,7 +1080,9 @@ SkipSetSteer:
 	{
 		// prevent Basic Speed from being negative
 		if (approximateSpeed2 < 0)
+		{
 			approximateSpeed2 = CTR_MipsNegLo(approximateSpeed2);
+		}
 
 		// If base or approximate speed is above the low-speed threshold.
 		if ((approximateSpeed2 > DRIVER_TIRE_COLOR_LOW_SPEED_THRESHOLD) || (approximateSpeed > DRIVER_TIRE_COLOR_LOW_SPEED_THRESHOLD))
@@ -1182,7 +1242,9 @@ void VehPhysProc_FreezeEndEvent_PhysLinear(struct Thread *t, struct Driver *d)
 	d->actionsFlagSet &= ~ACTION_JUMP_BUTTON_HELD;
 
 	if (d->jump_TenBuffer > 0)
+	{
 		d->jump_TenBuffer = 0;
+	}
 }
 
 
@@ -1192,7 +1254,9 @@ extern DriverFunc PlayerFreezeFuncTable[DRIVER_FUNC_COUNT];
 void VehPhysProc_FreezeEndEvent_Init(struct Thread *t, struct Driver *d)
 {
 	if (d->kartState == KS_FREEZE)
+	{
 		return;
+	}
 
 	d->kartState = KS_FREEZE;
 	d->speed = 0;
@@ -1328,11 +1392,15 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 		int axisAngleStepLimit = CTR_MipsSra(CTR_MipsSll(gGT->elapsedTimeMS, 6), 5);
 
 		if (axisAngleStep > axisAngleStepLimit)
+		{
 			axisAngleStep = axisAngleStepLimit;
+		}
 
 		int minAxisAngleStep = CTR_MipsNegLo(axisAngleStepLimit);
 		if (axisAngleStep < minAxisAngleStep)
+		{
 			axisAngleStep = minAxisAngleStep;
+		}
 
 		// change player rotation
 		driver->angle = (s16)CTR_MipsAddLo((u16)driver->angle, axisAngleStep);
@@ -1463,7 +1531,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 			driver->KartStates.Drifting.numFramesDrifting = (s16)CTR_MipsSubLo((u16)driver->KartStates.Drifting.numFramesDrifting, 1);
 
 			if (driver->KartStates.Drifting.numFramesDrifting > 0)
+			{
 				driver->KartStates.Drifting.numFramesDrifting = 0;
+			}
 		}
 
 		// if drifting left
@@ -1472,7 +1542,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 			driver->KartStates.Drifting.numFramesDrifting = (s16)CTR_MipsAddLo((u16)driver->KartStates.Drifting.numFramesDrifting, 1);
 
 			if (driver->KartStates.Drifting.numFramesDrifting < 0)
+			{
 				driver->KartStates.Drifting.numFramesDrifting = 0;
+			}
 		}
 	}
 	if (spinRateNegated)
@@ -1518,7 +1590,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 	int spinRateAbs = signedSpinRate;
 	if (signedSpinRate < 0)
+	{
 		spinRateAbs = CTR_MipsNegLo(signedSpinRate);
+	}
 
 	// drift input and current spin have different signs
 	int driftTurnAngleLimit = (int)driver->const_DriftTurnOppositeDirectionAngle;
@@ -1559,7 +1633,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 	int numFramesDriftingAbs = driver->KartStates.Drifting.numFramesDrifting;
 
 	if (numFramesDriftingAbs < 0)
+	{
 		numFramesDriftingAbs = CTR_MipsNegLo(numFramesDriftingAbs);
+	}
 
 	// get half of spin-out constant,
 	// this determines when to start making tire sound effects,
@@ -1572,7 +1648,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 		int turnWobbleAngleAbs = driver->turnWobbleAngle;
 		if (turnWobbleAngleAbs < 0)
+		{
 			turnWobbleAngleAbs = CTR_MipsNegLo(turnWobbleAngleAbs);
+		}
 
 		// if low distortion
 		if (turnWobbleAngleAbs < 10)
@@ -1600,7 +1678,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 
 	int turnWobbleAngleAbs = driver->turnWobbleAngle;
 	if (turnWobbleAngleAbs < 0)
+	{
 		turnWobbleAngleAbs = CTR_MipsNegLo(turnWobbleAngleAbs);
+	}
 
 	// if distortion is too high
 	if (0x32 < turnWobbleAngleAbs)
@@ -1618,11 +1698,15 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 		driver->turnWobbleVelocity = 10;
 
 		if (0 < driver->turnWobbleAngle)
+		{
 			driver->turnWobbleVelocity = (s16)CTR_MipsNegLo(driver->turnWobbleVelocity);
+		}
 
 		int turnWobbleVelocityAbs = driver->turnWobbleVelocity;
 		if (turnWobbleVelocityAbs < 0)
+		{
 			turnWobbleVelocityAbs = CTR_MipsNegLo(turnWobbleVelocityAbs);
+		}
 
 		// move down until zero
 		turnWobbleAngleNext = VehCalc_InterpBySpeed(driver->turnWobbleAngle, turnWobbleVelocityAbs, 0);
@@ -1650,7 +1734,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 		driver->KartStates.Drifting.driftBoostTimeMS = (s16)CTR_MipsSubLo((u16)driver->KartStates.Drifting.driftBoostTimeMS, (u16)gGT->elapsedTimeMS);
 
 		if (driver->KartStates.Drifting.driftBoostTimeMS < 0)
+		{
 			driver->KartStates.Drifting.driftBoostTimeMS = 0;
+		}
 
 		int axisKick = CTR_MipsSra(CTR_MipsMulLo((u8)driver->const_DriftBoostAxisKickRate, gGT->elapsedTimeMS), 5);
 
@@ -1668,7 +1754,9 @@ void VehPhysProc_PowerSlide_PhysAngular(struct Thread *th, struct Driver *driver
 	driver->KartStates.Drifting.driftTotalTimeMS = (s16)CTR_MipsAddLo((u16)driver->KartStates.Drifting.driftTotalTimeMS, (u16)gGT->elapsedTimeMS);
 
 	if (driver->KartStates.Drifting.driftTotalTimeMS > CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5))
+	{
 		driver->KartStates.Drifting.driftTotalTimeMS = (s16)CTR_MipsSll((u8)driver->const_DriftTurnRampFrames, 5);
+	}
 
 	PhysTerrainSlope(driver);
 }
@@ -1677,7 +1765,9 @@ void PhysLerpRot(struct Driver *driver, int targetRotW)
 {
 	int remainingRot = CTR_MipsSubLo(driver->rotCurr.w, targetRotW);
 	if (remainingRot < 0)
+	{
 		remainingRot = CTR_MipsNegLo(remainingRot);
+	}
 
 	int lerpStep = CTR_MipsSra(remainingRot, 3);
 
@@ -2093,11 +2183,15 @@ void VehPhysProc_SpinFirst_Update(struct Thread *t, struct Driver *d)
 		// absolute value
 		speedApprox = d->speedApprox;
 		if (speedApprox < 0)
+		{
 			speedApprox = CTR_MipsNegLo(speedApprox);
+		}
 
 		// quit if moving quickly
 		if (speedApprox > 0x2ff)
+		{
 			return;
+		}
 	}
 
 	// if speed has slown to near-halt,
@@ -2113,7 +2207,9 @@ void VehPhysProc_SpinFirst_PhysLinear(struct Thread *t, struct Driver *d)
 
 	d->NoInputTimer = (s16)CTR_MipsSubLo((u16)d->NoInputTimer, (u16)elapsedTimeMS);
 	if (d->NoInputTimer < 0)
+	{
 		d->NoInputTimer = 0;
+	}
 
 	VehPhysProc_Driving_PhysLinear(t, d);
 
@@ -2271,7 +2367,9 @@ void VehPhysProc_SpinLast_PhysAngular(struct Thread *t, struct Driver *d)
 			d->KartStates.Spinning.driftSpinRate = (s16)CTR_MipsSra(CTR_MipsNegLo(CTR_MipsSll(driftAngleCurr, 2)), 3);
 
 			if (d->KartStates.Spinning.driftSpinRate < 0x20)
+			{
 				d->KartStates.Spinning.driftSpinRate = 0x20;
+			}
 		}
 
 		d->turnAngleCurr =
@@ -2290,7 +2388,9 @@ void VehPhysProc_SpinLast_PhysAngular(struct Thread *t, struct Driver *d)
 			d->KartStates.Spinning.driftSpinRate = (s16)CTR_MipsSra(CTR_MipsNegLo(CTR_MipsSll(driftAngleCurr, 2)), 3);
 
 			if (d->KartStates.Spinning.driftSpinRate > -0x20)
+			{
 				d->KartStates.Spinning.driftSpinRate = -0x20;
+			}
 		}
 
 		d->turnAngleCurr =
@@ -2386,7 +2486,9 @@ void VehPhysProc_SpinStop_Animate(struct Thread *t, struct Driver *d)
 			inst->animFrame = (s16)CTR_MipsAddLo((u16)inst->animFrame, 5);
 
 			if (inst->animFrame < numFrames)
+			{
 				return;
+			}
 
 			inst->animFrame = numFrames - 1;
 			d->KartStates.Spinning.spinDir = 0;
@@ -2399,7 +2501,9 @@ void VehPhysProc_SpinStop_Animate(struct Thread *t, struct Driver *d)
 			inst->animFrame = (s16)CTR_MipsSubLo((u16)inst->animFrame, 5);
 
 			if (inst->animFrame >= 0)
+			{
 				return;
+			}
 
 			inst->animFrame = 0;
 			d->KartStates.Spinning.spinDir = 0;
@@ -2410,7 +2514,9 @@ void VehPhysProc_SpinStop_Animate(struct Thread *t, struct Driver *d)
 		inst->animFrame = VehCalc_InterpBySpeed(inst->animFrame, 2, targetFrame);
 
 		if (inst->animFrame != targetFrame)
+		{
 			return;
+		}
 	}
 
 	d->funcPtrs[DRIVER_FUNC_INIT] = VehPhysProc_Driving_Init;

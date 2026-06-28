@@ -198,11 +198,15 @@ int main(int argc, char *argv[])
 	}
 
 	if (!NativeAssets_Validate())
+	{
 		return NativeConsole_Return(1);
+	}
 
 #if defined(CTR_INTERNAL)
 	if (NativeReplayScheduler_PrepareReportFromArgs(argc, argv) != 0)
+	{
 		return NativeConsole_Return(1);
+	}
 #endif
 
 #ifdef USE_16BY9

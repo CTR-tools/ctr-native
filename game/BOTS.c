@@ -2001,7 +2001,7 @@ UpdateTireColorTimer:
 
 		if ((navFrameCurr->flags & BOTS_NAV_FLAG_KILLPLANE) == 0)
 		{
-			if ((oldBotFlags & 2) == 0)
+			if ((oldBotFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
 			{
 				if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 				{
@@ -2023,15 +2023,8 @@ UpdateTireColorTimer:
 								volume = 0xff;
 							}
 						}
-						int flags;
-						if ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) == 0)
-						{
-							flags = CTR_MipsSll(volume, 0x10) | 0x8080;
-						}
-						else
-						{
-							flags = CTR_MipsSll(volume, 0x10) | 0x1008080;
-						}
+						u32 echo = ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+						int flags = (int)HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, echo);
 
 						OtherFX_Play_LowLevel(7, 1, flags);
 					}
@@ -2091,7 +2084,7 @@ UpdateTireColorTimer:
 
 					if (botThread->modelIndex == DYNAMIC_PLAYER)
 					{
-						OtherFX_Play_Echo(8, 1, ((u32)oldActionsFlags >> 0x10) & 1);
+						OtherFX_Play_Echo(8, 1, (oldActionsFlags & ACTION_ENGINE_ECHO) != 0);
 					}
 				}
 				if (16000 < botDriver->botData.aiPhysics.speedY)
@@ -2992,7 +2985,7 @@ void BOTS_GotoStartingLine(struct Driver *d)
 {
 	sdata->aiCollisionDelayFrameCount = 0;
 
-	VehBirth_TeleportSelf(d, 3, 0);
+	VehBirth_TeleportSelf(d, VEH_BIRTH_SPAWN_RACE_START, 0);
 
 	// get position where driver should spawn
 	u8 spawnPos = sdata->kartSpawnOrderArray[d->driverID];

@@ -813,7 +813,7 @@ void MainFreeze_MenuPtrQuit(struct RectMenu *menu)
 			sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_ARENA;
 
 			// Unpause game
-			gGT->gameMode1 &= ~1;
+			gGT->gameMode1 &= ~PAUSE_1;
 
 			// Level ID for main menu (39)
 			MainRaceTrack_RequestLoad(0x27);
@@ -1015,7 +1015,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 		sdata->mainMenuState = MAIN_MENU_CHARACTERS;
 
 		// when loading is done, add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1035,7 +1035,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1052,7 +1052,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add bit for "in mb"
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x2000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1063,15 +1063,15 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 
 		// when loading is done
 		// add this bit for In Adventure Arena
-		sdata->Loading.OnBegin.AddBitsConfig0 |= 0x100000;
+		sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
 
 		// when loading is done
 		// remove bits for Relic Race or Crystal Challenge
-		sdata->Loading.OnBegin.RemBitsConfig0 |= 0xc000000;
+		sdata->Loading.OnBegin.RemBitsConfig0 |= RELIC_RACE | CRYSTAL_CHALLENGE;
 
 		// when loading is done
 		// remove bit for CTR Token Challenge
-		sdata->Loading.OnBegin.RemBitsConfig8 |= 8;
+		sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
 
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
@@ -1084,7 +1084,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 			if ((int)gameMode < 0)
 			{
 				// when loading is done remove bit for Boss Race, relic, and crystal challenge
-				sdata->Loading.OnBegin.RemBitsConfig0 |= 0x8c000000;
+				sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_BOSS | RELIC_RACE | CRYSTAL_CHALLENGE;
 
 				// When loading is done add bit to spawn driver near boss door
 				sdata->Loading.OnBegin.AddBitsConfig8 |= SPAWN_AT_BOSS;
@@ -1100,7 +1100,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 			levID = GEM_STONE_VALLEY;
 
 			// when loading is done remove bits for Adventure Cup, relic, and crystal challenge
-			sdata->Loading.OnBegin.RemBitsConfig0 |= 0x1c000000;
+			sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_CUP | RELIC_RACE | CRYSTAL_CHALLENGE;
 
 			// Level ID
 			gGT->levelID = gGT->cup.cupID + ADV_CUP;

@@ -25,11 +25,15 @@ static int NativeGpuLinks_AlignTokenSize(size_t size, uint32_t *tokenSizeOut)
 	size_t alignedSize;
 
 	if ((size == 0) || (size > NATIVE_GPU_LINK_FIRST_DYNAMIC_TOKEN) || (size > (SIZE_MAX - 3u)))
+	{
 		return 0;
+	}
 
 	alignedSize = (size + 3u) & ~(size_t)3u;
 	if (alignedSize > NATIVE_GPU_LINK_FIRST_DYNAMIC_TOKEN)
+	{
 		return 0;
+	}
 
 	*tokenSizeOut = (uint32_t)alignedSize;
 	return 1;
@@ -53,18 +57,26 @@ int NativeGpuLinks_RegisterRange(const void *hostStart, size_t size, uint32_t *t
 	uintptr_t end;
 
 	if ((hostStart == NULL) || (size == 0))
+	{
 		return 0;
+	}
 
 	if (s_nativeGpuLinkRangeCount >= NATIVE_GPU_LINK_MAX_RANGES)
+	{
 		return 0;
+	}
 
 	if (!NativeGpuLinks_AlignTokenSize(size, &tokenSize) || (tokenSize > s_nativeGpuLinkNextToken))
+	{
 		return 0;
+	}
 
 	start = (uintptr_t)hostStart;
 	end = start + (uintptr_t)size;
 	if (end < start)
+	{
 		return 0;
+	}
 
 	s_nativeGpuLinkNextToken -= tokenSize;
 
@@ -75,7 +87,9 @@ int NativeGpuLinks_RegisterRange(const void *hostStart, size_t size, uint32_t *t
 	range->tokenEnd = s_nativeGpuLinkNextToken + tokenSize;
 
 	if (tokenStartOut != NULL)
+	{
 		*tokenStartOut = range->tokenStart;
+	}
 
 	return 1;
 }
@@ -83,7 +97,9 @@ int NativeGpuLinks_RegisterRange(const void *hostStart, size_t size, uint32_t *t
 void NativeGpuLinks_RegisterRangeChecked(const char *label, const void *hostStart, size_t size)
 {
 	if (NativeGpuLinks_RegisterRange(hostStart, size, NULL))
+	{
 		return;
+	}
 
 	fprintf(stderr, "[CTR Native] GPU link bridge failed to register %s range start=%p size=%zu\n", label, hostStart, size);
 	abort();
@@ -95,7 +111,9 @@ static const struct NativeGpuLinkRange *NativeGpuLinks_FindHostRange(uintptr_t h
 	{
 		const struct NativeGpuLinkRange *range = &s_nativeGpuLinkRanges[i];
 		if ((hostPtr >= range->hostStart) && (hostPtr < range->hostEnd))
+		{
 			return range;
+		}
 	}
 
 	return NULL;
@@ -109,7 +127,9 @@ static const struct NativeGpuLinkRange *NativeGpuLinks_FindTokenRange(uint32_t t
 	{
 		const struct NativeGpuLinkRange *range = &s_nativeGpuLinkRanges[i];
 		if ((token >= range->tokenStart) && (token < range->tokenEnd))
+		{
 			return range;
+		}
 	}
 
 	return NULL;
@@ -121,7 +141,9 @@ uint32_t NativeGpuLinks_FromHostPointer(const void *hostPtr)
 	const struct NativeGpuLinkRange *range = NativeGpuLinks_FindHostRange(host);
 
 	if (range != NULL)
+	{
 		return range->tokenStart + (uint32_t)(host - range->hostStart);
+	}
 
 	fprintf(stderr, "[CTR Native] GPU link bridge has no token for host pointer %p\n", hostPtr);
 	abort();
@@ -133,11 +155,15 @@ void *NativeGpuLinks_ToHostPointer(uint32_t token)
 
 	token &= 0x00ffffffu;
 	if (NativeGpuLinks_IsTerminator(token))
+	{
 		return NULL;
+	}
 
 	range = NativeGpuLinks_FindTokenRange(token);
 	if (range != NULL)
+	{
 		return (void *)(range->hostStart + (uintptr_t)(token - range->tokenStart));
+	}
 
 	return NULL;
 }
@@ -153,18 +179,24 @@ int NativeGpuLinks_IsRegisteredHostRange(const void *hostPtr, size_t size)
 	uintptr_t end;
 
 	if ((hostPtr == NULL) || (size == 0))
+	{
 		return 0;
+	}
 
 	start = (uintptr_t)hostPtr;
 	end = start + (uintptr_t)size;
 	if (end < start)
+	{
 		return 0;
+	}
 
 	for (int i = 0; i < s_nativeGpuLinkRangeCount; i++)
 	{
 		const struct NativeGpuLinkRange *range = &s_nativeGpuLinkRanges[i];
 		if ((start >= range->hostStart) && (end <= range->hostEnd))
+		{
 			return 1;
+		}
 	}
 
 	return 0;

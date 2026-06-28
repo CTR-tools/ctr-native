@@ -8,7 +8,9 @@ int VehCalc_InterpBySpeed(int val, int speed, int desired)
 		val = CTR_MipsSubLo(val, speed);
 
 		if (val < desired)
+		{
 			return desired;
+		}
 	}
 
 	else
@@ -16,7 +18,9 @@ int VehCalc_InterpBySpeed(int val, int speed, int desired)
 		val = CTR_MipsAddLo(val, speed);
 
 		if (val > desired)
+		{
 			return desired;
+		}
 	}
 
 	return val;
@@ -26,10 +30,14 @@ int VehCalc_InterpBySpeed(int val, int speed, int desired)
 int VehCalc_MapToRange(int val, int oldMin, int oldMax, int newMin, int newMax)
 {
 	if (val <= oldMin)
+	{
 		return newMin;
+	}
 
 	if (val >= oldMax)
+	{
 		return newMax;
+	}
 
 	int distFromBottom = CTR_MipsSubLo(val, oldMin);
 	int newRange = CTR_MipsSubLo(newMax, newMin);

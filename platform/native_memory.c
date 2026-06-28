@@ -77,7 +77,9 @@ const struct PlatformMempackArena *Platform_GetMempackArena(void)
 internal void Platform_RepairResidentPointers(s32 activeMempackIndex)
 {
 	if ((activeMempackIndex < 0) || (activeMempackIndex >= 4))
+	{
 		activeMempackIndex = 0;
+	}
 
 	// NOTE(aalhendi): Native keeps retail-shaped global data, but pointer aliases
 	// must target this process's static storage. This also moves GCC's

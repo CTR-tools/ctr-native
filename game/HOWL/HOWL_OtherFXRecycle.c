@@ -63,5 +63,5 @@ void OtherFX_DriverCrashing(u32 boolEcho, u32 volume)
 		crashID = 0xa;
 	}
 
-	OtherFX_Play_LowLevel(crashID, 0, (boolEcho << 0x18) | ((volume & 0xff) << 0x10) | 0x8080);
+	OtherFX_Play_LowLevel(crashID, 0, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, boolEcho));
 }

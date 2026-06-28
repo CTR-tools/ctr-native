@@ -248,7 +248,7 @@ void AH_Door_ThTick(struct Thread *t)
 		}
 
 		// If the game is paused
-		if ((gGT->gameMode1 & 0xf) != 0)
+		if ((gGT->gameMode1 & PAUSE_ALL) != 0)
 		{
 			return;
 		}

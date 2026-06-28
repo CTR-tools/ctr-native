@@ -65,7 +65,9 @@ struct MaskHeadWeapon *VehPickupItem_MaskUseWeapon(struct Driver *driver, b32 bo
 	{
 		// if thread->modelIndex is NOT Aku or Uka
 		if ((u32)(currThread->modelIndex - STATIC_AKUAKU) >= 2)
+		{
 			continue;
+		}
 
 		currThread->funcThTick = RB_MaskWeapon_ThTick;
 
@@ -205,19 +207,29 @@ static int VehPickupItem_MissileCandidateVisible(struct PushBuffer *pb, struct D
 	sxy = MFC2(14);
 	gteFlag = CFC2(31);
 	if ((gteFlag & 0x40000) != 0)
+	{
 		return 0;
+	}
 
 	screenX = (s16)sxy;
 	if (screenX < 0x1f)
+	{
 		return 0;
+	}
 	if (screenX >= pb->rect.w - 0x1e)
+	{
 		return 0;
+	}
 
 	screenY = (s16)(sxy >> 16);
 	if (screenY < 0x15)
+	{
 		return 0;
+	}
 	if (screenY >= pb->rect.h - 0x14)
+	{
 		return 0;
+	}
 
 	return 1;
 }
@@ -244,20 +256,32 @@ struct Driver *VehPickupItem_MissileGetTargetDriver(struct Driver *driver)
 		struct Driver *candidate = gGT->drivers[i];
 
 		if (candidate == NULL)
+		{
 			continue;
+		}
 		if (candidate == driver)
+		{
 			continue;
+		}
 		if (candidate->kartState == KS_MASK_GRABBED)
+		{
 			continue;
+		}
 
 		if (((gGT->gameMode1 & BATTLE_MODE) != 0) && (candidate->BattleHUD.teamID == driver->BattleHUD.teamID))
+		{
 			continue;
+		}
 
 		if (candidate->invisibleTimer != 0)
+		{
 			continue;
+		}
 
 		if (!VehPickupItem_MissileCandidateVisible(pb, candidate))
+		{
 			continue;
+		}
 
 		s32 dx = CTR_MipsSra(CTR_MipsSubLo(candidate->posCurr.x, driver->posCurr.x), 8);
 		s32 dz = CTR_MipsSra(CTR_MipsSubLo(candidate->posCurr.z, driver->posCurr.z), 8);
@@ -282,7 +306,9 @@ u32 VehPickupItem_PotionThrow(struct MineWeapon *mine, struct Instance *inst, u3
 		if ((flags & 2) == 0)
 		{
 			if ((flags & 1) == 0)
+			{
 				return 0;
+			}
 
 			throwVelocity = (MixRNG_Scramble() & 0x1f) - 0x10;
 		}
@@ -325,7 +351,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	{
 		int boost = 0x80;
 		if (d->numWumpas >= 10)
+		{
 			boost = 0x100;
+		}
 
 		VehFire_Increment(d, 0x960, 9, boost);
 	}
@@ -334,7 +362,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	// Shared code for Bomb and Missile
 	case 2:
 		if (gGT->numMissiles >= 12)
+		{
 			return;
+		}
 
 		gGT->numMissiles++;
 		d->numTimesMissileLaunched++;
@@ -373,15 +403,25 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 					struct Driver *tempD = gGT->drivers[i];
 
 					if (tempD == 0)
+					{
 						continue;
+					}
 					if (tempD == d)
+					{
 						continue;
+					}
 					if (tempD->invisibleTimer != 0)
+					{
 						continue;
+					}
 					if (tempD->kartState == KS_MASK_GRABBED)
+					{
 						continue;
+					}
 					if (tempD->BattleHUD.teamID == d->BattleHUD.teamID)
+					{
 						continue;
+					}
 
 					int distX = CTR_MipsSra(CTR_MipsSubLo(tempD->posCurr.x, d->posCurr.x), 8);
 					int distZ = CTR_MipsSra(CTR_MipsSubLo(tempD->posCurr.z, d->posCurr.z), 8);
@@ -463,8 +503,12 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			talk = 11;
 
 			if (victim != 0)
+			{
 				if (victim->thTrackingMe == 0)
+				{
 					victim->thTrackingMe = RB_GetThread_ClosestTracker(victim);
+				}
+			}
 
 			PlaySound3D(0x4a, weaponInst);
 		}
@@ -592,7 +636,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES;
 		if (gGT->numPlyrCurrGame < 3)
+		{
 			sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES | COLL_SEARCH_HIGH_LOD;
+		}
 
 		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 
@@ -662,7 +708,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 			weaponInst = INSTANCE_BirthWithThread(modelID, sdata->s_beaker1, SMALL, MINE, RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
 			if (weaponInst == 0)
+			{
 				return;
+			}
 		}
 		else
 		{
@@ -698,13 +746,17 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		mw->frameCount_DontHurtParent = 10;
 		mw->extraFlags = 0;
 		if (modelID == STATIC_BEAKER_RED)
+		{
 			mw->extraFlags = 1;
+		}
 
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
 
 		// throw potion forward
 		if ((gb->buttonsHeldCurrFrame & BTN_UP) != 0)
+		{
 			flags |= 4;
+		}
 
 		RB_MinePool_Add(mw);
 		int ret = VehPickupItem_PotionThrow(mw, weaponInst, flags);
@@ -740,7 +792,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		modelID = DYNAMIC_SHIELD_GREEN;
 		if (d->numWumpas >= 10)
+		{
 			modelID = DYNAMIC_SHIELD;
+		}
 
 		struct Instance *instColor = INSTANCE_Birth3D(gGT->modelPtr[modelID], sdata->s_shield, 0);
 
@@ -796,7 +850,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		int hurtVal = 0x1e00;
 		if (d->numWumpas >= 10)
+		{
 			hurtVal = 0x2d00;
+		}
 
 		struct Driver **dptr;
 
@@ -805,7 +861,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			struct Driver *victim = *dptr;
 
 			if (victim == 0)
+			{
 				continue;
+			}
 
 			victim->clockFlash = 4;
 
@@ -879,7 +937,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		tw->instParent = dInst;
 
 		if (d->numWumpas >= 10)
+		{
 			tw->flags |= 1;
+		}
 
 		// sets nodeCurrIndex
 		RB_Warpball_SeekDriver(tw, d->checkpoint.currentIndex, d);
@@ -928,7 +988,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		tw->ptrParticle = p;
 
 		if (p != 0)
+		{
 			p->otIndexOffset = 250;
+		}
 
 		break;
 
@@ -946,7 +1008,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		int time = 0x1e00;
 		if (d->numWumpas >= 10)
+		{
 			time = 0x2d00;
+		}
 
 		d->invisibleTimer = time;
 		break;
@@ -957,7 +1021,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 	{
 		int engine = 0x1e00;
 		if (d->numWumpas >= 10)
+		{
 			engine = 0x2d00;
+		}
 
 		d->superEngineTimer = engine;
 	}
@@ -977,7 +1043,9 @@ void VehPickupItem_ShootOnCirclePress(struct Driver *d)
 
 	// If you want to fire a weapon
 	if ((d->actionsFlagSet & ACTION_WEAPON_FIRE_REQUEST) == 0)
+	{
 		return;
+	}
 
 	// Remove the request to fire a weapon, since we will fire it now
 	d->actionsFlagSet &= ~ACTION_WEAPON_FIRE_REQUEST;

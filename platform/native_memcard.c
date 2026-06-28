@@ -63,7 +63,9 @@ internal struct NativeMemcardDeviceName NativeMemcard_ParseDeviceName(const char
 internal const char *NativeMemcard_ActiveRoot(void)
 {
 	if (s_memcardRoot[0] == '\0')
+	{
 		return NATIVE_MEMCARD_DEFAULT_ROOT;
+	}
 
 	return s_memcardRoot;
 }
@@ -73,10 +75,14 @@ internal int NativeMemcard_CopyString(char *dst, int dst_size, const char *src)
 	int i;
 
 	if (dst_size <= 0)
+	{
 		return 0;
+	}
 
 	for (i = 0; (i < dst_size - 1) && (src[i] != '\0'); i++)
+	{
 		dst[i] = src[i];
+	}
 
 	dst[i] = '\0';
 	return src[i] == '\0';
@@ -97,7 +103,9 @@ internal int NativeMemcard_SlotDir(char *dst, int dst_size, int slot)
 	int written;
 
 	if (slot < 0)
+	{
 		slot = 0;
+	}
 
 	written = snprintf(dst, (size_t)dst_size, "slot%d", slot);
 	return (written >= 0) && (written < dst_size);
@@ -108,7 +116,9 @@ internal int NativeMemcard_BuildSlotRoot(char *dst, int dst_size, const char *ro
 	char slotDir[16];
 
 	if (!NativeMemcard_SlotDir(slotDir, sizeof(slotDir), slot))
+	{
 		return 0;
+	}
 
 	return NativeMemcard_JoinPath(dst, dst_size, root, slotDir);
 }
@@ -127,7 +137,9 @@ internal int NativeMemcard_PathExists(const char *path)
 	struct stat st;
 
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 
 	return stat(path, &st) == 0;
 #endif
@@ -147,9 +159,13 @@ internal int NativeMemcard_PathIsDirectory(const char *path)
 	struct stat st;
 
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 	if (stat(path, &st) != 0)
+	{
 		return 0;
+	}
 
 	return S_ISDIR(st.st_mode);
 #endif
@@ -158,7 +174,9 @@ internal int NativeMemcard_PathIsDirectory(const char *path)
 internal int NativeMemcard_MakeDir(const char *path)
 {
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 
 #if defined(_WIN32)
 	if (CreateDirectoryA(path, NULL) != 0)
@@ -167,7 +185,9 @@ internal int NativeMemcard_MakeDir(const char *path)
 	return GetLastError() == ERROR_ALREADY_EXISTS;
 #else
 	if (mkdir(path, 0777) == 0)
+	{
 		return 1;
+	}
 
 	return errno == EEXIST;
 #endif
@@ -178,9 +198,13 @@ internal int NativeMemcard_EnsureSlotRoot(const char *root, int slot)
 	char slotRoot[NATIVE_MEMCARD_MAX_PATH];
 
 	if (!NativeMemcard_MakeDir(root))
+	{
 		return 0;
+	}
 	if (!NativeMemcard_BuildSlotRoot(slotRoot, sizeof(slotRoot), root, slot))
+	{
 		return 0;
+	}
 
 	return NativeMemcard_MakeDir(slotRoot);
 }
@@ -194,10 +218,14 @@ internal int NativeMemcard_BuildPathFromDeviceName(char *dst, int dst_size, cons
 	if (ensureSlotRoot != 0)
 	{
 		if (!NativeMemcard_EnsureSlotRoot(root, device.slot))
+		{
 			return 0;
+		}
 	}
 	if (!NativeMemcard_BuildSlotRoot(slotRoot, sizeof(slotRoot), root, device.slot))
+	{
 		return 0;
+	}
 
 	return NativeMemcard_JoinPath(dst, dst_size, slotRoot, device.name);
 }
@@ -205,7 +233,9 @@ internal int NativeMemcard_BuildPathFromDeviceName(char *dst, int dst_size, cons
 internal const char *NativeMemcard_PathFromDeviceName(const char *save_name, int ensureSlotRoot)
 {
 	if (!NativeMemcard_BuildPathFromDeviceName(s_memcardResolvedPath, sizeof(s_memcardResolvedPath), save_name, ensureSlotRoot))
+	{
 		s_memcardResolvedPath[0] = '\0';
+	}
 	return s_memcardResolvedPath;
 }
 
@@ -219,7 +249,9 @@ internal enum NativeMemcardResult NativeMemcard_CopyFile(const char *src_path, c
 
 	src = fopen(src_path, "rb");
 	if (src == NULL)
+	{
 		return NATIVE_MEMCARD_NOT_FOUND;
+	}
 
 	dst = fopen(dst_path, "wb");
 	if (dst == NULL)
@@ -238,7 +270,9 @@ internal enum NativeMemcardResult NativeMemcard_CopyFile(const char *src_path, c
 	}
 
 	if (ferror(src) != 0)
+	{
 		result = NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	fclose(dst);
 	fclose(src);
@@ -251,13 +285,21 @@ internal enum NativeMemcardResult NativeMemcard_CopyOneSave(const char *src_root
 	char dst_path[NATIVE_MEMCARD_MAX_PATH];
 
 	if (!NativeMemcard_JoinPath(src_path, sizeof(src_path), src_root, name))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 	if (!NativeMemcard_JoinPath(dst_path, sizeof(dst_path), dst_root, name))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 	if (NativeMemcard_PathIsDirectory(src_path))
+	{
 		return NATIVE_MEMCARD_OK;
+	}
 	if ((overwrite == 0) && NativeMemcard_PathExists(dst_path))
+	{
 		return NATIVE_MEMCARD_OK;
+	}
 
 	return NativeMemcard_CopyFile(src_path, dst_path);
 }
@@ -267,9 +309,13 @@ internal enum NativeMemcardResult NativeMemcard_CopyCtrSavesFromDir(const char *
 	enum NativeMemcardResult result;
 
 	if (!NativeMemcard_PathExists(src_root))
+	{
 		return NATIVE_MEMCARD_OK;
+	}
 	if (!NativeMemcard_MakeDir(dst_root))
+	{
 		return NATIVE_MEMCARD_OPEN_FAILED;
+	}
 
 #if defined(_WIN32)
 	{
@@ -307,12 +353,16 @@ internal enum NativeMemcardResult NativeMemcard_CopyCtrSavesFromDir(const char *
 		struct dirent *entry;
 
 		if (dir_handle == NULL)
+		{
 			return NATIVE_MEMCARD_OK;
+		}
 
 		while ((entry = readdir(dir_handle)) != NULL)
 		{
 			if (!NativeMemcard_IsCtrSaveName(entry->d_name))
+			{
 				continue;
+			}
 
 			result = NativeMemcard_CopyOneSave(src_root, dst_root, entry->d_name, overwrite);
 			if (result != NATIVE_MEMCARD_OK)
@@ -337,12 +387,16 @@ internal int NativeMemcard_MatchesPattern(const char *name, const char *pattern)
 		{
 			pattern++;
 			if (*pattern == '\0')
+			{
 				return 1;
+			}
 
 			while (*name != '\0')
 			{
 				if (NativeMemcard_MatchesPattern(name, pattern) != 0)
+				{
 					return 1;
+				}
 				name++;
 			}
 
@@ -350,10 +404,14 @@ internal int NativeMemcard_MatchesPattern(const char *name, const char *pattern)
 		}
 
 		if ((*pattern != '?') && (*pattern != *name))
+		{
 			return 0;
+		}
 
 		if (*name == '\0')
+		{
 			return 0;
+		}
 
 		name++;
 		pattern++;
@@ -382,11 +440,15 @@ internal void NativeMemcard_SplitPattern(const char *path, char *dir, int dir_si
 		int dir_len = (int)(slash - path);
 
 		if (dir_len <= 0)
+		{
 			NativeMemcard_CopyString(dir, dir_size, ".");
+		}
 		else
 		{
 			if (dir_len >= dir_size)
+			{
 				dir_len = dir_size - 1;
+			}
 
 			memcpy(dir, path, dir_len);
 			dir[dir_len] = '\0';
@@ -407,7 +469,9 @@ internal void NativeMemcard_AddFoundName(const char *name)
 	int insert;
 
 	if (s_memcardFind.count >= NATIVE_MEMCARD_MAX_FOUND_FILES)
+	{
 		return;
+	}
 
 	insert = s_memcardFind.count;
 	for (i = 0; i < s_memcardFind.count; i++)
@@ -420,7 +484,9 @@ internal void NativeMemcard_AddFoundName(const char *name)
 	}
 
 	for (i = s_memcardFind.count; i > insert; i--)
+	{
 		memcpy(s_memcardFind.names[i], s_memcardFind.names[i - 1], sizeof(s_memcardFind.names[i]));
+	}
 
 	NativeMemcard_CopyString(s_memcardFind.names[insert], sizeof(s_memcardFind.names[insert]), name);
 	s_memcardFind.count++;
@@ -464,12 +530,16 @@ internal void NativeMemcard_BuildFindList(const char *pattern)
 		struct dirent *entry;
 
 		if (dir_handle == NULL)
+		{
 			return;
+		}
 
 		while ((entry = readdir(dir_handle)) != NULL)
 		{
 			if (NativeMemcard_MatchesPattern(entry->d_name, file_pattern) != 0)
+			{
 				NativeMemcard_AddFoundName(entry->d_name);
+			}
 		}
 
 		closedir(dir_handle);
@@ -486,7 +556,9 @@ enum NativeMemcardResult NativeMemcard_SetRoot(const char *root_path)
 	}
 
 	if (!NativePath_NormalizeSlashes(s_memcardRoot, sizeof(s_memcardRoot), NativeStr8_FromCString(root_path)))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	memset(&s_memcardFind, 0, sizeof(s_memcardFind));
 	return NATIVE_MEMCARD_OK;
@@ -502,12 +574,18 @@ void NativeMemcard_ClearRoot(void)
 enum NativeMemcardResult NativeMemcard_RemoveRoot(const char *root_path)
 {
 	if ((root_path == NULL) || (root_path[0] == '\0') || (strcmp(root_path, ".") == 0))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 	if (strcmp(root_path, NATIVE_MEMCARD_DEFAULT_ROOT) == 0)
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	if (!NativeMemcard_PathExists(root_path))
+	{
 		return NATIVE_MEMCARD_OK;
+	}
 
 #if defined(_WIN32)
 	{
@@ -565,7 +643,9 @@ enum NativeMemcardResult NativeMemcard_RemoveRoot(const char *root_path)
 				char file_path[NATIVE_MEMCARD_MAX_PATH];
 
 				if ((strcmp(entry->d_name, ".") == 0) || (strcmp(entry->d_name, "..") == 0))
+				{
 					continue;
+				}
 				if (!NativeMemcard_JoinPath(file_path, sizeof(file_path), root_path, entry->d_name))
 				{
 					closedir(dir_handle);
@@ -590,7 +670,9 @@ enum NativeMemcardResult NativeMemcard_RemoveRoot(const char *root_path)
 		}
 
 		if (rmdir(root_path) != 0)
+		{
 			return NATIVE_MEMCARD_IO_ERROR;
+		}
 	}
 #endif
 
@@ -603,22 +685,34 @@ enum NativeMemcardResult NativeMemcard_CloneRoot(const char *src_root, const cha
 	int slot;
 
 	if ((dst_root == NULL) || (dst_root[0] == '\0') || (strcmp(dst_root, ".") == 0))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	if ((src_root == NULL) || (src_root[0] == '\0'))
+	{
 		src_root = NATIVE_MEMCARD_DEFAULT_ROOT;
+	}
 	if (strcmp(src_root, dst_root) == 0)
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	result = NativeMemcard_RemoveRoot(dst_root);
 	if (result != NATIVE_MEMCARD_OK)
+	{
 		return result;
+	}
 
 	if (!NativeMemcard_MakeDir(dst_root))
+	{
 		return NATIVE_MEMCARD_OPEN_FAILED;
+	}
 
 	if (!NativeMemcard_PathExists(src_root))
+	{
 		return NATIVE_MEMCARD_OK;
+	}
 
 	for (slot = 0; slot < NATIVE_MEMCARD_SLOT_COUNT; slot++)
 	{
@@ -626,15 +720,23 @@ enum NativeMemcardResult NativeMemcard_CloneRoot(const char *src_root, const cha
 		char dstSlotRoot[NATIVE_MEMCARD_MAX_PATH];
 
 		if (!NativeMemcard_BuildSlotRoot(srcSlotRoot, sizeof(srcSlotRoot), src_root, slot))
+		{
 			return NATIVE_MEMCARD_IO_ERROR;
+		}
 		if (!NativeMemcard_BuildSlotRoot(dstSlotRoot, sizeof(dstSlotRoot), dst_root, slot))
+		{
 			return NATIVE_MEMCARD_IO_ERROR;
+		}
 		if (!NativeMemcard_PathExists(srcSlotRoot))
+		{
 			continue;
+		}
 
 		result = NativeMemcard_CopyCtrSavesFromDir(srcSlotRoot, dstSlotRoot, 1);
 		if (result != NATIVE_MEMCARD_OK)
+		{
 			return result;
+		}
 	}
 
 	return NATIVE_MEMCARD_OK;
@@ -655,7 +757,9 @@ int NativeMemcard_FindFirstFile(const char *pattern, char *dst_name, int dst_siz
 int NativeMemcard_FindNextFile(char *dst_name, int dst_size)
 {
 	if (s_memcardFind.index >= s_memcardFind.count)
+	{
 		return 0;
+	}
 
 	NativeMemcard_CopyString(dst_name, dst_size, s_memcardFind.names[s_memcardFind.index]);
 	s_memcardFind.index++;
@@ -668,7 +772,9 @@ int NativeMemcard_FileExists(const char *save_name)
 	FILE *file = fopen(path, "rb");
 
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	fclose(file);
 	return 1;
@@ -689,7 +795,9 @@ enum NativeMemcardResult NativeMemcard_ReadSaveData(const char *save_name, unsig
 
 	file = fopen(path, "rb");
 	if (file == NULL)
+	{
 		return NATIVE_MEMCARD_NOT_FOUND;
+	}
 
 	if (fseek(file, data_offset, SEEK_SET) != 0)
 	{
@@ -712,14 +820,18 @@ enum NativeMemcardResult NativeMemcard_WriteSaveData(const char *save_name, cons
 
 	file = fopen(path, "wb");
 	if (file == NULL)
+	{
 		return NATIVE_MEMCARD_OPEN_FAILED;
+	}
 
 	wrote_icon = fwrite(icon, 1, icon_byte_count, file);
 	wrote_data = fwrite(src, 1, byte_count, file);
 	fclose(file);
 
 	if ((wrote_icon != (size_t)icon_byte_count) || (wrote_data != (size_t)byte_count))
+	{
 		return NATIVE_MEMCARD_IO_ERROR;
+	}
 
 	return NATIVE_MEMCARD_OK;
 }

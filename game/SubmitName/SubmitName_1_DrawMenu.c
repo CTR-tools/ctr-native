@@ -128,7 +128,9 @@ s16 SubmitName_DrawMenu(u16 string)
 			// LETTER button blink
 			strColorBlink = 0;
 			if (cursorPosition == letterID)
+			{
 				strColorBlink = blinkWhite;
+			}
 
 			// LETTER button draw
 			DecalFont_DrawLine(keyboardString,
@@ -165,7 +167,9 @@ s16 SubmitName_DrawMenu(u16 string)
 	// SAVE button blink
 	strColorBlink = 0;
 	if (cursorPosition == 1001)
+	{
 		strColorBlink = blinkWhite;
+	}
 
 	// SAVE button draw
 	DecalFont_DrawLine(sdata->lngStrings[stringCopy],
@@ -178,7 +182,9 @@ s16 SubmitName_DrawMenu(u16 string)
 	// CANCEL button blink
 	strColorBlink = 0;
 	if (cursorPosition == 1000)
+	{
 		strColorBlink = blinkWhite;
+	}
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_CANCEL],
 
@@ -343,7 +349,9 @@ s16 SubmitName_DrawMenu(u16 string)
 						{
 							soundID = 0;
 							if (cursorPosition != 1000)
+							{
 								goto LAB_8004b0dc;
+							}
 							soundID = 3;
 							local_38 = -1;
 						}
@@ -365,7 +373,9 @@ s16 SubmitName_DrawMenu(u16 string)
 					gGT->currNameEntered[currNameLength - 1] = 0;
 
 					if (gGT->currNameEntered[currNameLength - 2] < 3)
+					{
 						gGT->currNameEntered[currNameLength - 2] = 0;
+					}
 				}
 			}
 		}

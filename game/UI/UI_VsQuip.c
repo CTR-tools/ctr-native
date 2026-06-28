@@ -6,18 +6,24 @@ u32 UI_VsQuipReadDriver(struct Driver *d, int offset, int size)
 	char *data = (char *)d + offset;
 
 	if (size == 2)
+	{
 		return *(s16 *)data;
+	}
 
 	if (size < 3)
 	{
 		if (size == 1)
+		{
 			return *(u8 *)data;
+		}
 
 		return 0;
 	}
 
 	if (size == 4)
+	{
 		return *(u32 *)data;
+	}
 
 	return 0;
 }
@@ -26,10 +32,14 @@ u32 UI_VsQuipReadDriver(struct Driver *d, int offset, int size)
 void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver *bestDriver, int characterID)
 {
 	if (driver == NULL)
+	{
 		return;
+	}
 
 	if (((meta->flags & 4) != 0) && (driver != bestDriver))
+	{
 		return;
+	}
 
 	struct QuipStr *selected = meta->ptrQuipStrCurr;
 
@@ -56,10 +66,14 @@ void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver
 		if (selected->priority <= oldPriority)
 		{
 			if (selected->priority != oldPriority)
+			{
 				return;
+			}
 
 			if (((MixRNG_Scramble() >> 3) & 0xff) > 0x3f)
+			{
 				return;
+			}
 		}
 
 		if (oldQuip->priority < 0)
@@ -134,7 +148,9 @@ void UI_VsQuipAssignAll(void)
 	int characterID = 0;
 
 	if (gGT->numPlyrCurrGame < 2)
+	{
 		return;
+	}
 
 	u8 *quipData = UI_VsQuipData();
 	u32 metaStartOff = UI_QUIP_VS_META_OFF;
@@ -214,7 +230,9 @@ void UI_VsQuipAssignAll(void)
 			int numLaps = (s8)gGT->numLaps;
 
 			if (numLaps < 0)
+			{
 				numLaps = -numLaps;
+			}
 
 			threshold *= numLaps;
 		}
@@ -243,7 +261,9 @@ void UI_VsQuipAssignAll(void)
 					nextThreshold = threshold;
 
 					if (value == threshold)
+					{
 						nextSelectedDriver = NULL;
+					}
 				}
 				break;
 			}
@@ -263,7 +283,9 @@ void UI_VsQuipAssignAll(void)
 						nextThreshold = threshold;
 
 						if (value == threshold)
+						{
 							nextSelectedDriver = NULL;
+						}
 					}
 				}
 				break;
@@ -287,7 +309,9 @@ void UI_VsQuipAssignAll(void)
 						selectedDriver = NULL;
 
 						if ((int)bestValue < (int)value)
+						{
 							bestValue = value;
+						}
 					}
 				}
 
@@ -316,7 +340,9 @@ void UI_VsQuipAssignAll(void)
 						nextSelectedDriver = NULL;
 
 						if ((int)bestValue < (int)value)
+						{
 							nextBestValue = value;
+						}
 					}
 				}
 				break;
@@ -344,7 +370,9 @@ void UI_VsQuipAssignAll(void)
 							nextSelectedDriver = NULL;
 
 							if ((int)value < (int)bestValue)
+							{
 								nextBestValue = value;
+							}
 						}
 					}
 				}
@@ -356,7 +384,9 @@ void UI_VsQuipAssignAll(void)
 				u32 value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
 
 				if (value == (u8)driver->numTimesAttacking)
+				{
 					nextSelectedDriver = driver;
+				}
 				break;
 			}
 
@@ -364,7 +394,9 @@ void UI_VsQuipAssignAll(void)
 				if (threshold == 0)
 				{
 					if (driver == bestDriver)
+					{
 						nextSelectedDriver = bestDriver;
+					}
 				}
 				else if ((threshold == 1) && (secondScore != 0) && (scoreByDriverID[driver->driverID] == secondScore))
 				{
@@ -377,13 +409,17 @@ void UI_VsQuipAssignAll(void)
 				int value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
 
 				if (value == threshold)
+				{
 					nextSelectedDriver = driver;
+				}
 				break;
 			}
 
 			case 9:
 				if (driver->EndOfRaceComment_ptrQuip == NULL)
+				{
 					UI_VsQuipAssign(driver, &meta, bestDriver, 0);
+				}
 				break;
 
 			default:
@@ -391,7 +427,9 @@ void UI_VsQuipAssignAll(void)
 			}
 
 			if ((nextSelectedDriver != NULL) && ((meta.flags & 0xc) != 0))
+			{
 				UI_VsQuipAssign(nextSelectedDriver, &meta, bestDriver, characterID);
+			}
 
 			thread = thread->siblingThread;
 			selectedDriver = nextSelectedDriver;
@@ -428,13 +466,17 @@ void UI_VsQuipDrawAll(void)
 
 		// If driver already pressed X to continue
 		if ((sdata->Battle_EndOfRace.boolPressX[playerIndex] & 2) != 0)
+		{
 			continue;
+		}
 
 		// This is secretly a s16[2], to hold a config bit
 		printArr = (s16 *)d->EndOfRaceComment_ptrQuip;
 
 		if (printArr == 0)
+		{
 			continue;
+		}
 
 		printArr[2] = 0;
 		printArr[3] = 0;

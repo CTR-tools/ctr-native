@@ -46,7 +46,9 @@ u32 gte_leadingzerocount(u32 lzcs)
 	                                           1, 10, 4, 14, 6, 22, 25, 20, 11, 15, 23, 26, 16, 27, 17, 18};
 
 	if (!lzcr)
+	{
 		return 32;
+	}
 
 	lzcr |= lzcr >> 1;
 	lzcr |= lzcr >> 2;
@@ -77,9 +79,13 @@ int LIM(int value, int max, int min, unsigned int flag)
 internal inline s64 gte_shift(s64 a, int sf)
 {
 	if (sf > 0)
+	{
 		return a >> 12;
+	}
 	else if (sf < 0)
+	{
 		return a << 12;
+	}
 
 	return a;
 }
@@ -87,10 +93,14 @@ internal inline s64 gte_shift(s64 a, int sf)
 internal int BOUNDS(/*int44*/ s64 value, int max_flag, int min_flag)
 {
 	if (value /*.positive_overflow()*/ > (s64)0x7ffffffffff)
+	{
 		C2_FLAG |= max_flag;
+	}
 
 	if (value /*.negative_overflow()*/ < (s64)-0x8000000000)
+	{
 		C2_FLAG |= min_flag;
+	}
 
 	return (int)(gte_shift(value /*.value()*/, m_sf));
 }
@@ -160,15 +170,23 @@ internal int Lm_B3_sf(s64 value, int sf, int lm)
 	int max = 0x7fff;
 	int min = 0;
 	if (lm == 0)
+	{
 		min = -0x8000;
+	}
 
 	if (value_12 < -0x8000 || value_12 > 0x7fff)
+	{
 		C2_FLAG |= (1 << 22);
+	}
 
 	if (value_sf > max)
+	{
 		return max;
+	}
 	else if (value_sf < min)
+	{
 		return min;
+	}
 
 	return value_sf;
 }
@@ -199,7 +217,9 @@ internal u32 Lm_E(u32 result)
 	}
 
 	if (result > 0x1ffff)
+	{
 		return 0x1ffff;
+	}
 
 	return result;
 }
@@ -209,10 +229,14 @@ internal s64 F(s64 a)
 	m_mac0 = a;
 
 	if (a > 0x7fffffffLL)
+	{
 		C2_FLAG |= (1 << 31) | (1 << 16);
+	}
 
 	if (a < -0x80000000LL)
+	{
 		C2_FLAG |= (1 << 31) | (1 << 15);
+	}
 
 	return a;
 }
@@ -253,10 +277,14 @@ internal int Lm_G2(s64 a)
 internal int Lm_G1_ia(s64 a)
 {
 	if (a > 0x3ffffff)
+	{
 		return 0x3ffffff;
+	}
 
 	if (a < -0x4000000)
+	{
 		return -0x4000000;
+	}
 
 	return (int)(a);
 }
@@ -264,10 +292,14 @@ internal int Lm_G1_ia(s64 a)
 internal int Lm_G2_ia(s64 a)
 {
 	if (a > 0x3ffffff)
+	{
 		return 0x3ffffff;
+	}
 
 	if (a < -0x4000000)
+	{
 		return -0x4000000;
+	}
 
 	return (int)(a);
 }
@@ -280,13 +312,19 @@ internal int Lm_H(s64 value, int sf)
 	int min = 0x0000;
 
 	if (value_sf < min || value_sf > max)
+	{
 		C2_FLAG |= (1 << 12);
+	}
 
 	if (value_12 > max)
+	{
 		return max;
+	}
 
 	if (value_12 < min)
+	{
 		return min;
+	}
 
 	return value_12;
 }
@@ -652,7 +690,9 @@ int GTE_operator(int op)
 	case 0x30:
 
 		for (v = 0; v < 3; v++)
+		{
 			h_over_sz3 = GTE_RotTransPers(v, lm);
+		}
 
 		C2_MAC0 = (int)(F((s64)C2_DQB + ((s64)C2_DQA * h_over_sz3)));
 		C2_IR0 = Lm_H(m_mac0, 1);

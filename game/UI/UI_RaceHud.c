@@ -70,7 +70,9 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		// If currentDriver more than 768 units away from this player,
 		// don't draw that driver's arrow
 		if (0x90000 > playerDistance)
+		{
 			continue;
+		}
 
 		// load input vector
 		pos.vx = currInst->matrix.t[0];
@@ -87,13 +89,17 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		gte_stflg(&flag);
 
 		if ((flag & 0x40000) != 0)
+		{
 			continue;
+		}
 
 		struct PrimMem *primMem = &gGT->backBuffer->primMem;
 
 		p = primMem->cursor;
 		if ((int)p > (int)primMem->guardEnd)
+		{
 			return;
+		}
 
 		primMem->cursor = p + 1;
 
@@ -204,7 +210,9 @@ void UI_TrackerSelf(struct Driver *d)
 	{
 		// trackerWeapon hit intended driverTarget
 		if ((((struct TrackerWeapon *)d->thTrackingMe->object)->flags & 0x10) != 0)
+		{
 			goto LAB_8004fe8c;
+		}
 
 		// reset timer loop
 		sVar18 = 12;
@@ -223,7 +231,9 @@ void UI_TrackerSelf(struct Driver *d)
 
 		    // timer loop active
 		    (timer != 0))
+		{
 			goto LAB_8004fe8c;
+		}
 
 		// turn on 27th bit of Actions Flag set (means ?)
 		d->actionsFlagSet |= ACTION_TRACKER_TARGETED;
@@ -280,9 +290,13 @@ LAB_8004fe8c:
 
 		beep_rate = 5;
 		if (missileDist > 100)
+		{
 			beep_rate = 10;
+		}
 		if (missileDist > 200)
+		{
 			beep_rate = 30;
+		}
 
 		// red
 		bgColor = 0xff;
@@ -370,7 +384,9 @@ LAB_8004fe8c:
 
 			p = primMem->cursor;
 			if (p > (POLY_G3 *)primMem->guardEnd)
+			{
 				return;
+			}
 			primMem->cursor = p + 1;
 
 			*(int *)&p->r0 = rgb0;
@@ -397,7 +413,9 @@ LAB_8004fe8c:
 			POLY_G3 *pLast = p;
 			p = primMem->cursor;
 			if (p > (POLY_G3 *)primMem->guardEnd)
+			{
 				return;
+			}
 			primMem->cursor = p + 1;
 
 			// if tracking object is warpball
@@ -453,18 +471,24 @@ void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags)
 
 	// If you're not in Battle Mode
 	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
+	{
 		// Get the rank you're in (1st, 2nd, 3rd, etc)
 		currRank = d->driverRank;
+	}
 	else
+	{
 		// get the rank that the battle team is in
 		currRank = gGT->battleSetup.finishedRankOfEachTeam[d->BattleHUD.teamID];
+	}
 
 	// Draw the suffix of your current position
 	DecalFont_DrawLine(sdata->lngStrings[data.stringIndexSuffix[currRank]], posX, posY, FONT_BIG, flags);
 
 	// setting posZ changes which number draws
 	if (d->instBigNum != 0)
+	{
 		d->instBigNum->matrix.t[2] = (d->driverRank + 0x100);
+	}
 
 	return;
 }
@@ -489,7 +513,9 @@ void UI_DrawLapCount(s16 posX, int posY, int param_3, struct Driver *d)
 	currLap = d->lapIndex + 1;
 
 	if (currLap > numLaps)
+	{
 		currLap = numLaps;
+	}
 
 	// 3P or 4P
 	type = FONT_SMALL;
@@ -531,7 +557,9 @@ void UI_DrawBattleScores(int posX, int posY, struct Driver *d)
 	if ((gGT->gameMode1 & POINT_LIMIT) == 0)
 	{
 		if ((gGT->gameMode1 & LIFE_LIMIT) == 0)
+		{
 			return;
+		}
 
 		// == Life Limit
 

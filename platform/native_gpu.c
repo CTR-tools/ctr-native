@@ -150,9 +150,13 @@ int NativeGpu_CaptureState(void *dst, int dstSize)
 	struct NativeGpuSnapshot *snapshot = (struct NativeGpuSnapshot *)dst;
 
 	if ((dst == NULL) || (dstSize < (int)sizeof(*snapshot)))
+	{
 		return 0;
+	}
 	if (NativeRenderer_GetVRAMStateSize() != (int)sizeof(snapshot->vram))
+	{
 		return 0;
+	}
 
 	memset(snapshot, 0, sizeof(*snapshot));
 	snapshot->magic = NATIVE_GPU_STATE_MAGIC;
@@ -171,15 +175,25 @@ int NativeGpu_RestoreState(const void *src, int srcSize)
 	const struct NativeGpuSnapshot *snapshot = (const struct NativeGpuSnapshot *)src;
 
 	if ((src == NULL) || (srcSize < (int)sizeof(*snapshot)))
+	{
 		return 0;
+	}
 	if ((snapshot->magic != NATIVE_GPU_STATE_MAGIC) || (snapshot->version != NATIVE_GPU_STATE_VERSION) || (snapshot->size != sizeof(*snapshot)))
+	{
 		return 0;
+	}
 	if ((snapshot->gpuDisabledState < 0) || (snapshot->gpuDisabledState > 1) || (snapshot->psxDrawMaskSet < 0) || (snapshot->psxDrawMaskSet > 1))
+	{
 		return 0;
+	}
 	if (NativeRenderer_GetVRAMStateSize() != (int)sizeof(snapshot->vram))
+	{
 		return 0;
+	}
 	if (!NativeRenderer_RestoreVRAMState(snapshot->vram, sizeof(snapshot->vram)))
+	{
 		return 0;
+	}
 
 	activeDrawEnv = snapshot->drawEnv;
 	activeDispEnv = snapshot->dispEnv;
@@ -221,7 +235,9 @@ void DrawEnvOffset(float *ofsX, float *ofsY)
 		DrawEnvDimensionsInt(&w, &h);
 
 		if (w <= 0)
+		{
 			w = 1;
+		}
 
 		// NOTE(aalhendi): Convert PS1 VRAM-page draw offsets into display-relative host-screen offsets.
 		// CTR alternates draw pages at y=0 and y=0x128; using raw modulo VRAM offsets shifts every other native frame vertically.
@@ -464,9 +480,13 @@ void MakeTexcoordRect(GrVertex *vertex, u8 *uv, s16 page, s16 clut, s16 w, s16 h
 
 	// sim overflow
 	if ((int)uv[0] + w > 255)
+	{
 		w = 255 - uv[0];
+	}
 	if ((int)uv[1] + h > 255)
+	{
 		h = 255 - uv[1];
+	}
 
 	const u8 bright = 2;
 	const u8 dither = 0;
@@ -749,10 +769,14 @@ internal bool NativeGpu_TPageOverlapsActiveDrawPage(int tpage)
 	const int pageH = 0x100;
 
 	if (!activeDrawEnv.dfe)
+	{
 		return false;
+	}
 
 	if (GetTPageFormat(tpage) != TF_16_BIT)
+	{
 		return false;
+	}
 
 	return NativeGpu_RectOverlaps(pageX, pageY, pageW, pageH, activeDrawEnv.clip.x, activeDrawEnv.clip.y, activeDrawEnv.clip.w, activeDrawEnv.clip.h);
 }
@@ -760,17 +784,23 @@ internal bool NativeGpu_TPageOverlapsActiveDrawPage(int tpage)
 internal void NativeGpu_PrepareFramebufferFeedback(int tpage)
 {
 	if (!NativeGpu_TPageOverlapsActiveDrawPage(tpage))
+	{
 		return;
+	}
 
 	if (s_gpu.framebufferFeedbackRunActive)
+	{
 		return;
+	}
 
 	// NOTE(aalhendi): PS1 can draw into VRAM and immediately texture from that
 	// same draw page. Native batches primitives, so screen-feedback effects
 	// like heat warp need an explicit barrier before their framebuffer-sampling
 	// polygons consume the VRAM texture.
 	if (NativeGpu_HasPendingSplits())
+	{
 		DrawAllSplits();
+	}
 
 	NativeRenderer_StoreFrameBuffer(activeDrawEnv.clip.x, activeDrawEnv.clip.y, activeDrawEnv.clip.w, activeDrawEnv.clip.h);
 	s_gpu.framebufferFeedbackRunActive = true;
@@ -781,9 +811,13 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 	int tpage = activeDrawEnv.tpage;
 
 	if (framebufferFeedback)
+	{
 		NativeGpu_PrepareFramebufferFeedback(tpage);
+	}
 	else
+	{
 		s_gpu.framebufferFeedbackRunActive = false;
+	}
 
 	GPUDrawSplit *curSplit = &s_gpu.splits[s_gpu.splitIndex];
 
@@ -845,7 +879,9 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 void DrawSplit(const GPUDrawSplit *split)
 {
 	if (split->debugText)
+	{
 		NativeRenderer_PushDebugLabel(split->debugText);
+	}
 
 	const bool drawOnScreen = split->drawenv.dfe;
 	if ((split->drawenv.clip.w <= 0) || (split->drawenv.clip.h <= 0))
@@ -856,7 +892,9 @@ void DrawSplit(const GPUDrawSplit *split)
 		NativeRenderer_SetupClipMode(&split->drawenv.clip, &split->dispenv, drawOnScreen);
 		NativeRenderer_SetOffscreenState(&split->drawenv.clip, &split->dispenv, 0);
 		if (split->debugText)
+		{
 			NativeRenderer_PopDebugLabel();
+		}
 		return;
 	}
 
@@ -865,7 +903,9 @@ void DrawSplit(const GPUDrawSplit *split)
 	NativeRenderer_SetTexture(split->textureId, split->texFormat);
 
 	if (split->texFormat == TF_32_BIT_RGBA)
+	{
 		NativeRenderer_SetOverrideTextureSize(split->drawenv.tw.w, split->drawenv.tw.h);
+	}
 
 	NativeRenderer_SetPSXDrawMaskSet(split->psxDrawMaskSet);
 	NativeRenderer_SetPSXTextureOutputSTP(split->psxTextureOutputSTP);
@@ -897,7 +937,9 @@ void DrawSplit(const GPUDrawSplit *split)
 	}
 
 	if (split->debugText)
+	{
 		NativeRenderer_PopDebugLabel();
+	}
 }
 
 internal void SetPSXMaskState(u32 code)
@@ -938,7 +980,9 @@ void DrawAllSplits()
 	NativeRenderer_UpdateVertexBuffer(s_gpu.vertexBuffer, s_gpu.vertexIndex);
 
 	for (int i = 1; i <= s_gpu.splitIndex; i++)
+	{
 		DrawSplit(&s_gpu.splits[i]);
+	}
 
 	ClearSplits();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_DRAW_ALL_SPLITS);
@@ -951,7 +995,9 @@ int ParseTaglessPrimitive(u32 *command);
 internal bool NativeGpu_IsValidOTLink(uintptr_t link)
 {
 	if (NativeGpuLinks_IsRegisteredHostPointer((const void *)link))
+	{
 		return (link & (sizeof(u32) - 1)) == 0;
+	}
 
 	return false;
 }
@@ -963,10 +1009,14 @@ internal u32 NativeGpu_ReadPacketWordForLog(uintptr_t packet, int wordIndex)
 	const uintptr_t end = word + sizeof(u32);
 
 	if ((NativeGpuLinks_IsRegisteredHostRange((const void *)word, sizeof(u32))) && ((word & (sizeof(u32) - 1)) == 0))
+	{
 		return *(const u32 *)word;
+	}
 
 	if ((word < (uintptr_t)arena->base) || (end > (uintptr_t)arena->endOfMemory) || ((word & (sizeof(u32) - 1)) != 0))
+	{
 		return 0xffffffffu;
+	}
 
 	return *(const u32 *)word;
 }
@@ -1028,7 +1078,9 @@ internal void NativeGpu_FormatPointerRegion(char *dst, size_t dstSize, uintptr_t
 void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 {
 	if (!p)
+	{
 		return;
+	}
 
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_DRAW_OTAG_PARSE);
 
@@ -1107,7 +1159,9 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 			lastSplit->numVerts = s_gpu.vertexIndex - lastSplit->startVertex;
 
 			if (isendprim(basePacket))
+			{
 				break;
+			}
 
 			u8 *nextPacket = nextPrim(basePacket);
 			if (!NativeGpu_IsValidOTLink((uintptr_t)nextPacket))
@@ -1624,7 +1678,9 @@ internal int ProcessDrawEnv(P_TAG *polyTag)
 		// and more draw-env commands into one OT entry. Stop at the first
 		// non-E command so ParseTaglessPrimitive owns the geometry payload.
 		if (primType != 0xE0)
+		{
 			return processedLongs;
+		}
 
 		switch (primSubType)
 		{
@@ -1637,7 +1693,9 @@ internal int ProcessDrawEnv(P_TAG *polyTag)
 			// for blend changes; only full DRAWENV packets retarget native
 			// on-screen/offscreen rendering.
 			if (fullDrawEnvPacket)
+			{
 				activeDrawEnv.dfe = (code >> 10) & 1;
+			}
 			break;
 		}
 		case 0x2:
@@ -1687,7 +1745,9 @@ internal int ProcessDrawEnv(P_TAG *polyTag)
 			// next primitive packed into the same OT entry.
 			// return processedLongs;
 			if (i + 1 != polyTag->len)
+			{
 				return processedLongs;
+			}
 			break;
 		}
 		++processedLongs;
@@ -1809,7 +1869,9 @@ int ParsePrimitive(P_TAG *polyTag)
 			rect.h = (s16)(rectSize >> 16);
 
 			if (NativeGpu_HasPendingSplits())
+			{
 				DrawAllSplits();
+			}
 			MoveImage(&rect, x, y);
 			primLength = 5;
 		}
@@ -1827,7 +1889,9 @@ int ParsePrimitive(P_TAG *polyTag)
 			rect.h = fill->h;
 
 			if (NativeGpu_HasPendingSplits())
+			{
 				DrawAllSplits();
+			}
 			ClearImage(&rect, fill->r0, fill->g0, fill->b0);
 			primLength = 3;
 		}
@@ -1900,7 +1964,9 @@ int ParseTaglessPrimitive(u32 *command)
 	const int primType = (code >> 24) & 0xF0;
 
 	if (code == 0)
+	{
 		return 1;
+	}
 
 	if (primType == 0xE0)
 	{

@@ -134,7 +134,9 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 	{
 		localZ = originalLocalZ;
 		if (originalLocalZ < maxForwardSpeed)
+		{
 			localZ = maxForwardSpeed;
+		}
 	}
 
 	int minForwardSpeed = CTR_MipsSubLo(driver->fireSpeed, CTR_MipsSra(driver->const_SlopeForwardSpeedBonus, 1));
@@ -142,7 +144,9 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 	{
 		localZ = originalLocalZ;
 		if (originalLocalZ > minForwardSpeed)
+		{
 			localZ = minForwardSpeed;
+		}
 	}
 
 	int maxPerpendicularSpeed = driver->const_SideSpeedClamp;
@@ -150,7 +154,9 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 	{
 		localX = originalLocalX;
 		if (originalLocalX < maxPerpendicularSpeed)
+		{
 			localX = maxPerpendicularSpeed;
+		}
 	}
 
 	int minPerpendicularSpeed = CTR_MipsNegLo(maxPerpendicularSpeed);
@@ -158,7 +164,9 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 	{
 		localX = originalLocalX;
 		if (originalLocalX > minPerpendicularSpeed)
+		{
 			localX = minPerpendicularSpeed;
+		}
 	}
 
 	TerrainFlags terrainFlags = driver->terrainMeta1->flags;
@@ -1006,7 +1014,9 @@ static int VehPhysForce_CountLeadingSignBits(s32 value)
 	int count = 0;
 
 	while (count < 32 && (((bits >> (31 - count)) & 1) == sign))
+	{
 		count++;
+	}
 
 	return count;
 }
@@ -1034,9 +1044,13 @@ static struct VehPhysForceTrigPair VehPhysForce_TrigAngleSinCos(int angle)
 		pair.cos = (s16)packed;
 
 		if ((angle & 0x800) != 0)
+		{
 			pair.sin = CTR_MipsNegLo(pair.sin);
+		}
 		else
+		{
 			pair.cos = CTR_MipsNegLo(pair.cos);
+		}
 	}
 
 	return pair;
@@ -1068,7 +1082,9 @@ void VehPhysForce_RotAxisAngle(MATRIX *m, s16 *normVec, s16 angle)
 		s32 dot = CTR_MipsAddLo(CTR_MipsMulLo(trig.sin, normalX), CTR_MipsMulLo(trig.cos, normalZ));
 
 		if (normalY < 0)
+		{
 			outX = CTR_MipsNegLo(outX);
+		}
 
 		outY = CTR_MipsSra(CTR_MipsNegLo(dot), 12);
 	}

@@ -955,7 +955,7 @@ u32 CAM_FollowDriver_TrackPath(struct CameraDC *cDC, SVec3 *pos, s32 speed, s32 
 
 	segmentLength = CAM_FollowDriver_TrackPath_Length(curr, next, &dx, &dy, &dz);
 
-	if ((sdata->gGT->gameMode1 & 0xf) != 0)
+	if ((sdata->gGT->gameMode1 & PAUSE_ALL) != 0)
 	{
 		pathProgress = 0;
 	}
@@ -2233,7 +2233,7 @@ SkipNewCameraEOR:
 						}
 						if ((cDC->cameraMode == 9) || (psVar21 = scratchpad, cDC->cameraMode == 0xd))
 						{
-							if ((gGT->level1->cnt_restart_points != 0) && ((gGT->gameMode1 & 0xf) == 0))
+							if ((gGT->level1->cnt_restart_points != 0) && ((gGT->gameMode1 & PAUSE_ALL) == 0))
 							{
 								SVec3 *trackPathPos = &scratchWork->trackPathPos;
 								SVec3 *trackPathLookaheadPos = &scratchWork->trackPathLookaheadPos;

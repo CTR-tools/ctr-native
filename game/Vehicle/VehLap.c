@@ -7,7 +7,9 @@ void VehLap_UpdateProgress(struct Driver *driver)
 	s16 checkpointIndex = -1;
 
 	if (driver == NULL)
+	{
 		return;
+	}
 
 	if ((driver->actionsFlagSet & ACTION_BOT) == 0)
 	{
@@ -25,7 +27,9 @@ void VehLap_UpdateProgress(struct Driver *driver)
 
 	struct Level *level = gGT->level1;
 	if (((u32)(level->cnt_restart_points - 1) >= 0xff) || (checkpointIndex < 0))
+	{
 		return;
+	}
 
 	struct CheckpointNode *nodes = level->ptr_restart_points;
 	struct CheckpointNode *checkpointNode = &nodes[checkpointIndex];

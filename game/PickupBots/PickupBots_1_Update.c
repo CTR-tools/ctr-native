@@ -18,11 +18,14 @@ static int PickupBots_IsBotWeaponReady(struct Driver *driver)
 	// NOTE(aalhendi): Retail can read PS1 low memory when a boss-race
 	// end-of-race rank slot is empty. Native treats that slot as no bot.
 	if (driver == NULL)
+	{
 		return 0;
+	}
 #endif
 
 	return ((driver->actionsFlagSet & ACTION_BOT) != 0) && ((driver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0) &&
-	       ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (driver->botData.weaponCooldown == 0) && (driver->instTntRecv == NULL) && (driver->clockReceive == 0);
+	       ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (driver->botData.weaponCooldown == 0) && (driver->instTntRecv == NULL) &&
+	       (driver->clockReceive == 0);
 }
 
 static int PickupBots_IsCloseToPlayer(struct Driver *player, struct Driver *bot)

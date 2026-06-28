@@ -45,7 +45,7 @@ void CalculateVolumeFromDistance(u32 *soundIDCount, u32 soundID, int distance)
 		{
 			if (*soundIDCount == 0)
 			{
-				*soundIDCount = OtherFX_Play_LowLevel(soundID & 0xffff, 0, ((volume & 0xff) << 0x10) | 0x8080);
+				*soundIDCount = OtherFX_Play_LowLevel(soundID & 0xffff, 0, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, 0));
 			}
 			else
 			{
@@ -57,11 +57,11 @@ void CalculateVolumeFromDistance(u32 *soundIDCount, u32 soundID, int distance)
 						distort = -distort;
 					}
 
-					volume = ((volume & 0xff) << 0x10) | (((distort + 100U) & 0xff) << 8) | 0x80;
+					volume = HowlSfx_Pack(HOWL_SFX_LR_CENTER, distort + 100U, volume, 0);
 				}
 				else
 				{
-					volume = ((volume & 0xff) << 0x10) | 0x8080;
+					volume = HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, 0);
 				}
 
 				OtherFX_Modify(*soundIDCount, volume);
@@ -94,11 +94,11 @@ void Level_SoundLoopSet(int *soundIDCount, u32 soundID, u32 volume)
 	}
 	else if (*soundIDCount == 0)
 	{
-		*soundIDCount = OtherFX_Play_LowLevel(soundID & 0xffff, 0, ((volume & 0xff) << 0x10) | 0x8080);
+		*soundIDCount = OtherFX_Play_LowLevel(soundID & 0xffff, 0, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, 0));
 	}
 	else
 	{
-		OtherFX_Modify(*soundIDCount, ((volume & 0xff) << 0x10) | 0x8080);
+		OtherFX_Modify(*soundIDCount, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, 0));
 	}
 }
 
@@ -161,7 +161,7 @@ void Level_RandomFX(int *cooldown, u32 soundID, int baseCooldown, u32 randomRang
 	{
 		u32 rng = Level_RandomFX_NextAudioRNG();
 
-		OtherFX_Play_LowLevel(soundID & 0xffff, 0, ((((rng % 100 + 100) * volumeScale >> 8) & 0xff) << 0x10) | 0x1008080);
+		OtherFX_Play_LowLevel(soundID & 0xffff, 0, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, (rng % 100 + 100) * volumeScale >> 8, 1));
 
 		rng = Level_RandomFX_NextAudioRNG();
 		*cooldown = rng % randomRange + baseCooldown;
@@ -350,7 +350,7 @@ static u32 PlaySound3D_CalculateLR(s32 *dir)
 static u32 PlaySound3D_BuildFlags(struct GameTracker *gGT, int cameraIndex, u32 distance, u32 lr)
 {
 	u32 volume;
-	u32 echo = ((u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO) << 0x18;
+	u32 echo = (u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO;
 
 	if (distance < 301)
 	{
@@ -361,7 +361,7 @@ static u32 PlaySound3D_BuildFlags(struct GameTracker *gGT, int cameraIndex, u32 
 		volume = VehCalc_MapToRange(distance, 300, 9000, 0xff, 0);
 	}
 
-	return echo | ((volume & 0xff) << 0x10) | (lr & 0xff) | 0x8000;
+	return HowlSfx_Pack(lr, HOWL_SFX_DISTORTION_NONE, volume, echo);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002f0dc-0x8002f31c
@@ -402,7 +402,7 @@ void PlaySound3D(u32 soundID, struct Instance *inst)
 static u32 PlaySound3D_Flags_BuildFlags(struct GameTracker *gGT, int cameraIndex, u32 distance, u32 lr)
 {
 	u32 volume;
-	u32 echo = ((u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO) << 0x18;
+	u32 echo = (u32)gGT->cameraDC[cameraIndex].ptrQuadBlock->quadFlags & QUADBLOCK_FLAG_ENGINE_ECHO;
 
 	if (distance < 301)
 	{
@@ -413,7 +413,7 @@ static u32 PlaySound3D_Flags_BuildFlags(struct GameTracker *gGT, int cameraIndex
 		volume = VehCalc_MapToRange(distance, 300, 9000, 0xff, 0);
 	}
 
-	return echo | ((volume & 0xff) << 0x10) | (lr & 0xff) | 0x8000;
+	return HowlSfx_Pack(lr, HOWL_SFX_DISTORTION_NONE, volume, echo);
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002f31c-0x8002f5f4

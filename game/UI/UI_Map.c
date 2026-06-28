@@ -318,7 +318,9 @@ void UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 
 		// if ghost not initialized
 		if (*(s16 *)((int)d + 0x632) == 0)
+		{
 			continue;
+		}
 
 		// ghost made by player
 		if (*(s16 *)((int)d + 0x630) == 0)
@@ -327,7 +329,9 @@ void UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 
 			color = CORTEX_RED;
 			if ((gGT->timer & 1) != 0)
+			{
 				color = CRASH_BLUE;
+			}
 		}
 
 		// ghost is N Tropy or Oxide
@@ -343,7 +347,9 @@ void UI_Map_DrawGhosts(int ptrMap, struct Thread *bucket)
 
 				color = RED;
 				if ((gGT->timer & 1) != 0)
+				{
 					color = WHITE;
+				}
 			}
 		}
 
@@ -368,7 +374,9 @@ void UI_Map_DrawTracking(int ptrMap, struct Thread *bucket)
 
 		// instance -> model -> modelID != warpball
 		if (inst->model->id != DYNAMIC_WARPBALL)
+		{
 			continue;
+		}
 
 		// == only draw warpball ==
 
@@ -381,14 +389,18 @@ void UI_Map_DrawTracking(int ptrMap, struct Thread *bucket)
 
 		// check if target exists
 		if (d == 0)
+		{
 			continue;
+		}
 
 		// == only draw target if target exists ==
 
 		// flicker
 		uVar1 = 4;
 		if ((sdata->gGT->timer & 1) != 0)
+		{
 			uVar1 = 3;
+		}
 
 		UI_Map_DrawRawIcon(ptrMap, (int *)&d->instSelf->matrix.t[0], 0x21, uVar1, 0, 0x1000);
 	}

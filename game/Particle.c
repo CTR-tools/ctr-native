@@ -10,7 +10,9 @@ void Particle_FuncPtr_PotionShatter(struct Particle *p)
 	if (p->axis[1].velocity < 0x578)
 	{
 		if (p->axis[0].velocity != 0)
+		{
 			goto LAB_8003ebc8;
+		}
 
 		// random X
 		rng = MixRNG_Scramble();
@@ -30,7 +32,9 @@ void Particle_FuncPtr_PotionShatter(struct Particle *p)
 		p->axis[5].velocity = rng + sVar2 * -0x100 + 0x100;
 	}
 	if (p->axis[0].velocity == 0)
+	{
 		return;
+	}
 
 LAB_8003ebc8:
 
@@ -194,7 +198,9 @@ static int Particle_OscillatorValue(struct ParticleOscillator *osc)
 	case 1:
 		value = MATH_Sin(product >> 6);
 		if (value < 0)
+		{
 			value = -value;
+		}
 		value = (value << 1) - 0x1000;
 		break;
 
@@ -205,14 +211,18 @@ static int Particle_OscillatorValue(struct ParticleOscillator *osc)
 	case 3:
 		value = (product >> 3) & 0x3fff;
 		if (value > 0x2000)
+		{
 			value = 0x4000 - value;
+		}
 		value -= 0x1000;
 		break;
 
 	case 4:
 		value = -0x1000;
 		if (((product >> 6) & 0x400) != 0)
+		{
 			value = 0x1000;
+		}
 		break;
 
 	case 5:
@@ -231,9 +241,13 @@ static int Particle_OscillatorValue(struct ParticleOscillator *osc)
 	value = ((value + osc->offset) * (int)osc->scale) >> 12;
 
 	if (value > osc->max)
+	{
 		value = osc->max;
+	}
 	if (value < osc->min)
+	{
 		value = osc->min;
+	}
 
 	return value;
 }
@@ -245,17 +259,25 @@ static void Particle_ApplyOscillator(struct ParticleAxis *axis, struct ParticleO
 	if ((osc->flags & 8) == 0)
 	{
 		if ((osc->flags & 0x10) == 0)
+		{
 			axis->startVal -= (s16)osc->previousValue;
+		}
 		else
+		{
 			axis->velocity = (s16)(axis->velocity - osc->previousValue);
+		}
 	}
 
 	value = Particle_OscillatorValue(osc);
 
 	if ((osc->flags & 0x10) == 0)
+	{
 		axis->startVal += value;
+	}
 	else
+	{
 		axis->velocity = (s16)(axis->velocity + value);
+	}
 
 	osc->previousValue = (s16)value;
 }
@@ -265,13 +287,19 @@ static int Particle_ColorExpired(struct Particle *p, u16 activeFlags)
 	int value = 0;
 
 	if ((activeFlags & 0x80) != 0 && p->axis[7].startVal > 0)
+	{
 		value = p->axis[7].startVal;
+	}
 
 	if ((activeFlags & 0x100) != 0 && p->axis[8].startVal > 0)
+	{
 		value |= p->axis[8].startVal;
+	}
 
 	if ((activeFlags & 0x200) != 0 && p->axis[9].startVal > 0)
+	{
 		value |= p->axis[9].startVal;
+	}
 
 	return value < 0x800;
 }
@@ -301,7 +329,9 @@ static void Particle_UpdateIconFrame(struct Particle *p, u16 flagsSetColor)
 	else
 	{
 		if (frame < frameLimit)
+		{
 			return;
+		}
 
 		if ((flagsSetColor & 0x100) != 0)
 		{
@@ -337,11 +367,15 @@ void Particle_UpdateList(struct Particle **listHead, struct Particle *p)
 
 		p->framesLeftInLife = (s16)(p->framesLeftInLife - 1);
 		if (p->framesLeftInLife == -1)
+		{
 			goto destroyParticle;
+		}
 
 		flagsSetColor = p->flagsSetColor;
 		if ((flagsSetColor & 8) != 0)
+		{
 			goto destroyParticle;
+		}
 
 		if ((flagsSetColor & 0x1000) != 0)
 		{
@@ -350,7 +384,9 @@ void Particle_UpdateList(struct Particle **listHead, struct Particle *p)
 			p->axis[4].startVal = p->axis[2].startVal;
 
 			if ((flagsSetColor & 0x4000) == 0)
+			{
 				*(u32 *)&p->axis[10].startVal = *(u32 *)&p->axis[10].velocity;
+			}
 		}
 
 		axisFlags = Particle_GetAxisFlags(p);
@@ -386,16 +422,22 @@ void Particle_UpdateList(struct Particle **listHead, struct Particle *p)
 		if ((flagsSetColor & 1) != 0)
 		{
 			if (((activeFlags & 0x20) != 0 && p->axis[5].startVal < 1) || ((activeFlags & 0x40) != 0 && p->axis[6].startVal < 1))
+			{
 				goto destroyParticle;
+			}
 		}
 
 		if ((flagsSetColor & 2) != 0 && Particle_ColorExpired(p, activeFlags))
+		{
 			goto destroyParticle;
+		}
 
 		link = &p->next;
 
 		if ((activeFlags & 0x400) != 0 && p->ptrIconGroup != NULL)
+		{
 			Particle_UpdateIconFrame(p, flagsSetColor);
+		}
 
 		p = next;
 		continue;
@@ -416,7 +458,9 @@ void Particle_UpdateAllParticles(void)
 	struct GameTracker *gGT = sdata->gGT;
 
 	if ((gGT->gameMode1 & DEBUG_MENU) != 0)
+	{
 		return;
+	}
 
 	Particle_UpdateList((struct Particle **)&gGT->particleList_ordinary, gGT->particleList_ordinary);
 	Particle_UpdateList((struct Particle **)&gGT->particleList_heatWarp, gGT->particleList_heatWarp);
@@ -430,9 +474,13 @@ void Particle_UpdateAllParticles(void)
 int Particle_BitwiseClampByte(int *value)
 {
 	if (*value < CLAMP_LOW)
+	{
 		*value = CLAMP_LOW;
+	}
 	else if (*value > CLAMP_HIGH)
+	{
 		*value = CLAMP_HIGH;
+	}
 
 	return *value >> 8;
 }
@@ -452,14 +500,22 @@ u32 Particle_SetColors(u32 flagColors, u32 flagAlpha, struct Particle *p)
 		color = (u32)Particle_BitwiseClampByte(&p->axis[7].startVal);
 
 		if (flagColors & COLOR_FLAG_G)
+		{
 			color |= (u32)Particle_BitwiseClampByte(&p->axis[8].startVal) << 8;
+		}
 		else
+		{
 			color |= color << 8;
+		}
 
 		if (flagColors & COLOR_FLAG_B)
+		{
 			color |= (u32)Particle_BitwiseClampByte(&p->axis[9].startVal) << 16;
+		}
 		else
+		{
 			color |= (color & 0xff) << 16;
+		}
 	}
 	else
 	{
@@ -467,7 +523,9 @@ u32 Particle_SetColors(u32 flagColors, u32 flagAlpha, struct Particle *p)
 	}
 
 	if (flagAlpha & 0x80)
+	{
 		color |= 0x2000000;
+	}
 
 	return color;
 }
@@ -501,7 +559,9 @@ static u32 Particle_RenderList_PackXY(s32 x, s32 y)
 static int Particle_RenderList_IsNearCamera(s32 value)
 {
 	if (value < 0)
+	{
 		value = -value;
+	}
 
 	return value < 30001;
 }
@@ -631,10 +691,14 @@ static void Particle_RenderList_LinkAndAdvance(u32 **primCursor, u32 **payloadCu
 		otIndex = depth >> 5;
 
 		if (otIndex < (u16)idpp->depthOffset[0])
+		{
 			otIndex = (u16)idpp->depthOffset[0];
+		}
 
 		if ((u16)idpp->depthOffset[1] < otIndex)
+		{
 			otIndex = (u16)idpp->depthOffset[1];
+		}
 
 		otBase = (uint32_t *)(uintptr_t)idpp->otRangeNormal;
 	}
@@ -643,10 +707,14 @@ static void Particle_RenderList_LinkAndAdvance(u32 **primCursor, u32 **payloadCu
 		otIndex = (depth >> 8) + (s8)particle->otIndexOffset;
 
 		if (otIndex < 0)
+		{
 			otIndex = 0;
+		}
 
 		if (otIndex >= 0x400)
+		{
 			otIndex = 0x3ff;
+		}
 
 		otBase = defaultOT;
 	}
@@ -745,7 +813,9 @@ static struct ParticleRenderListMatrix Particle_RenderList_BuildNormalMatrix(str
 			}
 
 			if ((flagsAxis & 0x40) != 0)
+			{
 				matrix.r22r23 = particle->axis[6].startVal;
+			}
 
 			return matrix;
 		}
@@ -1001,7 +1071,9 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 	scratch->cameraOffset[2] = (s32)Particle_RenderList_ReadWord(pb, 0x84) << 2;
 
 	if (prim + (gGT->numParticles * 10) >= (u32 *)primMem->guardEnd)
+	{
 		return;
+	}
 
 	if (particle != NULL)
 	{
@@ -1026,11 +1098,15 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 			driverID = (s8)particle->driverID;
 
 			if (driverID != -1 && driverID != cameraID)
+			{
 				goto next_particle;
+			}
 
 			iconGroup = particle->ptrIconGroup;
 			if (iconGroup == NULL)
+			{
 				goto next_particle;
+			}
 
 			flagsAxis = particle->flagsAxis;
 			if ((flagsAxis & 0x400) == 0)
@@ -1042,20 +1118,28 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 				int frame = particle->axis[10].startVal >> 8;
 
 				if (frame < 0)
+				{
 					frame = 0;
+				}
 
 				if (iconGroup->numIcons <= frame)
+				{
 					frame = iconGroup->numIcons - 1;
+				}
 
 				if (frame < 0)
+				{
 					goto next_particle;
+				}
 
 				icon = ((struct Icon **)ICONGROUP_GETICONS(iconGroup))[frame];
 				particle->ptrIconArray = icon;
 			}
 
 			if (icon == NULL)
+			{
 				goto next_particle;
+			}
 
 			idpp = NULL;
 			posX = particle->axis[0].startVal >> 6;
@@ -1072,15 +1156,21 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 				idppFlags = idpp->instFlags;
 
 				if ((idppFlags & 0x40) == 0)
+				{
 					goto next_particle;
+				}
 
 				posX += inst->matrix.t[0] << 2;
 				if ((flagsSetColor & 0x8000) == 0)
+				{
 					posY += inst->matrix.t[1] << 2;
+				}
 				posZ += inst->matrix.t[2] << 2;
 
 				if ((idppFlags & 0x100) != 0)
+				{
 					idpp = NULL;
+				}
 			}
 
 			posX -= scratch->cameraOffset[0];
@@ -1088,11 +1178,17 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 			posZ -= scratch->cameraOffset[2];
 
 			if (!Particle_RenderList_IsNearCamera(posX))
+			{
 				goto next_particle;
+			}
 			if (!Particle_RenderList_IsNearCamera(posY))
+			{
 				goto next_particle;
+			}
 			if (!Particle_RenderList_IsNearCamera(posZ))
+			{
 				goto next_particle;
+			}
 
 			MTC2((u32)(u16)posX | ((u32)posY << 16), 0);
 			MTC2((u32)posZ, 1);
@@ -1104,10 +1200,14 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 
 			depth = (s32)MFC2(27);
 			if (depth < 0)
+			{
 				goto next_particle;
+			}
 
 			if ((particle->unk1A << 2) < depth)
+			{
 				goto next_particle;
+			}
 
 			color = Particle_SetColors(flagsAxis, flagsSetColor, particle);
 
@@ -1169,23 +1269,35 @@ static void Particle_InitAxis(struct Particle *p, const struct ParticleEmitter *
 	s16 accel = 0;
 
 	if ((flags & 1) != 0)
+	{
 		value = emSet->InitTypes.AxisInit.baseValue.startVal;
+	}
 	if ((flags & 8) != 0)
+	{
 		value += MixRNG_Particles(emSet->InitTypes.AxisInit.rngSeed.startVal);
+	}
 
 	axis->startVal = value;
 
 	if ((flags & 2) != 0)
+	{
 		velocity = emSet->InitTypes.AxisInit.baseValue.velocity;
+	}
 	if ((flags & 0x10) != 0)
+	{
 		velocity = (s16)(velocity + MixRNG_Particles(emSet->InitTypes.AxisInit.rngSeed.velocity));
+	}
 
 	axis->velocity = velocity;
 
 	if ((flags & 4) != 0)
+	{
 		accel = emSet->InitTypes.AxisInit.baseValue.accel;
+	}
 	if ((flags & 0x20) != 0)
+	{
 		accel = (s16)(accel + MixRNG_Particles(emSet->InitTypes.AxisInit.rngSeed.accel));
+	}
 
 	axis->accel = accel;
 
@@ -1203,7 +1315,9 @@ static void Particle_InitOscillator(struct Particle *p, struct ParticleOscillato
 	{
 		osc = (struct ParticleOscillator *)LIST_RemoveFront(&sdata->gGT->JitPools.oscillator.free);
 		if (osc == NULL)
+		{
 			return;
+		}
 
 		localOsc[axisIndex] = osc;
 	}
@@ -1215,10 +1329,14 @@ static void Particle_InitOscillator(struct Particle *p, struct ParticleOscillato
 	ParticleEmitter_CopyOscillator(osc, emSet);
 
 	if ((osc->flags & 0x20) != 0)
+	{
 		osc->phase = (s16)(osc->phase - (u16)sdata->gGT->frameTimer_Confetti);
+	}
 
 	if ((osc->flags & 7) == 6)
+	{
 		osc->previousValue = osc->phase;
+	}
 
 	*flagsAxis |= oscBit;
 
@@ -1239,23 +1357,37 @@ static void Particle_RandomizeOscillator(struct ParticleOscillator *localOsc[12]
 	const s16 *rng;
 
 	if ((flagsAxis & (1u << ((axisIndex + 0x10) & 0x1f))) == 0)
+	{
 		return;
+	}
 
 	osc = localOsc[axisIndex];
 	rng = (const s16 *)&((const u8 *)emSet)[0x18];
 
 	if ((u16)rng[0] != 0)
+	{
 		osc->period = (u16)(osc->period + MixRNG_Particles((u16)rng[0]));
+	}
 	if (rng[1] != 0)
+	{
 		osc->phase = (s16)(osc->phase + MixRNG_Particles(rng[1]));
+	}
 	if ((u16)rng[2] != 0)
+	{
 		osc->scale = (u16)(osc->scale + MixRNG_Particles((u16)rng[2]));
+	}
 	if (rng[3] != 0)
+	{
 		osc->offset = (s16)(osc->offset + MixRNG_Particles(rng[3]));
+	}
 	if (rng[4] != 0)
+	{
 		osc->min = (s16)(osc->min + MixRNG_Particles(rng[4]));
+	}
 	if (rng[5] != 0)
+	{
 		osc->max = (s16)(osc->max + MixRNG_Particles(rng[5]));
+	}
 }
 
 static void Particle_LinkOscillators(struct Particle *p, struct ParticleOscillator *localOsc[12], u32 flagsAxis)
@@ -1292,13 +1424,17 @@ struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct Particl
 
 	p = (struct Particle *)LIST_RemoveFront(&gGT->JitPools.particle.free);
 	if (p == NULL)
+	{
 		return NULL;
+	}
 
 	gGT->numParticles++;
 
 	p->ptrIconGroup = ig;
 	if (ig != NULL && ig->numIcons != 0 && ig->numIcons > 0)
+	{
 		p->ptrIconArray = ((struct Icon **)ICONGROUP_GETICONS(ig))[0];
+	}
 	else
 	{
 		p->ptrIconGroup = NULL;
@@ -1382,7 +1518,9 @@ struct Particle *Particle_Init(u32 param_1, struct IconGroup *ig, struct Particl
 			u32 color = 0x50000000;
 
 			if ((p->flagsSetColor & 0x80) != 0)
+			{
 				color = 0x52000000;
+			}
 
 			p->axis[10].startVal = color;
 		}

@@ -98,7 +98,7 @@ void Garage_Enter(char charId)
 			continue;
 		}
 
-		OtherFX_RecycleNew((u32 *)&garageSounds->audioPtr, (int)soundIDs[i], 0x8000 | LR);
+		OtherFX_RecycleNew((u32 *)&garageSounds->audioPtr, (int)soundIDs[i], HowlSfx_Pack(LR, HOWL_SFX_DISTORTION_NONE, 0, 0));
 	}
 }
 
@@ -114,7 +114,8 @@ void Garage_PlayFX(u32 soundId, char charId)
 			soundId = (sdata->audioRNG % 3) + 0xf3;
 		}
 
-		OtherFX_Play_LowLevel(soundId & 0xffff, 1, sdata->garageSoundPool[charId].volume << 0x10 | sdata->garageSoundPool[charId].LR | 0x8000);
+		OtherFX_Play_LowLevel(soundId & 0xffff, 1,
+		                      HowlSfx_Pack(sdata->garageSoundPool[charId].LR, HOWL_SFX_DISTORTION_NONE, sdata->garageSoundPool[charId].volume, 0));
 	}
 }
 
@@ -178,7 +179,7 @@ void Garage_LerpFX(void)
 		audioPtrRef = (u32 *)&garageSounds->audioPtr;
 		if (sdata->garageSoundIDs[i] != 0)
 		{
-			OtherFX_RecycleNew(audioPtrRef, sdata->garageSoundIDs[i], ((int)garageSounds->volume << 0x10) | (int)garageSounds->LR | 0x8000U);
+			OtherFX_RecycleNew(audioPtrRef, sdata->garageSoundIDs[i], HowlSfx_Pack(garageSounds->LR, HOWL_SFX_DISTORTION_NONE, garageSounds->volume, 0));
 		}
 
 		if (targetLR == garageSounds->LR && targetVolume == garageSounds->volume)

@@ -191,7 +191,9 @@ internal u32 NativeReplayScheduler_RecordChecksum(const struct NativeReplayFrame
 internal const char *NativeReplayScheduler_CheckpointPolicyName(enum NativeReplayCheckpointPolicy policy)
 {
 	if (policy == NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY)
+	{
 		return "bootstrap-only";
+	}
 
 	return "rolling";
 }
@@ -199,13 +201,21 @@ internal const char *NativeReplayScheduler_CheckpointPolicyName(enum NativeRepla
 internal const char *NativeReplayScheduler_MetadataStatus(s32 finalMetadata)
 {
 	if (finalMetadata != 0)
+	{
 		return "finalized";
+	}
 	if (s_mode == NATIVE_REPLAY_MODE_ARMED)
+	{
 		return "armed";
+	}
 	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
+	{
 		return "recording";
+	}
 	if (s_reportCompleted != 0)
+	{
 		return "finalized";
+	}
 
 	return "idle";
 }
@@ -215,15 +225,21 @@ internal void NativeReplayScheduler_CopyFixedString(char *dst, u32 dstSize, cons
 	size_t srcLen;
 
 	if ((dst == NULL) || (dstSize == 0))
+	{
 		return;
+	}
 
 	memset(dst, 0, dstSize);
 	if (src == NULL)
+	{
 		return;
+	}
 
 	srcLen = strlen(src);
 	if (srcLen >= dstSize)
+	{
 		srcLen = dstSize - 1u;
+	}
 	memcpy(dst, src, srcLen);
 }
 
@@ -273,7 +289,9 @@ internal void NativeReplayScheduler_InitHeader(struct NativeReplayFileHeader *he
 internal s32 NativeReplayScheduler_HeaderFormatValid(const struct NativeReplayFileHeader *header)
 {
 	if (header == NULL)
+	{
 		return 0;
+	}
 
 	return (header->magic == NATIVE_REPLAY_FILE_MAGIC) && (header->version == NATIVE_REPLAY_FILE_VERSION) &&
 	       (header->headerSize == sizeof(struct NativeReplayFileHeader)) && (header->frameRecordSize == sizeof(struct NativeReplayFrameRecord));
@@ -284,7 +302,9 @@ internal s32 NativeReplayScheduler_HeaderIdentityValid(const struct NativeReplay
 	struct NativeReplayFileHeader liveHeader;
 
 	if (!NativeReplayScheduler_HeaderFormatValid(header))
+	{
 		return 0;
+	}
 
 	NativeReplayScheduler_InitHeader(&liveHeader);
 	return (header->checkpointSize == liveHeader.checkpointSize) && (header->nativeStateSize == liveHeader.nativeStateSize) &&
@@ -297,7 +317,9 @@ internal void NativeReplayScheduler_LogHeaderIdentityMismatch(const struct Nativ
 	struct NativeReplayFileHeader liveHeader;
 
 	if (header == NULL)
+	{
 		return;
+	}
 
 	NativeReplayScheduler_InitHeader(&liveHeader);
 	Platform_Log("[CTR Replay] replay header mismatch: replay(checkpoint=%u nativeState=%u identity=0x%08x build=%.*s platform=%.*s) "
@@ -316,7 +338,9 @@ internal const char *NativeReplayScheduler_ArgValue(int argc, char **argv, const
 	for (i = 1; i < argc - 1; i++)
 	{
 		if (NativeStr8_Equals(NativeStr8_FromCString(argv[i]), argText))
+		{
 			return argv[i + 1];
+		}
 	}
 
 	return NULL;
@@ -330,7 +354,9 @@ internal s32 NativeReplayScheduler_ArgPresent(int argc, char **argv, const char 
 	for (i = 1; i < argc; i++)
 	{
 		if (NativeStr8_Equals(NativeStr8_FromCString(argv[i]), argText))
+		{
 			return 1;
+		}
 	}
 
 	return 0;
@@ -345,7 +371,9 @@ internal s32 NativeReplayScheduler_ArgMissingValue(int argc, char **argv, const 
 	{
 		if (NativeStr8_Equals(NativeStr8_FromCString(argv[i]), argText) &&
 		    ((i + 1 >= argc) || NativeStr8_StartsWith(NativeStr8_FromCString(argv[i + 1]), NATIVE_STR8_LIT("--"))))
+		{
 			return 1;
+		}
 	}
 
 	return 0;
@@ -360,13 +388,17 @@ internal char *NativeReplayScheduler_MakeSiblingPath(const char *path, const cha
 	char *siblingPath;
 
 	if ((path == NULL) || (filename == NULL))
+	{
 		return NULL;
+	}
 
 	dirLen = NativeStr8_LastIndexOfAny(pathText, '/', '\\', &separatorIndex) ? separatorIndex + 1u : 0u;
 
 	siblingPath = (char *)malloc(dirLen + filenameText.len + 1u);
 	if (siblingPath == NULL)
+	{
 		return NULL;
+	}
 
 	memcpy(siblingPath, path, dirLen);
 	memcpy(&siblingPath[dirLen], filenameText.ptr, filenameText.len);
@@ -379,11 +411,15 @@ internal s32 NativeReplayScheduler_FileExists(const char *path)
 	FILE *file;
 
 	if (path == NULL)
+	{
 		return 0;
+	}
 
 	file = fopen(path, "rb");
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	fclose(file);
 	return 1;
@@ -402,11 +438,15 @@ internal char *NativeReplayScheduler_DupString(const char *text)
 	char *copy;
 
 	if (text == NULL)
+	{
 		return NULL;
+	}
 
 	copy = (char *)malloc(textView.len + 1u);
 	if (copy == NULL)
+	{
 		return NULL;
+	}
 
 	NativeStr8_CopyToCString(copy, textView.len + 1u, textView);
 	return copy;
@@ -419,11 +459,15 @@ internal char *NativeReplayScheduler_JoinPath(const char *left, const char *righ
 	char *path;
 
 	if ((left == NULL) || (right == NULL))
+	{
 		return NULL;
+	}
 
 	path = (char *)malloc(leftText.len + 1u + rightText.len + 1u);
 	if (path == NULL)
+	{
 		return NULL;
+	}
 
 	if (!NativePath_Join(path, leftText.len + 1u + rightText.len + 1u, leftText, rightText))
 	{
@@ -437,14 +481,18 @@ internal char *NativeReplayScheduler_JoinPath(const char *left, const char *righ
 internal s32 NativeReplayScheduler_MakeDir(const char *path)
 {
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 1;
+	}
 
 #if defined(_WIN32)
 	if (_mkdir(path) == 0)
 		return 1;
 #else
 	if (mkdir(path, 0777) == 0)
+	{
 		return 1;
+	}
 #endif
 
 	return errno == EEXIST;
@@ -457,15 +505,21 @@ internal s32 NativeReplayScheduler_CreateDirs(const char *path)
 	s32 ok = 1;
 
 	if ((path == NULL) || (path[0] == '\0'))
+	{
 		return 0;
+	}
 
 	copy = NativeReplayScheduler_DupString(path);
 	if (copy == NULL)
+	{
 		return 0;
+	}
 
 	cursor = copy;
 	if (NativePath_IsSeparator(cursor[0]))
+	{
 		cursor++;
+	}
 #if defined(_WIN32)
 	if ((cursor[0] != '\0') && (cursor[1] == ':') && NativePath_IsSeparator(cursor[2]))
 		cursor += 3;
@@ -489,7 +543,9 @@ internal s32 NativeReplayScheduler_CreateDirs(const char *path)
 	}
 
 	if ((ok != 0) && !NativeReplayScheduler_MakeDir(copy))
+	{
 		ok = 0;
+	}
 
 	free(copy);
 	return ok;
@@ -525,38 +581,56 @@ internal s32 NativeReplayScheduler_PrepareReportPaths(const char *root)
 	u32 attempt;
 
 	if ((root == NULL) || (root[0] == '\0'))
+	{
 		return 0;
+	}
 
 	now = time(NULL);
 	localTime = localtime(&now);
 	if (localTime == NULL)
+	{
 		return 0;
+	}
 
 	if ((strftime(dateText, sizeof(dateText), "%Y%m%d", localTime) == 0) || (strftime(runText, sizeof(runText), "ctr-%H%M%S", localTime) == 0))
+	{
 		return 0;
+	}
 
 	NativeReplayScheduler_FreeReportPaths();
 
 	dateDir = NativeReplayScheduler_JoinPath(root, dateText);
 	if (dateDir == NULL)
+	{
 		return 0;
+	}
 	for (attempt = 0; attempt < 100u; attempt++)
 	{
 		int written;
 
 		if (attempt == 0)
+		{
 			written = snprintf(runCandidate, sizeof(runCandidate), "%s", runText);
+		}
 		else
+		{
 			written = snprintf(runCandidate, sizeof(runCandidate), "%s-%02u", runText, (unsigned int)attempt);
+		}
 
 		if ((written < 0) || ((size_t)written >= sizeof(runCandidate)))
+		{
 			goto fail;
+		}
 
 		s_reportDir = NativeReplayScheduler_JoinPath(dateDir, runCandidate);
 		if (s_reportDir == NULL)
+		{
 			goto fail;
+		}
 		if (!NativeReplayScheduler_PathExists(s_reportDir))
+		{
 			break;
+		}
 
 		free(s_reportDir);
 		s_reportDir = NULL;
@@ -564,7 +638,9 @@ internal s32 NativeReplayScheduler_PrepareReportPaths(const char *root)
 	free(dateDir);
 	dateDir = NULL;
 	if (s_reportDir == NULL)
+	{
 		goto fail;
+	}
 
 	s_reportReplayPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_REPLAY_NAME);
 	s_reportCheckpointPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_CHECKPOINT_NAME);
@@ -574,13 +650,19 @@ internal s32 NativeReplayScheduler_PrepareReportPaths(const char *root)
 	s_reportLogPath = NativeReplayScheduler_JoinPath(s_reportDir, NATIVE_REPLAY_REPORT_LOG_NAME);
 	if ((s_reportReplayPath == NULL) || (s_reportCheckpointPath == NULL) || (s_reportMemcardSeedPath == NULL) || (s_reportMemcardRecordingPath == NULL) ||
 	    (s_reportMetadataPath == NULL) || (s_reportLogPath == NULL))
+	{
 		goto fail;
+	}
 
 	if (!NativeReplayScheduler_CreateDirs(s_reportDir))
+	{
 		goto fail;
+	}
 
 	if (!Platform_LogSetPath(s_reportLogPath))
+	{
 		goto fail;
+	}
 
 	s_reportEnabled = 1;
 	return 1;
@@ -596,7 +678,9 @@ int NativeReplayScheduler_PrepareReportFromArgs(int argc, char **argv)
 	const s32 recordReport = NativeReplayScheduler_ArgPresent(argc, argv, "--record");
 
 	if (recordReport == 0)
+	{
 		return 0;
+	}
 
 	if (NativeReplayScheduler_ArgPresent(argc, argv, "--replay") != 0)
 	{
@@ -618,7 +702,9 @@ internal void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 	FILE *file;
 
 	if ((s_reportEnabled == 0) || (s_reportMetadataPath == NULL))
+	{
 		return;
+	}
 
 	file = fopen(s_reportMetadataPath, "wb");
 	if (file == NULL)
@@ -666,12 +752,18 @@ internal s32 NativeReplayScheduler_MemcardActionBlocksRootSwitch(s16 action)
 internal s32 NativeReplayScheduler_MemcardIdleForRootSwitch(void)
 {
 	if (sdata == NULL)
+	{
 		return 1;
+	}
 	if (sdata->memcard_stage != MC_STAGE_IDLE)
+	{
 		return 0;
+	}
 	if (NativeReplayScheduler_MemcardActionBlocksRootSwitch(sdata->frame1_memcardAction) ||
 	    NativeReplayScheduler_MemcardActionBlocksRootSwitch(sdata->frame2_memcardAction))
+	{
 		return 0;
+	}
 
 	return 1;
 }
@@ -679,7 +771,9 @@ internal s32 NativeReplayScheduler_MemcardIdleForRootSwitch(void)
 internal void NativeReplayScheduler_LogMemcardStartDeferred(void)
 {
 	if (s_recordStartDeferredLogged != 0)
+	{
 		return;
+	}
 
 	if (sdata != NULL)
 	{
@@ -704,7 +798,9 @@ internal void NativeReplayScheduler_ResetMemcardSandbox(void)
 	if (s_playbackMemcardPath != NULL)
 	{
 		if (NativeMemcard_RemoveRoot(s_playbackMemcardPath) != NATIVE_MEMCARD_OK)
+		{
 			Platform_Log("[CTR Replay] failed to remove playback memcard sandbox: %s\n", s_playbackMemcardPath);
+		}
 
 		free(s_playbackMemcardPath);
 		s_playbackMemcardPath = NULL;
@@ -716,7 +812,9 @@ internal s32 NativeReplayScheduler_ActivateRecordMemcardSandbox(void)
 	enum NativeMemcardResult result;
 
 	if ((s_reportMemcardSeedPath == NULL) || (s_reportMemcardRecordingPath == NULL) || !NativeReplayScheduler_MemcardIdleForRootSwitch())
+	{
 		return 0;
+	}
 
 	result = NativeMemcard_CloneCurrentRoot(s_reportMemcardSeedPath);
 	if (result != NATIVE_MEMCARD_OK)
@@ -797,20 +895,30 @@ internal s32 NativeReplayScheduler_WriteHeader(void)
 	long oldPos;
 
 	if (s_file == NULL)
+	{
 		return 0;
+	}
 
 	oldPos = ftell(s_file);
 	if (oldPos < 0)
+	{
 		return 0;
+	}
 
 	if (fseek(s_file, 0, SEEK_SET) != 0)
+	{
 		return 0;
+	}
 
 	if (fwrite(&s_header, sizeof(s_header), 1, s_file) != 1)
+	{
 		return 0;
+	}
 
 	if (fseek(s_file, oldPos, SEEK_SET) != 0)
+	{
 		return 0;
+	}
 
 	fflush(s_file);
 	return 1;
@@ -821,7 +929,9 @@ internal void NativeReplayScheduler_CloseCheckpointFile(void)
 	if (s_checkpointWriterOpen != 0)
 	{
 		if (!NativeCheckpointFile_EndWrite(&s_checkpointWriter))
+		{
 			Platform_Log("[CTR State] failed to finalize rolling checkpoints\n");
+		}
 		s_checkpointWriterOpen = 0;
 	}
 
@@ -854,7 +964,9 @@ internal void NativeReplayScheduler_CloseFiles(void)
 	{
 		s_header.checkpointCount = s_checkpointIndex;
 		if (!NativeReplayScheduler_WriteHeader())
+		{
 			Platform_Log("[CTR Replay] failed to finalize replay header\n");
+		}
 		NativeReplayScheduler_WriteReportMetadata(1);
 	}
 
@@ -863,7 +975,9 @@ internal void NativeReplayScheduler_CloseFiles(void)
 	NativeReplayScheduler_CloseCheckpointFile();
 	NativeAudio_SetDeterministicRenderMode(0);
 	if (s_reportEnabled != 0)
+	{
 		s_reportCompleted = 1;
+	}
 	s_stopRequested = 0;
 	s_mode = NATIVE_REPLAY_MODE_NONE;
 }
@@ -901,9 +1015,13 @@ internal s32 NativeReplayScheduler_OpenCheckpointRecord(const char *checkpointPa
 	s_checkpointIndex = 0;
 	s_nextCheckpointFrame = 0;
 	if (s_checkpointPolicy == NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY)
+	{
 		Platform_Log("[CTR State] recording bootstrap checkpoint only: %s\n", s_checkpointPath);
+	}
 	else
+	{
 		Platform_Log("[CTR State] recording rolling checkpoints: %s interval=%u frames\n", s_checkpointPath, NATIVE_REPLAY_CHECKPOINT_INTERVAL_FRAMES);
+	}
 	return 1;
 }
 
@@ -912,11 +1030,17 @@ internal s32 NativeReplayScheduler_WriteCheckpointIfDue(void)
 	struct NativeCheckpointFileRecordInfo info;
 
 	if (s_checkpointWriterOpen == 0)
+	{
 		return 1;
+	}
 	if ((s_checkpointPolicy == NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY) && (s_checkpointIndex != 0))
+	{
 		return 1;
+	}
 	if ((s_replayFrame != 0) && (s_replayFrame < s_nextCheckpointFrame))
+	{
 		return 1;
+	}
 
 	if (!NativeCheckpoint_Capture(s_checkpointPayload, s_checkpointPayloadSize))
 	{
@@ -934,7 +1058,9 @@ internal s32 NativeReplayScheduler_WriteCheckpointIfDue(void)
 	s_checkpointIndex++;
 	s_header.checkpointCount = s_checkpointIndex;
 	if (!NativeReplayScheduler_WriteHeader())
+	{
 		Platform_Log("[CTR Replay] failed to update replay header checkpoint count\n");
+	}
 	s_nextCheckpointFrame = s_replayFrame + NATIVE_REPLAY_CHECKPOINT_INTERVAL_FRAMES;
 	NativeReplayScheduler_WriteReportMetadata(0);
 	return 1;
@@ -992,7 +1118,9 @@ internal s32 NativeReplayScheduler_RestoreBootstrapCheckpoint(void)
 	s32 ok = 0;
 
 	if (s_restoreBootstrapCheckpoint == 0)
+	{
 		return 1;
+	}
 
 	payloadSize = NativeCheckpoint_GetSize();
 	if (payloadSize <= 0)
@@ -1037,7 +1165,9 @@ internal s32 NativeReplayScheduler_OpenRecord(const char *replayPath, const char
 {
 	NativeReplayScheduler_InitHeader(&s_header);
 	if (!NativeReplayScheduler_ActivateRecordMemcardSandbox())
+	{
 		return 0;
+	}
 
 	s_file = fopen(replayPath, "wb+");
 	if (s_file == NULL)
@@ -1074,7 +1204,9 @@ internal s32 NativeReplayScheduler_OpenRecord(const char *replayPath, const char
 internal s32 NativeReplayScheduler_ArmReport(void)
 {
 	if ((s_reportEnabled == 0) || (s_reportReplayPath == NULL))
+	{
 		return 0;
+	}
 
 	NativeReplayScheduler_ResetSessionState();
 	NativeReplayScheduler_InitHeader(&s_header);
@@ -1089,7 +1221,9 @@ internal s32 NativeReplayScheduler_ArmReport(void)
 internal s32 NativeReplayScheduler_StartReportRecording(void)
 {
 	if ((s_reportEnabled == 0) || (s_reportReplayPath == NULL))
+	{
 		return 0;
+	}
 	if (!NativeReplayScheduler_MemcardIdleForRootSwitch())
 	{
 		NativeReplayScheduler_LogMemcardStartDeferred();
@@ -1103,7 +1237,9 @@ internal s32 NativeReplayScheduler_StartReportRecording(void)
 
 	NativeReplayScheduler_ResetSessionState();
 	if (!NativeReplayScheduler_OpenRecord(s_reportReplayPath, s_reportCheckpointPath))
+	{
 		return 0;
+	}
 
 	Platform_Log("[CTR Replay] report recording started\n");
 	return 1;
@@ -1189,7 +1325,9 @@ internal void NativeReplayScheduler_ReportDivergence(const struct NativeReplayFr
                                                      u32 livePadChecksum)
 {
 	if (s_divergenceLogged != 0)
+	{
 		return;
+	}
 
 	s_divergenceLogged = 1;
 	Platform_Log("[CTR Replay] divergence at replay frame %u\n", expected->replayFrame);
@@ -1243,18 +1381,24 @@ int NativeReplayScheduler_ConfigureFromArgs(int argc, char **argv)
 	s_reportManualStart = 0;
 	s_checkpointPolicy = (recordReport != 0) ? NATIVE_REPLAY_CHECKPOINT_POLICY_BOOTSTRAP_ONLY : NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
 	if (detailed != 0)
+	{
 		s_checkpointPolicy = NATIVE_REPLAY_CHECKPOINT_POLICY_ROLLING;
+	}
 
 	if (recordReport != 0)
 	{
 		if (toggle == 0)
+		{
 			return NativeReplayScheduler_OpenRecord(s_reportReplayPath, s_reportCheckpointPath) ? 0 : 1;
+		}
 
 		return NativeReplayScheduler_ArmReport() ? 0 : 1;
 	}
 
 	if (playbackPath != NULL)
+	{
 		return NativeReplayScheduler_OpenPlayback(playbackPath, bypassHeaderIdentity) ? 0 : 1;
+	}
 
 	return 0;
 }
@@ -1276,7 +1420,9 @@ int NativeReplayScheduler_RequestStart(void)
 		return 1;
 	}
 	if (s_mode != NATIVE_REPLAY_MODE_ARMED)
+	{
 		return 0;
+	}
 	if (s_reportCompleted != 0)
 	{
 		Platform_Log("[CTR Replay] report is already finalized\n");
@@ -1299,7 +1445,9 @@ int NativeReplayScheduler_RequestStop(void)
 		return 1;
 	}
 	if (s_mode != NATIVE_REPLAY_MODE_RECORD)
+	{
 		return 0;
+	}
 
 	if (s_stopRequested == 0)
 	{
@@ -1312,12 +1460,16 @@ int NativeReplayScheduler_RequestStop(void)
 int NativeReplayScheduler_BeginFrame(const struct NativeReplaySchedulerFrameInfo *info)
 {
 	if ((s_mode == NATIVE_REPLAY_MODE_NONE) || (info == NULL))
+	{
 		return 0;
+	}
 
 	if (s_mode == NATIVE_REPLAY_MODE_ARMED)
 	{
 		if (s_startRequested == 0)
+		{
 			return 0;
+		}
 
 		if (!NativeReplayScheduler_MemcardIdleForRootSwitch())
 		{
@@ -1328,13 +1480,17 @@ int NativeReplayScheduler_BeginFrame(const struct NativeReplaySchedulerFrameInfo
 		s_startRequested = 0;
 		s_recordStartDeferredLogged = 0;
 		if (!NativeReplayScheduler_StartReportRecording())
+		{
 			return 1;
+		}
 	}
 
 	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
 	{
 		if (!NativeReplayScheduler_WriteCheckpointIfDue())
+		{
 			return 1;
+		}
 
 		memset(&s_pendingRecord, 0, sizeof(s_pendingRecord));
 		s_pendingRecord.magic = NATIVE_REPLAY_FRAME_MAGIC;
@@ -1357,7 +1513,9 @@ int NativeReplayScheduler_BeginFrame(const struct NativeReplaySchedulerFrameInfo
 		u32 checksum;
 
 		if (!NativeReplayScheduler_RestoreBootstrapCheckpoint())
+		{
 			return 1;
+		}
 
 		if (s_replayFrame >= s_header.frameCount)
 		{
@@ -1398,10 +1556,14 @@ int NativeReplayScheduler_ConsumeVSyncPacket(int requestedVBlanks, int *emittedV
 	u32 packet;
 
 	if ((s_mode != NATIVE_REPLAY_MODE_PLAYBACK) || (s_beginOpen == 0) || (emittedVBlanks == NULL))
+	{
 		return 0;
+	}
 
 	if (requestedVBlanks < 1)
+	{
 		requestedVBlanks = 1;
+	}
 
 	if (s_frameVBlankPacketCount >= s_pendingRecord.vblankPacketCount)
 	{
@@ -1426,7 +1588,9 @@ int NativeReplayScheduler_ConsumeVSyncPacket(int requestedVBlanks, int *emittedV
 int NativeReplayScheduler_ConsumeFrameElapsedTimeMS(int *elapsedTimeMS)
 {
 	if ((s_mode != NATIVE_REPLAY_MODE_PLAYBACK) || (s_beginOpen == 0) || (elapsedTimeMS == NULL) || (s_frameTimingConsumed != 0))
+	{
 		return 0;
+	}
 
 	*elapsedTimeMS = s_pendingRecord.endInfo.elapsedTimeMS;
 	s_frameTimingConsumed = 1;
@@ -1436,7 +1600,9 @@ int NativeReplayScheduler_ConsumeFrameElapsedTimeMS(int *elapsedTimeMS)
 void NativeReplayScheduler_RecordVSyncPacket(int emittedVBlanks)
 {
 	if ((s_mode != NATIVE_REPLAY_MODE_RECORD) || (s_beginOpen == 0) || (emittedVBlanks <= 0))
+	{
 		return;
+	}
 
 	s_frameVBlankTotal += (u32)emittedVBlanks;
 	if (s_frameVBlankPacketCount >= NATIVE_REPLAY_MAX_VSYNC_PACKETS)
@@ -1460,15 +1626,23 @@ int NativeReplayScheduler_EndFrame(const struct NativeReplaySchedulerFrameInfo *
 	u32 livePadChecksum;
 
 	if ((s_mode == NATIVE_REPLAY_MODE_NONE) || (info == NULL))
+	{
 		return 0;
+	}
 
 	if (s_beginOpen == 0)
+	{
 		return 0;
+	}
 
 	if (Platform_InputCapturePadSnapshots(livePads, PLATFORM_INPUT_PAD_COUNT) == 0)
+	{
 		livePadChecksum = 0;
+	}
 	else
+	{
 		livePadChecksum = NativeReplayScheduler_PadChecksum(livePads);
+	}
 
 	if (s_mode == NATIVE_REPLAY_MODE_RECORD)
 	{
@@ -1514,7 +1688,9 @@ int NativeReplayScheduler_EndFrame(const struct NativeReplaySchedulerFrameInfo *
 	{
 		if (!NativeReplayScheduler_FrameInfoMatches(&s_pendingRecord.endInfo, info) || !NativeReplayScheduler_VSyncInfoMatches(&s_pendingRecord) ||
 		    (s_pendingRecord.padChecksum != livePadChecksum))
+		{
 			NativeReplayScheduler_ReportDivergence(&s_pendingRecord, info, livePadChecksum);
+		}
 
 		s_replayFrame++;
 		s_beginOpen = 0;

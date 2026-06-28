@@ -107,7 +107,7 @@ void GhostTape_WriteMoves(s16 raceFinished)
 		}
 
 		// If you're in End-Of-Race menu
-		if ((gameMode & 0x200000) != 0)
+		if ((gameMode & END_OF_RACE) != 0)
 		{
 			GhostTape_End();
 			return;
@@ -273,7 +273,7 @@ void GhostTape_WriteMoves(s16 raceFinished)
 
 		     // If you're not in End-Of-Race menu
 		     // (if you were, you'd be just in time to save the ghost)
-		     (gameMode & 0x200000) == 0))
+		     (gameMode & END_OF_RACE) == 0))
 		{
 			sdata->boolGhostTooBigToSave = 1;
 

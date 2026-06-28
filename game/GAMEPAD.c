@@ -715,7 +715,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		struct GamepadBuffer *pad = &gGS->gamepad[i];
 		struct ControllerPacket *packet = pad->ptrControllerPacket;
 
-		if ((packet != 0) && (gGT->boolDemoMode == 0) && ((gGT->gameMode1 & 0xf) == 0) && (RaceFlag_IsTransitioning() == 0))
+		if ((packet != 0) && (gGT->boolDemoMode == 0) && ((gGT->gameMode1 & PAUSE_ALL) == 0) && (RaceFlag_IsTransitioning() == 0))
 		{
 			if (packet->controllerData == ((PAD_ID_JOGCON << 4) | 3))
 			{
@@ -1016,7 +1016,7 @@ void GAMEPAD_ShockFreq(struct Driver *d, int frame, int val)
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
 	{
 		return;
 	}
@@ -1048,7 +1048,7 @@ void GAMEPAD_ShockForce1(struct Driver *d, int frame, int val)
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
 	{
 		return;
 	}
@@ -1080,7 +1080,7 @@ void GAMEPAD_ShockForce2(struct Driver *d, int frame, int val)
 
 	// 0 for enabled,
 	// 1 for disabled
-	if ((sdata->gGT->gameMode1 & (0x100 << d->driverID)) != 0)
+	if ((sdata->gGT->gameMode1 & (P1_VIBRATE << d->driverID)) != 0)
 	{
 		return;
 	}

@@ -341,7 +341,7 @@ void AH_MaskHint_Update()
 		if (D232.maskFrameCurr == 0)
 		{
 			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b46d4-0x800b46e4 for mask spawn-start SFX.
-			OtherFX_Play_LowLevel(0x100, 1, 0xff8080);
+			OtherFX_Play_LowLevel(0x100, 1, HOWL_SFX_DEFAULT_FLAGS);
 		}
 
 		// if 3-second spawn, play more sounds

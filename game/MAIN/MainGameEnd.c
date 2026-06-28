@@ -547,7 +547,7 @@ void MainGameEnd_Initialize(void)
 		MainGameEnd_UpdateAdventureLosses(gGT, player);
 
 		gGT->gameMode1 |= END_OF_RACE;
-		gGT->gameModeEnd = gGT->gameMode1 & 0x3e0020;
+		gGT->gameModeEnd = gGT->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK;
 
 		if ((gGT->gameMode1 & BATTLE_MODE) == 0)
 		{

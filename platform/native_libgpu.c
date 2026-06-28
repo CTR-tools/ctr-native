@@ -114,7 +114,9 @@ uint32_t *ClearOTag(uint32_t *ot, int n)
 	OT_TAG *ptag_list;
 
 	if (n == 0)
+	{
 		return NULL;
+	}
 
 	ptag_list = (OT_TAG *)ot;
 
@@ -135,7 +137,9 @@ uint32_t *ClearOTagR(uint32_t *ot, int n)
 	OT_TAG *ptag_list;
 
 	if (n == 0)
+	{
 		return NULL;
+	}
 
 	ptag_list = (OT_TAG *)ot;
 
@@ -211,9 +215,13 @@ DRAWENV *SetDefDrawEnv(DRAWENV *env, int x, int y, int w, int h)
 	env->dtd = 1;
 
 	if (GetVideoMode() == MODE_NTSC)
+	{
 		env->dfe = h < 289 ? 1 : 0;
+	}
 	else
+	{
 		env->dfe = h < 257 ? 1 : 0;
+	}
 
 	env->ofs[0] = x;
 	env->ofs[1] = y;
@@ -240,7 +248,9 @@ void SetDrawMove(DR_MOVE *p, RECT16 *rect, int x, int y)
 	char len = 5;
 
 	if (rect->w == 0 || rect->h == 0)
+	{
 		len = 0;
+	}
 
 	p->code[0] = 0x1000000;
 	p->code[1] = 0x80000000;

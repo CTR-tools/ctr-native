@@ -82,18 +82,28 @@ internal int NativeCheckpointFile_WriteHeader(FILE *file, const struct NativeChe
 	long oldPos;
 
 	if ((file == NULL) || (header == NULL))
+	{
 		return 0;
+	}
 
 	oldPos = ftell(file);
 	if (oldPos < 0)
+	{
 		return 0;
+	}
 
 	if (fseek(file, 0, SEEK_SET) != 0)
+	{
 		return 0;
+	}
 	if (!NativeCheckpointFile_WriteExact(file, header, sizeof(*header)))
+	{
 		return 0;
+	}
 	if (fseek(file, oldPos, SEEK_SET) != 0)
+	{
 		return 0;
+	}
 
 	return 1;
 }
@@ -101,7 +111,9 @@ internal int NativeCheckpointFile_WriteHeader(FILE *file, const struct NativeChe
 internal void NativeCheckpointFile_FillInfo(struct NativeCheckpointFileRecordInfo *info, const struct NativeCheckpointFileRecordHeader *record)
 {
 	if (info == NULL)
+	{
 		return;
+	}
 
 	info->checkpointIndex = record->checkpointIndex;
 	info->replayFrame = record->replayFrame;
@@ -117,7 +129,9 @@ internal int NativeCheckpointFile_ChecksumStream(FILE *file, u32 payloadSize, u3
 	u32 remaining = payloadSize;
 
 	if ((file == NULL) || (checksumOut == NULL))
+	{
 		return 0;
+	}
 
 	while (remaining != 0)
 	{
@@ -125,10 +139,14 @@ internal int NativeCheckpointFile_ChecksumStream(FILE *file, u32 payloadSize, u3
 		u32 i;
 
 		if (chunkSize > sizeof(buffer))
+		{
 			chunkSize = sizeof(buffer);
+		}
 
 		if (!NativeCheckpointFile_ReadExact(file, buffer, chunkSize))
+		{
 			return 0;
+		}
 
 		for (i = 0; i < chunkSize; i++)
 		{
@@ -149,14 +167,18 @@ int NativeCheckpointFile_BeginWrite(struct NativeCheckpointFileWriter *writer, c
 	FILE *file;
 
 	if ((writer == NULL) || (path == NULL))
+	{
 		return 0;
+	}
 
 	memset(writer, 0, sizeof(*writer));
 	NativeCheckpointFile_InitHeader(&header);
 
 	file = fopen(path, "wb+");
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpointFile_WriteExact(file, &header, sizeof(header)))
 	{
@@ -179,17 +201,23 @@ int NativeCheckpointFile_AppendRecord(struct NativeCheckpointFileWriter *writer,
 	long payloadOffset;
 
 	if ((writer == NULL) || (writer->file == NULL) || (payload == NULL) || (payloadSize <= 0))
+	{
 		return 0;
+	}
 
 	file = (FILE *)writer->file;
 	recordOffset = ftell(file);
 	if (recordOffset < 0)
+	{
 		return 0;
+	}
 	payloadOffset = recordOffset + (long)sizeof(record);
 	// TODO(aalhendi): move replay/checkpoint persistence to 64-bit offsets
 	// before playtester packaging can produce multi-hour reports.
 	if ((payloadOffset < 0) || ((unsigned long)payloadOffset > 0xffffffffUL))
+	{
 		return 0;
+	}
 
 	memset(&record, 0, sizeof(record));
 	record.checkpointIndex = checkpointIndex;
@@ -199,9 +227,13 @@ int NativeCheckpointFile_AppendRecord(struct NativeCheckpointFileWriter *writer,
 	record.checksum = NativeCheckpointFile_Checksum(payload, payloadSize);
 
 	if (!NativeCheckpointFile_WriteExact(file, &record, sizeof(record)))
+	{
 		return 0;
+	}
 	if (!NativeCheckpointFile_WriteExact(file, payload, (size_t)payloadSize))
+	{
 		return 0;
+	}
 
 	writer->recordCount++;
 	{
@@ -210,7 +242,9 @@ int NativeCheckpointFile_AppendRecord(struct NativeCheckpointFileWriter *writer,
 		NativeCheckpointFile_InitHeader(&header);
 		header.recordCount = writer->recordCount;
 		if (!NativeCheckpointFile_WriteHeader(file, &header))
+		{
 			return 0;
+		}
 		fflush(file);
 	}
 	NativeCheckpointFile_FillInfo(info, &record);
@@ -224,17 +258,23 @@ int NativeCheckpointFile_EndWrite(struct NativeCheckpointFileWriter *writer)
 	int ok = 1;
 
 	if ((writer == NULL) || (writer->file == NULL))
+	{
 		return 1;
+	}
 
 	file = (FILE *)writer->file;
 	NativeCheckpointFile_InitHeader(&header);
 	header.recordCount = writer->recordCount;
 
 	if (!NativeCheckpointFile_WriteHeader(file, &header))
+	{
 		ok = 0;
+	}
 
 	if (fclose(file) != 0)
+	{
 		ok = 0;
+	}
 
 	writer->file = NULL;
 	writer->recordCount = 0;
@@ -249,20 +289,32 @@ int NativeCheckpointFile_Validate(const char *path, struct NativeCheckpointFileR
 	int ok = 0;
 
 	if ((path == NULL) || (maxRecords < 0))
+	{
 		return 0;
+	}
 	if ((maxRecords > 0) && (records == NULL))
+	{
 		return 0;
+	}
 
 	file = fopen(path, "rb");
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpointFile_ReadExact(file, &header, sizeof(header)))
+	{
 		goto cleanup;
+	}
 	if (!NativeCheckpointFile_ValidateHeader(&header))
+	{
 		goto cleanup;
+	}
 	if ((records != NULL) && (header.recordCount > (u32)maxRecords))
+	{
 		goto cleanup;
+	}
 
 	for (i = 0; i < header.recordCount; i++)
 	{
@@ -271,24 +323,38 @@ int NativeCheckpointFile_Validate(const char *path, struct NativeCheckpointFileR
 		u32 checksum;
 
 		if (!NativeCheckpointFile_ReadExact(file, &record, sizeof(record)))
+		{
 			goto cleanup;
+		}
 
 		expectedPayloadOffset = ftell(file);
 		if ((expectedPayloadOffset < 0) || (record.payloadOffset != (u32)expectedPayloadOffset) || (record.payloadSize == 0))
+		{
 			goto cleanup;
+		}
 		if (!NativeCheckpointFile_ChecksumStream(file, record.payloadSize, &checksum))
+		{
 			goto cleanup;
+		}
 		if (checksum != record.checksum)
+		{
 			goto cleanup;
+		}
 		if ((records != NULL) && (i < (u32)maxRecords))
+		{
 			NativeCheckpointFile_FillInfo(&records[i], &record);
+		}
 	}
 
 	if (fgetc(file) != EOF)
+	{
 		goto cleanup;
+	}
 
 	if (recordCount != NULL)
+	{
 		*recordCount = (int)header.recordCount;
+	}
 
 	ok = 1;
 
@@ -305,16 +371,24 @@ int NativeCheckpointFile_ReadRecord(const char *path, u32 checkpointIndex, void 
 	int ok = 0;
 
 	if ((path == NULL) || (payload == NULL) || (payloadSize <= 0))
+	{
 		return 0;
+	}
 
 	file = fopen(path, "rb");
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpointFile_ReadExact(file, &header, sizeof(header)))
+	{
 		goto cleanup;
+	}
 	if (!NativeCheckpointFile_ValidateHeader(&header))
+	{
 		goto cleanup;
+	}
 
 	for (i = 0; i < header.recordCount; i++)
 	{
@@ -322,20 +396,30 @@ int NativeCheckpointFile_ReadRecord(const char *path, u32 checkpointIndex, void 
 		long expectedPayloadOffset;
 
 		if (!NativeCheckpointFile_ReadExact(file, &record, sizeof(record)))
+		{
 			goto cleanup;
+		}
 
 		expectedPayloadOffset = ftell(file);
 		if ((expectedPayloadOffset < 0) || (record.payloadOffset != (u32)expectedPayloadOffset) || (record.payloadSize == 0))
+		{
 			goto cleanup;
+		}
 
 		if (record.checkpointIndex == checkpointIndex)
 		{
 			if (record.payloadSize != (u32)payloadSize)
+			{
 				goto cleanup;
+			}
 			if (!NativeCheckpointFile_ReadExact(file, payload, (size_t)payloadSize))
+			{
 				goto cleanup;
+			}
 			if (NativeCheckpointFile_Checksum(payload, payloadSize) != record.checksum)
+			{
 				goto cleanup;
+			}
 
 			NativeCheckpointFile_FillInfo(info, &record);
 			ok = 1;
@@ -343,7 +427,9 @@ int NativeCheckpointFile_ReadRecord(const char *path, u32 checkpointIndex, void 
 		}
 
 		if (fseek(file, (long)record.payloadSize, SEEK_CUR) != 0)
+		{
 			goto cleanup;
+		}
 	}
 
 cleanup:
@@ -357,7 +443,9 @@ int NativeCheckpointFile_WriteSingle(const char *path, const void *payload, int 
 	int ok;
 
 	if ((path == NULL) || (payload == NULL) || (payloadSize <= 0))
+	{
 		return 0;
+	}
 
 	memset(&writer, 0, sizeof(writer));
 	ok = NativeCheckpointFile_BeginWrite(&writer, path) &&
@@ -380,28 +468,48 @@ int NativeCheckpointFile_ReadSingle(const char *path, void *payload, int payload
 	int ok = 0;
 
 	if ((path == NULL) || (payload == NULL) || (payloadSize <= 0))
+	{
 		return 0;
+	}
 
 	file = fopen(path, "rb");
 	if (file == NULL)
+	{
 		return 0;
+	}
 
 	if (!NativeCheckpointFile_ReadExact(file, &header, sizeof(header)))
+	{
 		goto cleanup;
+	}
 	if (!NativeCheckpointFile_ValidateHeader(&header))
+	{
 		goto cleanup;
+	}
 	if (header.recordCount != 1u)
+	{
 		goto cleanup;
+	}
 	if (!NativeCheckpointFile_ReadExact(file, &record, sizeof(record)))
+	{
 		goto cleanup;
+	}
 	if ((record.payloadOffset != (u32)(sizeof(header) + sizeof(record))) || (record.payloadSize != (u32)payloadSize))
+	{
 		goto cleanup;
+	}
 	if (!NativeCheckpointFile_ReadExact(file, payload, (size_t)payloadSize))
+	{
 		goto cleanup;
+	}
 	if (NativeCheckpointFile_Checksum(payload, payloadSize) != record.checksum)
+	{
 		goto cleanup;
+	}
 	if (fgetc(file) != EOF)
+	{
 		goto cleanup;
+	}
 
 	NativeCheckpointFile_FillInfo(info, &record);
 

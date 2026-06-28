@@ -378,8 +378,8 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	if (gGT->numBotsNextGame != 0)
 	{
 		// Init AI engine sounds
-		EngineAudio_InitOnce(0x10, 0x8080);
-		EngineAudio_InitOnce(0x11, 0x8080);
+		EngineAudio_InitOnce(0x10, HOWL_SFX_CENTER_NO_DISTORTION);
+		EngineAudio_InitOnce(0x11, HOWL_SFX_CENTER_NO_DISTORTION);
 	}
 
 	// if this is main menu
@@ -392,9 +392,9 @@ void MainInit_Drivers(struct GameTracker *gGT)
 		}
 	}
 
-	// if you're in time trial, not main menu, not loading.
+	// if you're in time trial, not main menu, not cutscene.
 	// basically, if you're in time trial gameplay
-	if ((gameMode & 0x20022000) == TIME_TRIAL)
+	if ((gameMode & GAME_MODE_TIME_TRIAL_GAMEPLAY_MASK) == TIME_TRIAL)
 	{
 		GhostReplay_Init2();
 
@@ -533,11 +533,11 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 			if (((gGT->gameMode1 & MAIN_MENU) == 0) || (i < 1))
 			{
 				// remove frozen camera flag
-				gGT->cameraDC[i].flags &= 0xffff7fff;
+				gGT->cameraDC[i].flags &= ~CAMERA_FLAG_FROZEN;
 			}
 			else
 			{
-				gGT->cameraDC[i].flags |= 0x8000;
+				gGT->cameraDC[i].flags |= CAMERA_FLAG_FROZEN;
 			}
 		}
 	}

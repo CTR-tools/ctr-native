@@ -7,10 +7,10 @@ char EngineAudio_InitOnce(u32 soundID, u32 flags)
 {
 	struct EngineFX *ptrEngineFX;
 	struct ChannelStats *channel;
-	u32 distortion = (flags >> 8) & 0xff;
-	u32 volume = (flags >> 0x10) & 0xff;
-	u16 echo = (flags >> 0x18) & 0xff;
-	u16 LR = flags & 0xff;
+	u32 distortion = HowlSfx_Distortion(flags);
+	u32 volume = HowlSfx_Volume(flags);
+	u16 echo = (u16)HowlSfx_Echo(flags);
+	u16 LR = (u16)HowlSfx_LR(flags);
 	struct ChannelAttr channelAttr;
 
 	if (sdata->boolAudioEnabled == 0)
@@ -64,10 +64,10 @@ char EngineAudio_InitOnce(u32 soundID, u32 flags)
 s16 EngineAudio_Recalculate(u32 soundID, u32 sfx)
 {
 	int iVar1;
-	u32 distortion = (sfx >> 8) & 0xff;
-	u32 volume = (sfx >> 0x10) & 0xff;
-	u16 echo = (sfx >> 0x18) & 0xff;
-	u16 LR = sfx & 0xff;
+	u32 distortion = HowlSfx_Distortion(sfx);
+	u32 volume = HowlSfx_Volume(sfx);
+	u16 echo = (u16)HowlSfx_Echo(sfx);
+	u16 LR = (u16)HowlSfx_LR(sfx);
 
 	struct EngineFX *ptrEngineFX;
 	struct ChannelStats *channel;
@@ -189,7 +189,7 @@ void EngineSound_Player(struct Driver *driver)
 				targetPitch = -targetPitch;
 			}
 
-			if (((driver->actionsFlagSetPrevFrame & 1) == 0) || (driver->kartState == KS_DRIFTING))
+			if (((driver->actionsFlagSetPrevFrame & ACTION_TOUCH_GROUND) == 0) || (driver->kartState == KS_DRIFTING))
 			{
 				targetPitch += 0xf00;
 			}
@@ -247,7 +247,7 @@ void EngineSound_Player(struct Driver *driver)
 		u32 volMax = ((driver->actionsFlagSet & ACTION_BOT) == 0) ? 0xe6 : 0xbe;
 		volume = VehCalc_MapToRange(driver->engineSoundVolumeState, 0, driver->const_AccelSpeed_ClassStat, 0x82, volMax);
 
-		if ((driver->kartState != KS_DRIFTING) && ((driver->actionsFlagSet & 8) == 0))
+		if ((driver->kartState != KS_DRIFTING) && ((driver->actionsFlagSet & ACTION_ACCEL_PREVENTION) == 0))
 		{
 			volume += steer >> 3;
 		}
@@ -317,20 +317,9 @@ void EngineSound_Player(struct Driver *driver)
 		lr = 0xc0;
 	}
 
-	volume = (volume & 0xff) << 0x10;
-	distortion = (distortion & 0xff) << 8;
-	lr &= 0xff;
+	u32 echo = ((driver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0) ? 1 : 0;
 
-	if ((driver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-	{
-		volume |= distortion | 0x1000000;
-	}
-	else
-	{
-		volume |= distortion;
-	}
-
-	EngineAudio_Recalculate(((engine * 4) + id) & 0xffff, volume | lr);
+	EngineAudio_Recalculate(((engine * 4) + id) & 0xffff, HowlSfx_Pack(lr, distortion, volume, echo));
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002fc28-0x8002fc64
@@ -366,7 +355,7 @@ static int EngineSound_AI_GetTargetPitch(struct Driver *ai)
 		target = -target;
 	}
 
-	if (((ai->actionsFlagSetPrevFrame & 1) == 0) || (ai->kartState == KS_DRIFTING))
+	if (((ai->actionsFlagSetPrevFrame & ACTION_TOUCH_GROUND) == 0) || (ai->kartState == KS_DRIFTING))
 	{
 		target += 0xf00;
 	}
@@ -498,13 +487,8 @@ void EngineSound_AI(struct Driver *ai, struct Driver *cameraDriver, int slotInde
 		lr = 0xff;
 	}
 
-	distortion = (distortion & 0xff) << 8;
-	if ((cameraDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
-	{
-		distortion |= 0x1000000;
-	}
-
-	EngineAudio_Recalculate((slotIndex + 0x10) & 0xffff, ((volume & 0xff) << 0x10) | distortion | (lr & 0xff));
+	u32 echo = ((cameraDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+	EngineAudio_Recalculate((slotIndex + 0x10) & 0xffff, HowlSfx_Pack(lr, distortion, volume, echo));
 }
 
 static int EngineSound_NearestAIs_GetDistance(struct Driver *ai, int pushBufferIndex)
