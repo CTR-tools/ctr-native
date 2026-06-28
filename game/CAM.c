@@ -39,7 +39,8 @@ static s32 CAM_SkyboxGlow_ScreenX(s32 screenWidth, s32 ratio)
 
 static s32 CAM_SkyboxGlow_Div2TowardZero(s32 value)
 {
-	return (value + ((u32)value >> 31)) >> 1;
+	//prevent implicit unsigned promotion by casting to s32 before the rightsift -penta3
+	return (s32)(value + ((u32)value >> 31)) >> 1;
 }
 
 static s32 CAM_SkyboxGlow_CalcCenterY(struct PushBuffer *pb)
