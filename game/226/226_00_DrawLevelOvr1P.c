@@ -1767,20 +1767,14 @@ static void Ovr226_800a74a0_BuildDynamicListSubdivisionFrame(struct DrawLevelOvr
 	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                              const struct DrawLevelOvr1PScratchVertex *srcA, const struct DrawLevelOvr1PScratchVertex *srcB)
-{
-	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(dstA, dstMid, srcA, srcB);
-}
-
 static void Ovr226_800a90c0_BuildWideDynamicSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
                                                              const int *indices)
 {
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
-	Ovr226_800a90c0_BuildWideDynamicSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
+	Ovr226_800a74a0_BuildDynamicListSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
 static void Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
@@ -1830,21 +1824,14 @@ static void Ovr226_800a8150_BuildDynamicRenderedSubdivisionFrame(struct DrawLeve
 	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[1], &sub[6], &projected[indices[1]], &projected[indices[2]]);
 }
 
-static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstMid,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcA,
-                                                                  const struct DrawLevelOvr1PScratchVertex *srcB)
-{
-	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(dstA, dstMid, srcA, srcB);
-}
-
 static void Ovr226_800a9d70_BuildQuad4x4RenderedSubdivisionFrame(struct DrawLevelOvr1PScratchVertex *sub, const struct DrawLevelOvr1PScratchVertex *projected,
                                                                  const int *indices)
 {
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
-	Ovr226_800a9d70_BuildQuad4x4RenderedSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[0], &sub[4], &projected[indices[0]], &projected[indices[1]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[1], &sub[7], &projected[indices[1]], &projected[indices[3]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[2], &sub[5], &projected[indices[2]], &projected[indices[0]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[3], &sub[8], &projected[indices[3]], &projected[indices[2]]);
+	Ovr226_800a8150_BuildDynamicRenderedSubdivideMidpoint(&sub[4], &sub[6], &sub[4], &sub[8]);
 }
 
 static void Ovr226_800a4594_BuildGround4x1RenderedMidpointPair(struct DrawLevelOvr1PScratchVertex *dstA, struct DrawLevelOvr1PScratchVertex *dstB,
