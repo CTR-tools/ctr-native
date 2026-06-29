@@ -44,7 +44,7 @@ struct NativeSTRState
 	s32 active;
 	s32 format;
 	s32 loop;
-	s32 bigfileIndex;
+	s32 bigfileSector;
 	u32 baseOffset;
 	s32 frameIndex;
 	s32 frameLimit;
@@ -661,7 +661,7 @@ internal s32 NativeSTR_ResolveBigfilePath(s32 bigfileIndex, char *dst, s32 dstCo
 
 s32 NativeSTR_StartTrackPreview(s32 bigfileSector, s32 frameCount)
 {
-	if ((s_str.active != 0) && (s_str.bigfileIndex == bigfileSector))
+	if ((s_str.active != 0) && (s_str.bigfileSector == bigfileSector))
 	{
 		return 1;
 	}
@@ -684,7 +684,7 @@ s32 NativeSTR_StartTrackPreview(s32 bigfileSector, s32 frameCount)
 	s_str.active = 1;
 	s_str.format = NATIVE_STR_FORMAT_EXTRACTED;
 	s_str.loop = 1;
-	s_str.bigfileIndex = bigfileSector;
+	s_str.bigfileSector = bigfileSector;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = frameCount;
 	return 1;
@@ -708,7 +708,7 @@ s32 NativeSTR_StartScrapbook(void)
 	s_str.active = 1;
 	s_str.format = NATIVE_STR_FORMAT_CD_STREAM;
 	s_str.loop = 0;
-	s_str.bigfileIndex = -1;
+	s_str.bigfileSector = -1;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = NATIVE_STR_SCRAPBOOK_FRAME_COUNT;
 	s_str.baseOffset = 0;
@@ -726,7 +726,7 @@ void NativeSTR_Stop(void)
 	s_str.active = 0;
 	s_str.format = NATIVE_STR_FORMAT_EXTRACTED;
 	s_str.loop = 0;
-	s_str.bigfileIndex = -1;
+	s_str.bigfileSector = -1;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = 0;
 	s_str.width = 0;
