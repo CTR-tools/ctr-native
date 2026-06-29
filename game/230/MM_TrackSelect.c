@@ -116,8 +116,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, in
 	{
 		if ((D230.trackSel_videoStateCurr == 2) && (D230.trackSel_videoStatePrev == 1))
 		{
-			//modified to read .str files directly from bigfile.big	-penta3		 
-			if (NativeSTR_StartTrackPreview(entry[videoID].offset, selectMenu->videoLength) != 0)
+			if (NativeSTR_StartTrackPreviewFromBigfileSector(entry[videoID].offset, selectMenu->videoLength) != 0)
 			{
 				D230.trackSel_video_boolAllocated = D230.trackSel_videoStatePrev;
 			}
