@@ -127,37 +127,37 @@ static int Ovr227_800a0ddc_DispatchBucketHandler(u32 handlerAddress, void *bucke
 
 	if (bucket->kind == DRAW_LEVEL_OVR1P_BUCKET_QUADBLOCKS_RENDERED)
 	{
-		return DrawLevelOvr1P_DrawRenderedQuadBlocks(bucketValue, pb, mesh, primMem, bucket->role);
+		return DrawLevelOvr1P_DrawRenderedQuadBlocks((struct QuadBlock **)bucketValue, pb, mesh, primMem, bucket->role);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_FULL_DYNAMIC_LIST)
 	{
-		return Ovr226_800a0ef4_DrawFullDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a0ef4_DrawFullDynamicBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_WATER_LIST)
 	{
-		return Ovr226_800a1e30_DrawWaterBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a1e30_DrawWaterBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X1_LIST)
 	{
-		return Ovr226_800a36a8_DrawGround4x1BspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a36a8_DrawGround4x1BspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X2_LIST)
 	{
-		return Ovr226_800a4fa0_DrawGround4x2BspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a4fa0_DrawGround4x2BspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_DYNAMIC_LIST)
 	{
-		return Ovr226_800a6f40_DrawDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a6f40_DrawDynamicBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	if (bucket->role == DRAW_LEVEL_OVR1P_BUCKET_4X4_LIST)
 	{
-		return Ovr226_800a8b60_DrawWideDynamicBspList(bucketValue, pb, mesh, primMem, visFaceList);
+		return Ovr226_800a8b60_DrawWideDynamicBspList((struct VisMemBspListNode *)bucketValue, pb, mesh, primMem, visFaceList);
 	}
 
 	return 0;
