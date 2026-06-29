@@ -669,6 +669,11 @@ FILE *NativeAssets_Open(const char *relativePath, const char *mode)
 	return NativeAssets_OpenStr8(NativeStr8_FromCString(relativePath), mode);
 }
 
+FILE *NativeAssets_OpenBigfile(const char *mode)
+{
+	return NativeAssets_OpenStr8(NATIVE_STR8_LIT(NATIVE_ASSETS_BIGFILE_PATH), mode);
+}
+
 internal int NativeAssets_ReadExact(FILE *file, void *dst, size_t size)
 {
 	return fread(dst, 1, size, file) == size;

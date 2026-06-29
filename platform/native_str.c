@@ -16,7 +16,6 @@
 #define NATIVE_STR_MAX_RECORD_SIZE          NATIVE_STR_CD_SECTOR_SIZE
 #define NATIVE_STR_MAX_FRAME_SECTORS        10
 #define NATIVE_STR_MAX_FRAME_BYTES          (NATIVE_STR_MAX_FRAME_SECTORS * NATIVE_STR_CD_SECTOR_PAYLOAD)
-#define NATIVE_STR_PATH_MAX                 1024
 #define NATIVE_STR_MAX_WIDTH                512
 #define NATIVE_STR_MAX_HEIGHT               240
 #define NATIVE_STR_ID                       0x80010160u
@@ -39,7 +38,8 @@ struct NativeSTRState
 	s32 active;
 	s32 format;
 	s32 loop;
-	s32 bigfileIndex;
+	s32 bigfileSector;
+	u32 fileBaseOffset;
 	s32 frameIndex;
 	s32 frameLimit;
 	s32 frameSize;
@@ -565,6 +565,17 @@ internal s32 NativeSTR_ReadNextFrameFromCdStream(void)
 	return copied == (s32)firstHeader.frameSize;
 }
 
+internal s32 NativeSTR_RewindFrameSource(void)
+{
+	if (fseek(s_str.file, (long)s_str.fileBaseOffset, SEEK_SET) != 0)
+	{
+		return 0;
+	}
+
+	s_str.frameIndex = 0;
+	return 1;
+}
+
 internal s32 NativeSTR_ReadNextFrame(void)
 {
 	s32 tries;
@@ -579,8 +590,10 @@ internal s32 NativeSTR_ReadNextFrame(void)
 				return 0;
 			}
 
-			rewind(s_str.file);
-			s_str.frameIndex = 0;
+			if (NativeSTR_RewindFrameSource() == 0)
+			{
+				return 0;
+			}
 		}
 
 		if (((s_str.format == NATIVE_STR_FORMAT_CD_STREAM) ? NativeSTR_ReadNextFrameFromCdStream() : NativeSTR_ReadNextFrameFromFile()) != 0)
@@ -594,87 +607,46 @@ internal s32 NativeSTR_ReadNextFrame(void)
 			return 0;
 		}
 
-		rewind(s_str.file);
-		s_str.frameIndex = 0;
-	}
-
-	return 0;
-}
-
-internal s32 NativeSTR_ResolveBigfilePath(s32 bigfileIndex, char *dst, s32 dstCount)
-{
-	FILE *file;
-	char line[256];
-	s32 index = 0;
-
-	if ((dst == NULL) || (dstCount <= 0))
-	{
-		return 0;
-	}
-
-	file = NativeAssets_Open("bigfile.txt", "r");
-	if (file == NULL)
-	{
-		return 0;
-	}
-
-	while (fgets(line, sizeof(line), file) != NULL)
-	{
-		if (index == bigfileIndex)
+		if (NativeSTR_RewindFrameSource() == 0)
 		{
-			NativeStr8 lineText = NativeStr8_FromCString(line);
-			char relativePath[256];
-			int written;
-
-			while ((lineText.len != 0) && ((lineText.ptr[lineText.len - 1u] == '\r') || (lineText.ptr[lineText.len - 1u] == '\n')))
-			{
-				lineText.len--;
-			}
-
-			written = snprintf(relativePath, sizeof(relativePath), "bigfile/%.*s", (int)lineText.len, (const char *)lineText.ptr);
-			if ((written <= 0) || ((size_t)written >= sizeof(relativePath)) || !NativeAssets_ResolvePath(relativePath, dst, (size_t)dstCount))
-			{
-				fclose(file);
-				return 0;
-			}
-
-			fclose(file);
-			return 1;
+			return 0;
 		}
-
-		index++;
 	}
 
-	fclose(file);
 	return 0;
 }
 
-s32 NativeSTR_StartTrackPreview(s32 bigfileIndex, s32 frameCount)
+s32 NativeSTR_StartTrackPreviewFromBigfileSector(s32 bigfileSector, s32 frameCount)
 {
-	char path[NATIVE_STR_PATH_MAX];
+	if (bigfileSector < 0)
+	{
+		return 0;
+	}
 
-	if ((s_str.active != 0) && (s_str.bigfileIndex == bigfileIndex))
+	if ((s_str.active != 0) && (s_str.bigfileSector == bigfileSector))
 	{
 		return 1;
 	}
 
 	NativeSTR_Stop();
 
-	if (NativeSTR_ResolveBigfilePath(bigfileIndex, path, sizeof(path)) == 0)
+	s_str.file = NativeAssets_OpenBigfile("rb");
+	if (s_str.file == NULL)
 	{
 		return 0;
 	}
 
-	s_str.file = fopen(path, "rb");
-	if (s_str.file == NULL)
+	s_str.fileBaseOffset = (u32)bigfileSector * NATIVE_STR_EXTRACTED_SECTOR_SIZE;
+	if (NativeSTR_RewindFrameSource() == 0)
 	{
+		NativeSTR_Stop();
 		return 0;
 	}
 
 	s_str.active = 1;
 	s_str.format = NATIVE_STR_FORMAT_EXTRACTED;
 	s_str.loop = 1;
-	s_str.bigfileIndex = bigfileIndex;
+	s_str.bigfileSector = bigfileSector;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = frameCount;
 	return 1;
@@ -698,9 +670,10 @@ s32 NativeSTR_StartScrapbook(void)
 	s_str.active = 1;
 	s_str.format = NATIVE_STR_FORMAT_CD_STREAM;
 	s_str.loop = 0;
-	s_str.bigfileIndex = -1;
+	s_str.bigfileSector = -1;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = NATIVE_STR_SCRAPBOOK_FRAME_COUNT;
+	s_str.fileBaseOffset = 0;
 	return 1;
 }
 
@@ -715,7 +688,8 @@ void NativeSTR_Stop(void)
 	s_str.active = 0;
 	s_str.format = NATIVE_STR_FORMAT_EXTRACTED;
 	s_str.loop = 0;
-	s_str.bigfileIndex = -1;
+	s_str.bigfileSector = -1;
+	s_str.fileBaseOffset = 0;
 	s_str.frameIndex = 0;
 	s_str.frameLimit = 0;
 	s_str.width = 0;
