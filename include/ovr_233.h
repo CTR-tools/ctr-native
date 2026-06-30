@@ -132,6 +132,8 @@ enum CutsceneObjFlags
 	CS_FLAG_PATH_MOTION_DISABLED = 0x0001,
 };
 
+struct Ovr233InitMatrixTableEntry;
+
 struct CutsceneObj
 {
 	// 0x0
@@ -208,7 +210,7 @@ struct CutsceneObj
 	u8 animIndex;
 
 	// 0x48
-	int *frameOverrideRoot;
+	struct Ovr233InitMatrixTableEntry *frameOverrideRoot;
 
 	// 0x4c
 	struct CsOpcodeMeta decodedOpcode;
@@ -293,7 +295,7 @@ CTR_STATIC_ASSERT(sizeof(struct CsInitMatrixEntry) == 0x20);
 
 struct Ovr233InitMatrixTableEntry
 {
-	void *data;
+	struct CsInitMatrixEntry *data;
 	int count;
 };
 

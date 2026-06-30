@@ -50,7 +50,7 @@ int CS_Thread_UseOpcode(struct Instance *instance, struct CutsceneObj *cs)
 	int iVar12;
 	struct CsOpcodeMeta *opcodeMeta;
 	s16 *opcodeMetaShorts;
-	s16 *frameData;
+	struct CsInitMatrixEntry *frameData;
 	int rotInterpNumerator;
 	int rotInterpStartFrame;
 	int rotInterpFrameRange;
@@ -308,15 +308,15 @@ afterCameraAndSkipChecks:
 		}
 		if (cs->frameOverrideRoot != 0)
 		{
-			frameData = (s16 *)((uintptr_t)(*cs->frameOverrideRoot) + iVar12 * 0x20);
-			*(int *)((u8 *)&instance->matrix + 0x00) = *(int *)(frameData + 4);
-			*(int *)((u8 *)&instance->matrix + 0x04) = *(int *)(frameData + 6);
-			*(int *)((u8 *)&instance->matrix + 0x08) = *(int *)(frameData + 8);
-			*(int *)((u8 *)&instance->matrix + 0x0c) = *(int *)(frameData + 10);
-			*(int *)((u8 *)&instance->matrix + 0x10) = *(int *)(frameData + 0xc);
-			instance->matrix.t[0] = (int)*frameData;
-			instance->matrix.t[1] = (int)frameData[1];
-			instance->matrix.t[2] = (int)frameData[2];
+			frameData = &cs->frameOverrideRoot->data[iVar12];
+			CTR_WriteU32LE((u8 *)&instance->matrix + 0x00, CTR_ReadU32LE(&frameData->rotScaleOrMatrix[0]));
+			CTR_WriteU32LE((u8 *)&instance->matrix + 0x04, CTR_ReadU32LE(&frameData->rotScaleOrMatrix[2]));
+			CTR_WriteU32LE((u8 *)&instance->matrix + 0x08, CTR_ReadU32LE(&frameData->rotScaleOrMatrix[4]));
+			CTR_WriteU32LE((u8 *)&instance->matrix + 0x0c, CTR_ReadU32LE(&frameData->rotScaleOrMatrix[6]));
+			CTR_WriteU32LE((u8 *)&instance->matrix + 0x10, CTR_ReadU32LE(&frameData->rotScaleOrMatrix[8]));
+			instance->matrix.t[0] = frameData->offset[0];
+			instance->matrix.t[1] = frameData->offset[1];
+			instance->matrix.t[2] = frameData->offset[2];
 		}
 		return 0;
 	}
@@ -1002,7 +1002,7 @@ void CS_Thread_MoveOnPath(struct Thread *t)
 			return;
 		}
 
-		spawnEntry = (struct SpawnType2 *)((char *)level->ptrSpawnType2 + digit * 8);
+		spawnEntry = &level->ptrSpawnType2[digit];
 		positions = spawnEntry->positions;
 
 		if (positions == 0)
@@ -1066,7 +1066,7 @@ void CS_Thread_MoveOnPath(struct Thread *t)
 			return;
 		}
 
-		spawnEntry = (struct SpawnType2 *)((char *)level->ptrSpawnType2_PosRot + digit * 8);
+		spawnEntry = &level->ptrSpawnType2_PosRot[digit];
 		posRot = spawnEntry->posRot;
 
 		if (posRot == 0)
@@ -1368,7 +1368,7 @@ void CS_Thread_LInB(struct Instance *inst)
 
 	CS_ScriptCmd_OpcodeAt(cs, scriptPtr);
 
-	cs->unk18 = *(int *)(cs->metadata + 2);
+	cs->unk18 = cs->metadata[2];
 
 	{
 		int rng = MixRNG_Scramble();
@@ -1618,7 +1618,7 @@ struct Thread *CS_Thread_Init(s16 modelID, const char *name, struct CsThreadInit
 
 			if ((u32)(modelID - NDI_KART0) < 4)
 			{
-				cs->frameOverrideRoot = (int *)&D233.cs_initMatrixTable[modelID - NDI_KART0];
+				cs->frameOverrideRoot = &D233.cs_initMatrixTable[modelID - NDI_KART0];
 			}
 
 			goto after_opcode;

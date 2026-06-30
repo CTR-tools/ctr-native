@@ -12,13 +12,31 @@ enum
 // overlapping this entry and the next stride.
 struct MatrixND
 {
-	s16 m[3][3];
-	s16 extraShort;
-	int t[3];
+	union
+	{
+		struct
+		{
+			SVec3Slot bakedOffset;
+			SVec3Slot authoredRot;
+			SVec3Slot authoredScale;
+			s32 authoredPad[2];
+		};
+
+		struct
+		{
+			s16 m[3][3];
+			s16 extraShort;
+			int t[3];
+		};
+	};
 };
 
 CTR_STATIC_ASSERT(sizeof(struct MatrixND) == 0x20);
+CTR_STATIC_ASSERT(offsetof(struct MatrixND, bakedOffset) == 0x0);
+CTR_STATIC_ASSERT(offsetof(struct MatrixND, authoredRot) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct MatrixND, authoredScale) == 0x10);
 CTR_STATIC_ASSERT(MATRIX_ND_BAKED_MATRIX_OFFSET == offsetof(struct MatrixND, m[1][1]));
+CTR_STATIC_ASSERT(MATRIX_ND_BAKED_MATRIX_OFFSET == offsetof(struct MatrixND, authoredRot));
 
 typedef union DriverModelExtraSlot
 {
@@ -1608,11 +1626,7 @@ struct Data
 	u16 pauseScreenStrip[0x10];
 
 	// 800824a8 -- UsaRetail
-	struct
-	{
-		char input[4];
-		int output;
-	} gamepadMapBtn[20];
+	struct GamepadButtonMap gamepadMapBtn[20];
 
 // 80080744 -- SepReview	7C4
 // 80082548 -- UsaRetail	74C
@@ -4805,23 +4819,7 @@ struct sData
 
 	// 800961c4
 	// eight members, 0x10 each
-	struct
-	{
-		// 0x0
-		void *next;
-
-		// 0x4
-		void *prev;
-
-		// 0x8
-		s16 voiceID;        // param_1
-		char characterID_1; // param_2
-		char characterID_2; // param_3
-
-		// 0xC
-		int startFrame;
-
-	} voicelinePool[8];
+	struct VoicelineItem voicelinePool[8];
 
 	// 80096244
 	int timeSet1[0x10];

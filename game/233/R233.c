@@ -2456,10 +2456,10 @@ const struct OverlayRDATA_233 R233 =
         },
         .cs_initMatrixTable =
             {
-                {.data = (void *)&R233.cs_initMatrixData[0], .count = 41},
-                {.data = (void *)&R233.cs_initMatrixData[41], .count = 45},
-                {.data = (void *)&R233.cs_initMatrixData[86], .count = 49},
-                {.data = (void *)&R233.cs_initMatrixData[135], .count = 55},
+                {.data = (struct CsInitMatrixEntry *)&R233.cs_initMatrixData[0], .count = 41},
+                {.data = (struct CsInitMatrixEntry *)&R233.cs_initMatrixData[41], .count = 45},
+                {.data = (struct CsInitMatrixEntry *)&R233.cs_initMatrixData[86], .count = 49},
+                {.data = (struct CsInitMatrixEntry *)&R233.cs_initMatrixData[135], .count = 55},
             },
         .introClearBoxColor = {.r = 0x40, .g = 0x40, .b = 0x60},
         .introClearBoxRect = {.x = 0, .y = 0, .w = 0x200, .h = 0xd8},

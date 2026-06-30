@@ -96,7 +96,7 @@ void Voiceline_PoolClear(void)
 	LIST_Clear(&sdata->Voiceline2);
 
 	// put them all on free list
-	LIST_Init(&sdata->Voiceline1, (struct Item *)&sdata->voicelinePool[0].next, 0x10, 8);
+	LIST_Init(&sdata->Voiceline1, &sdata->voicelinePool[0].item, sizeof(struct VoicelineItem), 8);
 
 	Voiceline_ClearTimeStamp();
 }
@@ -253,9 +253,9 @@ queueVoiceline:
 
 	for (struct Item *item = sdata->Voiceline2.first; item != NULL; item = item->next)
 	{
-		u8 *itemBytes = (u8 *)item;
+		struct VoicelineItem *voiceLine = (struct VoicelineItem *)item;
 
-		if ((voiceID == (u32) * (s16 *)(itemBytes + 8)) && (characterID == itemBytes[0xa]))
+		if ((voiceID == (u32)voiceLine->voiceID) && (characterID == voiceLine->characterID))
 		{
 			return;
 		}
@@ -278,28 +278,27 @@ queueVoiceline:
 	LIST_AddFront(&sdata->Voiceline2, item);
 
 	{
-		u8 *itemBytes = (u8 *)item;
+		struct VoicelineItem *voiceLine = (struct VoicelineItem *)item;
 
-		itemBytes[0xa] = characterID;
-		itemBytes[0xb] = characterID2;
-		*(s16 *)(itemBytes + 8) = voiceID;
-		*(s32 *)(itemBytes + 0xc) = sdata->gGT->timer;
+		voiceLine->characterID = characterID;
+		voiceLine->secondaryCharacterID = characterID2;
+		voiceLine->voiceID = voiceID;
+		voiceLine->startFrame = sdata->gGT->timer;
 	}
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002cf28-0x8002d0f8
 void Voiceline_StartPlay(struct Item *voiceLine)
 {
-	u8 *voiceLineBytes = (u8 *)voiceLine;
-	int *voiceLineWords = (int *)voiceLine;
-	u32 voiceID = *(u16 *)(voiceLineBytes + 8);
-	u32 characterID = voiceLineBytes[0xa];
+	struct VoicelineItem *voiceLineItem = (struct VoicelineItem *)voiceLine;
+	u32 voiceID = (u16)voiceLineItem->voiceID;
+	u32 characterID = voiceLineItem->characterID;
 	u32 voiceSetIndex;
 
-	sdata->backupParams_FUN_8002cf28[0] = voiceLineWords[0];
-	sdata->backupParams_FUN_8002cf28[1] = voiceLineWords[1];
-	sdata->backupParams_FUN_8002cf28[2] = voiceLineWords[2];
-	sdata->backupParams_FUN_8002cf28[3] = voiceLineWords[3];
+	CTR_WriteU32LE(&sdata->backupParams_FUN_8002cf28[0], CTR_ReadU32LE((u8 *)voiceLineItem + 0x0));
+	CTR_WriteU32LE(&sdata->backupParams_FUN_8002cf28[1], CTR_ReadU32LE((u8 *)voiceLineItem + 0x4));
+	CTR_WriteU32LE(&sdata->backupParams_FUN_8002cf28[2], CTR_ReadU32LE((u8 *)voiceLineItem + 0x8));
+	CTR_WriteU32LE(&sdata->backupParams_FUN_8002cf28[3], CTR_ReadU32LE((u8 *)voiceLineItem + 0xc));
 
 	if ((IS_BOSS_RACE(sdata->gGT->gameMode1)) && ((u32)(voiceID - 10) < 6) && (((u32)(characterID - 8) < 4) || (characterID == 0xf)))
 	{
@@ -321,8 +320,8 @@ void Voiceline_StartPlay(struct Item *voiceLine)
 	}
 
 	u32 rng = Voiceline_RequestPlay_NextAudioRNG();
-	u32 voiceIndex = (rng % numVoiceIDs) * 2;
-	u32 xaID = *(u16 *)((u8 *)voiceIDs + voiceIndex);
+	u32 voiceIndex = rng % numVoiceIDs;
+	u32 xaID = (u16)voiceIDs[voiceIndex];
 
 	if (CDSYS_XAPlay(CDSYS_XA_TYPE_GAME, xaID) == 0)
 	{

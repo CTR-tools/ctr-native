@@ -995,8 +995,8 @@ static void Particle_RenderList_WriteNormalPrimitive(POLY_FT4 *poly, struct Icon
 	CtrGpu_WriteColorCode(&poly->r0, color | 0x2c000000);
 	CtrGpu_WritePackedUVWord(&poly->u0, Particle_RenderList_ReadWord(icon, 0x14));
 	CtrGpu_WritePackedUVWord(&poly->u1, (Particle_RenderList_ReadWord(icon, 0x18) & 0xff9fffff) | ((u32)(flagsSetColor & 0x60) << 16));
-	CtrGpu_WritePackedUV(&poly->u2, *(u16 *)(void *)((char *)icon + 0x1c));
-	CtrGpu_WritePackedUV(&poly->u3, *(u16 *)(void *)((char *)icon + 0x1e));
+	CtrGpu_WritePackedUV(&poly->u2, CTR_ReadU16LE(&icon->texLayout.u2));
+	CtrGpu_WritePackedUV(&poly->u3, CTR_ReadU16LE(&icon->texLayout.u3));
 
 	width = (Particle_RenderList_ReadByte(icon, 0x18) - Particle_RenderList_ReadByte(icon, 0x14)) + 1;
 	height = (Particle_RenderList_ReadByte(icon, 0x1d) - Particle_RenderList_ReadByte(icon, 0x15)) + 1;

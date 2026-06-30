@@ -153,7 +153,7 @@ static s16 Vector_BakeMatrixTable_Div4TowardZero(s32 value)
 
 static void Vector_BakeMatrixTable_PrepareBlastedFrames(void)
 {
-	char *entries = (char *)data.bakedGteMath[6].physEntry;
+	struct MatrixND *entries = data.bakedGteMath[6].physEntry;
 	int count = data.bakedGteMath[6].numEntries;
 
 	if ((entries == NULL) || (count <= 0))
@@ -163,15 +163,15 @@ static void Vector_BakeMatrixTable_PrepareBlastedFrames(void)
 
 	for (int i = 0; i < count; i++)
 	{
-		char *entry = entries + (i * 0x20);
+		struct MatrixND *entry = &entries[i];
 		s32 angle2000 = (i << 0xd) / count;
 		s32 angle3000 = (i * 0x3000) / count;
 		s32 sin2000 = MATH_Sin((u32)angle2000);
 
-		*(s16 *)(entry + 0xc) = (s16)angle2000;
-		*(s16 *)(entry + 0x8) = (s16)(-MATH_Sin((u32)angle3000) / 7);
-		*(s16 *)(entry + 0x10) = Vector_BakeMatrixTable_Div4TowardZero(sin2000) + 0x1000;
-		*(s16 *)(entry + 0x14) = (s16)(((sin2000 * 6) / 0x28) + 0x1000);
+		entry->authoredRot.z = (s16)angle2000;
+		entry->authoredRot.x = (s16)(-MATH_Sin((u32)angle3000) / 7);
+		entry->authoredScale.x = Vector_BakeMatrixTable_Div4TowardZero(sin2000) + 0x1000;
+		entry->authoredScale.z = (s16)(((sin2000 * 6) / 0x28) + 0x1000);
 	}
 }
 
@@ -182,7 +182,7 @@ static void Vector_BakeMatrixTable_BakeRotScaleEntries(void)
 
 	for (int i = 0; i < 0x14; i++)
 	{
-		char *entries = (char *)data.bakedGteMath[i].physEntry;
+		struct MatrixND *entries = data.bakedGteMath[i].physEntry;
 		int count = data.bakedGteMath[i].numEntries;
 
 		if ((entries == NULL) || (count <= 0))
@@ -192,22 +192,22 @@ static void Vector_BakeMatrixTable_BakeRotScaleEntries(void)
 
 		for (int j = 0; j < count; j++)
 		{
-			char *entry = entries + (j * 0x20);
+			struct MatrixND *entry = &entries[j];
 
-			ConvertRotToMatrix(&rot, (const SVec3 *)(entry + 8));
+			ConvertRotToMatrix(&rot, &entry->authoredRot.vec);
 
-			scale.m[0][0] = *(s16 *)(entry + 0x10);
-			scale.m[1][1] = *(s16 *)(entry + 0x12);
-			scale.m[2][2] = *(s16 *)(entry + 0x14);
+			scale.m[0][0] = entry->authoredScale.x;
+			scale.m[1][1] = entry->authoredScale.y;
+			scale.m[2][2] = entry->authoredScale.z;
 
-			MatrixRotate((MATRIX *)(entry + 8), &scale, &rot);
+			MatrixRotate((MATRIX *)(void *)&entry->authoredRot, &scale, &rot);
 		}
 	}
 }
 
 static void Vector_BakeMatrixTable_BakeBlastedOffsets(void)
 {
-	char *entries = (char *)data.bakedGteMath[6].physEntry;
+	struct MatrixND *entries = data.bakedGteMath[6].physEntry;
 	int count = data.bakedGteMath[6].numEntries;
 
 	if ((entries == NULL) || (count <= 0))
@@ -217,15 +217,15 @@ static void Vector_BakeMatrixTable_BakeBlastedOffsets(void)
 
 	for (int i = 0; i < count; i++)
 	{
-		char *entry = entries + (i * 0x20);
-		MATRIX *matrix = (MATRIX *)(entry + 8);
+		struct MatrixND *entry = &entries[i];
+		MATRIX *matrix = (MATRIX *)(void *)&entry->authoredRot;
 		s32 x = (matrix->m[0][1] * -0x2000) >> 12;
 		s32 y = ((matrix->m[1][1] * -0x2000) >> 12) + 0x2000;
 		s32 z = (matrix->m[2][1] * -0x2000) >> 12;
 
-		*(s16 *)(entry + 0) = (s16)x;
-		*(s16 *)(entry + 2) = (s16)y;
-		*(s16 *)(entry + 4) = (s16)z;
+		entry->bakedOffset.x = (s16)x;
+		entry->bakedOffset.y = (s16)y;
+		entry->bakedOffset.z = (s16)z;
 	}
 }
 

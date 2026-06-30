@@ -52,6 +52,15 @@ enum Buttons
 	BTN_TRIANGLE = 0x40000
 };
 
+struct GamepadButtonMap
+{
+	// 0x0
+	u8 rawInput[4];
+
+	// 0x4
+	u32 buttons;
+};
+
 enum Plug
 {
 	UNPLUGGED = -1,
@@ -337,6 +346,7 @@ struct RacingWheelData
 };
 
 CTR_STATIC_ASSERT(sizeof(struct GamepadBuffer) == 0x50);
+CTR_STATIC_ASSERT(sizeof(struct GamepadButtonMap) == 0x8);
 #if BUILD <= SepReview
 CTR_STATIC_ASSERT(sizeof(struct GamepadSystem) == 0x2D4);
 #elif BUILD < EurRetail
