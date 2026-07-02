@@ -135,6 +135,30 @@ struct Model *MM_Characters_GetModelByName(int *name)
 			return model;
 		}
 	}
+
+#ifdef CTR_NATIVE
+	{
+		static struct Model *s_oxideModel = NULL;
+		static int s_oxideLoaded = 0;
+
+		int *oxideName = (int *)rdata.s_oxide;
+		if ((name[0] == oxideName[0]) && (name[1] == oxideName[1]) &&
+		    (name[2] == oxideName[2]) && (name[3] == oxideName[3]))
+		{
+			if (!s_oxideLoaded)
+			{
+				s_oxideLoaded = 1;
+				int size;
+				char *buf = LOAD_DramFile(sdata->ptrBigfile1,
+					BI_RACERMODELHI + NITROS_OXIDE, NULL, &size, -1);
+				if (buf != NULL)
+					s_oxideModel = (struct Model *)(buf + 4);
+			}
+			return s_oxideModel;
+		}
+	}
+#endif
+
 	return NULL;
 }
 
@@ -352,7 +376,11 @@ void MM_Characters_SetMenuLayout(void)
 	iVar3 = numPlyrNextGame - 1;
 
 	// original game
+#ifdef CTR_NATIVE
+#define NUM_ICONS 0x10
+#else
 #define NUM_ICONS 0xF
+#endif
 
 	// Loop through bottom characters,
 	// if any are unlocked, use expanded
@@ -501,8 +529,6 @@ void MM_Characters_RestoreIDs(void)
 	}
 
 	MM_Characters_SetMenuLayout();
-
-#define NUM_ICONS 0xF
 
 	for (i = 0; i < NUM_ICONS; i++)
 	{
@@ -1017,8 +1043,6 @@ dontDrawSelectCharacter:
 	MM_Characters_PreventOverlap();
 
 	csm_Active = D230.csm_Active;
-
-#define NUM_ICONS 0xF
 
 	// loop through character icons
 	for (i = 0; i < NUM_ICONS; i++)
