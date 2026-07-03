@@ -164,7 +164,7 @@ int VehPhysCrash_Attack(struct Driver *driver1, struct Driver *driver2, b32 canP
 		{
 			struct Shield *bubble = driver2->instBubbleHold->thread->object;
 
-			bubble->flags |= 8;
+			bubble->flags |= SHIELD_FLAG_CRASH_ATTACK;
 			driver2->instBubbleHold = NULL;
 
 			driver1->pendingDamageType = 2;

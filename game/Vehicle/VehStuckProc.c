@@ -599,7 +599,7 @@ void VehStuckProc_PlantEaten_Animate(struct Thread *t, struct Driver *d)
 		// initialized, player eaten
 		d->KartStates.EatenByPlant.boolInited = true;
 
-		plantVector.vx = (((struct Plant *)plant->object)->LeftOrRight == 0) ? 250 : -250;
+		plantVector.vx = (((struct Plant *)plant->object)->side == 0) ? 250 : -250;
 		plantVector.vy = 0;
 		plantVector.vz = 750;
 

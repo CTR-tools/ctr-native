@@ -491,7 +491,7 @@ void VehPhysProc_Driving_PhysLinear(struct Thread *thread, struct Driver *driver
 		{
 			// Shoot the bubble
 			shield = (struct Shield *)driver->instBubbleHold->thread->object;
-			shield->flags |= 2;
+			shield->flags |= SHIELD_FLAG_SHOOT;
 			driver->instBubbleHold = NULL;
 			goto CheckJumpButtons;
 		}

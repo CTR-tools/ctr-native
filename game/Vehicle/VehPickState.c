@@ -31,7 +31,7 @@ int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Dr
 	{
 		struct Shield *shieldObj = victimDriver->instBubbleHold->thread->object;
 
-		shieldObj->flags |= 1;
+		shieldObj->flags |= SHIELD_FLAG_POP_ON_DAMAGE;
 
 		victimDriver->invincibleTimer = 0x2a0;
 

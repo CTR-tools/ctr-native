@@ -326,7 +326,7 @@ u32 VehPickupItem_PotionThrow(struct MineWeapon *mine, struct Instance *inst, u3
 	mine->velocity.y = 0x30;
 	mine->velocity.z = (inst->matrix.m[2][2] * throwVelocity) >> 12;
 	mine->crateInst = NULL;
-	mine->extraFlags |= 2;
+	mine->flags |= MINE_WEAPON_FLAG_THROWN;
 
 	return 1;
 }
@@ -471,7 +471,7 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		tw = weaponTh->object;
 		tw->flags = 0;
-		tw->framesSeekMine = 0;
+		tw->framesSeekTargetTnt = 0;
 		tw->soundIDCount = 0;
 		tw->timeAlive = 0;
 		tw->driverParent = d;
@@ -529,7 +529,7 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 
 		if (d->numWumpas >= 10)
 		{
-			tw->flags |= 1;
+			tw->flags |= TRACKER_FLAG_POWERED_UP;
 		}
 
 		// bomb
@@ -544,7 +544,7 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			    // pinstripe
 			    ((flags & 2) != 0))
 			{
-				tw->flags |= 0x20;
+				tw->flags |= TRACKER_FLAG_BOMB_BACKWARD;
 
 				tw->vel.x = -(((tw->vel.x >> 1) * 3) / 5);
 				tw->vel.z = -(((tw->vel.z >> 1) * 3) / 5);
@@ -563,8 +563,8 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 			}
 		}
 
-		tw->frameCount_DontHurtParent = 60;
-		tw->frameCount_Blind = 0;
+		tw->parentSafetyFrames = 60;
+		tw->blindFrames = 0;
 		break;
 
 	// TNT/Nitro
@@ -607,9 +607,9 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		mw->crateInst = 0;
 		VehPickupItem_ClearMineMotion(mw);
 		mw->boolDestroyed = 0;
-		mw->frameCount_DontHurtParent = 10;
+		mw->parentSafetyFrames = 10;
 		mw->tntSpinY = 0;
-		mw->extraFlags = 0;
+		mw->flags = 0;
 
 		RB_MinePool_Add(mw);
 		VehPickupItem_PotionThrow(mw, weaponInst, flags);
@@ -743,11 +743,11 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		mw->instParent = dInst;
 		mw->crateInst = 0;
 		mw->boolDestroyed = 0;
-		mw->frameCount_DontHurtParent = 10;
-		mw->extraFlags = 0;
+		mw->parentSafetyFrames = 10;
+		mw->flags = 0;
 		if (modelID == STATIC_BEAKER_RED)
 		{
-			mw->extraFlags = 1;
+			mw->flags = MINE_WEAPON_FLAG_RED_BEAKER;
 		}
 
 		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[d->driverID];
@@ -824,7 +824,7 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		}
 		else
 		{
-			shieldObj->flags = 4;
+			shieldObj->flags = SHIELD_FLAG_BLUE;
 		}
 
 		weaponInst->alphaScale = 0x400;
@@ -927,18 +927,18 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		}
 
 		tw = weaponTh->object;
-		tw->flags = 8;
+		tw->flags = TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
 		tw->soundIDCount = 0;
 		tw->ptrNodeNext = 0;
-		tw->respawnPointIndex = 0;
-		tw->turnAround = 0;
+		tw->pathProgress = 0;
+		tw->turnAroundFrames = 0;
 		tw->driverParent = d;
 		tw->driverTarget = victim;
 		tw->instParent = dInst;
 
 		if (d->numWumpas >= 10)
 		{
-			tw->flags |= 1;
+			tw->flags |= TRACKER_FLAG_POWERED_UP;
 		}
 
 		// sets nodeCurrIndex
@@ -969,14 +969,14 @@ void VehPickupItem_ShootNow(struct Driver *d, int weaponID, int flags)
 		}
 		else
 		{
-			tw->flags &= 0xfff7;
+			tw->flags &= ~TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
 		}
 
 		tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, victim);
 
 		tw->vel.y = 0;
 		tw->rotY = d->angle;
-		tw->frameCount_DontHurtParent = 10;
+		tw->parentSafetyFrames = 10;
 
 		// do NOT patch for 60fps,
 		// velocity uses elapsedTime
