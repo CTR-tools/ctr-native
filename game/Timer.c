@@ -1,12 +1,24 @@
 #include <common.h>
 
+#define TIMER_RCNT RCntCNT1
+
+enum TimerConstants
+{
+	TIMER_RCNT_TARGET = 0xffff,
+	TIMER_RCNT_MODE = 0x2000,
+	TIMER_RCNT_LOW_RECHECK_THRESHOLD = 100,
+	TIMER_MILLISECONDS_PER_SECOND = 1000,
+	TIMER_RCNT_UNITS_PER_SECOND = 0x147e,
+	TIMER_WRAP_MILLISECONDS = 0xc7e18,
+};
+
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004b31c-0x8004b370.
 void Timer_Init()
 {
 	EnterCriticalSection();
-	StopRCnt(DescRC + 1);
-	SetRCnt(DescRC + 1, 0xffff, 0x2000);
-	StartRCnt(DescRC + 1);
+	StopRCnt(TIMER_RCNT);
+	SetRCnt(TIMER_RCNT, TIMER_RCNT_TARGET, TIMER_RCNT_MODE);
+	StartRCnt(TIMER_RCNT);
 	ExitCriticalSection();
 }
 
@@ -14,23 +26,23 @@ void Timer_Init()
 void Timer_Destroy()
 {
 	EnterCriticalSection();
-	StopRCnt(DescRC + 1);
+	StopRCnt(TIMER_RCNT);
 	ExitCriticalSection();
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004b3a4-0x8004b41c.
 int Timer_GetTime_Total()
 {
-	int rcntTotal = sdata->rcntTotalUnits;
-	int rcnt = GetRCnt(DescRC + 1);
-	int sysClock = rcntTotal + rcnt;
+	s32 rcntTotal = sdata->rcntTotalUnits;
+	s32 rcnt = GetRCnt(TIMER_RCNT);
+	s32 sysClock = rcntTotal + rcnt;
 
-	if (rcnt < 100)
+	if (rcnt < TIMER_RCNT_LOW_RECHECK_THRESHOLD)
 	{
 		sysClock = sdata->rcntTotalUnits + rcnt;
 	}
 
-	return (sysClock * 1000) / 0x147e;
+	return (sysClock * TIMER_MILLISECONDS_PER_SECOND) / TIMER_RCNT_UNITS_PER_SECOND;
 }
 
 // Usage: elapsed(frameStart, &frameStart)
@@ -39,7 +51,7 @@ int Timer_GetTime_Total()
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004b41c-0x8004b470.
 int Timer_GetTime_Elapsed(int oldVal, int *retVal)
 {
-	int newVal = Timer_GetTime_Total();
+	s32 newVal = Timer_GetTime_Total();
 
 	if (retVal != 0)
 	{
@@ -49,7 +61,7 @@ int Timer_GetTime_Elapsed(int oldVal, int *retVal)
 	// impossible?
 	if (newVal < oldVal)
 	{
-		newVal += 0xc7e18;
+		newVal += TIMER_WRAP_MILLISECONDS;
 	}
 
 	return newVal - oldVal;

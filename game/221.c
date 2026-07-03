@@ -327,7 +327,7 @@ struct MenuRow rows221[3] = {
 
     // NULL, end of menu
     {
-        .stringIndex = 0xFFFF,
+        .stringIndex = RECTMENU_STRING_NONE,
         .rowOnPressUp = 0,
         .rowOnPressDown = 0,
         .rowOnPressLeft = 0,
@@ -335,13 +335,13 @@ struct MenuRow rows221[3] = {
     }};
 
 struct RectMenu menu221 = {
-    .stringIndexTitle = 0xFFFF,
+    .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 0x100,
     .posY_curr = 0xB4,
 
     .unk1 = 0,
 
-    .state = 0x803,
+    .state = RECTMENU_UNKNOWN_0x800 | CENTER_ON_COORDS,
     .rows = rows221,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,

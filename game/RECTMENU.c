@@ -519,7 +519,7 @@ void RECTMENU_DrawSelf(struct RectMenu *menu, int posX, s16 posY, s16 menuWidth)
 	offsetY = posY;
 	if ((menu->state & 0x60000) == 0x60000)
 	{
-		menu->unk1e = 2;
+		menu->funcState = RECTMENU_FUNC_STATE_DRAW;
 		if (menu->funcPtr != NULL)
 		{
 			menu->funcPtr(menu);
@@ -836,7 +836,7 @@ int RECTMENU_ProcessInput(struct RectMenu *m)
 
 				returnVal = -1;
 
-				m->unk1e = 0;
+				m->funcState = RECTMENU_FUNC_STATE_INPUT;
 
 				m->rowSelected = -1;
 
@@ -862,7 +862,7 @@ int RECTMENU_ProcessInput(struct RectMenu *m)
 					OtherFX_Play(1, 1);
 				}
 
-				m->unk1e = 0;
+				m->funcState = RECTMENU_FUNC_STATE_INPUT;
 
 				// Save row BEFORE processing the Cross button,
 				// this is why you can glitch into 3P VS with
@@ -946,7 +946,7 @@ void RECTMENU_ProcessState()
 	// run funcPtr if it exists
 	if ((state & (EXECUTE_FUNCPTR | DISABLE_INPUT_ALLOW_FUNCPTRS)) != 0)
 	{
-		currMenu->unk1e = 1;
+		currMenu->funcState = RECTMENU_FUNC_STATE_UPDATE;
 		currMenu->funcPtr(currMenu);
 
 		// check if funcPtr changed "state"
@@ -982,7 +982,7 @@ void RECTMENU_ProcessState()
 			RaceFlag_SetCanDraw(1);
 		}
 
-		sdata->gGT->renderFlags |= 0x20;
+		sdata->gGT->renderFlags |= RENDER_FLAG_RENDER_BUCKET;
 	}
 
 	// if menu needs to close

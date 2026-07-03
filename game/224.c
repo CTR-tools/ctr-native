@@ -92,7 +92,7 @@ void TT_EndEvent_DrawMenu(void)
 		// draw race clock in top-left corner
 		UI_Lerp2D_Linear(pos.v, 0x14, 8, endX, 8, elapsedFrames, TT_LERP_FRAMES);
 
-		UI_DrawRaceClock(pos.x, pos.y, 0, gGT->drivers[0]);
+		UI_DrawRaceClock(pos.x, pos.y, UI_RACE_CLOCK_SHOW_CURRENT_TIME, gGT->drivers[0]);
 
 		return;
 	}
@@ -271,7 +271,7 @@ void TT_EndEvent_DrawMenu(void)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f704-0x8009f8c0.
-void TT_EndEvent_DisplayTime(int paramX, s16 paramY, u32 UI_DrawRaceClockFlags)
+void TT_EndEvent_DisplayTime(int paramX, s16 paramY, u32 raceClockFlags)
 {
 	SVec2 pos;
 	RECT rectangle;
@@ -288,7 +288,7 @@ void TT_EndEvent_DisplayTime(int paramX, s16 paramY, u32 UI_DrawRaceClockFlags)
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_YOUR_TIME], paramX, ((u32)pos.y - 0x4c), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
-	UI_DrawRaceClock(pos.x, pos.y, UI_DrawRaceClockFlags, d);
+	UI_DrawRaceClock(pos.x, pos.y, raceClockFlags, d);
 
 	rectangle.x = (pos.x - DecalFont_GetLineWidth(sdata->lngStrings[LNG_TOTAL], FONT_BIG)) - 6;
 	rectangle.y = pos.y - 0x50;
@@ -468,7 +468,7 @@ struct MenuRow rowsWithSave[6] = {
 
     // NULL, end of menu
     {
-        .stringIndex = 0xFFFF,
+        .stringIndex = RECTMENU_STRING_NONE,
         .rowOnPressUp = 0,
         .rowOnPressDown = 0,
         .rowOnPressLeft = 0,
@@ -514,7 +514,7 @@ struct MenuRow rowsNoSave[5] = {
 
     // NULL, end of menu
     {
-        .stringIndex = 0xFFFF,
+        .stringIndex = RECTMENU_STRING_NONE,
         .rowOnPressUp = 0,
         .rowOnPressDown = 0,
         .rowOnPressLeft = 0,
@@ -522,13 +522,13 @@ struct MenuRow rowsNoSave[5] = {
     }};
 
 struct RectMenu menu224 = {
-    .stringIndexTitle = 0xFFFF,
+    .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 0x100,
     .posY_curr = 0xA0,
 
     .unk1 = 0,
 
-    .state = 0xC83,
+    .state = RECTMENU_UNKNOWN_0x800 | EXECUTE_FUNCPTR | USE_SMALL_FONT | CENTER_ON_COORDS,
     .rows = rowsWithSave,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,
@@ -537,13 +537,13 @@ struct RectMenu menu224 = {
 };
 
 struct RectMenu menu224NoSave = {
-    .stringIndexTitle = 0xFFFF,
+    .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 0x100,
     .posY_curr = 0xA0,
 
     .unk1 = 0,
 
-    .state = 0xC83,
+    .state = RECTMENU_UNKNOWN_0x800 | EXECUTE_FUNCPTR | USE_SMALL_FONT | CENTER_ON_COORDS,
     .rows = rowsNoSave,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,

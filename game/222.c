@@ -19,8 +19,6 @@ enum ArcadeAdventureEndMenuConstants
 	AA_CTR_ALREADY_UNLOCKED_FLYOUT_FRAME = CTR_SECONDS_TO_FRAMES(10),
 	AA_CONFIRM_BUTTON_MASK = BTN_CROSS_one | BTN_CIRCLE,
 	AA_MENU_READY_FLAG = 1,
-	AA_RACE_HUD_FLAG = 1,
-	AA_CUP_STANDINGS_HUD_FLAG = 4,
 	AA_RESULT_WAIT_FRAMES = CTR_SECONDS_TO_FRAMES(1),
 	AA_RESULT_MAX_FRAMES = CTR_SECONDS_TO_FRAMES(30),
 	AA_DRIVER_ICON_STAGGER_FRAMES = 10,
@@ -396,10 +394,10 @@ void AA_EndEvent_DrawMenu(void)
 		sdata->numIconsEOR = 1;
 
 		// Disable HUD
-		gGT->hudFlags &= ~AA_RACE_HUD_FLAG;
+		gGT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK;
 
 		// Enable Cup Standings
-		gGT->hudFlags |= AA_CUP_STANDINGS_HUD_FLAG;
+		gGT->hudFlags |= HUD_FLAG_CUP_STANDINGS;
 		return;
 	}
 
@@ -685,7 +683,7 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 
 	UI_Lerp2D_Linear(pos.v, lerpStartX, lerpEndY, lerpEndX, lerpEndY, currFrame, endFrame);
 
-	UI_DrawRaceClock(pos.x, pos.y, 1, driver);
+	UI_DrawRaceClock(pos.x, pos.y, UI_RACE_CLOCK_SHOW_RESULTS, driver);
 
 	s16 totalTextWidth = DecalFont_GetLineWidth(sdata->lngStrings[LNG_TOTAL], FONT_BIG);
 
@@ -734,7 +732,7 @@ struct MenuRow rows222[5] = {
     },
     // NULL, end of menu
     {
-        .stringIndex = 0xFFFF,
+        .stringIndex = RECTMENU_STRING_NONE,
         .rowOnPressUp = 0,
         .rowOnPressDown = 0,
         .rowOnPressLeft = 0,
@@ -742,11 +740,11 @@ struct MenuRow rows222[5] = {
     }};
 
 struct RectMenu menu222 = {
-    .stringIndexTitle = 0xFFFF,
+    .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 256,
     .posY_curr = 170,
     .unk1 = 0,
-    .state = (0x800 | USE_SMALL_FONT | CENTER_ON_COORDS), // 0x883
+    .state = RECTMENU_UNKNOWN_0x800 | USE_SMALL_FONT | CENTER_ON_COORDS,
     .rows = rows222,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,
@@ -754,11 +752,11 @@ struct RectMenu menu222 = {
 };
 
 struct RectMenu menu222_2P = {
-    .stringIndexTitle = 0xFFFF,
+    .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 256,
     .posY_curr = 108,
     .unk1 = 0,
-    .state = (0x800 | USE_SMALL_FONT | CENTER_ON_COORDS), // 0x883
+    .state = RECTMENU_UNKNOWN_0x800 | USE_SMALL_FONT | CENTER_ON_COORDS,
     .rows = rows222,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,

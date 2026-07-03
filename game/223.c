@@ -221,7 +221,7 @@ void RR_EndEvent_DrawMenu(void)
 	// interpolate fly-in
 	UI_Lerp2D_Linear(pos.v, startX, 0x32, 0x100, endY, elapsedFrames, RR_LERP_FRAMES);
 
-	UI_DrawRaceClock(pos.x, pos.y - 8, 1, driver);
+	UI_DrawRaceClock(pos.x, pos.y - 8, UI_RACE_CLOCK_SHOW_RESULTS, driver);
 
 
 	// Draw Relic,

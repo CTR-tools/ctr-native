@@ -72,26 +72,26 @@ void SelectProfile_PrintInteger(int value, int posX, int posY, b32 usePaddedForm
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047fb8-0x80047fd8.
-int SelectProfile_UI_ConvertX(int param_1, int param_2)
+int SelectProfile_UI_ConvertX(int screenX, int scale)
 {
-	param_2 = (param_1 - 0x100) * param_2;
-	if (param_2 < 0)
+	int projectedX = (screenX - SELECT_PROFILE_UI_CENTER_X) * scale;
+	if (projectedX < 0)
 	{
-		param_2 = param_2 + 0xff;
+		projectedX += 0xff;
 	}
-	return param_2 >> 8;
+	return projectedX >> 8;
 }
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80047fd8-0x80047ff8.
-int SelectProfile_UI_ConvertY(int param_1, int param_2)
+int SelectProfile_UI_ConvertY(int screenY, int scale)
 {
-	param_2 = (param_1 + -0x6c) * param_2;
-	if (param_2 < 0)
+	int projectedY = (screenY - SELECT_PROFILE_UI_CENTER_Y) * scale;
+	if (projectedY < 0)
 	{
-		param_2 = param_2 + 0xff;
+		projectedY += 0xff;
 	}
-	return param_2 >> 8;
+	return projectedY >> 8;
 }
 
 
@@ -106,9 +106,9 @@ static void SelectProfile_DrawAdvProfile_UpdateIcon(struct SelectProfileLoadSave
 	}
 #endif
 
-	inst->matrix.t[0] = SelectProfile_UI_ConvertX(posX, 0x100);
-	inst->matrix.t[1] = SelectProfile_UI_ConvertY(posY, 0x100);
-	inst->matrix.t[2] = 0x100;
+	inst->matrix.t[0] = SelectProfile_UI_ConvertX(posX, SELECT_PROFILE_UI_SCALE);
+	inst->matrix.t[1] = SelectProfile_UI_ConvertY(posY, SELECT_PROFILE_UI_SCALE);
+	inst->matrix.t[2] = SELECT_PROFILE_UI_DEPTH;
 	inst->flags &= ~HIDE_MODEL;
 }
 
@@ -124,7 +124,7 @@ void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s
 	int nameColor;
 	int percentColor;
 
-	if ((menuFlag & 0x10) != 0)
+	if ((menuFlag & SELECT_PROFILE_DRAW_STYLE_GREEN) != 0)
 	{
 		iconColor = sdata->greenColor;
 		numberColor = 0x1d;
@@ -180,7 +180,7 @@ void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s
 	if (isHighlighted != 0)
 	{
 		RECT highlightRect;
-		Color *highlightColor = ((menuFlag & 0x10) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
+		Color *highlightColor = ((menuFlag & SELECT_PROFILE_DRAW_STYLE_GREEN) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
 
 		highlightRect.x = posX + 6;
 		highlightRect.y = posY + 4;
@@ -215,7 +215,7 @@ static u32 SelectProfile_LoadSave_Color(int index, u32 flags)
 	u32 green = (u8)data.MetaDataLoadSave[index].g;
 	u32 blue = (u8)data.MetaDataLoadSave[index].b;
 
-	if ((flags & 0x10) != 0)
+	if ((flags & SELECT_PROFILE_DRAW_STYLE_GREEN) != 0)
 	{
 		red >>= 1;
 		blue >>= 1;
@@ -360,10 +360,10 @@ void SelectProfile_Destroy(void)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048960-0x80048a30.
 void SelectProfile_AdvPickMode_MenuProc(struct RectMenu *menu)
 {
-	if (menu->unk1e != 0)
+	if (menu->funcState != RECTMENU_FUNC_STATE_INPUT)
 	{
 		SelectProfile_Init(menu->drawStyle);
-		SelectProfile_DrawAdvProfile(&sdata->advProgress, 0x92, 0x32, 0, 0, 0x10);
+		SelectProfile_DrawAdvProfile(&sdata->advProgress, 0x92, 0x32, 0, 0, SELECT_PROFILE_DRAW_STYLE_GREEN);
 		return;
 	}
 
@@ -371,7 +371,7 @@ void SelectProfile_AdvPickMode_MenuProc(struct RectMenu *menu)
 
 	if ((row >= 0) && (row < 3))
 	{
-		SelectProfile_ToggleMode((u16)menu->rowSelected | 0x20);
+		SelectProfile_ToggleMode((u16)menu->rowSelected | SELECT_PROFILE_SCREEN_GREEN_LOAD_SAVE);
 		sdata->ptrDesiredMenu = &data.menuFourAdvProfiles;
 		return;
 	}
@@ -431,7 +431,7 @@ void SelectProfile_DrawGhostProfile(struct GhostProfile *profile, int posX, int 
 
 	if (isHighlighted != 0)
 	{
-		Color *highlight = ((menuFlag & 0x10) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
+		Color *highlight = ((menuFlag & SELECT_PROFILE_DRAW_STYLE_GREEN) != 0) ? &sdata->menuRowHighlight_Green : &sdata->menuRowHighlight_Normal;
 		CTR_Box_DrawClearBox(&innerRect, highlight, TRANS_50_DECAL, gGT->backBuffer->otMem.uiOT);
 	}
 
@@ -469,10 +469,10 @@ static s16 *SelectProfile_TimerSaveComplete(void)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80048e2c-0x80048edc.
 void SelectProfile_ToggleMode(u32 mode)
 {
-	sdata->memcardAction = mode & 0xf;
+	sdata->memcardAction = mode & SELECT_PROFILE_ACTION_MASK;
 
-	// 0x00 AdvNew, 0x10 AdvLoad, 0x20 green load/save, 0x30 ghost, 0x40 slot selected.
-	*SelectProfile_Mode() = mode & 0xf0;
+	// High nibble selects the profile screen, low nibble selects the action.
+	*SelectProfile_Mode() = mode & SELECT_PROFILE_SCREEN_MASK;
 	*(s16 *)&sdata->data10_bbb[4] = 0;
 	*(s16 *)&sdata->data10_bbb[6] = 0;
 	*(s16 *)&sdata->data10_bbb[8] = 0;
@@ -481,12 +481,12 @@ void SelectProfile_ToggleMode(u32 mode)
 
 	SelectProfile_UnMuteCursors();
 
-	data.menuFourAdvProfiles.drawStyle &= ~0x10;
-	data.menuOverwriteAdv.drawStyle &= ~0x10;
-	if (*SelectProfile_Mode() == 0x20)
+	data.menuFourAdvProfiles.drawStyle &= ~SELECT_PROFILE_DRAW_STYLE_GREEN;
+	data.menuOverwriteAdv.drawStyle &= ~SELECT_PROFILE_DRAW_STYLE_GREEN;
+	if (*SelectProfile_Mode() == SELECT_PROFILE_SCREEN_GREEN_LOAD_SAVE)
 	{
-		data.menuFourAdvProfiles.drawStyle |= 0x10;
-		data.menuOverwriteAdv.drawStyle |= 0x10;
+		data.menuFourAdvProfiles.drawStyle |= SELECT_PROFILE_DRAW_STYLE_GREEN;
+		data.menuOverwriteAdv.drawStyle |= SELECT_PROFILE_DRAW_STYLE_GREEN;
 	}
 
 	SelectProfile_Init(data.menuFourAdvProfiles.drawStyle);
@@ -503,7 +503,7 @@ u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlag
 	u32 tap = sdata->buttonTapPerPlayer[0];
 
 	// D-Pad, Cross, Square, Triangle, Circle
-	if ((tap & 0x4007f) == 0)
+	if ((tap & SELECT_PROFILE_INPUT_NAV_CONFIRM) == 0)
 	{
 		return 0;
 	}
@@ -554,7 +554,7 @@ u32 SelectProfile_InputLogic(struct RectMenu *menu, s16 numRows, u32 confirmFlag
 			OtherFX_Play(0, 1);
 		}
 
-		if (((tap & (BTN_CROSS | BTN_CIRCLE)) == 0) || ((numRows == 0) && (sdata->memcardAction != 1)))
+		if (((tap & (BTN_CROSS | BTN_CIRCLE)) == 0) || ((numRows == 0) && (sdata->memcardAction != SELECT_PROFILE_ACTION_SAVE)))
 		{
 			if ((tap & (BTN_TRIANGLE | BTN_SQUARE)) != 0)
 			{
@@ -643,7 +643,7 @@ static struct MemcardProfile *SelectProfile_MemcardProfile(void)
 
 static int SelectProfile_IsGhostMode(void)
 {
-	return *SelectProfile_AllProfiles_Mode() == 0x30;
+	return *SelectProfile_AllProfiles_Mode() == SELECT_PROFILE_SCREEN_GHOST;
 }
 
 static int SelectProfile_AdvProfileOccupied(int slot)
@@ -689,7 +689,7 @@ static void SelectProfile_StartGhostSave(struct RectMenu *menu)
 {
 	struct GameTracker *gGT = sdata->gGT;
 	struct Driver *driver = gGT->drivers[0];
-	int time = 0x8ca00;
+	int time = SELECT_PROFILE_DEFAULT_GHOST_TIME;
 
 	if (driver != NULL)
 	{
@@ -720,21 +720,21 @@ static int SelectProfile_GhostRowCount(int *savedCount, b32 *canChooseEmptySlot)
 		count = 0;
 	}
 
-	if (count > 7)
+	if (count > SELECT_PROFILE_GHOST_SLOT_COUNT)
 	{
-		count = 7;
+		count = SELECT_PROFILE_GHOST_SLOT_COUNT;
 	}
 
 	*savedCount = count;
 
-	if (sdata->memcardAction == 1)
+	if (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)
 	{
-		*canChooseEmptySlot = sdata->memoryCard_SizeRemaining >= 0x3e00;
+		*canChooseEmptySlot = sdata->memoryCard_SizeRemaining >= SELECT_PROFILE_GHOST_SAVE_BYTES;
 		count += *canChooseEmptySlot;
 
-		if (count > 7)
+		if (count > SELECT_PROFILE_GHOST_SLOT_COUNT)
 		{
-			count = 7;
+			count = SELECT_PROFILE_GHOST_SLOT_COUNT;
 			*canChooseEmptySlot = false;
 		}
 	}
@@ -765,7 +765,8 @@ static int SelectProfile_DisableAdvInputFlags(void)
 	int flags = 0;
 
 	if ((sdata->mcScreenText < MC_SCREEN_FORMATTING) ||
-	    ((sdata->memoryCard_SizeRemaining < 0x1680) && (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0) && (sdata->memcardAction == 1)))
+	    ((sdata->memoryCard_SizeRemaining < SELECT_PROFILE_ADV_SAVE_BYTES) && (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0) &&
+	     (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)))
 	{
 		flags = 1;
 	}
@@ -794,7 +795,7 @@ static void SelectProfile_DrawGhostRows(struct RectMenu *menu, int rowCount, int
 	{
 		lineGap = 0x10;
 		yBase = 0x12;
-		if (sdata->memcardAction != 1)
+		if (sdata->memcardAction != SELECT_PROFILE_ACTION_SAVE)
 		{
 			DecalFont_DrawMultiLine(sdata->lngStrings[LNG_INSERT_ANY_MEMORY_CARD_WITH_GHOST_DATA_IN], 0x100, 0xbe, 0x1ce, FONT_SMALL, color | 0xffff8000);
 		}
@@ -851,10 +852,10 @@ static void SelectProfile_DrawGhostRows(struct RectMenu *menu, int rowCount, int
 		// levelID still refers to the previously loaded level.
 		if ((profile != NULL) && (profile->trackID != sdata->gGT->currLEV))
 		{
-			isWrongTrack = sdata->memcardAction != 1;
+			isWrongTrack = sdata->memcardAction != SELECT_PROFILE_ACTION_SAVE;
 		}
 
-		SelectProfile_DrawGhostProfile(profile, x, y, i == menu->rowSelected, i, drawStyle, sdata->memcardAction == 0, isWrongTrack);
+		SelectProfile_DrawGhostProfile(profile, x, y, i == menu->rowSelected, i, drawStyle, sdata->memcardAction == SELECT_PROFILE_ACTION_LOAD, isWrongTrack);
 
 		if (profile != NULL)
 		{
@@ -882,7 +883,7 @@ static void SelectProfile_DrawAdvRows(struct RectMenu *menu, int color)
 		SelectProfile_DrawAdvProfile(&memcard->advProgress[i], ((i & 1) * 0xea) + 0x1a, ((i >> 1) * 0x43) + 0x3c, i == menu->rowSelected, i, menu->drawStyle);
 	}
 
-	if ((sdata->memcardAction == 1) && (sdata->boolMemcardDataValid != 0))
+	if ((sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE) && (sdata->boolMemcardDataValid != 0))
 	{
 		DecalFont_DrawLine(sdata->lngStrings[LNG_DATA_ON_MEMORY_CARD_IS_OUT_OF_DATE], 0x100, 0xc3, FONT_SMALL, JUSTIFY_CENTER | RED);
 	}
@@ -912,7 +913,7 @@ static int SelectProfile_ProcessOverwritePrompt(void)
 	u32 tap = sdata->buttonTapPerPlayer[0];
 	int confirm = 0;
 
-	if ((tap & 0x4007f) == 0)
+	if ((tap & SELECT_PROFILE_INPUT_NAV_CONFIRM) == 0)
 	{
 		return 0;
 	}
@@ -959,13 +960,13 @@ static void SelectProfile_HandleNoCardOrSpace(struct RectMenu *menu)
 
 	if (sdata->mcScreenText == MC_SCREEN_WARNING_NOCARD)
 	{
-		if (sdata->memcardAction == 1)
+		if (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)
 		{
 			*SelectProfile_AllProfiles_ActionActive() = sdata->memcardAction;
 			*SelectProfile_AllProfiles_ActionDone() = sdata->memcardAction;
 			sdata->boolError = 1;
 		}
-		else if ((sdata->memcardAction == 0) && (mode == 0x30))
+		else if ((sdata->memcardAction == SELECT_PROFILE_ACTION_LOAD) && (mode == SELECT_PROFILE_SCREEN_GHOST))
 		{
 			*SelectProfile_AllProfiles_ActionActive() = 1;
 			*SelectProfile_AllProfiles_ActionDone() = 1;
@@ -973,8 +974,8 @@ static void SelectProfile_HandleNoCardOrSpace(struct RectMenu *menu)
 		}
 	}
 
-	if ((sdata->mcScreenText != MC_SCREEN_WARNING_UNFORMATTED) && (sdata->memoryCard_SizeRemaining < 0x1680) &&
-	    (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0) && (sdata->memcardAction == 1))
+	if ((sdata->mcScreenText != MC_SCREEN_WARNING_UNFORMATTED) && (sdata->memoryCard_SizeRemaining < SELECT_PROFILE_ADV_SAVE_BYTES) &&
+	    (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0) && (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE))
 	{
 		*SelectProfile_AllProfiles_ActionActive() = 1;
 		*SelectProfile_AllProfiles_ActionDone() = 1;
@@ -1040,9 +1041,9 @@ static int SelectProfile_HandleSelection(struct RectMenu *menu, int rowCount)
 		return 0;
 	}
 
-	if (sdata->memcardAction == 1)
+	if (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)
 	{
-		if (mode == 0x30)
+		if (mode == SELECT_PROFILE_SCREEN_GHOST)
 		{
 			if (menu->rowSelected < sdata->numGhostProfilesSaved)
 			{
@@ -1073,9 +1074,9 @@ static int SelectProfile_HandleSelection(struct RectMenu *menu, int rowCount)
 		return 1;
 	}
 
-	if (sdata->memcardAction == 0)
+	if (sdata->memcardAction == SELECT_PROFILE_ACTION_LOAD)
 	{
-		if (mode == 0x30)
+		if (mode == SELECT_PROFILE_SCREEN_GHOST)
 		{
 			SelectProfile_StartLoadGhost(menu, rowCount);
 		}
@@ -1097,7 +1098,8 @@ static int SelectProfile_HandleSelection(struct RectMenu *menu, int rowCount)
 			OtherFX_Play(5, 1);
 		}
 	}
-	else if ((sdata->memcardAction == 2) && (mode != 0x30) && SelectProfile_AdvProfileOccupied(menu->rowSelected))
+	else if ((sdata->memcardAction == SELECT_PROFILE_ACTION_DELETE) && (mode != SELECT_PROFILE_SCREEN_GHOST) &&
+	         SelectProfile_AdvProfileOccupied(menu->rowSelected))
 	{
 		GAMEPROG_NewProfile_InsideAdv(&SelectProfile_MemcardProfile()->advProgress[menu->rowSelected]);
 		MEMCARD_SetIcon(0);
@@ -1121,7 +1123,7 @@ static void SelectProfile_DrawMemcardMessage(int screen, int color, int menuFlag
 		return;
 	}
 
-	if ((screen == MC_SCREEN_ERROR_NODATA) && (*SelectProfile_AllProfiles_Mode() == 0x40))
+	if ((screen == MC_SCREEN_ERROR_NODATA) && (*SelectProfile_AllProfiles_Mode() == SELECT_PROFILE_SCREEN_SLOT_SELECTED))
 	{
 		return;
 	}
@@ -1140,12 +1142,12 @@ static void SelectProfile_DrawMemcardMessage(int screen, int color, int menuFlag
 		return;
 	}
 
-	if ((firstString == 0x10f) && (sdata->memcardAction == 1))
+	if ((firstString == 0x10f) && (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE))
 	{
 		firstString = 0x106;
 	}
 
-	if ((sdata->memcardAction == 2) && (firstString == 0xea))
+	if ((sdata->memcardAction == SELECT_PROFILE_ACTION_DELETE) && (firstString == 0xea))
 	{
 		firstString = 0xfc;
 	}
@@ -1185,19 +1187,19 @@ static void SelectProfile_DrawAll(struct RectMenu *menu, int rowCount, int saved
 	                      (((s16)CTR_ReadU16LE(&sdata->unk8008d95c) != 0) || ((s16)CTR_ReadU16LE(&sdata->unk_memcardRelated_8008d928[0]) != 0) ||
 	                       (sdata->mcScreenText == MC_SCREEN_NULL));
 
-	if ((sdata->memcardAction == 0) && SelectProfile_IsGhostMode() &&
+	if ((sdata->memcardAction == SELECT_PROFILE_ACTION_LOAD) && SelectProfile_IsGhostMode() &&
 	    ((sdata->mcScreenText == MC_SCREEN_ERROR_NODATA) || (sdata->mcScreenText == MC_SCREEN_WARNING_NOCARD)) && (rowCount != 0))
 	{
 		canDrawProfiles = true;
 	}
 
-	if (sdata->memcardAction == 1)
+	if (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)
 	{
 		if ((sdata->mcScreenText == MC_SCREEN_NULL) || (sdata->mcScreenText == MC_SCREEN_ERROR_NODATA))
 		{
-			canDrawProfiles = SelectProfile_IsGhostMode()
-			                      ? !((sdata->memoryCard_SizeRemaining < 0x3e00) && (savedGhostCount == 0))
-			                      : !((sdata->memoryCard_SizeRemaining < 0x1680) && (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0));
+			canDrawProfiles = SelectProfile_IsGhostMode() ? !((sdata->memoryCard_SizeRemaining < SELECT_PROFILE_GHOST_SAVE_BYTES) && (savedGhostCount == 0))
+			                                              : !((sdata->memoryCard_SizeRemaining < SELECT_PROFILE_ADV_SAVE_BYTES) &&
+			                                                  (*(s16 *)&sdata->unk_memcardRelated_8008d928[0] == 0));
 		}
 
 		if ((sdata->mcScreenText == MC_SCREEN_ERROR_TIMEOUT) && (*SelectProfile_AllProfiles_TimeoutPrompt() != 0))
@@ -1283,7 +1285,7 @@ static void SelectProfile_FinalizeGhost(struct RectMenu *menu)
 {
 	SelectProfile_Destroy();
 
-	if (sdata->memcardAction == 1)
+	if (sdata->memcardAction == SELECT_PROFILE_ACTION_SAVE)
 	{
 		sdata->ptrDesiredMenu = (*SelectProfile_AllProfiles_ExitToPrevious() != 0) ? &menu224 : &menu224NoSave;
 		return;
@@ -1311,9 +1313,9 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 	int mode = *SelectProfile_AllProfiles_Mode();
 	struct GameTracker *gGT = sdata->gGT;
 
-	if (mode == 0x20)
+	if (mode == SELECT_PROFILE_SCREEN_GREEN_LOAD_SAVE)
 	{
-		if ((*SelectProfile_AllProfiles_ExitToPrevious() == 0) && (sdata->memcardAction == 0))
+		if ((*SelectProfile_AllProfiles_ExitToPrevious() == 0) && (sdata->memcardAction == SELECT_PROFILE_ACTION_LOAD))
 		{
 			sdata->advProfileIndex = menu->rowSelected;
 			GAMEPROG_AdvPercent(&sdata->advProgress);
@@ -1330,7 +1332,7 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 		return;
 	}
 
-	if (mode == 0)
+	if (mode == SELECT_PROFILE_SCREEN_ADV_NEW)
 	{
 		if (*SelectProfile_AllProfiles_ExitToPrevious() != 0)
 		{
@@ -1341,13 +1343,13 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 
 		sdata->advProfileIndex = menu->rowSelected;
 		// NOTE(aalhendi): Retail 0x8004a75c-0x8004a778 queues new Adventure through currLEV.
-		gGT->currLEV = 0x1a;
+		gGT->currLEV = GEM_STONE_VALLEY;
 		Garage_Leave();
 		sdata->ptrDesiredMenu = QueueLoadTrack_GetMenuPtr();
 		return;
 	}
 
-	if (mode == 0x10)
+	if (mode == SELECT_PROFILE_SCREEN_ADV_LOAD)
 	{
 		if (*SelectProfile_AllProfiles_ExitToPrevious() != 0)
 		{
@@ -1367,7 +1369,7 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 		}
 		else
 		{
-			gGT->currLEV = 0x1a;
+			gGT->currLEV = GEM_STONE_VALLEY;
 		}
 		memmove(gGT->prevNameEntered, sdata->advProgress.name, sizeof(gGT->prevNameEntered));
 		memmove(gGT->currNameEntered, sdata->advProgress.name, sizeof(gGT->currNameEntered));
@@ -1375,7 +1377,7 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 		return;
 	}
 
-	if (mode == 0x40)
+	if (mode == SELECT_PROFILE_SCREEN_SLOT_SELECTED)
 	{
 		SelectProfile_Destroy();
 		if (sdata->boolSaveCupProgress == 0)
@@ -1395,7 +1397,7 @@ static void SelectProfile_FinalizeAdventure(struct RectMenu *menu)
 // NOTE(aalhendi): Partial retail audit only; this large structured rewrite is not fully ASM-stamped.
 void SelectProfile_AllProfiles_MenuProc(struct RectMenu *menu)
 {
-	int color = ((menu->drawStyle & 0x10) != 0) ? LIGHT_GREEN : ORANGE;
+	int color = ((menu->drawStyle & SELECT_PROFILE_DRAW_STYLE_GREEN) != 0) ? LIGHT_GREEN : ORANGE;
 	int savedGhostCount = sdata->numGhostProfilesSaved;
 	b32 canChooseEmptySlot = false;
 	int rowCount = SelectProfile_IsGhostMode() ? SelectProfile_GhostRowCount(&savedGhostCount, &canChooseEmptySlot) : 4;
@@ -1436,7 +1438,7 @@ void SelectProfile_AllProfiles_MenuProc(struct RectMenu *menu)
 		{
 			handled = SelectProfile_InputLogic(menu, rowCount, 0);
 		}
-		else if (*SelectProfile_AllProfiles_Mode() == 0x40)
+		else if (*SelectProfile_AllProfiles_Mode() == SELECT_PROFILE_SCREEN_SLOT_SELECTED)
 		{
 			if (sdata->mcScreenText == MC_SCREEN_WARNING_NOCARD)
 			{
@@ -1463,8 +1465,8 @@ void SelectProfile_AllProfiles_MenuProc(struct RectMenu *menu)
 					RefreshCard_StartMemcardAction(7);
 				}
 			}
-			else if (((sdata->memoryCard_SizeRemaining >= 0x1680) || ((s16)CTR_ReadU16LE(&sdata->unk_memcardRelated_8008d928[0]) != 0) ||
-			          (sdata->memcardAction != 1)) &&
+			else if (((sdata->memoryCard_SizeRemaining >= SELECT_PROFILE_ADV_SAVE_BYTES) || ((s16)CTR_ReadU16LE(&sdata->unk_memcardRelated_8008d928[0]) != 0) ||
+			          (sdata->memcardAction != SELECT_PROFILE_ACTION_SAVE)) &&
 			         (((s16)CTR_ReadU16LE(&sdata->unk8008d95c) != 0) || ((s16)CTR_ReadU16LE(&sdata->unk_memcardRelated_8008d928[0]) != 0)))
 			{
 				if (sdata->boolSaveCupProgress == 0)
@@ -1515,7 +1517,7 @@ draw_and_finish:
 		*SelectProfile_AllProfiles_TimerSaveComplete() = 0x3c;
 	}
 
-	if (menu->unk1e == 1)
+	if (menu->funcState == RECTMENU_FUNC_STATE_UPDATE)
 	{
 		SelectProfile_DrawAll(menu, rowCount, savedGhostCount, canChooseEmptySlot, color);
 	}
@@ -1525,7 +1527,7 @@ draw_and_finish:
 		SelectProfile_InitAndDestroy();
 		RefreshCard_StopMemcardAction();
 
-		if (*SelectProfile_AllProfiles_Mode() == 0x30)
+		if (*SelectProfile_AllProfiles_Mode() == SELECT_PROFILE_SCREEN_GHOST)
 		{
 			SelectProfile_FinalizeGhost(menu);
 		}

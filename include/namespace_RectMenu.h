@@ -30,7 +30,7 @@ enum MenuFlags
 	// 0x100
 	// 0x200
 	EXECUTE_FUNCPTR = 0x400,
-	// 0x800
+	RECTMENU_UNKNOWN_0x800 = 0x800,
 
 	// needs a better name, apparently it's for when it's closed/closing
 	NEEDS_TO_CLOSE = 0x1000,
@@ -50,6 +50,34 @@ enum MenuFlags
 	// 0x400000
 	MUTE_SOUND_OF_MOVING_CURSOR = 0x800000
 };
+
+enum RectMenuState
+{
+	RECTMENU_STATE_CALLBACK_CENTERED = RECTMENU_UNKNOWN_0x800 | DISABLE_INPUT_ALLOW_FUNCPTRS | CENTER_ON_COORDS,
+	RECTMENU_STATE_SMALL_CALLBACK_CENTERED = RECTMENU_STATE_CALLBACK_CENTERED | USE_SMALL_FONT,
+};
+
+enum MenuRowFlags
+{
+	RECTMENU_STRING_NONE = -1,
+	MENU_ROW_LNG_MASK = 0x7fff,
+	MENU_ROW_LOCKED = 0x8000,
+};
+
+enum RectMenuFuncState
+{
+	RECTMENU_FUNC_STATE_INPUT = 0,
+	RECTMENU_FUNC_STATE_UPDATE = 1,
+	RECTMENU_FUNC_STATE_DRAW = 2,
+};
+
+CTR_STATIC_ASSERT(RECTMENU_UNKNOWN_0x800 == 0x800);
+CTR_STATIC_ASSERT(RECTMENU_STATE_CALLBACK_CENTERED == 0x823);
+CTR_STATIC_ASSERT(RECTMENU_STATE_SMALL_CALLBACK_CENTERED == 0x8A3);
+CTR_STATIC_ASSERT(RECTMENU_STRING_NONE == -1);
+CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_INPUT == 0);
+CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_UPDATE == 1);
+CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_DRAW == 2);
 
 struct MenuRow
 {
@@ -99,7 +127,7 @@ struct RectMenu
 	// & 0x80, tiny text in rows
 	// & 0xFF, row height (state>>7)
 	// & 0x400, execute menu funcptr
-	// & 0x800, ??? used in 221 menu
+	// & 0x800, ??? used in end-event menus
 	// & 0x1000, needs to close
 	// & 0x2000, invisible
 	// & 0x4000, big text in title
@@ -132,8 +160,8 @@ struct RectMenu
 	s16 unk1c;
 
 	// 0x1e
-	// no idea, used in save/load
-	s16 unk1e;
+	// tells funcPtr why RectMenu called it
+	s16 funcState;
 
 	// 0x20
 	s16 width;
@@ -155,6 +183,8 @@ struct RectMenu
 };
 
 CTR_STATIC_ASSERT(sizeof(struct MenuRow) == 6);
+CTR_STATIC_ASSERT(MENU_ROW_LNG_MASK == 0x7fff);
+CTR_STATIC_ASSERT(MENU_ROW_LOCKED == 0x8000);
 #if BUILD != SepReview
 CTR_STATIC_ASSERT(sizeof(struct RectMenu) == 0x2C);
 #else
