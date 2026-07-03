@@ -58,8 +58,7 @@ int CDSYS_Init(b32 boolUseDisc)
 
 	CDSYS_SetMode_StreamData();
 
-	// 1 - English
-	CDSYS_SetXAToLang(1);
+	CDSYS_SetXAToLang(CDSYS_LANGUAGE_ENGLISH);
 
 	Voiceline_PoolClear();
 
@@ -167,7 +166,7 @@ void CDSYS_SetMode_StreamAudio()
 	// param_3: 0 = normal speed, 1 = double speed
 
 	// Set Mode to Audio
-	buf[0] = 0xE8;
+	buf[0] = CDSYS_CD_MODE_XA_AUDIO;
 	CdControl(CdlSetmode, buf, 0);
 
 	sdata->discMode = DM_AUDIO;
@@ -189,7 +188,7 @@ int CDSYS_SetXAToLang(int lang)
 	{
 		return 1;
 	}
-	if (lang >= 8)
+	if (lang >= CDSYS_LANGUAGE_COUNT)
 	{
 		return 0;
 	}
@@ -198,9 +197,9 @@ int CDSYS_SetXAToLang(int lang)
 	CDSYS_SetMode_StreamData();
 
 	xaLang = data.xaLanguagePtrs[lang];
-	strncpy(&data.s_XA_ENG_XNF[4], xaLang, 3);
-	strncpy(&data.s_XA_ENG_EXTRA[4], xaLang, 3);
-	strncpy(&data.s_XA_ENG_GAME[4], xaLang, 3);
+	strncpy(&data.s_XA_ENG_XNF[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
+	strncpy(&data.s_XA_ENG_EXTRA[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
+	strncpy(&data.s_XA_ENG_GAME[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
 
 	// store on heap
 	void *ptrDst = 0;
@@ -220,7 +219,7 @@ int CDSYS_SetXAToLang(int lang)
 	}
 
 	// Aug5=100, Sep3=101, Retail=102
-	if (xnf->version != 102)
+	if (xnf->version != CDSYS_XNF_VERSION_RETAIL)
 	{
 		return 0;
 	}
@@ -313,7 +312,7 @@ void CDSYS_XaCallbackCdReady(u8 result, u8 *unk) //+unk to adhere to *CdlCB
 			sdata->XA_State = XA_FADING;
 
 			// disable music
-			sdata->XA_VolumeDeduct = 0x400;
+			sdata->XA_VolumeDeduct = CDSYS_XA_FADE_VOLUME_STEP;
 		}
 
 		sdata->countPass_CdReadyCallback++;
@@ -374,7 +373,7 @@ void CDSYS_SpuCallbackTransfer()
 {
 	if (sdata->irqAddr == 0)
 	{
-		sdata->irqAddr = 0x200;
+		sdata->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
 	}
 	else
 	{
@@ -393,7 +392,7 @@ void CDSYS_SpuCallbackTransfer()
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8001c9e4-0x8001ca64.
 void CDSYS_SpuEnableIRQ()
 {
-	for (int i = 0; i < 0x200; i++)
+	for (int i = 0; i < CDSYS_SPU_DECODED_BUFFER_SAMPLES; i++)
 	{
 		sdata->SpuDecodedBuf[i] = 0;
 	}
@@ -405,10 +404,10 @@ void CDSYS_SpuEnableIRQ()
 	SpuSetTransferCallback(CDSYS_SpuCallbackTransfer);
 	SpuSetIRQCallback(CDSYS_SpuCallbackIRQ);
 
-	sdata->irqAddr = 0x200;
+	sdata->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
 	sdata->unused_8008d700 = 0;
 
-	SpuSetIRQAddr(0x200);
+	SpuSetIRQAddr(CDSYS_SPU_DECODED_IRQ_ADDR);
 	SpuSetIRQ(1);
 }
 
@@ -454,12 +453,12 @@ static void CDSYS_SaveMaxSample(int max)
 
 	// Cycle through ring buffer
 	sdata->XA_MaxSampleIndex++;
-	if (sdata->XA_MaxSampleIndex >= 3)
+	if (sdata->XA_MaxSampleIndex >= CDSYS_XA_MAX_SAMPLE_WINDOW)
 	{
 		sdata->XA_MaxSampleIndex = 0;
 	}
 
-	if (sdata->XA_MaxSampleNumSaved < 3)
+	if (sdata->XA_MaxSampleNumSaved < CDSYS_XA_MAX_SAMPLE_WINDOW)
 	{
 		sdata->XA_MaxSampleNumSaved++;
 	}
@@ -473,7 +472,7 @@ static void CDSYS_SaveMaxSample(int max)
 		index--;
 		if (index < 0)
 		{
-			index = 2;
+			index = CDSYS_XA_MAX_SAMPLE_WINDOW - 1;
 		}
 
 		if (sdata->XA_MaxSampleValInArr < sdata->XA_MaxSampleValArr[index])
@@ -518,12 +517,12 @@ void CDSYS_SpuGetMaxSample(void)
 		return;
 	}
 
-	int start = 0x100;
-	int end = 0x200;
+	int start = CDSYS_SPU_DECODED_HALF_SAMPLES;
+	int end = CDSYS_SPU_DECODED_BUFFER_SAMPLES;
 	if (sdata->irqAddr == 0)
 	{
 		start = 0;
-		end = 0x100;
+		end = CDSYS_SPU_DECODED_HALF_SAMPLES;
 	}
 
 	s16 *ptrSpuBuf = (s16 *)&sdata->SpuDecodedBuf[start];
@@ -551,10 +550,10 @@ void CDSYS_SpuGetMaxSample(void)
 
 	// Cycle through ring buffer
 	sdata->XA_MaxSampleIndex++;
-	if (sdata->XA_MaxSampleIndex >= 3)
+	if (sdata->XA_MaxSampleIndex >= CDSYS_XA_MAX_SAMPLE_WINDOW)
 		sdata->XA_MaxSampleIndex = 0;
 
-	if (sdata->XA_MaxSampleNumSaved < 3)
+	if (sdata->XA_MaxSampleNumSaved < CDSYS_XA_MAX_SAMPLE_WINDOW)
 		sdata->XA_MaxSampleNumSaved++;
 
 	// Find max of last 3 block maxes,
@@ -565,7 +564,7 @@ void CDSYS_SpuGetMaxSample(void)
 	{
 		index--;
 		if (index < 0)
-			index = 2;
+			index = CDSYS_XA_MAX_SAMPLE_WINDOW - 1;
 
 		if (sdata->XA_MaxSampleValInArr < sdata->XA_MaxSampleValArr[index])
 			sdata->XA_MaxSampleValInArr = sdata->XA_MaxSampleValArr[index];
@@ -686,7 +685,7 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 		// NOTE(aalhendi): Native CD has no CD-XA IRQ stream. Feed extracted
 		// XA assets to the native audio backend and synthesize the minimal
 		// retail XA state gates.
-		if (NativeAudio_PlayXATrack(categoryID, xaID, nativeVol << 7, nativeVol << 7) == 0)
+		if (NativeAudio_PlayXATrack(categoryID, xaID, nativeVol << CDSYS_XA_VOLUME_SHIFT, nativeVol << CDSYS_XA_VOLUME_SHIFT) == 0)
 		{
 			return 0;
 		}
@@ -694,14 +693,15 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 		sdata->XA_State = XA_PLAYING;
 		sdata->XA_Playing_Index = xaID;
 		sdata->XA_Playing_Category = categoryID;
-		sdata->XA_VolumeBitshift = nativeVol << 7;
+		sdata->XA_VolumeBitshift = nativeVol << CDSYS_XA_VOLUME_SHIFT;
 		sdata->XA_boolFinished = 0;
 		sdata->XA_CurrOffset = 0;
 		sdata->XA_MaxSampleIndex = 0;
 		sdata->XA_MaxSampleNumSaved = 0;
-		sdata->XA_MaxSampleValArr[0] = 0;
-		sdata->XA_MaxSampleValArr[1] = 0;
-		sdata->XA_MaxSampleValArr[2] = 0;
+		for (int i = 0; i < CDSYS_XA_MAX_SAMPLE_WINDOW; i++)
+		{
+			sdata->XA_MaxSampleValArr[i] = 0;
+		}
 		sdata->XA_MaxSampleVal = 0;
 		sdata->XA_MaxSampleValInArr = 0;
 		return 1;
@@ -743,7 +743,7 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 		vol = sdata->vol_Music;
 	}
 
-	sdata->XA_VolumeBitshift = vol << 7;
+	sdata->XA_VolumeBitshift = vol << CDSYS_XA_VOLUME_SHIFT;
 	SpuSetCommonCDVolume((s16)sdata->XA_VolumeBitshift, (s16)sdata->XA_VolumeBitshift);
 
 	sdata->XA_Playing_Index = xaID;
@@ -797,7 +797,7 @@ void CDSYS_XAPauseRequest()
 		if ((sdata->XA_State >= XA_STARTING) && (sdata->XA_State <= XA_PLAYING))
 		{
 			sdata->XA_State = XA_FADING;
-			sdata->XA_VolumeDeduct = 0x400;
+			sdata->XA_VolumeDeduct = CDSYS_XA_FADE_VOLUME_STEP;
 		}
 #endif
 		return;
@@ -816,7 +816,7 @@ void CDSYS_XAPauseRequest()
 	}
 
 	sdata->XA_State = XA_FADING;
-	sdata->XA_VolumeDeduct = 0x400;
+	sdata->XA_VolumeDeduct = CDSYS_XA_FADE_VOLUME_STEP;
 }
 
 

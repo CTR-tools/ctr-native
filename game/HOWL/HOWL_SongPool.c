@@ -264,8 +264,7 @@ void SongPool_StopCseq(struct SongSeq *seq)
 	{
 		backupNext = curr->next;
 
-		// type != MUSIC
-		if (curr->type != 2)
+		if (curr->type != HOWL_CHANNEL_TYPE_MUSIC)
 		{
 			continue;
 		}
@@ -275,10 +274,10 @@ void SongPool_StopCseq(struct SongSeq *seq)
 			continue;
 		}
 
-		// enable OFF(1) flag, disable ON(2) flag
+		// enable OFF flag, disable ON flag
 		flagPtr = &sdata->ChannelUpdateFlags[curr->channelID];
-		*flagPtr |= 1;
-		*flagPtr &= ~(2);
+		*flagPtr |= HOWL_CHANNEL_UPDATE_OFF;
+		*flagPtr &= ~HOWL_CHANNEL_UPDATE_KEY_ON;
 
 		curr->flags &= (u8)~1;
 

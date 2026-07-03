@@ -38,13 +38,12 @@ char EngineAudio_InitOnce(u32 soundID, u32 flags)
 
 	Smart_EnterCriticalSection();
 
-	channel = Channel_AllocSlot(0x7c, &channelAttr);
+	channel = Channel_AllocSlot(HOWL_CHANNEL_UPDATE_ALL_ATTRS, &channelAttr);
 
 	// if channel was found
 	if (channel != 0)
 	{
-		// type engineFX
-		channel->type = 0;
+		channel->type = HOWL_CHANNEL_TYPE_ENGINE_FX;
 		channel->unk2 = 0;
 		channel->echo = echo;
 		channel->vol = volume;
@@ -63,7 +62,7 @@ char EngineAudio_InitOnce(u32 soundID, u32 flags)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800289b0-0x80028b54
 s16 EngineAudio_Recalculate(u32 soundID, u32 sfx)
 {
-	int iVar1;
+	int splitScreenVolume;
 	u32 distortion = HowlSfx_Distortion(sfx);
 	u32 volume = HowlSfx_Volume(sfx);
 	u16 echo = (u16)HowlSfx_Echo(sfx);
@@ -92,19 +91,19 @@ s16 EngineAudio_Recalculate(u32 soundID, u32 sfx)
 	if (gGT->numPlyrCurrGame > 1)
 	{
 		// 3P/4P game
-		iVar1 = volume * 0x2d;
+		splitScreenVolume = volume * 0x2d;
 
 		// 2P game
 		if (gGT->numPlyrCurrGame == 2)
 		{
-			iVar1 = volume * 0x37;
+			splitScreenVolume = volume * 0x37;
 		}
 
-		volume = (iVar1 << 2) >> 8;
+		volume = (splitScreenVolume << 2) >> 8;
 	}
 
 	// no distortion
-	if (distortion == 0x80)
+	if (distortion == HOWL_SFX_DISTORTION_NONE)
 	{
 		channelAttr.pitch = ptrEngineFX->pitch;
 	}
@@ -120,9 +119,8 @@ s16 EngineAudio_Recalculate(u32 soundID, u32 sfx)
 
 	Smart_EnterCriticalSection();
 
-	// 0 - engineFX
 	// soundID & 0xffff, dont search for specific instance
-	channel = Channel_SearchFX_EditAttr(0, soundID, 0x70, &channelAttr);
+	channel = Channel_SearchFX_EditAttr(HOWL_CHANNEL_TYPE_ENGINE_FX, soundID, HOWL_CHANNEL_UPDATE_DYNAMIC_ATTRS, &channelAttr);
 
 	if (channel != 0)
 	{
@@ -605,9 +603,8 @@ void EngineAudio_Stop(u32 soundID)
 		return;
 	}
 
-	// 0 - engineFX
 	Smart_EnterCriticalSection();
-	Channel_SearchFX_Destroy(0, soundID, 0xffffffff);
+	Channel_SearchFX_Destroy(HOWL_CHANNEL_TYPE_ENGINE_FX, soundID, 0xffffffff);
 	Smart_ExitCriticalSection();
 
 	return;

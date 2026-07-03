@@ -94,7 +94,7 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 
 	// This function allows duplicates of functions,
 	// but not within 10 frames of each other, depending on boolAntiSpam
-	channel = Channel_AllocSlot_AntiSpam(id, boolAntiSpam, 0x7c, &channelAttr);
+	channel = Channel_AllocSlot_AntiSpam(id, boolAntiSpam, HOWL_CHANNEL_UPDATE_ALL_ATTRS, &channelAttr);
 
 	if (channel == 0)
 	{
@@ -109,8 +109,7 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 		channel->flags |= 4;
 	}
 
-	// type otherFX
-	channel->type = 1;
+	channel->type = HOWL_CHANNEL_TYPE_OTHER_FX;
 	channel->unk2 = 0;
 	channel->echo = echo;
 	channel->vol = volume;
@@ -169,7 +168,7 @@ u32 OtherFX_Modify(u32 soundId, u32 flags)
 	}
 
 	// no distortion
-	if (distort == 0x80)
+	if (distort == HOWL_SFX_DISTORTION_NONE)
 	{
 		channelAttr.pitch = ptrOtherFX->pitch;
 	}
@@ -185,9 +184,8 @@ u32 OtherFX_Modify(u32 soundId, u32 flags)
 
 	Smart_EnterCriticalSection();
 
-	// 1 - otherFX
 	// soundID & 0xffffffff, search for specific instance
-	channel = Channel_SearchFX_EditAttr(1, soundId, 0x70, &channelAttr);
+	channel = Channel_SearchFX_EditAttr(HOWL_CHANNEL_TYPE_OTHER_FX, soundId, HOWL_CHANNEL_UPDATE_DYNAMIC_ATTRS, &channelAttr);
 
 	if (channel != 0)
 	{
@@ -209,7 +207,7 @@ void OtherFX_Stop1(int soundID_count)
 	Smart_EnterCriticalSection();
 
 	// specific instance of soundID
-	Channel_SearchFX_Destroy(1, soundID_count, 0xffffffff);
+	Channel_SearchFX_Destroy(HOWL_CHANNEL_TYPE_OTHER_FX, soundID_count, 0xffffffff);
 
 	Smart_ExitCriticalSection();
 }
@@ -221,7 +219,7 @@ void OtherFX_Stop2(int soundID_count)
 	Smart_EnterCriticalSection();
 
 	// all instances of soundID
-	Channel_SearchFX_Destroy(1, soundID_count & 0xffff, 0xffff);
+	Channel_SearchFX_Destroy(HOWL_CHANNEL_TYPE_OTHER_FX, soundID_count & 0xffff, 0xffff);
 
 	Smart_ExitCriticalSection();
 }

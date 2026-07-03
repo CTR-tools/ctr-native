@@ -60,20 +60,18 @@ void UpdateChannelVol_EngineFX_All()
 
 	for (curr = (struct ChannelStats *)sdata->channelTaken.first; curr != NULL; curr = curr->next)
 	{
-		// type == MUSIC, skip
-		if (curr->type == 2)
+		if (curr->type == HOWL_CHANNEL_TYPE_MUSIC)
 		{
 			continue;
 		}
 
 		// update volume
-		sdata->ChannelUpdateFlags[curr->channelID] |= 0x40;
+		sdata->ChannelUpdateFlags[curr->channelID] |= HOWL_CHANNEL_UPDATE_VOLUME;
 
 		// just the sound, not the instance of sound
 		int soundID = curr->soundID & 0xffff;
 
-		// type == EngineFX
-		if (curr->type == 0)
+		if (curr->type == HOWL_CHANNEL_TYPE_ENGINE_FX)
 		{
 			UpdateChannelVol_EngineFX(&sdata->howl_metaEngineFX[soundID], &sdata->channelAttrNew[curr->channelID], curr->vol, curr->LR);
 		}
@@ -95,14 +93,13 @@ void UpdateChannelVol_Music_All()
 	{
 		backupNext = curr->next;
 
-		// type != MUSIC, skip
-		if (curr->type != 2)
+		if (curr->type != HOWL_CHANNEL_TYPE_MUSIC)
 		{
 			continue;
 		}
 
 		// update volume
-		sdata->ChannelUpdateFlags[curr->channelID] |= 0x40;
+		sdata->ChannelUpdateFlags[curr->channelID] |= HOWL_CHANNEL_UPDATE_VOLUME;
 
 		UpdateChannelVol_Music(&sdata->songSeq[curr->soundID & 0xffff], &sdata->channelAttrNew[curr->channelID], curr->drumIndex_pitchIndex, curr->vol);
 	}
@@ -117,14 +114,13 @@ void UpdateChannelVol_OtherFX_All()
 	{
 		backupNext = curr->next;
 
-		// type != OtherFX, skip
-		if (curr->type != 1)
+		if (curr->type != HOWL_CHANNEL_TYPE_OTHER_FX)
 		{
 			continue;
 		}
 
 		// update volume
-		sdata->ChannelUpdateFlags[curr->channelID] |= 0x40;
+		sdata->ChannelUpdateFlags[curr->channelID] |= HOWL_CHANNEL_UPDATE_VOLUME;
 
 		UpdateChannelVol_OtherFX(&sdata->howl_metaOtherFX[curr->soundID & 0xffff], &sdata->channelAttrNew[curr->channelID], curr->vol, curr->LR);
 	}
@@ -134,17 +130,17 @@ void UpdateChannelVol_OtherFX_All()
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002b0e0-0x8002b130
 int howl_VolumeGet(int type)
 {
-	if (type == 1)
+	if (type == HOWL_VOLUME_TYPE_MUSIC)
 	{
 		return sdata->vol_Music;
 	}
 
-	if (type == 0)
+	if (type == HOWL_VOLUME_TYPE_FX)
 	{
 		return sdata->vol_FX;
 	}
 
-	if (type == 2)
+	if (type == HOWL_VOLUME_TYPE_VOICE)
 	{
 		return sdata->vol_Voice;
 	}
@@ -155,7 +151,7 @@ int howl_VolumeGet(int type)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x8002b130-0x8002b1f0
 void howl_VolumeSet(int type, u8 vol)
 {
-	if (type == 1)
+	if (type == HOWL_VOLUME_TYPE_MUSIC)
 	{
 		if (sdata->vol_Music == vol)
 		{
@@ -168,7 +164,7 @@ void howl_VolumeSet(int type, u8 vol)
 
 		UpdateChannelVol_Music_All();
 	}
-	else if (type == 0)
+	else if (type == HOWL_VOLUME_TYPE_FX)
 	{
 		if (sdata->vol_FX == vol)
 		{
@@ -183,7 +179,7 @@ void howl_VolumeSet(int type, u8 vol)
 	}
 	else
 	{
-		if (type != 2)
+		if (type != HOWL_VOLUME_TYPE_VOICE)
 		{
 			return;
 		}

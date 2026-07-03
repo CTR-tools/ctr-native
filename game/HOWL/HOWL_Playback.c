@@ -101,7 +101,7 @@ void howl_InitChannelAttr_EngineFX(struct EngineFX *engineFX, struct ChannelAttr
 
 	s16 pitch = engineFX->pitch;
 
-	if (distort != 0x80)
+	if (distort != HOWL_SFX_DISTORTION_NONE)
 	{
 		pitch = ((u32)pitch * data.distortConst_Engine[distort]) >> 0x10;
 	}
@@ -131,7 +131,7 @@ void howl_InitChannelAttr_OtherFX(struct OtherFX *otherFX, struct ChannelAttr *a
 
 	s16 pitch = otherFX->pitch;
 
-	if (distort != 0x80)
+	if (distort != HOWL_SFX_DISTORTION_NONE)
 	{
 		pitch = ((int)pitch * (int)data.distortConst_OtherFX[distort]) >> 0x10;
 	}
@@ -204,20 +204,17 @@ void howl_UnPauseChannel(struct ChannelStats *stats)
 	type = stats->type;
 	soundID = stats->soundID & 0xffff;
 
-	// engineFX
-	if (type == 0)
+	if (type == HOWL_CHANNEL_TYPE_ENGINE_FX)
 	{
 		howl_InitChannelAttr_EngineFX(&sdata->howl_metaEngineFX[soundID], &attr, stats->vol, stats->LR, stats->distort);
 	}
 
-	// otherFX
-	else if (type == 1)
+	else if (type == HOWL_CHANNEL_TYPE_OTHER_FX)
 	{
 		howl_InitChannelAttr_OtherFX(&sdata->howl_metaOtherFX[soundID], &attr, stats->vol, stats->LR, stats->distort);
 	}
 
-	// music
-	else if (type == 2)
+	else if (type == HOWL_CHANNEL_TYPE_MUSIC)
 	{
 		howl_InitChannelAttr_Music(&sdata->songSeq[soundID], &attr, stats->drumIndex_pitchIndex, stats->vol);
 	}
@@ -227,7 +224,7 @@ void howl_UnPauseChannel(struct ChannelStats *stats)
 	}
 
 	// enable all bits in ChannelUpdate flag
-	sdata->ChannelUpdateFlags[stats->channelID] |= 0x7e;
+	sdata->ChannelUpdateFlags[stats->channelID] |= HOWL_CHANNEL_UPDATE_RESUME;
 
 	memcpy(&sdata->channelAttrNew[stats->channelID], &attr, sizeof(attr));
 }
