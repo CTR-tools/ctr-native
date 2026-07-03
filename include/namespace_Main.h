@@ -82,14 +82,14 @@ CTR_STATIC_ASSERT(LOAD_TEN_STAGES_0 == 0);
 
 enum OverlayIndex
 {
-	OVERLAY_INDEX_NONE = -1,
+	OVERLAY_INDEX_NONE = 0xff,
 	OVERLAY_INDEX_MAIN_MENU = 0,
 	OVERLAY_INDEX_RACING_OR_BATTLE = 1,
 	OVERLAY_INDEX_ADV_HUB = 2,
 	OVERLAY_INDEX_PODIUMS = 3,
 };
 
-CTR_STATIC_ASSERT((u8)OVERLAY_INDEX_NONE == 0xff);
+CTR_STATIC_ASSERT(OVERLAY_INDEX_NONE == 0xff);
 CTR_STATIC_ASSERT(OVERLAY_INDEX_MAIN_MENU == 0);
 CTR_STATIC_ASSERT(OVERLAY_INDEX_RACING_OR_BATTLE == 1);
 CTR_STATIC_ASSERT(OVERLAY_INDEX_ADV_HUB == 2);
@@ -1375,10 +1375,10 @@ struct GameTracker
 	char Debug_ToggleNormalSpawn;
 
 	// 2540
-	char overlayIndex_LOD;
-	char overlayIndex_Threads;
-	char overlayIndex_null_notUsed;
-	char overlayIndex_EndOfRace;
+	u8 overlayIndex_LOD;
+	u8 overlayIndex_Threads;
+	u8 overlayIndex_null_notUsed;
+	u8 overlayIndex_EndOfRace;
 
 	// 2544
 	int unk_filler_between_OvrIndex_levIDs;

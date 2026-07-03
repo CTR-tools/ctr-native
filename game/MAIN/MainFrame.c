@@ -438,7 +438,7 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 #endif
 								                                                                            ((gGT->gameMode1 & PAUSE_ALL) == 0)))) ||
 								     ((gGamepads->gamepad[iVar4].buttonsTapped & BTN_START) != 0)) &&
-								    (gGT->overlayIndex_Threads != -1))
+								    (gGT->overlayIndex_Threads != OVERLAY_INDEX_NONE))
 								{
 									// NOTE(aalhendi): Retail writes this before freezing the game for pause.
 									gGT->gameModeEnd = (gGT->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK) | PAUSE_1;
