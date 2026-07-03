@@ -24,6 +24,12 @@ void LevInstDef_UnPack(struct mesh_info *ptr_mesh_info)
 			// loop through all instance pointers visible on quadblock
 			for (visInstSrc = (struct InstDef **)qbCurr->pvs->visInstSrc; visInstSrc[0] != NULL; visInstSrc++)
 			{
+				//ND BUG: This operation is not idempotent. The outer for loop means we will do this operation multiple times
+				//on the same pointer, so we keep switching it from an InstDef pointer to an Instance pointer and back again.
+				//This is not a problem in the original game because LEVs were designed with this in mind (odd numbers of
+				//quadblocks), but we need to keep this in mind. The easiest solution I can think of is to keep track of which
+				//InstDefs have been unpacked and only unpack them once, but that requires a lot of extra bookkeeping and wouldn't.
+				//be "vanilla".
 				visInstSrc[0] = (struct InstDef *)visInstSrc[0]->ptrInstance;
 			}
 		}
