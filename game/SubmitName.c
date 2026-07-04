@@ -82,37 +82,16 @@ void SubmitName_UseKeyboard(int key)
 
 s16 SubmitName_DrawMenu(u16 string)
 {
-	s16 currNameLength;
-	int currNameWidth;
-	u32 cursorMiddleDelta;
-	u32 cursorCharacter;
-	int cursorPosition;
-	u32 keyboardCharacter;
-	char *currNameEntered;
-	u16 strColorBlink;
-	u16 blinkWhite;
-	int j;
-	int i;
-	u32 soundID;
-	s16 currNameLengthIncrement;
 	RECT r;
-	u16 stringCopy;
-	s16 nameLength;
-	s16 selectionResult;
-	int letterID;
-	int strlenCurrNameEnteredInt;
-	u32 keyboardCharacterTopByte;
-
 	struct GameTracker *gGT = sdata->gGT;
 
-	soundID = 0;
-	selectionResult = 0;
-	nameLength = 0;
-	stringCopy = string;
-	strlenCurrNameEnteredInt = strlen(gGT->currNameEntered);
-	currNameLength = strlenCurrNameEnteredInt;
-	currNameEntered = gGT->currNameEntered;
-	blinkWhite = ((sdata->typeTimer >> 0) & 1) << 2;
+	u32 soundID = 0;
+	s16 selectionResult = 0;
+	s16 nameLength = 0;
+	u16 stringCopy = string;
+	s16 currNameLength = strlen(gGT->currNameEntered);
+	char *currNameEntered = gGT->currNameEntered;
+	u16 blinkWhite = ((sdata->typeTimer >> 0) & 1) << 2;
 
 	while (currNameEntered[0] != 0)
 	{
@@ -124,23 +103,23 @@ s16 SubmitName_DrawMenu(u16 string)
 		currNameEntered++;
 	}
 
-	cursorPosition = gGT->typeCursorPosition;
+	int cursorPosition = gGT->typeCursorPosition;
 	if ((cursorPosition > SUBMIT_NAME_CURSOR_BACKSPACE) && (cursorPosition < SUBMIT_NAME_CURSOR_CANCEL))
 	{
 		cursorPosition = SUBMIT_NAME_CURSOR_BACKSPACE;
 	}
 
 	sdata->typeTimer++;
-	letterID = 0;
+	int letterID = 0;
 
 	// grid of letters, 13x3
-	for (i = 0; i < SUBMIT_NAME_KEYBOARD_ROWS; i++)
+	for (int i = 0; i < SUBMIT_NAME_KEYBOARD_ROWS; i++)
 	{
-		for (j = 0; j < SUBMIT_NAME_KEYBOARD_COLS; j++)
+		for (int j = 0; j < SUBMIT_NAME_KEYBOARD_COLS; j++)
 		{
 			char keyboardString[3];
-			keyboardCharacter = data.unicodeAscii[letterID];
-			keyboardCharacterTopByte = keyboardCharacter & 0xff00;
+			u32 keyboardCharacter = data.unicodeAscii[letterID];
+			u32 keyboardCharacterTopByte = keyboardCharacter & 0xff00;
 			if (keyboardCharacterTopByte == SUBMIT_NAME_ASCII_BYTE_MARKER)
 			{
 				keyboardCharacter &= 0xff;
@@ -160,7 +139,7 @@ s16 SubmitName_DrawMenu(u16 string)
 			}
 
 			// LETTER button blink
-			strColorBlink = 0;
+			u16 strColorBlink = 0;
 			if (cursorPosition == letterID)
 			{
 				strColorBlink = blinkWhite;
@@ -181,7 +160,7 @@ s16 SubmitName_DrawMenu(u16 string)
 
 	if (((sdata->typeTimer & 2) != 0) && (currNameLength < SUBMIT_NAME_BUFFER_SIZE - 1))
 	{
-		currNameWidth = DecalFont_GetLineWidth(gGT->currNameEntered, FONT_BIG);
+		int currNameWidth = DecalFont_GetLineWidth(gGT->currNameEntered, FONT_BIG);
 
 		DecalFont_DrawLine(sdata->str_underscore, currNameWidth + SUBMIT_NAME_TYPED_NAME_X,
 
@@ -189,7 +168,7 @@ s16 SubmitName_DrawMenu(u16 string)
 	}
 
 	// SAVE button blink
-	strColorBlink = 0;
+	u16 strColorBlink = 0;
 	if (cursorPosition == SUBMIT_NAME_CURSOR_SAVE)
 	{
 		strColorBlink = blinkWhite;
@@ -324,7 +303,7 @@ s16 SubmitName_DrawMenu(u16 string)
 					else if (cursorPosition < SUBMIT_NAME_CURSOR_BACKSPACE)
 					{
 						// Save or Cancel
-						cursorCharacter = data.unicodeAscii[cursorPosition];
+						u32 cursorCharacter = data.unicodeAscii[cursorPosition];
 						if ((data.unicodeAscii[cursorPosition] & 0xff00) == SUBMIT_NAME_ASCII_BYTE_MARKER)
 						{
 							cursorCharacter &= 0xff;
@@ -337,7 +316,7 @@ s16 SubmitName_DrawMenu(u16 string)
 						{
 							soundID = 1;
 
-							currNameLengthIncrement = currNameLength;
+							s16 currNameLengthIncrement = currNameLength;
 							if (cursorCharacter & 0xff00)
 							{
 								currNameLengthIncrement = currNameLength + 1;
@@ -433,7 +412,7 @@ s16 SubmitName_DrawMenu(u16 string)
 			cursorPosition = SUBMIT_NAME_CURSOR_SAVE;
 		}
 
-		cursorMiddleDelta = cursorPosition - SUBMIT_NAME_CURSOR_MIDDLE_THRESHOLD;
+		u32 cursorMiddleDelta = cursorPosition - SUBMIT_NAME_CURSOR_MIDDLE_THRESHOLD;
 		if ((SUBMIT_NAME_CURSOR_BACKSPACE < cursorPosition) && (cursorPosition < SUBMIT_NAME_CURSOR_MIDDLE_THRESHOLD))
 		{
 			cursorPosition = SUBMIT_NAME_CURSOR_SAVE;
