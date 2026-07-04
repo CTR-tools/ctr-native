@@ -8,11 +8,11 @@ void RB_MakeInstanceReflective(struct ScratchpadStruct *sps, struct Instance *in
 
 	if ((sps->boolDidTouchQuadblock == 0) || (sps->boolDidTouchHitbox != 0))
 	{
-		inst->bitCompressed_NormalVector_AndDriverIndex = 0x4000;
+		inst->compressedNormalAndDriverIndex = INST_CompressNormalVector(0, FP_ONE, 0);
 	}
 	else
 	{
-		inst->bitCompressed_NormalVector_AndDriverIndex = INST_CompressNormalVector(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z);
+		inst->compressedNormalAndDriverIndex = INST_CompressNormalVector(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z);
 
 		if (1 < gGT->numPlyrCurrGame)
 		{

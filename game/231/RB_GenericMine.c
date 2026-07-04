@@ -329,7 +329,7 @@ void RB_GenericMine_ThTick(struct Thread *t)
 				// play Hit TNT "bounce" sound
 				PlaySound3D(0x50, inst);
 
-				inst->bitCompressed_NormalVector_AndDriverIndex = 0;
+				inst->compressedNormalAndDriverIndex = 0;
 				inst->flags |= PIXEL_LOD;
 				mw->velocity.y = 0x30;
 				mw->velocity.x = 0;
@@ -379,7 +379,7 @@ void RB_GenericMine_ThTick(struct Thread *t)
 				// TNT bounce sound
 				PlaySound3D(0x50, instCrate);
 
-				instCrate->bitCompressed_NormalVector_AndDriverIndex = 0;
+				instCrate->compressedNormalAndDriverIndex = 0;
 				instCrate->flags |= PIXEL_LOD;
 				tnt->velocity.x = 0;
 				tnt->velocity.y = 0x30;

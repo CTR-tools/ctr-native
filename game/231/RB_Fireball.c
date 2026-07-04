@@ -193,7 +193,7 @@ void RB_Fireball_ThTick(struct Thread *t)
 			particle->axis[1].startVal += fireInst->matrix.t[1] * 0x100;
 			particle->axis[2].startVal += fireInst->matrix.t[2] * 0x100;
 
-			particle->unk1A = 0x1e00;
+			particle->renderDepthLimit = 0x1e00;
 
 			// reuse "velY" variable for particles
 			velY *= -0x180;

@@ -91,7 +91,7 @@ static void RB_Orca_SpawnSplash(struct Instance *orcaInst)
 
 		particle->axis[0].startVal += (orcaInst->matrix.t[0] << 8) + (particle->axis[0].velocity << 4);
 		particle->axis[1].startVal += (orcaInst->matrix.t[1] << 8) + (particle->axis[1].velocity << 1);
-		particle->unk1A = 0x1000;
+		particle->renderDepthLimit = 0x1000;
 		particle->axis[2].startVal += (orcaInst->matrix.t[2] << 8) + (particle->axis[2].velocity << 4);
 	}
 }

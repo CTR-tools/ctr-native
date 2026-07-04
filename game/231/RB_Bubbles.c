@@ -88,7 +88,7 @@ void RB_Bubbles_RoosTubes()
 
 		numFreeParticles--;
 
-		p->unk1A = 0x7fff;
+		p->renderDepthLimit = 0x7fff;
 		p->otIndexOffset = 8;
 
 		for (i = 0; i < 3; i++)
