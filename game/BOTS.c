@@ -5,17 +5,39 @@ enum
 	BOTS_ADV_MAX_LOSS_DIFFICULTY_INDEX = 10,
 	BOTS_DIFFICULTY_PARAM_COUNT = 14,
 	BOTS_DIFFICULTY_BLEND_DENOMINATOR = 0xf0,
+	BOTS_DIFFICULTY_SUPERHARD = 0x140,
+	BOTS_DIFFICULTY_CUP_OFFSET = 0x50,
+	BOTS_ADV_NORMAL_SCALE = 5,
+	BOTS_ADV_CHEAT_SCALE = 7,
+	BOTS_ADV_HIGH_TIER_LOSS_BASE = 0xe1,
+	BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE = 0x141,
+	BOTS_ADV_CUP_LOSS_BASE = 0xcd,
+	BOTS_ADV_CUP_CHEAT_LOSS_BASE = 300,
+	BOTS_ADV_RACE_LOSS_BASE = 0x3c,
+	BOTS_ADV_RACE_TROPHY_SCALE = 0x23,
+	BOTS_ADV_RACE_TROPHY_BIAS = 3,
+	BOTS_ADV_RACE_TROPHY_SHIFT = 2,
+	BOTS_ADV_RACE_CHEAT_LOSS_BASE = 100,
+	BOTS_ADV_RACE_CHEAT_TROPHY_SCALE = 0xc,
 	BOTS_NAV_PATH_COUNT = 3,
 	BOTS_MAX_KARTS = 8,
 	BOTS_BATTLE_DRIVER_COUNT = 4,
 	BOTS_GRID_ROW_KART_COUNT = 4,
+	BOTS_GRID_REAR_ROW_OFFSET = 4,
+	BOTS_RNG_BYTE_SHIFT = 8,
+	BOTS_RNG_BIT_MASK = 1,
+	BOTS_RNG_ACCEL_MASK = 3,
+	BOTS_RATAN_ARG_SHIFT = 12,
+	BOTS_ROT_BYTE_SHIFT = 4,
+	BOTS_NAV_REVERSE_YAW_OFFSET = 0x800,
+	BOTS_SPAWN_YAW_OFFSET = 0x400,
 	BOTS_BATTLE_PATH_RANDOM_MASK = 0xfff,
 	BOTS_BATTLE_PATH_RANDOM_DIVISOR = 0x555,
 	BOTS_PATH_CHANGE_PATH_SHIFT = 10,
 	BOTS_PATH_CHANGE_FRAME_MASK = 0x3ff,
 	BOTS_LEVEL_INST_COLL_RADIUS = 0x19,
+	BOTS_MASK_MIDPOINT_DIVISOR = 2,
 	BOTS_MASK_DROP_HEIGHT = 0x10000,
-	BOTS_MASK_DURATION = 0x1e00,
 	BOTS_AI_COLLISION_SPEED_PENALTY = 3000,
 	BOTS_RACE_START_AI_COLLISION_DELAY_FRAMES = CTR_SECONDS_TO_FRAMES(15),
 
@@ -205,51 +227,51 @@ void BOTS_Adv_AdjustDifficulty(void)
 
 		if ((gameMode2 & CHEAT_SUPERHARD) != 0)
 		{
-			currDifficulty = 0x140;
+			currDifficulty = BOTS_DIFFICULTY_SUPERHARD;
 		}
 
-		cupDifficulty = (s16)((u16)gGT->arcadeDifficulty + 0x50);
+		cupDifficulty = (s16)((u16)gGT->arcadeDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
 	}
 	else if ((gameMode1 & ADVENTURE_CUP) != 0)
 	{
 		s32 track = gGT->cup.trackIndex;
 		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]);
-		s32 maxDifficulty = track * 5;
+		s32 maxDifficulty = track * BOTS_ADV_NORMAL_SCALE;
 
 		if (gGT->cup.cupID == 4)
 		{
-			lostModifier -= 0xe1;
+			lostModifier -= BOTS_ADV_HIGH_TIER_LOSS_BASE;
 
 			if ((gameMode2 & CHEAT_ADV) != 0)
 			{
-				maxDifficulty = track * 7;
-				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - 0x141;
+				maxDifficulty = track * BOTS_ADV_CHEAT_SCALE;
+				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
 			}
 		}
 		else
 		{
-			lostModifier -= 0xcd;
+			lostModifier -= BOTS_ADV_CUP_LOSS_BASE;
 
 			if ((gameMode2 & CHEAT_ADV) != 0)
 			{
-				maxDifficulty = track * 7;
-				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - 300;
+				maxDifficulty = track * BOTS_ADV_CHEAT_SCALE;
+				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_CUP_CHEAT_LOSS_BASE;
 			}
 		}
 
 		currDifficulty = maxDifficulty - lostModifier;
-		cupDifficulty = (s16)(currDifficulty + 0x50);
+		cupDifficulty = (s16)(currDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
 	}
 	else if ((gameMode1 & ADVENTURE_BOSS) != 0)
 	{
 		s32 bossID = gGT->bossID;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - 0xe1;
-		s32 maxDifficulty = bossID * 5;
+		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - BOTS_ADV_HIGH_TIER_LOSS_BASE;
+		s32 maxDifficulty = bossID * BOTS_ADV_NORMAL_SCALE;
 
 		if ((gameMode2 & CHEAT_ADV) != 0)
 		{
-			maxDifficulty = bossID * 7;
-			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - 0x141;
+			maxDifficulty = bossID * BOTS_ADV_CHEAT_SCALE;
+			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
 		}
 
 		currDifficulty = maxDifficulty - lostModifier;
@@ -257,20 +279,20 @@ void BOTS_Adv_AdjustDifficulty(void)
 	else
 	{
 		s16 numTrophies = (s16)gGT->currAdvProfile.numTrophies + 1;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - 0x3c;
-		s32 maxDifficulty = numTrophies * 0x23;
+		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - BOTS_ADV_RACE_LOSS_BASE;
+		s32 maxDifficulty = numTrophies * BOTS_ADV_RACE_TROPHY_SCALE;
 
 		if (maxDifficulty < 0)
 		{
-			maxDifficulty += 3;
+			maxDifficulty += BOTS_ADV_RACE_TROPHY_BIAS;
 		}
 
-		maxDifficulty >>= 2;
+		maxDifficulty >>= BOTS_ADV_RACE_TROPHY_SHIFT;
 
 		if ((gameMode2 & CHEAT_ADV) != 0)
 		{
-			maxDifficulty = numTrophies * 0xc;
-			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - 100;
+			maxDifficulty = numTrophies * BOTS_ADV_RACE_CHEAT_TROPHY_SCALE;
+			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - BOTS_ADV_RACE_CHEAT_LOSS_BASE;
 		}
 
 		currDifficulty = maxDifficulty - lostModifier;
@@ -316,7 +338,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 		{
 			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.VS_2P_1, data.kartSpawnOrder.VS_2P_2);
 		}
-		else if ((u8)gGT->numPlyrCurrGame > 2)
+		else if (gGT->numPlyrCurrGame > 2)
 		{
 			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.VS_3P_4P_1, data.kartSpawnOrder.VS_3P_4P_2);
 		}
@@ -349,11 +371,11 @@ void BOTS_Adv_AdjustDifficulty(void)
 	pathOrder[3] = 2;
 	pathOrder[7] = 2;
 
-	u8 firstPath = (RngDeadCoed(&sdata->advRng) >> 8) & 1;
+	u8 firstPath = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
 	pathOrder[1] = firstPath;
 	pathOrder[5] = firstPath ^ 1;
 
-	u8 secondPath = (RngDeadCoed(&sdata->advRng) >> 8) & 1;
+	u8 secondPath = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
 	pathOrder[2] = secondPath + 1;
 	pathOrder[6] = (secondPath ^ 1) + 1;
 
@@ -379,16 +401,16 @@ void BOTS_Adv_AdjustDifficulty(void)
 	if ((((gameMode1 & ADVENTURE_CUP) == 0) && ((gameMode2 & CUP_ANY_KIND) == 0)) || (gGT->cup.trackIndex == 0))
 	{
 		u8 accelOrder[8];
-		u32 accel = (RngDeadCoed(&sdata->advRng) >> 8) & 3;
-		u32 rearAccel = (RngDeadCoed(&sdata->advRng) >> 8) & 3;
+		u32 accel = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
+		u32 rearAccel = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
 
 		for (s16 i = 0; i < BOTS_GRID_ROW_KART_COUNT; i++)
 		{
 			accelOrder[i] = accel;
-			accel = (accel + 1) & 3;
+			accel = (accel + 1) & BOTS_RNG_ACCEL_MASK;
 
-			accelOrder[i + 4] = rearAccel + 4;
-			rearAccel = (rearAccel - 1) & 3;
+			accelOrder[i + BOTS_GRID_REAR_ROW_OFFSET] = rearAccel + BOTS_GRID_REAR_ROW_OFFSET;
+			rearAccel = (rearAccel - 1) & BOTS_RNG_ACCEL_MASK;
 		}
 
 		for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
@@ -405,7 +427,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 
 		for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
 		{
-			if (((u8)gGT->numPlyrCurrGame <= i) && (bestPoints < gGT->cup.points[i]))
+			if ((gGT->numPlyrCurrGame <= i) && (bestPoints < gGT->cup.points[i]))
 			{
 				bestPoints = (s16)gGT->cup.points[i];
 				bestDriverIndex = i;
@@ -417,7 +439,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 			}
 		}
 
-		char topAccel = sdata->accelerateOrder[topAccelIndex];
+		u8 topAccel = sdata->accelerateOrder[topAccelIndex];
 		sdata->accelerateOrder[topAccelIndex] = sdata->accelerateOrder[bestDriverIndex];
 		sdata->accelerateOrder[bestDriverIndex] = topAccel;
 	}
@@ -478,44 +500,45 @@ void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 
 	// ======== Get Driver Position =============
 
-	bot->botData.estimatePosition.x = (s16)CTR_MipsSra(bot->posCurr.x, 8);
-	bot->botData.estimatePosition.y = (s16)CTR_MipsSra(bot->posCurr.y, 8);
-	bot->botData.estimatePosition.z = (s16)CTR_MipsSra(bot->posCurr.z, 8);
+	bot->botData.estimatePosition.x = (s16)CTR_MipsSra(bot->posCurr.x, FRACTIONAL_BITS_8);
+	bot->botData.estimatePosition.y = (s16)CTR_MipsSra(bot->posCurr.y, FRACTIONAL_BITS_8);
+	bot->botData.estimatePosition.z = (s16)CTR_MipsSra(bot->posCurr.z, FRACTIONAL_BITS_8);
 
 	// ======== Compare to Nav Position =============
 
-	int dx = CTR_MipsSubLo(nf->pos.x, bot->botData.estimatePosition.x);
-	int dy = CTR_MipsSubLo(nf->pos.y, bot->botData.estimatePosition.y);
-	int dz = CTR_MipsSubLo(nf->pos.z, bot->botData.estimatePosition.z);
+	int deltaNavX = CTR_MipsSubLo(nf->pos.x, bot->botData.estimatePosition.x);
+	int deltaNavY = CTR_MipsSubLo(nf->pos.y, bot->botData.estimatePosition.y);
+	int deltaNavZ = CTR_MipsSubLo(nf->pos.z, bot->botData.estimatePosition.z);
 
 	// ======== Calculate Distance =============
 
 	// xz dist from driver to nav
-	int xzDist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsMulLo(dx, dx), CTR_MipsMulLo(dz, dz)));
+	int xzDist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsMulLo(deltaNavX, deltaNavX), CTR_MipsMulLo(deltaNavZ, deltaNavZ)));
 	bot->botData.distToNextNavXZ = xzDist;
 	// xyz distance from driver to nav
-	int xyzDist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsMulLo(dx, dx), CTR_MipsMulLo(dy, dy)), CTR_MipsMulLo(dz, dz)));
+	int xyzDist = SquareRoot0_stub(
+	    CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsMulLo(deltaNavX, deltaNavX), CTR_MipsMulLo(deltaNavY, deltaNavY)), CTR_MipsMulLo(deltaNavZ, deltaNavZ)));
 	bot->botData.distToNextNavXYZ = xyzDist;
 
 	// ======== Calculate Rotation =============
 
-	int rot = ratan2(CTR_MipsSll(dy, 0xc), CTR_MipsSll(bot->botData.distToNextNavXZ, 0xc));
-	bot->botData.estimateRotCurrY = (u8)CTR_MipsSra(rot, 4);
+	int rot = ratan2(CTR_MipsSll(deltaNavY, BOTS_RATAN_ARG_SHIFT), CTR_MipsSll(bot->botData.distToNextNavXZ, BOTS_RATAN_ARG_SHIFT));
+	bot->botData.estimateRotCurrY = (u8)CTR_MipsSra(rot, BOTS_ROT_BYTE_SHIFT);
 	bot->botData.navProgressRemainder = 0;
 
 	if (!useSpawnYaw)
 	{
 		bot->botData.estimateRotNav[0] = nf->rot[0];
-		rot = ratan2(CTR_MipsNegLo(dx), CTR_MipsNegLo(dz));
-		bot->botData.estimateRotNav[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(rot, 0x800), 4);
+		rot = ratan2(CTR_MipsNegLo(deltaNavX), CTR_MipsNegLo(deltaNavZ));
+		bot->botData.estimateRotNav[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(rot, BOTS_NAV_REVERSE_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
 		bot->botData.estimateRotNav[2] = nf->rot[1];
 	}
 	else
 	{
-		bot->botData.estimateRotNav[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(sdata->gGT->level1->DriverSpawn[0].rot.y, 0x400), 4);
+		bot->botData.estimateRotNav[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(sdata->gGT->level1->DriverSpawn[0].rot.y, BOTS_SPAWN_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
 	}
 
-	s16 v = (s16)CTR_MipsSll(bot->botData.estimateRotNav[1], 4);
+	s16 v = (s16)CTR_MipsSll(bot->botData.estimateRotNav[1], BOTS_ROT_BYTE_SHIFT);
 
 	// Keep every AI-facing yaw cache in sync with the nav estimate.
 	bot->botData.ai_rotY_608 = v;
@@ -541,14 +564,14 @@ void BOTS_LevInstColl(struct Thread *botThread)
 	sps->Input1.hitRadius = BOTS_LEVEL_INST_COLL_RADIUS;
 
 	SVec3 currPos = {
-	    .x = (s16)CTR_MipsSra(driver->posCurr.x, 8),
-	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, 8), BOTS_LEVEL_INST_COLL_RADIUS),
-	    .z = (s16)CTR_MipsSra(driver->posCurr.z, 8),
+	    .x = (s16)CTR_MipsSra(driver->posCurr.x, FRACTIONAL_BITS_8),
+	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS),
+	    .z = (s16)CTR_MipsSra(driver->posCurr.z, FRACTIONAL_BITS_8),
 	};
 	SVec3 prevPos = {
-	    .x = (s16)CTR_MipsSra(driver->posPrev.x, 8),
-	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, 8), BOTS_LEVEL_INST_COLL_RADIUS),
-	    .z = (s16)CTR_MipsSra(driver->posPrev.z, 8),
+	    .x = (s16)CTR_MipsSra(driver->posPrev.x, FRACTIONAL_BITS_8),
+	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS),
+	    .z = (s16)CTR_MipsSra(driver->posPrev.z, FRACTIONAL_BITS_8),
 	};
 
 	COLL_FIXED_BotsSearch(&currPos, &prevPos, sps);
@@ -591,9 +614,9 @@ void BOTS_ThTick_RevEngine(struct Thread *botThread)
 
 		if (mask != NULL)
 		{
-			mask->pos.x = (s16)CTR_MipsSra(botDriver->posCurr.x, 8);
-			mask->pos.y = (s16)CTR_MipsSra(botDriver->posCurr.y, 8);
-			mask->pos.z = (s16)CTR_MipsSra(botDriver->posCurr.z, 8);
+			mask->pos.x = (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8);
+			mask->pos.y = (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8);
+			mask->pos.z = (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8);
 		}
 
 		VehPhysForce_TranslateMatrix(botThread, botDriver);
@@ -604,9 +627,9 @@ void BOTS_ThTick_RevEngine(struct Thread *botThread)
 	{ // not a mask grab
 		if (mask != NULL)
 		{
-			mask->scale = 0x1000;
+			mask->scale = MASK_HEAD_SCALE_NORMAL;
 			mask->duration = 0;
-			mask->rot.z &= 0xfffe;
+			mask->rot.z &= ~MASK_HEAD_ROT_WORLD_SPACE;
 		}
 
 		botDriver->botData.maskObj = NULL;
@@ -634,21 +657,24 @@ void BOTS_MaskGrab(struct Thread *botThread)
 
 	bot->kartState = KS_MASK_GRABBED;
 
-	bot->botData.navProgressRemainder = CTR_MipsSll(CTR_MipsDiv(frame->distToNextNavXZ, 2), 8);
+	bot->botData.navProgressRemainder = CTR_MipsSll(CTR_MipsDiv(frame->distToNextNavXZ, BOTS_MASK_MIDPOINT_DIVISOR), FRACTIONAL_BITS_8);
 
 	// midpointX between nav frames
-	int midpoint = CTR_MipsSll(CTR_MipsAddLo(frame->pos.x, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.x, frame->pos.x), 2)), 8);
+	int midpoint =
+	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.x, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.x, frame->pos.x), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
 	bot->botData.positionBackup.x = midpoint;
 	bot->posPrev.x = midpoint;
 
 	// midpointY between nav frames
-	midpoint = CTR_MipsSll(CTR_MipsAddLo(frame->pos.y, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.y, frame->pos.y), 2)), 8);
+	midpoint =
+	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.y, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.y, frame->pos.y), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
 	bot->botData.positionBackup.y = midpoint;
 	bot->posPrev.y = midpoint;
 	bot->quadBlockHeight = midpoint;
 
 	// midpointZ between nav frames
-	midpoint = CTR_MipsSll(CTR_MipsAddLo(frame->pos.z, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.z, frame->pos.z), 2)), 8);
+	midpoint =
+	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.z, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.z, frame->pos.z), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
 	bot->botData.positionBackup.z = midpoint;
 	bot->posPrev.z = midpoint;
 
@@ -664,16 +690,16 @@ void BOTS_MaskGrab(struct Thread *botThread)
 	bot->botData.botFlags &=
 	    ~(BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER | BOT_FLAG_FREE_PHYSICS | BOT_FLAG_BOSS_PATH_REQUESTED);
 
-	bot->rotCurr.x = (s16)CTR_MipsSll(frame->rot[0], 4);
-	bot->rotCurr.y = (s16)CTR_MipsSll(frame->rot[1], 4);
-	bot->rotCurr.z = (s16)CTR_MipsSll(frame->rot[2], 4);
+	bot->rotCurr.x = (s16)CTR_MipsSll(frame->rot[0], BOTS_ROT_BYTE_SHIFT);
+	bot->rotCurr.y = (s16)CTR_MipsSll(frame->rot[1], BOTS_ROT_BYTE_SHIFT);
+	bot->rotCurr.z = (s16)CTR_MipsSll(frame->rot[2], BOTS_ROT_BYTE_SHIFT);
 
 	bot->turbo_MeterRoomLeft = 0;
 	bot->reserves = 0;
 	bot->clockReceive = 0;
 	bot->squishTimer = 0;
 	bot->turbo_outsideTimer = 0;
-	bot->matrixArray = 0;
+	bot->matrixArray = BAKED_GTE_MATRIX_NONE;
 	bot->matrixIndex = 0;
 
 	bot->actionsFlagSet &= ~(ACTION_AIRBORNE | ACTION_HIGH_JUMP);
@@ -690,13 +716,13 @@ void BOTS_MaskGrab(struct Thread *botThread)
 	bot->posCurr.y = CTR_MipsAddLo(bot->botData.positionBackup.y, BOTS_MASK_DROP_HEIGHT);
 	bot->posCurr.z = bot->botData.positionBackup.z;
 
-	struct MaskHeadWeapon *mask = VehPickupItem_MaskUseWeapon(bot, 1);
+	struct MaskHeadWeapon *mask = VehPickupItem_MaskUseWeapon(bot, true);
 	bot->botData.maskObj = mask;
 
 	if (mask != 0)
 	{
-		mask->duration = BOTS_MASK_DURATION;
-		mask->rot.z |= 1;
+		mask->duration = MASK_HEAD_DURATION_NORMAL;
+		mask->rot.z |= MASK_HEAD_ROT_WORLD_SPACE;
 	}
 
 	// execute, then assign per-frame to BOTS_ThTick_RevEngine
@@ -954,8 +980,8 @@ UpdateTireColorTimer:
 	}
 
 	struct DriverCollisionSearch driverSearch;
-	CTR_SET_VEC3(driverSearch.bucket.pos.v, (s16)CTR_MipsSra(botDriver->posCurr.x, 8), (s16)CTR_MipsSra(botDriver->posCurr.y, 8),
-	             (s16)CTR_MipsSra(botDriver->posCurr.z, 8));
+	CTR_SET_VEC3(driverSearch.bucket.pos.v, (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8),
+	             (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8), (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8));
 	driverSearch.bucket.th = NULL;
 	driverSearch.bucket.bestDistSq = 0x7fffffff;
 
@@ -2589,9 +2615,9 @@ UpdateTireColorTimer:
 	botDriver->posCurr.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.positionBackup.y);
 	botDriver->posCurr.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.z, botDriver->botData.positionBackup.z);
 
-	botInstance->matrix.t[0] = CTR_MipsSra(botDriver->posCurr.x, 8);
-	botInstance->matrix.t[1] = CTR_MipsAddLo(CTR_MipsSra(botDriver->posCurr.y, 8), botDriver->Screen_OffsetY);
-	botInstance->matrix.t[2] = CTR_MipsSra(botDriver->posCurr.z, 8);
+	botInstance->matrix.t[0] = CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8);
+	botInstance->matrix.t[1] = CTR_MipsAddLo(CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8), botDriver->Screen_OffsetY);
+	botInstance->matrix.t[2] = CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8);
 
 	badnessRecieveTimer = botDriver->clockReceive;
 
@@ -2833,7 +2859,7 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 		}
 
 		driverVictim->botData.ai_progress_cooldown = 0;
-		driverVictim->matrixArray = 0;
+		driverVictim->matrixArray = BAKED_GTE_MATRIX_NONE;
 		driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE;
 
 		if (driverAttacker == NULL)
@@ -2947,17 +2973,17 @@ void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2)
 	}
 
 	SVec3 pos = {
-	    .x = (s16)CTR_MipsSra(robot_1->posCurr.x, 8),
-	    .y = (s16)CTR_MipsSra(robot_1->posCurr.y, 8),
-	    .z = (s16)CTR_MipsSra(robot_1->posCurr.z, 8),
+	    .x = (s16)CTR_MipsSra(robot_1->posCurr.x, FRACTIONAL_BITS_8),
+	    .y = (s16)CTR_MipsSra(robot_1->posCurr.y, FRACTIONAL_BITS_8),
+	    .z = (s16)CTR_MipsSra(robot_1->posCurr.z, FRACTIONAL_BITS_8),
 	};
 
 	int res1 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
 
 	pos = (SVec3){
-	    .x = (s16)CTR_MipsSra(robot_2->posCurr.x, 8),
-	    .y = (s16)CTR_MipsSra(robot_2->posCurr.y, 8),
-	    .z = (s16)CTR_MipsSra(robot_2->posCurr.z, 8),
+	    .x = (s16)CTR_MipsSra(robot_2->posCurr.x, FRACTIONAL_BITS_8),
+	    .y = (s16)CTR_MipsSra(robot_2->posCurr.y, FRACTIONAL_BITS_8),
+	    .z = (s16)CTR_MipsSra(robot_2->posCurr.z, FRACTIONAL_BITS_8),
 	};
 
 	int res2 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
@@ -3027,7 +3053,7 @@ void BOTS_GotoStartingLine(struct Driver *d)
 	d->actionsFlagSet |= ACTION_BOT;
 
 	// calculate Y rotation
-	s16 rotY = (s16)CTR_MipsSll((u8)d->botData.estimateRotNav[1], 4);
+	s16 rotY = (s16)CTR_MipsSll((u8)d->botData.estimateRotNav[1], BOTS_ROT_BYTE_SHIFT);
 
 	// every possible Y rotation
 	d->botData.ai_rotY_608 = rotY;

@@ -9,7 +9,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 	// start counter
 	s32 percent = 0;
 	s32 oxidePercent = 0;
-	s32 allGoldOrPlatinumRelics = 1;
+	b32 allGoldOrPlatinumRelics = true;
 	s32 numGems = 0;
 
 	// erase counters
@@ -23,7 +23,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 	{
 		// first bit of blue relic
 		s32 bitIndex = ADV_REWARD_FIRST_SAPPHIRE_RELIC + i;
-		if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+		if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 		{
 			gGT->currAdvProfile.numRelics++;
 		}
@@ -33,14 +33,14 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 		{
 			// first bit of trophy
 			bitIndex = ADV_REWARD_FIRST_TROPHY + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				gGT->currAdvProfile.numTrophies++;
 			}
 
 			// first bit of token
 			bitIndex = ADV_REWARD_FIRST_CTR_TOKEN + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				// increment number of tokens, based on
 				// the tokenID of this level (red, green, blue, etc)
@@ -56,14 +56,14 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 		{
 			// first bit of key
 			bitIndex = ADV_REWARD_FIRST_BOSS_KEY + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				gGT->currAdvProfile.numKeys++;
 			}
 
 			// first bit of purple tokens
 			bitIndex = ADV_REWARD_FIRST_PURPLE_TOKEN + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				gGT->currAdvProfile.numCtrTokens.purple++;
 			}
@@ -74,7 +74,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 		{
 			// first bit of gem
 			bitIndex = ADV_REWARD_FIRST_GEM + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				numGems++;
 			}
@@ -85,7 +85,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 		{
 			// first bit of beating oxide
 			bitIndex = ADV_REWARD_BEAT_OXIDE_FIRST + i;
-			if (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0)
+			if (CHECK_ADV_BIT(adv->rewards, bitIndex))
 			{
 				oxidePercent = (i == 0) ? 2 : 3;
 			}
@@ -97,7 +97,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 	{
 		// first bit of gold relic
 		s32 bitIndex = ADV_REWARD_FIRST_GOLD_RELIC + i;
-		if ((allGoldOrPlatinumRelics != 0) && (CHECK_ADV_BIT(adv->rewards, bitIndex) != 0))
+		if (allGoldOrPlatinumRelics && CHECK_ADV_BIT(adv->rewards, bitIndex))
 		{
 			// check next relic
 			continue;
@@ -105,7 +105,7 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 
 		// if relic is not unlocked,
 		// then extra 1% is not earned
-		allGoldOrPlatinumRelics = 0;
+		allGoldOrPlatinumRelics = false;
 	}
 
 	percent += gGT->currAdvProfile.numRelics * 2 + gGT->currAdvProfile.numTrophies * 2 + gGT->currAdvProfile.numKeys + gGT->currAdvProfile.numCtrTokens.total +
@@ -157,10 +157,10 @@ void GAMEPROG_ResetHighScores(struct GameProgress *gameProg)
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80026ae4-0x80026bf0
-int GAMEPROG_CheckGhostsBeaten(int ghostID)
+b32 GAMEPROG_CheckGhostsBeaten(int ghostID)
 {
 	struct GameTracker *gGT = sdata->gGT;
-	int result = 1;
+	b32 result = true;
 	s16 levelID = gGT->levelID;
 	int flagWordIndex = (s16)ghostID >> 5;
 
@@ -169,7 +169,7 @@ int GAMEPROG_CheckGhostsBeaten(int ghostID)
 		gGT->levelID = i;
 		GAMEPROG_GetPtrHighScoreTrack();
 
-		if (result != 0)
+		if (result)
 		{
 			u32 *timeTrialFlags = &sdata->gameProgress.highScoreTracks[gGT->levelID].timeTrialFlags;
 			result = (timeTrialFlags[flagWordIndex] >> (ghostID & 0x1f)) & 1;
@@ -245,7 +245,7 @@ void GAMEPROG_SaveCupProgress(void)
 	{
 		// if cup is "currently" beaten
 		s32 bitIndex1 = i + GAME_PROGRESS_CUP_CURRENT_WIN_FIRST_BIT;
-		if (CHECK_MEMCARD_BIT(prog, bitIndex1) != 0)
+		if (CHECK_MEMCARD_BIT(prog, bitIndex1))
 		{
 			// set if cup was "previously" beaten
 			s32 bitIndex2 = bitIndex1 + GAME_PROGRESS_CUP_PREVIOUS_WIN_OFFSET;

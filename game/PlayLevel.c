@@ -11,7 +11,6 @@ enum PlayLevelConstants
 	PLAYLEVEL_FIRST_PLACE_RANK = 0,
 	PLAYLEVEL_LOWEST_LAP_SENTINEL = -10,
 	PLAYLEVEL_DISTANCE_SENTINEL = 0x3fffffff,
-	PLAYLEVEL_NO_ITEM = 0xf,
 	PLAYLEVEL_FINAL_LAP_SOUND = 0x66,
 	PLAYLEVEL_FINAL_LAP_TEXT_FRAMES = CTR_SECONDS_TO_FRAMES(3),
 	PLAYLEVEL_CONFETTI_PARTICLES = 250,
@@ -195,7 +194,7 @@ void PlayLevel_UpdateLapStats(void)
 				}
 
 				// you have no weapon
-				currDriver->heldItemID = PLAYLEVEL_NO_ITEM;
+				currDriver->heldItemID = HELD_ITEM_NONE;
 
 				if ((currDriver->actionsFlagSet & ACTION_BOT) == 0)
 				{
@@ -223,7 +222,7 @@ void PlayLevel_UpdateLapStats(void)
 					if (currDriver->noItemTimer != 0)
 					{
 						currDriver->noItemTimer = 0;
-						currDriver->heldItemID = PLAYLEVEL_NO_ITEM;
+						currDriver->heldItemID = HELD_ITEM_NONE;
 					}
 
 					// turn driver into robotcar
@@ -459,7 +458,7 @@ void PlayLevel_UpdateLapStats(void)
 			currDriver->actionsFlagSet |= ACTION_RACE_FINISHED;
 
 			// remove weapon
-			currDriver->heldItemID = PLAYLEVEL_NO_ITEM;
+			currDriver->heldItemID = HELD_ITEM_NONE;
 
 			// skip AIs
 			if ((currDriver->actionsFlagSet & ACTION_BOT) != 0)

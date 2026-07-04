@@ -2,7 +2,7 @@
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800469f0-0x80046a74.
-int RefreshCard_BoolGhostForLEV(u16 trackID)
+s16 RefreshCard_CountGhostProfilesForLEV(u16 trackID)
 {
 	int i;
 	int count = 0;
@@ -29,7 +29,7 @@ void RefreshCard_Unknown1(void)
 
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80046a90-0x80046b1c.
-int RefreshCard_GetResult(int result)
+b32 RefreshCard_GetResult(int result)
 {
 	s16 result16 = result;
 
@@ -37,23 +37,23 @@ int RefreshCard_GetResult(int result)
 	{
 		if ((sdata->memcardUnk1 & 6) != 0)
 		{
-			return 1;
+			return true;
 		}
 	}
 
 	if ((sdata->memcardUnk1 & 6) != 0)
 	{
-		return 0;
+		return false;
 	}
 
 	if (sdata->frame3_memcardAction != sdata->frame4_memcardAction)
 	{
-		return 0;
+		return false;
 	}
 
 	if (sdata->frame3_memcardSlot != sdata->frame4_memcardSlot)
 	{
-		return 0;
+		return false;
 	}
 
 	return sdata->desired_memcardResult == result16;
@@ -331,12 +331,12 @@ static void RefreshCard_SetScreenAndPoll(int screenText)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800472d0-0x80047a58.
 void RefreshCard_Unknown3(void)
 {
-	int keepPolling = 0;
+	b32 keepPolling = false;
 
 	switch (sdata->mcScreenText)
 	{
 	case MC_SCREEN_WARNING_NOCARD:
-		keepPolling = 1;
+		keepPolling = true;
 		sdata->mcStart = 2;
 		sdata->boolError = 1;
 		break;
@@ -345,7 +345,7 @@ void RefreshCard_Unknown3(void)
 		if (sdata->mcStart != 7)
 		{
 			sdata->mcStart = 2;
-			keepPolling = 1;
+			keepPolling = true;
 			sdata->boolError = 1;
 			break;
 		}
@@ -358,7 +358,7 @@ void RefreshCard_Unknown3(void)
 
 	case MC_SCREEN_CHECKING:
 	case MC_SCREEN_ERROR_FULL:
-		keepPolling = 1;
+		keepPolling = true;
 		break;
 
 	case MC_SCREEN_ERROR_TIMEOUT:
@@ -405,44 +405,44 @@ void RefreshCard_Unknown3(void)
 			break;
 		}
 
-		keepPolling = 1;
+		keepPolling = true;
 		sdata->boolError = 1;
 		break;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_NEWCARD) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_NEWCARD))
 	{
 		RefreshCard_Unknown2();
 		RefreshCard_GetNumGhostsTotal();
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_ERROR_NOCARD) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_ERROR_NOCARD))
 	{
 		RefreshCard_Unknown2();
 		RefreshCard_GetNumGhostsTotal();
 		RefreshCard_SetScreenAndPoll(MC_SCREEN_WARNING_NOCARD);
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_FULL) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_FULL))
 	{
 		RefreshCard_Unknown2();
 		RefreshCard_SetScreenAndPoll(MC_SCREEN_ERROR_FULL);
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_ERROR_TIMEOUT) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_ERROR_TIMEOUT))
 	{
 		RefreshCard_Unknown2();
 		RefreshCard_SetScreenAndPoll(MC_SCREEN_ERROR_TIMEOUT);
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_ERROR_NODATA) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_ERROR_NODATA))
 	{
 		sdata->boolMemcardDataValid = 0;
 		RefreshCard_Unknown2();
@@ -452,12 +452,12 @@ void RefreshCard_Unknown3(void)
 		{
 			RefreshCard_SetScreenText(MC_SCREEN_ERROR_NODATA);
 			RefreshCard_QueueGetInfo();
-			keepPolling = 0;
+			keepPolling = false;
 		}
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_READY_LOAD) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_READY_LOAD))
 	{
 		RefreshCard_Unknown2();
 		CTR_WriteU16LE(&sdata->unk8008d95c, 0);
@@ -465,20 +465,20 @@ void RefreshCard_Unknown3(void)
 		RefreshCard_SetScreenText(MC_SCREEN_LOADING);
 		RefreshCard_QueueMainLoad();
 		sdata->boolError = 0;
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_ERROR_UNFORMATTED) != 0)
+	if (RefreshCard_GetResult(MC_RESULT_ERROR_UNFORMATTED))
 	{
 		RefreshCard_GetNumGhostsTotal();
 		RefreshCard_Unknown2();
 		RefreshCard_SetScreenAndPoll(MC_SCREEN_WARNING_UNFORMATTED);
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
-	if (RefreshCard_GetResult(MC_RESULT_READY_SAVE) == 0)
+	if (!RefreshCard_GetResult(MC_RESULT_READY_SAVE))
 	{
 		goto done;
 	}
@@ -495,7 +495,7 @@ void RefreshCard_Unknown3(void)
 				RefreshCard_SetScreenText(MC_SCREEN_SAVING);
 				RefreshCard_QueueGhostSave();
 				sdata->boolError = 0;
-				keepPolling = 0;
+				keepPolling = false;
 				goto done;
 			}
 
@@ -517,7 +517,7 @@ void RefreshCard_Unknown3(void)
 		sdata->mcStart = 2;
 		RefreshCard_SetScreenText(MC_SCREEN_NULL);
 		RefreshCard_QueueGetInfo();
-		keepPolling = 0;
+		keepPolling = false;
 		goto done;
 	}
 
@@ -536,7 +536,7 @@ void RefreshCard_Unknown3(void)
 					GAMEPROG_InitFullMemcard(sdata->ptrToMemcardBuffer2);
 					RefreshCard_SetScreenText(MC_SCREEN_NULL);
 					RefreshCard_QueueGetInfo();
-					keepPolling = 0;
+					keepPolling = false;
 				}
 				else if (sdata->memcardAction == 2)
 				{
@@ -558,7 +558,7 @@ void RefreshCard_Unknown3(void)
 			RefreshCard_SetScreenText(MC_SCREEN_LOADING);
 			RefreshCard_QueueMainLoad();
 			sdata->boolError = 0;
-			keepPolling = 0;
+			keepPolling = false;
 		}
 		goto done;
 	}
@@ -584,10 +584,10 @@ void RefreshCard_Unknown3(void)
 
 	sdata->mcStart = 2;
 	RefreshCard_QueueGetInfo();
-	keepPolling = 0;
+	keepPolling = false;
 
 done:
-	if ((keepPolling != 0) && (RefreshCard_GetResult(MC_RESULT_PENDING) == 0))
+	if (keepPolling && !RefreshCard_GetResult(MC_RESULT_PENDING))
 	{
 		RefreshCard_QueueGetInfo();
 	}

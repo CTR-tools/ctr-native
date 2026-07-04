@@ -46,6 +46,20 @@ force_inline MatrixNDOverlapMatrix *MatrixND_GetOverlapMatrix(struct MatrixND *m
 	return (MatrixNDOverlapMatrix *)((u8 *)matrix + MATRIX_ND_BAKED_MATRIX_OFFSET);
 }
 
+enum
+{
+	BAKED_GTE_MATRIX_NONE = 0,
+	BAKED_GTE_MATRIX_WHEELIE_START = 1,
+	BAKED_GTE_MATRIX_WHEELIE_HOLD = 2,
+	BAKED_GTE_MATRIX_WHEELIE_RECOVER = 3,
+	BAKED_GTE_MATRIX_CRASH_FALL = 4,
+	BAKED_GTE_MATRIX_SQUISH_RECOVER = 5,
+	BAKED_GTE_MATRIX_BLASTED = 6,
+	BAKED_GTE_MATRIX_JUMP_BASE = 7,
+	BAKED_GTE_MATRIX_JUMP_OXIDE = BAKED_GTE_MATRIX_JUMP_BASE,
+	BAKED_GTE_MATRIX_COUNT = 0x14,
+};
+
 CTR_STATIC_ASSERT(sizeof(struct MatrixND) == 0x20);
 CTR_STATIC_ASSERT(offsetof(struct MatrixND, bakedOffset) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct MatrixND, authoredRot) == 0x8);
@@ -53,6 +67,16 @@ CTR_STATIC_ASSERT(offsetof(struct MatrixND, authoredScale) == 0x10);
 CTR_STATIC_ASSERT(MATRIX_ND_BAKED_MATRIX_OFFSET == offsetof(struct MatrixND, m[1][1]));
 CTR_STATIC_ASSERT(MATRIX_ND_BAKED_MATRIX_OFFSET == offsetof(struct MatrixND, authoredRot));
 CTR_STATIC_ASSERT(offsetof(struct MatrixND, matrix) == 0x0);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_NONE == 0);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_WHEELIE_START == 1);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_WHEELIE_HOLD == 2);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_WHEELIE_RECOVER == 3);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_CRASH_FALL == 4);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_SQUISH_RECOVER == 5);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_BLASTED == 6);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_JUMP_BASE == 7);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_JUMP_OXIDE == 7);
+CTR_STATIC_ASSERT(BAKED_GTE_MATRIX_COUNT == 0x14);
 
 struct SoundFadeInput
 {
@@ -2621,14 +2645,14 @@ struct Data
 	s16 characterIDs[8];
 
 	// 0x80086e94
-	// bakedGteMath[0] is blank,
+	// bakedGteMath[BAKED_GTE_MATRIX_NONE] is blank,
 	// all the rest correspond
-	struct MatrixND matArr01[0xB];  // hit ground, pop wheelie
-	struct MatrixND matArr02[0x1];  // in wheelie
-	struct MatrixND matArr03[0x9];  // from wheelie, back to ground
-	struct MatrixND matArr04[0x10]; // crashing, and falling
-	struct MatrixND matArr05[0xF];  // squish, pop back up
-	struct MatrixND matArr06[0x1B]; // blasted
+	struct MatrixND matArr01[0xB];  // BAKED_GTE_MATRIX_WHEELIE_START
+	struct MatrixND matArr02[0x1];  // BAKED_GTE_MATRIX_WHEELIE_HOLD
+	struct MatrixND matArr03[0x9];  // BAKED_GTE_MATRIX_WHEELIE_RECOVER
+	struct MatrixND matArr04[0x10]; // BAKED_GTE_MATRIX_CRASH_FALL
+	struct MatrixND matArr05[0xF];  // BAKED_GTE_MATRIX_SQUISH_RECOVER
+	struct MatrixND matArr06[0x1B]; // BAKED_GTE_MATRIX_BLASTED
 
 	// jump animations
 	struct MatrixND matArr07[0x4]; // Crash Bandicoot jump
@@ -2655,7 +2679,7 @@ struct Data
 	{
 		void *physEntry;
 		int numEntries;
-	} bakedGteMath[0x14];
+	} bakedGteMath[BAKED_GTE_MATRIX_COUNT];
 
 	// 0x80087f94
 	struct Scrub MetaDataScrub[7];
@@ -2767,6 +2791,8 @@ struct Data
 CTR_STATIC_ASSERT(offsetof(struct Data, podiumModel_firstPlace) == offsetof(struct Data, driverModelExtras) + sizeof(((struct Data *)0)->driverModelExtras));
 CTR_STATIC_ASSERT(offsetof(struct Data, currSlot) == offsetof(struct Data, driverModelExtras) + 11 * sizeof(void *));
 CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->characterIDs_2P_AIs) == 0x1c);
+CTR_STATIC_ASSERT(offsetof(struct Data, bakedGteMath) == 0x7554);
+CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->bakedGteMath) == BAKED_GTE_MATRIX_COUNT * 8);
 
 // 0x8008D218 -- Early June? PizzaHut USA
 // 0x8008b3d0 -- SepReview
@@ -3691,7 +3717,7 @@ struct sData
 	// 8008d680
 	// if these are all zero, all AIs
 	// will reach top speed after race starts at same time
-	char accelerateOrder[8];
+	u8 accelerateOrder[8];
 
 	// 8008bad0 -- SepReview
 	// 8008d688 -- UsaRetail

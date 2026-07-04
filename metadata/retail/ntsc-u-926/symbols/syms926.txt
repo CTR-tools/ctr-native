@@ -682,7 +682,7 @@
 
 
 // RefreshCard
-800469f0 RefreshCard_BoolGhostForLEV
+800469f0 RefreshCard_CountGhostProfilesForLEV
 
 // only called from 800472d0
 80046a74 RefreshCard_Unknown1 // unknown 80046a74

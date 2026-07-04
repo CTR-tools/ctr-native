@@ -294,7 +294,7 @@ void GhostReplay_ThTick(struct Thread *t)
 			break;
 
 			case GHOST_OP_BOOST:
-				if (gGT->trafficLightsTimer < 1 && ((gGT->gameMode1 & START_OF_RACE) == 0) && (RaceFlag_IsFullyOnScreen() == 0))
+				if (gGT->trafficLightsTimer < 1 && ((gGT->gameMode1 & START_OF_RACE) == 0) && !RaceFlag_IsFullyOnScreen())
 				{
 					VehFire_Increment(d, Ghost_ReadBE16(&buffer[1]), buffer[3], Ghost_ReadBE16(&buffer[4]));
 				}
