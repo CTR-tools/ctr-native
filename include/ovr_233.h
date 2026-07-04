@@ -453,19 +453,6 @@ struct CsInitMatrixEntry
 
 CTR_STATIC_ASSERT(sizeof(struct CsInitMatrixEntry) == 0x20);
 
-typedef struct CTR_MAY_ALIAS CsInitMatrixOverlap
-{
-	s16 m[3][3];
-	Vec3 t;
-} CsInitMatrixOverlap;
-
-CTR_STATIC_ASSERT(sizeof(CsInitMatrixOverlap) == sizeof(MATRIX));
-
-force_inline CsInitMatrixOverlap *CsInitMatrixEntry_GetMatrix(struct CsInitMatrixEntry *entry)
-{
-	return (CsInitMatrixOverlap *)&entry->rotScaleOrMatrix[0];
-}
-
 struct Ovr233InitMatrixTableEntry
 {
 	struct CsInitMatrixEntry *data;

@@ -285,9 +285,10 @@ void CS_Instance_InitMatrix(void)
 			scale.m[1][1] = entry->scale.y;
 			scale.m[2][2] = entry->scale.z;
 
-			MATRIX matrix;
-			MatrixRotate(&matrix, &scale, &mat);
-			*CsInitMatrixEntry_GetMatrix(entry) = *(CsInitMatrixOverlap *)&matrix;
+			// NOTE(aalhendi): Retail writes the 0x14-byte rotated payload
+			// directly into this entry, not a full MATRIX copy.
+			void *matrixDst = &entry->rotScaleOrMatrix[0];
+			MatrixRotate(matrixDst, &scale, &mat);
 		}
 	}
 }
