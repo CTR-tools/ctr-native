@@ -202,6 +202,13 @@ enum
 };
 typedef u32 CameraFlags;
 
+enum CameraMode
+{
+	CAMERA_MODE_FREECAM = 3,
+};
+
+CTR_STATIC_ASSERT(CAMERA_MODE_FREECAM == 3);
+
 struct CameraDC
 {
 	// 0x0

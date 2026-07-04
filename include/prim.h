@@ -42,6 +42,13 @@ typedef union Texpage
 	u32 self;
 } Texpage;
 
+enum TexpageColorMode
+{
+	TEXPAGE_COLOR_4BIT = 0,
+	TEXPAGE_COLOR_8BIT = 1,
+	TEXPAGE_COLOR_15BIT = 2,
+};
+
 typedef struct
 {
 	Tag tag;

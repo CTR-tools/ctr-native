@@ -2444,8 +2444,7 @@ struct Data
 	// UsaRetail -- 0x80086418
 	struct
 	{
-		s16 unk_playerAdvMap[3];
-		s16 unk2_playerAdvMap[3];
+		SVec2 pos[3];
 
 		// Each vertex in the triangle
 		// has an int for color, there
@@ -5203,6 +5202,7 @@ CTR_STATIC_ASSERT(sizeof(struct MetaDataMODEL) == 0xC);
 
 CTR_STATIC_ASSERT(OFFSETOF_DATA(rowsQuit[0]) == 0x800841BC);
 CTR_STATIC_ASSERT(OFFSETOF_DATA(menuQuit) == 0x800841D0);
+CTR_STATIC_ASSERT(OFFSETOF_DATA(playerIconAdvMap) == 0x80086418);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(AkuAkuHintState) == 0x8008D874);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(lngStrings) == 0x8008D878);
 CTR_STATIC_ASSERT(OFFSETOF_SDATA(botCrashNavRot) == 0x8008D9EC);

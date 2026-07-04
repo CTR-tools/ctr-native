@@ -80,7 +80,7 @@ u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile)
 	int dstY = tile->dstY;
 	int dstW = tile->dstW;
 	int dstH = tile->dstH;
-	u32 tpage = (((u32)srcY & 0x100) >> 4) | (((u32)srcX & 0x3ff) >> 6) | 0x100 | (((u32)srcY & 0x200) << 2);
+	u32 tpage = getTPage(TEXPAGE_COLOR_15BIT, TRANS_50, (u32)srcX, (u32)srcY);
 	POLY_FT4 *poly = (POLY_FT4 *)prim;
 
 	CtrGpu_WritePackedUVWord(&poly->u0, u0 | v0);

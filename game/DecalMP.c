@@ -215,7 +215,7 @@ void DecalMP_03(struct GameTracker *gGT)
 		CtrGpu_WritePackedUV(&poly->u2, (u16)(u0 | (v1 << 8)));
 		CtrGpu_WritePackedUV(&poly->u3, (u16)(u1 | (v1 << 8)));
 
-		poly->tpage = (u16)(((texY & 0x100) >> 4) | ((texX & 0x3ff) >> 6) | 0x100 | ((texY & 0x200) << 2));
+		poly->tpage = (u16)getTPage(TEXPAGE_COLOR_15BIT, TRANS_50, (u32)texX, (u32)texY);
 
 		uint32_t *ot = gGT->pushBuffer[cameraID].ptrOT + (entry->pb.renderBucketOTByteOffset >> 2);
 		poly->tag = CtrGpu_PackOTTag(*ot, 0x09000000);

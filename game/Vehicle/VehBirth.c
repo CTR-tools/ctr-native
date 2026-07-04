@@ -460,24 +460,14 @@ void VehBirth_TeleportAll(struct GameTracker *gGT, u32 spawnFlags)
 
 enum
 {
-	VEH_MODEL_NAME_WORD_COUNT = 4,
 	VEH_EXTRA_DRIVER_MODEL_COUNT = 3,
 };
 
-CTR_STATIC_ASSERT(sizeof(((struct Model *)0)->name) == VEH_MODEL_NAME_WORD_COUNT * sizeof(u32));
-
-internal u32 VehBirth_ReadModelNameWord(const char *name, int wordIndex)
-{
-	u32 word;
-	memcpy(&word, &name[wordIndex * (int)sizeof(word)], sizeof(word));
-	return word;
-}
-
 internal b32 VehBirth_ModelNameEquals(const struct Model *model, const char *name)
 {
-	for (int wordIndex = 0; wordIndex < VEH_MODEL_NAME_WORD_COUNT; wordIndex++)
+	for (s32 wordIndex = 0; wordIndex < MODEL_NAME_WORD_COUNT; wordIndex++)
 	{
-		if (VehBirth_ReadModelNameWord(model->name, wordIndex) != VehBirth_ReadModelNameWord(name, wordIndex))
+		if (ModelName_ReadWord(model->name, wordIndex) != ModelName_ReadWord(name, wordIndex))
 		{
 			return false;
 		}

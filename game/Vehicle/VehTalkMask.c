@@ -149,7 +149,7 @@ void VehTalkMask_PlayXA(struct Instance *i, int id)
 
 		if (boolGoodGuy == 0)
 		{
-			id += 0x1f;
+			id += ADV_MASK_HINT_UKA_UKA_XA_OFFSET;
 		}
 	}
 

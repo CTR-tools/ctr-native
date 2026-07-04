@@ -31,7 +31,7 @@ void INSTANCE_Birth(struct Instance *inst, struct Model *model, const char *name
 	inst->depthBiasNormal = 0xfe;
 	inst->depthBiasSecondary = 0xc;
 	inst->animIndex = 0;
-	inst->unk53 = 1;
+	inst->specLightX = 1;
 
 	inst->model = model;
 
@@ -47,7 +47,7 @@ void INSTANCE_Birth(struct Instance *inst, struct Model *model, const char *name
 	inst->reflectionRGBA = 0x7f7f7f;
 
 	inst->thread = th;
-	inst->bitCompressed_NormalVector_AndDriverIndex = 0;
+	inst->compressedNormalAndDriverIndex = 0;
 
 	struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
 
@@ -260,8 +260,8 @@ void INSTANCE_LevInitAll(struct InstDef *levInstDef, int numInst)
 		inst->instDef = levInstDef;
 
 		inst->vertSplit = 0;
-		inst->unk53 = 1;
-		inst->bitCompressed_NormalVector_AndDriverIndex = 0;
+		inst->specLightX = 1;
+		inst->compressedNormalAndDriverIndex = 0;
 
 		// converted to TEST in rebuildPS1
 		ConvertRotToMatrix(&inst->matrix, &levInstDef->rot);

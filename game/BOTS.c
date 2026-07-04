@@ -1985,7 +1985,7 @@ UpdateTireColorTimer:
 
 			botDriver->AxisAngle3_normalVec = sps->hit.plane.normal;
 
-			botInstance->bitCompressed_NormalVector_AndDriverIndex =
+			botInstance->compressedNormalAndDriverIndex =
 			    INST_CompressNormalVectorAndDriverIndex(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z, botDriver->driverID);
 
 			if ((sps->hit.ptrQuadblock->quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
@@ -2544,7 +2544,7 @@ UpdateTireColorTimer:
 		botDriver->AxisAngle3_normalVec.y = m.m[1][1];
 		botDriver->AxisAngle3_normalVec.z = m.m[2][1];
 
-		botInstance->bitCompressed_NormalVector_AndDriverIndex = INST_CompressNormalVectorAndDriverIndex(m.m[0][1], m.m[1][1], m.m[2][1], botDriver->driverID);
+		botInstance->compressedNormalAndDriverIndex = INST_CompressNormalVectorAndDriverIndex(m.m[0][1], m.m[1][1], m.m[2][1], botDriver->driverID);
 	}
 
 	ConvertRotToMatrix(&botInstance->matrix, &botDriver->rotCurr.vec);

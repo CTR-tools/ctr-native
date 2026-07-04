@@ -1644,7 +1644,7 @@ void VehStuckProc_Warp_Init(struct Thread *th, struct Driver *d)
 	EngineAudio_Stop((engine * 4) + playerID);
 
 	// CameraDC, freecam mode
-	sdata->gGT->cameraDC[playerID].cameraMode = 3;
+	sdata->gGT->cameraDC[playerID].cameraMode = CAMERA_MODE_FREECAM;
 
 	// driver -> instSelf
 	struct Instance *inst = d->instSelf;

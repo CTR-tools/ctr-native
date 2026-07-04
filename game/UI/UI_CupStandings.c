@@ -204,7 +204,7 @@ void UI_CupStandings_InputAndDraw(void)
 		// disable loading screen,
 		// set amount of confetti to zero
 		gGT->confetti.numParticles_max = 0;
-		gGT->confetti.unk2 = 0;
+		gGT->confetti.vanishRate = 0;
 		gGT->renderFlags &= RENDER_FLAG_CHECKERED_FLAG;
 	}
 

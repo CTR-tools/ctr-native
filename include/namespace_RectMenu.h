@@ -27,8 +27,12 @@ enum MenuFlags
 
 	// instead of the big font, menu will use the small font
 	USE_SMALL_FONT = 0x80,
-	// 0x100
-	// 0x200
+
+	// do not draw the selected-row highlight box
+	HIDE_ROW_HIGHLIGHT = 0x100,
+
+	// center title and row text within the menu width
+	CENTER_MENU_TEXT = 0x200,
 	EXECUTE_FUNCPTR = 0x400,
 	RECTMENU_UNKNOWN_0x800 = 0x800,
 
@@ -71,13 +75,21 @@ enum RectMenuFuncState
 	RECTMENU_FUNC_STATE_DRAW = 2,
 };
 
+enum RectMenuInputMask
+{
+	RECTMENU_INPUT_MENU = BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_CROSS_one | BTN_SQUARE_one | BTN_CIRCLE | BTN_TRIANGLE,
+};
+
 CTR_STATIC_ASSERT(RECTMENU_UNKNOWN_0x800 == 0x800);
+CTR_STATIC_ASSERT(HIDE_ROW_HIGHLIGHT == 0x100);
+CTR_STATIC_ASSERT(CENTER_MENU_TEXT == 0x200);
 CTR_STATIC_ASSERT(RECTMENU_STATE_CALLBACK_CENTERED == 0x823);
 CTR_STATIC_ASSERT(RECTMENU_STATE_SMALL_CALLBACK_CENTERED == 0x8A3);
 CTR_STATIC_ASSERT(RECTMENU_STRING_NONE == -1);
 CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_INPUT == 0);
 CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_UPDATE == 1);
 CTR_STATIC_ASSERT(RECTMENU_FUNC_STATE_DRAW == 2);
+CTR_STATIC_ASSERT(RECTMENU_INPUT_MENU == 0x4007f);
 
 struct MenuRow
 {
@@ -125,6 +137,8 @@ struct RectMenu
 	// & 0x40, show only highlighted row
 	// & 0x28, main menu character select (better meaning)?
 	// & 0x80, tiny text in rows
+	// & 0x100, hide row highlight
+	// & 0x200, center title and row text
 	// & 0xFF, row height (state>>7)
 	// & 0x400, execute menu funcptr
 	// & 0x800, ??? used in end-event menus

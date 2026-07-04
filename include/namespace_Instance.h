@@ -58,6 +58,8 @@ enum InstanceFlags
 enum InstanceColorRGBA
 {
 	INST_COLOR_SAPPHIRE_RELIC = 0x20a5ff0,
+	INST_COLOR_GOLD_RELIC = 0xd8d2090,
+	INST_COLOR_PLATINUM_RELIC = 0xffede90,
 	INST_COLOR_KEY = 0xdca6000,
 };
 
@@ -382,13 +384,26 @@ struct ModelHeader
 	struct AnimTex *animtex;
 };
 
+enum
+{
+	MODEL_NAME_BYTE_COUNT = 0x10,
+	MODEL_NAME_WORD_COUNT = MODEL_NAME_BYTE_COUNT / (s32)sizeof(u32),
+};
+
+force_inline u32 ModelName_ReadWord(const char *name, s32 wordIndex)
+{
+	u32 word;
+	memcpy(&word, &name[wordIndex * (s32)sizeof(word)], sizeof(word));
+	return word;
+}
+
 // https://github.com/DCxDemo/CTR-tools/blob/master/formats/txt_ctr.txt
 struct Model
 {
 	// name of model group
 	// "oxide" for example
 	// 0x0
-	char name[0x10];
+	char name[MODEL_NAME_BYTE_COUNT];
 
 	// index of 2160 array
 	// 0x10
@@ -400,6 +415,10 @@ struct Model
 	// 0x14
 	struct ModelHeader *headers;
 };
+
+CTR_STATIC_ASSERT(sizeof(((struct Model *)0)->name) == MODEL_NAME_WORD_COUNT * sizeof(u32));
+CTR_STATIC_ASSERT(OFFSETOF(struct Model, id) == 0x10);
+CTR_STATIC_ASSERT(OFFSETOF(struct Model, headers) == 0x14);
 
 struct InstDef
 {
@@ -569,7 +588,7 @@ struct Instance
 
 	// 0x52
 	u8 animIndex;
-	char unk53;
+	s8 specLightX;
 
 	// 0x54
 	s16 animFrame; // this might be a `u16` instead of `s16`
@@ -611,8 +630,8 @@ struct Instance
 	struct Thread *thread;
 
 	// 0x70
-	// see set in FUN_800abab0 (231)
-	int bitCompressed_NormalVector_AndDriverIndex;
+	// Packed compressed normal bytes; high byte stores driverID+1 when present.
+	u32 compressedNormalAndDriverIndex;
 
 	// 0x74
 	// struct InstDrawPerPlayer idpp[0];
@@ -633,6 +652,7 @@ CTR_STATIC_ASSERT(offsetof(struct Instance, matrix.t[2]) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct Instance, depthBiasNormal) == 0x50);
 CTR_STATIC_ASSERT(offsetof(struct Instance, depthBiasSecondary) == 0x51);
 CTR_STATIC_ASSERT(offsetof(struct Instance, animIndex) == 0x52);
+CTR_STATIC_ASSERT(offsetof(struct Instance, specLightX) == 0x53);
 CTR_STATIC_ASSERT(offsetof(struct Instance, animFrame) == 0x54);
 CTR_STATIC_ASSERT(offsetof(struct Instance, vertSplit) == 0x56);
 CTR_STATIC_ASSERT(offsetof(struct Instance, funcPtr) == 0x5c);
@@ -641,17 +661,34 @@ CTR_STATIC_ASSERT(offsetof(struct Instance, funcPtr[1]) == 0x60);
 CTR_STATIC_ASSERT(offsetof(struct Instance, funcPtr[2]) == 0x64);
 CTR_STATIC_ASSERT(offsetof(struct Instance, funcPtr[3]) == 0x68);
 CTR_STATIC_ASSERT(offsetof(struct Instance, thread) == 0x6c);
-CTR_STATIC_ASSERT(offsetof(struct Instance, bitCompressed_NormalVector_AndDriverIndex) == 0x70);
+CTR_STATIC_ASSERT(offsetof(struct Instance, compressedNormalAndDriverIndex) == 0x70);
 CTR_STATIC_ASSERT(sizeof(struct Instance) == 0x74);
+
+enum InstanceCompressedNormalLayout
+{
+	INST_COMPRESSED_NORMAL_SHIFT = 6,
+	INST_COMPRESSED_NORMAL_MASK = 0xff,
+	INST_COMPRESSED_NORMAL_Y_SHIFT = 8,
+	INST_COMPRESSED_NORMAL_Z_SHIFT = 16,
+	INST_COMPRESSED_DRIVER_INDEX_OFFSET = 1,
+	INST_COMPRESSED_DRIVER_INDEX_SHIFT = 24,
+};
+
+static inline u32 INST_PackCompressedNormalBytes(s32 normalX, s32 normalY, s32 normalZ)
+{
+	return ((u32)(u16)normalX & INST_COMPRESSED_NORMAL_MASK) | (((u32)(u16)normalY & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Y_SHIFT) |
+	       (((u32)(u16)normalZ & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Z_SHIFT);
+}
 
 static inline u32 INST_CompressNormalVector(s32 normalX, s32 normalY, s32 normalZ)
 {
-	return (((u32)(u16)normalX >> 6) & 0xff) | ((((u32)(u16)normalY >> 6) & 0xff) << 8) | ((((u32)(u16)normalZ >> 6) & 0xff) << 16);
+	return INST_PackCompressedNormalBytes((u32)(u16)normalX >> INST_COMPRESSED_NORMAL_SHIFT, (u32)(u16)normalY >> INST_COMPRESSED_NORMAL_SHIFT,
+	                                      (u32)(u16)normalZ >> INST_COMPRESSED_NORMAL_SHIFT);
 }
 
 static inline u32 INST_CompressNormalVectorAndDriverIndex(s32 normalX, s32 normalY, s32 normalZ, u8 driverID)
 {
-	return INST_CompressNormalVector(normalX, normalY, normalZ) | (((u32)driverID + 1u) << 24);
+	return INST_CompressNormalVector(normalX, normalY, normalZ) | (((u32)driverID + INST_COMPRESSED_DRIVER_INDEX_OFFSET) << INST_COMPRESSED_DRIVER_INDEX_SHIFT);
 }
 
 #define INST_GETIDPP(x) (struct InstDrawPerPlayer *)((u32)x + sizeof(struct Instance))

@@ -204,7 +204,7 @@ void PlayLevel_UpdateLapStats(void)
 					{
 						// amount of confetti particles
 						gGT->confetti.numParticles_max = PLAYLEVEL_CONFETTI_PARTICLES;
-						gGT->confetti.unk2 = PLAYLEVEL_CONFETTI_PARTICLES;
+						gGT->confetti.vanishRate = PLAYLEVEL_CONFETTI_PARTICLES;
 
 						// one person won,
 						// one person gets confetti

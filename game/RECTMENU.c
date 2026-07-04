@@ -316,7 +316,7 @@ void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *inner)
 	struct GameTracker *gGT = sdata->gGT;
 
 	// if title text exists
-	if ((-1 < menu->stringIndexTitle) && ((menu->state & 4) == 0))
+	if ((-1 < menu->stringIndexTitle) && ((menu->state & ONLY_DRAW_TITLE) == 0))
 	{
 		rgb = (menu->drawStyle & 0x10) ? &sdata->battleSetup_Color_UI_2 : &sdata->battleSetup_Color_UI_1;
 
@@ -324,11 +324,11 @@ void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *inner)
 		outer.y = inner->y + 6;
 
 		// pixel-height of non-title menu rows
-		if ((menu->state & 0x80) == 0)
+		if ((menu->state & USE_SMALL_FONT) == 0)
 		{
 			outer.y = inner->y + 9 + data.font_charPixHeight[1];
 		}
-		else if ((menu->state & 0x4000) == 0)
+		else if ((menu->state & BIG_TEXT_IN_TITLE) == 0)
 		{
 			outer.y += data.font_charPixHeight[2];
 		}
@@ -429,7 +429,7 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 	fontType = FONT_BIG;
 
 	// if menu should have tiny text
-	if ((m->state & 0x80) != 0)
+	if ((m->state & USE_SMALL_FONT) != 0)
 	{
 		fontType = FONT_SMALL;
 	}
@@ -451,7 +451,7 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 	if (m->stringIndexTitle >= 0)
 	{
 		// if force title to be big
-		if ((m->state & 0x4000) != 0)
+		if ((m->state & BIG_TEXT_IN_TITLE) != 0)
 		{
 			// override
 			fontType = FONT_BIG;
@@ -468,7 +468,7 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 	}
 
 	// if submenu needs to be drawn
-	if ((m->state & 0x10) != 0)
+	if ((m->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
 	{
 		if ((boolCheckSubmenu & 0xffff) != 0)
 		{
@@ -526,7 +526,7 @@ void RECTMENU_DrawSelf(struct RectMenu *menu, int posX, s16 posY, s16 menuWidth)
 		}
 	}
 	posX_prev = 2;
-	if ((menu->state & 0x80) == 0)
+	if ((menu->state & USE_SMALL_FONT) == 0)
 	{
 		posX_prev = 1;
 		local_50 = 2;
@@ -536,7 +536,7 @@ void RECTMENU_DrawSelf(struct RectMenu *menu, int posX, s16 posY, s16 menuWidth)
 	{
 		local_50 = 0;
 		sVar7 = data.font_charPixHeight[2];
-		if ((menu->state & 0x4000) == 0)
+		if ((menu->state & BIG_TEXT_IN_TITLE) == 0)
 		{
 			local_48 = data.font_charPixHeight[2];
 			goto LAB_80045e94;
@@ -556,13 +556,13 @@ LAB_80045e94:
 	menu->state &= 0xfffffff7;
 	menu->height = local_60;
 
-	if ((state & 2) != 0)
+	if ((state & CENTER_ON_Y) != 0)
 	{
 		menuHeight = 0;
 		RECTMENU_GetHeight(menu, &menuHeight, 1);
 		local_38 = (s16)(-menuHeight / 2);
 	}
-	if ((state & 1) != 0)
+	if ((state & CENTER_ON_X) != 0)
 	{
 		local_40 = (s16)(-menuWidth / 2);
 	}
@@ -570,18 +570,18 @@ LAB_80045e94:
 	row = &menu->rows[0];
 	index = menu->stringIndexTitle;
 	posY_prev = local_50 + local_38 + offsetY + menu->posY_prev;
-	if ((-1 < index) && ((state & 4) == 0))
+	if ((-1 < index) && ((state & ONLY_DRAW_TITLE) == 0))
 	{
 		sVar4 = 1;
-		if ((state & 0x4000) == 0)
+		if ((state & BIG_TEXT_IN_TITLE) == 0)
 		{
 			sVar4 = posX_prev;
 		}
-		if ((state & 0x200) == 0)
+		if ((state & CENTER_MENU_TEXT) == 0)
 		{
 			offsetX = (s16)(posX + menu->posX_prev);
 			uVar5 = uVar8;
-			if ((state & 1) != 0)
+			if ((state & CENTER_ON_X) != 0)
 			{
 				uVar5 = uVar8 | 0x8000;
 			}
@@ -604,7 +604,7 @@ LAB_80045e94:
 		do
 		{
 			state = menu->state;
-			if (((state & 0x44) == 0) || (sVar6 == menu->rowSelected))
+			if (((state & (ONLY_DRAW_TITLE | SHOW_ONLY_HIGHLIT_ROW)) == 0) || (sVar6 == menu->rowSelected))
 			{
 				uVar5 = row->stringIndex;
 				textFlags = 0x17;
@@ -614,10 +614,10 @@ LAB_80045e94:
 				}
 				if ((uVar5 & 0x7fff) != 0)
 				{
-					if ((state & 0x200) == 0)
+					if ((state & CENTER_MENU_TEXT) == 0)
 					{
 						sVar4 = (s16)(posX + menu->posX_prev + 1);
-						if ((state & 1) != 0)
+						if ((state & CENTER_ON_X) != 0)
 						{
 							textFlags |= 0x8000;
 						}
@@ -639,11 +639,11 @@ LAB_80045e94:
 			sVar6++;
 		} while (row->stringIndex != -1);
 	}
-	if ((menu->state & 0x104) == 0)
+	if ((menu->state & (HIDE_ROW_HIGHLIGHT | ONLY_DRAW_TITLE)) == 0)
 	{
 		background.x = local_40 + posX + menu->posX_prev;
 		background.y = offsetY + menu->posY_prev + local_38;
-		if ((menu->state & 0x40) == 0)
+		if ((menu->state & SHOW_ONLY_HIGHLIT_ROW) == 0)
 		{
 			background.y += menu->rowSelected * sVar7 + local_50 + -1;
 		}
@@ -651,7 +651,7 @@ LAB_80045e94:
 		{
 			background.y += local_50 + -1;
 		}
-		if ((menu->state & 0x80) == 0)
+		if ((menu->state & USE_SMALL_FONT) == 0)
 		{
 			background.h = -3;
 		}
@@ -673,13 +673,13 @@ LAB_80045e94:
 
 		CTR_Box_DrawClearBox(&background, rgb, 1, gGT->backBuffer->otMem.uiOT);
 	}
-	if ((menu->state & 0x10) != 0)
+	if ((menu->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
 	{
 		RECTMENU_DrawSelf(menu->ptrNextBox_InHierarchy, posX + menu->posX_prev, local_38 + offsetY + menu->posY_prev + sVar7 + 0xc, menuWidth);
 	}
 	posX_prev = menu->posX_prev;
 	posY_prev = menu->posY_prev;
-	if ((menu->state & 4) == 0)
+	if ((menu->state & ONLY_DRAW_TITLE) == 0)
 	{
 		borders.h = (local_60 + 8) - (*(u8 *)&menu->state >> 7);
 	}
@@ -774,8 +774,8 @@ int RECTMENU_ProcessInput(struct RectMenu *m)
 	    // must be both 0x20000 and 0x40000
 	    ((m->state & 0x60000) != 0x60000) &&
 
-	    // D-pad or Cross/Triangle
-	    ((button & 0x4007f) != 0) &&
+	    // D-pad or menu confirm/back buttons
+	    ((button & RECTMENU_INPUT_MENU) != 0) &&
 
 	    // No cheat code entering
 	    ((sdata->buttonHeldPerPlayer[0] & (BTN_L1 | BTN_R1)) == 0))
@@ -975,7 +975,7 @@ void RECTMENU_ProcessState()
 	}
 
 	// not sure what this is
-	if ((state & 0x800) == 0)
+	if ((state & RECTMENU_UNKNOWN_0x800) == 0)
 	{
 		if (RaceFlag_GetCanDraw() == 0)
 		{
@@ -1008,7 +1008,7 @@ void RECTMENU_Show(struct RectMenu *m)
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x800469c8-0x800469dc.
 void RECTMENU_Hide(struct RectMenu *m)
 {
-	m->state |= 0x1000;
+	m->state |= NEEDS_TO_CLOSE;
 }
 
 

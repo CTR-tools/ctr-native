@@ -302,6 +302,34 @@ struct RngDeadCoedState
 
 CTR_STATIC_ASSERT(sizeof(struct RngDeadCoedState) == 0x8);
 
+struct GameTrackerConfetti
+{
+	union
+	{
+		// Retail updates the current particle halfword through a 32-bit lw/sw.
+		u32 numParticles_currWord;
+		struct
+		{
+			// 0x00
+			s16 numParticles_curr;
+			s16 numParticlesPad;
+		};
+	};
+
+	// 0x04
+	s16 numParticles_max;
+	s16 vanishRate;
+
+	// 0x08
+	s32 velY; // negative
+};
+
+CTR_STATIC_ASSERT(sizeof(struct GameTrackerConfetti) == 0xc);
+CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, numParticles_currWord) == 0x0);
+CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, numParticles_max) == 0x4);
+CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, vanishRate) == 0x6);
+CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, velY) == 0x8);
+
 struct GameTracker
 {
 	// 0x0
@@ -458,22 +486,7 @@ struct GameTracker
 	struct RainBuffer rainBuffer[4];
 
 	// 0x1b00 -- UsaRetail
-	struct
-	{
-		// 0x1b00
-		s16 numParticles_curr;
-
-		// previous frame?
-		s16 unk1;
-
-		// 0x1b04
-		s16 numParticles_max;
-
-		s16 unk2;
-
-		// 0x1b08
-		int velY; // negative
-	} confetti;
+	struct GameTrackerConfetti confetti;
 
 	// 0x1b0c
 	struct Stars stars;

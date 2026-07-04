@@ -164,7 +164,7 @@ static void MainGameEnd_AddBattleWinner(struct GameTracker *gGT, struct Driver *
 static void MainGameEnd_SetBattleConfetti(struct GameTracker *gGT)
 {
 	gGT->confetti.numParticles_max = 0xfa;
-	gGT->confetti.unk2 = 0xfa;
+	gGT->confetti.vanishRate = 0xfa;
 }
 
 static void MainGameEnd_UpdateAdventureLosses(struct GameTracker *gGT, struct Driver *player)

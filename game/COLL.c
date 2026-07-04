@@ -1377,14 +1377,14 @@ void COLL_FIXED_PlayerSearch(struct Thread *t, struct Driver *d)
 
 	if (sps->boolDidTouchQuadblock == 0)
 	{
-		inst->bitCompressed_NormalVector_AndDriverIndex = INST_CompressNormalVectorAndDriverIndex(0, FP_ONE, 0, d->driverID);
+		inst->compressedNormalAndDriverIndex = INST_CompressNormalVectorAndDriverIndex(0, FP_ONE, 0, d->driverID);
 		inst->flags &= ~REFLECTIVE;
 		d->quadBlockHeight = CTR_MipsSubLo(d->posCurr.y, CTR_MipsSll(COLL_FIXED_PLAYER_SEARCH_BOTTOM_Y_OFFSET, 8));
 	}
 	else
 	{
 		struct QuadBlock *quad = sps->hit.ptrQuadblock;
-		inst->bitCompressed_NormalVector_AndDriverIndex =
+		inst->compressedNormalAndDriverIndex =
 		    INST_CompressNormalVectorAndDriverIndex(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z, d->driverID);
 		d->quadBlockHeight = CTR_MipsSll(sps->Union.QuadBlockColl.hitPos.y, 8);
 		d->collisionFlags |= DRIVER_COLL_FLAG_TOUCHED_QUADBLOCK;

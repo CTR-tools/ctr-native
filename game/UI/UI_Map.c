@@ -248,7 +248,7 @@ void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], int unused1,
 		arrowColor = &data.playerIconAdvMap.vertCol2[0];
 	}
 
-	AH_Map_HubArrow(posX, posY, &data.playerIconAdvMap.unk_playerAdvMap[0], (char *)arrowColor, (int)scale, (int)rot);
+	AH_Map_HubArrow(posX, posY, &data.playerIconAdvMap.pos[0], (char *)arrowColor, (int)scale, (int)rot);
 
 	return;
 }

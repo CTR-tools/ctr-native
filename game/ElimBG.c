@@ -327,7 +327,7 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 					screenXForTpage = tileX + 3;
 				}
 				textureX = (screenXForTpage >> 2) + ELIM_BG_TEXTURE_LEFT_X;
-				tpage = ((textureY & 0x100) >> 4) | ((textureX & 0x3ff) >> 6) | ((textureY & 0x200) << 2);
+				tpage = getTPage(TEXPAGE_COLOR_4BIT, TRANS_50, (u32)textureX, (u32)textureY);
 
 				// tpage
 				p->tpage = (u16)tpage;

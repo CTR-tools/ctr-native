@@ -5077,8 +5077,7 @@ struct Data
 
             .playerIconAdvMap =
                 {
-                    .unk_playerAdvMap = {0, 0xFFF8, 0xFFF8},
-                    .unk2_playerAdvMap = {8, 8, 8},
+                    .pos = {{{0, 0xFFF8}}, {{0xFFF8, 8}}, {{8, 8}}},
 
                     .vertCol1 = {0xFFFF, 0xFF, 0xFF},
                     .vertCol2 = {0xFFFF80, 0xFF, 0xFF},
@@ -6718,11 +6717,7 @@ struct Data
                                                     .accel = 0,
                                                 }}},
 
-                    {.flags = 64,
-                     .initOffset = 1,
-
-                     // memcpy into particle
-                     .data = {0x4, 0, 0, 0, 0, 0x96, 0, 0, 0, 1, 0, 0x10, 1, 0, 0, 2}},
+                    {.flags = 64, .initOffset = 1, .oscillator = {.flags = PARTICLE_OSC_MODE_SQUARE, .period = 0x9600, .scale = 0x100, .offset = 0x1000, .min = 1, .max = 0x200}},
 
                     {.flags = 1,
                      .initOffset = 5,
@@ -6845,11 +6840,7 @@ struct Data
                                                     .accel = 0,
                                                 }}},
 
-                    {.flags = 64,
-                     .initOffset = 1,
-
-                     // memcpy into particle
-                     .data = {0x4, 0, 0, 0, 0, 0x96, 0, 0, 0, 1, 0, 0x10, 1, 0, 0, 2}},
+                    {.flags = 64, .initOffset = 1, .oscillator = {.flags = PARTICLE_OSC_MODE_SQUARE, .period = 0x9600, .scale = 0x100, .offset = 0x1000, .min = 1, .max = 0x200}},
 
                     {.flags = 1,
                      .initOffset = 5,

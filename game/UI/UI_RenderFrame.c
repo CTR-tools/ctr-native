@@ -1163,7 +1163,7 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 		CtrGpu_WritePackedUV(&prim->u2, (u16)u0 | ((u16)v1 << 8));
 		CtrGpu_WritePackedUV(&prim->u3, (u16)u1 | ((u16)v1 << 8));
 
-		u16 tpage = (u16)(((viewport->y & 0x100) >> 4) | ((viewport->x & 0x3ff) >> 6) | 0x100 | ((viewport->y & 0x200) << 2));
+		u16 tpage = (u16)getTPage(TEXPAGE_COLOR_15BIT, TRANS_50, (u32)viewport->x, (u32)viewport->y);
 		prim->tpage = tpage;
 
 		if (driver->numWumpas >= 10)

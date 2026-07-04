@@ -92,8 +92,8 @@ struct Particle *VehEmitter_Exhaust(struct Driver *d, VECTOR *exhaustPos, VECTOR
 		}
 	}
 
-	p->flagsSetColor &= ~(0x60);
-	p->flagsSetColor |= 0x40;
+	p->flagsSetColor &= ~PARTICLE_SET_COLOR_FLAG_DRAW_MODE_MASK;
+	p->flagsSetColor |= PARTICLE_SET_COLOR_FLAG_DRAW_MODE_40;
 
 	return p;
 }

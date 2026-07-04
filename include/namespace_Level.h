@@ -562,19 +562,19 @@ struct VisMem
 
 	// 0x30-0x3F
 	// bit index scenery visibility
-	void *visSCVertList[4]; // real ND name
+	int *visSCVertList[4]; // real ND name
 
 	// 0x40-0x4F
-	void *visLeafSrc[4]; // copies to other
+	int *visLeafSrc[4]; // copies to other
 
 	// 0x50-0x5F
-	void *visFaceSrc[4]; // copies to other
+	int *visFaceSrc[4]; // copies to other
 
 	// 0x60-0x6F
-	void *visOVertSrc[4]; // copies to other
+	int *visOVertSrc[4]; // copies to other
 
 	// 0x70-0x7F
-	void *visSCVertSrc[4]; // copies to other
+	int *visSCVertSrc[4]; // copies to other
 
 	// 0x80-0x8F
 	// size = 8 * numBspNodes,
@@ -758,9 +758,8 @@ struct Level
 	struct InstDef **ptrInstDefPtrArray;
 
 	// 0x28
-	// unknown, extra bsp region
-	// related to water?
-	void *unk5;
+	// default packed OVert visibility bitset
+	int *visOVertSrc;
 
 	// 0x2c
 	// assumed to be reserved
@@ -898,13 +897,14 @@ struct Level
 	int unk_16C;
 
 	// 0x170
-	void *unk_170;
+	// default packed SCVert visibility bitset
+	int *visSCVertSrc;
 
 	// 0x174
 	int numSCVert;
 
 	// 0x178
-	void *ptrSCVert;
+	struct SCVert *ptrSCVert;
 
 	// 0x17c - 0x182
 	struct Stars stars;
@@ -947,6 +947,17 @@ CTR_STATIC_ASSERT(offsetof(struct SpawnType2, numCoords) == 0x0);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, posCoords) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, positions) == 0x4);
 CTR_STATIC_ASSERT(offsetof(struct SpawnType2, posRot) == 0x4);
+CTR_STATIC_ASSERT(sizeof(struct VisMem) == 0x90);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertList) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visLeafSrc) == 0x40);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visFaceSrc) == 0x50);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visOVertSrc) == 0x60);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, visSCVertSrc) == 0x70);
+CTR_STATIC_ASSERT(offsetof(struct VisMem, bspList) == 0x80);
+CTR_STATIC_ASSERT(sizeof(struct SCVert) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct Level, jumpVerticalSpeedCap) == 0x18C);
+CTR_STATIC_ASSERT(offsetof(struct Level, visOVertSrc) == 0x28);
+CTR_STATIC_ASSERT(offsetof(struct Level, visSCVertSrc) == 0x170);
+CTR_STATIC_ASSERT(offsetof(struct Level, ptrSCVert) == 0x178);
 
 #endif

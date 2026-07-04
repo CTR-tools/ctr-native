@@ -603,7 +603,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	MainInit_RainBuffer(gGT);
 
 	// animates water, 1P mode
-	AnimateWater1P(gGT->timer, lev1->numWaterVertices, lev1->ptr_water, lev1->ptr_tex_waterEnvMap, lev1->unk5);
+	AnimateWater1P(gGT->timer, lev1->numWaterVertices, lev1->ptr_water, lev1->ptr_tex_waterEnvMap, lev1->visOVertSrc);
 
 	gGT->pushBuffer_UI.fadeFromBlack_desiredResult = 0x1000;
 	gGT->pushBuffer_UI.fade_step = 0x200;
@@ -619,7 +619,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	// confetti
 	gGT->confetti.numParticles_curr = 0;
 	gGT->confetti.numParticles_max = 0;
-	gGT->confetti.unk2 = 0;
+	gGT->confetti.vanishRate = 0;
 	gGT->confetti.velY = -10;
 
 	for (i = 0; i < 4; i++)
@@ -634,7 +634,7 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	if ((gGT->gameMode1 & GAME_CUTSCENE) != 0)
 	{
 		// freecam mode
-		gGT->cameraDC[0].cameraMode = 3;
+		gGT->cameraDC[0].cameraMode = CAMERA_MODE_FREECAM;
 
 		// disable all HUD flags
 		gGT->hudFlags = 0;

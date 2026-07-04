@@ -29,29 +29,19 @@ static u32 DrawConfetti_ReadWord(const void *base, int offset)
 	return *(const u32 *)(const void *)((const char *)base + offset);
 }
 
-static u16 DrawConfetti_ReadU16(const void *base, int offset)
-{
-	return *(const u16 *)(const void *)((const char *)base + offset);
-}
-
-static void DrawConfetti_WriteWord(void *base, int offset, u32 value)
-{
-	*(u32 *)(void *)((char *)base + offset) = value;
-}
-
 static struct TrigPair DrawConfetti_TrigAngleSinCos(int angle)
 {
-	u32 packed = DrawConfetti_ReadWord(&data.trigApprox[angle & 0x3ff], 0);
+	u32 packed = DrawConfetti_ReadWord(&data.trigApprox[ANG_MODULO_HALF_PI(angle)], 0);
 	struct TrigPair pair;
 
 	// NOTE(aalhendi): PSX-backfeed blocker: retail calls TRIG_AngleSinCos_r15r16r17 with angle in t7 and returns sine/cosine in s0/s1.
 	// Native C uses an explicit helper; restore the register ABI before PSX backfeed.
-	if ((angle & 0x400) == 0)
+	if (IS_ANG_FIRST_OR_THIRD_QUADRANT(angle))
 	{
 		pair.sin = (s16)packed;
 		pair.cos = (s16)(packed >> 16);
 
-		if ((angle & 0x800) != 0)
+		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
 		{
 			pair.sin = -pair.sin;
 			pair.cos = -pair.cos;
@@ -62,7 +52,7 @@ static struct TrigPair DrawConfetti_TrigAngleSinCos(int angle)
 		pair.sin = (s16)(packed >> 16);
 		pair.cos = (s16)packed;
 
-		if ((angle & 0x800) != 0)
+		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
 		{
 			pair.sin = -pair.sin;
 		}
@@ -148,7 +138,7 @@ static void DrawConfetti_LinkPrimitive(POLY_F4 *poly, uint32_t *ot)
 }
 
 // NOTE(aalhendi): ASM-verified NTSC-U 926 0x80069ffc-0x8006a4c4
-void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti, int frameTimer, int gameMode1)
+void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTrackerConfetti *confetti, int frameTimer, int gameMode1)
 {
 	POLY_F4 *prim = primMem->cursor;
 	struct DrawConfettiScratch *scratch = CTR_SCRATCHPAD_PTR(struct DrawConfettiScratch, 0x30);
@@ -194,11 +184,11 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 	CTC2((u32)(s32)pb->rect.h << 15, 25);
 	CTC2((u32)pb->distanceToScreen_PREV, 26);
 
-	currentParticles = DrawConfetti_ReadWord(confetti, 0x00);
+	currentParticles = confetti->numParticles_currWord;
 	if (gameMode1 == 0)
 	{
-		u32 maxParticles = DrawConfetti_ReadU16(confetti, 0x04);
-		u32 vanishRate = DrawConfetti_ReadU16(confetti, 0x06);
+		u32 maxParticles = (u16)confetti->numParticles_max;
+		u32 vanishRate = (u16)confetti->vanishRate;
 		u32 diff = maxParticles - currentParticles;
 
 		if (maxParticles != currentParticles)
@@ -220,7 +210,7 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 				}
 			}
 
-			DrawConfetti_WriteWord(confetti, 0x00, currentParticles);
+			confetti->numParticles_currWord = currentParticles;
 		}
 	}
 
@@ -228,7 +218,7 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti
 	otBase = pb->ptrOT;
 	timer = (u32)frameTimer;
 	baseX = -pb->pos.x + centerX;
-	baseY = (s32)(DrawConfetti_ReadWord(confetti, 0x08) * timer - (u32)(s32)pb->pos.y);
+	baseY = (s32)((u32)confetti->velY * timer - (u32)(s32)pb->pos.y);
 	baseZ = -pb->pos.z + centerZ;
 
 	scratch->color = 0x28000000;

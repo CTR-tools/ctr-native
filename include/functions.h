@@ -395,7 +395,7 @@ void RenderAllHeatParticles(struct GameTracker *gGT);
 void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struct mesh_info *ptr_mesh_info);
 void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *stars, char numPlyr);
 void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBuffer *rainBuffer, char numPlyr, int gameMode1);
-void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, void *confetti, int frameTimer, int gameMode1);
+void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTrackerConfetti *confetti, int frameTimer, int gameMode1);
 void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct JitPool *rain, char numPlyr, int gameMode1);
 void *RenderBucket_QueueLevInstances(struct CameraDC *cDC, struct OTMem *otMem, void *rbi, u32 lodMask, char numPlyr, int gameMode1);
 void *RenderBucket_QueueNonLevInstances(struct Item *item, struct OTMem *otMem, void *rbi, u32 lodMask, char numPlyr, int gameMode1);
@@ -403,8 +403,8 @@ void RenderBucket_Execute(void *param_1, struct PrimMem *param_2);
 void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, char numPlyr);
 void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, char numPlyr);
 void Torch_Main(void *particleList_heatWarp, struct PushBuffer *pb, struct PrimMem *primMem, char numPlyr, int swapchainIndex);
-void AnimateWater1P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *param_5);
-void AnimateQuad(int timer, int numSCVert, void *ptrSCVert, int *visSCVertList);
+void AnimateWater1P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList);
+void AnimateQuad(int timer, int numSCVert, struct SCVert *scVert, int *visSCVertList);
 void RenderLists_PreInit(void);
 void RenderBucket_InitDepthGTE(void);
 void WindowBoxLines(struct GameTracker *gGT);
@@ -821,7 +821,7 @@ void MM_Battle_DrawIcon_Character(struct Icon *icon, int posX, int posY, struct 
 u8 MM_TransitionInOut(struct TransitionMeta *meta, int framesPassed, int numFrames);
 void MM_Title_MenuUpdate(void);
 void MM_Title_SetTrophyDPP(void);
-void MM_Title_CameraMove(struct Title *title, int frameIndex);
+void MM_Title_CameraMove(struct Title *title, s32 frameIndex);
 void MM_Title_ThTick(struct Thread *title);
 void MM_Title_Init(void);
 void MM_Title_CameraReset(void);
@@ -837,9 +837,9 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu);
 void MM_MenuProc_NewLoad(struct RectMenu *menu);
 struct RectMenu *MM_AdvNewLoad_GetMenuPtr(void);
 void MM_Characters_AnimateColors(u8 *colorData, s16 playerID, s16 flag);
-int MM_Characters_GetNextDriver(s16 dpad, char characterID);
-u32 MM_Characters_boolIsInvalid(s16 *globalIconPerPlayer, s16 characterID, s16 player);
-struct Model *MM_Characters_GetModelByName(int *name);
+int MM_Characters_GetNextDriver(s16 direction, s16 characterID);
+b32 MM_Characters_boolIsInvalid(s16 *globalIconPerPlayer, s16 characterID, s16 player);
+struct Model *MM_Characters_GetModelByName(const char *name);
 void MM_Characters_DrawWindows(b32 boolShowDrivers);
 void MM_Characters_SetMenuLayout(void);
 void MM_Characters_BackupIDs(void);
@@ -850,7 +850,7 @@ void MM_Characters_MenuProc(struct RectMenu *unused);
 void MM_TrackSelect_Video_SetDefaults(void);
 void MM_TrackSelect_Video_State(int resetPreview);
 void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, int trackIndex, int stopVideo, u16 rectFlags);
-char MM_TrackSelect_boolTrackOpen(struct MainMenu_LevelRow *menuSelect);
+b32 MM_TrackSelect_boolTrackOpen(struct MainMenu_LevelRow *menuSelect);
 void MM_TrackSelect_Init(void);
 void MM_TrackSelect_MenuProc(struct RectMenu *menu);
 struct RectMenu *MM_TrackSelect_GetMenuPtr(void);
@@ -858,7 +858,7 @@ void MM_CupSelect_Init(void);
 void MM_CupSelect_MenuProc(struct RectMenu *menu);
 void MM_Battle_CloseSubMenu(struct RectMenu *menu);
 void MM_Battle_DrawIcon_Weapon(struct Icon *icon, u32 posX, int posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 scale, u16 rotation,
-                               const u32 *color);
+                               const Color *color);
 void MM_Battle_Init(void);
 void MM_Battle_MenuProc(struct RectMenu *unused);
 void MM_HighScore_Text3D(char *string, int posX, int posY, s16 font, u32 flags);
@@ -1040,11 +1040,11 @@ void AH_Door_ThTick(struct Thread *t);
 void AH_Door_LInB(struct Instance *inst);
 void AH_Sign_LInB(struct Instance *inst);
 
-void AH_Map_LoadSave_Prim(s16 *vertPos, char *vertCol, void *ot, struct PrimMem *primMem);
+void AH_Map_LoadSave_Prim(const SVec2 *vertPos, char *vertCol, void *ot, struct PrimMem *primMem);
 
-void AH_Map_LoadSave_Full(int posX, int posY, s16 *vertPos, char *vertCol, int scale, int angle);
+void AH_Map_LoadSave_Full(int posX, int posY, const SVec2 *vertPos, char *vertCol, int scale, int angle);
 
-void AH_Map_HubArrow(int posX, int posY, s16 *vertPos, char *vertCol, int scale, int angle);
+void AH_Map_HubArrow(int posX, int posY, const SVec2 *vertPos, char *vertCol, int scale, int angle);
 
 void AH_Map_HubArrowOuter(struct UIMap *map, int arrowIndex, int posX, int posY, int inputAngle, int type);
 
@@ -1293,11 +1293,12 @@ void DrawLevelOvr3P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
                     const int *visFaceList2, const struct TextureLayout *waterEnvMap);
 void DrawLevelOvr4P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, const int *visFaceList0, const int *visFaceList1,
                     const int *visFaceList2, const int *visFaceList3, const struct TextureLayout *waterEnvMap);
-void AnimateWater2P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *param_5, int *param_6);
-void AnimateWater3P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *param_5, int *param_6,
-                    int *param_7);
-void AnimateWater4P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *param_5, int *param_6,
-                    int *param_7, int *param_8);
+void AnimateWater2P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
+                    int *visOVertList1);
+void AnimateWater3P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
+                    int *visOVertList1, int *visOVertList2);
+void AnimateWater4P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
+                    int *visOVertList1, int *visOVertList2, int *visOVertList3);
 int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList, char numPlyr);
 int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList);
 // TODO:

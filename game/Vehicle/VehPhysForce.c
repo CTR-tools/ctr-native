@@ -1018,16 +1018,16 @@ static int VehPhysForce_CountLeadingSignBits(s32 value)
 
 static struct TrigPair VehPhysForce_TrigAngleSinCos(int angle)
 {
-	struct TrigTable trig = data.trigApprox[angle & 0x3ff];
+	struct TrigTable trig = data.trigApprox[ANG_MODULO_HALF_PI(angle)];
 	u32 packed = ((u32)(u16)trig.sin) | ((u32)(u16)trig.cos << 16);
 	struct TrigPair pair;
 
-	if ((angle & 0x400) == 0)
+	if (IS_ANG_FIRST_OR_THIRD_QUADRANT(angle))
 	{
 		pair.sin = (s16)packed;
 		pair.cos = (s16)(packed >> 16);
 
-		if ((angle & 0x800) != 0)
+		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
 		{
 			pair.sin = CTR_MipsNegLo(pair.sin);
 			pair.cos = CTR_MipsNegLo(pair.cos);
@@ -1038,7 +1038,7 @@ static struct TrigPair VehPhysForce_TrigAngleSinCos(int angle)
 		pair.sin = (s16)(packed >> 16);
 		pair.cos = (s16)packed;
 
-		if ((angle & 0x800) != 0)
+		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
 		{
 			pair.sin = CTR_MipsNegLo(pair.sin);
 		}
