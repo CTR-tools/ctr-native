@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-VERSION="${1:-beta-7}"
+VERSION="${1:-beta-7_1}"
 BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
 PACKAGE_NAME="ctr-native-${VERSION}-linux-x86"
