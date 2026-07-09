@@ -259,24 +259,61 @@ internal s32 NativeSTR_ReadAcCode(struct NativeSTRBitReader *br, u16 *outCode)
 	return 0;
 }
 
+// NOTE(aalhendi): Separable IDCT, kept bit-identical to the old direct 2D sum by
+// preserving unrounded s64 row transforms and applying the same final rounding.
+// Zero coefficient rows are skipped before the column pass.
 internal void NativeSTR_IDCT(const s32 *coefficients, s32 *out)
 {
+	s64 rowPass[64];
+	u8 rowNonZero[8];
 	s32 x;
 	s32 y;
+	s32 u;
+	s32 v;
+
+	for (v = 0; v < 8; v++)
+	{
+		const s32 *row = &coefficients[v * 8];
+
+		rowNonZero[v] = 0;
+		for (u = 0; u < 8; u++)
+		{
+			if (row[u] != 0)
+			{
+				rowNonZero[v] = 1;
+				break;
+			}
+		}
+
+		if (!rowNonZero[v])
+		{
+			continue;
+		}
+
+		for (x = 0; x < 8; x++)
+		{
+			s64 sum = 0;
+
+			for (u = 0; u < 8; u++)
+			{
+				sum += (s64)s_idctBasis[x][u] * row[u];
+			}
+
+			rowPass[v * 8 + x] = sum;
+		}
+	}
 
 	for (y = 0; y < 8; y++)
 	{
 		for (x = 0; x < 8; x++)
 		{
 			s64 sum = 0;
-			s32 u;
-			s32 v;
 
 			for (v = 0; v < 8; v++)
 			{
-				for (u = 0; u < 8; u++)
+				if (rowNonZero[v])
 				{
-					sum += (s64)s_idctBasis[x][u] * s_idctBasis[y][v] * coefficients[v * 8 + u];
+					sum += (s64)s_idctBasis[y][v] * rowPass[v * 8 + x];
 				}
 			}
 
