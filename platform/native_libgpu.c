@@ -44,7 +44,10 @@ int DrawSync(int mode)
 	{
 		DrawAllSplits();
 	}
-	NativeRenderer_ReadFramebufferDataToVRAM();
+	// NOTE(penta3): Real PS1 DrawSync only waits for the GPU; it never copies the
+	// framebuffer back into VRAM. We do the same: no per-frame readback here. The
+	// on-demand consumers that actually sample the framebuffer pull it when needed
+	// (StoreImage/ElimBG pause grab, MoveImage, save-state capture).
 
 	if (drawsync_callback != NULL)
 	{

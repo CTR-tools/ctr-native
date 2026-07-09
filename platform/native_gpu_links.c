@@ -19,6 +19,12 @@ struct NativeGpuLinkRange
 global_variable struct NativeGpuLinkRange s_nativeGpuLinkRanges[NATIVE_GPU_LINK_MAX_RANGES];
 global_variable int s_nativeGpuLinkRangeCount;
 global_variable uint32_t s_nativeGpuLinkNextToken = NATIVE_GPU_LINK_FIRST_DYNAMIC_TOKEN;
+// NOTE(penta3): Last-hit cache. DrawOTag validates every linked node's pointer
+// through here, and consecutive OT nodes almost always live in the same arena, so
+// remembering the previous range turns the per-node linear scan into one compare
+// in the common case. Pure hint - falls back to the full scan, so behaviour is
+// unchanged. Index (not pointer) so it stays valid if the range array is reset.
+global_variable int s_lastHostRangeHit = 0;
 
 static int NativeGpuLinks_AlignTokenSize(size_t size, uint32_t *tokenSizeOut)
 {
@@ -43,6 +49,7 @@ void NativeGpuLinks_Reset(void)
 {
 	s_nativeGpuLinkRangeCount = 0;
 	s_nativeGpuLinkNextToken = NATIVE_GPU_LINK_FIRST_DYNAMIC_TOKEN;
+	s_lastHostRangeHit = 0;
 }
 
 int NativeGpuLinks_IsTerminator(uint32_t token)
@@ -107,11 +114,21 @@ void NativeGpuLinks_RegisterRangeChecked(const char *label, const void *hostStar
 
 static const struct NativeGpuLinkRange *NativeGpuLinks_FindHostRange(uintptr_t hostPtr)
 {
+	if (s_lastHostRangeHit < s_nativeGpuLinkRangeCount)
+	{
+		const struct NativeGpuLinkRange *cached = &s_nativeGpuLinkRanges[s_lastHostRangeHit];
+		if ((hostPtr >= cached->hostStart) && (hostPtr < cached->hostEnd))
+		{
+			return cached;
+		}
+	}
+
 	for (int i = 0; i < s_nativeGpuLinkRangeCount; i++)
 	{
 		const struct NativeGpuLinkRange *range = &s_nativeGpuLinkRanges[i];
 		if ((hostPtr >= range->hostStart) && (hostPtr < range->hostEnd))
 		{
+			s_lastHostRangeHit = i;
 			return range;
 		}
 	}
