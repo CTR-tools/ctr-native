@@ -10,6 +10,11 @@
 #include "platform/native_win32.h"
 #endif
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOG_TAG "CTR-Native"
+#endif
+
 global_variable FILE *s_logStream = NULL;
 global_variable char s_logPath[512]; // TODO(aalhendi): yeah this is an issue waiting to happen. w/e
 
@@ -19,6 +24,10 @@ internal void Platform_LogWrite(FILE *consoleStream, const char *text)
 
 #ifdef _WIN32
 	OutputDebugStringA(text);
+#endif
+
+#ifdef __ANDROID__
+    __android_log_write(ANDROID_LOG_INFO, LOG_TAG, text);
 #endif
 
 	fputs(text, stream);

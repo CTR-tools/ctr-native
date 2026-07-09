@@ -334,7 +334,7 @@ void RR_EndEvent_DrawMenu(void)
 		if (elapsedFrames >= RR_COUNTDOWN_START_FRAME)
 		{
 			char *str = countdownText;
-			sprintf(str, s_countdownStartFormat223);
+			sprintf(str, "%s", s_countdownStartFormat223);
 
 			drawCountdown = 0;
 

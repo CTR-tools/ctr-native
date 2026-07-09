@@ -683,7 +683,7 @@ void UI_RenderFrame_Racing()
 					// "999" <-- ascii string, not 2-u8 value
 
 					// Cap the on-screen counter at 999
-					sprintf((char *)&string[0], &sdata->s_999[0]);
+					sprintf((char *)&string[0], "%s", &sdata->s_999[0]);
 				}
 
 				i = DecalFont_GetLineWidth(sdata->lngStrings[LNG_TURBOS], 1);

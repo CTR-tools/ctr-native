@@ -26,8 +26,13 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 
 #endif // def WIN32
 
+#ifdef __ANDROID__
+#define VRAM_FORMAT          GL_RG
+#define VRAM_INTERNAL_FORMAT GL_RG8
+#else
 #define VRAM_FORMAT          GL_RG
 #define VRAM_INTERNAL_FORMAT GL_RG32F
+#endif
 
 extern SDL_Window *g_window;
 
@@ -123,9 +128,15 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 		return 0;
 	}
 
+#ifdef __ANDROID__
+	int major_version = 3;
+	int minor_version = 0;
+	int profile = SDL_GL_CONTEXT_PROFILE_ES;
+#else
 	int major_version = 3;
 	int minor_version = 3;
 	int profile = SDL_GL_CONTEXT_PROFILE_CORE;
+#endif
 
 	// find best OpenGL version
 	do
@@ -145,7 +156,11 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 
 	if (minor_version == -1)
 	{
+#ifdef __ANDROID__
+		NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL ES 3.x is not supported. Please update video drivers.\n");
+#else
 		NATIVE_RENDERER_ERROR("Failed to initialise - OpenGL 3.x is not supported. Please update video drivers.\n");
+#endif
 		return 0;
 	}
 
@@ -154,9 +169,14 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 
 internal int NativeRenderer_InitialiseGLExt(void)
 {
-	GLenum err = gladLoadGL();
+#ifdef __ANDROID__
+	// On Android, use SDL to load the GL functions as it's already linked to GLES.
+	int status = gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
+#else
+	int status = gladLoadGL();
+#endif
 
-	if (err == 0)
+	if (status == 0)
 	{
 		return 0;
 	}
@@ -644,6 +664,21 @@ internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program)
 
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader)
 {
+#ifdef __ANDROID__
+	const char *GLSL_HEADER_VERT = "	#version 300 es\n"
+	                               "	precision mediump int;\n"
+	                               "	precision highp float;\n"
+	                               "	#define varying   out\n"
+	                               "	#define attribute in\n"
+	                               "	#define texture2D texture\n";
+
+	const char *GLSL_HEADER_FRAG = "	#version 300 es\n"
+	                               "	precision mediump int;\n"
+	                               "	precision highp float;\n"
+	                               "	#define varying     in\n"
+	                               "	#define texture2D   texture\n"
+	                               "	out vec4 fragColor;\n";
+#else
 	const char *GLSL_HEADER_VERT = "	#version 140\n"
 	                               "	precision lowp  int;\n"
 	                               "	precision highp float;\n"
@@ -657,6 +692,7 @@ internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxSh
 	                               "	#define varying     in\n"
 	                               "	#define texture2D   texture\n"
 	                               "	out vec4 fragColor;\n";
+#endif
 
 	char extra_vs_defines[1024];
 	char extra_fs_defines[1024];
@@ -1407,6 +1443,11 @@ void NativeRenderer_ReadFramebufferDataToVRAM(void)
 	u32 *pixels = (u32 *)malloc((size_t)w * (size_t)h * sizeof(u32));
 	if (pixels != NULL)
 	{
+#ifdef __ANDROID__
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
+		glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#else
 		glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
 		// NOTE(aalhendi): DrawSync can be called immediately before screen-copy
 		// effects sample PS1 VRAM. A delayed readback replays an older frame
@@ -1414,6 +1455,7 @@ void NativeRenderer_ReadFramebufferDataToVRAM(void)
 		// framebuffer texture here.
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 		glBindTexture(GL_TEXTURE_2D, 0);
+#endif
 		// NOTE(aalhendi): Keep the CPU-side VRAM mirror packed like PS1 VRAM.
 		// Host texture bindings are invalid after this direct GL texture read.
 		NativeRenderer_CopyRGBAFramebufferToVRAM(pixels, x, y, w, h, 1, 0);
@@ -1465,8 +1507,14 @@ internal void NativeRenderer_FlushOffscreenToVRAM(void)
 			return;
 		}
 
+#ifdef __ANDROID__
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glOffscreenFramebuffer);
+		glReadPixels(0, 0, s_previousOffscreen.w, s_previousOffscreen.h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#else
 		glBindTexture(GL_TEXTURE_2D, s_offscreenRenderTexture);
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 		glBindTexture(GL_TEXTURE_2D, s_lastBoundTexture != (TextureID)-1 ? s_lastBoundTexture : 0);
 
 		NativeRenderer_CopyRGBAFramebufferToVRAM(pixels, s_previousOffscreen.x, s_previousOffscreen.y, s_previousOffscreen.w, s_previousOffscreen.h, 0, 1);
@@ -1607,7 +1655,13 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 		// can sample it.
 		glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
 		NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
+#ifdef __ANDROID__
+		glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
+		glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#else
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+#endif
 		NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
 		glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -1959,7 +2013,9 @@ internal void NativeRenderer_SetViewPort(int x, int y, int width, int height)
 
 internal void NativeRenderer_SetWireframe(int enable)
 {
+#ifndef __ANDROID__
 	glPolygonMode(GL_FRONT_AND_BACK, enable ? GL_LINE : GL_FILL);
+#endif
 }
 
 internal void NativeRenderer_BindVertexBuffer(void)

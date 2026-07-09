@@ -21,3 +21,16 @@ compile_commands.json
 *~
 *.log
 memcards/
+
+# Android/Gradle
+.gradle/
+local.properties
+**/build/
+**/.cxx/
+*.apk
+*.aar
+.navigation/
+captures/
+*.keystore
+!debug.keystore
+

@@ -1,5 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
+#ifndef __ANDROID__
 #define SDL_MAIN_HANDLED
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -118,6 +120,7 @@ static int NativeConsole_ShouldPauseOnError(void)
 
 static s32 NativeConsole_Return(const u32 result)
 {
+#ifndef __ANDROID__
 	if ((result != 0) && NativeConsole_ShouldPauseOnError())
 	{
 		fflush(stdout);
@@ -129,6 +132,7 @@ static s32 NativeConsole_Return(const u32 result)
 		{
 		}
 	}
+#endif
 
 	return (s32)result;
 }
@@ -154,7 +158,15 @@ int main(int argc, char *argv[])
 	printf("[CTR Native] Starting...\n");
 	fflush(stdout);
 
-	const char *sdlBasePath = SDL_GetBasePath();
+	const char *sdlBasePath = NULL;
+#ifdef __ANDROID__
+    // On Android, we search for assets in the app's external files directory
+    sdlBasePath = SDL_GetPrefPath("CTR-Native", "assets");
+    // The above usually returns /data/user/0/com.ctrnative/files/assets/
+    // We might want to look at the external files dir too.
+#else
+	sdlBasePath = SDL_GetBasePath();
+#endif
 	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 	fflush(stdout);
 
