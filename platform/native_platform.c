@@ -372,6 +372,8 @@ void Platform_EndScene(void)
 		return;
 	}
 
+	// NOTE(aalhendi): Keep the displayed VRAM region current for screen-copy
+	// effects without forcing a CPU readback.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
 	NativeRenderer_SwapWindow();
@@ -529,12 +531,19 @@ int NikoGetEnterKey(void)
 	return (kb && kb[SDL_SCANCODE_RETURN]) ? 1 : 0;
 }
 
-// NOTE(aalhendi): Native owns the CTR VBlank clock instead of PsyCross's
-// autonomous interrupt thread. The retail-shaped VSyncCallback storage lives in
-// native_libetc.c; native VSync emits that callback at each emulated VBlank.
-#define NATIVE_VSYNC_HZ          60
+// NOTE(aalhendi): VSyncCallback uses the PSX facade, but native owns the VBlank
+// clock that emits the registered callback.
+// NOTE(aalhendi): Native paces VBlank from PS1 NTSC video timing instead of
+// rounded 60Hz. PSX-SPX lists NTSC as 263 scanlines/frame and about 3413 video
+// cycles/scanline. With the NTSC GPU clock used here, this is ~59.817Hz, making
+// VSync(2) roughly 29.909 FPS. This affects host wall pacing; game state still
+// advances from emitted VBlank counts and retail RCNT1 ticks.
+#define NATIVE_VBLANK_GPU_CYCLES 897619ull // 3413 * 263
+#define NATIVE_GPU_CLOCK_HZ      53693175ull
 #define NATIVE_VSYNC_CATCHUP_MAX 8
-#define NATIVE_VSYNC_SPIN_US     1000
+// NOTE(aalhendi): SDL_DelayPrecise handles most of the wait; the final window
+// spins against SDL's performance counter so pacing follows the VBlank target.
+#define NATIVE_VSYNC_SPIN_US     200
 
 global_variable u64 s_nextVBlankCounter = 0;
 global_variable u64 s_vblankRemainder = 0;
@@ -548,14 +557,16 @@ internal u64 Native_CounterFromMicroseconds(u64 freq, u64 microseconds)
 internal void Native_AdvanceVBlankTarget(void)
 {
 	const u64 freq = SDL_GetPerformanceFrequency();
-	const u64 hz = NATIVE_VSYNC_HZ;
+	// counter ticks per vblank = freq * (897619 / 53693175) sec, kept exact with a
+	// running remainder. freq*897619 fits u64 for any realistic QPC frequency.
+	const u64 numer = freq * NATIVE_VBLANK_GPU_CYCLES;
 
-	s_nextVBlankCounter += freq / hz;
-	s_vblankRemainder += freq % hz;
-	if (s_vblankRemainder >= hz)
+	s_nextVBlankCounter += numer / NATIVE_GPU_CLOCK_HZ;
+	s_vblankRemainder += numer % NATIVE_GPU_CLOCK_HZ;
+	if (s_vblankRemainder >= NATIVE_GPU_CLOCK_HZ)
 	{
 		s_nextVBlankCounter++;
-		s_vblankRemainder -= hz;
+		s_vblankRemainder -= NATIVE_GPU_CLOCK_HZ;
 	}
 }
 
@@ -581,7 +592,7 @@ internal void Native_WaitUntilVBlankTarget(void)
 	{
 		const u64 now = SDL_GetPerformanceCounter();
 		u64 remaining;
-		u64 sleepMs;
+		u64 sleepUs;
 
 		if (now >= s_nextVBlankCounter)
 		{
@@ -592,9 +603,10 @@ internal void Native_WaitUntilVBlankTarget(void)
 		remaining = s_nextVBlankCounter - now;
 		if (remaining <= spinWindow)
 		{
-			// NOTE(aalhendi): SDL_Delay can wake late. Sleep while safely far
-			// from the VBlank target, then spin the final small window so the
-			// native VBlank emitter is paced by our clock, not the OS scheduler.
+			// NOTE(penta3): OS sleeps can wake late. Sleep while safely far from
+			// the VBlank target (high-res waitable timer), then spin only this
+			// final small window so the native VBlank emitter is paced by our
+			// clock, not the OS scheduler.
 			while (SDL_GetPerformanceCounter() < s_nextVBlankCounter)
 			{
 			}
@@ -603,10 +615,15 @@ internal void Native_WaitUntilVBlankTarget(void)
 			return;
 		}
 
-		sleepMs = ((remaining - spinWindow) * 1000) / freq;
-		if (sleepMs > 0)
+		sleepUs = ((remaining - spinWindow) * 1000000) / freq;
+		if (sleepUs > 0)
 		{
-			SDL_Delay((u32)sleepMs);
+			// Cross-platform precise sleep: SDL_DelayPrecise uses the best per-OS
+			// primitive (Win32 high-res waitable timer, Linux clock_nanosleep) and
+			// yields the CPU instead of busy-waiting. Waking slightly late is safe:
+			// the vblank schedule is absolute, so no drift accumulates and the loop
+			// re-checks against the target.
+			SDL_DelayPrecise(sleepUs * 1000ull);
 		}
 	}
 }
@@ -630,6 +647,29 @@ internal int Native_CatchUpDueVBlanks(void)
 
 	Native_EnsureVBlankTarget();
 
+	// NOTE(aalhendi): Native host stalls can be much longer than retail frame
+	// stalls, for example during window dragging or a debugger break. Replay a few
+	// late VBlanks normally, but rebase pathological stalls instead of bursting
+	// many callbacks into one host frame.
+	{
+		const u64 now = SDL_GetPerformanceCounter();
+
+		if (now >= s_nextVBlankCounter)
+		{
+			const u64 freq = SDL_GetPerformanceFrequency();
+			const u64 step = (freq * NATIVE_VBLANK_GPU_CYCLES) / NATIVE_GPU_CLOCK_HZ;
+			const u64 dueApprox = ((now - s_nextVBlankCounter) / step) + 1;
+
+			if (dueApprox > NATIVE_VSYNC_CATCHUP_MAX)
+			{
+				s_nextVBlankCounter = now;
+				s_vblankRemainder = 0;
+				Native_AdvanceVBlankTarget();
+				return 0;
+			}
+		}
+	}
+
 	while (SDL_GetPerformanceCounter() >= s_nextVBlankCounter)
 	{
 		const u64 now = SDL_GetPerformanceCounter();
@@ -639,9 +679,8 @@ internal int Native_CatchUpDueVBlanks(void)
 
 		if (emittedVBlanks >= NATIVE_VSYNC_CATCHUP_MAX)
 		{
-			// NOTE(aalhendi): Debugger stalls can otherwise replay minutes of
-			// VBlank callbacks at once. Keep normal late frames faithful, but
-			// rebase pathological host pauses.
+			// NOTE(aalhendi): Keep normal late frames faithful, but rebase if the
+			// due count grew past the cap while we were replaying.
 			s_nextVBlankCounter = now;
 			s_vblankRemainder = 0;
 			Native_AdvanceVBlankTarget();
