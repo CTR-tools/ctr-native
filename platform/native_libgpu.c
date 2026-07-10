@@ -67,7 +67,6 @@ int LoadImage2(RECT16 *rect, void *p)
 {
 	LoadImage(rect, p);
 	NativeRenderer_UpdateVRAM();
-	NativeRenderer_ReadFramebufferDataToVRAM();
 	return 0;
 }
 

@@ -349,9 +349,6 @@ void Platform_EndScene(void)
 
 	if (s_pinnedVramDisplayFrames > 0)
 	{
-		// NOTE(aalhendi): Direct VRAM presentation has no new host framebuffer
-		// snapshot. Do not let a later CPU read replay the previous one into VRAM.
-		NativeRenderer_DiscardFramebufferReadback();
 		if (s_pinnedVramDisplayCustomRect)
 		{
 			NativeRenderer_PresentVRAMRect(s_pinnedVramDisplayX, s_pinnedVramDisplayY, s_pinnedVramDisplayW, s_pinnedVramDisplayH);
