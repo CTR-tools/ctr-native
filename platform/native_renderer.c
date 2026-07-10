@@ -94,8 +94,10 @@ int g_cfg_bilinearFiltering = 0;
 // GPU->CPU readback + CPU pack + re-upload.
 global_variable GLuint s_packShader = 0;
 global_variable GLint s_packSrcLoc = -1;
-global_variable GLuint s_packQuadVAO = 0;
-global_variable GLuint s_packQuadVBO = 0;
+global_variable GLuint s_presentVramShader = 0;
+global_variable GLint s_presentVramSourceRectLoc = -1;
+global_variable GLuint s_vramQuadVAO = 0;
+global_variable GLuint s_vramQuadVBO = 0;
 
 #define NATIVE_VRAM_DIRTY_RECT_CAP 128
 
@@ -247,8 +249,9 @@ void NativeRenderer_Shutdown(void)
 	s_readbackScratchPixels = 0;
 
 	glDeleteProgram(s_packShader);
-	glDeleteVertexArrays(1, &s_packQuadVAO);
-	glDeleteBuffers(1, &s_packQuadVBO);
+	glDeleteProgram(s_presentVramShader);
+	glDeleteVertexArrays(1, &s_vramQuadVAO);
+	glDeleteBuffers(1, &s_vramQuadVBO);
 }
 
 void NativeRenderer_UpdateSwapIntervalState(int swapInterval)
@@ -450,7 +453,6 @@ internal int NativeRenderer_Shader_CheckShaderStatus(GLuint shader);
 internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program);
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader);
 internal void NativeRenderer_GenerateCommonTextures(void);
-internal TextureID NativeRenderer_CreateRGBATexture(int width, int height, u8 *data);
 internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source);
 internal void NativeRenderer_InitialisePSXShaders(void);
 internal void NativeRenderer_InitRG8LUT(void);
@@ -804,23 +806,6 @@ internal void NativeRenderer_GenerateCommonTextures(void)
 	}
 }
 
-internal TextureID NativeRenderer_CreateRGBATexture(int width, int height, u8 *data)
-{
-	TextureID newTexture;
-	glGenTextures(1, &newTexture);
-
-	glBindTexture(GL_TEXTURE_2D, newTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	return newTexture;
-}
-
 internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)
 {
 	sh->shader = NativeRenderer_Shader_Compile(source, true);
@@ -866,7 +851,32 @@ global_variable const char *ctr_pack_shader = "#ifdef VERTEX\n"
                                               "}\n"
                                               "#endif\n";
 
-internal void NativeRenderer_InitPackPipeline(void)
+// NOTE(aalhendi): Direct VRAM presentation expands the persistent packed
+// texture with the same 5-to-8-bit conversion as the former CPU path.
+global_variable const char *ctr_present_vram_shader = "#ifdef VERTEX\n"
+                                                      "attribute vec2 a_position;\n"
+                                                      "varying vec2 v_uv;\n"
+                                                      "uniform vec4 sourceRect;\n"
+                                                      "void main() {\n"
+                                                      "\tvec2 screenUV = a_position * 0.5 + 0.5;\n"
+                                                      "\tvec2 sourcePixel = sourceRect.xy + vec2(screenUV.x, 1.0 - screenUV.y) * sourceRect.zw;\n"
+                                                      "\tv_uv = sourcePixel / vec2(1024.0, 512.0);\n"
+                                                      "\tgl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                                      "}\n"
+                                                      "#endif\n"
+                                                      "#ifdef FRAGMENT\n"
+                                                      "varying vec2 v_uv;\n"
+                                                      "uniform sampler2D s_texture;\n"
+                                                      "void main() {\n"
+                                                      "\tivec2 packedBytes = ivec2(texture2D(s_texture, v_uv).rg * 255.0 + 0.5);\n"
+                                                      "\tint pixel = packedBytes.r | (packedBytes.g << 8);\n"
+                                                      "\tivec3 color5 = ivec3(pixel & 31, (pixel >> 5) & 31, (pixel >> 10) & 31);\n"
+                                                      "\tivec3 color8 = (color5 << 3) | (color5 >> 2);\n"
+                                                      "\tfragColor = vec4(vec3(color8) / 255.0, 1.0);\n"
+                                                      "}\n"
+                                                      "#endif\n";
+
+internal void NativeRenderer_InitVRAMPipelines(void)
 {
 	local_persist const float quad[12] = {-1.f, -1.f, -1.f, 1.f, 1.f, 1.f, -1.f, -1.f, 1.f, 1.f, 1.f, -1.f};
 
@@ -876,10 +886,13 @@ internal void NativeRenderer_InitPackPipeline(void)
 	glUniform1i(s_packSrcLoc, 0);
 	glUseProgram(0);
 
-	glGenVertexArrays(1, &s_packQuadVAO);
-	glGenBuffers(1, &s_packQuadVBO);
-	glBindVertexArray(s_packQuadVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, s_packQuadVBO);
+	s_presentVramShader = NativeRenderer_Shader_Compile(ctr_present_vram_shader, false);
+	s_presentVramSourceRectLoc = glGetUniformLocation(s_presentVramShader, "sourceRect");
+
+	glGenVertexArrays(1, &s_vramQuadVAO);
+	glGenBuffers(1, &s_vramQuadVBO);
+	glBindVertexArray(s_vramQuadVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, s_vramQuadVBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(a_position);
 	glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
@@ -909,7 +922,7 @@ int NativeRenderer_InitialisePSX(void)
 	NativeRenderer_InitRG8LUT();
 	NativeRenderer_GenerateCommonTextures();
 	NativeRenderer_InitialisePSXShaders();
-	NativeRenderer_InitPackPipeline();
+	NativeRenderer_InitVRAMPipelines();
 
 	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_STENCIL_TEST);
@@ -1828,7 +1841,7 @@ internal void NativeRenderer_GpuPackFramebufferToVRAM(int x, int y, int w, int h
 	glBindTexture(GL_TEXTURE_2D, s_framebufferTexture);
 	glUniform1i(s_packSrcLoc, 0);
 
-	glBindVertexArray(s_packQuadVAO);
+	glBindVertexArray(s_vramQuadVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
 
@@ -1970,100 +1983,14 @@ void NativeRenderer_UpdateVRAM(void)
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_UPDATE_VRAM);
 }
 
-internal u8 NativeRenderer_Expand5To8(u16 value)
-{
-	value &= 0x1f;
-	return (u8)((value << 3) | (value >> 2));
-}
-
-internal void NativeRenderer_BuildDisplayChunkRGBA(u8 *dst, int srcX, int srcY, int w, int h)
-{
-	for (int y = 0; y < h; y++)
-	{
-		u16 *src = vram + srcX + (srcY + y) * VRAM_WIDTH;
-
-		for (int x = 0; x < w; x++)
-		{
-			u16 pixel = src[x];
-
-			*dst++ = NativeRenderer_Expand5To8(pixel);
-			*dst++ = NativeRenderer_Expand5To8(pixel >> 5);
-			*dst++ = NativeRenderer_Expand5To8(pixel >> 10);
-			*dst++ = 0xff;
-		}
-	}
-}
-
-internal void NativeRenderer_FillDisplayChunkVerts(GrVertex *verts, int dstX, int dstY, int w, int h)
-{
-	const int maxU = w > 0 ? w - 1 : 0;
-	const int maxV = h > 0 ? h - 1 : 0;
-
-	memset(verts, 0, sizeof(GrVertex) * 6);
-
-	verts[0].x = dstX;
-	verts[0].y = dstY;
-	verts[0].u = 0;
-	verts[0].v = 0;
-
-	verts[1].x = dstX;
-	verts[1].y = dstY + h;
-	verts[1].u = 0;
-	verts[1].v = maxV;
-
-	verts[2].x = dstX + w;
-	verts[2].y = dstY + h;
-	verts[2].u = maxU;
-	verts[2].v = maxV;
-
-	verts[3] = verts[0];
-	verts[4] = verts[2];
-
-	verts[5].x = dstX + w;
-	verts[5].y = dstY;
-	verts[5].u = maxU;
-	verts[5].v = 0;
-
-	for (int i = 0; i < 6; i++)
-	{
-		verts[i].bright = 1;
-		verts[i].r = 0xff;
-		verts[i].g = 0xff;
-		verts[i].b = 0xff;
-		verts[i].a = 0xff;
-	}
-}
-
 void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, int displayH)
 {
-	const int maxChunkW = 0x100;
-	const int maxChunkH = 0x100;
-	const int maxChunkBytes = maxChunkW * maxChunkH * 4;
-
-	local_persist TextureID displayTexture = (TextureID)-1;
-	local_persist u8 *rgba = NULL;
-
 	if (displayW <= 0 || displayH <= 0)
 	{
 		return;
 	}
 
-	NativeRenderer_ReadFramebufferDataToVRAM();
-
-	if (rgba == NULL)
-	{
-		rgba = (u8 *)malloc(maxChunkBytes);
-	}
-
-	if (rgba == NULL)
-	{
-		return;
-	}
-
-	if (displayTexture == (TextureID)-1)
-	{
-		displayTexture = NativeRenderer_CreateRGBATexture(maxChunkW, maxChunkH, NULL);
-	}
+	NativeRenderer_UpdateVRAM();
 
 	NativeRenderer_SetViewPort(s_presentViewport.x, s_presentViewport.y, s_presentViewport.w, s_presentViewport.h);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -2071,30 +1998,17 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	NativeRenderer_SetScissorState(0);
 	NativeRenderer_EnableDepth(0);
 	NativeRenderer_SetBlendMode(BM_NONE);
-	NativeRenderer_SetTexture(displayTexture, TF_32_BIT_RGBA);
-	NativeRenderer_SetPSXDrawMaskSet(0);
-	NativeRenderer_Ortho2D(0, displayW, displayH, 0, -1.0f, 1.0f);
 
-	for (int y = 0; y < displayH; y += maxChunkH)
-	{
-		const int chunkH = (displayH - y) > maxChunkH ? maxChunkH : displayH - y;
+	glUseProgram(s_presentVramShader);
+	glUniform4f(s_presentVramSourceRectLoc, (float)displayX, (float)displayY, (float)displayW, (float)displayH);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_vramTexture);
+	glBindVertexArray(s_vramQuadVAO);
+	NativeRenderer_DrawTriangles(0, 2);
+	glBindVertexArray(0);
 
-		for (int x = 0; x < displayW; x += maxChunkW)
-		{
-			GrVertex verts[6];
-			const int chunkW = (displayW - x) > maxChunkW ? maxChunkW : displayW - x;
-
-			NativeRenderer_BuildDisplayChunkRGBA(rgba, displayX + x, displayY + y, chunkW, chunkH);
-
-			glBindTexture(GL_TEXTURE_2D, displayTexture);
-			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, chunkW, chunkH, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-
-			NativeRenderer_SetOverrideTextureSize(maxChunkW, maxChunkH);
-			NativeRenderer_FillDisplayChunkVerts(verts, x, y, chunkW, chunkH);
-			NativeRenderer_UpdateVertexBuffer(verts, 6);
-			NativeRenderer_DrawTriangles(0, 2);
-		}
-	}
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
 }
 
 void NativeRenderer_PresentVRAMDisplay(void)
