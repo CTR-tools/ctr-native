@@ -125,7 +125,6 @@ internal void NativeRenderer_SetPresentationAspect(int width, int height);
 internal void NativeRenderer_UpdatePresentationViewport(void);
 internal void NativeRenderer_ClearPresentationBars(void);
 internal void NativeRenderer_SetWireframe(int enable);
-internal void NativeRenderer_BindVertexBuffer(void);
 
 global_variable GLuint s_glVertexArray[2];
 global_variable GLuint s_glVertexBuffer[2];
@@ -793,6 +792,8 @@ internal void NativeRenderer_GenerateCommonTextures(void)
 
 	glGenTextures(1, &s_rgLutTexture);
 	{
+		// Texture unit 1 is reserved for the immutable PSX color lookup table.
+		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, s_rgLutTexture);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -801,7 +802,7 @@ internal void NativeRenderer_GenerateCommonTextures(void)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LUT_WIDTH, LUT_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, &rgLUT);
 
-		glBindTexture(GL_TEXTURE_2D, 0);
+		glActiveTexture(GL_TEXTURE0);
 	}
 }
 
@@ -897,6 +898,7 @@ internal void NativeRenderer_InitVRAMPipelines(void)
 	glEnableVertexAttribArray(a_position);
 	glVertexAttribPointer(a_position, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void *)0);
 	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 internal void NativeRenderer_InitRG8LUT(void)
@@ -1031,9 +1033,20 @@ int NativeRenderer_InitialisePSX(void)
 
 			glBindBuffer(GL_ARRAY_BUFFER, s_glVertexBuffer[i]);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(GrVertex) * MAX_VERTEX_BUFFER_SIZE, NULL, GL_DYNAMIC_DRAW);
+
+			glEnableVertexAttribArray(a_position);
+			glEnableVertexAttribArray(a_texcoord);
+			glEnableVertexAttribArray(a_color);
+			glEnableVertexAttribArray(a_extra);
+
+			glVertexAttribPointer(a_position, 4, GL_SHORT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->x);
+			glVertexAttribPointer(a_texcoord, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->u);
+			glVertexAttribPointer(a_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GrVertex), &((GrVertex *)NULL)->r);
+			glVertexAttribPointer(a_extra, 4, GL_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->tcx);
 		}
 
 		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
 	NativeRenderer_ResetDevice();
@@ -1199,11 +1212,6 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, s_rgLutTexture);
-
-	glActiveTexture(GL_TEXTURE0);
 
 	s_lastBoundTexture = texture;
 }
@@ -1746,34 +1754,24 @@ internal void NativeRenderer_BlitBackbufferToFramebufferTex(int w, int h)
 	s_framebufferTextureWidth = w;
 	s_framebufferTextureHeight = h;
 
-	glBindFramebuffer(GL_FRAMEBUFFER, s_glBlitFramebuffer);
+	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
 
-	// before drawing set source and target
-	{
-		NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
-		// setup draw and read framebuffers
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); // source is backbuffer
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, s_glBlitFramebuffer);
-
-		// NOTE(penta3): The framebuffer texture is a REGION snapshot sized w*h. The
-		// GPU pack shader reads it from 0,0 and re-places it at VRAM (x,y), so the blit
-		// destination must be region-relative. The old dst used the VRAM-absolute y:
-		// for the high buffer
-		// (y=0x128=296 -> rows 296..512 of a 216-row texture) GL clipped the ENTIRE
-		// blit and the texture silently kept the previous frame. Every other frame the
-		// feedback effects then sampled a 1-frame-old image: moving warp (warpball)
-		// doubled, heat ghosted overlapping UI, while static heat and the clock blur
-		// (previous-frame by design) masked it.
-		glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, 0, h,
-		                  w, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-		// done, unbind
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
-	}
+	// NOTE(penta3): The framebuffer texture is a REGION snapshot sized w*h. The
+	// GPU pack shader reads it from 0,0 and re-places it at VRAM (x,y), so the blit
+	// destination must be region-relative. The old dst used the VRAM-absolute y:
+	// for the high buffer
+	// (y=0x128=296 -> rows 296..512 of a 216-row texture) GL clipped the ENTIRE
+	// blit and the texture silently kept the previous frame. Every other frame the
+	// feedback effects then sampled a 1-frame-old image: moving warp (warpball)
+	// doubled, heat ghosted overlapping UI, while static heat and the clock blur
+	// (previous-frame by design) masked it.
+	glBlitFramebuffer(s_presentViewport.x, s_presentViewport.y, s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h, 0, h, w,
+	                  0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_BLIT);
 }
 
 // NOTE(aalhendi): Pack an RGBA render texture straight into the RG8 VRAM texture
@@ -1784,7 +1782,6 @@ internal void NativeRenderer_GpuPackTextureToVRAM(TextureID sourceTexture, int x
 	NativeRenderer_UpdateVRAM();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, s_glVramFramebuffer);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, s_vram.texture, 0);
 
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
@@ -1827,7 +1824,6 @@ void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h)
 
 	NativeRenderer_BlitBackbufferToFramebufferTex(w, h);
 	NativeRenderer_GpuPackTextureToVRAM(s_framebufferTexture, x, y, w, h, false);
-	s_lastBoundTexture = -1;
 
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_STORE);
 }
@@ -2080,25 +2076,6 @@ internal void NativeRenderer_SetWireframe(int enable)
 	glPolygonMode(GL_FRONT_AND_BACK, enable ? GL_LINE : GL_FILL);
 }
 
-internal void NativeRenderer_BindVertexBuffer(void)
-{
-	s_boundVertexBuffer = s_curVertexBuffer;
-	glBindVertexArray(s_glVertexArray[s_curVertexBuffer]);
-
-	glEnableVertexAttribArray(a_position);
-	glEnableVertexAttribArray(a_texcoord);
-	glEnableVertexAttribArray(a_color);
-	glEnableVertexAttribArray(a_extra);
-
-	glVertexAttribPointer(a_position, 4, GL_SHORT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->x);
-	glVertexAttribPointer(a_texcoord, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->u);
-	glVertexAttribPointer(a_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GrVertex), &((GrVertex *)NULL)->r);
-	glVertexAttribPointer(a_extra, 4, GL_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->tcx);
-
-	s_curVertexBuffer++;
-	s_curVertexBuffer &= 1;
-}
-
 void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int num_vertices)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDERER_VERTEX_UPLOAD);
@@ -2108,9 +2085,11 @@ void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int num_vertice
 		num_vertices = MAX_VERTEX_BUFFER_SIZE;
 	}
 
-	// assert(num_vertices <= MAX_VERTEX_BUFFER_SIZE);
-	NativeRenderer_BindVertexBuffer();
-
+	const int bufferIndex = s_curVertexBuffer;
+	s_curVertexBuffer = (s_curVertexBuffer + 1) & 1;
+	s_boundVertexBuffer = bufferIndex;
+	glBindVertexArray(s_glVertexArray[bufferIndex]);
+	glBindBuffer(GL_ARRAY_BUFFER, s_glVertexBuffer[bufferIndex]);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, num_vertices * sizeof(GrVertex), vertices);
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDERER_VERTEX_UPLOAD);
 }
