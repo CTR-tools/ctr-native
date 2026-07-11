@@ -1108,7 +1108,7 @@ internal void NativeAudio_AdsrRunEnvelopeStep(struct NativeAudioVoice *voice, in
 
 	if (shiftValue < 11)
 	{
-		adsrStep <<= 11 - shiftValue;
+		adsrStep *= 1 << (11 - shiftValue);
 	}
 
 	counterIncrement = NATIVE_AUDIO_ADSR_STEP_BIT;
@@ -1395,7 +1395,7 @@ internal int NativeAudio_DecodeAdpcmNibble(u8 soundParameter, int nibble, int *o
 		nibble -= 16;
 	}
 
-	sample = (nibble << 12);
+	sample = nibble * 0x1000;
 	sample >>= shift;
 	sample += (*old * s_posTable[weight]) >> 6;
 	sample += (*older * s_negTable[weight]) >> 6;
@@ -1832,7 +1832,7 @@ internal int NativeAudio_DecodeXA28Nibbles(const u8 *sector, int frameOff, int b
 	{
 		u8 byte = sector[frameOff + 16 + i * 4 + block];
 		u8 nib = (nibble == 0) ? (u8)((byte & 0xf) << 4) : (u8)(byte & 0xf0);
-		int sample = ((s8)nib) << 8;
+		int sample = (int)(s8)nib * 0x100;
 
 		sample >>= shift;
 		sample += (state->old[channel] * w0) >> 6;
@@ -1882,7 +1882,7 @@ internal int NativeAudio_DecodeXASectorMono(const u8 *sector, int sectorBase, st
 			{
 				u8 byte = sector[frameOff + 16 + i * 4 + (su >> 1)];
 				u8 nib = ((su & 1) == 0) ? (u8)((byte & 0xf) << 4) : (u8)(byte & 0xf0);
-				int sample = ((s8)nib) << 8;
+				int sample = (int)(s8)nib * 0x100;
 
 				sample >>= shift;
 				sample += (state->old[0] * w0) >> 6;
