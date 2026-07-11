@@ -880,7 +880,7 @@ void DrawSplit(const GPUDrawSplit *split)
 		// into an empty retail draw area. Empty clips should consume no pixels,
 		// and must not leak stale native offscreen/scissor state.
 		NativeRenderer_SetupClipMode(&split->drawenv.clip, &split->dispenv, drawOnScreen);
-		NativeRenderer_SetOffscreenState(&split->drawenv.clip, &split->dispenv, 0);
+		NativeRenderer_SetOffscreenState(&split->drawenv.clip, 0);
 		if (split->debugText)
 		{
 			NativeRenderer_PopDebugLabel();
@@ -901,7 +901,8 @@ void DrawSplit(const GPUDrawSplit *split)
 	NativeRenderer_SetPSXTextureOutputSTP(split->psxTextureOutputSTP);
 
 	NativeRenderer_SetupClipMode(&split->drawenv.clip, &split->dispenv, drawOnScreen);
-	NativeRenderer_SetOffscreenState(&split->drawenv.clip, &split->dispenv, !drawOnScreen);
+	NativeRenderer_SetOffscreenState(&split->drawenv.clip, !drawOnScreen);
+	NativeRenderer_SetProjection(&split->drawenv.clip, &split->dispenv, !drawOnScreen);
 
 	if (split->psxTexturedSemiTrans)
 	{
@@ -943,6 +944,9 @@ internal void SetPSXMaskState(u32 code)
 void DrawAllSplits()
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_DRAW_ALL_SPLITS);
+	// CPU-originated LoadImage, MoveImage, and fill commands are GPU-visible
+	// before the next draw batch, matching PS1 command ordering.
+	NativeRenderer_UpdateVRAM();
 #ifdef CTR_INTERNAL
 	if (g_dbg_emulatorPaused)
 	{

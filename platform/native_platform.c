@@ -277,19 +277,19 @@ void Platform_Shutdown(void)
 
 	s_platformInitialized = 0;
 #if defined(CTR_INTERNAL)
+	NativeRenderer_FinishGpuMeasurements();
 	NativePerf_Shutdown();
 	NativeReplayScheduler_Shutdown();
 #endif
 	Platform_InputShutdown();
+	NativeAudio_Shutdown();
+	NativeRenderer_Shutdown();
 
 	if (g_window != NULL)
 	{
 		SDL_DestroyWindow(g_window);
 		g_window = NULL;
 	}
-
-	NativeAudio_Shutdown();
-	NativeRenderer_Shutdown();
 
 	SDL_Quit();
 
@@ -350,10 +350,6 @@ void Platform_EndScene(void)
 
 	if (s_pinnedVramDisplayFrames > 0)
 	{
-		// NOTE(aalhendi): Direct VRAM presentation skips StoreFrameBuffer.
-		// Do not let the next DrawSync read stale framebuffer texture data back
-		// into PSX VRAM after a movie/frame upload.
-		NativeRenderer_DiscardFramebufferReadback();
 		if (s_pinnedVramDisplayCustomRect)
 		{
 			NativeRenderer_PresentVRAMRect(s_pinnedVramDisplayX, s_pinnedVramDisplayY, s_pinnedVramDisplayW, s_pinnedVramDisplayH);
@@ -362,6 +358,7 @@ void Platform_EndScene(void)
 		{
 			NativeRenderer_PresentVRAMDisplay();
 		}
+		NativeRenderer_EndGpuFrame();
 		NativeRenderer_SwapWindow();
 		s_pinnedVramDisplayFrames--;
 		if (s_pinnedVramDisplayFrames <= 0)
@@ -375,7 +372,8 @@ void Platform_EndScene(void)
 	// NOTE(aalhendi): Keep the displayed VRAM region current for screen-copy
 	// effects without forcing a CPU readback.
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
-
+	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
+	NativeRenderer_EndGpuFrame();
 	NativeRenderer_SwapWindow();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_PLATFORM_END_SCENE);
 }
@@ -392,8 +390,8 @@ void Platform_EndFrame(void)
 
 void Platform_PresentVRAMDisplay(void)
 {
+	Platform_PinVRAMDisplayFrames(1);
 	Platform_BeginScene();
-	NativeRenderer_PresentVRAMDisplay();
 	Platform_EndFrame();
 }
 
