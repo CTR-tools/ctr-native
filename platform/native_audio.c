@@ -1433,12 +1433,13 @@ internal void NativeAudio_DecodeVoiceBlock(struct NativeAudioVoiceStream *stream
 internal void NativeAudio_VoiceStreamKeyOn(struct NativeAudioVoice *voice)
 {
 	struct NativeAudioVoiceStream *stream = &voice->stream;
+	u32 repeatAddr = stream->repeatAddr;
 
 	memset(stream, 0, sizeof(*stream));
 	stream->currentAddr = NativeAudio_WrapSpuAddr(voice->attr.addr);
-	// an explicit LSAX beyond the start seeds the repeat register; Loop-Start
-	// headers re-latch it during playback -penta3
-	stream->repeatAddr = (voice->attr.loop_addr > voice->attr.addr) ? NativeAudio_WrapSpuAddr(voice->attr.loop_addr) : stream->currentAddr;
+	// NOTE(aalhendi): Key On reloads the current address but leaves the SPU
+	// repeat register intact. LSAX writes and Loop-Start headers update it.
+	stream->repeatAddr = repeatAddr;
 	NativeAudio_DecodeVoiceBlock(stream);
 	stream->valid = 1;
 }
@@ -3056,10 +3057,8 @@ void NativeAudio_SpuSetVoiceAttr(SpuVoiceAttr *psxAttrib)
 
 		if (psxAttrib->mask & SPU_VOICE_LSAX)
 		{
-			// repeat address is a live register on hw: retargets where the
-			// playing voice jumps at the next Loop-End -penta3
 			voice->attr.loop_addr = psxAttrib->loop_addr;
-			if (voice->stream.valid && (psxAttrib->loop_addr < NATIVE_AUDIO_SPU_MEMSIZE))
+			if (psxAttrib->loop_addr < NATIVE_AUDIO_SPU_MEMSIZE)
 			{
 				voice->stream.repeatAddr = NativeAudio_WrapSpuAddr(psxAttrib->loop_addr);
 			}
