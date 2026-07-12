@@ -1976,6 +1976,23 @@ internal void load_GL_ES_VERSION_2_0(GLADloadproc load)
 	glad_glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)load("glVertexAttribPointer");
 	glad_glViewport = (PFNGLVIEWPORTPROC)load("glViewport");
 }
+
+// NOTE(aalhendi): CTR's GLES 3 renderer only needs these core entry points
+// beyond the generated GLES 2 table. Keep this narrow instead of regenerating
+// GLAD and changing the desktop loader surface.
+internal void load_GL_ES_VERSION_3_0_Ctr(GLADloadproc load)
+{
+	if (GLVersion.major < 3)
+	{
+		return;
+	}
+
+	glad_glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)load("glBindVertexArray");
+	glad_glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)load("glDeleteVertexArrays");
+	glad_glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)load("glGenVertexArrays");
+	glad_glGetStringi = (PFNGLGETSTRINGIPROC)load("glGetStringi");
+}
+
 internal int find_extensionsGLES2(void)
 {
 	if (!get_exts())
@@ -2026,7 +2043,12 @@ internal void find_coreGLES2(void)
 	max_loaded_major = major;
 	max_loaded_minor = minor;
 	GLAD_GL_ES_VERSION_2_0 = (major == 2 && minor >= 0) || major > 2;
-	if (GLVersion.major > 2 || (GLVersion.major >= 2 && GLVersion.minor >= 0))
+	if (GLVersion.major >= 3)
+	{
+		max_loaded_major = 3;
+		max_loaded_minor = 0;
+	}
+	else if (GLVersion.major >= 2)
 	{
 		max_loaded_major = 2;
 		max_loaded_minor = 0;
@@ -2048,6 +2070,11 @@ int gladLoadGLES2Loader(GLADloadproc load)
 	}
 	find_coreGLES2();
 	load_GL_ES_VERSION_2_0(load);
+	load_GL_ES_VERSION_3_0_Ctr(load);
+	if ((GLVersion.major >= 3) && (glad_glGetStringi == NULL))
+	{
+		return 0;
+	}
 
 	if (!find_extensionsGLES2())
 	{
