@@ -2,6 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
+def ctrNativeVersion = rootProject.file('../VERSION').getText('UTF-8').trim()
+
 android {
     namespace 'com.ctrnative'
     compileSdk 35
@@ -12,7 +14,7 @@ android {
         minSdk 21
         targetSdk 35
         versionCode 701
-        versionName '0.1.0-beta.7.1'
+        versionName ctrNativeVersion
 
         ndk {
             abiFilters 'armeabi-v7a', 'x86'

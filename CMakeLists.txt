@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 project(CTR-Native C)
 include(CheckCCompilerFlag)
 
-set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
+file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" CTR_NATIVE_VERSION LIMIT_COUNT 1)
+string(STRIP "${CTR_NATIVE_VERSION}" CTR_NATIVE_VERSION)
+if(CTR_NATIVE_VERSION STREQUAL "")
+    message(FATAL_ERROR "VERSION must contain the CTR Native release version.")
+endif()
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
