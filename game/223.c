@@ -119,10 +119,8 @@ void RR_EndEvent_UnlockAward(void)
 		sdata->relicTime_1min = relicTime / RR_RACE_TIME_ONE_MINUTE;
 		sdata->relicTime_10sec = (relicTime / RR_RACE_TIME_TEN_SECONDS) % 6;
 		sdata->relicTime_1sec = (relicTime / RR_RACE_TIME_ONE_SECOND) % 10;
+		sdata->relicTime_10ms = (relicTime / (RR_RACE_TIME_ONE_SECOND / 10)) % 10;
 		sdata->relicTime_1ms = ((relicTime * 100) / RR_RACE_TIME_ONE_SECOND) % 10;
-
-		// [Not Done]
-		sdata->relicTime_10ms = 0;
 	}
 }
 

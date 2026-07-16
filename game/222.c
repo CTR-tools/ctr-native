@@ -435,15 +435,6 @@ void AA_EndEvent_DrawMenu(void)
 
 	RECTMENU_ClearInput();
 
-	sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
-	sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_BOSS;
-	sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
-
-	if (IS_BOSS_RACE(gGT->gameMode1))
-	{
-		sdata->Loading.OnBegin.AddBitsConfig8 |= SPAWN_AT_BOSS;
-	}
-
 	if (!didWin)
 	{
 		RECTMENU_Show(&data.menuRetryExit);
@@ -455,12 +446,16 @@ void AA_EndEvent_DrawMenu(void)
 
 	sdata->framesSinceRaceEnded = 0;
 	sdata->numIconsEOR = 1;
+	sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
 
 	// Load the levelID for Adventure Hub that you came from
 	s16 levSpawn = gGT->prevLEV;
 
 	if (IS_BOSS_RACE(gGT->gameMode1))
 	{
+		sdata->Loading.OnBegin.AddBitsConfig8 |= SPAWN_AT_BOSS;
+		sdata->Loading.OnBegin.RemBitsConfig0 |= ADVENTURE_BOSS;
+
 		// Reward bit of key unlocked, and boss beaten.
 		rewardBit = gGT->bossID + ADV_REWARD_FIRST_BOSS_KEY;
 
@@ -524,6 +519,7 @@ void AA_EndEvent_DrawMenu(void)
 		gGT->podiumRewardID = STATIC_TROPHY;
 	}
 
+	sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
 	MainRaceTrack_RequestLoad(levSpawn);
 }
 
