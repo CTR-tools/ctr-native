@@ -120,6 +120,7 @@ void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBu
 	// the scratchpad register-save prologue/epilogue before PSX backfeed.
 	struct RenderWeatherScratch *scratch = CTR_SCRATCHPAD_PTR(struct RenderWeatherScratch, 0x30);
 	struct TrigPair trig;
+	u32 centerX;
 	u32 screenBounds;
 	uint32_t *ot;
 	s32 currentParticles;
@@ -165,7 +166,8 @@ void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBu
 	CTC2(RenderWeather_ReadWord(&pb->matrix_ViewProj, 0x10), 4);
 
 	trig = RenderWeather_TrigAngleSinCos(pb->rot.y);
-	scratch->packedCenterXY = 0x04000000u | (u32)((trig.sin >> 2) + 0x400);
+	centerX = (u32)((trig.sin >> 2) + 0x400);
+	scratch->packedCenterXY = 0x04000000u | centerX;
 	scratch->centerZ = (u32)((trig.cos >> 2) + 0x400);
 
 	screenBounds = RenderWeather_ReadWord(pb, 0x20);
@@ -238,9 +240,9 @@ void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBu
 	smoothedCameraXY = (cameraXY - cameraCorrectionXY) & RENDER_WEATHER_XY_MASK;
 	smoothedCameraZ = cameraZ - ((cameraZ - prevCameraZ) >> 3);
 
-	startXY = ((scrollXYStart - smoothedCameraXY) & RENDER_WEATHER_XY_MASK) + scratch->packedCenterXY;
+	startXY = ((scrollXYStart - smoothedCameraXY) & RENDER_WEATHER_XY_MASK) + centerX;
 	startXY &= RENDER_WEATHER_XY_MASK;
-	endXY = ((scrollXYEnd - cameraXY) & RENDER_WEATHER_XY_MASK) + scratch->packedCenterXY;
+	endXY = ((scrollXYEnd - cameraXY) & RENDER_WEATHER_XY_MASK) + centerX;
 	endXY &= RENDER_WEATHER_XY_MASK;
 	startZ = (scrollZStart - smoothedCameraZ) + (s32)scratch->centerZ;
 	endZ = (scrollZEnd - cameraZ) + (s32)scratch->centerZ;

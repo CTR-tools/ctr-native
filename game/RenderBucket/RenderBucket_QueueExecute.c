@@ -137,7 +137,7 @@ struct RenderBucketExecuteScratch
 	u8 pad_046[0x02];
 	u8 splitInstanceSpecLightX;
 	u8 pad_049[0x03];
-	u32 splitFunc3Ptr32;
+	u32 splitReflectionRGBA;
 	u8 pad_050[0x08];
 	u32 setupDrawClear;
 	u8 pad_05c[0x38];
@@ -173,7 +173,7 @@ CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, instFlags) == 0x24
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, frameOrigin) == 0x30);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitLinePrimary) == 0x44);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitInstanceSpecLightX) == 0x48);
-CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitFunc3Ptr32) == 0x4c);
+CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, splitReflectionRGBA) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, setupDrawClear) == 0x58);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, setupDispatch) == 0x94);
 CTR_STATIC_ASSERT(offsetof(struct RenderBucketExecuteScratch, rawView) == 0xb4);
@@ -3219,7 +3219,7 @@ static int RenderBucket_DrawInstPrim_LitTextureAtRange(struct RenderBucketDrawCo
 	}
 	else if (signedTest < 0)
 	{
-		codeWord = 0x24000000;
+		codeWord = 0x26000000;
 		tpageMask = 0x00400000;
 	}
 	else
@@ -3843,7 +3843,7 @@ static int RenderBucket_DrawSplitPrimitiveLitTextureAtRange(struct RenderBucketD
 	}
 	else if (signedTest < 0)
 	{
-		codeWord = 0x24000000;
+		codeWord = 0x26000000;
 		tpageMask = 0x00400000;
 	}
 	else
@@ -5259,7 +5259,7 @@ static int RenderBucket_PrepareDrawContext(struct RenderBucketDrawContext *ctx, 
 		scratch->split.splitLineSecondary = idpp->splitLine;
 		scratch->split.splitLineTertiary = idpp->splitLine;
 		scratch->splitInstanceSpecLightX = (u8)inst->specLightX;
-		scratch->splitFunc3Ptr32 = (u32)(uintptr_t)inst->funcPtr[3];
+		scratch->splitReflectionRGBA = inst->reflectionRGBA;
 		scratch->split.splitFixedLine = ((u32)(s32)idpp->splitLine) << 17;
 		scratch->split.splitCounterPrimary = 0;
 		scratch->split.splitCounterSecondary = 0;
