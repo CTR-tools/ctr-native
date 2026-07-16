@@ -4,7 +4,7 @@
 void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 {
 	int minScale = 0;
-	int maxScale = FP8_INT(driver->const_AccelSpeed_ClassStat) + FP8_INT(driver->const_SacredFireSpeed);
+	int maxScale = CTR_MipsSra(CTR_MipsAddLo(driver->const_AccelSpeed_ClassStat, driver->const_SacredFireSpeed), 8);
 	int speed = driver->speedometerNeedleValue;
 	int minAngle, maxAngle;
 	int accelSpeedInt = FP8_INT(driver->const_AccelSpeed_ClassStat);
@@ -117,12 +117,8 @@ void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 }
 
 const Color DrawSpeedBG_Colors[7] = {
-    [0] = {.r = 0x00, .g = 0xb5, .b = 0x00},
-    [1] = {.r = 0x00, .g = 0xb5, .b = 0x00},
-    [2] = {.r = 0x00, .g = 0xb5, .b = 0x00},
-    [3] = {.r = 0x00, .g = 0xb5, .b = 0x00},
-    [4] = {.r = 0xff, .g = 0xd1, .b = 0x00},
-    [5] = {.r = 0xdb, .g = 0x00, .b = 0x00},
+    [0] = {.r = 0x00, .g = 0xb5, .b = 0x00}, [1] = {.r = 0x00, .g = 0xb5, .b = 0x00}, [2] = {.r = 0x00, .g = 0xb5, .b = 0x00},
+    [3] = {.r = 0xff, .g = 0xd1, .b = 0x00}, [4] = {.r = 0xdb, .g = 0x00, .b = 0x00}, [5] = {.r = 0xdb, .g = 0x00, .b = 0x00},
     [6] = {.r = 0xdb, .g = 0x00, .b = 0x00},
 };
 
@@ -201,7 +197,7 @@ void UI_DrawSpeedBG(void)
 			return;
 		}
 
-		p->t.texpage = (Texpage){.code = 0xE1, .dither = 1};
+		p->t.texpage = (Texpage){.code = 0xE1, .dither = 1, .y_VRAM_EXP = 1};
 		p->p.tag.self = 0;
 
 		Color color = MakeColor(0, 0, 0);

@@ -483,6 +483,8 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		// go to battle setup screen
 		sdata->mainMenuState = MAIN_MENU_BATTLE_SETUP;
 
+		sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
+
 		// load LEV of main menu
 		MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
 		break;

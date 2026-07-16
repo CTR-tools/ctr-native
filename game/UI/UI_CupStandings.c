@@ -673,15 +673,15 @@ void UI_CupStandings_InputAndDraw(void)
 						}
 
 						// reset counter for number of times you lost cup, to zero
-						sdata->advProgress.timesLostCupRace[i] = 0;
+						sdata->advProgress.timesLostCupRace[gGT->cup.trackIndex] = 0;
 					}
 
 					// If player 1 did not win the cup
 					else
 					{
-						if (sdata->advProgress.timesLostCupRace[i] < UI_CUP_STANDINGS_MAX_CUP_LOSSES)
+						if (sdata->advProgress.timesLostCupRace[gGT->cup.trackIndex] < UI_CUP_STANDINGS_MAX_CUP_LOSSES)
 						{
-							sdata->advProgress.timesLostCupRace[i]++;
+							sdata->advProgress.timesLostCupRace[gGT->cup.trackIndex]++;
 						}
 					}
 				}

@@ -82,6 +82,7 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 	if (itemID != UI_WEAPON_ITEM_ROULETTE)
 	{
 		iconID = itemID + UI_WEAPON_ICON_BASE;
+		sdata->s_spacebar[0] = d->numHeldItems + '0';
 
 		// character ID
 		characterID = data.characterIDs[d->driverID];
@@ -116,10 +117,6 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 		// If this weapon has a quantity (3 missiles)
 		if (d->numHeldItems != 0)
 		{
-			// Get the ascii character to represent the quantity
-			// of weapon that you have (3 missiles)
-			sdata->s_spacebar[0] = d->numHeldItems + '0';
-
 			// Draw the number near the weapon icon to show how many
 			DecalFont_DrawLine(sdata->s_spacebar, (int)posX, (int)posY, UI_WEAPON_QUANTITY_FONT, UI_WEAPON_QUANTITY_FLAGS);
 		}

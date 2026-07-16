@@ -287,15 +287,14 @@ void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIco
 	struct Driver *d;
 	struct GameTracker *gGT = sdata->gGT;
 
-	// if 2P or 4P
-	if ((gGT->numPlyrCurrGame & 1) == 0)
-	{
-		// quit, no map drawn
-		return;
-	}
-
 	for (/* bucket */; bucket != 0; bucket = bucket->siblingThread, *driverIconCounter = *driverIconCounter + 1)
 	{
+		// if 2P or 4P
+		if ((gGT->numPlyrCurrGame & 1) == 0)
+		{
+			continue;
+		}
+
 		// Player structure
 		d = bucket->object;
 

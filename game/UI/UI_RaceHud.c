@@ -104,10 +104,10 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 	s16 halfArrowHeight;
 	s16 arrowCenterX;
 	s16 arrowTipY;
-	int distanceScale;
+	s16 distanceScale;
 	SVec2 screenPos;
 	u32 gteFlags;
-	u32 color;
+	u32 *gradient;
 	MATRIX *viewProj;
 	G3_SEMITRANS *arrow;
 	SVECTOR pos;
@@ -156,7 +156,7 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 
 		// If currentDriver is less than 768 units away from this player,
 		// don't draw that driver's arrow
-		if (UI_BATTLE_HEAD_ARROW_MIN_DIST_SQ > playerDistance)
+		if (UI_BATTLE_HEAD_ARROW_MIN_DIST_SQ >= playerDistance)
 		{
 			continue;
 		}
@@ -213,13 +213,10 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		// Battle Team of this driver
 		currTeam = currDriver->BattleHUD.teamID;
 
-		// color data
-		color = *(u32 *)data.ptrColor[PLAYER_BLUE + currTeam];
-
-		// it's all the same color
-		CtrGpu_WriteColorCode(&arrow->g3.r0, (color & UI_BATTLE_HEAD_ARROW_COLOR_MASK) | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
-		CtrGpu_WriteColorCode(&arrow->g3.r1, color | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
-		CtrGpu_WriteColorCode(&arrow->g3.r2, color | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
+		gradient = data.ptrColor[PLAYER_BLUE + currTeam];
+		CtrGpu_WriteColorCode(&arrow->g3.r0, (gradient[0] & UI_BATTLE_HEAD_ARROW_COLOR_MASK) | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
+		CtrGpu_WriteColorCode(&arrow->g3.r1, gradient[1] | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
+		CtrGpu_WriteColorCode(&arrow->g3.r2, gradient[2] | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
 
 		uint32_t *ot = gGT->pushBuffer[playerID].ptrOT;
 
@@ -340,7 +337,7 @@ UpdateTrackerState:
 	// set pointer of the missile or warpball chasing the player
 	d->thTrackingMe = trackerTh;
 
-	if (timer != 0)
+	if (data.trackerTimer[driverID] != 0)
 	{
 		data.trackerTimer[driverID]--;
 	}
@@ -529,7 +526,8 @@ UpdateTrackerState:
 			CtrGpu_WriteColorCode(&poly->r1, color1);
 			CtrGpu_WriteColorCode(&poly->r2, color2);
 
-			CtrGpu_WritePackedXY(&poly->x0, CTR_ReadU32LE(&borderPoly->x0));
+			poly->x0 = borderPoly->x0;
+			poly->y0 = screenPosY - UI_TRACKER_SIDE_TIP_OFFSET;
 			CtrGpu_WritePackedXY(&poly->x1, CTR_ReadU32LE(&borderPoly->x1));
 			poly->x2 = borderPoly->x2;
 
