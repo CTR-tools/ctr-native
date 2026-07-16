@@ -91,11 +91,10 @@ s16 SubmitName_DrawMenu(u16 string)
 	u16 stringCopy = string;
 	s16 currNameLength = strlen(gGT->currNameEntered);
 	char *currNameEntered = gGT->currNameEntered;
-	u16 blinkWhite = ((sdata->typeTimer >> 0) & 1) << 2;
 
 	while (currNameEntered[0] != 0)
 	{
-		if (currNameEntered[0] > 2)
+		if ((u8)currNameEntered[0] > 2)
 		{
 			nameLength++;
 		}
@@ -110,6 +109,7 @@ s16 SubmitName_DrawMenu(u16 string)
 	}
 
 	sdata->typeTimer++;
+	u16 blinkWhite = (sdata->typeTimer & 1) << 2;
 	int letterID = 0;
 
 	// grid of letters, 13x3
@@ -365,7 +365,7 @@ s16 SubmitName_DrawMenu(u16 string)
 					soundID = 4;
 					gGT->currNameEntered[currNameLength - 1] = 0;
 
-					if (gGT->currNameEntered[currNameLength - 2] < 3)
+					if ((u8)gGT->currNameEntered[currNameLength - 2] < 3)
 					{
 						gGT->currNameEntered[currNameLength - 2] = 0;
 					}
