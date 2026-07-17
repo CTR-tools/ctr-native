@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- SDL's activity sources perform the API and permission guards at runtime. -->
+    <issue id="MissingPermission">
+        <ignore regexp=".*externals/SDL/android-project/app/src/main/.*" />
+    </issue>
+    <issue id="NewApi">
+        <ignore regexp=".*externals/SDL/android-project/app/src/main/.*" />
+    </issue>
+    <issue id="StaticFieldLeak">
+        <ignore regexp=".*externals/SDL/android-project/app/src/main/.*" />
+    </issue>
+    <issue id="UnspecifiedRegisterReceiverFlag">
+        <ignore regexp=".*externals/SDL/android-project/app/src/main/.*" />
+    </issue>
+    <issue id="UnusedResources">
+        <ignore regexp=".*externals/SDL/android-project/app/src/main/.*" />
+    </issue>
+</lint>

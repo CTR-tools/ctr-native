@@ -1,0 +1,66 @@
+plugins {
+    id 'com.android.application'
+}
+
+def ctrNativeVersion = rootProject.file('../VERSION').getText('UTF-8').trim()
+
+android {
+    namespace 'com.ctrnative'
+    compileSdk 35
+    ndkVersion '27.0.12077973'
+
+    defaultConfig {
+        applicationId 'com.ctrnative'
+        minSdk 21
+        targetSdk 35
+        versionCode 701
+        versionName ctrNativeVersion
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'x86'
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_static'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file('../../CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = [
+                'src/main/java',
+                '../../externals/SDL/android-project/app/src/main/java'
+            ]
+            res.srcDirs = [
+                'src/main/res',
+                '../../externals/SDL/android-project/app/src/main/res'
+            ]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        // AGP 8.7 intentionally caps this project at API 35.
+        disable 'OldTargetApi'
+        lintConfig file('lint.xml')
+    }
+}

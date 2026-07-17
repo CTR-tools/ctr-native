@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 project(CTR-Native C)
 include(CheckCCompilerFlag)
 
-set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
+file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" CTR_NATIVE_VERSION LIMIT_COUNT 1)
+string(STRIP "${CTR_NATIVE_VERSION}" CTR_NATIVE_VERSION)
+if(CTR_NATIVE_VERSION STREQUAL "")
+    message(FATAL_ERROR "VERSION must contain the CTR Native release version.")
+endif()
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
@@ -18,9 +22,11 @@ if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
+if(NOT ANDROID)
+    set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
+    set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
+endif()
 
 execute_process(
     COMMAND git rev-parse --short=12 HEAD
@@ -60,8 +66,13 @@ function(ctr_native_add_label_warning_if_supported target warning flag_check)
 endfunction()
 
 # SDL3
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
+if(ANDROID)
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+else()
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+endif()
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -74,7 +85,7 @@ set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
 set(SDL_TRAY OFF CACHE BOOL "" FORCE)
 set(SDL_POWER OFF CACHE BOOL "" FORCE)
 set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
-set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGLES ${ANDROID} CACHE BOOL "" FORCE)
 set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO_SHARED OFF CACHE BOOL "" FORCE)
@@ -83,13 +94,19 @@ set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
 # CTR Native
-add_executable(ctr_native main.c)
+if(ANDROID)
+    add_library(ctr_native SHARED main.c)
+else()
+    add_executable(ctr_native main.c)
+endif()
 set_target_properties(ctr_native PROPERTIES
     C_STANDARD 17
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS OFF
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
+if(NOT ANDROID)
+    set_target_properties(ctr_native PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
 target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
@@ -111,7 +128,6 @@ if(CTR_NATIVE_MSVC_FRONTEND)
     )
 else()
     target_compile_options(ctr_native PRIVATE
-        -msse
         -Wenum-conversion
         -Wenum-compare
         -Wswitch-enum
@@ -121,6 +137,18 @@ else()
         $<$<CONFIG:Release>:-g>
     )
 
+    if(ANDROID)
+        # ARM defaults to unsigned plain char. Retail MIPS and the supported PC
+        # targets use signed char in game-owned fields and comparisons.
+        target_compile_options(ctr_native PRIVATE -fsigned-char)
+
+        # Two ASM-verified retail calls use static nonliteral format strings.
+        # Keep those game call sites exact while satisfying the NDK defaults.
+        target_compile_options(ctr_native PRIVATE -Wno-format-security)
+    else()
+        target_compile_options(ctr_native PRIVATE -msse)
+    endif()
+
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_compile_options(ctr_native PRIVATE -Wall -Wextra -Wstrict-aliasing=2)
         ctr_native_add_label_warning_if_supported(ctr_native -Wfree-labels CTR_HAS_WFREE_LABELS)
@@ -129,6 +157,9 @@ else()
     endif()
 endif()
 target_link_libraries(ctr_native SDL3::SDL3)
+if(ANDROID)
+    target_link_libraries(ctr_native log)
+endif()
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native PRIVATE -static-libgcc)
 endif()
@@ -137,7 +168,7 @@ if(MINGW)
 endif()
 
 include(CTest)
-if(BUILD_TESTING)
+if(BUILD_TESTING AND NOT ANDROID)
     add_test(NAME ctr_native_version COMMAND $<TARGET_FILE:ctr_native> --version)
     set_tests_properties(ctr_native_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native ")
 endif()

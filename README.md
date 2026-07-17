@@ -1,14 +1,6 @@
 # CTR Native
 
-A native PC port of Crash Team Racing (PS1, 1999), built on top of the [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) decompilation project.
-
-## Philosophy
-
-- **No byte budget.** Game source lives in `game/` as our own copies. Edit freely.
-- **No PSX toolchain.** Targets Windows and Linux with SDL3. No MIPS compiler needed.
-- **Clean platform layer.** `main.c` owns process startup; host details stay in `platform/native_*`.
-- **No build system nonsense.** Just `build.bat` / `build.sh`.
-- **Fully static build.** Single executable, zero dependencies. SDL3 is compiled from vendored source and linked statically.
+A native port of Crash Team Racing (PS1, 1999), built on top of the [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) decompilation project.
 
 ## Directory Layout
 
@@ -19,8 +11,10 @@ ctr_native/
   build-msvc.bat      Windows build (MSVC x86)
   build.bat           Windows build (MinGW i686)
   build.sh            Linux build
+  android/            Android Gradle project and launcher
   CMakePresets.json   Shared CLion/command-line CMake configurations
   README.md           This file
+  README_ANDROID.md   Android build and setup guide
   game/               Our copies of all decompiled game source (943 files)
     game_unity.h      Ordered unity include chain for all game source files
   include/            Project headers (structs, globals, declarations, platform facade)
@@ -60,6 +54,11 @@ sudo apt install gcc-multilib
 sudo apt install libx11-dev libxext-dev libgl1-mesa-dev libasound2-dev libudev-dev libdbus-1-dev
 ```
 
+### Android
+
+See [README_ANDROID.md](README_ANDROID.md). Android currently builds 32-bit
+`armeabi-v7a` and `x86` APKs and requires an OpenGL ES 3 capable device.
+
 ## Building
 
 ```
@@ -67,6 +66,13 @@ build-msvc.bat       # Windows, MSVC x86 (recommended)
 build.bat            # Windows, MinGW i686
 chmod +x build.sh
 ./build.sh           # Linux
+```
+
+For Android:
+
+```
+cd android
+./gradlew assembleDebug
 ```
 
 The shared CMake presets can also be used directly or selected as CLion CMake profiles:
@@ -84,6 +90,7 @@ Output:
 - MSVC: `build-msvc-x86/Release/ctr_native.exe`
 - MinGW: `build/ctr_native.exe`
 - Linux: `build/ctr_native`
+- Android: `android/app/build/outputs/apk/debug/app-debug.apk`
 
 ### Clean build
 
@@ -99,6 +106,9 @@ rm -rf build/        # Linux: delete cached libraries
 ```
 
 ## Running
+
+Android users select their own raw NTSC-U BIN through the in-app setup screen;
+the app copies it into app-owned storage. See [README_ANDROID.md](README_ANDROID.md).
 
 ### Normal Setup
 
@@ -197,4 +207,5 @@ main.c (entrypoint)
 - [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) — the decompilation project this is built on
 - [PsyCross](https://github.com/OpenDriver2/PsyCross) — original PS1 compatibility code from which parts of CTR Native's owned platform layer and PsyQ facade headers are derived
 - [SDL3](https://github.com/libsdl-org/SDL) — cross-platform multimedia
+- [Simon Butt](https://github.com/Simon358) — initial Android port contribution
 - Crash Team Racing is a trademark of Sony Computer Entertainment / Naughty Dog

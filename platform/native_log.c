@@ -6,6 +6,17 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define NATIVE_LOG_INFO  ANDROID_LOG_INFO
+#define NATIVE_LOG_WARN  ANDROID_LOG_WARN
+#define NATIVE_LOG_ERROR ANDROID_LOG_ERROR
+#else
+#define NATIVE_LOG_INFO  0
+#define NATIVE_LOG_WARN  0
+#define NATIVE_LOG_ERROR 0
+#endif
+
 #ifdef _WIN32
 #include "platform/native_win32.h"
 #endif
@@ -13,9 +24,15 @@
 global_variable FILE *s_logStream = NULL;
 global_variable char s_logPath[512]; // TODO(aalhendi): yeah this is an issue waiting to happen. w/e
 
-internal void Platform_LogWrite(FILE *consoleStream, const char *text)
+internal void Platform_LogWrite(FILE *consoleStream, int priority, const char *text)
 {
 	FILE *stream = (consoleStream != NULL) ? consoleStream : stdout;
+
+#ifdef __ANDROID__
+	__android_log_write(priority, "CTR-Native", text);
+#else
+	(void)priority;
+#endif
 
 #ifdef _WIN32
 	OutputDebugStringA(text);
@@ -30,7 +47,7 @@ internal void Platform_LogWrite(FILE *consoleStream, const char *text)
 	}
 }
 
-internal void Platform_LogV(FILE *consoleStream, const char *fmt, va_list args)
+internal void Platform_LogV(FILE *consoleStream, int priority, const char *fmt, va_list args)
 {
 	char text[4096];
 	int written = vsnprintf(text, sizeof(text), fmt, args);
@@ -41,7 +58,7 @@ internal void Platform_LogV(FILE *consoleStream, const char *fmt, va_list args)
 	}
 
 	text[sizeof(text) - 1] = '\0';
-	Platform_LogWrite(consoleStream, text);
+	Platform_LogWrite(consoleStream, priority, text);
 }
 
 int Platform_LogSetPath(const char *path)
@@ -122,7 +139,7 @@ void Platform_Log(const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	Platform_LogV(stdout, fmt, args);
+	Platform_LogV(stdout, NATIVE_LOG_INFO, fmt, args);
 	va_end(args);
 }
 
@@ -131,7 +148,7 @@ void Platform_LogWarn(const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	Platform_LogV(stdout, fmt, args);
+	Platform_LogV(stdout, NATIVE_LOG_WARN, fmt, args);
 	va_end(args);
 }
 
@@ -140,6 +157,6 @@ void Platform_LogError(const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	Platform_LogV(stderr, fmt, args);
+	Platform_LogV(stderr, NATIVE_LOG_ERROR, fmt, args);
 	va_end(args);
 }
