@@ -470,6 +470,17 @@ internal int NativeAssets_BaseHasRequiredFile(NativeStr8 baseDir)
 	char assetsDir[NATIVE_ASSETS_PATH_MAX];
 	char path[NATIVE_ASSETS_PATH_MAX];
 
+	// Check if baseDir itself has the files (user picked the 'assets' folder directly)
+	if (NativeAssets_FindHostChildCaseInsensitive(baseDir, NATIVE_STR8_LIT(NATIVE_ASSETS_BIGFILE_PATH), path, sizeof(path)))
+	{
+		if (NativeAssets_FileExistsHost(path)) return 1;
+	}
+	if (NativeAssets_FindHostChildCaseInsensitive(baseDir, NATIVE_STR8_LIT(NATIVE_ASSETS_DISC_PATH), path, sizeof(path)))
+	{
+		if (NativeAssets_FileExistsHost(path)) return 1;
+	}
+
+	// Check if baseDir has an 'assets' subfolder
 	if (!NativeAssets_FindAssetsDir(baseDir, assetsDir, sizeof(assetsDir)))
 	{
 		return 0;
@@ -506,6 +517,7 @@ internal int NativeAssets_BaseHasRequiredFile(NativeStr8 baseDir)
 internal int NativeAssets_SetBaseDir(NativeStr8 baseDir)
 {
 	char assetsDir[NATIVE_ASSETS_PATH_MAX];
+	char path[NATIVE_ASSETS_PATH_MAX];
 
 	baseDir = NativePath_TrimTrailingSeparators(baseDir);
 	if (!NativePath_NormalizeSlashes(s_nativeAssetsBaseDir, sizeof(s_nativeAssetsBaseDir), baseDir))
@@ -513,17 +525,29 @@ internal int NativeAssets_SetBaseDir(NativeStr8 baseDir)
 		return 0;
 	}
 
-	if (!NativeAssets_FindAssetsDir(NativeStr8_FromCString(s_nativeAssetsBaseDir), assetsDir, sizeof(assetsDir)))
+	// If the baseDir already contains BIGFILE.BIG, use it directly as the assets dir
+	if (NativeAssets_FindHostChildCaseInsensitive(baseDir, NATIVE_STR8_LIT(NATIVE_ASSETS_BIGFILE_PATH), path, sizeof(path)) ||
+		NativeAssets_FindHostChildCaseInsensitive(baseDir, NATIVE_STR8_LIT(NATIVE_ASSETS_DISC_PATH), path, sizeof(path)))
+	{
+		strncpy(s_nativeAssetsDir, s_nativeAssetsBaseDir, sizeof(s_nativeAssetsDir));
+	}
+	else if (!NativeAssets_FindAssetsDir(NativeStr8_FromCString(s_nativeAssetsBaseDir), assetsDir, sizeof(assetsDir)))
 	{
 		if (!NativePath_Join(assetsDir, sizeof(assetsDir), NativeStr8_FromCString(s_nativeAssetsBaseDir), NATIVE_STR8_LIT(NATIVE_ASSETS_DIR_NAME)))
 		{
 			return 0;
 		}
+		if (!NativePath_NormalizeSlashes(s_nativeAssetsDir, sizeof(s_nativeAssetsDir), NativeStr8_FromCString(assetsDir)))
+		{
+			return 0;
+		}
 	}
-
-	if (!NativePath_NormalizeSlashes(s_nativeAssetsDir, sizeof(s_nativeAssetsDir), NativeStr8_FromCString(assetsDir)))
+	else
 	{
-		return 0;
+		if (!NativePath_NormalizeSlashes(s_nativeAssetsDir, sizeof(s_nativeAssetsDir), NativeStr8_FromCString(assetsDir)))
+		{
+			return 0;
+		}
 	}
 
 	NativeDiscImage_Init(s_nativeAssetsDir);
@@ -537,6 +561,20 @@ int NativeAssets_Init(const char *executableBasePath)
 	char parentDir[NATIVE_ASSETS_PATH_MAX];
 	char grandparentDir[NATIVE_ASSETS_PATH_MAX];
 	NativeStr8 exeDir;
+
+#ifdef __ANDROID__
+	char *storedPath = Platform_Android_GetStoredPath();
+	if (storedPath != NULL)
+	{
+		if (NativeAssets_BaseHasRequiredFile(NativeStr8_FromCString(storedPath)))
+		{
+			int result = NativeAssets_SetBaseDir(NativeStr8_FromCString(storedPath));
+			SDL_free(storedPath);
+			return result;
+		}
+		SDL_free(storedPath);
+	}
+#endif
 
 	if ((executableBasePath == NULL) || (executableBasePath[0] == '\0'))
 	{
@@ -752,14 +790,14 @@ void NativeAssets_FreeBytes(struct NativeAssetsByteBuffer *bytes)
 
 internal void NativeAssets_PrintHeader(void)
 {
-	fprintf(stderr, "[CTR Native] Missing or incomplete assets.\n");
-	fprintf(stderr, "[CTR Native] Expected NTSC-U retail assets under: %s\n", NativeAssets_GetAssetDir());
+	Platform_LogError("[CTR Native] Missing or incomplete assets.\n");
+	Platform_LogError("[CTR Native] Expected NTSC-U retail assets under: %s\n", NativeAssets_GetAssetDir());
 }
 
 internal void NativeAssets_PrintFooter(void)
 {
-	fprintf(stderr, "[CTR Native] Provide either raw NTSC-U disc image %s, or extracted files:\n", NATIVE_ASSETS_DISC_PATH);
-	fprintf(stderr, "[CTR Native]   %s, %s, %s, %s, plus XA files referenced by %s\n", NATIVE_ASSETS_BIGFILE_PATH, NATIVE_ASSETS_KART_HWL_PATH,
+	Platform_LogError("[CTR Native] Provide either raw NTSC-U disc image %s, or extracted files:\n", NATIVE_ASSETS_DISC_PATH);
+	Platform_LogError("[CTR Native]   %s, %s, %s, %s, plus XA files referenced by %s\n", NATIVE_ASSETS_BIGFILE_PATH, NATIVE_ASSETS_KART_HWL_PATH,
 	        NATIVE_ASSETS_TEST_STR_PATH, NATIVE_ASSETS_XNF_PATH, NATIVE_ASSETS_XNF_PATH);
 }
 
@@ -770,7 +808,7 @@ internal int NativeAssets_CheckRequiredFile(const char *path)
 
 	if (!NativeAssets_BuildPath(path, assetPath, sizeof(assetPath)))
 	{
-		fprintf(stderr, "[CTR Native] asset path too long: %s\n", path);
+		Platform_LogError("[CTR Native] asset path too long: %s\n", path);
 		return 0;
 	}
 
@@ -784,7 +822,7 @@ internal int NativeAssets_CheckRequiredFile(const char *path)
 		return 1;
 	}
 
-	fprintf(stderr, "[CTR Native] missing asset: %s\n", assetPath);
+	Platform_LogError("[CTR Native] missing asset: %s\n", assetPath);
 	return 0;
 }
 
@@ -815,7 +853,7 @@ internal int NativeAssets_ValidateXA(void)
 	    (NativeAssets_ReadLE32(&xnf.data[8]) != NATIVE_ASSETS_XA_TYPE_COUNT))
 	{
 		NativeAssets_FreeBytes(&xnf);
-		fprintf(stderr, "[CTR Native] invalid XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
+		Platform_LogError("[CTR Native] invalid XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 
@@ -827,7 +865,7 @@ internal int NativeAssets_ValidateXA(void)
 	if ((entryEnd < entryOffset) || (entryEnd > (u32)xnf.size))
 	{
 		NativeAssets_FreeBytes(&xnf);
-		fprintf(stderr, "[CTR Native] invalid XA entry table: %s\n", NATIVE_ASSETS_XNF_PATH);
+		Platform_LogError("[CTR Native] invalid XA entry table: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 
@@ -840,7 +878,7 @@ internal int NativeAssets_ValidateXA(void)
 		if ((firstSongIndex > numTracksTotal) || (numSongs > numTracksTotal) || (firstSongIndex + numSongs > numTracksTotal))
 		{
 			NativeAssets_FreeBytes(&xnf);
-			fprintf(stderr, "[CTR Native] invalid XA song range in %s\n", NATIVE_ASSETS_XNF_PATH);
+			Platform_LogError("[CTR Native] invalid XA song range in %s\n", NATIVE_ASSETS_XNF_PATH);
 			return 0;
 		}
 
@@ -872,14 +910,14 @@ internal int NativeAssets_ValidateXA(void)
 			written = snprintf(relativePath, sizeof(relativePath), "%s/S%02u.XA", xaDirs[categoryID], (unsigned int)fileNumber);
 			if ((written <= 0) || ((size_t)written >= sizeof(relativePath)) || !NativeAssets_BuildPath(relativePath, path, sizeof(path)))
 			{
-				fprintf(stderr, "[CTR Native] XA asset path too long: %s/S%02u.XA\n", xaDirs[categoryID], (unsigned int)fileNumber);
+				Platform_LogError("[CTR Native] XA asset path too long: %s/S%02u.XA\n", xaDirs[categoryID], (unsigned int)fileNumber);
 				missing++;
 				continue;
 			}
 
 			if (!NativeAssets_ResolvePath(relativePath, path, sizeof(path)) && !NativeDiscImage_FindFile(relativePath, &discFile))
 			{
-				fprintf(stderr, "[CTR Native] missing XA asset: %s\n", path);
+				Platform_LogError("[CTR Native] missing XA asset: %s\n", path);
 				missing++;
 			}
 		}

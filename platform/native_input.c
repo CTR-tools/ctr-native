@@ -1,6 +1,15 @@
 #include <platform/native_input.h>
 
 #include <macros.h>
+
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOG_TAG "CTRNativeInput"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#else
+#define LOGI(...)
+#endif
+
 #include "psx/libpad.h"
 
 #include <SDL3/SDL.h>
@@ -98,6 +107,7 @@ global_variable u8 *s_padSlotData[NATIVE_INPUT_PHYSICAL_SLOT_COUNT];
 global_variable const bool *s_keyboardState;
 global_variable s32 s_inputInitialized;
 global_variable s32 s_installedSnapshotsActive;
+global_variable u16 s_touchButtons = 0xffff;
 global_variable s32 s_keyboardControllerSlot = NATIVE_INPUT_DEFAULT_KEYBOARD_SLOT;
 global_variable s32 s_lastActiveControllerSlot = -1;
 
@@ -732,6 +742,60 @@ internal void NativeInput_OpenKnownControllers(void)
 	SDL_free(gamepads);
 }
 
+#include <SDL3/SDL_system.h>
+
+internal void NativeInput_AndroidVibrate(int device_id, float low, float high, int len)
+{
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    if (!env) {
+        LOGI("NativeInput_AndroidVibrate: JNIEnv is NULL");
+        return;
+    }
+
+    jclass cls = (*env)->FindClass(env, "org/libsdl/app/SDLControllerManager");
+    if (!cls) {
+        LOGI("NativeInput_AndroidVibrate: Could not find SDLControllerManager class");
+        (*env)->ExceptionClear(env);
+        return;
+    }
+
+    jmethodID mid = (*env)->GetStaticMethodID(env, cls, "hapticRumble", "(IFFI)V");
+    if (mid) {
+        LOGI("NativeInput_AndroidVibrate: Calling hapticRumble via JNI");
+        (*env)->CallStaticVoidMethod(env, cls, mid, device_id, low, high, len);
+    } else {
+        LOGI("NativeInput_AndroidVibrate: Could not find hapticRumble method");
+        (*env)->ExceptionClear(env);
+    }
+    (*env)->DeleteLocalRef(env, cls);
+}
+
+internal void NativeInput_AndroidPollHaptics(void)
+{
+    JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+    if (!env) {
+        LOGI("NativeInput_AndroidPollHaptics: JNIEnv is NULL");
+        return;
+    }
+
+    jclass cls = (*env)->FindClass(env, "org/libsdl/app/SDLControllerManager");
+    if (!cls) {
+        LOGI("NativeInput_AndroidPollHaptics: Could not find SDLControllerManager class");
+        (*env)->ExceptionClear(env);
+        return;
+    }
+
+    jmethodID mid = (*env)->GetStaticMethodID(env, cls, "pollHapticDevices", "()V");
+    if (mid) {
+        LOGI("NativeInput_AndroidPollHaptics: Calling pollHapticDevices via JNI");
+        (*env)->CallStaticVoidMethod(env, cls, mid);
+    } else {
+        LOGI("NativeInput_AndroidPollHaptics: Could not find pollHapticDevices method");
+        (*env)->ExceptionClear(env);
+    }
+    (*env)->DeleteLocalRef(env, cls);
+}
+
 int Platform_InputInit(void)
 {
 	s32 slot;
@@ -761,6 +825,9 @@ int Platform_InputInit(void)
 		fprintf(stderr, "[CTR Native] Failed to initialise SDL input subsystem: %s\n", SDL_GetError());
 		return 0;
 	}
+
+    // Force SDL to discover the Android system vibrator
+    NativeInput_AndroidPollHaptics();
 
 	SDL_AddGamepadMappingsFromFile("gamecontrollerdb.txt");
 	NativeInput_OpenKnownControllers();
@@ -822,6 +889,10 @@ void Platform_InputUpdate(void)
 		NativeInput_ResetSnapshot(slot);
 		NativeInput_ApplyController(slot);
 		NativeInput_ApplyKeyboard(slot, keyboardButtons);
+		if (slot == 0) {
+			u16 buttons = NativeInput_GetSnapshotButtons(&s_controllers[slot].snapshot);
+			NativeInput_SetSnapshotButtons(&s_controllers[slot].snapshot, buttons & s_touchButtons);
+		}
 	}
 	NativeInput_WritePadBus();
 }
@@ -854,6 +925,28 @@ void Platform_InputControllerRemoved(int instanceId)
 			return;
 		}
 	}
+}
+
+int Platform_InputGetGamepadCount(void)
+{
+	s32 count = 0;
+	s32 slot;
+
+	for (slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		if (s_controllers[slot].controller != NULL)
+		{
+			count++;
+		}
+	}
+
+	return count;
+}
+
+void Platform_InputApplyTouchButtons(int slot, u16 buttons)
+{
+	(void)slot;
+	s_touchButtons = buttons;
 }
 
 int Platform_InputCycleKeyboardController(void)
@@ -1086,23 +1179,43 @@ void Platform_InputPadVibrate(int port, unsigned char *table, int len)
 	}
 
 	controller = &s_controllers[slot];
-	if (controller->controller == NULL)
+
+    LOGI("Vibrate request: port=%d, slot=%d, table[0]=%d, table[1]=%d, controller=%p",
+         port, slot, table[0], table[1], (void*)controller->controller);
+
+    if (table[0] == 0 && table[1] == 0) {
+        return;
+    }
+
+	freqHigh = table[0] ? (table[0] * 128) : 0;
+	freqLow = len > 1 ? (table[1] * 128) : 0;
+
+	if ((freqLow != 0) && (freqLow < 2048))
 	{
-		return;
+		freqLow = 2048;
 	}
 
-	freqHigh = table[0] * 255;
-	freqLow = len > 1 ? table[1] * 255 : 0;
-
-	if ((freqLow != 0) && (freqLow < 4096))
+	if (controller->controller != NULL)
 	{
-		freqLow = 4096;
+        bool hasRumble = SDL_GetBooleanProperty(SDL_GetGamepadProperties(controller->controller), SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false);
+        if (hasRumble)
+        {
+            LOGI("SDL_RumbleGamepad: low=%d, high=%d (orig: 0:%d, 1:%d)", freqLow, freqHigh, table[0], table[1]);
+            SDL_RumbleGamepad(controller->controller, freqLow, freqHigh, 32);
+            return;
+        }
+        else
+        {
+            LOGI("Controller connected but lacks rumble support. Falling back to device vibrator.");
+        }
 	}
 
-	if ((freqHigh != 0) && (freqHigh < 4096))
-	{
-		freqHigh = 4096;
-	}
-
-	SDL_RumbleGamepad(controller->controller, freqLow, freqHigh, 200);
+    if (slot == 0)
+    {
+        // Fallback to phone vibrator for player 1 (touch controls or non-rumble controller)
+        float highInt = (float)freqHigh / 65535.0f;
+        float lowInt = (float)freqLow / 65535.0f;
+        LOGI("Fallback to Android_JNI_HapticRumble: low=%.2f, high=%.2f", lowInt, highInt);
+        NativeInput_AndroidVibrate(999999, lowInt, highInt, 32);
+    }
 }

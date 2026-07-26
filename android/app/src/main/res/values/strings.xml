@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">CTR Native</string>
+    <string name="setup_instructions">Select your NTSC-U raw BIN disc image. It will be copied into CTR Native\'s app storage; the original file is not changed.</string>
+    <string name="setup_no_disc">No disc image has been imported.</string>
+    <string name="setup_invalid_disc">The imported disc image is not a supported raw NTSC-U image.</string>
+    <string name="setup_select_disc">Select disc image</string>
+    <string name="setup_replace_disc">Replace disc image</string>
+    <string name="setup_importing_disc">Importing disc image&#8230;</string>
+    <string name="setup_import_progress">Importing disc image: %1$d%%</string>
+    <string name="setup_starting_game">Starting CTR Native&#8230;</string>
+    <string name="setup_select_another_disc">Select another disc image</string>
+</resources>

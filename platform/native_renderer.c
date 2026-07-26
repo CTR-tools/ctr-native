@@ -15,6 +15,7 @@
 #include "platform/native_renderer.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -96,6 +97,11 @@ struct NativeVramState
 
 global_variable struct NativeVramState s_vram;
 
+#if defined(__ANDROID__)
+global_variable u8 *s_vramReadbackScratch;
+global_variable size_t s_vramReadbackScratchCapacity;
+#endif
+
 struct NativeRenderTarget
 {
 	TextureID texture;
@@ -173,11 +179,25 @@ global_variable GLuint s_glVramFramebuffer;
 internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen)
 {
 	SDL_WindowFlags windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+	int major_version = 3;
+#if defined(__ANDROID__)
+	int minor_version = 0;
+	int profile = SDL_GL_CONTEXT_PROFILE_ES;
+#else
+	int minor_version = 3;
+	int profile = SDL_GL_CONTEXT_PROFILE_CORE;
+#endif
 
 	if (fullscreen)
 	{
 		windowFlags |= SDL_WINDOW_FULLSCREEN;
 	}
+
+#if defined(__ANDROID__)
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major_version);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor_version);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, profile);
+#endif
 
 	g_window = SDL_CreateWindow(windowName, g_windowWidth, g_windowHeight, windowFlags);
 
@@ -186,10 +206,6 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 		NATIVE_RENDERER_ERROR("%s\n", "Failed to initialise SDL window!");
 		return 0;
 	}
-
-	int major_version = 3;
-	int minor_version = 3;
-	int profile = SDL_GL_CONTEXT_PROFILE_CORE;
 
 	// find best OpenGL version
 	do
@@ -209,7 +225,11 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 
 	if (minor_version == -1)
 	{
+#if defined(__ANDROID__)
+		NATIVE_RENDERER_ERROR("%s\n", "Failed to initialise - OpenGL ES 3.0 is not supported.");
+#else
 		NATIVE_RENDERER_ERROR("%s\n", "Failed to initialise - OpenGL 3.x is not supported. Please update video drivers.");
+#endif
 		return 0;
 	}
 
@@ -218,12 +238,24 @@ internal int NativeRenderer_InitialiseGLContext(char *windowName, int fullscreen
 
 internal int NativeRenderer_InitialiseGLExt(void)
 {
+#if defined(__ANDROID__)
+	const int err = gladLoadGLES2Loader((GLADloadproc)SDL_GL_GetProcAddress);
+#else
 	GLenum err = gladLoadGL();
+#endif
 
 	if (err == 0)
 	{
 		return 0;
 	}
+
+#if defined(__ANDROID__)
+	if ((glBindVertexArray == NULL) || (glDeleteVertexArrays == NULL) || (glGenVertexArrays == NULL))
+	{
+		NATIVE_RENDERER_ERROR("%s\n", "OpenGL ES 3.0 vertex-array functions are unavailable.");
+		return 0;
+	}
+#endif
 
 	const char *rend = (const char *)glGetString(GL_RENDERER);
 	const char *vendor = (const char *)glGetString(GL_VENDOR);
@@ -282,6 +314,12 @@ void NativeRenderer_Shutdown(void)
 	glDeleteProgram(s_presentVramShader);
 	glDeleteVertexArrays(1, &s_vramQuadVAO);
 	glDeleteBuffers(1, &s_vramQuadVBO);
+
+#if defined(__ANDROID__)
+	free(s_vramReadbackScratch);
+	s_vramReadbackScratch = NULL;
+	s_vramReadbackScratchCapacity = 0;
+#endif
 }
 
 #if defined(CTR_INTERNAL)
@@ -295,10 +333,10 @@ internal void NativeRenderer_ResolveGpuMeasurements(b32 waitForResults)
 			continue;
 		}
 
-		GLint available = 0;
+		GLuint available = 0;
 		if (!waitForResults)
 		{
-			glGetQueryObjectiv(query->id, GL_QUERY_RESULT_AVAILABLE, &available);
+			glGetQueryObjectuiv(query->id, GL_QUERY_RESULT_AVAILABLE, &available);
 			if (!available)
 			{
 				continue;
@@ -920,6 +958,21 @@ internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program)
 
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader)
 {
+#if defined(__ANDROID__)
+	const char *GLSL_HEADER_VERT = "#version 300 es\n"
+	                               "precision highp int;\n"
+	                               "precision highp float;\n"
+	                               "#define varying   out\n"
+	                               "#define attribute in\n"
+	                               "#define texture2D texture\n";
+
+	const char *GLSL_HEADER_FRAG = "#version 300 es\n"
+	                               "precision highp int;\n"
+	                               "precision highp float;\n"
+	                               "#define varying     in\n"
+	                               "#define texture2D   texture\n"
+	                               "out vec4 fragColor;\n";
+#else
 	const char *GLSL_HEADER_VERT = "	#version 140\n"
 	                               "	precision lowp  int;\n"
 	                               "	precision highp float;\n"
@@ -933,6 +986,7 @@ internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxSh
 	                               "	#define varying     in\n"
 	                               "	#define texture2D   texture\n"
 	                               "	out vec4 fragColor;\n";
+#endif
 
 	char extra_vs_defines[1024];
 	char extra_fs_defines[1024];
@@ -1172,6 +1226,9 @@ int NativeRenderer_InitialisePSX(void)
 	NativeRenderer_InitVRAMPipelines();
 
 #if defined(CTR_INTERNAL)
+#if defined(__ANDROID__)
+	s_gpuTimerSupported = false;
+#else
 	GLint glMajor = 0;
 	GLint glMinor = 0;
 	glGetIntegerv(GL_MAJOR_VERSION, &glMajor);
@@ -1186,6 +1243,7 @@ int NativeRenderer_InitialisePSX(void)
 			s_gpuTimerQueries[i].id = queryIds[i];
 		}
 	}
+#endif
 #endif
 
 	glDepthFunc(GL_LEQUAL);
@@ -1807,6 +1865,22 @@ internal void NativeRenderer_SyncGpuVRAMToCPU(int x, int y, int w, int h)
 	// is read back, preserving PS1 VRAM command order in the split host mirror.
 	NativeRenderer_UpdateVRAM();
 
+#if defined(__ANDROID__)
+	const size_t readbackSize = (size_t)readRect.w * readRect.h * 4;
+	if (readbackSize > s_vramReadbackScratchCapacity)
+	{
+		u8 *newScratch = realloc(s_vramReadbackScratch, readbackSize);
+		if (newScratch == NULL)
+		{
+			NATIVE_RENDERER_ERROR("Failed to allocate %zu-byte VRAM readback buffer\n", readbackSize);
+			return;
+		}
+
+		s_vramReadbackScratch = newScratch;
+		s_vramReadbackScratchCapacity = readbackSize;
+	}
+#endif
+
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_FRAMEBUFFER_READBACK);
 	GLint previousReadFramebuffer;
 	GLint previousPackRowLength;
@@ -1816,10 +1890,27 @@ internal void NativeRenderer_SyncGpuVRAMToCPU(int x, int y, int w, int h)
 	glGetIntegerv(GL_PACK_ALIGNMENT, &previousPackAlignment);
 
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_glVramFramebuffer);
+#if defined(__ANDROID__)
+	glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glReadPixels(readRect.x, readRect.y, readRect.w, readRect.h, GL_RGBA, GL_UNSIGNED_BYTE, s_vramReadbackScratch);
+
+	for (int row = 0; row < readRect.h; row++)
+	{
+		const u8 *sourceRow = s_vramReadbackScratch + (size_t)row * readRect.w * 4;
+		u16 *destinationRow = s_vram.cpuPixels + (size_t)(readRect.y + row) * VRAM_WIDTH + readRect.x;
+		for (int column = 0; column < readRect.w; column++)
+		{
+			const u8 *sourcePixel = sourceRow + column * 4;
+			destinationRow[column] = (u16)(sourcePixel[0] | ((u16)sourcePixel[1] << 8));
+		}
+	}
+#else
 	glPixelStorei(GL_PACK_ROW_LENGTH, VRAM_WIDTH);
 	glPixelStorei(GL_PACK_ALIGNMENT, sizeof(u16));
 	glReadPixels(readRect.x, readRect.y, readRect.w, readRect.h, VRAM_FORMAT, GL_UNSIGNED_BYTE,
 	             s_vram.cpuPixels + (size_t)readRect.y * VRAM_WIDTH + readRect.x);
+#endif
 
 	for (int tileY = tileY0; tileY <= tileY1; tileY++)
 	{
@@ -2237,7 +2328,11 @@ internal void NativeRenderer_SetViewPort(int x, int y, int width, int height)
 
 internal void NativeRenderer_SetWireframe(int enable)
 {
+#if defined(__ANDROID__)
+	(void)enable;
+#else
 	glPolygonMode(GL_FRONT_AND_BACK, enable ? GL_LINE : GL_FILL);
+#endif
 }
 
 void NativeRenderer_UpdateVertexBuffer(const GrVertex *vertices, int num_vertices)
@@ -2267,11 +2362,19 @@ void NativeRenderer_DrawTriangles(int start_vertex, int triangles)
 
 void NativeRenderer_PushDebugLabel(const char *label)
 {
-	if (!GLAD_GL_KHR_debug)
+	if (!GLAD_GL_KHR_debug || (label == NULL))
 	{
 		return;
 	}
-	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0x8000, strlen(label), label);
+
+	if (glad_glPushDebugGroup != NULL)
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0x8000, strlen(label), label);
+	}
+	else if (glad_glPushDebugGroupKHR != NULL)
+	{
+		glPushDebugGroupKHR(GL_DEBUG_SOURCE_APPLICATION_KHR, 0x8000, strlen(label), label);
+	}
 }
 
 void NativeRenderer_PopDebugLabel(void)
@@ -2280,5 +2383,12 @@ void NativeRenderer_PopDebugLabel(void)
 	{
 		return;
 	}
-	glPopDebugGroup();
+	if (glad_glPopDebugGroup != NULL)
+	{
+		glPopDebugGroup();
+	}
+	else if (glad_glPopDebugGroupKHR != NULL)
+	{
+		glPopDebugGroupKHR();
+	}
 }

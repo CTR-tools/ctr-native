@@ -1,5 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
+#if !defined(__ANDROID__)
 #define SDL_MAIN_HANDLED
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -141,33 +143,39 @@ int main(int argc, char *argv[])
 	{
 		if (NativeArg_IsVersion(argv[argIndex]))
 		{
-			printf("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
+			Platform_Log("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
 			return 0;
 		}
 	}
 
-	printf("[CTR Native] Starting...\n");
-	fflush(stdout);
+	Platform_Log("[CTR Native] Starting...\n");
 
-	const char *sdlBasePath = SDL_GetBasePath();
-	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
-	fflush(stdout);
+	const char *sdlBasePath;
+#if defined(__ANDROID__)
+	sdlBasePath = SDL_GetAndroidExternalStoragePath();
+	if (sdlBasePath == NULL)
+	{
+		sdlBasePath = SDL_GetAndroidInternalStoragePath();
+	}
+#else
+	sdlBasePath = SDL_GetBasePath();
+#endif
+	Platform_Log("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 
 	if (!NativeAssets_Init(sdlBasePath))
 	{
-		fprintf(stderr, "[CTR Native] Failed to initialize asset paths.\n");
+		Platform_LogError("[CTR Native] Failed to initialize asset paths.\n");
 		return NativeConsole_Return(1);
 	}
 
-	printf("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
-	printf("[CTR Native] Built with: " CC "\n");
-	printf("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
-	printf("[CTR Native] Assets: %s\n", NativeAssets_GetAssetDir());
-	fflush(stdout);
+	Platform_Log("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
+	Platform_Log("[CTR Native] Built with: " CC "\n");
+	Platform_Log("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
+	Platform_Log("[CTR Native] Assets: %s\n", NativeAssets_GetAssetDir());
 
 	if (chdir(NativeAssets_GetBaseDir()) != 0)
 	{
-		fprintf(stderr, "[CTR Native] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
+		Platform_LogError("[CTR Native] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
 		return NativeConsole_Return(1);
 	}
 
@@ -184,10 +192,10 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef USE_16BY9
-	printf("[CTR Native] Widescreen\n");
+	Platform_Log("[CTR Native] Widescreen\n");
 	Platform_Init("Crash Team Racing", 1280, 720);
 #else
-	printf("[CTR Native] 4:3\n");
+	Platform_Log("[CTR Native] 4:3\n");
 	Platform_Init("Crash Team Racing", 800, 600);
 #endif
 

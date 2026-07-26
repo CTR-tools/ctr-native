@@ -1,21 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
-project(CTR-Native C)
+project(CTR-Native C CXX)
 include(CheckCCompilerFlag)
 
 set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
 
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR
-        "CTR Native currently requires a 32-bit target. "
-        "Select Win32 for MSVC, an i686 MinGW compiler on Windows, or pass -m32 "
-        "in the initial compiler and linker flags on Linux."
-    )
-endif()
-
-set(CTR_NATIVE_MSVC_FRONTEND OFF)
-if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-    set(CTR_NATIVE_MSVC_FRONTEND ON)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+if(NOT ANDROID)
+    if(NOT CMAKE_C_COMPILER_TARGET MATCHES "i.86" AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "i.86")
+        set(CMAKE_C_FLAGS "-m32 ${CMAKE_C_FLAGS}")
+        set(CMAKE_EXE_LINKER_FLAGS "-m32 ${CMAKE_EXE_LINKER_FLAGS}")
+    endif()
 endif()
 
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
@@ -45,6 +38,11 @@ else()
     set(CTR_NATIVE_BUILD_ID "${CTR_NATIVE_GIT_HASH}-dirty")
 endif()
 
+if(NOT ANDROID)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse")
+endif()
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error -g")
+
 function(ctr_native_add_label_warning_if_supported target warning flag_check)
     set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
     if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -60,21 +58,25 @@ function(ctr_native_add_label_warning_if_supported target warning flag_check)
 endfunction()
 
 # SDL3
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_SHARED ON CACHE BOOL "" FORCE)
+set(SDL_STATIC OFF CACHE BOOL "" FORCE)
 set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
 set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_GPU OFF CACHE BOOL "" FORCE)
-set(SDL_RENDER OFF CACHE BOOL "" FORCE)
+set(SDL_RENDER ON CACHE BOOL "" FORCE)
 set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
-set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
+set(SDL_SENSOR ON CACHE BOOL "" FORCE)
 set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
 set(SDL_TRAY OFF CACHE BOOL "" FORCE)
-set(SDL_POWER OFF CACHE BOOL "" FORCE)
+set(SDL_POWER ON CACHE BOOL "" FORCE)
 set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
-set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+if(ANDROID)
+    set(SDL_OPENGLES ON CACHE BOOL "" FORCE)
+else()
+    set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
+endif()
 set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO OFF CACHE BOOL "" FORCE)
 set(SDL_SNDIO_SHARED OFF CACHE BOOL "" FORCE)
@@ -83,13 +85,12 @@ set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
 # CTR Native
-add_executable(ctr_native main.c)
-set_target_properties(ctr_native PROPERTIES
-    C_STANDARD 17
-    C_STANDARD_REQUIRED ON
-    C_EXTENSIONS OFF
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-)
+if(ANDROID)
+    add_library(ctr_native SHARED main.c)
+else()
+    add_executable(ctr_native main.c)
+endif()
+set_target_properties(ctr_native PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE
@@ -110,8 +111,10 @@ if(CTR_NATIVE_MSVC_FRONTEND)
         /wd5287
     )
 else()
+    if(NOT ANDROID)
+        target_compile_options(ctr_native PRIVATE -msse)
+    endif()
     target_compile_options(ctr_native PRIVATE
-        -msse
         -Wenum-conversion
         -Wenum-compare
         -Wswitch-enum
@@ -132,7 +135,12 @@ target_link_libraries(ctr_native SDL3::SDL3)
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native PRIVATE -static-libgcc)
 endif()
-if(MINGW)
+target_link_libraries(ctr_native SDL3::SDL3)
+if(ANDROID)
+    target_link_libraries(ctr_native log GLESv2 android)
+endif()
+target_link_options(ctr_native PRIVATE -static-libgcc)
+if(WIN32)
     target_link_options(ctr_native PRIVATE -static)
 endif()
 
