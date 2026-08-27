@@ -8,6 +8,8 @@ static const s32 s_warpballFadeY[6] = {
     -64, -256, -87, 57, 167, 228,
 };
 
+u16 store_wheelsize = 0;
+
 // NOTE(aalhendi): Native uses retail fade scale/Y table bytes from 0x800b2c88 and 0x800b2cac.
 void RB_Warpball_FadeAway(struct Thread *t)
 {
@@ -56,13 +58,27 @@ void RB_Warpball_FadeAway(struct Thread *t)
 void RB_Warpball_Death(struct Thread *t)
 {
 	struct TrackerWeapon *tw;
+	struct Instance *inst;
+	struct Driver *d;
 
 	tw = t->object;
+	inst = t->inst;
+
+	d = tw->driverParent;
+
+	s16 exitDir = tw->dir.x;
+
+	d->forwardDir = exitDir;
+    d->jump_ForcedMS = 600;
+    d->jump_InitialVelY = d->const_JumpForce * 3;
+	VehFire_Increment(tw->driverParent, VEH_PHYS_PROC_SUPER_ENGINE_RESERVES, (TURBO_PAD | SUPER_ENGINE), 128);
+	d->wheelSize = store_wheelsize;
+	d->invisibleTimer = 0;
+
 	tw->ptrParticle->framesLeftInLife = 0;
 	tw->fadeFrame = 0;
 
 	// play sound of warpball death
-	struct Instance *inst = t->inst;
 	tw->distFromGround = inst->matrix.t[1];
 	PlaySound3D(0x4f, inst);
 
@@ -129,182 +145,39 @@ struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct
 
 void RB_Warpball_Start(struct TrackerWeapon *tw)
 {
+	//tw->driverTarget = tw->driverParent;
+	store_wheelsize = tw->driverParent->wheelSize;
+
+	tw->orbTimeAlive = 0;
 	tw->ptrNodeCurr = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
 	tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
 	return;
 }
 
-struct Driver *RB_Warpball_GetDriverTarget(struct TrackerWeapon *tw, struct Instance *inst)
+static const s16 s_warpballParticleHeight = 0xff;
+
+static void RB_Warpball_AdvanceStraight(struct TrackerWeapon *tw, struct Instance *inst, int elapsedTime)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	struct Driver *bestDriver = NULL;
-
-	if ((tw->flags & TRACKER_FLAG_POWERED_UP) == 0)
-	{
-		for (int i = 0; i < 8; i++)
-		{
-			struct Driver *driver = gGT->driversInRaceOrder[i];
-
-			if ((driver != NULL) && (driver != tw->driverParent) && ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0))
-			{
-				return driver;
-			}
-		}
-
-		return bestDriver;
-	}
-
-	struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-	struct CheckpointNode *node1 = &nodes[tw->ptrNodeCurr->nextIndex_forward];
-	struct CheckpointNode *node2 = &nodes[node1->nextIndex_forward];
-	int trackDistance = nodes[0].distToFinish << 3;
-	SVec3 pathVector;
-	SVec3 orbVector;
-	s32 projectedDistance;
-	int bestDistance = 0x7fffffff;
-
-	pathVector.x = (s16)(node1->pos.x - node2->pos.x);
-	pathVector.y = (s16)(node1->pos.y - node2->pos.y);
-	pathVector.z = (s16)(node1->pos.z - node2->pos.z);
-	MATH_VectorNormalize(&pathVector);
-
-	orbVector.x = (s16)(inst->matrix.t[0] - node1->pos.x);
-	orbVector.y = (s16)(inst->matrix.t[1] - node1->pos.y);
-	orbVector.z = (s16)(inst->matrix.t[2] - node1->pos.z);
-
-	// NOTE(aalhendi): Retail uses GTE MVMVA MAC1; this is the same row0 dot product.
-	projectedDistance = ((s32)pathVector.x * orbVector.x) + ((s32)pathVector.y * orbVector.y) + ((s32)pathVector.z * orbVector.z);
-
-	projectedDistance = ((node1->distToFinish << 3) + (projectedDistance >> 12) + 0x200) % trackDistance;
-
-	for (int i = 0; i < 8; i++)
-	{
-		struct Driver *driver = gGT->drivers[i];
-
-		if ((driver != NULL) && ((tw->driversHit & (1u << (i & 0x1f))) == 0) && ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) &&
-		    (driver->kartState != KS_MASK_GRABBED))
-		{
-			int distance = projectedDistance - driver->distanceToFinish_curr;
-
-			if (distance < 0)
-			{
-				distance += trackDistance;
-			}
-
-			if (distance < bestDistance)
-			{
-				bestDistance = distance;
-				bestDriver = driver;
-			}
-		}
-	}
-
-	return bestDriver;
+	inst->matrix.t[0] += ((int)tw->vel.x * elapsedTime) >> 5;
+	inst->matrix.t[1] += ((int)tw->vel.y * elapsedTime) >> 5;
+	inst->matrix.t[2] += ((int)tw->vel.z * elapsedTime) >> 5;
 }
 
-void RB_Warpball_SetTargetDriver(struct TrackerWeapon *tw)
+static int RB_Warpball_NodeDeltaLength(struct CheckpointNode *curr, struct CheckpointNode *next, int *dx, int *dy, int *dz)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	struct Driver *target = tw->driverTarget;
+	*dx = next->pos.x - curr->pos.x;
+	*dy = next->pos.y - curr->pos.y;
+	*dz = next->pos.z - curr->pos.z;
 
-	if (target == NULL)
-	{
-		return;
-	}
-
-	struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-	struct CheckpointNode *targetNode = &nodes[target->checkpoint.currentIndex];
-	struct CheckpointNode *prevNode = targetNode;
-	int targetDistance = target->distanceToFinish_curr;
-
-	while ((((int)targetNode->distToFinish << 3) >= targetDistance) && (targetNode != nodes))
-	{
-		prevNode = targetNode;
-		targetNode = RB_Warpball_NewPathNode(targetNode, tw->driverTarget);
-	}
-	targetNode = prevNode;
-
-	struct CheckpointNode *rightPathNode = NULL;
-
-	if ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) == 0)
-	{
-		struct CheckpointNode *pathStarts[2];
-
-		pathStarts[0] = tw->ptrNodeCurr;
-		pathStarts[1] = rightPathNode;
-
-		for (int i = 0; (i < 2) && ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) == 0); i++)
-		{
-			struct CheckpointNode *pathNode = pathStarts[i];
-
-			if (pathNode == NULL)
-			{
-				continue;
-			}
-
-			for (int j = 0; j < 3; j++)
-			{
-				if (pathNode == targetNode)
-				{
-					tw->flags = (tw->flags & ~TRACKER_FLAG_WARPBALL_FALLBACK_PATH) | TRACKER_FLAG_WARPBALL_TARGET_PATH;
-					break;
-				}
-
-				if (pathNode->nextIndex_right != 0xff)
-				{
-					rightPathNode = &nodes[pathNode->nextIndex_right];
-					pathStarts[1] = rightPathNode;
-				}
-
-				pathNode = &nodes[pathNode->nextIndex_backward];
-			}
-		}
-	}
-
-	struct CheckpointNode *pathNode = tw->ptrNodeCurr;
-
-	for (int i = 0; i < 3; i++)
-	{
-		if (pathNode == targetNode)
-		{
-			tw->flags = (tw->flags & ~TRACKER_FLAG_WARPBALL_FALLBACK_PATH) | TRACKER_FLAG_WARPBALL_TARGET_PATH;
-			return;
-		}
-
-		pathNode = RB_Warpball_NewPathNode(pathNode, tw->driverTarget);
-	}
+	return SquareRoot0_stub(((*dx) * (*dx)) + ((*dy) * (*dy)) + ((*dz) * (*dz)));
 }
 
-void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 checkpointIndex, struct Driver *d)
+static void RB_Warpball_SetQuadblockIndex(struct TrackerWeapon *tw, struct ScratchpadStruct *sps)
 {
-	checkpointIndex &= 0xff;
-
-	if (d == 0)
+	if (sps->hit.ptrQuadblock->checkpointIndex != 0xff)
 	{
-		return;
+		tw->nodeNextIndex = sps->hit.ptrQuadblock->checkpointIndex;
 	}
-	if (checkpointIndex == 0xff)
-	{
-		return;
-	}
-
-	struct CheckpointNode *first = &sdata->gGT->level1->ptr_restart_points[0];
-
-	// pointer to path node
-	struct CheckpointNode *cn = &first[checkpointIndex];
-
-	while ((d->distanceToFinish_curr <= (u32)(cn->distToFinish << 3)) &&
-
-	       // node is not first node
-	       (cn != first))
-	{
-		cn = RB_Warpball_NewPathNode(cn, tw->driverTarget);
-	}
-
-	// path index = pathPtr2 - pathPtr1
-	tw->nodeCurrIndex = (u8)(cn - first);
-
-	return;
 }
 
 void RB_Warpball_TurnAround(struct Thread *t)
@@ -342,22 +215,6 @@ void RB_Warpball_TurnAround(struct Thread *t)
 		// increment counter
 		tw->turnAroundFrames++;
 
-		if (
-		    // if count too high
-		    (0x78 < tw->turnAroundFrames) ||
-
-		    // pointer to driver being chased,
-		    // is null, so warpball is chasing nobody
-		    (tw->driverTarget == 0))
-		{
-			tw->driverParent->instBombThrow = 0;
-
-			// play sound warpball death
-			PlaySound3D(0x4f, inst);
-
-			RB_Warpball_Death(t);
-		}
-
 		// if attempted to turn around 3 times
 		if ((tw->turnAroundFrames & 3) == 0)
 		{
@@ -380,30 +237,38 @@ void RB_Warpball_TurnAround(struct Thread *t)
 	return;
 }
 
-static const s16 s_warpballParticleHeight = 0xff;
-
-static void RB_Warpball_AdvanceStraight(struct TrackerWeapon *tw, struct Instance *inst, int elapsedTime)
+void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 checkpointIndex, struct Driver *d)
 {
-	inst->matrix.t[0] += ((int)tw->vel.x * elapsedTime) >> 5;
-	inst->matrix.t[1] += ((int)tw->vel.y * elapsedTime) >> 5;
-	inst->matrix.t[2] += ((int)tw->vel.z * elapsedTime) >> 5;
-}
+	checkpointIndex &= 0xff;
 
-static int RB_Warpball_NodeDeltaLength(struct CheckpointNode *curr, struct CheckpointNode *next, int *dx, int *dy, int *dz)
-{
-	*dx = next->pos.x - curr->pos.x;
-	*dy = next->pos.y - curr->pos.y;
-	*dz = next->pos.z - curr->pos.z;
-
-	return SquareRoot0_stub(((*dx) * (*dx)) + ((*dy) * (*dy)) + ((*dz) * (*dz)));
-}
-
-static void RB_Warpball_SetQuadblockIndex(struct TrackerWeapon *tw, struct ScratchpadStruct *sps)
-{
-	if (sps->hit.ptrQuadblock->checkpointIndex != 0xff)
+	/*
+	if (d == 0)
 	{
-		tw->nodeNextIndex = sps->hit.ptrQuadblock->checkpointIndex;
+		return;
 	}
+	if (checkpointIndex == 0xff)
+	{
+		return;
+	}
+	*/
+
+	struct CheckpointNode *first = &sdata->gGT->level1->ptr_restart_points[0];
+
+	// pointer to path node
+	struct CheckpointNode *cn = &first[checkpointIndex];
+
+	while ((d->distanceToFinish_curr <= (u32)(cn->distToFinish << 3)) &&
+
+	       // node is not first node
+	       (cn != first))
+	{
+		cn = RB_Warpball_NewPathNode(cn, tw->driverTarget);
+	}
+
+	// path index = pathPtr2 - pathPtr1
+	tw->nodeCurrIndex = (u8)(cn - first);
+
+	return;
 }
 
 // NOTE(aalhendi): Native uses the extracted warpball particle-height halfword from RDATA 0x800b2c84.
@@ -414,7 +279,6 @@ void RB_Warpball_ThTick(struct Thread *t)
 	struct Instance *inst;
 	struct Driver *target;
 	struct ScratchpadStruct *sps;
-	struct Instance *hitInst;
 	SVec3 posTop;
 	SVec3 posBottom;
 	int elapsedTime;
@@ -426,6 +290,38 @@ void RB_Warpball_ThTick(struct Thread *t)
 	gGT = sdata->gGT;
 	inst = t->inst;
 	tw = t->object;
+	tw->orbTimeAlive += gGT->elapsedTimeMS;
+	int juiced_duration = 2000;
+	int normal_duration = 1600;
+
+	if (tw->driverParent->invisibleTimer == 0)
+	{
+		tw->driverParent->wheelSize = 0;
+		tw->driverParent->instFlagsBackup = tw->driverParent->instSelf->flags;
+		tw->driverParent->instSelf->flags = (tw->driverParent->instSelf->flags & INVISIBILITY_CLEAR_DRAW_FLAGS) | GHOST_DRAW_TRANSPARENT;
+		int time = normal_duration;
+		if (tw->driverParent->numWumpas >= DRIVER_WUMPA_JUICED_COUNT)
+		{
+			time = juiced_duration;
+		}
+
+		tw->driverParent->invisibleTimer = time;
+	}
+
+	if (tw->driverParent->numWumpas >= DRIVER_WUMPA_JUICED_COUNT)
+	{
+		if (tw->orbTimeAlive >= juiced_duration)
+		{
+			RB_Warpball_Death(t);
+		}
+	}
+	else
+	{
+		if (tw->orbTimeAlive >= normal_duration)
+		{
+			RB_Warpball_Death(t);
+		}
+	}
 
 	CTR_WriteU16LE(&tw->savedPosXY, (u16)inst->matrix.t[0]);
 	CTR_WriteU16LE((u8 *)&tw->savedPosXY + 2, (u16)inst->matrix.t[1]);
@@ -440,30 +336,6 @@ void RB_Warpball_ThTick(struct Thread *t)
 		inst->animFrame = 0;
 	}
 
-	if (tw->driverTarget != NULL)
-	{
-		if ((tw->driverTarget->kartState == KS_MASK_GRABBED) && ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) != 0))
-		{
-			struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-
-			tw->flags = (tw->flags & ~TRACKER_FLAG_WARPBALL_TARGET_PATH) | TRACKER_FLAG_WARPBALL_FALLBACK_PATH | TRACKER_FLAG_WARPBALL_MASK_REPATH;
-			tw->ptrNodeCurr = &nodes[tw->nodeNextIndex];
-			tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
-			tw->driverTarget = RB_Warpball_GetDriverTarget(tw, inst);
-			RB_Warpball_SetTargetDriver(tw);
-		}
-
-		if ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_REFRESH_BLOCKED) == 0)
-		{
-			tw->driverTarget = RB_Warpball_GetDriverTarget(tw, inst);
-
-			if (tw->driverTarget != NULL)
-			{
-				RB_Warpball_SetTargetDriver(tw);
-			}
-		}
-	}
-
 	target = tw->driverTarget;
 	tw->flags &= ~TRACKER_FLAG_WARPBALL_BACKTRACKING;
 	elapsedTime = gGT->elapsedTimeMS;
@@ -475,7 +347,6 @@ void RB_Warpball_ThTick(struct Thread *t)
 		distY = (target->posCurr.y >> 8) - inst->matrix.t[1];
 		distXZ = (distX * distX) + (distZ * distZ);
 		tw->distanceToTarget = distXZ;
-		target->thTrackingMe = RB_GetThread_ClosestTracker(target);
 
 		if ((tw->flags & TRACKER_FLAG_WARPBALL_PATH_MODE) != 0)
 		{
@@ -557,7 +428,7 @@ void RB_Warpball_ThTick(struct Thread *t)
 			struct CheckpointNode *curr = tw->ptrNodeCurr;
 			struct CheckpointNode *next = tw->ptrNodeNext;
 			int segmentLength = RB_Warpball_NodeDeltaLength(curr, next, &distX, &distY, &distZ);
-			int progress = tw->pathProgress + ((elapsedTime * 0x70) >> 5);
+			int progress = tw->pathProgress + ((elapsedTime * 0xd0) >> 5);
 			int fraction;
 
 			if (segmentLength <= progress)
@@ -611,6 +482,23 @@ void RB_Warpball_ThTick(struct Thread *t)
 		RB_Warpball_AdvanceStraight(tw, inst, elapsedTime);
 	}
 
+	int vertical_offset = 1;
+	tw->driverParent->posCurr.x = inst->matrix.t[0] <<8;
+	tw->driverParent->posCurr.y = (inst->matrix.t[1] + vertical_offset) << 8;
+	tw->driverParent->posCurr.z = inst->matrix.t[2] << 8;
+
+	tw->driverParent->instSelf->matrix.t[0] = inst->matrix.t[0];
+	tw->driverParent->instSelf->matrix.t[1] = (inst->matrix.t[1] + vertical_offset);
+	tw->driverParent->instSelf->matrix.t[2] = inst->matrix.t[2];
+
+	tw->driverParent->rotCurr.x = tw->dir.y;
+	if (tw->orbTimeAlive > 400) 
+	{
+		tw->driverParent->angle = tw->dir.y;
+	}
+	tw->driverParent->forwardDir = tw->dir.x;
+	tw->driverParent->reserves += 12;
+
 	PlaySound3D_Flags(&tw->soundIDCount, 0x4e, inst);
 
 	posTop.x = (s16)inst->matrix.t[0];
@@ -633,6 +521,10 @@ void RB_Warpball_ThTick(struct Thread *t)
 	sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 	COLL_SearchBSP_CallbackQUADBLK(&posTop, &posBottom, sps, 0);
 	RB_MakeInstanceReflective(sps, inst);
+
+	if ((tw->driverParent->actionsFlagSet & ACTION_BOT) != 0) {
+		WarpTurbo_ResyncBotNav(tw->driverParent);
+	}
 
 	if ((sps->collision.stepFlags & COLL_STEP_TRIGGER_WEAPON_REACT) != 0)
 	{
@@ -693,92 +585,42 @@ void RB_Warpball_ThTick(struct Thread *t)
 		p->otIndexOffset = inst->depthBiasNormal + 1;
 		p->framesLeftInLife = -1;
 	}
-
-	hitInst = RB_Hazard_CollideWithDrivers(inst, tw->parentSafetyFrames, 0x9000, tw->instParent);
-
-	if (hitInst != NULL)
-	{
-		struct Driver *hitDriver = hitInst->thread->object;
-
-		if (hitDriver != tw->driverParent)
-		{
-			TrackerWeaponFlags hadTargetPathFlag = tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH;
-			TrackerWeaponFlags flagsBeforeHit;
-
-			RB_Hazard_HurtDriver(hitDriver, 2, tw->driverParent, 0);
-			hitDriver->damageColorTimer = 0x1e;
-
-			flagsBeforeHit = tw->flags | TRACKER_FLAG_WARPBALL_HIT_DRIVER;
-			tw->flags = flagsBeforeHit;
-
-			if ((((flagsBeforeHit & TRACKER_FLAG_POWERED_UP) == 0) && (tw->driverTarget == hitDriver)) || (hitDriver->driverRank == 0))
-			{
-				tw->driverParent->instBombThrow = NULL;
-				RB_Warpball_Death(t);
-				return;
-			}
-
-			tw->driversHit |= 1u << (hitDriver->driverID & 0x1f);
-
-			for (int rank = hitDriver->driverRank; rank < 8; rank++)
-			{
-				struct Driver *rankDriver = gGT->driversInRaceOrder[rank];
-
-				if (rankDriver != NULL)
-				{
-					tw->driversHit |= 1u << (rankDriver->driverID & 0x1f);
-				}
-			}
-
-			if (tw->driverTarget == hitDriver)
-			{
-				tw->flags &= ~TRACKER_FLAG_WARPBALL_TARGET_PATH;
-				tw->driverTarget = RB_Warpball_GetDriverTarget(tw, inst);
-
-				if (tw->driverTarget == NULL)
-				{
-					tw->driverParent->instBombThrow = NULL;
-					RB_Warpball_Death(t);
-				}
-				else
-				{
-					RB_Warpball_SetTargetDriver(tw);
-				}
-
-				if (hadTargetPathFlag != 0)
-				{
-					RB_Warpball_SeekDriver(tw, hitDriver->checkpoint.currentIndex, hitDriver);
-				}
-
-				if (((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) == 0) && (hadTargetPathFlag != 0))
-				{
-					if (tw->nodeCurrIndex != 0xff)
-					{
-						struct CheckpointNode *nodes = gGT->level1->ptr_restart_points;
-
-						tw->ptrNodeCurr = &nodes[tw->nodeCurrIndex];
-						tw->ptrNodeNext = RB_Warpball_NewPathNode(tw->ptrNodeCurr, tw->driverTarget);
-					}
-
-					tw->flags |= TRACKER_FLAG_WARPBALL_FALLBACK_PATH;
-				}
-			}
-		}
-	}
-	else
-	{
-		hitInst = RB_Hazard_CollideWithBucket(inst, t, gGT->threadBuckets[MINE].thread, tw->parentSafetyFrames, 0x2400, tw->instParent);
-
-		if (hitInst != NULL)
-		{
-			struct Thread *hitTh = hitInst->thread;
-
-			((ThreadSimpleCollideFunc)hitTh->funcThCollide)(hitTh);
-		}
-	}
+	
 
 	if (tw->parentSafetyFrames != 0)
 	{
 		tw->parentSafetyFrames--;
 	}
+}
+
+void WarpTurbo_ResyncBotNav(struct Driver *bot)
+{
+    const int path = bot->botData.botPath;
+    struct NavFrame *first = sdata->NavPath_ptrNavFrameArray[path];
+    struct NavFrame *last = sdata->NavPath_ptrHeader[path]->last;
+    struct NavFrame *best = first;
+    int bestDistSq = INT_MAX;
+
+    const int x = bot->posCurr.x >> 8;
+    const int y = bot->posCurr.y >> 8;
+    const int z = bot->posCurr.z >> 8;
+
+    for (struct NavFrame *frame = first; frame < last; frame++)
+    {
+        int dx = frame->pos.x - x;
+        int dy = frame->pos.y - y;
+        int dz = frame->pos.z - z;
+        int distSq = dx * dx + dy * dy + dz * dz;
+
+        if (distSq < bestDistSq)
+        {
+            bestDistSq = distSq;
+            best = frame;
+        }
+    }
+
+    bot->botData.botNavFrame = best;
+    bot->botData.positionBackup = bot->posCurr;
+    bot->botData.navProgressRemainder = 0;
+    BOTS_SetRotation(bot, 0);
 }

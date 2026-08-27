@@ -1104,8 +1104,7 @@ internal void NativeCheckpoint_RelocateThreadObject(const struct NativeCheckpoin
 	{
 		NativeCheckpoint_RelocateMaskHeadWeapon(oldHeader, liveHeader, (struct MaskHeadWeapon *)thread->object);
 	}
-	else if ((thread->funcThTick == RB_MovingExplosive_ThTick) || (thread->funcThTick == RB_Warpball_ThTick) || (thread->funcThTick == RB_Warpball_FadeAway) ||
-	         (thread->funcThTick == RB_Warpball_TurnAround))
+	else if ((thread->funcThTick == RB_MovingExplosive_ThTick) || (thread->funcThTick == RB_Warpball_ThTick) || (thread->funcThTick == RB_Warpball_FadeAway))
 	{
 		NativeCheckpoint_RelocateTrackerWeapon(oldHeader, liveHeader, (struct TrackerWeapon *)thread->object);
 	}

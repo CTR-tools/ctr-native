@@ -1016,16 +1016,16 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		PlaySound3D(SOUND_WARPBALL, weaponInst);
 
-		// if human and not AI (AIs can not use Warpball)
-		if ((d->actionsFlagSet & ACTION_BOT) == 0)
-		{
-			Voiceline_RequestPlay(VOICELINE_WARPBALL, data.characterIDs[d->driverID], VOICELINE_WEAPON_PRIORITY);
-		}
+		Voiceline_RequestPlay(VOICELINE_WARPBALL, data.characterIDs[d->driverID], VOICELINE_WEAPON_PRIORITY);
 
 		// used by RB_Warpball_SeekDriver
 		victim = 0;
 		int rank = d->driverRank;
-		if (rank != 0)
+		if (rank == 0)
+		{
+			victim = gGT->driversInRaceOrder[rank + 1];
+		}
+		else
 		{
 			victim = gGT->driversInRaceOrder[rank - 1];
 		}
@@ -1051,21 +1051,6 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
 		tw->nodeNextIndex = tw->nodeCurrIndex;
 		tw->ptrNodeCurr = &cn[tw->nodeCurrIndex];
-
-		// make this driver invincible
-		tw->driversHit = 1 << d->driverID;
-
-		victim = 0;
-		if (rank != 0)
-		{
-			victim = RB_Warpball_GetDriverTarget(tw, weaponInst);
-		}
-		tw->driverTarget = victim;
-
-		if (victim != 0)
-		{
-			RB_Warpball_SetTargetDriver(tw);
-		}
 
 		if ((tw->flags & TRACKER_FLAG_WARPBALL_TARGET_PATH) == 0)
 		{

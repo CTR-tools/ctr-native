@@ -532,8 +532,8 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	if (gGT->levelID == MAIN_MENU_LEVEL)
 	{
-		// 30 seconds
-		gGT->demoCountdownTimer = 900;
+		// 300 seconds
+		gGT->demoCountdownTimer = 9000;
 	}
 
 	// copy InstDef to InstancePool

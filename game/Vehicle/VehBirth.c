@@ -516,6 +516,21 @@ struct Model *VehBirth_GetModelByName(char *searchName)
 		}
 	}
 
+	struct Model **looseModels = LOAD_GetLooseRacerModelList();
+
+	if ((looseModels != NULL) && (looseModels[0] != NULL))
+	{
+		for (int i = 0; looseModels[i] != NULL; i++)
+		{
+			struct Model *m = looseModels[i];
+
+			if (VehBirth_ModelNameEquals(m, searchName))
+			{
+				return m;
+			}
+		}
+	}
+
 	struct Model **models = (struct Model **)sdata->PLYROBJECTLIST;
 
 	if (

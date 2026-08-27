@@ -749,13 +749,18 @@ SKIP_LOADING_TEXT:
 				{
 					// TRUE for gray, FALSE for white
 					u8 boolDark = ((((column >> 2) + (i >> 2)) & 1U) != 0);
+					u8 colour = CRASH_BLUE;
+					if (!boolDark) {
+						colour = PLAYER_BLUE;
+					}
+					
 
 					u8 colorR = RaceFlag_CalculateBrightness(lightR, boolDark);
-					setRGB0(p, colorR, colorR, colorR);
+					setRGB0(p, colour, false, colorR);
 					CTR_WriteU32LE(&p->r2, CTR_ReadU32LE(&p->r0));
 
 					u8 colorL = RaceFlag_CalculateBrightness(lightL, boolDark);
-					setRGB1(p, colorL, colorL, colorL);
+					setRGB1(p, colour, true, colorL);
 					CTR_WriteU32LE(&p->r3, CTR_ReadU32LE(&p->r1));
 
 					// positions

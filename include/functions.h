@@ -17,6 +17,11 @@ u8 CAM_Path_Move(int frameIndex, s16 *position, s16 *rotation, s16 *pathFlagsOut
 int CAM_MapRange_PosPoints(SVec3 *pos1, SVec3 *pos2, SVec3 *currPos);
 void CAM_SetDesiredPosRot(struct CameraDC *cDC, const SVec3 *pos, const SVec3 *rot);
 
+struct Model **LOAD_GetLooseRacerModelList(void);
+void LOAD_LoadLooseRacerModels(int racerCount);
+void LOAD_FinalizeLooseRacerModels(void);
+void LOAD_ClearLooseRacerModels(void);
+
 void BOTS_Adv_AdjustDifficulty(void);
 void BOTS_UpdateGlobals(void);
 void BOTS_GotoStartingLine(struct Driver *d);
@@ -1002,11 +1007,10 @@ void RB_Turtle_LInB(struct Instance *inst);
 void RB_Warpball_FadeAway(struct Thread *t);
 struct CheckpointNode *RB_Warpball_NewPathNode(struct CheckpointNode *cn, struct Driver *d);
 void RB_Warpball_Start(struct TrackerWeapon *tw);
-struct Driver *RB_Warpball_GetDriverTarget(struct TrackerWeapon *tw, struct Instance *inst);
-void RB_Warpball_SetTargetDriver(struct TrackerWeapon *tw);
 void RB_Warpball_SeekDriver(struct TrackerWeapon *tw, u32 checkpointIndex, struct Driver *d);
 void RB_Warpball_ThTick(struct Thread *t);
 void RB_Warpball_TurnAround(struct Thread *t);
+void WarpTurbo_ResyncBotNav(struct Driver *bot);
 
 void RB_Player_ToggleInvisible(void);
 void RB_Player_ToggleFlicker(void);

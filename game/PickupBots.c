@@ -30,6 +30,7 @@ enum
 	PICKUPBOTS_ITEM_MISSILE = HELD_ITEM_MISSILE_1X,
 	PICKUPBOTS_ITEM_TNT = HELD_ITEM_TNT,
 	PICKUPBOTS_ITEM_POTION = HELD_ITEM_POTION,
+	PICKUPBOTS_ITEM_WARPBALL = HELD_ITEM_WARPBALL,
 	PICKUPBOTS_SHOOT_ID_BOMB_MISSILE = 2,
 	PICKUPBOTS_SHOOT_FLAG_RANDOM = 0x1,
 	PICKUPBOTS_SHOOT_FLAG_BACKWARD = 0x2,
@@ -205,6 +206,40 @@ static void PickupBots_UpdateArcade(void)
 					}
 
 					VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
+					PickupBots_SetCooldown(bot);
+				}
+
+				bot->heldItemID = PICKUPBOTS_ITEM_NONE;
+			}
+		}
+
+		//Add logic to below so bot Rocket Racer in adventure mod can get this from any position
+		if (player->driverRank < 4)
+		{
+			struct Driver *bot = gGT->driversInRaceOrder[player->driverRank + 1];
+
+			if (PickupBots_IsBotWeaponReady(bot) &&
+			    (((int)player->lapIndex < (int)gGT->numLaps) || (player->distanceToFinish_curr > PICKUPBOTS_TRAILING_ATTACK_DISTANCE_TO_FINISH_MIN)) &&
+			    PickupBots_IsCloseToPlayer(player, bot))
+			{
+				int rng = MixRNG_Scramble() % PICKUPBOTS_TRAILING_ATTACK_ROLL_MOD;
+				int weaponID = PICKUPBOTS_ITEM_NONE;
+
+				if (rng < 2)
+				{
+					weaponID = PICKUPBOTS_ITEM_WARPBALL;
+				}
+
+				if (weaponID != PICKUPBOTS_ITEM_NONE)
+				{
+					bot->heldItemID = weaponID;
+
+					if ((player->actionsFlagSet & ACTION_BOT) == 0)
+					{
+						PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MISSILE, bot, player);
+					}
+
+					VehPickupItem_ShootNow(bot, weaponID, 0);
 					PickupBots_SetCooldown(bot);
 				}
 

@@ -164,12 +164,15 @@ struct TrackerWeapon
 	// 0x54
 	int framesSeekTargetTnt;
 
-	// 0x58 bytes large
+	// 0x58
+	int orbTimeAlive;
+
+	// 0x5c bytes large
 };
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, pathProgress) == 0x2c);
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosXY) == 0x4c);
 CTR_STATIC_ASSERT(offsetof(struct TrackerWeapon, savedPosZ) == 0x50);
-CTR_STATIC_ASSERT(sizeof(struct TrackerWeapon) == 0x58);
+CTR_STATIC_ASSERT(sizeof(struct TrackerWeapon) == 0x5c);
 
 struct RainLocal
 {

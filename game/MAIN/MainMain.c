@@ -606,7 +606,7 @@ void StateZero()
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 
-	gGT->levelID = NAUGHTY_DOG_CRATE;
+	gGT->levelID = MAIN_MENU_LEVEL;
 	memcpy(gGT->levelName, sdata->s_ndi, sizeof(sdata->s_ndi));
 	// gGT->levelID = OXIDE_TRUE_ENDING;
 
@@ -646,7 +646,7 @@ void StateZero()
 	Music_Start(0);
 
 	// "Start your engines, for Sony Computer..."
-	CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, 0x50);
+	//CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, 0x50);
 
 	while (sdata->XA_State != 0)
 	{

@@ -18,6 +18,122 @@ void LOAD_RunPtrMap(char *origin, int *patchArr, int numPtrs)
 	}
 }
 
+enum
+{
+    LOOSE_RACER_CHARACTER_COUNT = NITROS_OXIDE + 1,
+};
+
+#if defined(CTR_NATIVE)
+#include <platform/native_assets.h>
+
+static void *LOAD_ReadLooseRacerModel(int characterID)
+{
+    static const char *const paths[LOOSE_RACER_CHARACTER_COUNT] = {
+		"mods/racers/crash.ctr",    // 0
+		"mods/racers/cortex.ctr",   // 1
+		"mods/racers/tiny.ctr",     // 2
+		"mods/racers/coco.ctr",     // 3
+		"mods/racers/ngin.ctr",     // 4
+		"mods/racers/dingo.ctr",    // 5
+		"mods/racers/polar.ctr",    // 6
+		"mods/racers/pura.ctr",     // 7
+		"mods/racers/pinstripe.ctr",// 8
+		"mods/racers/papu.ctr",     // 9
+		"mods/racers/roo.ctr",      // 10
+		"mods/racers/joe.ctr",      // 11
+		"mods/racers/ntropy.ctr",   // 12
+		"mods/racers/pen.ctr",      // 13
+		"mods/racers/fake.ctr",     // 14
+		"mods/racers/oxide.ctr",    // 15
+	};
+
+	if ((u32)characterID >= len(paths))
+	{
+		return NULL;
+	}
+
+    struct NativeAssetsByteBuffer file;
+    if (!NativeAssets_ReadBytes(paths[characterID],
+                                NATIVE_ASSET_READ_DATA_FILE, &file))
+    {
+        return NULL;
+    }
+
+    void *modelFile = MEMPACK_AllocMem(file.size);
+	memcpy(modelFile, file.data, file.size);
+	NativeAssets_FreeBytes(&file);
+
+	int ptrMapOffset = *(int *)modelFile;
+	char *modelData = (char *)modelFile + LOAD_MODEL_FILE_HEADER_BYTES;
+
+	if (ptrMapOffset >= 0)
+	{
+		struct DramPointerMap *pointerMap =
+			(struct DramPointerMap *)&modelData[ptrMapOffset];
+
+		LOAD_RunPtrMap(
+			modelData,
+			DRAM_GETOFFSETS(pointerMap),
+			pointerMap->numBytes >> DRAM_POINTER_MAP_WORD_SHIFT);
+	}
+
+    return modelData;
+}
+#endif
+
+static void *sLooseRacerFileBases[LOAD_CHARACTER_ID_COUNT];
+static struct Model *sLooseRacerModels[LOAD_CHARACTER_ID_COUNT + 1];
+static int sLooseRacerModelCount;
+
+void LOAD_LoadLooseRacerModels(int racerCount)
+{
+    int outputIndex = 0;
+
+    if (racerCount > LOAD_CHARACTER_ID_COUNT)
+    {
+        racerCount = LOAD_CHARACTER_ID_COUNT;
+    }
+
+    memset(sLooseRacerFileBases, 0, sizeof(sLooseRacerFileBases));
+    memset(sLooseRacerModels, 0, sizeof(sLooseRacerModels));
+
+    for (int racerIndex = 0; racerIndex < racerCount; racerIndex++)
+    {
+        void *fileBase = LOAD_ReadLooseRacerModel(data.characterIDs[racerIndex]);
+
+        if (fileBase != NULL)
+        {
+            sLooseRacerFileBases[outputIndex] = fileBase;
+            outputIndex++;
+        }
+    }
+
+    sLooseRacerModelCount = outputIndex;
+}
+
+void LOAD_FinalizeLooseRacerModels(void)
+{
+    for (int i = 0; i < sLooseRacerModelCount; i++)
+    {
+        sLooseRacerModels[i] =
+			(struct Model *)sLooseRacerFileBases[i];
+    }
+
+    sLooseRacerModels[sLooseRacerModelCount] = NULL;
+}
+
+struct Model **LOAD_GetLooseRacerModelList(void)
+{
+    return sLooseRacerModels;
+}
+
+void LOAD_ClearLooseRacerModels(void)
+{
+    memset(sLooseRacerFileBases, 0, sizeof(sLooseRacerFileBases));
+    memset(sLooseRacerModels, 0, sizeof(sLooseRacerModels));
+    sLooseRacerModelCount = 0;
+}
+
 void LOAD_Robots2P(struct BigHeader *bigfile, int p1, int p2, void (*callback)(struct LoadQueueSlot *))
 {
 	int setIndex;
@@ -56,6 +172,7 @@ void LOAD_Robots2P(struct BigHeader *bigfile, int p1, int p2, void (*callback)(s
 	data.characterIDs[5] = robotSet[3];
 
 	LOAD_AppendQueue(bigfile, LT_GETADDR, BI_2PARCADEPACK + setIndex, NULL, callback);
+	LOAD_LoadLooseRacerModels(6);
 }
 
 void LOAD_Robots1P(int characterID)
@@ -73,13 +190,13 @@ void LOAD_Robots1P(int characterID)
 
 		data.characterIDs[i] = newCharacterID;
 	}
+	LOAD_LoadLooseRacerModels(LOAD_CHARACTER_ID_COUNT);
 }
 
 static void (*const LOAD_DriverMPK_SetPointer)(struct LoadQueueSlot *) = LOAD_QUEUE_CALLBACK_SET_POINTER;
 
 int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(struct LoadQueueSlot *))
 {
-	int i;
 	int gameMode1;
 
 	struct GameTracker *gGT = sdata->gGT;
@@ -90,14 +207,9 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 	// 3P/4P
 	if ((u32)(levelLOD - LOAD_LEVEL_LOD_3P) < LOAD_LEVEL_LOD_3P4P_COUNT)
 	{
-		for (i = 0; i < LOAD_DRIVER_MODEL_EXTRA_COUNT; i++)
-		{
-			// low lod CTR model
-			LOAD_AppendQueue(bigfile, LT_GETADDR, BI_RACERMODELLOW + data.characterIDs[i], &data.driverModelExtras[i].fileBase, LOAD_DriverMPK_SetPointer);
-		}
-
 		// load 4P MPK of fourth player
 		lastFileIndexMPK = BI_4PARCADEPACK + data.characterIDs[3];
+		LOAD_LoadLooseRacerModels(4);
 	}
 
 	else if (levelLOD == LOAD_LEVEL_LOD_1P)
@@ -133,8 +245,6 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		    // purple gem cup
 		    (gGT->cup.cupID == 4))
 		{
-			// high lod model
-			LOAD_AppendQueue(bigfile, LT_GETADDR, BI_RACERMODELHI + data.characterIDs[0], &data.driverModelExtras[0].fileBase, LOAD_DriverMPK_SetPointer);
 
 			// pack of four AIs with bosses
 			LOAD_AppendQueue(bigfile, LT_GETADDR, BI_2PARCADEPACK + LOAD_PURPLE_GEM_CUP_AI_SET_INDEX, NULL, callback);
@@ -143,6 +253,8 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 			data.characterIDs[2] = PAPU_PAPU;
 			data.characterIDs[3] = KOMODO_JOE;
 			data.characterIDs[4] = PINSTRIPE;
+
+			LOAD_LoadLooseRacerModels(5);
 
 			return sdata->ptrMPK;
 		}
@@ -164,9 +276,6 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		// then mask-grab breaks for all characters
 		// on Hot Air Skyway (except Crash Bandicoot)
 
-		// Load Player 1 [0]
-		LOAD_AppendQueue(bigfile, LT_GETADDR, BI_RACERMODELHI + data.characterIDs[0], &data.driverModelExtras[0].fileBase, LOAD_DriverMPK_SetPointer);
-
 		// Load boss or ghost [1]
 		lastFileIndexMPK = BI_TIMETRIALPACK + data.characterIDs[1];
 	}
@@ -174,13 +283,6 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 	// else if (levelLOD == LOAD_LEVEL_LOD_2P)
 	else
 	{
-		// med models
-		for (i = 0; i < LOAD_MED_LOD_DRIVER_MODEL_EXTRA_COUNT; i++)
-		{
-			// med lod CTR model
-			LOAD_AppendQueue(bigfile, LT_GETADDR, BI_RACERMODELMED + data.characterIDs[i], &data.driverModelExtras[i].fileBase, LOAD_DriverMPK_SetPointer);
-		}
-
 		LOAD_Robots2P(bigfile, data.characterIDs[0], data.characterIDs[1], callback);
 		return sdata->ptrMPK;
 	}

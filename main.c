@@ -183,13 +183,14 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-#ifdef USE_16BY9
+//ifdef USE_16BY9
 	printf("[CTR Native] Widescreen\n");
-	Platform_Init("Crash Team Racing", 1280, 720);
-#else
-	printf("[CTR Native] 4:3\n");
-	Platform_Init("Crash Team Racing", 800, 600);
-#endif
+	Platform_Init("Crash Team Racing", 1920, 1080);
+	NativeRenderer_SetPresentationAspect(4, 3);
+//else
+	//printf("[CTR Native] 4:3\n");
+	//Platform_Init("Crash Team Racing", 800, 600);
+//endif
 
 #if defined(CTR_INTERNAL)
 	if (NativePerf_ConfigureFromArgs(argc, argv) != 0)
