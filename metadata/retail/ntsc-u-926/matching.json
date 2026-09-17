@@ -897,6 +897,20 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "ctr-box",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CTR_Box_DrawWirePrims",
+      "end_symbol": "CTR_CycleTex_LEV",
+      "symbol_prefix": "CTR_Box_",
+      "source": "game/CTR/CTR_Box.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77"
+    },
+    {
       "name": "decal-hud",
       "kind": "resident",
       "artifact": "exe",
