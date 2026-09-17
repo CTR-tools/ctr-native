@@ -911,6 +911,28 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "rectmenu",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "RECTMENU_DrawPolyGT4",
+      "end_symbol": "RefreshCard_CountGhostProfilesForLEV",
+      "symbol_prefix": "RECTMENU_",
+      "source": "game/RECTMENU.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/rectmenu/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G4", "-msoft-float"],
+      "small_data_limit": 4,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "rectMenuFramesRemaining": "0x8008d90c",
+        "rectMenuAnyTap": "0x8008d950",
+        "rectMenuAnyHold": "0x8008d974",
+        "rectMenuActiveSub": "0x8008d954"
+      }
+    },
+    {
       "name": "decal-hud",
       "kind": "resident",
       "artifact": "exe",

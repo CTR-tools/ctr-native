@@ -551,25 +551,26 @@ void MEMPACK_ClearLowMem(void);
 void MEMPACK_PopState(void);
 void MEMPACK_PopToState(s32 id);
 
-void RECTMENU_DrawQuip(char *comment, s16 startX, int startY, u32 sizeX, s16 fontType, int textFlag, s16 boxFlag);
-void RECTMENU_DrawInnerRect(RECT *r, int x, u32 *ot);
-void RECTMENU_DrawSelf(struct RectMenu *menu, int param_2, s16 param_3, s16 width);
+void RECTMENU_DrawQuip(char *comment, s16 startX, s16 startY, s16 sizeX, s16 fontType, s16 textFlag, s16 boxFlag);
+void RECTMENU_DrawInnerRect(RECT *r, s16 type, u32 *ot);
+void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *inner);
+void RECTMENU_DrawSelf(struct RectMenu *menu, s16 posX, s16 posY, s16 width);
 void RECTMENU_DrawPolyGT4(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, Color color0, Color color1, Color color2, Color color3,
-                          s32 transparency, s32 scale);
+                          u8 transparency, s16 scale);
 b32 RECTMENU_BoolHidden(struct RectMenu *m);
 void RECTMENU_ClearInput(void);
 void RECTMENU_CollectInput(void);
 void RECTMENU_ProcessState(void);
-int RECTMENU_ProcessInput(struct RectMenu *m);
+s32 RECTMENU_ProcessInput(struct RectMenu *m);
 void RECTMENU_DrawOuterRect_Edge(RECT *r, const Color *color, u32 param_3, u32 *otMem);
 void RECTMENU_DrawOuterRect_HighLevel(RECT *r, const Color *color, s16 param_3, u32 *otMem);
 void RECTMENU_DrawOuterRect_LowLevel(RECT *p, s16 xOffset, u16 yOffset, const Color *color, s16 param_5, u32 *otMem);
-char *RECTMENU_DrawTime(int milliseconds);
-void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, int *color, u32 *ot, struct PrimMem *primMem);
+char *RECTMENU_DrawTime(s32 ticks);
+void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, const Color *color, u32 *ot, struct PrimMem *primMem);
 void RECTMENU_DrawRwdBlueRect(RECT *rect, char *metas, u32 *ot, struct PrimMem *primMem);
 void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct PrimMem *primMem);
-void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b32 boolCheckSubmenu);
-void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu);
+void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b16 boolCheckSubmenu);
+void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b16 boolCheckSubmenu);
 void RECTMENU_Hide(struct RectMenu *m);
 void RECTMENU_Show(struct RectMenu *m);
 

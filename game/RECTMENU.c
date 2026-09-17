@@ -1,22 +1,43 @@
 #include <common.h>
 
+#ifndef RECTMENU_TIME_BUFFER
+#define RECTMENU_TIME_BUFFER      sdata->ghostStrTrackTime
+#define RECTMENU_PLAYER_TAP       sdata->buttonTapPerPlayer
+#define RECTMENU_PLAYER_HOLD      sdata->buttonHeldPerPlayer
+#define RECTMENU_FONT_HEIGHT      data.font_charPixHeight
+#define RECTMENU_QUIP_PARAMS      data.PlayerCommentBoxParams
+#define RECTMENU_QUIP_Y           (data.PlayerCommentBoxParams + 4)
+#define RECTMENU_BORDER_NORMAL    sdata->battleSetup_Color_UI_1
+#define RECTMENU_BORDER_ALT       sdata->battleSetup_Color_UI_2
+#define RECTMENU_BOX_COLOR_0      sdata->DrawSolidBoxData[0]
+#define RECTMENU_BOX_COLOR_1      sdata->DrawSolidBoxData[1]
+#define RECTMENU_BOX_COLOR_2      sdata->DrawSolidBoxData[2]
+#define RECTMENU_HIGHLIGHT_GREEN  sdata->menuRowHighlight_Green
+#define RECTMENU_ANY_TAP          sdata->AnyPlayerTap
+#define RECTMENU_ANY_HOLD         sdata->AnyPlayerHold
+#define RECTMENU_ACTIVE_SUBMENU   sdata->activeSubMenu
+#define RECTMENU_FRAMES_REMAINING sdata->framesRemainingInMenu
+#define RECTMENU_ADV_RNG          sdata->advRng
+#define RECTMENU_DRAW_GT4         DecalHUD_DrawPolyGT4
+#endif
+
 
 void RECTMENU_DrawPolyGT4(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, Color color0, Color color1, Color color2, Color color3,
-                          s32 transparency, s32 scale)
+                          u8 transparency, s16 scale)
 {
 	if (!icon)
 	{
 		return;
 	}
 
-	DecalHUD_DrawPolyGT4(icon, posX, posY, primMem, ot, color0, color1, color2, color3, (u8)transparency, (s16)scale);
+	RECTMENU_DRAW_GT4(icon, posX, posY, primMem, ot, color0, color1, color2, color3, (u8)transparency, (s16)scale);
 }
 
 
 void RECTMENU_DrawOuterRect_Edge(RECT *r, const Color *color, u32 param_3, u32 *otMem)
 {
-	param_3 & 0x20 ? CTR_Box_DrawClearBox(r, color, TRANS_50_DECAL, otMem, &sdata->gGT->backBuffer->primMem)
-	               : CTR_Box_DrawSolidBox(r, color, otMem, &sdata->gGT->backBuffer->primMem);
+	param_3 & 0x20 ? CTR_Box_DrawClearBox(r, color, TRANS_50_DECAL, otMem, &GAME_TRACKER->backBuffer->primMem)
+	               : CTR_Box_DrawSolidBox(r, color, otMem, &GAME_TRACKER->backBuffer->primMem);
 }
 
 
@@ -28,28 +49,14 @@ static const char s_rectMenuTimeFormat[] = "%ld:%ld%ld:%ld%ld";
 #define RECTMENU_TIME_FORMAT rdata.s_timeString
 #endif
 
-char *RECTMENU_DrawTime(int milliseconds)
+char *RECTMENU_DrawTime(s32 ticks)
 {
-	// 32 is added to milliseconds every frame,
-	// 960 per second, the rest is basic math
-
-	char *str = &sdata->ghostStrTrackTime[0];
-
-	// build a string
-	sprintf(
-
-	    str,
-
-	    // Format
-	    // Minute:Seconds:Milliseconds
-	    RECTMENU_TIME_FORMAT,
-
-	    CTR_PRINTF_PSX_LONG(milliseconds / 0xe100),              // minutes
-	    CTR_PRINTF_PSX_LONG((milliseconds / 0x2580) % 6),        // seconds / 10
-	    CTR_PRINTF_PSX_LONG((milliseconds / 0x3c0) % 10),        // seconds
-	    CTR_PRINTF_PSX_LONG(((milliseconds * 10) / 0x3c0) % 10), // milliseconds / 10
-	    CTR_PRINTF_PSX_LONG(((milliseconds * 100) / 0x3c0) % 10) // milliseconds
-	);
+	char *str = &RECTMENU_TIME_BUFFER[0];
+	// NOTE(aalhendi): The timer runs at 960 ticks/second. Unsigned products retain
+	// MIPS word wrapping before the signed divisions, including long races.
+	sprintf(str, RECTMENU_TIME_FORMAT, CTR_PRINTF_PSX_LONG(ticks / 0xe100), CTR_PRINTF_PSX_LONG((ticks / 0x2580) % 6),
+	        CTR_PRINTF_PSX_LONG((ticks / 0x3c0) % 10), CTR_PRINTF_PSX_LONG(((s32)((u32)ticks * 10) / 0x3c0) % 10),
+	        CTR_PRINTF_PSX_LONG(((s32)((u32)ticks * 100) / 0x3c0) % 10));
 
 	return str;
 }
@@ -57,23 +64,26 @@ char *RECTMENU_DrawTime(int milliseconds)
 #undef RECTMENU_TIME_FORMAT
 
 
-void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, int *color, u32 *ot, struct PrimMem *primMem)
+void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, const Color *color, u32 *ot, struct PrimMem *primMem)
 {
-	POLY_G4 *p = (POLY_G4 *)primMem->cursor;
-
-	if ((u32)p <= (u32)primMem->guardEnd)
+	POLY_G4 *next = primMem->cursor;
+	POLY_G4 *p = NULL;
+	if (next <= (POLY_G4 *)primMem->guardEnd)
 	{
+		p = next;
 		primMem->cursor = p + 1;
+	}
+	if (p)
+	{
+		CtrGpu_WriteColorCode(&p->r0, (ColorCode_GetPacked(&color[0]) & 0xffffff) | 0x38000000);
+		CtrGpu_WriteColorCode(&p->r1, ColorCode_GetPacked(&color[1]) & 0xffffff);
+		CtrGpu_WriteColorCode(&p->r2, ColorCode_GetPacked(&color[2]) & 0xffffff);
+		CtrGpu_WriteColorCode(&p->r3, ColorCode_GetPacked(&color[3]) & 0xffffff);
 
-		CtrGpu_WriteColorCode(&p->r0, (color[0] & 0xffffff) | 0x38000000);
-		CtrGpu_WriteColorCode(&p->r1, color[1] & 0xffffff);
-		CtrGpu_WriteColorCode(&p->r2, color[2] & 0xffffff);
-		CtrGpu_WriteColorCode(&p->r3, color[3] & 0xffffff);
-
-		CtrGpu_WritePackedXY(&p->x0, CTR_PackS16Pair(pos[0], pos[1]));
-		CtrGpu_WritePackedXY(&p->x1, CTR_PackS16Pair(pos[0] + pos[2], pos[1]));
-		CtrGpu_WritePackedXY(&p->x2, CTR_PackS16Pair(pos[0], pos[1] + pos[3]));
-		CtrGpu_WritePackedXY(&p->x3, CTR_PackS16Pair(pos[0] + pos[2], pos[1] + pos[3]));
+		CtrGpu_WritePackedXY(&p->x0, ((u16)pos[0] | ((u32)pos[1] << 16)));
+		CtrGpu_WritePackedXY(&p->x1, (((pos[0] + pos[2]) & 0xffff) | ((u32)pos[1] << 16)));
+		CtrGpu_WritePackedXY(&p->x2, ((u16)pos[0] | ((u32)(pos[1] + pos[3]) << 16)));
+		CtrGpu_WritePackedXY(&p->x3, (((pos[0] + pos[2]) & 0xffff) | ((u32)(pos[1] + pos[3]) << 16)));
 
 		p->tag = CtrGpu_PackOTTag(*ot, 0x8000000);
 		*ot = CtrGpu_PrimToOTLink24(p);
@@ -84,28 +94,23 @@ void RECTMENU_DrawRwdBlueRect_Subset(s16 *pos, int *color, u32 *ot, struct PrimM
 void RECTMENU_DrawRwdBlueRect(RECT *rect, char *metas, u32 *ot, struct PrimMem *primMem)
 {
 	s16 pos[4];
-	int gradient[2];
-	int colors[4];
-
+	Color colors[4];
+	s16 i;
 	pos[0] = rect->x;
 	pos[2] = rect->w;
-
-	for (int i = 0; (u8)metas[i * 4 + 3] != 0x64; i++)
+	// NOTE(aalhendi): Each palette record is RGB plus a vertical percentage;
+	// the 100% record ends the strips and supplies the final bottom color.
+	for (i = 0; (u8)metas[i * 4 + 3] != 100; ++i)
 	{
-		u8 *meta = (u8 *)&metas[i * 4];
-		gradient[0] = *(int *)&meta[0];
-		gradient[1] = *(int *)&meta[4];
-		colors[0] = gradient[0];
-		colors[1] = gradient[0];
-		colors[2] = gradient[1];
-		colors[3] = gradient[1];
-		pos[1] = rect->y + (s16)(meta[3] * rect->h / 100);
-		pos[3] = rect->y + (s16)(meta[7] * rect->h / 100) - pos[1] + 1;
-
+		colors[1] = ColorCode_Load(&((Color *)metas)[i]);
+		colors[0] = colors[1];
+		colors[3] = ColorCode_Load(&((Color *)metas)[i + 1]);
+		colors[2] = colors[3];
+		pos[1] = rect->y + ((u8)metas[i * 4 + 3] * rect->h / 100);
+		pos[3] = rect->y + ((u8)metas[i * 4 + 7] * rect->h / 100) - pos[1] + 1;
 		RECTMENU_DrawRwdBlueRect_Subset(pos, colors, ot, primMem);
 	}
 }
-
 
 void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct PrimMem *primMem)
 {
@@ -123,6 +128,7 @@ void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct Pri
 
 	if (p != 0)
 	{
+		setPolyG4(p);
 		// RGB
 		p->r0 = (u8)color[0x0];
 		p->g0 = (u8)color[0x1];
@@ -153,7 +159,6 @@ void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct Pri
 		p->x3 = position[4];
 		p->y3 = position[5];
 
-		setPolyG4(p);
 		AddPrim(otMem, p);
 	}
 	return;
@@ -162,26 +167,27 @@ void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct Pri
 
 void RECTMENU_DrawOuterRect_LowLevel(RECT *p, s16 xOffset, u16 yOffset, const Color *color, s16 param_5, u32 *otMem)
 {
-	int iVar1;
+	s32 borderFlags;
 	RECT r;
 
 	r.x = p->x;
-	iVar1 = (int)param_5;
+	borderFlags = param_5;
 	r.y = p->y;
 	r.w = p->w;
 	r.h = yOffset;
-	RECTMENU_DrawOuterRect_Edge(&r, color, iVar1, otMem);
+	RECTMENU_DrawOuterRect_Edge(&r, color, borderFlags, otMem);
 
 	r.y += (p->h - yOffset);
-	RECTMENU_DrawOuterRect_Edge(&r, color, iVar1, otMem);
+	RECTMENU_DrawOuterRect_Edge(&r, color, borderFlags, otMem);
 
 	r.y = p->y + yOffset;
-	r.h = p->h - (s16)((int)((u32)yOffset << 0x10) >> 0xf);
 	r.w = xOffset;
-	RECTMENU_DrawOuterRect_Edge(&r, color, iVar1, otMem);
+	// NOTE(aalhendi): Double the signed short inset, retaining retail's shift/truncate order.
+	r.h = p->h - (s16)((s32)((u32)yOffset << 16) >> 15);
+	RECTMENU_DrawOuterRect_Edge(&r, color, borderFlags, otMem);
 
 	r.x += (p->w - xOffset);
-	RECTMENU_DrawOuterRect_Edge(&r, color, iVar1, otMem);
+	RECTMENU_DrawOuterRect_Edge(&r, color, borderFlags, otMem);
 	return;
 }
 
@@ -193,51 +199,39 @@ void RECTMENU_DrawOuterRect_HighLevel(RECT *r, const Color *color, s16 param_3, 
 }
 
 
-void RECTMENU_DrawQuip(char *comment, s16 startX, int startY, u32 sizeX, s16 fontType, int textFlag, s16 boxFlag)
+void RECTMENU_DrawQuip(char *comment, s16 startX, s16 startY, s16 sizeX, s16 fontType, s16 textFlag, s16 boxFlag)
 {
-	int posX = startX;
-	int width;
-	u32 sizeY;
+	s32 width;
 
-	if ((sizeX & 0xffff) == 0)
+	RECT r;
+
+	if (sizeX == 0)
 	{
 		width = DecalFont_GetLineWidth(comment, fontType);
 		sizeX = width + 0xc;
 	}
 
-	// if text is not centered
-	if ((textFlag & 0x8000) != 0)
+	r.x = startX;
+	if (textFlag & 0x8000)
 	{
-		// posX with text un-centered
-		posX = startX - ((s16)sizeX / 2);
+		r.x = startX - sizeX / 2;
 	}
-
-	sizeY = (u32)data.PlayerCommentBoxParams[fontType];
-
-	// Draw string
-	DecalFont_DrawLine(comment, startX, (data.PlayerCommentBoxParams[4 + fontType] + startY), fontType, textFlag);
-
-	RECT r;
-	r.x = posX;
 	r.y = startY;
 	r.w = sizeX;
-	r.h = sizeY;
-	RECTMENU_DrawInnerRect(&r, boxFlag, sdata->gGT->backBuffer->otMem.uiOT);
+	r.h = RECTMENU_QUIP_PARAMS[fontType];
+	DecalFont_DrawLine(comment, startX, startY + RECTMENU_QUIP_Y[fontType], fontType, textFlag);
+	RECTMENU_DrawInnerRect(&r, boxFlag, GAME_TRACKER->backBuffer->otMem.uiOT);
 }
 
-
-void RECTMENU_DrawInnerRect(RECT *r, int type, u32 *ot)
+void RECTMENU_DrawInnerRect(RECT *r, s16 type, u32 *ot)
 {
 	u32 *colorDataNormal;
-	Color *colorDataSpecial;
-	Color *color;
-	int drawMode;
 	RECT adjustedRect;
 
-	colorDataNormal = &sdata->battleSetup_Color_UI_1;
+	colorDataNormal = &RECTMENU_BORDER_NORMAL;
 	if ((type & 0x10) != 0)
 	{
-		colorDataNormal = &sdata->battleSetup_Color_UI_2;
+		colorDataNormal = &RECTMENU_BORDER_ALT;
 	}
 
 	if ((type & 2) == 0)
@@ -245,13 +239,9 @@ void RECTMENU_DrawInnerRect(RECT *r, int type, u32 *ot)
 		RECTMENU_DrawOuterRect_HighLevel(r, (Color *)colorDataNormal, (int)(s16)(type | 0x20), ot);
 	}
 
-	adjustedRect.x = r->x;
-	adjustedRect.y = r->y;
-	adjustedRect.w = r->w;
-	adjustedRect.h = r->h;
-
 	if ((type & 8) == 0)
 	{
+		adjustedRect = *r;
 		if ((type & 2) == 0)
 		{
 			adjustedRect.x += 3;
@@ -260,16 +250,17 @@ void RECTMENU_DrawInnerRect(RECT *r, int type, u32 *ot)
 			adjustedRect.h -= 4;
 		}
 
-		if ((type & 1) == 0)
+		if (type & 1)
 		{
-			drawMode = ((type & 0x100) != 0) ? 2 : 0;
-			colorDataSpecial = ((type & 0x100) != 0) ? &sdata->DrawSolidBoxData[1] : &sdata->DrawSolidBoxData[2];
-
-			CTR_Box_DrawClearBox(&adjustedRect, colorDataSpecial, drawMode, ot, &sdata->gGT->backBuffer->primMem);
+			CTR_Box_DrawSolidBox(&adjustedRect, &RECTMENU_BOX_COLOR_0, ot, &GAME_TRACKER->backBuffer->primMem);
+		}
+		else if (type & 0x100)
+		{
+			CTR_Box_DrawClearBox(&adjustedRect, &RECTMENU_BOX_COLOR_1, 2, ot, &GAME_TRACKER->backBuffer->primMem);
 		}
 		else
 		{
-			CTR_Box_DrawSolidBox(&adjustedRect, &sdata->DrawSolidBoxData[0], ot, &sdata->gGT->backBuffer->primMem);
+			CTR_Box_DrawClearBox(&adjustedRect, &RECTMENU_BOX_COLOR_2, 0, ot, &GAME_TRACKER->backBuffer->primMem);
 		}
 	}
 
@@ -283,14 +274,14 @@ void RECTMENU_DrawInnerRect(RECT *r, int type, u32 *ot)
 		adjustedRect.w = horizontalOffset;
 		adjustedRect.h = r->h;
 
-		color = &sdata->DrawSolidBoxData[0];
-		CTR_Box_DrawClearBox(&adjustedRect, color, 0, ot, &sdata->gGT->backBuffer->primMem);
+
+		CTR_Box_DrawClearBox(&adjustedRect, &RECTMENU_BOX_COLOR_0, 0, ot, &GAME_TRACKER->backBuffer->primMem);
 
 		adjustedRect.x = r->x + horizontalOffset;
 		adjustedRect.y = r->y + r->h;
 		adjustedRect.w = r->w - horizontalOffset;
 		adjustedRect.h = verticalOffset;
-		CTR_Box_DrawClearBox(&adjustedRect, color, 0, ot, &sdata->gGT->backBuffer->primMem);
+		CTR_Box_DrawClearBox(&adjustedRect, &RECTMENU_BOX_COLOR_0, 0, ot, &GAME_TRACKER->backBuffer->primMem);
 	}
 
 	return;
@@ -301,114 +292,68 @@ void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *inner)
 {
 	u32 *rgb;
 	RECT outer;
-	struct GameTracker *gGT = sdata->gGT;
+	s32 y;
 
 	// if title text exists
 	if ((-1 < menu->stringIndexTitle) && ((menu->state & ONLY_DRAW_TITLE) == 0))
 	{
-		rgb = (menu->drawStyle & 0x10) ? &sdata->battleSetup_Color_UI_2 : &sdata->battleSetup_Color_UI_1;
+		rgb = (menu->drawStyle & 0x10) ? &RECTMENU_BORDER_ALT : &RECTMENU_BORDER_NORMAL;
 
 		outer.x = inner->x + 3;
-		outer.y = inner->y + 6;
-
-		// pixel-height of non-title menu rows
-		if ((menu->state & USE_SMALL_FONT) == 0)
 		{
-			outer.y = inner->y + 9 + data.font_charPixHeight[1];
+			s32 baseY = inner->y;
+			s32 titleY = baseY + 6;
+			// NOTE(aalhendi): The large-font path is baseY + 9 + font height;
+			// retaining this grouping preserves GCC 2.8's addition order.
+			y = (menu->state & USE_SMALL_FONT)
+			        ? ((menu->state & BIG_TEXT_IN_TITLE) ? titleY + data.font_charPixHeight[FONT_BIG] : titleY + data.font_charPixHeight[FONT_SMALL])
+			        : baseY - (-9 - data.font_charPixHeight[FONT_BIG]);
+			outer.y = y;
 		}
-		else if ((menu->state & BIG_TEXT_IN_TITLE) == 0)
-		{
-			outer.y += data.font_charPixHeight[2];
-		}
-		else
-		{
-			outer.y += data.font_charPixHeight[1];
-		}
-
-		outer.h = 2;
 		outer.w = inner->w - 6;
+		outer.h = 2;
 
-		RECTMENU_DrawOuterRect_Edge(&outer, (Color *)rgb, (menu->drawStyle | 0x20), gGT->backBuffer->otMem.uiOT);
+		RECTMENU_DrawOuterRect_Edge(&outer, (Color *)rgb, (s16)(menu->drawStyle | 0x20), GAME_TRACKER->backBuffer->otMem.uiOT);
 	}
-	RECTMENU_DrawInnerRect(inner, menu->drawStyle, gGT->backBuffer->otMem.uiOT);
+	RECTMENU_DrawInnerRect(inner, menu->drawStyle, GAME_TRACKER->backBuffer->otMem.uiOT);
 }
 
 
-void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b32 boolCheckSubmenu)
+void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b16 boolCheckSubmenu)
 {
-	int lineHeight;
+	s16 lineHeight;
 	struct MenuRow *row;
-
-	// heighth of small line
-	lineHeight = data.font_charPixHeight[FONT_SMALL];
-
-	// if small text disabled
-	if ((m->state & USE_SMALL_FONT) == 0)
-	{
-		// height of big line
-		lineHeight = data.font_charPixHeight[FONT_BIG] + 3;
-	}
-
-	// if not showing only highlighted row
-	if ((m->state & SHOW_ONLY_HIGHLIT_ROW) == 0)
-	{
-		// if not only drawing title bar
-		if ((m->state & ONLY_DRAW_TITLE) == 0)
-		{
-			// add rows
-			for (row = m->rows; row->stringIndex != -1; row++)
-			{
-				*height += lineHeight;
-			}
-		}
-
-		// only drawing title bar
-		else
-		{
-			*height += lineHeight - 6;
-		}
-	}
-
-	// only showing row highlighted
-	else
+	lineHeight = (m->state & USE_SMALL_FONT) ? data.font_charPixHeight[FONT_SMALL] : data.font_charPixHeight[FONT_BIG] + 3;
+	if (m->state & SHOW_ONLY_HIGHLIT_ROW)
 	{
 		*height += lineHeight;
 	}
-
-	// handle menu title
-	if (m->stringIndexTitle >= 0)
+	else if (m->state & ONLY_DRAW_TITLE)
 	{
-		// if not drawing title big
-		if ((m->state & BIG_TEXT_IN_TITLE) == 0)
+		*height += lineHeight - 6;
+	}
+	else
+	{
+		for (row = m->rows; row->stringIndex != -1; ++row)
 		{
-			*height += lineHeight + 6;
-		}
-
-		// if drawing title big,
-		// this overrides title to big, even if rest of menu is small
-		else
-		{
-			*height += data.font_charPixHeight[FONT_BIG] + 9;
+			*height += lineHeight;
 		}
 	}
-
-	// if submenu needs to be drawn
-	if ((m->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
+	if (m->stringIndexTitle >= 0)
 	{
-		if ((boolCheckSubmenu & 0xffff) != 0)
-		{
-			// recursively check height for more submenus
-			RECTMENU_GetHeight(m->ptrNextBox_InHierarchy, height, 1);
-		}
+		*height += (m->state & BIG_TEXT_IN_TITLE) ? data.font_charPixHeight[FONT_BIG] + 9 : lineHeight + 6;
+	}
+	if (boolCheckSubmenu && (m->state & DRAW_NEXT_MENU_IN_HIERARCHY))
+	{
+		RECTMENU_GetHeight(m->ptrNextBox_InHierarchy, height, 1);
 	}
 }
 
-
-void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
+void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b16 boolCheckSubmenu)
 {
-	int fontType;
+	s16 fontType;
 	struct MenuRow *row;
-	int lineWidth;
+	s16 lineWidth;
 
 	fontType = FONT_BIG;
 
@@ -422,574 +367,426 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 	for (row = m->rows; row->stringIndex != -1; row++)
 	{
 		// width of string in each row
-		lineWidth = DecalFont_GetLineWidth(sdata->lngStrings[row->stringIndex & 0x7fff], fontType);
+		lineWidth = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[row->stringIndex & 0x7fff], fontType) + 1;
 
 		// set new width if new max is found
-		if (*width < (lineWidth + 1))
+		if (*width < (lineWidth))
 		{
-			*width = lineWidth + 1;
+			*width = lineWidth;
 		}
 	}
 
 	// handle menu title
 	if (m->stringIndexTitle >= 0)
 	{
-		// if force title to be big
-		if ((m->state & BIG_TEXT_IN_TITLE) != 0)
-		{
-			// override
-			fontType = FONT_BIG;
-		}
-
-		// width of string in each row
-		lineWidth = DecalFont_GetLineWidth(sdata->lngStrings[m->stringIndexTitle & 0x7fff], fontType);
+		lineWidth = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[m->stringIndexTitle], (m->state & BIG_TEXT_IN_TITLE) ? FONT_BIG : fontType) + 1;
 
 		// set new width if new max is found
-		if (*width < (lineWidth + 1))
+		if (*width < (lineWidth))
 		{
-			*width = lineWidth + 1;
+			*width = lineWidth;
 		}
 	}
 
-	// if submenu needs to be drawn
-	if ((m->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
+	if (boolCheckSubmenu && (m->state & DRAW_NEXT_MENU_IN_HIERARCHY))
 	{
-		if ((boolCheckSubmenu & 0xffff) != 0)
-		{
-			// recursively check height for more submenus
-			RECTMENU_GetWidth(m->ptrNextBox_InHierarchy, width, 1);
-		}
+		RECTMENU_GetWidth(m->ptrNextBox_InHierarchy, width, 1);
 	}
 }
 
-
-void RECTMENU_DrawSelf(struct RectMenu *menu, int posX, s16 posY, s16 menuWidth)
+void RECTMENU_DrawSelf(struct RectMenu *menu, s16 posX, s16 posY, s16 menuWidth)
 {
-	u16 textFlags;
-	u32 state;
-	int index;
-	char *titleString;
-	s16 offsetX;
-	s16 sVar4;
-	Color *rgb;
-	u16 uVar5;
+	s16 baseFlags = 0;
+	s16 fontType;
+	s16 rowHeight;
+	s16 rowIndex;
+	s16 rowY;
 	struct MenuRow *row;
-	s16 sVar6;
-	s16 sVar7;
-	u16 uVar8;
 	RECT background;
 	RECT borders;
-	s16 local_60;
-	s16 menuHeight;
-	s16 offsetY;
-	s16 local_50;
-	s16 local_48;
-	s16 local_40;
-	s16 local_38;
-	int local_30;
-	int local_2c;
-	s16 posX_prev;
-	s16 posY_prev;
-	struct GameTracker *gGT = sdata->gGT;
+	s16 height;
+	s16 hierarchyHeight;
+	s16 offsetY = posY;
+	s16 rowTopMargin;
+	s16 titleHeight;
+	s16 centerX = 0;
+	s16 centerY = 0;
+	Color *highlight;
 
-	uVar8 = 0;
-	local_40 = 0;
-	local_38 = 0;
-	if ((menu->drawStyle & 0x10U) != 0)
+	if (menu->drawStyle & 0x10)
 	{
-		uVar8 = 0x1d;
+		baseFlags = 0x1d;
 	}
-	offsetY = posY;
 	if ((menu->state & RECTMENU_DRAW_CALLBACK_FLAGS) == RECTMENU_DRAW_CALLBACK_FLAGS)
 	{
 		menu->funcState = RECTMENU_FUNC_STATE_DRAW;
-		if (menu->funcPtr != NULL)
+		if (menu->funcPtr)
 		{
 			menu->funcPtr(menu);
 		}
 	}
-	posX_prev = 2;
-	if ((menu->state & USE_SMALL_FONT) == 0)
+	fontType = FONT_SMALL;
+	if (menu->state & USE_SMALL_FONT)
 	{
-		posX_prev = 1;
-		local_50 = 2;
-		sVar7 = data.font_charPixHeight[1] + 3;
-	}
-	else
-	{
-		local_50 = 0;
-		sVar7 = data.font_charPixHeight[2];
-		if ((menu->state & BIG_TEXT_IN_TITLE) == 0)
+		rowHeight = RECTMENU_FONT_HEIGHT[FONT_SMALL];
+		rowTopMargin = 0;
+		if (menu->state & BIG_TEXT_IN_TITLE)
 		{
-			local_48 = data.font_charPixHeight[2];
-			goto LAB_80045e94;
-		}
-	}
-	local_48 = data.font_charPixHeight[1] + 3;
-LAB_80045e94:
-
-	local_60 = 0;
-	menu->posX_prev = menu->posX_curr;
-	menu->posY_prev = menu->posY_curr;
-	RECTMENU_GetHeight(menu, &local_60, 0);
-
-	state = menu->state;
-
-	menu->width = menuWidth;
-	menu->state &= ~RECTMENU_CLOSE_TRANSIENT;
-	menu->height = local_60;
-
-	if ((state & CENTER_ON_Y) != 0)
-	{
-		menuHeight = 0;
-		RECTMENU_GetHeight(menu, &menuHeight, 1);
-		local_38 = (s16)(-menuHeight / 2);
-	}
-	if ((state & CENTER_ON_X) != 0)
-	{
-		local_40 = (s16)(-menuWidth / 2);
-	}
-	sVar6 = 0;
-	row = &menu->rows[0];
-	index = menu->stringIndexTitle;
-	posY_prev = local_50 + local_38 + offsetY + menu->posY_prev;
-	if ((-1 < index) && ((state & ONLY_DRAW_TITLE) == 0))
-	{
-		sVar4 = 1;
-		if ((state & BIG_TEXT_IN_TITLE) == 0)
-		{
-			sVar4 = posX_prev;
-		}
-		if ((state & CENTER_MENU_TEXT) == 0)
-		{
-			offsetX = (s16)(posX + menu->posX_prev);
-			uVar5 = uVar8;
-			if ((state & CENTER_ON_X) != 0)
-			{
-				uVar5 = uVar8 | 0x8000;
-			}
-			titleString = sdata->lngStrings[index];
+			titleHeight = RECTMENU_FONT_HEIGHT[FONT_BIG] + 3;
 		}
 		else
 		{
-			uVar5 = uVar8 | 0x8000;
-			titleString = sdata->lngStrings[index];
-			offsetX = (s16)(posX + menu->posX_prev + (menuWidth / 2));
+			titleHeight = rowHeight;
 		}
-		DecalFont_DrawLine(titleString, offsetX, posY_prev, sVar4, uVar5);
-		posY_prev = local_48 + posY_prev + 6;
 	}
-
+	else
+	{
+		fontType = FONT_BIG;
+		rowTopMargin = 2;
+		rowHeight = RECTMENU_FONT_HEIGHT[FONT_BIG] + 3;
+		titleHeight = rowHeight;
+	}
+	height = 0;
+	menu->posX_prev = menu->posX_curr;
+	menu->posY_prev = menu->posY_curr;
+	RECTMENU_GetHeight(menu, &height, 0);
+	menu->width = menuWidth;
+	menu->state &= ~RECTMENU_CLOSE_TRANSIENT;
+	menu->height = height;
+	// NOTE(aalhendi): Keep the stored dimensions as the local layout snapshot.
+	// This round trip also preserves GCC 2.8's register lifetimes without a load.
+	height = menu->height;
+	menuWidth = menu->width;
+	if (menu->state & CENTER_ON_Y)
+	{
+		hierarchyHeight = 0;
+		RECTMENU_GetHeight(menu, &hierarchyHeight, 1);
+		centerY = -hierarchyHeight / 2;
+	}
+	if (menu->state & CENTER_ON_X)
+	{
+		centerX = -menuWidth / 2;
+	}
+	rowIndex = 0;
+	row = menu->rows;
+	rowY = rowTopMargin + (centerY + (offsetY + menu->posY_prev));
+	if (menu->stringIndexTitle >= 0 && !(menu->state & ONLY_DRAW_TITLE))
+	{
+		s16 titleFont = (menu->state & BIG_TEXT_IN_TITLE) ? FONT_BIG : fontType;
+		if (menu->state & CENTER_MENU_TEXT)
+		{
+			DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[menu->stringIndexTitle], posX + menu->posX_prev + menuWidth / 2, rowY, titleFont, baseFlags | 0x8000);
+		}
+		else
+		{
+			DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[menu->stringIndexTitle], posX + menu->posX_prev, rowY, titleFont,
+			                   (menu->state & CENTER_ON_X) ? baseFlags | 0x8000 : baseFlags);
+		}
+		rowY = titleHeight + (s16)(rowY + 6);
+	}
 	if (row->stringIndex != -1)
 	{
-		local_30 = (menuWidth / 2) + 1;
-		local_2c = posX_prev;
+		s32 centeredRowOffset = menuWidth / 2 + 1;
 		do
 		{
-			state = menu->state;
-			if (((state & (ONLY_DRAW_TITLE | SHOW_ONLY_HIGHLIT_ROW)) == 0) || (sVar6 == menu->rowSelected))
+			if (!(menu->state & (ONLY_DRAW_TITLE | SHOW_ONLY_HIGHLIT_ROW)) || rowIndex == menu->rowSelected)
 			{
-				uVar5 = row->stringIndex;
-				textFlags = 0x17;
-				if ((uVar5 & 0x8000) == 0)
+				s16 textIndex = row->stringIndex & 0x7fff;
+				u16 textFlags = (row->stringIndex & 0x8000) ? 0x17 : baseFlags;
+				// NOTE(aalhendi): The complemented mask sets JUSTIFY_CENTER with a
+				// signed result; a direct OR changes GCC 2.8's loop constant folding.
+				if (textIndex > 0)
 				{
-					textFlags = uVar8;
-				}
-				if ((uVar5 & 0x7fff) != 0)
-				{
-					if ((state & CENTER_MENU_TEXT) == 0)
+					if (menu->state & CENTER_MENU_TEXT)
 					{
-						sVar4 = (s16)(posX + menu->posX_prev + 1);
-						if ((state & CENTER_ON_X) != 0)
-						{
-							textFlags |= 0x8000;
-						}
-						titleString = sdata->lngStrings[uVar5 & 0x7fff];
-						index = local_2c;
+						DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[textIndex], posX + menu->posX_prev + centeredRowOffset, rowY, fontType,
+						                   ~(~textFlags & 0x7fff));
 					}
 					else
 					{
-						textFlags |= 0x8000;
-						titleString = sdata->lngStrings[uVar5 & 0x7fff];
-						sVar4 = (s16)(posX + menu->posX_prev + local_30);
-						index = posX_prev;
+						DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[textIndex], posX + menu->posX_prev + 1, rowY, fontType,
+						                   (menu->state & CENTER_ON_X) ? ~(~textFlags & 0x7fff) : textFlags);
 					}
-					DecalFont_DrawLine(titleString, sVar4, posY_prev, index, textFlags);
 				}
-				posY_prev += sVar7;
+				rowY += rowHeight;
 			}
-			row++;
-			sVar6++;
+			++row;
+			++rowIndex;
 		} while (row->stringIndex != -1);
 	}
-	if ((menu->state & (HIDE_ROW_HIGHLIGHT | ONLY_DRAW_TITLE)) == 0)
+	if (!(menu->state & (HIDE_ROW_HIGHLIGHT | ONLY_DRAW_TITLE)))
 	{
-		background.x = local_40 + posX + menu->posX_prev;
-		background.y = offsetY + menu->posY_prev + local_38;
-		if ((menu->state & SHOW_ONLY_HIGHLIT_ROW) == 0)
+		s32 baseY;
+		s32 highlightY;
+		s32 margin;
+		s32 highlightHeight;
+		background.x = centerX + (posX + menu->posX_prev);
+		baseY = offsetY + menu->posY_prev + centerY;
+		margin = rowTopMargin;
+		if (!(menu->state & SHOW_ONLY_HIGHLIT_ROW))
 		{
-			background.y += menu->rowSelected * sVar7 + local_50 + -1;
+			highlightY = baseY + menu->rowSelected * rowHeight + (s16)(margin - 1);
 		}
 		else
 		{
-			background.y += local_50 + -1;
+			highlightY = baseY + (s16)(margin - 1);
 		}
-		if ((menu->state & USE_SMALL_FONT) == 0)
-		{
-			background.h = -3;
-		}
-		else
-		{
-			background.h = 1;
-		}
-		background.h = sVar7 + background.h;
-		if (-1 < menu->stringIndexTitle)
-		{
-			background.y += local_48 + 6;
-		}
-		rgb = &sdata->menuRowHighlight_Normal;
-		if ((menu->drawStyle & 0x10U) != 0)
-		{
-			rgb = &sdata->menuRowHighlight_Green;
-		}
+		background.y = highlightY;
 		background.w = menuWidth;
-
-		CTR_Box_DrawClearBox(&background, rgb, 1, gGT->backBuffer->otMem.uiOT, &gGT->backBuffer->primMem);
+		{
+			s32 lineHeight = rowHeight;
+			highlightHeight = (menu->state & USE_SMALL_FONT) ? lineHeight + 1 : lineHeight - 3;
+			// NOTE(aalhendi): Keep the unadjusted height live so GCC 2.8 uses a
+			// separate result register. This constraint emits no instruction.
+			CTR_PSX_OBSERVE_VALUE(lineHeight);
+		}
+		background.h = highlightHeight;
+		if (menu->stringIndexTitle >= 0)
+		{
+			background.y = titleHeight + (s16)(background.y + 6);
+		}
+		highlight = &GAME_MENU_HIGHLIGHT;
+		if (menu->drawStyle & 0x10)
+		{
+			highlight = &RECTMENU_HIGHLIGHT_GREEN;
+		}
+		CTR_Box_DrawClearBox(&background, highlight, 1, GAME_TRACKER->backBuffer->otMem.uiOT, &GAME_TRACKER->backBuffer->primMem);
 	}
-	if ((menu->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
+	if (menu->state & DRAW_NEXT_MENU_IN_HIERARCHY)
 	{
-		RECTMENU_DrawSelf(menu->ptrNextBox_InHierarchy, posX + menu->posX_prev, local_38 + offsetY + menu->posY_prev + sVar7 + 0xc, menuWidth);
+		RECTMENU_DrawSelf(menu->ptrNextBox_InHierarchy, (s16)(posX + menu->posX_prev), centerY + (offsetY + menu->posY_prev) + (s16)(rowHeight + 12),
+		                  menuWidth);
 	}
-	posX_prev = menu->posX_prev;
-	posY_prev = menu->posY_prev;
-	if ((menu->state & ONLY_DRAW_TITLE) == 0)
+	if (menu->state & ONLY_DRAW_TITLE)
 	{
-		borders.h = (local_60 + 8) - (*(u8 *)&menu->state >> 7);
+		borders.x = centerX + (posX + menu->posX_prev) - 6;
+		borders.y = centerY + (offsetY + menu->posY_prev) - 4;
+		borders.w = menuWidth + 12;
+		borders.h = rowHeight + 8;
+		RECTMENU_DrawFullRect(menu, &borders);
 	}
 	else
 	{
-		borders.h = sVar7 + 8;
+		borders.x = centerX + (posX + menu->posX_prev) - 6;
+		borders.y = centerY + (offsetY + menu->posY_prev) - 4;
+		borders.w = menuWidth + 12;
+		{
+			s32 borderHeight = (*(u8 *)&menu->state >> 7);
+			s32 paddedHeight = height + 8;
+			borderHeight = paddedHeight - borderHeight;
+			borders.h = borderHeight;
+		}
+		RECTMENU_DrawFullRect(menu, &borders);
 	}
-	borders.w = menuWidth + 0xc;
-	borders.y = local_38 + offsetY + posY_prev - 4;
-	borders.x = local_40 + posX + posX_prev - 6;
-	RECTMENU_DrawFullRect(menu, &borders);
 }
 
-
-void RECTMENU_ClearInput()
+void RECTMENU_ClearInput(void)
 {
-	int i;
+	s16 i;
 
 	sdata->AnyPlayerTap = 0;
 	sdata->AnyPlayerHold = 0;
 
 	for (i = 0; i < 4; i++)
 	{
-		sdata->buttonTapPerPlayer[i] = 0;
-		sdata->buttonHeldPerPlayer[i] = 0;
+		RECTMENU_PLAYER_TAP[i] = 0;
+		RECTMENU_PLAYER_HOLD[i] = 0;
 	}
 }
 
 
-void RECTMENU_CollectInput()
+void RECTMENU_CollectInput(void)
 {
-	int i;
-	int numListen;
-	struct RectMenu *activeSub;
-
-	sdata->AnyPlayerTap = 0;
-	sdata->AnyPlayerHold = 0;
-	activeSub = sdata->activeSubMenu;
-
-	numListen = sdata->gGT->numPlyrNextGame;
-
-	if ((activeSub != NULL) && ((activeSub->state & ALL_PLAYERS_USE_MENU) != 0))
+	s16 i;
+	s16 numListen;
+	struct RectMenu *activeSub = sdata->activeSubMenu;
+	RECTMENU_ANY_TAP = 0;
+	RECTMENU_ANY_HOLD = 0;
+	numListen = (activeSub && (activeSub->state & ALL_PLAYERS_USE_MENU)) ? 4 : GAME_TRACKER->numPlyrNextGame;
+	for (i = 0; i < numListen; ++i)
 	{
-		numListen = 4;
-	}
-
-	struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[0];
-
-	for (i = 0; i < numListen; i++)
-	{
-		sdata->buttonTapPerPlayer[i] = gb->buttonsTapped;
-		sdata->buttonHeldPerPlayer[i] = gb->buttonsHeldCurrFrame;
-		gb++;
-
-		sdata->AnyPlayerTap |= sdata->buttonTapPerPlayer[i];
-		sdata->AnyPlayerHold |= sdata->buttonHeldPerPlayer[i];
+		RECTMENU_PLAYER_TAP[i] = GAMEPADS->gamepad[i].buttonsTapped;
+		RECTMENU_PLAYER_HOLD[i] = GAMEPADS->gamepad[i].buttonsHeldCurrFrame;
+		RECTMENU_ANY_TAP |= RECTMENU_PLAYER_TAP[i];
+		RECTMENU_ANY_HOLD |= RECTMENU_PLAYER_HOLD[i];
 	}
 }
 
-
-int RECTMENU_ProcessInput(struct RectMenu *m)
+s32 RECTMENU_ProcessInput(struct RectMenu *m)
 {
-	struct MenuRow *currMenuRow;
-	int i;
-	int button;
-	int oldRow;
-	int newRow;
-
-	int returnVal = 0;
-
-	RngDeadCoed(&sdata->advRng);
-
-	if (((m->state & ONLY_DRAW_TITLE) == 0) && ((m->state & RECTMENU_DRAW_CALLBACK_FLAGS) != RECTMENU_DRAW_CALLBACK_FLAGS))
+	struct MenuRow *row;
+	s16 selected;
+	s16 oldRow;
+	s32 button;
+	s16 result;
+	RngDeadCoed(&RECTMENU_ADV_RNG);
+	result = 0;
+	if (!(m->state & ONLY_DRAW_TITLE) && (m->state & RECTMENU_DRAW_CALLBACK_FLAGS) != RECTMENU_DRAW_CALLBACK_FLAGS)
 	{
-		if (sdata->activeSubMenu != m)
+		selected = m->rowSelected;
+		row = &m->rows[m->rowSelected];
+		if (RECTMENU_ACTIVE_SUBMENU != m)
 		{
-			sdata->activeSubMenu = m;
-
-			if ((m->state & KEEP_INPUTS_IN_SUBMENU) == 0)
+			RECTMENU_ACTIVE_SUBMENU = m;
+			if (!(m->state & KEEP_INPUTS_IN_SUBMENU))
 			{
 				RECTMENU_ClearInput();
 			}
 		}
-	}
-
-	// button from any player
-	button = sdata->AnyPlayerTap;
-
-	// if only P1 can use menu
-	if ((m->state & ALL_PLAYERS_USE_MENU) == 0)
-	{
-		// get button from P1
-		button = sdata->buttonTapPerPlayer[0];
-	}
-
-	if (
-
-	    // if not drawing only title bar,
-	    // therefore this is the bottom of hierarchy
-	    ((m->state & ONLY_DRAW_TITLE) == 0) &&
-
-	    // draw callbacks suppress normal input
-	    ((m->state & RECTMENU_DRAW_CALLBACK_FLAGS) != RECTMENU_DRAW_CALLBACK_FLAGS) &&
-
-	    // D-pad or menu confirm/back buttons
-	    ((button & RECTMENU_INPUT_MENU) != 0) &&
-
-	    // No cheat code entering
-	    ((sdata->buttonHeldPerPlayer[0] & (BTN_L1 | BTN_R1)) == 0))
-	{
-		oldRow = m->rowSelected;
-		newRow = oldRow;
-
-		currMenuRow = &m->rows[oldRow];
-
-		// optimized way to check all four button presses:
-		// up, down, left, right, and get new row
-		for (i = 0; i < 4; i++)
+		if (!(m->state & ALL_PLAYERS_USE_MENU))
 		{
-			if (((button >> i) & 1) != 0)
-			{
-				newRow = *(char *)((char *)&currMenuRow->rowOnPressUp + i);
-				break;
-			}
+			button = RECTMENU_PLAYER_TAP[0];
 		}
-
-		// check if row has changed
-		if (oldRow != newRow)
-		{
-			// if cursor moving sound is not muted
-			if ((m->state & MUTE_SOUND_OF_MOVING_CURSOR) == 0)
-			{
-				OtherFX_Play(0, 1);
-			}
-		}
-
-		if ((button & (BTN_CROSS_one | BTN_CIRCLE)) == 0)
-		{
-			if (
-			    // if Triangle or Square
-			    ((button & (BTN_TRIANGLE | BTN_SQUARE_one)) != 0) &&
-
-			    // if this is not the top of the menu
-			    ((m->state & MENU_CANT_GO_BACK) == 0))
-			{
-				// process GO BACK
-
-				// if menu is not muted
-				if ((m->state & MUTE_SOUND_OF_MOVING_CURSOR) == 0)
-				{
-					OtherFX_Play(2, 1);
-				}
-
-				returnVal = -1;
-
-				m->funcState = RECTMENU_FUNC_STATE_INPUT;
-
-				m->rowSelected = -1;
-
-				if (m->funcPtr != 0)
-				{
-					RECTMENU_ClearInput();
-					m->funcPtr(m);
-				}
-
-				// Save row
-				m->rowSelected = newRow;
-			}
-		}
-
-		// if Cross or Circle
 		else
 		{
-			// unlocked row
-			if ((m->rows[m->rowSelected].stringIndex & 0x8000) == 0)
-			{
-				if ((m->state & MUTE_SOUND_OF_MOVING_CURSOR) == 0)
-				{
-					OtherFX_Play(1, 1);
-				}
-
-				m->funcState = RECTMENU_FUNC_STATE_INPUT;
-
-				// Save row BEFORE processing the Cross button,
-				// this is why you can glitch into 3P VS with
-				// only 2 controllers, by pressing DOWN+X same frame
-				m->rowSelected = newRow;
-
-				returnVal = 1;
-
-				if (m->funcPtr != 0)
-				{
-					RECTMENU_ClearInput();
-					m->funcPtr(m);
-				}
-			}
-			else if ((m->state & MUTE_SOUND_OF_MOVING_CURSOR) == 0)
-			{
-				// "womp" sound for LOCKED row
-				OtherFX_Play(5, 1);
-			}
+			button = sdata->AnyPlayerTap;
 		}
-
-		RECTMENU_ClearInput();
-
-		m->rowSelected = newRow;
+		if (!(RECTMENU_PLAYER_HOLD[0] & (BTN_L1 | BTN_R1)))
+		{
+			if (button & RECTMENU_INPUT_MENU)
+			{
+				oldRow = selected;
+				if (button & BTN_UP)
+				{
+					selected = (u8)row->rowOnPressUp;
+				}
+				else if (button & BTN_DOWN)
+				{
+					selected = (u8)row->rowOnPressDown;
+				}
+				else if (button & BTN_LEFT)
+				{
+					selected = (u8)row->rowOnPressLeft;
+				}
+				else if (button & BTN_RIGHT)
+				{
+					selected = (u8)row->rowOnPressRight;
+				}
+				if (oldRow != selected && !(m->state & MUTE_SOUND_OF_MOVING_CURSOR))
+				{
+					OtherFX_Play(0, 1);
+				}
+				if (button & (BTN_CROSS_one | BTN_CIRCLE))
+				{
+					// NOTE(aalhendi): Retail checks the old row's lock before confirming
+					// the new selection when direction and confirm arrive together.
+					if (m->rows[m->rowSelected].stringIndex & 0x8000)
+					{
+						if (!(m->state & MUTE_SOUND_OF_MOVING_CURSOR))
+						{
+							OtherFX_Play(5, 1);
+						}
+					}
+					else
+					{
+						if (!(m->state & MUTE_SOUND_OF_MOVING_CURSOR))
+						{
+							OtherFX_Play(1, 1);
+						}
+						m->funcState = RECTMENU_FUNC_STATE_INPUT;
+						m->rowSelected = selected;
+						result = 1;
+						if (m->funcPtr)
+						{
+							RECTMENU_ClearInput();
+							m->funcPtr(m);
+						}
+					}
+				}
+				else if (!(m->state & MENU_CANT_GO_BACK) && (button & (BTN_TRIANGLE | BTN_SQUARE_one)))
+				{
+					if (!(m->state & MUTE_SOUND_OF_MOVING_CURSOR))
+					{
+						OtherFX_Play(2, 1);
+					}
+					m->funcState = RECTMENU_FUNC_STATE_INPUT;
+					result = -1;
+					m->rowSelected = result;
+					// NOTE(aalhendi): Back is reported as row -1 only during the callback.
+					if (m->funcPtr)
+					{
+						RECTMENU_ClearInput();
+						m->funcPtr(m);
+					}
+					m->rowSelected = selected;
+				}
+				RECTMENU_ClearInput();
+			}
+			m->rowSelected = selected;
+		}
 	}
-
-	// if "next" hierarchy level exists
-	if ((m->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
+	if (m->state & DRAW_NEXT_MENU_IN_HIERARCHY)
 	{
-		// store self in the next
 		m->ptrNextBox_InHierarchy->ptrPrevBox_InHierarchy = m;
-
-		// keep going till the bottom hierarchy level is hit,
-		// where m->state&4==0, cause not drawing "only title"
-		returnVal = RECTMENU_ProcessInput(m->ptrNextBox_InHierarchy);
+		result = RECTMENU_ProcessInput(m->ptrNextBox_InHierarchy);
 	}
-
-	return returnVal;
+	return result;
 }
 
-
-void RECTMENU_ProcessState()
+void RECTMENU_ProcessState(void)
 {
 	struct RectMenu *currMenu;
 	s16 width;
-	int state;
-
-	// check for curr box
-	currMenu = sdata->ptrDesiredMenu;
-
-	// unused
-	if (sdata->framesRemainingInMenu != 0)
+	s16 remaining = RECTMENU_FRAMES_REMAINING;
+	if (remaining)
 	{
-		sdata->framesRemainingInMenu--;
+		RECTMENU_FRAMES_REMAINING = remaining - 1;
 	}
-
-	// if you want to change the Menu
-	if (currMenu != 0)
+	if (sdata->ptrDesiredMenu)
 	{
-		sdata->ptrDesiredMenu = 0;
-
-		// show menu
+		u32 state;
+		currMenu = sdata->ptrDesiredMenu;
+		state = currMenu->state;
 		sdata->ptrActiveMenu = currMenu;
-		currMenu->state &= ~NEEDS_TO_CLOSE;
-
-		// get menu at end of hierarchy, if there is hierarchy
-		while ((currMenu->state & DRAW_NEXT_MENU_IN_HIERARCHY) != 0)
+		sdata->ptrDesiredMenu = NULL;
+		currMenu->state = state & ~NEEDS_TO_CLOSE;
+		while (currMenu->state & DRAW_NEXT_MENU_IN_HIERARCHY)
 		{
-			currMenu = (struct RectMenu *)currMenu->ptrNextBox_InHierarchy;
+			currMenu = currMenu->ptrNextBox_InHierarchy;
 		}
-
-		// remove "draw only title bar" from lowest hierarchy,
-		// so that rows in this menu draw properly
 		currMenu->state &= ~ONLY_DRAW_TITLE;
 	}
-
 	currMenu = sdata->ptrActiveMenu;
-	state = currMenu->state;
-
-	// run funcPtr if it exists
-	if ((state & (EXECUTE_FUNCPTR | DISABLE_INPUT_ALLOW_FUNCPTRS)) != 0)
+	if (currMenu->state & (EXECUTE_FUNCPTR | DISABLE_INPUT_ALLOW_FUNCPTRS))
 	{
 		currMenu->funcState = RECTMENU_FUNC_STATE_UPDATE;
 		currMenu->funcPtr(currMenu);
-
-		// check if funcPtr changed "state"
-		currMenu = sdata->ptrActiveMenu;
-		state = currMenu->state;
 	}
-
-	// if not character selection
-	if ((state & DISABLE_INPUT_ALLOW_FUNCPTRS) == 0)
+	// NOTE(aalhendi): Callbacks may replace the active menu; do not retain the
+	// old pointer across update/input or skip the reload before drawing.
+	currMenu = sdata->ptrActiveMenu;
+	if (!(currMenu->state & DISABLE_INPUT_ALLOW_FUNCPTRS))
 	{
-		// process button input for menu
 		RECTMENU_ProcessInput(currMenu);
-
-		// check if ProcessInput changed "state"
 		currMenu = sdata->ptrActiveMenu;
-		state = currMenu->state;
-
-		// if Menu border is not invisible
-		if ((state & INVISIBLE) == 0)
+		if (!(currMenu->state & INVISIBLE))
 		{
-			// clear width, then get width
 			width = 0;
 			RECTMENU_GetWidth(currMenu, &width, 1);
-
-			// draw
-			RECTMENU_DrawSelf(currMenu, 0, 0, (int)width);
+			RECTMENU_DrawSelf(sdata->ptrActiveMenu, 0, 0, width);
 		}
 	}
-
-	currMenu = sdata->ptrActiveMenu;
-	state = currMenu->state;
-
-	// not sure what this is
-	if ((state & RECTMENU_UNKNOWN_0x800) == 0)
+	if (!(sdata->ptrActiveMenu->state & RECTMENU_UNKNOWN_0x800))
 	{
-		if (RaceFlag_GetCanDraw() == 0)
+		if (!RaceFlag_GetCanDraw())
 		{
 			RaceFlag_SetCanDraw(1);
 		}
-
-		sdata->gGT->renderFlags |= RENDER_FLAG_RENDER_BUCKET;
+		GAME_TRACKER->renderFlags |= RENDER_FLAG_RENDER_BUCKET;
 	}
-
-	currMenu = sdata->ptrActiveMenu;
-	state = currMenu->state;
-
-	// if menu needs to close
-	if ((state & NEEDS_TO_CLOSE) != 0)
+	if (sdata->ptrActiveMenu->state & NEEDS_TO_CLOSE)
 	{
-		// deactivate
-		sdata->ptrActiveMenu = 0;
+		sdata->ptrActiveMenu = NULL;
 	}
 }
 
-
 void RECTMENU_Show(struct RectMenu *m)
 {
+	u32 state;
 	RECTMENU_ClearInput();
-
+	state = m->state;
 	sdata->ptrActiveMenu = m;
-
-	m->state &= ~NEEDS_TO_CLOSE;
+	m->state = state & ~NEEDS_TO_CLOSE;
 }
 
 
