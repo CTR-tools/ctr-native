@@ -573,7 +573,7 @@ LAB_Battle_ValidSetup:
 							eventTimeMinutes = MM_BATTLE_LIFE_TIME_LIMIT_MINUTES[MM_MENU_BATTLE_LENGTH_LIFE_TIME.rowSelected];
 						}
 						gameTrackerPage = MM_GAME_TRACKER_PAGE_VALUE;
-						timeTracker = *((struct GameTracker **)(((u32)gameTrackerPage) + MM_GAME_TRACKER_PAGE_OFFSET));
+						timeTracker = CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER);
 						battleTracker->originalEventTime = eventTimeMinutes;
 						CTR_PSX_MEMORY_BARRIER();
 						originalEventTime = timeTracker->originalEventTime;
