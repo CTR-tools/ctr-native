@@ -776,6 +776,21 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "gamepad",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "GAMEPAD_Init",
+      "end_symbol": "GAMEPROG_AdvPercent",
+      "symbol_prefix": "GAMEPAD_",
+      "source": "game/GAMEPAD.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/gamepad/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77"
+    },
+    {
       "name": "gameprog",
       "kind": "resident",
       "artifact": "exe",

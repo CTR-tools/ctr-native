@@ -278,7 +278,7 @@ void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 	window.h = 0;
 
 	// if more than 2 players, or if multitap used
-	if ((gGT->numPlyrNextGame > 2) || (gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4)))
+	if ((gGT->numPlyrNextGame > 2) || (gGamepads->slotBuffer[0].controller.controllerData == (PAD_ID_MULTITAP << 4)))
 	{
 		// change to "1A", "1B", "1C", "1D",
 		lngArrStart = 2;

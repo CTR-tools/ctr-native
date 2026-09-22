@@ -55,7 +55,7 @@ enum Buttons
 struct GamepadButtonMap
 {
 	// 0x0
-	u8 rawInput[4];
+	u32 rawInput;
 
 	// 0x4
 	u32 buttons;
@@ -103,7 +103,7 @@ struct ControllerPacket
 		} neGcon;
 		struct
 		{
-			u16 jog_rot; // Jog rotation
+			s16 jog_rot; // Jog rotation
 		} jogcon;
 		struct
 		{
@@ -125,8 +125,17 @@ struct MultitapPacket
 	struct ControllerPacket controllers[4];
 };
 
+// NOTE(aalhendi): A physical port contains either a single-pad packet or a
+// multitap header followed by four packets. Both views share the two-byte header.
+union GamepadSlot
+{
+	struct ControllerPacket controller;
+	struct MultitapPacket multitap;
+};
+
 CTR_STATIC_ASSERT(sizeof(struct ControllerPacket) == 8);
 CTR_STATIC_ASSERT(sizeof(struct MultitapPacket) == 34);
+CTR_STATIC_ASSERT(sizeof(union GamepadSlot) == 34);
 
 struct GamepadBuffer
 {
@@ -261,22 +270,8 @@ struct GamepadSystem
 
 	int unk_2CC;
 
-	// gamepad subsystem, for use with InitPAD()/StartPAD() BIOS functions
-	// array of two 34-byte elements
-	// 2 bytes for meta (whether or not it's a pad or multitap)
-	// 8 bytes per gamepad port in multitap (4*8 = 32)
-	/*
-	struct
-	{
-	    char meta[2];
-	    struct
-	    {
-	        char data[8];
-	    } padBuffer[4];
-	} slotBuffer[2];
-	*/
-
-	struct MultitapPacket slotBuffer[2];
+	// Two physical ports, each holding one pad or four multitap pads.
+	union GamepadSlot slotBuffer[2];
 
 	// 0x314
 	int numGamepadsConnected;

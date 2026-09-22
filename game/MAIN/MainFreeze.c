@@ -551,7 +551,7 @@ static void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAM
 	struct GameTracker *gGT = sdata->gGT;
 
 	// note: multitap only works if it's connected to the P1 slot
-	int multitapStringOffset = (sdata->gGamepads->slotBuffer[0].controllerData == (PAD_ID_MULTITAP << 4)) ? 2 : 0;
+	int multitapStringOffset = (sdata->gGamepads->slotBuffer[0].controller.controllerData == (PAD_ID_MULTITAP << 4)) ? 2 : 0;
 
 	// a menu row is 10 pixels
 	int menuRowsNegativePadding = gamepad->menuRowsToRemove * 10;

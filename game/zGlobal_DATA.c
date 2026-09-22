@@ -2907,97 +2907,97 @@ struct Data
             .gamepadMapBtn =
                 {
                     {// RAW_BTN_UP = 0x10
-                     .rawInput = {0, 0x10, 0, 0x10},
+                     .rawInput = 0x10001000,
 
                      .buttons = BTN_UP},
 
                     {// RAW_BTN_DOWN = 0x40
-                     .rawInput = {0, 0x40, 0, 0x40},
+                     .rawInput = 0x40004000,
 
                      .buttons = BTN_DOWN},
 
                     {// RAW_BTN_LEFT = 0x80
-                     .rawInput = {0, 0x80, 0, 0x80},
+                     .rawInput = 0x80008000,
 
                      .buttons = BTN_LEFT},
 
                     {// RAW_BTN_RIGHT = 0x20
-                     .rawInput = {0, 0x20, 0, 0x20},
+                     .rawInput = 0x20002000,
 
                      .buttons = BTN_RIGHT},
 
                     {// RAW_BTN_TRIANGLE = 0x1000
-                     .rawInput = {0x10, 0, 8, 0},
+                     .rawInput = 0x00080010,
 
                      .buttons = BTN_TRIANGLE},
 
                     {// RAW_BTN_CROSS = 0x4000
-                     .rawInput = {0x40, 0, 0x40, 0},
+                     .rawInput = 0x00400040,
 
                      .buttons = BTN_CROSS_one},
 
                     {// RAW_BTN_SQUARE = 0x8000
-                     .rawInput = {0x80, 0, 0x4, 0},
+                     .rawInput = 0x00040080,
 
                      .buttons = BTN_SQUARE_one},
 
                     {// RAW_BTN_CIRCLE = 0x2000
-                     .rawInput = {0x20, 0, 0x20, 0},
+                     .rawInput = 0x00200020,
 
                      .buttons = BTN_CIRCLE},
 
                     {// RAW_BTN_L2 = 0x100
-                     .rawInput = {1, 0, 1, 0},
+                     .rawInput = 0x00010001,
 
                      .buttons = BTN_L2_one},
 
                     {// RAW_BTN_L2 = 0x100
-                     .rawInput = {1, 0, 1, 0},
+                     .rawInput = 0x00010001,
 
                      .buttons = BTN_L2_two},
 
                     {// RAW_BTN_R2 = 0x200
-                     .rawInput = {2, 0, 0x80, 0},
+                     .rawInput = 0x00800002,
 
                      .buttons = BTN_R2},
 
                     {// RAW_BTN_START = 8
-                     .rawInput = {0, 8, 0, 8},
+                     .rawInput = 0x08000800,
 
                      .buttons = BTN_START},
 
                     {// RAW_BTN_SELECT = 1
-                     .rawInput = {0, 1, 0, 1},
+                     .rawInput = 0x01000100,
 
                      .buttons = BTN_SELECT},
 
                     {// RAW_BTN_CROSS = 0x4000
-                     .rawInput = {0x40, 0, 0x40, 0},
+                     .rawInput = 0x00400040,
 
                      .buttons = BTN_CROSS_two},
 
                     {// RAW_BTN_SQUARE = 0x8000
-                     .rawInput = {0x80, 0, 4, 0},
+                     .rawInput = 0x00040080,
 
                      .buttons = BTN_SQUARE_two},
 
                     {// RAW_BTN_L1 = 0x400
-                     .rawInput = {4, 0, 2, 0},
+                     .rawInput = 0x00020004,
 
                      .buttons = BTN_L1},
 
                     {// RAW_BTN_R1 = 0x800
-                     .rawInput = {8, 0, 0x10, 0},
+                     .rawInput = 0x00100008,
 
                      .buttons = BTN_R1},
 
                     {// RAW_BTN_L3 = 0x2
-                     .rawInput = {0, 2, 0, 2},
+                     .rawInput = 0x02000200,
 
                      .buttons = BTN_L3},
 
                     {// RAW_BTN_R3 = 0x4
-                     .rawInput = {0, 4, 0, 4},
+                     .rawInput = 0x04000400,
 
                      .buttons = BTN_R3},
 
