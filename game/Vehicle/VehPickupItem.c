@@ -862,6 +862,13 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		{
 			struct Driver *victim;
 
+#ifdef CTR_NATIVE
+			// NOTE(aalhendi): Retail writes before its null check; native must skip empty driver slots.
+			if (GAME_TRACKER->drivers[i] == 0)
+			{
+				continue;
+			}
+#endif
 			GAME_TRACKER->drivers[i]->clockFlash = CLOCK_FLASH_FRAMES;
 			victim = GAME_TRACKER->drivers[i];
 			if (victim == 0)
