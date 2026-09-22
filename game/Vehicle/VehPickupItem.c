@@ -574,6 +574,8 @@ b32 VehPickupItem_PotionThrow(struct MineWeapon *mine, struct Instance *inst, u3
 	return result;
 }
 
+// NOTE(aalhendi): Most retail weapon paths assume allocation succeeds. Native
+// skips failed births and releases any resources reserved before the failure.
 void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 {
 	union
@@ -741,6 +743,14 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			                                      d->instSelf->thread);
 		}
 
+#ifdef CTR_NATIVE
+		if (weaponInst == NULL)
+		{
+			d->numTimesMissileLaunched--;
+			GAME_TRACKER->numMissiles--;
+			return;
+		}
+#endif
 		weaponMatrix = &weaponInst->matrix;
 		{
 			register MATRIX *matrixArgument CTR_PSX_REGISTER("$4");
@@ -910,6 +920,12 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		weaponInst = INSTANCE_BirthWithThread(SHIELD_DARK_MODEL, VEH_PICKUP_SHIELD_DARK_NAME, MEDIUM, OTHER, RB_ShieldDark_ThTick_Grow, sizeof(struct Shield),
 		                                      d->instSelf->thread);
 
+#ifdef CTR_NATIVE
+		if (weaponInst == NULL)
+		{
+			return;
+		}
+#endif
 		weaponInst->scale.x = SHIELD_SCALE;
 		weaponInst->scale.y = SHIELD_SCALE;
 		weaponInst->scale.z = SHIELD_SCALE;
@@ -927,6 +943,12 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			shieldObj->instColor = INSTANCE_Birth3D(GAME_TRACKER->modelPtr[DYNAMIC_SHIELD_GREEN], VEH_PICKUP_SHIELD_NAME, weaponInst->thread);
 		}
 
+#ifdef CTR_NATIVE
+		if (shieldObj->instColor == NULL)
+		{
+			goto ShieldBirthFailed;
+		}
+#endif
 		scale = SHIELD_SCALE;
 		shieldObj->instColor->scale.x = scale;
 		shieldObj->instColor->scale.y = scale;
@@ -934,6 +956,13 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		shieldObj->instHighlight = INSTANCE_Birth3D(GAME_TRACKER->modelPtr[DYNAMIC_HIGHLIGHT], VEH_PICKUP_HIGHLIGHT_NAME, weaponInst->thread);
 
+#ifdef CTR_NATIVE
+		if (shieldObj->instHighlight == NULL)
+		{
+			INSTANCE_Death(shieldObj->instColor);
+			goto ShieldBirthFailed;
+		}
+#endif
 		shieldObj->instHighlight->scale.x = scale;
 		shieldObj->instHighlight->scale.y = scale;
 		shieldObj->instHighlight->scale.z = scale;
@@ -957,6 +986,15 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		shieldObj->animFrame = 0;
 		d->instBubbleHold = weaponInst;
 		break;
+
+#ifdef CTR_NATIVE
+	ShieldBirthFailed:
+		// NOTE(aalhendi): Birth inserted this thread at the front of the driver's
+		// children. Unlink it before recycling the unfinished shield and object.
+		d->instSelf->thread->childThread = weaponInst->thread->siblingThread;
+		PROC_DestroySelf(weaponInst->thread);
+		return;
+#endif
 	}
 
 	// Warpball
@@ -976,6 +1014,12 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 
 		weaponInst = INSTANCE_BirthWithThread(WARPBALL_MODEL, rdata.s_warpball, MEDIUM, TRACKING, RB_Warpball_ThTick, sizeof(struct TrackerWeapon), 0);
 
+#ifdef CTR_NATIVE
+		if (weaponInst == NULL)
+		{
+			return;
+		}
+#endif
 		weaponInst->matrix.t[0] = CTR_MipsSra(d->posCurr.x, WARPBALL_POS_SHIFT);
 		weaponInst->matrix.t[1] = CTR_MipsSra(d->posCurr.y, WARPBALL_POS_SHIFT);
 		weaponInst->matrix.t[2] = CTR_MipsSra(d->posCurr.z, WARPBALL_POS_SHIFT);
@@ -1105,6 +1149,12 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 			weaponInst = INSTANCE_BirthWithThread(STATIC_CRATE_TNT, VEH_PICKUP_TNT_NAME, SMALL, MINE, RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
 		}
 
+#ifdef CTR_NATIVE
+		if (weaponInst == NULL)
+		{
+			return;
+		}
+#endif
 		{
 			register const struct Instance *copySource CTR_PSX_REGISTER("$2");
 
@@ -1262,6 +1312,12 @@ void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags)
 		if (d->numWumpas >= DRIVER_WUMPA_JUICED_COUNT)
 		{
 			weaponInst = INSTANCE_BirthWithThread(STATIC_BEAKER_RED, VEH_PICKUP_BEAKER_NAME, SMALL, MINE, RB_GenericMine_ThTick, sizeof(struct MineWeapon), 0);
+#ifdef CTR_NATIVE
+			if (weaponInst == NULL)
+			{
+				return;
+			}
+#endif
 			mw = weaponInst->thread->object;
 			mw->flags = MINE_WEAPON_FLAG_RED_BEAKER;
 		}
