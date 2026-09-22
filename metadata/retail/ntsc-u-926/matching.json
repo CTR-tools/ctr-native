@@ -912,6 +912,21 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "ui-map",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_Map_DrawMap",
+      "end_symbol": "UI_WeaponBG_AnimateShine",
+      "symbol_prefix": "UI_Map_",
+      "source": "game/UI/UI_Map.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/ui-map/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77"
+    },
+    {
       "name": "ghost-replay",
       "kind": "resident",
       "artifact": "exe",

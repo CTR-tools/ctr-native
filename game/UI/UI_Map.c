@@ -1,5 +1,11 @@
 #include <common.h>
 
+#ifndef UI_MAP_COLORS
+#define UI_MAP_COLORS       data.ptrColor
+#define UI_MAP_ARROW_POS    data.playerIconAdvMap.pos
+#define UI_MAP_ARROW_COLORS data.playerIconAdvMap.colors
+#endif
+
 enum UIMapConstants
 {
 	UI_MAP_NEUTRAL_COLOR = 0x808080,
@@ -25,216 +31,201 @@ enum UIMapConstants
 	UI_MAP_ICON_SCALE = 0x1000,
 	UI_MAP_ADV_ARROW_SCALE = 0x800,
 };
-
-
-void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s32 posX, s32 posY, struct PrimMem *primMem, u32 *otMem, u32 colorID)
+void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s32 posX, s32 posY, struct PrimMem *primMem, u32 *otMem, u8 colorID)
 {
-	s16 mapBottomHeight;
-	s16 mapTopHeight;
+	s32 mapBottomWidth;
+	s32 mapBottomHeight;
+	// NOTE(aalhendi): Keep the two packet-local X values and packed color in
+	// their retail registers. Native leaves these ordinary C temporaries.
+	register s32 leftX CTR_PSX_REGISTER("$4");
+	register s32 bottomX CTR_PSX_REGISTER("$3");
+	s32 topY;
+	register u32 color CTR_PSX_REGISTER("$18");
 	struct UIMapSpawnMetadata *mapMetadata;
 	POLY_FT4 *p;
-	u32 color;
-	u32 transparency;
 	struct GameTracker *gGT;
-
-	gGT = sdata->gGT;
 
 	mapMetadata = NULL;
 
 	// draw minimap with neutral/none vertex color, minimap's regular color is white
 	color = UI_MAP_NEUTRAL_COLOR;
-	transparency = colorID;
 
 	// draw map black
 	// used for the minimap shadow in the track select screen
 	if (colorID == UI_MAP_COLOR_MODE_BLACK)
 	{
+		colorID = 0;
 		color = 0;
-		transparency = 0;
 	}
 
 	// draw minimap blue
 	// used for the minimap outline in the track select screen
-	if (colorID == UI_MAP_COLOR_MODE_BLUE)
+	else if (colorID == UI_MAP_COLOR_MODE_BLUE)
 	{
+		colorID = 0;
 		color = UI_MAP_BLUE_OUTLINE_COLOR;
-		transparency = 0;
 	}
 
-	if ((gGT->level1->ptrSpawnType1 != NULL) && (gGT->level1->ptrSpawnType1->count != 0))
+	gGT = GAME_TRACKER;
+	if (
+#ifdef CTR_NATIVE
+	    // NOTE(aalhendi): Native menu/loading states may lack level spawn data.
+	    gGT->level1 != NULL && gGT->level1->ptrSpawnType1 != NULL &&
+#endif
+	    gGT->level1->ptrSpawnType1->count != 0)
 	{
 		void **pointers = ST1_GETPOINTERS(gGT->level1->ptrSpawnType1);
 		mapMetadata = pointers[ST1_MAP];
 	}
 
-	// position of the bottom margin of the primitive for the bottom half of the minimap
+	// The supplied position is the map's bottom-right corner.
+	mapBottomWidth = mapBottom->texLayout.u1 - mapBottom->texLayout.u0;
 	mapBottomHeight = mapBottom->texLayout.v2 - mapBottom->texLayout.v0;
 
-	p = (POLY_FT4 *)primMem->cursor;
-
-	// if these conditions are met, then draw the top half of the minimap; otherwise, only draw the bottom half
-	// not sure when the game ever draws only the bottom half
-	if (((mapMetadata != NULL) && (mapMetadata->topHalfMode == 0)) ||
-
-	    // if in main menu (character selection, track selection, any part of it)
-	    ((gGT->gameMode1 & MAIN_MENU) != 0))
+	// Menus show both texture halves; gameplay follows the level's map metadata.
+	if (((mapMetadata != NULL) && (mapMetadata->topHalfMode == 0)) || ((gGT->gameMode1 & MAIN_MENU) != 0))
 	{
+		p = (POLY_FT4 *)primMem->cursor;
+#ifdef CTR_NATIVE
+		// NOTE(aalhendi): Retail assumes HUD packet space remains. Native must
+		// respect the same guard used by the other primitive allocators.
+		if ((u32)p > (u32)primMem->guardEnd)
+		{
+			return;
+		}
+#endif
+		leftX = posX - (mapTop->texLayout.u1 - mapTop->texLayout.u0);
+		topY = posY - (mapTop->texLayout.v2 - mapTop->texLayout.v0 + mapBottomHeight);
 		// r0, g0, b0 (vertex color)
 		CtrGpu_WriteColorCode(&p->r0, color);
-
-		// position of the top margin of the primitive for the top half of the minimap
-		mapTopHeight = posY - (((u16)mapTop->texLayout.v2 - (u16)mapTop->texLayout.v0) + mapBottomHeight);
-
-		p->y0 = mapTopHeight;
-		p->y1 = mapTopHeight;
+		CtrGpu_WritePackedUVWord(&p->u0, CTR_ReadU32LE(&mapTop->texLayout.u0));
+		CtrGpu_WritePackedUVWord(&p->u1, CTR_ReadU32LE(&mapTop->texLayout.u1));
+		CtrGpu_WritePackedUVWord(&p->u2, CTR_ReadU32LE(&mapTop->texLayout.u2));
+		CtrGpu_WritePackedUV(&p->u3, CTR_ReadU16LE(&mapTop->texLayout.u3));
 		p->y2 = posY - mapBottomHeight;
 		p->y3 = posY - mapBottomHeight;
-
-		UI_Map_DrawMap_ExtraFunc(mapTop, p, posX, 0, primMem, otMem, transparency);
-
-		p = p + 1;
+		setPolyFT4(p);
+		p->x0 = leftX;
+		p->y0 = topY;
+		p->x1 = posX;
+		p->y1 = topY;
+		p->x2 = leftX;
+		p->x3 = posX;
+		if (colorID != 0)
+		{
+			p->tpage = (p->tpage & UI_MAP_TPAGE_BLEND_MASK) | ((u8)colorID << UI_MAP_TPAGE_BLEND_SHIFT);
+		}
+		p->code |= UI_MAP_SEMI_TRANS_CODE_BIT;
+		AddPrim(otMem, p);
+		primMem->cursor = (u8 *)primMem->cursor + sizeof(*p);
 	}
 
+	p = (POLY_FT4 *)primMem->cursor;
+#ifdef CTR_NATIVE
+	if ((u32)p > (u32)primMem->guardEnd)
+	{
+		return;
+	}
+#endif
 	// r0, g0, b0 (vertex color)
 	CtrGpu_WriteColorCode(&p->r0, color);
-
+	CtrGpu_WritePackedUVWord(&p->u0, CTR_ReadU32LE(&mapBottom->texLayout.u0));
+	CtrGpu_WritePackedUVWord(&p->u1, CTR_ReadU32LE(&mapBottom->texLayout.u1));
+	CtrGpu_WritePackedUVWord(&p->u2, CTR_ReadU32LE(&mapBottom->texLayout.u2));
+	CtrGpu_WritePackedUV(&p->u3, CTR_ReadU16LE(&mapBottom->texLayout.u3));
+	bottomX = posX - mapBottomWidth;
 	p->y0 = posY - mapBottomHeight;
 	p->y1 = posY - mapBottomHeight;
-	p->y2 = posY;
-	p->y3 = posY;
-
-	UI_Map_DrawMap_ExtraFunc(mapBottom, p, posX, 0, primMem, otMem, transparency);
-
-	primMem->cursor = p + 1;
-}
-
-void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empty, struct PrimMem *primMem, u32 *otMem, u32 transparency)
-{
-	(void)empty;
-	(void)primMem;
-	s16 leftX;
-	s16 sizeX;
-
-	sizeX = icon->texLayout.u1 - icon->texLayout.u0;
-
-	// posX is the right side,
-	// letftX is the left side
-	leftX = posX - sizeX;
-
-	p->x0 = leftX;
-	p->x1 = posX;
-	p->x2 = leftX;
-	p->x3 = posX;
-
-	// set header
 	setPolyFT4(p);
-
-	// UVs
-	CtrGpu_WritePackedUVWord(&p->u0, CTR_ReadU32LE(&icon->texLayout.u0));
-	CtrGpu_WritePackedUVWord(&p->u1, CTR_ReadU32LE(&icon->texLayout.u1));
-	CtrGpu_WritePackedUVWord(&p->u2, CTR_ReadU32LE(&icon->texLayout.u2));
-	CtrGpu_WritePackedUV(&p->u3, CTR_ReadU16LE(&icon->texLayout.u3));
-
-	if (transparency != 0)
+	p->x0 = bottomX;
+	p->x1 = posX;
+	p->x2 = bottomX;
+	p->y2 = posY;
+	p->x3 = posX;
+	p->y3 = posY;
+	if (colorID != 0)
 	{
-		p->tpage = (p->tpage & UI_MAP_TPAGE_BLEND_MASK) | ((u16)transparency << UI_MAP_TPAGE_BLEND_SHIFT);
+		p->tpage = (p->tpage & UI_MAP_TPAGE_BLEND_MASK) | ((u8)colorID << UI_MAP_TPAGE_BLEND_SHIFT);
 	}
-
 	p->code |= UI_MAP_SEMI_TRANS_CODE_BIT;
-
 	AddPrim(otMem, p);
+	primMem->cursor = (u8 *)primMem->cursor + sizeof(*p);
 }
 
-void UI_Map_GetIconPos(struct UIMap *map, int *posX, int *posY)
+void UI_Map_GetIconPos(struct UIMap *map, s32 *posX, s32 *posY)
 {
-	s16 mode;
-	int addX;
-	int addY;
-	int worldRangeX;
-	int worldRangeY;
-
-#if 0
-  // trap() functions were removed from original,
-  // we assume dividing by zero will never happen
-#endif
-
-	// rendering mode (forward, sideways, etc)
-	mode = map->mode;
-
-	worldRangeX = map->worldEndX - map->worldStartX;
-	worldRangeY = map->worldEndY - map->worldStartY;
+	s32 screenX, screenY;
+	s32 originY = map->iconStartY - UI_MAP_ICON_Y_OFFSET;
+	s32 worldRangeX = map->worldEndX - map->worldStartX;
+	s32 worldRangeY = map->worldEndY - map->worldStartY;
+	s32 mode = map->mode;
 
 	if (mode == UI_MAP_MODE_0_DEGREES)
 	{
 		// 0 degrees
-		addX = (*posX * map->iconSizeX) / worldRangeX;
-		addY = (*posY * map->iconSizeY * 2) / worldRangeY;
+		screenX = map->iconStartX + (s32)((u32)*posX * map->iconSizeX) / worldRangeX;
+		screenY = originY + (s32)((u32)*posY * map->iconSizeY * 2) / worldRangeY;
 	}
 
 	else if (mode == UI_MAP_MODE_90_DEGREES)
 	{
 		// 90 degrees
-		addX = -(*posY * map->iconSizeX) / worldRangeY;
-		addY = (*posX * map->iconSizeY * 2) / worldRangeX;
+		screenY = originY + (s32)((u32)*posX * map->iconSizeY * 2) / worldRangeX;
+		screenX = map->iconStartX - (s32)((u32)*posY * map->iconSizeX) / worldRangeY;
 	}
 
 	else if (mode == UI_MAP_MODE_180_DEGREES)
 	{
 		// 180 degrees
-		addX = -(*posX * map->iconSizeX) / worldRangeX;
-		addY = -(*posY * map->iconSizeY * 2) / worldRangeY;
+		screenX = map->iconStartX - (s32)((u32)*posX * map->iconSizeX) / worldRangeX;
+		screenY = originY - (s32)((u32)*posY * map->iconSizeY * 2) / worldRangeY;
 	}
 
 	else
 	{
 		// 270 degrees
-		addX = (*posY * map->iconSizeX) / worldRangeY;
-		addY = -(*posX * map->iconSizeY * 2) / worldRangeX;
+		screenY = originY - (s32)((u32)*posX * map->iconSizeY * 2) / worldRangeX;
+		screenX = map->iconStartX + (s32)((u32)*posY * map->iconSizeX) / worldRangeY;
 	}
 
-	if (sdata->gGT->numPlyrCurrGame == 3)
+	if (GAME_TRACKER->numPlyrCurrGame == 3)
 	{
-		addX -= UI_MAP_3P_OFFSET_X;
-		addY += UI_MAP_3P_OFFSET_Y;
+		screenX -= UI_MAP_3P_OFFSET_X;
+		screenY += UI_MAP_3P_OFFSET_Y;
 	}
 
-	*posX = map->iconStartX + addX;
-	*posY = map->iconStartY + addY - UI_MAP_ICON_Y_OFFSET;
+	*posX = screenX;
+	*posY = screenY;
 	return;
 }
 
 // Draw dot for Player on 2D Adv Map
-void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], int unused1, int unused2, s16 rot, s16 scale)
+void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], s32 unused1, s32 unused2, s16 rot, s16 scale)
 {
+	s32 posX;
+	s32 posY;
 	(void)unused1;
 	(void)unused2;
-	int *arrowColor;
-	int posX;
-	int posY;
 
 	posX = worldPos[0];
 	posY = worldPos[2];
 
 	UI_Map_GetIconPos(map, &posX, &posY);
 
-	arrowColor = &data.playerIconAdvMap.vertCol1[0];
-	if ((sdata->gGT->timer & 2) != 0)
-	{
-		arrowColor = &data.playerIconAdvMap.vertCol2[0];
-	}
-
-	AH_Map_HubArrow(posX, posY, &data.playerIconAdvMap.pos[0], (char *)arrowColor, (int)scale, (int)rot);
+	AH_Map_HubArrow((s16)posX, (s16)posY, UI_MAP_ARROW_POS, (char *)&UI_MAP_ARROW_COLORS + ((GAME_TRACKER->timer & 2) ? sizeof(UI_MAP_ARROW_COLORS[0]) : 0),
+	                (s16)scale, (s16)rot);
 
 	return;
 }
 
 // Draw icon on map
-void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, int colorID, int unused, s16 scale)
+void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], s32 iconID, s32 colorID, s32 unused, s16 scale)
 {
-	int posX;
-	int posY;
-	u32 *ptrColor;
-	struct GameTracker *gGT = sdata->gGT;
+	s32 posX;
+	s32 posY;
+	struct Icon *icon;
+	struct GameTracker *gGT;
+	u32 **colors;
 
 	(void)unused;
 
@@ -243,81 +234,88 @@ void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, in
 
 	UI_Map_GetIconPos(map, &posX, &posY);
 
-	ptrColor = data.ptrColor[colorID];
-
-	struct Icon **iconPtrArray = ICONGROUP_GETICONS(sdata->gGT->iconGroup[UI_MAP_ICON_GROUP]);
-
-	DecalHUD_DrawPolyGT4(iconPtrArray[iconID], posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_Load(&ptrColor[0]),
-	                     ColorCode_Load(&ptrColor[1]), ColorCode_Load(&ptrColor[2]), ColorCode_Load(&ptrColor[3]), 0, (int)scale);
+	// NOTE(aalhendi): Narrow the retail indices before advancing the group's
+	// appended pointer array; retain the byte offset until the icon load.
+	iconID = (s16)iconID * sizeof(struct Icon *);
+	colorID = (s16)colorID;
+	gGT = GAME_TRACKER;
+	colors = &UI_MAP_COLORS[colorID];
+	icon = *(struct Icon **)((u8 *)gGT->iconGroup[UI_MAP_ICON_GROUP] + iconID + sizeof(struct IconGroup));
+	DecalHUD_DrawPolyGT4(icon, posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_Load(&(*colors)[0]), ColorCode_Load(&(*colors)[1]),
+	                     ColorCode_Load(&(*colors)[2]), ColorCode_Load(&(*colors)[3]), 0, (s32)scale);
 
 	return;
 }
 
 void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIconCounter)
 {
-	int kartColor;
-	int iconID;
+	s32 kartColor;
 	struct Driver *d;
-	struct GameTracker *gGT = sdata->gGT;
+	struct Instance *inst;
+	struct GameTracker *gGT;
+	s32 drawColor;
+	s32 iconID;
+	const s32 *worldPos;
+	struct UIMap *drawMap;
 
-	for (/* bucket */; bucket != 0; bucket = bucket->siblingThread, *driverIconCounter = *driverIconCounter + 1)
+	for (; bucket != 0; *driverIconCounter = (u16)*driverIconCounter + 1, bucket = bucket->siblingThread)
 	{
-		// if 2P or 4P
-		if ((gGT->numPlyrCurrGame & 1) == 0)
+		gGT = GAME_TRACKER;
+		inst = bucket->inst;
+		if (gGT->numPlyrCurrGame != 1 && gGT->numPlyrCurrGame != 3)
 		{
 			continue;
 		}
 
-		// Player structure
 		d = bucket->object;
+		kartColor = (u16)GAME_CHARACTER_IDS[d->driverID] + CRASH_BLUE;
 
-		// characterID + 5
-		// corresponds with ptrColors
-		kartColor = data.characterIDs[d->driverID] + 5;
-
-		// default (AI)
-		iconID = UI_MAP_PLAYER_ICON_AI;
-
-		// TO-DO: Should we just spawn player threads
-		// and enable the AI flag anyway? What would it do?
-		if ((d->actionsFlagSet & ACTION_BOT) == 0)
-
+		// NOTE(aalhendi): Prepare one shared icon call in each branch. Separate
+		// calls hoist the scale into an extra saved register with GCC 2.8.1.
+		if (d->actionsFlagSet & ACTION_BOT)
 		{
-			// If this is an even numbered frame
-			// ptrColors white value
-			if ((gGT->timer & 2) == 0)
-			{
-				kartColor = WHITE;
-			}
-
-			// If you're in Adventure Arena
-			if ((gGT->gameMode1 & ADVENTURE_ARENA) != 0)
-			{
-				// Draw dot for Player on 2D Adv Map
-				UI_Map_DrawAdvPlayer(map, &bucket->inst->matrix.t[0], UI_MAP_PLAYER_ICON_HUMAN, kartColor,
-				                     (d->rotCurr.y + UI_MAP_ARROW_ROT_FLIP) | UI_MAP_ARROW_ROT_FLAG, UI_MAP_ADV_ARROW_SCALE);
-
-				continue;
-			}
-
-			// Player
+			drawMap = map;
+			worldPos = inst->matrix.t;
+			iconID = UI_MAP_PLAYER_ICON_AI;
+			// Sign-extend the palette index in place, without signed left-shift overflow.
+			drawColor = (u32)kartColor << 16;
+			drawColor >>= 16;
+		}
+		else if (gGT->gameMode1 & ADVENTURE_ARENA)
+		{
+			UI_Map_DrawAdvPlayer(map, inst->matrix.t, UI_MAP_PLAYER_ICON_HUMAN, (gGT->timer & 2) ? (s16)kartColor : WHITE,
+			                     (s16)(((u16)d->rotCurr.y + UI_MAP_ARROW_ROT_FLIP) | UI_MAP_ARROW_ROT_FLAG), UI_MAP_ADV_ARROW_SCALE);
+			continue;
+		}
+		else
+		{
+			worldPos = inst->matrix.t;
+			drawColor = (gGT->timer & 2) ? (s16)kartColor : WHITE;
+			drawMap = map;
 			iconID = UI_MAP_PLAYER_ICON_HUMAN;
 		}
-
-		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], iconID, (s16)kartColor, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(drawMap, worldPos, iconID, drawColor, 0, UI_MAP_ICON_SCALE);
 	}
 	return;
 }
 
 void UI_Map_DrawGhosts(struct UIMap *map, struct Thread *bucket)
 {
-	int color;
+	s32 color;
 	struct Driver *d;
-	struct GameTracker *gGT = sdata->gGT;
+	struct Instance *inst;
 
 	for (/* bucket */; bucket != 0; bucket = bucket->siblingThread)
 	{
 		d = bucket->object;
+		inst = bucket->inst;
+#ifdef CTR_NATIVE
+		// NOTE(aalhendi): An absent/unallocated ghost has no drawable instance.
+		if (d == NULL || inst == NULL)
+		{
+			continue;
+		}
+#endif
 
 		// if ghost not initialized
 		if (d->ghostBoolInit == 0)
@@ -325,45 +323,26 @@ void UI_Map_DrawGhosts(struct UIMap *map, struct Thread *bucket)
 			continue;
 		}
 
-		// ghost made by player
-		if (d->ghostID == 0)
+		// Staff ghosts: N. Tropy is blue; Oxide flashes white/red.
+		if (d->ghostID != 0)
 		{
-			// flash red and blue
-
-			color = CORTEX_RED;
-			if ((gGT->timer & 1) != 0)
-			{
-				color = CRASH_BLUE;
-			}
+			color = (GAME_SAVE.progress.highScoreTracks[GAME_TRACKER->levelID].timeTrialFlags & TT_NTROPY_BEATEN) ? ((GAME_TRACKER->timer & 1) ? WHITE : RED)
+			                                                                                                      : TROPY_LIGHT_BLUE;
 		}
 
-		// ghost is N Tropy or Oxide
+		// The player's recorded ghost flashes blue/red.
 		else
 		{
-			// N Tropy doesn't flicker
-			color = TROPY_LIGHT_BLUE;
-
-			// if timeTrialFlags for this track show [ n tropy beaten, oxide open ]
-			if ((sdata->gameSave.progress.highScoreTracks[gGT->levelID].timeTrialFlags & 2) != 0)
-			{
-				// oxide flickers
-
-				color = RED;
-				if ((gGT->timer & 1) != 0)
-				{
-					color = WHITE;
-				}
-			}
+			color = (GAME_TRACKER->timer & 1) ? CRASH_BLUE : CORTEX_RED;
 		}
 
-		UI_Map_DrawRawIcon(map, &bucket->inst->matrix.t[0], UI_MAP_PLAYER_ICON_AI, color, 0, UI_MAP_ICON_SCALE);
+		UI_Map_DrawRawIcon(map, &inst->matrix.t[0], UI_MAP_PLAYER_ICON_AI, color, 0, UI_MAP_ICON_SCALE);
 	}
 	return;
 }
 
 void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 {
-	int targetColor;
 	struct Instance *inst;
 	struct TrackerWeapon *tw;
 	struct Driver *d;
@@ -379,8 +358,6 @@ void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 			continue;
 		}
 
-		// == only draw warpball ==
-
 		// draw warpball
 		UI_Map_DrawRawIcon(map, &inst->matrix.t[0], UI_MAP_WARPBALL_ICON, 0, 0, UI_MAP_ICON_SCALE);
 
@@ -393,17 +370,15 @@ void UI_Map_DrawTracking(struct UIMap *map, struct Thread *bucket)
 		{
 			continue;
 		}
-
-		// == only draw target if target exists ==
-
-		// flicker
-		targetColor = CRASH_BLUE;
-		if ((sdata->gGT->timer & 1) != 0)
+#ifdef CTR_NATIVE
+		if (d->instSelf == NULL)
 		{
-			targetColor = CORTEX_RED;
+			continue;
 		}
+#endif
 
-		UI_Map_DrawRawIcon(map, &d->instSelf->matrix.t[0], UI_MAP_WARPBALL_TARGET_ICON, targetColor, 0, UI_MAP_ICON_SCALE);
+		// The target flashes between the white and red gradients.
+		UI_Map_DrawRawIcon(map, &d->instSelf->matrix.t[0], UI_MAP_WARPBALL_TARGET_ICON, (GAME_TRACKER->timer & 1) ? RED : WHITE, 0, UI_MAP_ICON_SCALE);
 	}
 	return;
 }

@@ -2083,13 +2083,8 @@ struct Data
 	{
 		SVec2 pos[3];
 
-		// Each vertex in the triangle
-		// has an int for color, there
-		// are two arrays because the
-		// icon was designed to blink
-
-		int vertCol1[3];
-		int vertCol2[3];
+		// Two blink frames, each containing the three packed vertex colors.
+		s32 colors[2][3];
 
 	} playerIconAdvMap;
 

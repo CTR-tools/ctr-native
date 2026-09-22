@@ -5059,8 +5059,7 @@ struct Data
                 {
                     .pos = {{0, 0xFFF8}, {0xFFF8, 8}, {8, 8}},
 
-                    .vertCol1 = {0xFFFF, 0xFF, 0xFF},
-                    .vertCol2 = {0xFFFF80, 0xFF, 0xFF},
+                    .colors = {{0xFFFF, 0xFF, 0xFF}, {0xFFFF80, 0xFF, 0xFF}},
                 },
 
             .stringIndexSuffix =

@@ -694,8 +694,8 @@ void UI_CupStandings_InputAndDraw(void);
 
 void UI_SaveLapTime(int numLaps, int lapTime, s16 driverID);
 
-void UI_Map_GetIconPos(struct UIMap *map, int *posX, int *posY);
-void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s32 posX, s32 posY, struct PrimMem *primMem, u32 *otMem, u32 colorID);
+void UI_Map_GetIconPos(struct UIMap *map, s32 *posX, s32 *posY);
+void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s32 posX, s32 posY, struct PrimMem *primMem, u32 *otMem, u8 colorID);
 
 void UI_Lerp2D_Angular(SVec2 *pos, s16 drawnPosition, s16 absolutePosition, s16 frameCounter);
 void UI_Lerp2D_Linear(s16 *ptrPos, s16 startX, s16 startY, s16 endX, s16 endY, s32 curFrame, s16 endFrame);
@@ -1158,8 +1158,6 @@ void MM_Cheat_SuperTurboPads(void);
 void MM_Cheat_OneLap(void);
 void MM_Cheat_TurboCounter(void);
 
-void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empty, struct PrimMem *primMem, u32 *otMem, u32 transparency);
-
 void VehTalkMask_ThTick(struct Thread *t);
 
 void Channel_DestroySelf(struct ChannelStats *stats);
@@ -1220,7 +1218,7 @@ void RB_Burst_Init(struct Instance *weaponInst);
 void GAMEPAD_ShockFreq(struct Driver *d, s32 frame, s32 val);
 b32 RaceFlag_IsTransitioning(void);
 void LOAD_Robots1P(int characterID);
-void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, int colorID, int unused, s16 scale);
+void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], s32 iconID, s32 colorID, s32 unused, s16 scale);
 s32 RaceFlag_GetCanDraw(void);
 void UI_Map_DrawDrivers(struct UIMap *map, struct Thread *bucket, s16 *driverIconCounter);
 b32 VehTalkMask_boolNoXA(void);
@@ -1261,7 +1259,7 @@ b32 LOAD_IsOpen_MainMenu(void);
 int Particle_BitwiseClampByte(int *value);
 void PROC_DestroyBloodline(struct Thread *t);
 void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *inner);
-void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], int unused1, int unused2, s16 rot, s16 scale);
+void UI_Map_DrawAdvPlayer(struct UIMap *map, const s32 worldPos[3], s32 unused1, s32 unused2, s16 rot, s16 scale);
 void DecalHUD_DrawWeapon(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, u8 transparency, s16 scale, s16 rot);
 void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY);
 void UI_RenderFrame_CrystChall(void);
