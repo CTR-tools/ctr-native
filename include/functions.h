@@ -136,7 +136,7 @@ void GhostReplay_ThTick(struct Thread *t);
 void GhostTape_Destroy(void);
 void GhostTape_End(void);
 void GhostTape_Start(void);
-void GhostTape_WriteBoosts(int addReserve, u32 type, int speedCap);
+void GhostTape_WriteBoosts(s32 addReserve, u32 type, s32 speedCap);
 void GhostTape_WriteMoves(s16 raceFinished);
 
 // howl

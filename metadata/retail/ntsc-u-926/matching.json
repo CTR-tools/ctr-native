@@ -897,6 +897,54 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "ghost-replay",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "GhostReplay_ThTick",
+      "function_rodata_addresses": {
+        "GhostReplay_ThTick": "0x800110a0"
+      },
+      "end_symbol": "GhostTape_Start",
+      "symbol_prefix": "GhostReplay_",
+      "source": "game/GhostReplay.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/ghost/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ghostDrawing": "0x8008d740",
+        "ghostPlaying": "0x8008d754",
+        "ghostCanSave": "0x8008d758",
+        "ghostTooBig": "0x8008d744",
+        "ghostOverflowTimer": "0x8008d748"
+      }
+    },
+    {
+      "name": "ghost-tape",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "GhostTape_Start",
+      "end_symbol": "CountSounds",
+      "symbol_prefix": "GhostTape_",
+      "source": "game/GhostTape.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/ghost/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ghostPlaying": "0x8008d754",
+        "ghostCanSave": "0x8008d758",
+        "ghostTooBig": "0x8008d744",
+        "ghostOverflowTimer": "0x8008d748"
+      }
+    },
+    {
       "name": "ctr-box",
       "kind": "resident",
       "artifact": "exe",

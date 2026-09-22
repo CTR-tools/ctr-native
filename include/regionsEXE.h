@@ -3239,13 +3239,16 @@ struct sData
 	int unk_8008d73C_relatedToRowHighlighted;
 
 	// 8008d740
-	int boolGhostsDrawing;
+	b16 boolGhostsDrawing;
+	u16 padGhostsDrawing;
 
 	// 8008d744
-	int boolGhostTooBigToSave;
+	b16 boolGhostTooBigToSave;
+	u16 padGhostTooBigToSave;
 
 	// 8008d748
-	int ghostOverflowTextTimer;
+	s16 ghostOverflowTextTimer;
+	u16 padGhostOverflowTextTimer;
 
 	// 8008d74c
 	struct GhostTape *ptrGhostTape[2];
@@ -3254,7 +3257,8 @@ struct sData
 	struct GhostHeader *ptrGhostTapePlaying;
 
 	// 8008d758
-	int boolCanSaveGhost;
+	b16 boolCanSaveGhost;
+	u16 padCanSaveGhost;
 
 	// 8008d75c
 	int countSounds;
@@ -3865,7 +3869,7 @@ struct sData
 
 	// 8008fbf4
 	// Ghost system
-	struct
+	struct GhostRecording
 	{
 		// 8008fbf4
 		// Start of entire ghost,
@@ -3886,22 +3890,21 @@ struct sData
 		char *ptrCurrOffset;
 
 		// DAT_8008fc04
-		// Used to update velocity
-		// every 8 frames
-		int countEightFrames;
+		// Emit a movement sample every eight frames.
+		s32 frameCount;
 
 		// DAT_8008fc08
-		// 0x80 message once every 16 frames
-		int countSixteenFrames;
+		// Emit an absolute position at least every 32 movement samples.
+		s32 sampleCount;
 
 		// 8008fc0c
-		int timeOfLast80buffer;
+		s32 timeOfLast80buffer;
 
 		// 8008fc10
-		int timeElapsedInRace;
+		s32 timeElapsedInRace;
 
 		// 8008fc14
-		int boostCooldown1E;
+		s32 boostCooldown1E;
 
 		// 8008fc18
 		s16 VelX;
@@ -3916,8 +3919,8 @@ struct sData
 		s16 unk_8fc1e;
 
 		// 8008fc20
-		int animFrame;
-		int animIndex;
+		s32 animFrame;
+		s32 animIndex;
 		u32 instanceFlags;
 
 	} GhostRecording;
