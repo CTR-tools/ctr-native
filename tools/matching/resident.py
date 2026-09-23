@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Link resident functions individually at their retail EXE addresses."""
+"""Link resident functions at retail addresses and verify configured blocks."""
 
 from __future__ import annotations
 
@@ -226,8 +226,9 @@ def function_linker_script(
         for section in sorted(set(function_sections))
         if section != selected
     )
+    # Retail jump tables can be word-aligned despite GCC's eight-byte alignment.
     rodata_location = (
-        f"  .rodata 0x{rodata_address:08x} : {{ *(.rodata*) *(.rdata*) }}"
+        f"  .rodata 0x{rodata_address:08x} : SUBALIGN(4) {{ *(.rodata*) *(.rdata*) }}"
         if rodata_address is not None
         else "  .rodata : { *(.rodata*) *(.rdata*) }"
     )
@@ -327,6 +328,104 @@ def link_function(
         **comparison,
         "candidate": str(candidate_binary.relative_to(ctr_match.ROOT)),
         "linker_script": str(linker_script.relative_to(ctr_match.ROOT)),
+    }
+
+
+def link_contiguous_block(
+    manifest: dict[str, Any],
+    toolchain: ctr_match.Toolchain,
+    config: dict[str, Any],
+    references: Path,
+    functions: list[FunctionRange],
+    object_file: Path,
+) -> dict[str, Any]:
+    """Check the actual function order and initialized data in one link."""
+    output = BUILD_ROOT / config["name"] / "linked_block"
+    output.mkdir(parents=True, exist_ok=True)
+    linked_object = output / "block.elf"
+    linker_script = output / "block.ld"
+    symbol_script = output / "symbols.ld"
+    block = config["linked_block"]
+    start = functions[0].address
+    size = sum(function.size for function in functions)
+    rodata_address = ctr_match.parse_int(block["rodata_address"])
+    rodata_size = ctr_match.parse_int(block["rodata_size"])
+    sections = " ".join(f"*(.{function.name})" for function in functions)
+    linker_script.write_text(
+        "SECTIONS {\n"
+        f"  .resident_block 0x{start:08x} : SUBALIGN(4) {{ {sections} }}\n"
+        f"  .rodata 0x{rodata_address:08x} : SUBALIGN(4) "
+        "{ *(.rodata*) *(.rdata*) }\n"
+        "  /DISCARD/ : { *(*) }\n"
+        "}\n"
+    )
+    ctr_match.write_symbol_script(
+        ctr_match.repository_path(config["symbol_file"]), symbol_script
+    )
+    command = [
+        str(toolchain.binutils["ld"]),
+        "-T",
+        str(linker_script),
+        "-T",
+        str(symbol_script),
+    ]
+    command.extend(
+        f"--defsym={name}=0x{ctr_match.parse_int(address):08x}"
+        for name, address in config.get("link_symbols", {}).items()
+    )
+    ctr_match.run_checked([*command, "-o", str(linked_object), str(object_file)])
+
+    symbols = ctr_match.linked_symbols(
+        toolchain.binutils["objdump"], linked_object, start
+    )
+    placed = all(
+        (symbol := symbols.get(function.name)) is not None
+        and symbol["address"] == function.address
+        and symbol["size"] == function.size
+        and symbol["section"] == ".resident_block"
+        for function in functions
+    )
+
+    code = output / "code.bin"
+    rodata = output / "rodata.bin"
+    ctr_match.extract_binary_section(toolchain, linked_object, ".resident_block", code)
+    ctr_match.extract_binary_section(toolchain, linked_object, ".rodata", rodata)
+    expected_code = output / "retail-code.bin"
+    expected_code.write_bytes(
+        ctr_match.reference_bytes(
+            manifest,
+            references,
+            {"region": config["artifact"], "address": start, "size": size},
+        )
+    )
+    code_comparison = ctr_match.compare_binary_files(
+        toolchain,
+        expected_code,
+        code,
+        start,
+        output,
+        "retail/resident-block",
+        "candidate/resident-block",
+    )
+    expected_rodata = ctr_match.reference_bytes(
+        manifest,
+        references,
+        {"region": config["artifact"], "address": rodata_address, "size": rodata_size},
+    )
+    actual_rodata = rodata.read_bytes()
+    rodata_exact = actual_rodata == expected_rodata
+    return {
+        "address": f"0x{start:08x}",
+        "size": size,
+        "placement_exact": placed,
+        "code": code_comparison,
+        "rodata_address": f"0x{rodata_address:08x}",
+        "rodata_size": rodata_size,
+        "rodata_exact": rodata_exact,
+        "rodata_candidate_size": len(actual_rodata),
+        "rodata_expected_sha256": ctr_match.sha256_bytes(expected_rodata),
+        "rodata_candidate_sha256": ctr_match.sha256_bytes(actual_rodata),
+        "exact": placed and code_comparison["exact"] and rodata_exact,
     }
 
 
@@ -466,8 +565,40 @@ def build_resident(
             )
 
     exact_count = sum(function["exact"] for function in function_results)
-    selected_exact = exact_count == len(functions)
     complete = len(functions) == len(inventory)
+    block_result = None
+    if complete and "linked_block" in config:
+        try:
+            if len(source_results) != 1:
+                raise ctr_match.MatchError("linked block requires one source")
+            source_result = next(iter(source_results.values()))
+            if not source_result["compiled"]:
+                raise ctr_match.MatchError("linked block source does not compile")
+            block_result = link_contiguous_block(
+                manifest,
+                toolchain,
+                config,
+                references,
+                inventory,
+                source_result["object_path"],
+            )
+        except ctr_match.MatchError as exc:
+            block_result = {"exact": False, "error": str(exc)}
+        status = "MATCH" if block_result["exact"] else "DIFF"
+        if error := block_result.get("error"):
+            print(f"{status:<7} linked block: {error}")
+        else:
+            code = block_result["code"]
+            rodata = "exact" if block_result["rodata_exact"] else "different"
+            placement = "exact" if block_result["placement_exact"] else "different"
+            print(
+                f"{status:<7} linked block: "
+                f"{code['matching_bytes']}/{code['expected_size']} code bytes, "
+                f"rodata {rodata}, placement {placement}"
+            )
+    selected_exact = exact_count == len(functions) and (
+        block_result is None or block_result["exact"]
+    )
     result = {
         **ctr_match.build_evidence(
             manifest,
@@ -489,8 +620,9 @@ def build_resident(
         "complete": complete,
         "selected_exact": selected_exact,
         "functions": function_results,
+        "linked_block": block_result,
         "exact": complete and selected_exact,
     }
     write_result(BUILD_ROOT / config["name"], result)
-    print(f"{exact_count}/{len(functions)} selected functions match exactly")
+    print(f"{exact_count}/{len(functions)} selected function ranges match exactly")
     return result

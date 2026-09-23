@@ -1223,6 +1223,24 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "particles",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "Particle_FuncPtr_PotionShatter",
+      "end_symbol": "PickupBots_Init",
+      "symbol_prefix": "Particle_",
+      "source": "game/Particle.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "function_rodata_addresses": {"Particle_UpdateList": "0x800115e4"},
+      "linked_block": {"rodata_address": "0x800115e4", "rodata_size": 28},
+      "link_symbols": {"_gp": "0x8008cf6c"}
+    },
+    {
       "name": "vehicle",
       "kind": "resident",
       "artifact": "exe",

@@ -147,4 +147,23 @@ if(BUILD_TESTING)
             -s ${CMAKE_SOURCE_DIR}/tools/matching
             -p test_*.py
     )
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        add_executable(ctr_particle_renderer_smoke
+            tests/particle_renderer_smoke.c
+            platform/native_gpu_links.c
+        )
+        set_target_properties(ctr_particle_renderer_smoke PROPERTIES
+            C_STANDARD 17
+            C_STANDARD_REQUIRED ON
+            C_EXTENSIONS OFF
+        )
+        target_include_directories(ctr_particle_renderer_smoke PRIVATE ${CMAKE_SOURCE_DIR}/include)
+        target_compile_definitions(ctr_particle_renderer_smoke PRIVATE CTR_NATIVE)
+        target_compile_options(ctr_particle_renderer_smoke PRIVATE
+            -O2 -Wall -Wextra -ffunction-sections -fdata-sections
+        )
+        target_link_options(ctr_particle_renderer_smoke PRIVATE -Wl,--gc-sections)
+        add_test(NAME ctr_particle_renderer_smoke COMMAND $<TARGET_FILE:ctr_particle_renderer_smoke>)
+    endif()
 endif()

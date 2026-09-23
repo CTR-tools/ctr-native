@@ -8,20 +8,6 @@ struct ParticleAxis
 	s16 accel;
 };
 
-struct ParticleOscillator
-{
-	struct ParticleOscillator *next;
-	struct ParticleOscillator *prev;
-	u16 flags;
-	s16 previousValue;
-	u16 period;
-	s16 phase;
-	u16 scale;
-	s16 offset;
-	s16 min;
-	s16 max;
-};
-
 struct ParticleOscillatorRandomRange
 {
 	u16 period;
@@ -37,6 +23,15 @@ struct ParticleOscillatorConfig
 	u16 flags;
 	s16 previousValue;
 	struct ParticleOscillatorRandomRange range;
+};
+
+struct ParticleOscillator
+{
+	struct ParticleOscillator *next;
+	struct ParticleOscillator *prev;
+	// NOTE(aalhendi): The emitter copies this complete configuration into the
+	// live oscillator; keep its packed fields in the same order.
+	struct ParticleOscillatorConfig config;
 };
 
 enum ParticleOscillatorFlags
@@ -243,7 +238,7 @@ struct ParticleEmitter
 		char data[0x10];
 
 		// 0x14
-		// Copied into ParticleOscillator::flags when PARTICLE_EMITTER_FLAG_OSCILLATOR is set.
+		// Copied into ParticleOscillator::config when PARTICLE_EMITTER_FLAG_OSCILLATOR is set.
 		struct ParticleOscillatorConfig oscillator;
 	} tail;
 
