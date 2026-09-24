@@ -2,11 +2,11 @@
 
 void PickupBots_Init(void)
 {
-	int hub;
-	int lev = sdata->gGT->levelID;
+	u16 hub;
+	int lev = GAME_TRACKER->levelID;
 
 	// get hubID of level
-	hub = data.metaDataLEV[lev].hubID;
+	hub = GAME_LEVEL_METADATA[lev].hubID;
 
 	// If Level ID is Oxide Station
 	if (lev == OXIDE_STATION)
@@ -14,10 +14,10 @@ void PickupBots_Init(void)
 		hub = 0;
 	}
 
-	if (hub > -1)
+	if ((s16)hub > -1)
 	{
 		// set pointer to boss weapon meta
-		sdata->bossWeaponMeta = data.bossWeaponMetaPtr[hub];
+		sdata->bossWeaponMeta = GAME_BOSS_WEAPON_METADATA[(s16)hub];
 	}
 	return;
 }
@@ -59,414 +59,520 @@ enum
 };
 
 
-static int PickupBots_IsBotWeaponReady(struct Driver *driver)
-{
-#if defined(CTR_NATIVE)
-	// NOTE(aalhendi): Retail can read PS1 low memory when a boss-race
-	// end-of-race rank slot is empty. Native treats that slot as no bot.
-	if (driver == NULL)
-	{
-		return 0;
-	}
-#endif
-
-	return ((driver->actionsFlagSet & ACTION_BOT) != 0) && ((driver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0) &&
-	       ((driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (driver->botData.weaponCooldown == 0) && (driver->instTntRecv == NULL) &&
-	       (driver->clockReceive == 0);
-}
-
-static int PickupBots_IsCloseToPlayer(struct Driver *player, struct Driver *bot)
-{
-	int x = player->instSelf->matrix.t[0] - bot->instSelf->matrix.t[0];
-	int z = player->instSelf->matrix.t[2] - bot->instSelf->matrix.t[2];
-
-	return (u32)((x * x + z * z) - PICKUPBOTS_CLOSE_DIST_SQ_BIAS) < PICKUPBOTS_CLOSE_DIST_SQ_RANGE;
-}
-
-static void PickupBots_SetCooldown(struct Driver *bot)
+static inline void PickupBots_SetCooldown(struct Driver *bot)
 {
 	bot->botData.weaponCooldown = (MixRNG_Scramble() & PICKUPBOTS_COOLDOWN_RANDOM_MASK) + PICKUPBOTS_COOLDOWN_BASE_FRAMES;
 }
 
-static void PickupBots_PlayVoice(u32 voiceID, struct Driver *attacker, struct Driver *victim)
+static inline void PickupBots_PlayVoice(u32 voiceID, struct Driver *attacker, struct Driver *victim)
 {
-	Voiceline_RequestPlay(voiceID, data.characterIDs[attacker->driverID], data.characterIDs[victim->driverID]);
+	Voiceline_RequestPlay(voiceID, GAME_CHARACTER_IDS[attacker->driverID], GAME_CHARACTER_IDS[victim->driverID]);
 }
 
-static void PickupBots_UpdateArcade(void)
+static inline void PickupBots_UpdateArcade(struct GameTracker *initialGT)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	register int i CTR_PSX_REGISTER("s4") = 0;
 
-	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
+	if (initialGT->numPlyrCurrGame == 0)
 	{
-		struct Driver *player = gGT->drivers[i];
+		return;
+	}
+
+	do
+	{
+		struct Driver *player = GAME_TRACKER->drivers[i];
 
 		if (player->driverRank != 0)
 		{
-			struct Driver *bot = gGT->driversInRaceOrder[player->driverRank - 1];
+			struct Driver *bot = GAME_TRACKER->driversInRaceOrder[player->driverRank - 1];
 
-			if (PickupBots_IsBotWeaponReady(bot) && PickupBots_IsCloseToPlayer(player, bot))
+#if defined(CTR_NATIVE)
+			// NOTE(aalhendi): Retail can read PS1 low memory when a rank slot is empty.
+			if (bot != NULL)
 			{
-				int rng = MixRNG_Scramble() % PICKUPBOTS_LEADING_ATTACK_ROLL_MOD;
-
-				if (rng == 0)
+#endif
+				if (((bot->actionsFlagSet & ACTION_BOT) != 0) && ((bot->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0) &&
+				    ((bot->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (bot->botData.weaponCooldown == 0) && (bot->instTntRecv == NULL) &&
+				    (bot->clockReceive == 0))
 				{
-					int weaponID;
+					register int playerX CTR_PSX_REGISTER("v1") = player->instSelf->matrix.t[0];
+					register int botX CTR_PSX_REGISTER("v0") = bot->instSelf->matrix.t[0];
+					register int x CTR_PSX_REGISTER("v1") = playerX - botX;
+					int xSquared = x * x;
+					register int playerZ CTR_PSX_REGISTER("v1") = player->instSelf->matrix.t[2];
+					register int botZ CTR_PSX_REGISTER("v0") = bot->instSelf->matrix.t[2];
+					register int z CTR_PSX_REGISTER("v1") = playerZ - botZ;
+					int zSquared = z * z;
+					register u32 range CTR_PSX_REGISTER("v0") = PICKUPBOTS_CLOSE_DIST_SQ_RANGE - 1;
+					register u32 negativeBias CTR_PSX_REGISTER("v1") = (u32)-PICKUPBOTS_CLOSE_DIST_SQ_BIAS;
+					register u32 distance CTR_PSX_REGISTER("a0") = xSquared + zSquared;
 
-					if ((bot->lapIndex != 0) &&
-					    (MixRNG_Scramble() % PICKUPBOTS_LEADING_ATTACK_POWERED_ROLL_MOD < PICKUPBOTS_LEADING_ATTACK_POWERED_ROLL_THRESHOLD))
+					if (distance + negativeBias <= range)
 					{
-						bot->numWumpas = DRIVER_WUMPA_JUICED_COUNT;
-					}
+						int rng = MixRNG_Scramble() % PICKUPBOTS_LEADING_ATTACK_ROLL_MOD;
+						register struct Driver *shootBot CTR_PSX_REGISTER("a0") = bot;
 
-					if ((gGT->elapsedEventTime & 1) != 0)
-					{
-						bot->heldItemID = PICKUPBOTS_ITEM_TNT;
-
-						if ((player->actionsFlagSet & ACTION_BOT) == 0)
+						if (rng == 0)
 						{
-							PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MINE_DROP, bot, player);
+							int weaponID;
+
+							if ((bot->lapIndex != 0) &&
+							    (MixRNG_Scramble() % PICKUPBOTS_LEADING_ATTACK_POWERED_ROLL_MOD < PICKUPBOTS_LEADING_ATTACK_POWERED_ROLL_THRESHOLD))
+							{
+								bot->numWumpas = DRIVER_WUMPA_JUICED_COUNT;
+							}
+
+							if ((GAME_TRACKER->elapsedEventTime & 1) != 0)
+							{
+								register struct Driver *voiceBot CTR_PSX_REGISTER("a0") = bot;
+								bot->heldItemID = PICKUPBOTS_ITEM_TNT;
+
+								if ((player->actionsFlagSet & ACTION_BOT) == 0)
+								{
+									CTR_PSX_KEEP_VALUE(voiceBot);
+									PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MINE_DROP, bot, player);
+									{
+										register struct Driver *afterVoiceBot CTR_PSX_REGISTER("a0") = bot;
+										CTR_PSX_KEEP_VALUE(afterVoiceBot);
+									}
+								}
+
+								weaponID = PICKUPBOTS_ITEM_TNT;
+							}
+							else
+							{
+								register struct Driver *voiceBot CTR_PSX_REGISTER("a0") = bot;
+								bot->heldItemID = PICKUPBOTS_ITEM_POTION;
+
+								if ((player->actionsFlagSet & ACTION_BOT) == 0)
+								{
+									CTR_PSX_KEEP_VALUE(voiceBot);
+									PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MINE_DROP, bot, player);
+									{
+										register struct Driver *afterVoiceBot CTR_PSX_REGISTER("a0") = bot;
+										CTR_PSX_KEEP_VALUE(afterVoiceBot);
+									}
+								}
+								weaponID = PICKUPBOTS_ITEM_POTION;
+							}
+
+							VehPickupItem_ShootNow(shootBot, weaponID, 0);
+							bot->numWumpas = 0;
+							PickupBots_SetCooldown(bot);
+						}
+						else if (rng == 1)
+						{
+							bot->heldItemID = PICKUPBOTS_ITEM_BOMB;
+
+							if ((player->actionsFlagSet & ACTION_BOT) == 0)
+							{
+								PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_BOMB, bot, player);
+							}
+
+							VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
+							PickupBots_SetCooldown(bot);
+						}
+						else if (rng == 2)
+						{
+							bot->heldItemID = PICKUPBOTS_ITEM_MISSILE;
+
+							if ((player->actionsFlagSet & ACTION_BOT) == 0)
+							{
+								PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MISSILE, bot, player);
+							}
+
+							VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
+							PickupBots_SetCooldown(bot);
 						}
 
-						weaponID = PICKUPBOTS_ITEM_TNT;
+						bot->heldItemID = PICKUPBOTS_ITEM_NONE;
 					}
-					else
-					{
-						bot->heldItemID = PICKUPBOTS_ITEM_POTION;
-
-						if ((player->actionsFlagSet & ACTION_BOT) == 0)
-						{
-							PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MINE_DROP, bot, player);
-						}
-
-						weaponID = PICKUPBOTS_ITEM_POTION;
-					}
-
-					VehPickupItem_ShootNow(bot, weaponID, 0);
-					bot->numWumpas = 0;
-					PickupBots_SetCooldown(bot);
 				}
-				else if (rng == 1)
-				{
-					bot->heldItemID = PICKUPBOTS_ITEM_BOMB;
-
-					if ((player->actionsFlagSet & ACTION_BOT) == 0)
-					{
-						PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_BOMB, bot, player);
-					}
-
-					VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
-					PickupBots_SetCooldown(bot);
-				}
-				else if (rng == 2)
-				{
-					bot->heldItemID = PICKUPBOTS_ITEM_MISSILE;
-
-					if ((player->actionsFlagSet & ACTION_BOT) == 0)
-					{
-						PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MISSILE, bot, player);
-					}
-
-					VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
-					PickupBots_SetCooldown(bot);
-				}
-
-				bot->heldItemID = PICKUPBOTS_ITEM_NONE;
+#if defined(CTR_NATIVE)
 			}
+#endif
 		}
 
 		if (player->driverRank < 3)
 		{
-			struct Driver *bot = gGT->driversInRaceOrder[player->driverRank + 1];
+			struct Driver *bot = GAME_TRACKER->driversInRaceOrder[player->driverRank + 1];
 
-			if (PickupBots_IsBotWeaponReady(bot) &&
-			    (((int)player->lapIndex < (int)gGT->numLaps) || (player->distanceToFinish_curr > PICKUPBOTS_TRAILING_ATTACK_DISTANCE_TO_FINISH_MIN)) &&
-			    PickupBots_IsCloseToPlayer(player, bot))
+#if defined(CTR_NATIVE)
+			if (bot != NULL)
 			{
-				int rng = MixRNG_Scramble() % PICKUPBOTS_TRAILING_ATTACK_ROLL_MOD;
-				int weaponID = PICKUPBOTS_ITEM_NONE;
-
-				if ((rng < PICKUPBOTS_TRAILING_ATTACK_MISSILE_THRESHOLD) && (bot->lapIndex != (u8)(gGT->numLaps - 1)))
+#endif
+				if (((bot->actionsFlagSet & ACTION_BOT) != 0) && ((bot->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0) &&
+				    ((bot->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (bot->botData.weaponCooldown == 0) && (bot->instTntRecv == NULL) &&
+				    (bot->clockReceive == 0) &&
+				    (((int)player->lapIndex < (int)GAME_TRACKER->numLaps) ||
+				     ((s32)player->distanceToFinish_curr > PICKUPBOTS_TRAILING_ATTACK_DISTANCE_TO_FINISH_MIN)))
 				{
-					weaponID = PICKUPBOTS_ITEM_MISSILE;
-				}
-				else if (rng < PICKUPBOTS_TRAILING_ATTACK_BOMB_THRESHOLD)
-				{
-					weaponID = PICKUPBOTS_ITEM_BOMB;
-				}
+					register int playerX CTR_PSX_REGISTER("v1") = player->instSelf->matrix.t[0];
+					register int botX CTR_PSX_REGISTER("v0") = bot->instSelf->matrix.t[0];
+					register int x CTR_PSX_REGISTER("v1") = playerX - botX;
+					int xSquared = x * x;
+					register int playerZ CTR_PSX_REGISTER("v1") = player->instSelf->matrix.t[2];
+					register int botZ CTR_PSX_REGISTER("v0") = bot->instSelf->matrix.t[2];
+					register int z CTR_PSX_REGISTER("v1") = playerZ - botZ;
+					int zSquared = z * z;
+					register u32 range CTR_PSX_REGISTER("v0") = PICKUPBOTS_CLOSE_DIST_SQ_RANGE - 1;
+					register u32 negativeBias CTR_PSX_REGISTER("v1") = (u32)-PICKUPBOTS_CLOSE_DIST_SQ_BIAS;
+					register u32 distance CTR_PSX_REGISTER("a0") = xSquared + zSquared;
 
-				if (weaponID != PICKUPBOTS_ITEM_NONE)
-				{
-					bot->heldItemID = weaponID;
-
-					if ((player->actionsFlagSet & ACTION_BOT) == 0)
+					if (distance + negativeBias <= range)
 					{
-						PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MISSILE, bot, player);
+						int rng = MixRNG_Scramble() % PICKUPBOTS_TRAILING_ATTACK_ROLL_MOD;
+						register int weaponID CTR_PSX_REGISTER("v0");
+
+						if (rng < PICKUPBOTS_TRAILING_ATTACK_MISSILE_THRESHOLD)
+						{
+							if (bot->lapIndex != (GAME_TRACKER->numLaps - 1))
+							{
+								weaponID = PICKUPBOTS_ITEM_MISSILE;
+								goto TrailingShoot;
+							}
+						}
+						if (rng >= PICKUPBOTS_TRAILING_ATTACK_BOMB_THRESHOLD)
+						{
+							goto TrailingNoShot;
+						}
+						weaponID = PICKUPBOTS_ITEM_BOMB;
+					TrailingShoot:
+						bot->heldItemID = weaponID;
+
+						if ((player->actionsFlagSet & ACTION_BOT) == 0)
+						{
+							PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_MISSILE, bot, player);
+						}
+
+						VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
+						PickupBots_SetCooldown(bot);
+
+					TrailingNoShot:
+						bot->heldItemID = PICKUPBOTS_ITEM_NONE;
 					}
-
-					VehPickupItem_ShootNow(bot, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, 0);
-					PickupBots_SetCooldown(bot);
 				}
-
-				bot->heldItemID = PICKUPBOTS_ITEM_NONE;
+#if defined(CTR_NATIVE)
 			}
+#endif
 		}
-	}
+		i++;
+	} while (i < GAME_TRACKER_RELOAD()->numPlyrCurrGame);
 }
 
-static void PickupBots_SetBossCooldown(struct MetaDataBOSS *bossMeta)
+static inline void PickupBots_SetBossCooldown(struct MetaDataBOSS *bossMeta)
 {
-	struct GameTracker *gGT = sdata->gGT;
-
-	sdata->bossWeaponCooldown = (RngDeadCoed(&sdata->advRng) & PICKUPBOTS_BOSS_COOLDOWN_RANDOM_MASK) + bossMeta->weaponCooldown +
-	                            PICKUPBOTS_BOSS_COOLDOWN_BASE_FRAMES +
-	                            ((s8)sdata->advProgress.timesLostBossRace[gGT->bossID] * PICKUPBOTS_BOSS_LOSS_COOLDOWN_STEP);
+	*(volatile s16 *)&sdata->bossWeaponCooldown = (RngDeadCoed(&GAME_ADV_RNG) & PICKUPBOTS_BOSS_COOLDOWN_RANDOM_MASK) +
+	                                              (bossMeta->weaponCooldown + PICKUPBOTS_BOSS_COOLDOWN_BASE_FRAMES) +
+	                                              ((s8)GAME_ADV_PROGRESS.timesLostBossRace[GAME_TRACKER->bossID] * PICKUPBOTS_BOSS_LOSS_COOLDOWN_STEP);
 }
 
-static struct MetaDataBOSS *PickupBots_GetInitialBossMeta(void)
+static inline struct MetaDataBOSS *PickupBots_GetInitialBossMeta(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	struct GameTracker *gGT = GAME_TRACKER;
 
 	if (gGT->levelID == OXIDE_STATION)
 	{
-		return data.bossWeaponMetaPtr[0];
+		return GAME_BOSS_WEAPON_METADATA[0];
 	}
 
-	return data.bossWeaponMetaPtr[data.metaDataLEV[gGT->levelID].hubID];
+	return GAME_BOSS_WEAPON_METADATA[GAME_LEVEL_METADATA[gGT->levelID].hubID];
 }
 
-static void PickupBots_AdvanceBossMeta(struct Driver *boss)
+static inline void PickupBots_UpdateBoss(struct GameTracker *gGT)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	struct MetaDataBOSS *bossMeta = sdata->bossWeaponMeta;
-	struct MetaDataBOSS *nextMeta = &bossMeta[1];
-
-	if (nextMeta->throwFlag == 0)
-	{
-		int threshold = gGT->level1->ptr_restart_points[bossMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
-
-		if (threshold < (int)boss->distanceToFinish_curr)
-		{
-			int preservedThrow = -1;
-
-			if (((bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION) || (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)) &&
-			    (sdata->bossJuiceCounter == PICKUPBOTS_BOSS_JUICE_COUNTER_MAX))
-			{
-				preservedThrow = bossMeta->throwFlag;
-			}
-
-			bossMeta = PickupBots_GetInitialBossMeta();
-
-			if (preservedThrow != -1)
-			{
-				bossMeta->throwFlag = preservedThrow;
-			}
-		}
-	}
-	else
-	{
-		int threshold = gGT->level1->ptr_restart_points[nextMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
-
-		if ((int)boss->distanceToFinish_curr < threshold)
-		{
-			int preservedThrow = -1;
-
-			if (((bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION) || (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)) &&
-			    (sdata->bossJuiceCounter == PICKUPBOTS_BOSS_JUICE_COUNTER_MAX))
-			{
-				preservedThrow = bossMeta->throwFlag;
-			}
-
-			bossMeta = nextMeta;
-
-			if (preservedThrow != -1)
-			{
-				bossMeta->throwFlag = preservedThrow;
-			}
-		}
-	}
-
-	sdata->bossWeaponMeta = bossMeta;
-}
-
-static void PickupBots_UpdateBossPathRequest(struct Driver *boss)
-{
-	if (sdata->bossWeaponMeta->pathChangeDisabled != 0)
-	{
-		return;
-	}
-
-	if (sdata->bossPathRequestTimer == PICKUPBOTS_BOSS_PATH_REQUEST_FRAMES)
-	{
-		if ((boss->botData.botFlags & BOT_FLAG_BOSS_PATH_ACTIVE) != 0)
-		{
-			return;
-		}
-
-		if (sdata->bossPathRequestPhase == 0)
-		{
-			if (boss->botData.botPath == 2)
-			{
-				boss->botData.desiredPath_BossOnly = 1;
-				sdata->bossPathRequestTimer = 0;
-				boss->botData.botFlags |= BOT_FLAG_BOSS_PATH_REQUESTED;
-			}
-			else if (boss->botData.botPath == 1)
-			{
-				boss->botData.desiredPath_BossOnly = 0;
-				sdata->bossPathRequestTimer = 0;
-				sdata->bossPathRequestPhase = boss->botData.botPath;
-				boss->botData.botFlags |= BOT_FLAG_BOSS_PATH_REQUESTED;
-			}
-		}
-		else
-		{
-			if (boss->botData.botPath == 0)
-			{
-				boss->botData.desiredPath_BossOnly = 1;
-				sdata->bossPathRequestTimer = 0;
-				boss->botData.botFlags |= BOT_FLAG_BOSS_PATH_REQUESTED;
-			}
-			else if (boss->botData.botPath == 1)
-			{
-				boss->botData.desiredPath_BossOnly = 2;
-				sdata->bossPathRequestTimer = 0;
-				sdata->bossPathRequestPhase = 0;
-				boss->botData.botFlags |= BOT_FLAG_BOSS_PATH_REQUESTED;
-			}
-		}
-	}
-	else if ((boss->botData.botFlags & BOT_FLAG_BOSS_PATH_REQUESTED) == 0)
-	{
-		sdata->bossPathRequestTimer++;
-	}
-}
-
-static int PickupBots_GetBossWeaponID(struct MetaDataBOSS *bossMeta)
-{
-	int weaponID = bossMeta->weaponType;
-
-	if (weaponID == BOSS_WEAPON_ENCODED_TNT)
-	{
-		weaponID = PICKUPBOTS_ITEM_TNT;
-	}
-	else if (weaponID == BOSS_WEAPON_ENCODED_BOMB)
-	{
-		weaponID = PICKUPBOTS_ITEM_BOMB;
-	}
-	else if (weaponID == BOSS_WEAPON_ENCODED_POTION)
-	{
-		weaponID = PICKUPBOTS_ITEM_POTION;
-	}
-	else if (weaponID == BOSS_WEAPON_NONE)
-	{
-		weaponID = PICKUPBOTS_ITEM_INVALID;
-	}
-
-	return weaponID;
-}
-
-static int PickupBots_UpdateBossJuice(struct MetaDataBOSS *bossMeta, int weaponID)
-{
-	u16 juiceFlag = bossMeta->juiceFlag;
-
-	if ((juiceFlag & BOSS_WEAPON_RANDOM_JUICE) == 0)
-	{
-		sdata->bossJuiceCounter = 0;
-		return weaponID;
-	}
-
-	if (sdata->bossJuiceCounter < PICKUPBOTS_BOSS_JUICE_COUNTER_MAX)
-	{
-		sdata->bossJuiceCounter++;
-		return weaponID;
-	}
-
-	if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)
-	{
-		weaponID = PICKUPBOTS_ITEM_TNT;
-
-		if (bossMeta->throwFlag != BOSS_WEAPON_NORMAL)
-		{
-			bossMeta->throwFlag = BOSS_WEAPON_NORMAL;
-			sdata->bossJuiceCounter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
-			bossMeta->juiceFlag = juiceFlag | BOSS_WEAPON_JUICED;
-			return weaponID;
-		}
-	}
-	else if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_BOMB)
-	{
-		weaponID = PICKUPBOTS_ITEM_BOMB;
-
-		if ((juiceFlag & BOSS_WEAPON_JUICED) == 0)
-		{
-			bossMeta->juiceFlag = juiceFlag | BOSS_WEAPON_JUICED;
-			sdata->bossJuiceCounter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
-			return PICKUPBOTS_ITEM_TNT;
-		}
-
-		bossMeta->juiceFlag = juiceFlag & ~BOSS_WEAPON_JUICED;
-		sdata->bossJuiceCounter = 0;
-		return weaponID;
-	}
-	else if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION)
-	{
-		weaponID = PICKUPBOTS_ITEM_POTION;
-
-		if (bossMeta->throwFlag != BOSS_WEAPON_NORMAL)
-		{
-			bossMeta->throwFlag = BOSS_WEAPON_NORMAL;
-			sdata->bossJuiceCounter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
-			bossMeta->juiceFlag |= BOSS_WEAPON_JUICED;
-			return weaponID;
-		}
-	}
-	else
-	{
-		return weaponID;
-	}
-
-	bossMeta->throwFlag = BOSS_WEAPON_THROW;
-	sdata->bossJuiceCounter = 0;
-	bossMeta->juiceFlag &= ~BOSS_WEAPON_JUICED;
-	return weaponID;
-}
-
-static void PickupBots_UpdateBoss(void)
-{
-	struct GameTracker *gGT = sdata->gGT;
 	struct Driver *boss = gGT->drivers[1];
 	struct Driver *player = gGT->drivers[0];
-	struct MetaDataBOSS *bossMeta = sdata->bossWeaponMeta;
+	register struct MetaDataBOSS *bossMeta CTR_PSX_REGISTER("s1") = sdata->bossWeaponMeta;
+	register int weaponID CTR_PSX_REGISTER("s0");
+	register int encodedWeaponType CTR_PSX_REGISTER("v1");
+	int newWumpa;
+	int throwFlag;
+	int weaponFlags;
 
 	if (((boss->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0) || ((boss->actionsFlagSet & ACTION_RACE_FINISHED) != 0) || (boss->instTntRecv != NULL) ||
 	    (boss->clockReceive != 0) || (boss->botData.aiPhysics.speedLinear < PICKUPBOTS_BOSS_SPEED_MIN))
 	{
-		PickupBots_SetBossCooldown(bossMeta);
-		return;
+		goto BossCooldown;
 	}
 
-	PickupBots_AdvanceBossMeta(boss);
-	bossMeta = sdata->bossWeaponMeta;
-
-	PickupBots_UpdateBossPathRequest(boss);
-
-	if (sdata->bossWeaponCooldown > 0)
 	{
-		sdata->bossWeaponCooldown--;
-		return;
+		struct MetaDataBOSS *nextMeta = &bossMeta[1];
+
+		if (nextMeta->throwFlag == 0)
+		{
+			int threshold = gGT->level1->ptr_restart_points[bossMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
+
+			if (threshold < (int)boss->distanceToFinish_curr)
+			{
+				s16 preservedThrow = -1;
+
+				if (((bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION) || (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)) &&
+				    (sdata->bossJuiceCounter == PICKUPBOTS_BOSS_JUICE_COUNTER_MAX))
+				{
+					preservedThrow = bossMeta->throwFlag;
+				}
+
+				bossMeta = PickupBots_GetInitialBossMeta();
+
+				if (preservedThrow != -1)
+				{
+					bossMeta->throwFlag = preservedThrow;
+				}
+			}
+		}
+		else
+		{
+			int threshold = gGT->level1->ptr_restart_points[nextMeta->trackCheckpoint].distToFinish << PICKUPBOTS_BOSS_CHECKPOINT_DISTANCE_SHIFT;
+
+			if ((int)boss->distanceToFinish_curr < threshold)
+			{
+				s16 preservedThrow = -1;
+
+				if (((bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION) || (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)) &&
+				    (sdata->bossJuiceCounter == PICKUPBOTS_BOSS_JUICE_COUNTER_MAX))
+				{
+					preservedThrow = bossMeta->throwFlag;
+				}
+
+				bossMeta = nextMeta;
+
+				if (preservedThrow != -1)
+				{
+					bossMeta->throwFlag = preservedThrow;
+				}
+			}
+		}
+
+		sdata->bossWeaponMeta = bossMeta;
 	}
 
-	PickupBots_SetBossCooldown(bossMeta);
-
-	int weaponID = PickupBots_UpdateBossJuice(bossMeta, PickupBots_GetBossWeaponID(bossMeta));
-	int throwFlag = bossMeta->throwFlag;
-	int weaponFlags = (throwFlag == BOSS_WEAPON_THROW) ? PICKUPBOTS_SHOOT_FLAG_RANDOM : 0;
-
-	if (weaponID >= 0)
+	if (bossMeta->pathChangeDisabled == 0)
 	{
-		u8 oldWumpa = boss->numWumpas;
-		boss->numWumpas = ((bossMeta->juiceFlag & BOSS_WEAPON_JUICED) != 0) ? DRIVER_WUMPA_JUICED_COUNT : 0;
+		s16 pathTimer = sdata->bossPathRequestTimer;
+		u16 pathTimerUnsigned = sdata->bossPathRequestTimer;
+
+		if (pathTimer == PICKUPBOTS_BOSS_PATH_REQUEST_FRAMES)
+		{
+			if ((*(volatile u32 *)&boss->botData.botFlags & BOT_FLAG_BOSS_PATH_ACTIVE) != 0)
+			{
+				goto PathRequestDone;
+			}
+
+			if (sdata->bossPathRequestPhase != 0)
+			{
+				if (boss->botData.botPath == 0)
+				{
+					goto RequestPathOne;
+				}
+				if (boss->botData.botPath == 1)
+				{
+					u32 flags = boss->botData.botFlags;
+					boss->botData.desiredPath_BossOnly = 2;
+					sdata->bossPathRequestTimer = 0;
+					// NOTE(aalhendi): Keep this reset before the shared flag-store tail.
+					*(volatile s16 *)&sdata->bossPathRequestPhase = 0;
+					boss->botData.botFlags = flags | BOT_FLAG_BOSS_PATH_REQUESTED;
+				}
+				goto PathRequestDone;
+			}
+
+			if (boss->botData.botPath != 2)
+			{
+				goto RequestPathZero;
+			}
+
+		RequestPathOne:
+		{
+			u32 flags = *(volatile u32 *)&boss->botData.botFlags;
+			boss->botData.desiredPath_BossOnly = 1;
+			sdata->bossPathRequestTimer = 0;
+			boss->botData.botFlags = flags | BOT_FLAG_BOSS_PATH_REQUESTED;
+		}
+			goto PathRequestDone;
+
+		RequestPathZero:
+		{
+			register s32 path CTR_PSX_REGISTER("v1") = boss->botData.botPath;
+			if (path != 1)
+			{
+				goto PathRequestDone;
+			}
+			{
+				u32 flags = *(volatile u32 *)&boss->botData.botFlags;
+				boss->botData.desiredPath_BossOnly = 0;
+				sdata->bossPathRequestTimer = 0;
+				sdata->bossPathRequestPhase = path;
+				boss->botData.botFlags = flags | BOT_FLAG_BOSS_PATH_REQUESTED;
+			}
+		}
+		}
+		else if ((boss->botData.botFlags & BOT_FLAG_BOSS_PATH_REQUESTED) == 0)
+		{
+			sdata->bossPathRequestTimer = pathTimerUnsigned + 1;
+		}
+
+	PathRequestDone:;
+	}
+
+	{
+		s16 cooldown = sdata->bossWeaponCooldown;
+		u16 cooldownUnsigned = sdata->bossWeaponCooldown;
+
+		if (cooldown > 0)
+		{
+			*(volatile s16 *)&sdata->bossWeaponCooldown = cooldownUnsigned - 1;
+			return;
+		}
+	}
+
+	weaponFlags = 0;
+	sdata->bossWeaponCooldown = (RngDeadCoed(&GAME_ADV_RNG) & PICKUPBOTS_BOSS_COOLDOWN_RANDOM_MASK) +
+	                            (bossMeta->weaponCooldown + PICKUPBOTS_BOSS_COOLDOWN_BASE_FRAMES) +
+	                            ((s8)GAME_ADV_PROGRESS.timesLostBossRace[GAME_TRACKER->bossID] * PICKUPBOTS_BOSS_LOSS_COOLDOWN_STEP);
+
+	weaponID = bossMeta->weaponType;
+	encodedWeaponType = weaponID;
+	if (encodedWeaponType == BOSS_WEAPON_ENCODED_TNT)
+	{
+		weaponID = PICKUPBOTS_ITEM_TNT;
+	}
+	else if (encodedWeaponType == BOSS_WEAPON_ENCODED_BOMB)
+	{
+		weaponID = PICKUPBOTS_ITEM_BOMB;
+	}
+	else if (encodedWeaponType == BOSS_WEAPON_ENCODED_POTION)
+	{
+		weaponID = PICKUPBOTS_ITEM_POTION;
+	}
+	else if (encodedWeaponType == BOSS_WEAPON_NONE)
+	{
+		weaponID = PICKUPBOTS_ITEM_INVALID;
+	}
+	{
+		u16 juiceFlag = bossMeta->juiceFlag;
+		s16 juiceCounter;
+		u16 juiceCounterUnsigned;
+
+		if ((juiceFlag & BOSS_WEAPON_RANDOM_JUICE) == 0)
+		{
+			goto BossJuiceNoRandom;
+		}
+
+		juiceCounter = sdata->bossJuiceCounter;
+		juiceCounterUnsigned = sdata->bossJuiceCounter;
+		if (juiceCounter < PICKUPBOTS_BOSS_JUICE_COUNTER_MAX)
+		{
+			goto BossJuiceIncrement;
+		}
+
+		if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_TNT)
+		{
+#if defined(CTR_NATIVE)
+			if (bossMeta->throwFlag != BOSS_WEAPON_NORMAL)
+			{
+				weaponID = PICKUPBOTS_ITEM_TNT;
+#else
+			// NOTE(aalhendi): Retail sets the TNT ID in this branch's delay slot.
+			// GCC 2.8.1 places the juice copy there instead, so this one PSX
+			// branch targets the reset block while the native path stays in C.
+			__asm__ volatile(
+				"lbu $3,%1\n\t"
+				"li $2,%2\n\t"
+				".set\tnoreorder\n\t"
+				"beq $3,$2,1f\n\t"
+				"addiu %0,$0,%3\n\t"
+				".set\treorder"
+				: "=r"(weaponID)
+				: "m"(bossMeta->throwFlag), "I"(BOSS_WEAPON_NORMAL), "I"(PICKUPBOTS_ITEM_TNT)
+				: "v0", "v1", "memory");
+			{
+#endif
+				register u16 newJuice CTR_PSX_REGISTER("v0") = juiceFlag;
+				register s16 counter CTR_PSX_REGISTER("v1");
+				CTR_PSX_KEEP_VALUE_RELAXED(newJuice);
+				counter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
+				newJuice |= BOSS_WEAPON_JUICED;
+				bossMeta->throwFlag = weaponID;
+				sdata->bossJuiceCounter = counter;
+				bossMeta->juiceFlag = newJuice;
+				goto BossJuiceDone;
+			}
+		}
+		else if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_BOMB)
+		{
+			if ((juiceFlag & BOSS_WEAPON_JUICED) == 0)
+			{
+				bossMeta->juiceFlag = juiceFlag | BOSS_WEAPON_JUICED;
+				*(volatile s16 *)&sdata->bossJuiceCounter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
+				weaponID = PICKUPBOTS_ITEM_TNT;
+				goto BossJuiceDone;
+			}
+
+			weaponID = PICKUPBOTS_ITEM_BOMB;
+			bossMeta->juiceFlag = juiceFlag & ~BOSS_WEAPON_JUICED;
+			sdata->bossJuiceCounter = 0;
+			goto BossJuiceDone;
+		}
+		else if (bossMeta->weaponType == BOSS_WEAPON_ENCODED_POTION)
+		{
+			weaponID = PICKUPBOTS_ITEM_POTION;
+
+			if (bossMeta->throwFlag != BOSS_WEAPON_NORMAL)
+			{
+				u16 currentJuice = *(volatile u16 *)&bossMeta->juiceFlag;
+				bossMeta->throwFlag = BOSS_WEAPON_NORMAL;
+				sdata->bossJuiceCounter = PICKUPBOTS_BOSS_JUICE_COUNTER_MAX;
+				bossMeta->juiceFlag = currentJuice | BOSS_WEAPON_JUICED;
+				goto BossJuiceDone;
+			}
+		}
+		else
+		{
+			goto BossJuiceDone;
+		}
+
+		{
+			u16 resetJuice;
+#if !defined(CTR_NATIVE)
+			// NOTE(aalhendi): Local label 1 is the TNT branch target and stays
+			// valid if the enclosing inline function is ever emitted twice.
+			__asm__ volatile("1:");
+#endif
+			// NOTE(aalhendi): Reload here because the PSX branch above also
+			// reaches this block outside the compiler's C control-flow graph.
+			resetJuice = *(volatile u16 *)&bossMeta->juiceFlag;
+			bossMeta->throwFlag = BOSS_WEAPON_THROW;
+			sdata->bossJuiceCounter = 0;
+			bossMeta->juiceFlag = resetJuice & ~BOSS_WEAPON_JUICED;
+		}
+		goto BossJuiceDone;
+
+BossJuiceIncrement:
+		*(volatile s16 *)&sdata->bossJuiceCounter = juiceCounterUnsigned + 1;
+		goto BossJuiceDone;
+
+	BossJuiceNoRandom:
+		sdata->bossJuiceCounter = 0;
+	}
+
+BossJuiceDone:
+	throwFlag = bossMeta->throwFlag;
+	if (throwFlag == BOSS_WEAPON_THROW)
+	{
+		weaponFlags = PICKUPBOTS_SHOOT_FLAG_RANDOM;
+	}
+
+	newWumpa = 0;
+	if ((s16)weaponID >= 0)
+	{
+		register u8 rawWumpa CTR_PSX_REGISTER("v1") = *(volatile u8 *)&boss->numWumpas;
+		register int oldWumpa CTR_PSX_REGISTER("s4") = (s8)rawWumpa;
+		if ((bossMeta->juiceFlag & BOSS_WEAPON_JUICED) != 0)
+		{
+			newWumpa = DRIVER_WUMPA_JUICED_COUNT;
+		}
+		boss->numWumpas = newWumpa;
 		boss->heldItemID = weaponID;
 
 		if ((u16)(weaponID - PICKUPBOTS_ITEM_TNT) < 2)
@@ -475,22 +581,31 @@ static void PickupBots_UpdateBoss(void)
 		}
 		else
 		{
+			register u32 bombVoice CTR_PSX_REGISTER("a0") = PICKUPBOTS_VOICELINE_BOMB;
+			register const s16 *characterIDs CTR_PSX_REGISTER("a2") = GAME_CHARACTER_IDS;
+			register u32 bossID CTR_PSX_REGISTER("v1") = boss->driverID;
+			register u32 playerID CTR_PSX_REGISTER("v0") = player->driverID;
+			CTR_PSX_KEEP_VALUE(bombVoice);
+			CTR_PSX_KEEP_VALUE(bossID);
+			CTR_PSX_KEEP_VALUE(playerID);
 			weaponFlags |= PICKUPBOTS_SHOOT_FLAG_BACKWARD;
-			PickupBots_PlayVoice(PICKUPBOTS_VOICELINE_BOMB, boss, player);
+			Voiceline_RequestPlay(bombVoice, characterIDs[bossID], characterIDs[playerID]);
 		}
 
 		if (boss->heldItemID == PICKUPBOTS_ITEM_BOMB)
 		{
 			VehPickupItem_ShootNow(boss, PICKUPBOTS_SHOOT_ID_BOMB_MISSILE, (s16)weaponFlags);
 		}
-		else if ((boss->heldItemID == PICKUPBOTS_ITEM_POTION) && (weaponFlags == PICKUPBOTS_SHOOT_FLAG_RANDOM) && (gGT->levelID == OXIDE_STATION))
+		else if ((boss->heldItemID == PICKUPBOTS_ITEM_POTION) && ((s16)weaponFlags == PICKUPBOTS_SHOOT_FLAG_RANDOM) &&
+		         (GAME_TRACKER_RELOAD()->levelID == OXIDE_STATION))
 		{
-			VehPickupItem_ShootNow(boss, weaponID, PICKUPBOTS_SHOOT_FLAG_RANDOM);
-			VehPickupItem_ShootNow(boss, weaponID, PICKUPBOTS_SHOOT_FLAG_RANDOM);
+			register s16 repeatWeaponID CTR_PSX_REGISTER("s0") = weaponID;
+			VehPickupItem_ShootNow(boss, repeatWeaponID, PICKUPBOTS_SHOOT_FLAG_RANDOM);
+			VehPickupItem_ShootNow(boss, repeatWeaponID, PICKUPBOTS_SHOOT_FLAG_RANDOM);
 		}
 		else
 		{
-			VehPickupItem_ShootNow(boss, weaponID, (s16)weaponFlags);
+			VehPickupItem_ShootNow(boss, (s16)weaponID, (s16)weaponFlags);
 
 			if ((boss->heldItemID == PICKUPBOTS_ITEM_TNT) && (bossMeta->throwFlag == BOSS_WEAPON_NORMAL) &&
 			    (sdata->bossJuiceCounter != PICKUPBOTS_BOSS_JUICE_COUNTER_MAX))
@@ -502,35 +617,37 @@ static void PickupBots_UpdateBoss(void)
 		boss->heldItemID = PICKUPBOTS_ITEM_NONE;
 		boss->numWumpas = oldWumpa;
 	}
+	return;
+
+BossCooldown:
+	PickupBots_SetBossCooldown(bossMeta);
 }
 
 void PickupBots_Update(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	register struct GameTracker *initialGT CTR_PSX_REGISTER("v1") = GAME_TRACKER;
+	struct GameTracker *gGT;
 
-	if ((gGT->numBotsNextGame == 0) || (gGT->elapsedEventTime < PICKUPBOTS_UPDATE_START_DELAY))
+	if ((initialGT->numBotsNextGame == 0) || (initialGT->elapsedEventTime < PICKUPBOTS_UPDATE_START_DELAY))
 	{
-		if (gGT->gameMode1 >= 0)
+		if (initialGT->gameMode1 >= 0)
 		{
 			return;
 		}
 
-		if (gGT->elapsedEventTime < PICKUPBOTS_UPDATE_NEGATIVE_MODE_START_DELAY)
+		if (initialGT->elapsedEventTime < PICKUPBOTS_UPDATE_NEGATIVE_MODE_START_DELAY)
 		{
 			return;
 		}
 	}
 
-	if ((gGT->gameMode1 & (ADVENTURE_BOSS | END_OF_RACE)) != ADVENTURE_BOSS)
+	gGT = GAME_TRACKER_RELOAD();
+	if ((gGT->gameMode1 & (ADVENTURE_BOSS | END_OF_RACE)) == ADVENTURE_BOSS)
 	{
-		if (gGT->numPlyrCurrGame == 0)
-		{
-			return;
-		}
-
-		PickupBots_UpdateArcade();
-		return;
+		PickupBots_UpdateBoss(gGT);
 	}
-
-	PickupBots_UpdateBoss();
+	else
+	{
+		PickupBots_UpdateArcade(gGT);
+	}
 }

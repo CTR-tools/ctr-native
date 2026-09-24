@@ -2804,7 +2804,8 @@ struct sData
 	s16 bossPathRequestPhase;
 
 	// 8008d42C
-	int bossJuiceCounter;
+	s16 bossJuiceCounter;
+	s16 padding_8008d42e;
 
 	// 8008d430
 	// -1 for no expansion
@@ -3583,7 +3584,8 @@ struct sData
 	// 8008d8e8 - pointer to boss weapon meta
 
 	// 8008d8e4
-	int bossWeaponCooldown;
+	s16 bossWeaponCooldown;
+	s16 padding_8008d8e6;
 	struct MetaDataBOSS *bossWeaponMeta;
 	char data10_aaaaa[4];
 
