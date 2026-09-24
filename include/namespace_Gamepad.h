@@ -148,7 +148,7 @@ struct GamepadBuffer
 	// FF for right
 
 	// 2
-	s16 unk_1;
+	s16 previousAnalogLeftY;
 
 	// 4
 	s16 stickLX;
@@ -157,10 +157,10 @@ struct GamepadBuffer
 	s16 stickLY;
 
 	// 8
-	s16 stickLX_dontUse1;
+	s16 inputStickLX;
 
 	// A
-	s16 stickLY_dontUse1;
+	s16 inputStickLY;
 
 	// C
 	s16 stickRX;
@@ -222,16 +222,16 @@ struct GamepadBuffer
 
 	// ==== JogCon ====
 
-	u8 unk42;
-	u8 unk43;
+	u8 jogRequestedForce;
+	u8 jogWheelLimitForce;
 
 	// 0x44
-	u8 unk44; // 2A
-	u8 unk45; // 2A
+	u8 jogCenteringFrames;
+	u8 jogEffectCommand;
 
-	// elapsedTim timers
-	s16 unk46; // vib1 2A
-	s16 unk48; // vib2 2A
+	// JogCon effect duration and force override timer, in milliseconds.
+	s16 jogEffectTimeMS;
+	s16 jogForceOverrideTimeMS;
 
 	s16 padding;
 

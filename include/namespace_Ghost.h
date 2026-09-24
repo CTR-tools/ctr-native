@@ -74,7 +74,7 @@ struct GhostTape
 	s32 timeElapsedInRace;
 
 	// 0x18
-	s32 timeInPacket32_backup;
+	s32 packetTimelineTimeMS;
 
 	// 0x1c
 	s32 unk1C;
@@ -110,7 +110,7 @@ struct GhostTape
 	u32 constDEADC0ED;
 
 	// 0x264
-	struct GhostHeader *gh_again; // Selected header retained by Init1.
+	struct GhostHeader *selectedHeader;
 
 	// 0x268 bytes large
 };

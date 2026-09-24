@@ -1,7 +1,7 @@
 #include <common.h>
 
 #ifndef GAMEPAD_ACT_ALIGN
-#define GAMEPAD_ACT_ALIGN  sdata->unkPadSetActAlign
+#define GAMEPAD_ACT_ALIGN  sdata->padActuatorAlignment
 #define GAMEPAD_BUTTON_MAP data.gamepadMapBtn
 #define GAMEPAD_WHEEL_DATA data.rwd
 #endif
@@ -20,7 +20,7 @@ void GAMEPAD_Init(struct GamepadSystem *gGamepads)
 
 		// no analog sticks detected
 		pad->gamepadType = 0;
-		pad->unk44 = 0;
+		pad->jogCenteringFrames = 0;
 	}
 
 	gGamepads->gamepadsConnectedByFlag = 0xffffffff;
@@ -502,8 +502,8 @@ static inline s16 GAMEPAD_ProcessSticks_StepTowardCenter(s16 value)
 
 static inline void GAMEPAD_ProcessSticks_ResetRaw(struct GamepadBuffer *pad)
 {
-	pad->stickLX_dontUse1 = 0x80;
-	pad->stickLY_dontUse1 = 0x80;
+	pad->inputStickLX = 0x80;
+	pad->inputStickLY = 0x80;
 	pad->stickRX = 0x80;
 	pad->stickRY = 0x80;
 }
@@ -609,9 +609,9 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 						}
 						inputValue += 0x80;
 					}
-					pad->unk43 = (u8)wheelForce;
-					pad->stickLX_dontUse1 = inputValue;
-					pad->stickLY_dontUse1 = 0x80;
+					pad->jogWheelLimitForce = (u8)wheelForce;
+					pad->inputStickLX = inputValue;
+					pad->inputStickLY = 0x80;
 					pad->stickRX = 0x80;
 					pad->stickRY = 0x80;
 
@@ -625,8 +625,8 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 					}
 
 					inputValue = pad->ptrControllerPacket->payload.neGcon.twist;
-					pad->stickLX_dontUse1 = inputValue;
-					pad->stickLY_dontUse1 = 0x80;
+					pad->inputStickLX = inputValue;
+					pad->inputStickLY = 0x80;
 					pad->stickRX = 0x80;
 					pad->stickRY = 0x80;
 
@@ -635,20 +635,20 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				case ((PAD_ID_ANALOG_STICK << 4) | 3):
 				case ((PAD_ID_ANALOG << 4) | 3):
 				{
-					pad->stickLX_dontUse1 = pad->ptrControllerPacket->payload.analog.leftX;
+					pad->inputStickLX = pad->ptrControllerPacket->payload.analog.leftX;
 
 					inputValue = pad->ptrControllerPacket->payload.analog.leftY;
 					// A lone 0xff LY sample reuses the preceding value.
-					if (inputValue == 0xff && pad->unk_1 != 0xff)
+					if (inputValue == 0xff && pad->previousAnalogLeftY != 0xff)
 					{
-						pad->stickLY_dontUse1 = pad->unk_1;
+						pad->inputStickLY = pad->previousAnalogLeftY;
 					}
 					else
 					{
-						pad->stickLY_dontUse1 = inputValue;
+						pad->inputStickLY = inputValue;
 					}
 
-					pad->unk_1 = inputValue;
+					pad->previousAnalogLeftY = inputValue;
 					pad->stickRX = pad->ptrControllerPacket->payload.analog.rightX;
 					pad->stickRY = pad->ptrControllerPacket->payload.analog.rightY;
 
@@ -661,8 +661,8 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 				}
 			}
 
-			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->stickLX_dontUse1);
-			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->stickLY_dontUse1);
+			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->inputStickLX);
+			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->inputStickLY);
 			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->stickRX);
 			GAMEPAD_ProcessSticks_CheckIdleAxis(pad, pad->stickRY);
 
@@ -679,7 +679,7 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 			}
 			else if (useRaw)
 			{
-				pad->stickLX = pad->stickLX_dontUse1;
+				pad->stickLX = pad->inputStickLX;
 				goto resolveY;
 			}
 			else
@@ -698,7 +698,7 @@ void GAMEPAD_ProcessSticks(struct GamepadSystem *gGamepads)
 			}
 			else if (useRaw)
 			{
-				pad->stickLY = pad->stickLY_dontUse1;
+				pad->stickLY = pad->inputStickLY;
 				goto nextPad;
 			}
 			else
@@ -739,7 +739,7 @@ s32 GAMEPAD_ProcessTapRelease(struct GamepadSystem *gGamepads)
 
 	if (numConnected > 0)
 	{
-		analogButtonsEnabled = sdata->unkPadSetActAlign[6];
+		analogButtonsEnabled = sdata->padActuatorAlignment[6];
 
 
 		do
@@ -814,29 +814,29 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		{
 			if (pad->ptrControllerPacket->controllerData == ((PAD_ID_JOGCON << 4) | 3))
 			{
-				if (pad->unk44 != 0)
+				if (pad->jogCenteringFrames != 0)
 				{
 					pad->motorDesired[0] = 0x40;
 				}
-				else if ((remaining = pad->unk46) != 0)
+				else if ((remaining = pad->jogEffectTimeMS) != 0)
 				{
-					pad->motorDesired[0] = pad->unk45;
+					pad->motorDesired[0] = pad->jogEffectCommand;
 					remaining -= GAME_TRACKER->elapsedTimeMS;
 					if (remaining <= 0)
 					{
-						pad->unk46 = 0;
-						pad->unk45 = 0;
+						pad->jogEffectTimeMS = 0;
+						pad->jogEffectCommand = 0;
 					}
 					else
 					{
-						pad->unk46 = remaining;
+						pad->jogEffectTimeMS = remaining;
 					}
 				}
 				else
 				{
-					if (pad->unk42 > pad->unk43 || pad->unk48 != 0)
+					if (pad->jogRequestedForce > pad->jogWheelLimitForce || pad->jogForceOverrideTimeMS != 0)
 					{
-						strength = pad->unk42;
+						strength = pad->jogRequestedForce;
 						if ((GAME_TRACKER->timer & strength) & 15)
 						{
 							strength -= 16;
@@ -849,19 +849,19 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 					}
 					else
 					{
-						jogPower = pad->unk43 >> 4;
+						jogPower = pad->jogWheelLimitForce >> 4;
 					}
 					pad->motorDesired[0] = jogPower | 0x30;
 				}
 				// NOTE(aalhendi): Retail clears this timer even when time remains.
-				if (pad->unk48 != 0)
+				if (pad->jogForceOverrideTimeMS != 0)
 				{
-					remaining = pad->unk48 - GAME_TRACKER->elapsedTimeMS;
+					remaining = pad->jogForceOverrideTimeMS - GAME_TRACKER->elapsedTimeMS;
 					if (remaining != 0)
 					{
 						remaining = 0;
 					}
-					pad->unk48 = remaining;
+					pad->jogForceOverrideTimeMS = remaining;
 				}
 				pad->motorDesired[1] = 0;
 			}
@@ -913,7 +913,7 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 		}
 		else
 		{
-			if (pad->ptrControllerPacket != 0 && pad->ptrControllerPacket->controllerData == ((PAD_ID_JOGCON << 4) | 3) && pad->unk44 != 0)
+			if (pad->ptrControllerPacket != 0 && pad->ptrControllerPacket->controllerData == ((PAD_ID_JOGCON << 4) | 3) && pad->jogCenteringFrames != 0)
 			{
 				pad->motorDesired[0] = 0x40;
 			}
@@ -925,12 +925,12 @@ void GAMEPAD_ProcessMotors(struct GamepadSystem *gGS)
 			pad->shockFrameFreq = 0;
 			pad->shockFrameForce1 = 0;
 			pad->shockFrameForce2 = 0;
-			pad->unk46 = 0;
-			pad->unk45 = 0;
+			pad->jogEffectTimeMS = 0;
+			pad->jogEffectCommand = 0;
 		}
-		if (pad->unk44 != 0)
+		if (pad->jogCenteringFrames != 0)
 		{
-			--pad->unk44;
+			--pad->jogCenteringFrames;
 		}
 	}
 
@@ -1098,13 +1098,13 @@ void GAMEPAD_JogCon1(struct Driver *d, s32 val, u16 timeMS)
 
 	gb = &GAMEPADS->gamepad[d->driverID];
 
-	if ((gb->unk45 & 0xf) > (val & 0xf))
+	if ((gb->jogEffectCommand & 0xf) > (val & 0xf))
 	{
 		return;
 	}
 
-	gb->unk45 = val;
-	gb->unk46 = timeMS;
+	gb->jogEffectCommand = val;
+	gb->jogEffectTimeMS = timeMS;
 }
 
 
@@ -1118,8 +1118,8 @@ void GAMEPAD_JogCon2(struct Driver *d, u8 val, s16 timeMS)
 
 	gb = &GAMEPADS->gamepad[d->driverID];
 
-	gb->unk42 = val;
-	gb->unk48 = timeMS;
+	gb->jogRequestedForce = val;
+	gb->jogForceOverrideTimeMS = timeMS;
 }
 
 

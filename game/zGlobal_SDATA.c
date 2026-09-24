@@ -85,7 +85,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              .pause_backup_renderFlags = 0,
                              .pause_state = 0,
 
-                             .unkPadSetActAlign = {0, 1, -1, -1, -1, -1, 1, 0},
+                             .padActuatorAlignment = {0, 1, -1, -1, -1, -1, 1, 0},
 
                              .s_ghost = "ghost",
                              .s_ghost1 = "ghost1",

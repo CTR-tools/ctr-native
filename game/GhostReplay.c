@@ -106,7 +106,7 @@ void GhostReplay_ThTick(struct Thread *t)
 		packetEndChain = buffer;
 
 		tape->packetID = -1;
-		tape->timeInPacket01 = tape->timeInPacket32_backup;
+		tape->timeInPacket01 = tape->packetTimelineTimeMS;
 
 		// Each cache spans two absolute positions and their intervening deltas.
 		do
@@ -134,7 +134,7 @@ void GhostReplay_ThTick(struct Thread *t)
 					{
 						s16 elapsed = Ghost_ReadBE16(buffer + 6);
 						tape->ptrCurr = buffer - 1;
-						tape->timeInPacket32 = (tape->timeInPacket32_backup += elapsed);
+						tape->timeInPacket32 = (tape->packetTimelineTimeMS += elapsed);
 					}
 					opcodePos++;
 					buffer += GHOST_SIZE_POSITION - 1;
@@ -346,21 +346,21 @@ void GhostReplay_Init1(void)
 		switch (i)
 		{
 		case 0:
-			tape->gh_again = GHOST_PLAYING;
+			tape->selectedHeader = GHOST_PLAYING;
 			break;
 		case 1:
 			if (GAME_SAVE.progress.highScoreTracks[GAME_TRACKER->levelID].timeTrialFlags & TT_NTROPY_BEATEN)
 			{
-				tape->gh_again = (ST1_GETPOINTERS(GAME_TRACKER->level1->ptrSpawnType1))[ST1_NOXIDE];
+				tape->selectedHeader = (ST1_GETPOINTERS(GAME_TRACKER->level1->ptrSpawnType1))[ST1_NOXIDE];
 			}
 			else
 			{
-				tape->gh_again = (ST1_GETPOINTERS(GAME_TRACKER->level1->ptrSpawnType1))[ST1_NTROPY];
+				tape->selectedHeader = (ST1_GETPOINTERS(GAME_TRACKER->level1->ptrSpawnType1))[ST1_NTROPY];
 			}
 			break;
 		}
 
-		tape->gh = tape->gh_again;
+		tape->gh = tape->selectedHeader;
 #if defined(CTR_NATIVE)
 		// NOTE(aalhendi): No saved human ghost is normal on a fresh time trial.
 		// PSX can read its mapped low memory; native represents it as an empty
@@ -496,7 +496,7 @@ void GhostReplay_Init2(void)
 		tape = driver->ghostTape;
 		inst = driver->instSelf;
 		tape->timeElapsedInRace = 0;
-		tape->timeInPacket32_backup = 0;
+		tape->packetTimelineTimeMS = 0;
 		tape->unk20 = 0;
 		tape->timeInPacket32 = 0;
 		tape->timeInPacket01 = 0;

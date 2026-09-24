@@ -1713,7 +1713,7 @@ struct Data
 	u8 raceConfig_colors_blueRect[0x18];
 
 	// 800842D0
-	u8 unkNamcoGamepadRwdTriangleColors[0xc];
+	u8 jogConTriangleColors[0xc];
 
 	// 800842DC
 	s16 unkNamcoGamepad_800842DC[0x30 / 2];
@@ -2475,7 +2475,7 @@ struct sData
 	s16 pause_state;
 
 	// 8008d038
-	u8 unkPadSetActAlign[8];
+	u8 padActuatorAlignment[8];
 
 	// 8008D040
 	char s_ghost[8];
@@ -3895,22 +3895,22 @@ struct sData
 		s32 sampleCount;
 
 		// 8008fc0c
-		s32 timeOfLast80buffer;
+		s32 lastPositionPacketTimeMS;
 
 		// 8008fc10
 		s32 timeElapsedInRace;
 
 		// 8008fc14
-		s32 boostCooldown1E;
+		s32 turboPadBoostCooldownFrames;
 
 		// 8008fc18
-		s16 VelX;
+		s16 lastSampledPositionX;
 
 		// 8008fc1a
-		s16 VelY;
+		s16 lastSampledPositionY;
 
 		// 8008fc1C
-		s16 VelZ;
+		s16 lastSampledPositionZ;
 
 		// 8008fc1e
 		s16 unk_8fc1e;

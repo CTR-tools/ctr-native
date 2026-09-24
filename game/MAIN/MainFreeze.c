@@ -187,7 +187,7 @@ static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT
 		int colorOffset = point * 4;
 		MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[offset] + ((baseCos * 200) / 0x5000) + 0x100,
 		                            data.unkNamcoGamepad_800842DC[offset + 1] + sdata->analogConfigY[1] + ((baseSin * 0x19) >> 0xc), 10, 0x80, baseAngle,
-		                            (char *)&data.unkNamcoGamepadRwdTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
+		                            (char *)&data.jogConTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 	}
 
 	for (int row = 0; row < 0x400; row += 0xaa)
@@ -298,7 +298,7 @@ void MainFreeze_ConfigSetupEntry(void)
 				}
 				else
 				{
-					gamepad->unk44 = 4;
+					gamepad->jogCenteringFrames = 4;
 					data.rwd[sdata->gamepadID_OwnerRaceWheelConfig].gamepadCenter = 0x80;
 				}
 				RECTMENU_ClearInput();

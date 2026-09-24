@@ -35,13 +35,13 @@ void GhostTape_Start(void)
 	recording->sampleCount = 0;
 	recording->animFrame = -1;
 	recording->animIndex = -1;
-	recording->timeOfLast80buffer = 0;
+	recording->lastPositionPacketTimeMS = 0;
 	recording->timeElapsedInRace = 0;
-	recording->VelX = 0;
-	recording->VelY = 0;
-	recording->VelZ = 0;
+	recording->lastSampledPositionX = 0;
+	recording->lastSampledPositionY = 0;
+	recording->lastSampledPositionZ = 0;
 	recording->instanceFlags = 0;
-	recording->boostCooldown1E = 0;
+	recording->turboPadBoostCooldownFrames = 0;
 	recording->ptrCurrOffset = recording->ptrStartOffset;
 }
 
@@ -102,9 +102,9 @@ void GhostTape_WriteMoves(s16 raceFinished)
 			return;
 		}
 	}
-	if (GHOST_RECORDING.boostCooldown1E != 0)
+	if (GHOST_RECORDING.turboPadBoostCooldownFrames != 0)
 	{
-		GHOST_RECORDING.boostCooldown1E--;
+		GHOST_RECORDING.turboPadBoostCooldownFrames--;
 	}
 	if (raceFinished || !(GHOST_RECORDING.frameCount & GHOST_RECORD_INTERVAL_MASK_8))
 	{
@@ -113,10 +113,10 @@ void GhostTape_WriteMoves(s16 raceFinished)
 		position[0] = inst->matrix.t[0] >> GHOST_RECORD_POSITION_SHIFT;
 		position[1] = inst->matrix.t[1] >> GHOST_RECORD_POSITION_SHIFT;
 		position[2] = inst->matrix.t[2] >> GHOST_RECORD_POSITION_SHIFT;
-		velocity[0] = position[0] - GHOST_RECORDING.VelX;
-		velocity[1] = position[1] - GHOST_RECORDING.VelY;
-		velocity[2] = position[2] - GHOST_RECORDING.VelZ;
-		timeSincePositionPacket = GHOST_RECORDING.timeElapsedInRace - GHOST_RECORDING.timeOfLast80buffer;
+		velocity[0] = position[0] - GHOST_RECORDING.lastSampledPositionX;
+		velocity[1] = position[1] - GHOST_RECORDING.lastSampledPositionY;
+		velocity[2] = position[2] - GHOST_RECORDING.lastSampledPositionZ;
+		timeSincePositionPacket = GHOST_RECORDING.timeElapsedInRace - GHOST_RECORDING.lastPositionPacketTimeMS;
 
 		if (GHOST_RECORDING.animFrame != inst->animFrame || GHOST_RECORDING.animIndex != inst->animIndex)
 		{
@@ -152,7 +152,7 @@ void GhostTape_WriteMoves(s16 raceFinished)
 			writeCursor[9] = (u16)driver->rotCurr.z >> GHOST_RECORD_ROTATION_SHIFT;
 			writeCursor[6] = timeSincePositionPacket >> 8;
 			writeCursor[7] = timeSincePositionPacket;
-			GHOST_RECORDING.timeOfLast80buffer = GHOST_RECORDING.timeElapsedInRace;
+			GHOST_RECORDING.lastPositionPacketTimeMS = GHOST_RECORDING.timeElapsedInRace;
 			GHOST_RECORDING.ptrCurrOffset += GHOST_SIZE_POSITION - 1;
 		}
 		else if (velocity[0] == 0 && velocity[1] == 0 && velocity[2] == 0)
@@ -171,9 +171,9 @@ void GhostTape_WriteMoves(s16 raceFinished)
 			writeCursor[4] = (u16)driver->rotCurr.z >> GHOST_RECORD_ROTATION_SHIFT;
 			GHOST_RECORDING.ptrCurrOffset += GHOST_SIZE_VELOCITY;
 		}
-		GHOST_RECORDING.VelX = position[0];
-		GHOST_RECORDING.VelY = position[1];
-		GHOST_RECORDING.VelZ = position[2];
+		GHOST_RECORDING.lastSampledPositionX = position[0];
+		GHOST_RECORDING.lastSampledPositionY = position[1];
+		GHOST_RECORDING.lastSampledPositionZ = position[2];
 		GHOST_RECORDING.instanceFlags = inst->flags;
 		if ((u32)GHOST_RECORDING.ptrEndOffset < (u32)GHOST_RECORDING.ptrCurrOffset + GHOST_RECORD_BUFFER_END_GUARD)
 		{
@@ -202,11 +202,11 @@ void GhostTape_WriteBoosts(s32 addReserve, u32 type, s32 speedCap)
 
 	if ((type & TURBO_PAD) != 0)
 	{
-		if (GHOST_RECORDING.boostCooldown1E != 0)
+		if (GHOST_RECORDING.turboPadBoostCooldownFrames != 0)
 		{
 			return;
 		}
-		GHOST_RECORDING.boostCooldown1E = GHOST_RECORD_BOOST_COOLDOWN_FRAMES;
+		GHOST_RECORDING.turboPadBoostCooldownFrames = GHOST_RECORD_BOOST_COOLDOWN_FRAMES;
 	}
 
 	// Boost payload: big-endian reserves, boost type, big-endian speed cap.
