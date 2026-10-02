@@ -101,8 +101,10 @@ def configured_targets(
         name = target["name"]
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name) or name in names:
             raise MatchError(f"invalid or duplicate target name: {name!r}")
-        if target["kind"] not in ("artifact", "resident", "probe"):
+        if target["kind"] not in ("artifact", "data", "resident", "probe"):
             raise MatchError(f"unknown build kind for {name!r}: {target['kind']!r}")
+        if "owned_symbols" in target and target["kind"] != "resident":
+            raise MatchError("owned_symbols is only supported for resident targets")
         names.add(name)
     return [target for target in targets if kind is None or target["kind"] == kind]
 
@@ -869,6 +871,7 @@ def build_evidence(
         "kind": config["kind"],
         "scope": {
             "artifact": "whole-artifact",
+            "data": "initialized-data-ranges",
             "resident": "function-ranges",
             "probe": "extracted-function",
         }[config["kind"]],
@@ -894,7 +897,7 @@ def result_path(manifest: dict[str, Any], config: dict[str, Any]) -> Path:
         version = config.get("aspsx_version", tools["maspsx"]["aspsx_version"])
         variant = f"gcc-{tools['compiler']['version']}-aspsx-{version}"
         return BUILD / "probes" / config["name"] / variant / "result.json"
-    directory = "artifacts" if config["kind"] == "artifact" else "namespaces"
+    directory = "artifacts" if config["kind"] in ("artifact", "data") else "namespaces"
     return BUILD / directory / config["name"] / "result.json"
 
 
@@ -919,6 +922,13 @@ def result_is_current(
             or result["pipeline_sha256"] != pipeline_hash()
             or result["toolchain_config_sha256"] != sha256_json(manifest["toolchain"])
             or result["compiler_flags"] != effective_flags(config)
+            or (
+                config["kind"] == "data"
+                and (
+                    result.get("kind") != "data"
+                    or result.get("scope") != "initialized-data-ranges"
+                )
+            )
             or result["aspsx_version"]
             != config.get(
                 "aspsx_version", manifest["toolchain"]["maspsx"]["aspsx_version"]
@@ -926,11 +936,29 @@ def result_is_current(
             or inputs != input_hashes(inputs)
         ):
             return False
-        candidates = result["functions"] if config["kind"] == "resident" else [result]
+        owned = config.get("owned_symbols", {})
+        candidates = (
+            result["functions"] if config["kind"] == "resident"
+            else result["ranges"] if config["kind"] == "data"
+            else [result]
+        )
+        if config["kind"] == "data" and (
+            [item["data_range"] for item in candidates] != data_ranges(config)
+            or any(item.get("error") for item in candidates)
+        ):
+            return False
         if config["kind"] == "resident" and (
             len(candidates) != result["selected_function_count"]
             or result["complete"] != (len(candidates) == result["function_count"])
             or len({item["name"] for item in candidates}) != len(candidates)
+            or not isinstance(owned, dict)
+            or any(
+                item.get("candidate_symbol", item["name"])
+                != owned.get(item["name"], item["name"])
+                or ("candidate_symbol" in item)
+                != (owned.get(item["name"], item["name"]) != item["name"])
+                for item in candidates
+            )
         ):
             return False
         return all(
@@ -1021,18 +1049,28 @@ def build_object(
     return object_file, dependency_inputs(dependency_file)
 
 
-def verify_shared_sections(
-    toolchain: Toolchain, linked: Path, output_section: str, load_address: int, actual: bytes,
-) -> list[dict[str, Any]]:
-    """Every additional initialized section must agree with its artifact view."""
+def allocated_sections(toolchain: Toolchain, linked: Path) -> dict[str, dict[str, Any]]:
+    """Keep initialized bytes distinct from allocated-only storage such as BSS."""
     headers = command_output([str(toolchain.binutils["objdump"]), "-h", str(linked)])
-    views = []
+    sections = {}
     pattern = r"^\s*\d+\s+(\S+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)[^\n]*\n\s+([^\n]+)"
     for name, size_hex, address_hex, flags in re.findall(pattern, headers, re.MULTILINE):
         size, address = int(size_hex, 16), int(address_hex, 16)
         attributes = {flag.strip() for flag in flags.split(",")}
-        if name == output_section or not size or not {"CONTENTS", "ALLOC"} <= attributes:
+        if size and "ALLOC" in attributes:
+            sections[name] = {"size": size, "address": address, "initialized": "CONTENTS" in attributes}
+    return sections
+
+
+def verify_shared_sections(
+    toolchain: Toolchain, linked: Path, output_section: str, load_address: int, actual: bytes,
+) -> list[dict[str, Any]]:
+    """Every additional initialized section must agree with its artifact view."""
+    views = []
+    for name, section in allocated_sections(toolchain, linked).items():
+        if name == output_section or not section["initialized"]:
             continue
+        size, address = section["size"], section["address"]
         offset = address - load_address
         if offset < 0 or offset + size > len(actual):
             raise MatchError(f"initialized section {name} lies outside {output_section}")
@@ -1042,6 +1080,110 @@ def verify_shared_sections(
             raise MatchError(f"shared section {name} disagrees with {output_section} at 0x{offset:x}")
         views.append({"section": name, "offset": offset, "size": size})
     return views
+
+
+def data_ranges(build: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize the legacy single view at the data module's entry point."""
+    if "data_ranges" not in build:
+        return [{**build["data_range"], "output_section": build["output_section"]}]
+    intervals = build["data_ranges"]
+    if "data_range" in build or not isinstance(intervals, list) or not intervals:
+        raise MatchError("data target requires one nonempty range list")
+    return intervals
+
+
+def initialized_data_range(
+    interval: dict[str, Any],
+    section: dict[str, int],
+    symbols: dict[str, dict[str, Any]],
+    actual: bytes,
+) -> tuple[int, bytes]:
+    """Select a bounded initialized view only after proving its symbol placement."""
+    name = interval["symbol"]
+    address = parse_int(interval["symbol_address"])
+    offset = parse_int(interval["offset"])
+    size = parse_int(interval["size"])
+    symbol = symbols.get(name)
+    if (
+        symbol is None
+        or symbol["address"] != address
+        or symbol["section"] != interval["output_section"]
+    ):
+        raise MatchError(f"initialized data symbol {name!r} is missing or misplaced")
+    if len(actual) != section["size"]:
+        raise MatchError("initialized section extraction is incomplete")
+    start = address - section["address"] + offset
+    if offset < 0 or size <= 0 or start < 0 or start + size > len(actual):
+        raise MatchError("initialized data range lies outside its emitted section")
+    return address + offset, actual[start : start + size]
+
+
+def reject_overlapping_ranges(ranges: Iterable[dict[str, Any]], description: str) -> None:
+    spans = sorted((parse_int(item["address"]), parse_int(item["address"]) + item["size"]) for item in ranges)
+    if any(left[1] > right[0] for left, right in zip(spans, spans[1:])):
+        raise MatchError(f"{description} overlap")
+
+
+def compare_initialized_data(
+    manifest: dict[str, Any], toolchain: Toolchain, build: dict[str, Any],
+    references: Path, linked: Path, dependencies: Iterable[str],
+) -> dict[str, Any]:
+    """Verify owned section views without turning intervening gaps into output."""
+    intervals = data_ranges(build)
+    output = linked.parent
+    artifact = artifact_by_id(manifest, build["artifact"])
+    load_address = parse_int(artifact["load_address"])
+    symbols = linked_symbols(toolchain.binutils["objdump"], linked, load_address)
+    sections = allocated_sections(toolchain, linked)
+    declared = {interval["output_section"] for interval in intervals}
+    if declared != set(sections) or any(not section["initialized"] for section in sections.values()):
+        raise MatchError("data target has a missing, unowned or uninitialized allocated section")
+    reject_overlapping_ranges(sections.values(), "allocated data sections")
+
+    emitted = {}
+    ranges = []
+    for index, interval in enumerate(intervals):
+        name = interval["output_section"]
+        directory = output / "data-ranges" / str(index)
+        directory.mkdir(parents=True, exist_ok=True)
+        if name not in emitted:
+            extracted = directory / "section.bin"
+            extract_binary_section(toolchain, linked, name, extracted)
+            emitted[name] = extracted.read_bytes()
+        address, actual = initialized_data_range(interval, sections[name], symbols, emitted[name])
+        candidate = directory / "candidate.bin"
+        expected_path = directory / "retail.bin"
+        candidate.write_bytes(actual)
+        expected_path.write_bytes(reference_bytes(manifest, references, {
+            "region": artifact["id"], "address": address, "size": len(actual),
+            "symbol": interval["symbol"],
+        }))
+        comparison = compare_binary_files(
+            toolchain, expected_path, candidate, address, directory,
+            f"retail/{interval['symbol']}", f"candidate/{interval['symbol']}",
+        )
+        mismatch = comparison["first_mismatch_offsets"][:1]
+        file_offset = address - load_address + parse_int(artifact.get("mapped_file_offset", 0))
+        ranges.append({
+            **comparison, "name": interval["symbol"], "kind": "data", "size": len(actual),
+            "address": f"0x{address:08x}", "placement_delta": 0,
+            "section": {"name": name, **sections[name]}, "data_range": interval,
+            "candidate": str(candidate.relative_to(ROOT)),
+            "first_mismatch_location": mismatch_location(artifact, file_offset + mismatch[0]) if mismatch else None,
+        })
+    reject_overlapping_ranges(ranges, "initialized data ranges")
+    size = sum(item["expected_size"] for item in ranges)
+    matching = sum(item["matching_bytes"] for item in ranges)
+    result = {
+        **build_evidence(manifest, toolchain, build, dependencies),
+        "artifact": artifact["id"], "ranges": ranges,
+        "candidate_size": sum(item["candidate_size"] for item in ranges), "expected_size": size,
+        "matching_bytes": matching, "matching_byte_percent": matching * 100 / size,
+        "exact": all(item["exact"] for item in ranges),
+        "first_mismatch_location": next((item["first_mismatch_location"] for item in ranges if not item["exact"]), None),
+    }
+    (output / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+    return result
 
 
 def build_artifact(
@@ -1092,6 +1234,8 @@ def build_artifact(
         link_command.append(f"--defsym={symbol}={address}")
     link_command.extend(str(object_file) for object_file in object_files)
     run_checked(link_command)
+    if build["kind"] == "data":
+        return compare_initialized_data(manifest, toolchain, build, references, linked_object, dependencies)
     extract_binary_section(
         toolchain,
         linked_object,
@@ -1099,27 +1243,29 @@ def build_artifact(
         candidate_binary,
     )
 
-    expected_path = references / artifact["path"]
-    expected = expected_path.read_bytes()
     actual = candidate_binary.read_bytes()
     load_address = parse_int(artifact["load_address"])
-    shared_sections = verify_shared_sections(toolchain, linked_object, build["output_section"], load_address, actual)
+    symbols = linked_symbols(toolchain.binutils["objdump"], linked_object, load_address)
+    expected_path = references / artifact["path"]
+    expected = expected_path.read_bytes()
+    shared_sections = verify_shared_sections(
+        toolchain, linked_object, build["output_section"], load_address, actual
+    )
     reconstructed = BUILD / "reconstructed" / artifact["path"]
     reconstructed.parent.mkdir(parents=True, exist_ok=True)
     reconstructed.write_bytes(actual)
+    ranges = artifact_ranges(build, load_address, symbols)
 
-    symbols = linked_symbols(toolchain.binutils["objdump"], linked_object, load_address)
     comparison = compare_binary_files(
         toolchain,
         expected_path,
         candidate_binary,
         load_address,
         output,
-        f"retail/{artifact['id']}",
-        f"candidate/{artifact['id']}",
+        f"retail/{build['name']}",
+        f"candidate/{build['name']}",
     )
     first_mismatch = comparison["first_mismatch_offsets"][:1]
-    ranges = artifact_ranges(build, load_address, symbols)
     result = {
         **build_evidence(manifest, toolchain, build, dependencies),
         "artifact": artifact["id"],
@@ -1127,7 +1273,9 @@ def build_artifact(
         **comparison,
         "first_mismatch_offset": first_mismatch[0] if first_mismatch else None,
         "first_mismatch_location": (
-            mismatch_location(artifact, first_mismatch[0]) if first_mismatch else None
+            mismatch_location(artifact, first_mismatch[0])
+            if first_mismatch
+            else None
         ),
         "ranges": range_comparison(expected, actual, ranges, symbols),
         "candidate": str(candidate_binary.relative_to(ROOT)),

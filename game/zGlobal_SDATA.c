@@ -21,9 +21,8 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
 
                              .driver_pathIndexIDs = {0, -1, -1, 2, 0, -1, -1, 2},
 
-                             // twice as many frames, half as much
-                             // step for each frame of acceleration
-                             .AI_AccelFrameCount = 0xa0,
+                             // Start-line acceleration delay per acceleration-order slot.
+                             .AI_AccelFrameCount = 0x0a,
                              .AI_AccelFrameSteps = 0x18,
 
                              .AI_VelY_WhenBlasted_0x3000 = 0x3000,
@@ -47,7 +46,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              .s_XINF = "XINF",
 
                              .s_BLADE = "BLADE",
-                             .s_TURBO = "TRUBO",
+                             .s_TURBO = "TURBO",
                              .s_SPRING = "SPRING",
                              .s_GATE = "GATE",
 
@@ -247,9 +246,11 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              // one for RaceWheel, one for Namco
                              .analogConfigY = {0x3C, 0x64},
 
-                             .posY_MultiLine = {0x92, 0xA0, 0x81, 0x8F},
+                             // NOTE(aalhendi): MainFreeze indexes every other halfword
+                             // in these retail word-sized coordinate slots.
+                             .posY_MultiLine = {0x92, 0, 0xA0, 0},
 
-                             .posY_Arrows = {0x81, 0x8F},
+                             .posY_Arrows = {0x81, 0, 0x8F, 0},
 
                              .unk_RaceWheelConfig = {0x320, -1, -1},
 

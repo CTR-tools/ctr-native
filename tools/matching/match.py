@@ -133,7 +133,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 def print_artifact_result(result: dict[str, Any]) -> bool:
     status = "MATCH" if result["exact"] else "DIFF"
     print(
-        f"{status:<7} {result['artifact']}: "
+        f"{status:<7} {result['name']} ({result['scope']}): "
         f"{result['candidate_size']}/{result['expected_size']} bytes; "
         f"{result['matching_bytes']} bytes equal at the same offsets "
         f"({result['matching_byte_percent']:.2f}%)"
@@ -147,7 +147,10 @@ def print_artifact_result(result: dict[str, Any]) -> bool:
         if item["placement_delta"]:
             detail += f", placement {item['placement_delta']:+#x}"
         print(f"        {item['name']}: {detail}")
-    print(f"        objdump diff: {result['objdump_diff']}")
+        if not item["exact"] and item.get("objdump_diff"):
+            print(f"        objdump diff: {item['objdump_diff']}")
+    if result.get("objdump_diff"):
+        print(f"        objdump diff: {result['objdump_diff']}")
     return bool(result["exact"])
 
 
@@ -167,7 +170,7 @@ def build_target(
         print(
             f"{config['name']}: {result['exact_function_count']}/{result['selected_function_count']} function ranges exact"
         )
-    elif config["kind"] == "artifact":
+    elif config["kind"] in ("artifact", "data"):
         result = build_artifact(manifest, toolchain, config, references)
         print_artifact_result(result)
     else:

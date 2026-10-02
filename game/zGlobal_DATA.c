@@ -1,28 +1,11 @@
 #include <common.h>
 
-// this is only for LevInstances,
-// NonLev-related entries are empty
+// Models without level-instance behavior still retain their shared debug names.
+#define SET_MDM(x, y, z) {.name = x, .LInB = y, .LInC = z}
 
-#define SET_MDM(x, y, z) {.name = 0, .LInB = y, .LInC = z}
-// usage of this macro is mainly because I'm too lazy to go through this file and manually recalculate all the values where s16 is expected instead of uint.
-// this is purely to reduce warnings in the compiler output. (i.e., the compiler was doing this implicitly). (literally 800 lines of warnings at
-// time-of-writing).
-#define AS(x)            ((s16)x)
-
-// Using visual studio, here are some regexes for finding and replacing candidates for "any hex value with 4 leading F's, and then wrapping it in 'AS(value)'"
-// FIND:            (?<!AS\()(?i:0x(?=ffff)[0-9abcdef]+)
-// REPLACE:         AS($1)
-
-// the procedure that I would use to convert (by hand, unfortunately) would be to take the last 4 digits of any 0xffffXXXX number,
-// take it into windows' calculator (programmer mode), do 0 minus that number, then you should get a number like 0xffff_ffff_ffff_YYYY
-// the resulting "correct number" to replace your original number would be "-0xYYYY"
-
-// e.g., if input is "0xfffffbb4", then in windows' calculator "0 - 0xfbb4" = "0xffff_ffff_ffff_044c", then replace the original number with "-0x044c"
-
-// s16-to-int downcasting is "implementation specified" (i.e., *not* undefined, *not* defined by the spec). It turns out that GCC handles this the way we like
-// (I think??), but we *should* manually fix this eventually.
-
-// also see https://discord.com/channels/527135227546435584/637616020177289236/1307309914691076167
+// NOTE(aalhendi): Both supported compilers narrow these hex constants to their
+// signed 16-bit retail bit patterns.
+#define AS(x)            ((s16)(x))
 
 struct Data
     data =
@@ -1063,717 +1046,715 @@ struct Data
             .xaLanguagePtrs = {sdata_static.s_JPN, sdata_static.s_ENG, sdata_static.s_FRN, sdata_static.s_GRM, sdata_static.s_ITL, sdata_static.s_SPN,
                                sdata_static.s_DCH},
 
-            .audioMeta[0] = {.stringIndex_char1 = 0xB,
-                             .stringIndex_char2 = 0xC,
+            .audioMeta = {
+                [0] = {.stringIndex_char1 = 0xB,
+                       .stringIndex_char2 = 0xC,
 
-                             .name = data.s_XA_MUSIC},
+                       .name = data.s_XA_MUSIC},
 
-            .audioMeta[1] = {.stringIndex_char1 = 0xF,
-                             .stringIndex_char2 = 0x10,
+                [1] = {.stringIndex_char1 = 0xF,
+                       .stringIndex_char2 = 0x10,
 
-                             .name = data.s_XA_ENG_EXTRA},
+                       .name = data.s_XA_ENG_EXTRA},
 
-            .audioMeta[2] = {.stringIndex_char1 = 0xE,
-                             .stringIndex_char2 = 0xF,
+                [2] = {.stringIndex_char1 = 0xE,
+                       .stringIndex_char2 = 0xF,
 
-                             .name = data.s_XA_ENG_GAME},
+                       .name = data.s_XA_ENG_GAME},
+            },
 
             .MetaDataModels =
                 {
-// leave on for CTR_NATIVE,
-#if 1
-
                     // 0x00 - NO_FUNC
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(sdata_static.s_NO_FUNC, NULL, NULL),
 
                     // 0x01 - ANIMATE_IF_HIT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_ANIMATE_IF_HIT, NULL, NULL),
 
                     // 0x02 - PU_WUMPA_FRUIT
-                    SET_MDM(NULL, RB_Fruit_LInB, RB_Fruit_LInC),
+                    SET_MDM(rdata.s_PU_WUMPA_FRUIT, RB_Fruit_LInB, RB_Fruit_LInC),
 
                     // 0x03 - PU_SMALL_BOMB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_SMALL_BOMB, NULL, NULL),
 
                     // 0x04 - PU_LARGE_BOMB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_LARGE_BOMB, NULL, NULL),
 
                     // 0x05 - PU_MISSILE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_MISSILE, NULL, NULL),
 
                     // 0x06 - PU_EXPLOSIVE_CRATE (nitro)
                     // used for Crystal Challenge TNT/Nitro, no BSP collision,
                     // LInB births thread that checks for collision every frame,
                     // DECOMP should birth unthreaded instances, and add hitboxes
-                    SET_MDM(NULL, RB_GenericMine_LInB, NULL),
+                    SET_MDM(rdata.s_PU_EXPLOSIVE_CRATE, RB_GenericMine_LInB, NULL),
 
                     // 0x07 - PU_FRUIT_CRATE
-                    SET_MDM(NULL, RB_Default_LInB, RB_CrateFruit_LInC),
+                    SET_MDM(rdata.s_PU_FRUIT_CRATE, RB_Default_LInB, RB_CrateFruit_LInC),
 
                     // 0x08 - PU_RANDOM_CRATE (Weapon Box)
-                    SET_MDM(NULL, RB_Default_LInB, RB_CrateWeapon_LInC),
+                    SET_MDM(rdata.s_PU_RANDOM_CRATE, RB_Default_LInB, RB_CrateWeapon_LInC),
 
                     // 0x09 - PU_TIME_CRATE_1 (unused duplicate of 0x5C)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_TIME_CRATE_1, NULL, NULL),
 
                     // 0x0A - PU_TIME_CRATE_2 (unused duplicate of 0x64)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_TIME_CRATE_2, NULL, NULL),
 
                     // 0x0B - PU_TIME_CRATE_3 (unused duplicate of 0x65)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_TIME_CRATE_3, NULL, NULL),
 
                     // 0x0C - PU_POISON
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_POISON, NULL, NULL),
 
                     // 0x0D - PU_SHIELD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_SHIELD, NULL, NULL),
 
                     // 0x0E - PU_INVINCIBILITY
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_INVINCIBILITY, NULL, NULL),
 
                     // 0x0F - PU_SPRING
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_SPRING, NULL, NULL),
 
                     // 0x10 - PU_CLOCK
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_CLOCK, NULL, NULL),
 
                     // 0x11 - PU_TURBO
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_PU_TURBO, NULL, NULL),
 
                     // 0x12 - FLAME_JET (tiger temple)
-                    SET_MDM(NULL, RB_FlameJet_LInB, NULL),
+                    SET_MDM(rdata.s_FLAME_JET, RB_FlameJet_LInB, NULL),
 
                     // 0x13 - PIRANHA_PLANT (papu pyramid)
-                    SET_MDM(NULL, RB_Plant_LInB, NULL),
+                    SET_MDM(rdata.s_PIRANHA_PLANT, RB_Plant_LInB, NULL),
 
                     // 0x14 - GATE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(sdata_static.s_GATE, NULL, NULL),
 
                     // 0x15 - START_LINE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_START_LINE, NULL, NULL),
 
                     // 0x16 - SPRING
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(sdata_static.s_SPRING, NULL, NULL),
 
                     // 0x17 - TURBO
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(sdata_static.s_TURBO, NULL, NULL),
 
                     // 0x18 - DYNAMIC_PLAYER (player driver)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_PLAYER, NULL, NULL),
 
                     // 0x19 - DYNAMIC_SMALL_BOMB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SMALL_BOMB, NULL, NULL),
 
                     // 0x1a - DYNAMIC_LARGE_BOMB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_LARGE_BOMB, NULL, NULL),
 
                     // 0x1b - DYNAMIC_MISSILE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_MISSILE, NULL, NULL),
 
                     // 0x1c - DYNAMIC_EXPLOSIVE_CRATE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_EXPLOSIVE_CRATE, NULL, NULL),
 
                     // 0x1d - DYNAMIC_POISON
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_POISON, NULL, NULL),
 
                     // 0x1e - DYNAMIC_INVICIBILITY
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_INVICIBILITY, NULL, NULL),
 
                     // 0x1f - DYNAMIC_SPLINE_FOLLOWER
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SPLINE_FOLLOWER, NULL, NULL),
 
                     // 0x20 - DYNAMIC_SNOWBALL
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SNOWBALL, NULL, NULL),
 
                     // 0x21 - DYNAMIC_MINE_CART
-                    SET_MDM(NULL, RB_Minecart_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_MINE_CART, RB_Minecart_LInB, NULL),
 
                     // 0x22 - TEMP_SNOWBALL (blizzard bluff boulder)
-                    SET_MDM(NULL, RB_Snowball_LInB, NULL),
+                    SET_MDM(rdata.s_TEMP_SNOWBALL, RB_Snowball_LInB, NULL),
 
                     // 0x23 - FINISH_LINE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_FINISH_LINE, NULL, NULL),
 
                     // 0x24 - ARMADILLO (armadillo)
-                    SET_MDM(NULL, RB_Armadillo_LInB, NULL),
+                    SET_MDM(rdata.s_ARMADILLO, RB_Armadillo_LInB, NULL),
 
                     // 0x25 - BLADE
-                    SET_MDM(NULL, RB_Blade_LInB, NULL),
+                    SET_MDM(sdata_static.s_BLADE, RB_Blade_LInB, NULL),
 
                     // 0x26 - STATIC_CRATE_EXPLOSION
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CRATE_EXPLOSION, NULL, NULL),
 
                     // 0x27 - STATIC_CRATE_TNT
                     // used for Crystal Challenge TNT/Nitro, no BSP collision,
                     // LInB births thread that checks for collision every frame,
                     // DECOMP should birth unthreaded instances, and add hitboxes
-                    SET_MDM(NULL, RB_GenericMine_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_CRATE_TNT, RB_GenericMine_LInB, NULL),
 
                     // 0x28 - STATIC_CRATE_NITRO (unused duplicate of 0x6)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CRATE_NITRO, NULL, NULL),
 
                     // 0x29 - DYNAMIC_ROCKET "bombtracker"
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_ROCKET, NULL, NULL),
 
                     // 0x2a - DYNAMIC_BIGROCKET
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_BIGROCKET, NULL, NULL),
 
                     // 0x2b - STATIC_WARPEDBURST "explosion2"
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_WARPDUST, NULL, NULL),
 
                     // 0x2c - STATIC_TURBO_EFFECT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT, NULL, NULL),
 
                     // 0x2d - STATIC_TURBO_EFFECT1
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT1, NULL, NULL),
 
                     // 0x2e - STATIC_TURBO_EFFECT2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT2, NULL, NULL),
 
                     // 0x2f - STATIC_TURBO_EFFECT3
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT3, NULL, NULL),
 
                     // 0x30 - STATIC_TURBO_EFFECT4
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT4, NULL, NULL),
 
                     // 0x31 - STATIC_TURBO_EFFECT5
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT5, NULL, NULL),
 
                     // 0x32 - STATIC_TURBO_EFFECT6
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT6, NULL, NULL),
 
                     // 0x33 - STATIC_TURBO_EFFECT7
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT7, NULL, NULL),
 
                     // 0x34 - STATIC_TURBO_EFFECT_DARK
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TURBO_EFFECT_DARK, NULL, NULL),
 
                     // 0x35 - STATIC_SHOCKWAVE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SHOCKWAVE, NULL, NULL),
 
                     // 0x36 - DYNAMIC_WARPBALL
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_WARPBALL, NULL, NULL),
 
                     // 0x37 - STATIC_FRUITDISP (HUD)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_FRUITDISP, NULL, NULL),
 
                     // 0x38 - STATIC_BIG1 "Empty" used for Oxide Podium
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BIG1, NULL, NULL),
 
                     // 0x39 - STATIC_AKUAKU
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_AKUAKU, NULL, NULL),
 
                     // 0x3a - STATIC_UKAUKA
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_UKAUKA, NULL, NULL),
 
                     // 0x3b - DYNAMIC_BOMB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_BOMB, NULL, NULL),
 
                     // 0x3c - STATIC_BEAKER
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKER, NULL, NULL),
 
                     // 0x3d - STATIC_BEAKERBREAK
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKERBREAK, NULL, NULL),
 
                     // 0x3e - STATIC_AKUBEAM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_AKUBEAM, NULL, NULL),
 
                     // 0x3f - DYNAMIC_ROBOT_CAR (AI driver)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_ROBOT_CAR, NULL, NULL),
 
                     // 0x40 - STATIC_UKABEAM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_UKABEAM, NULL, NULL),
 
                     // 0x41 - STATIC_SHIELD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SHIELD, NULL, NULL),
 
                     // 0x42 - STATIC_CLOUD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CLOUD, NULL, NULL),
 
                     // 0x43 - STATIC_WAKE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_WAKE, NULL, NULL),
 
                     // 0x44 - STATIC_SHOCKWAVE_RED
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SHOCKWAVE_RED, NULL, NULL),
 
                     // 0x45 - STATIC_SHOCKWAVE_GREEN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SHOCKWAVE_GREEN, NULL, NULL),
 
                     // 0x46 - STATIC_BEAKER_RED
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKER_RED, NULL, NULL),
 
                     // 0x47 - STATIC_BEAKER_GREEN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKER_GREEN, NULL, NULL),
 
                     // 0x48 - STATIC_BEAKERBREAK_RED
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKERBREAK_RED, NULL, NULL),
 
                     // 0x49 - STATIC_BEAKERBREAK_GREEN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAKERBREAK_GREEN, NULL, NULL),
 
                     // 0x4a - LENSFLARE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_LENSFLARE, NULL, NULL),
 
                     // 0x4b - DYNAMIC_GHOST (ghost driver)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_GHOST, NULL, NULL),
 
                     // 0x4c - DYNAMIC_SEAL (polar pass)
-                    SET_MDM(NULL, RB_Seal_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SEAL, RB_Seal_LInB, NULL),
 
                     // 0x4d - DYNAMIC_ORCA (unused, polar pass)
-                    SET_MDM(NULL, RB_Orca_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_ORCA, RB_Orca_LInB, NULL),
 
                     // 0x4e - DYNAMIC_BARREL (sewer speedway)
-                    SET_MDM(NULL, RB_Snowball_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_BARREL, RB_Snowball_LInB, NULL),
 
                     // 0x4f - DYNAMIC_VONLABASS (unused, hot air skyway)
-                    SET_MDM(NULL, RB_Baron_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_VONLABASS, RB_Baron_LInB, NULL),
 
                     // 0x50 - DYNAMIC_SKUNK (unused, unknown track)
-                    SET_MDM(NULL, NULL /*RB_Minecart_LInB*/, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SKUNK, RB_Minecart_LInB, NULL),
 
                     // 0x51 - DYNAMIC_TURTLE (mystery caves)
-                    SET_MDM(NULL, RB_Turtle_LInB, RB_Turtle_LInC),
+                    SET_MDM(rdata.s_DYNAMIC_TURTLE, RB_Turtle_LInB, RB_Turtle_LInC),
 
                     // 0x52 - DYNAMIC_SPIDER (cortex castle)
-                    SET_MDM(NULL, RB_Spider_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SPIDER, RB_Spider_LInB, NULL),
 
                     // 0x53 - DYNAMIC_SPIDERSHADOW
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SPIDERSHADOW, NULL, NULL),
 
                     // 0x54 - DYNAMIC_FIREBALL (mystery caves fireball)
                     // DECOMP version removed LInC, it does nothing
-                    SET_MDM(NULL, RB_Fireball_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_FIREBALL, RB_Fireball_LInB, NULL),
 
                     // 0x55 - DYNAMIC_DRUM (n gin labs barrel)
-                    SET_MDM(NULL, RB_Baron_LInB, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_DRUM, RB_Baron_LInB, NULL),
 
                     // 0x56 - DYNAMIC_SHIELD (blue shield)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SHIELD, NULL, NULL),
 
                     // 0x57 - STATIC_PIPE1
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PIPE1, NULL, NULL),
 
                     // 0x58 - STATIC_PIPE2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PIPE2, NULL, NULL),
 
                     // 0x59 - STATIC_VENT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_VENT, NULL, NULL),
 
                     // 0x5a - DYNAMIC_SHIELD_DARK
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SHIELD_DARK, NULL, NULL),
 
                     // 0x5b - STATIC_CASTLE_SIGN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CASTLE_SIGN, NULL, NULL),
 
                     // 0x5c - STATIC_TIME_CRATE_01
-                    SET_MDM(NULL, RB_Default_LInB, RB_CrateTime_LInC),
+                    SET_MDM(rdata.s_STATIC_TIME_CRATE_01, RB_Default_LInB, RB_CrateTime_LInC),
 
                     // 0x5d - DYNAMIC_HIGHLIGHT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_HIGHLIGHT, NULL, NULL),
 
                     // 0x5e - DYNAMIC_SHIELD_GREEN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_DYNAMIC_SHIELD_GREEN, NULL, NULL),
 
                     // 0x5f - STATIC_GEM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_GEM, NULL, NULL),
 
                     // 0x60 - STATIC_CRYSTAL
                     // LInC should not birth a thread, nor call ThCollide,
                     // LInC should only kill LInB's thread and trigger HUD
-                    SET_MDM(NULL, RB_Crystal_LInB, RB_Crystal_LInC),
+                    SET_MDM(rdata.s_STATIC_CRYSTAL, RB_Crystal_LInB, RB_Crystal_LInC),
 
                     // 0x61 - STATIC_RELIC
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_RELIC, NULL, NULL),
 
                     // 0x62 - STATIC_TROPHY
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TROPHY, NULL, NULL),
 
                     // 0x63 - STATIC_KEY
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_KEY, NULL, NULL),
 
                     // 0x64 - STATIC_TIME_CRATE_02
-                    SET_MDM(NULL, RB_Default_LInB, RB_CrateTime_LInC),
+                    SET_MDM(rdata.s_STATIC_TIME_CRATE_02, RB_Default_LInB, RB_CrateTime_LInC),
 
                     // 0x65 - STATIC_TIME_CRATE_03
-                    SET_MDM(NULL, RB_Default_LInB, RB_CrateTime_LInC),
+                    SET_MDM(rdata.s_STATIC_TIME_CRATE_03, RB_Default_LInB, RB_CrateTime_LInC),
 
                     // 0x66 - STATIC_INTRO_TROPHY
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_INTRO_TROPHY, NULL, NULL),
 
                     // 0x67 - STATIC_INTRO_CRASH
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_INTRO_CRASH, NULL, NULL),
 
                     // 0x68 - STATIC_RINGTOP
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_RINGTOP, NULL, NULL),
 
                     // 0x69 - STATIC_RINGBOTTOM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_RINGBOTTOM, NULL, NULL),
 
                     // 0x6a - STATIC_CTR
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CTR, NULL, NULL),
 
                     // 0x6b - STATIC_BANNER
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BANNER, NULL, NULL),
 
                     // 0x6C - STATIC_WARPPAD
-                    SET_MDM(NULL, AH_WarpPad_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_WARPPAD, AH_WarpPad_LInB, NULL),
 
                     // 0x6D - STATIC_BIG0
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BIG0, NULL, NULL),
 
                     // 0x6e - STATIC_BIG9
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BIG9, NULL, NULL),
 
                     // 0x6f - STATIC_BIGX
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BIGX, NULL, NULL),
 
                     // 0x70 - STATIC_TEETH
-                    SET_MDM(NULL, RB_Teeth_LInB, RB_Teeth_LInC),
+                    SET_MDM(rdata.s_STATIC_TEETH, RB_Teeth_LInB, RB_Teeth_LInC),
 
                     // 0x71 - STATIC_STARTTEXT
-                    SET_MDM(NULL, RB_StartText_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_STARTTEXT, RB_StartText_LInB, NULL),
 
                     // 0x72 - STATIC_SAVEOBJ
-                    SET_MDM(NULL, AH_SaveObj_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_SAVEOBJ, AH_SaveObj_LInB, NULL),
 
                     // 0x73 - STATIC_PINGARAGE
-                    SET_MDM(NULL, AH_Garage_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_PINGARAGE, AH_Garage_LInB, NULL),
 
                     // 0x74 - STATIC_PAPUGARAGE
-                    SET_MDM(NULL, AH_Garage_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_PAPUGARAGE, AH_Garage_LInB, NULL),
 
                     // 0x75 - STATIC_ROOGARAGE
-                    SET_MDM(NULL, AH_Garage_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ROOGARAGE, AH_Garage_LInB, NULL),
 
                     // 0x76 - STATIC_JOEGARAGE
-                    SET_MDM(NULL, AH_Garage_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_JOEGARAGE, AH_Garage_LInB, NULL),
 
                     // 0x77 - STATIC_OXIDEGARAGE
-                    SET_MDM(NULL, AH_Garage_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDEGARAGE, AH_Garage_LInB, NULL),
 
                     // 0x78 - STATIC_SCAN (load/save screen)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SCAN, NULL, NULL),
 
                     // 0x79 - STATIC_SUBTRACT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_SUBTRACT, NULL, NULL),
 
                     // 0x7a - STATIC_DOOR
-                    SET_MDM(NULL, AH_Door_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_DOOR, AH_Door_LInB, NULL),
 
                     // 0x7b - STATIC_BEAM (warppad vortex)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BEAM, NULL, NULL),
 
                     // 0x7c - STATIC_BOTTOMRING (warppad spiral dots)
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_BOTTOMRING, NULL, NULL),
 
                     // 0x7d - STATIC_TOKEN
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TOKEN, NULL, NULL),
 
                     // 0x7e - STATIC_CRASHDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CRASHDANCE, NULL, NULL),
 
                     // 0x7f - STATIC_CORTEXDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_CORTEXDANCE, NULL, NULL),
 
                     // 0x80 - STATIC_TINYDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TINYDANCE, NULL, NULL),
 
                     // 0x81 - STATIC_COCODANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_COCODANCE, NULL, NULL),
 
                     // 0x82 - STATIC_NGINDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_NGINDANCE, NULL, NULL),
 
                     // 0x83 - STATIC_DINGODANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_DINGODANCE, NULL, NULL),
 
                     // 0x84 - STATIC_POLARDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_POLARDANCE, NULL, NULL),
 
                     // 0x85 - STATIC_PURADANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PURADANCE, NULL, NULL),
 
                     // 0x86 - STATIC_PINSTRIPEDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PINSTRIPEDANCE, NULL, NULL),
 
                     // 0x87 - STATIC_PAPUDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PAPUDANCE, NULL, NULL),
 
                     // 0x88 - STATIC_ROODANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_ROODANCE, NULL, NULL),
 
                     // 0x89 - STATIC_JOEDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_JOEDANCE, NULL, NULL),
 
                     // 0x8a - STATIC_NTROPYDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_NTROPYDANCE, NULL, NULL),
 
                     // 0x8b - STATIC_PENDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PENDANCE, NULL, NULL),
 
                     // 0x8c - STATIC_FAKEDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_FAKEDANCE, NULL, NULL),
 
                     // 0x8d - STATIC_OXIDEDANCE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDEDANCE, NULL, NULL),
 
                     // 0x8e - STATIC_GARAGETOP
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_GARAGETOP, NULL, NULL),
 
                     // 0x8f - STATIC_TAWNA1
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TAWNA1, NULL, NULL),
 
                     // 0x90 - STATIC_TAWNA2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TAWNA2, NULL, NULL),
 
                     // 0x91 - STATIC_TAWNA3
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TAWNA3, NULL, NULL),
 
                     // 0x92 - STATIC_TAWNA4
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TAWNA4, NULL, NULL),
 
                     // 0x93 - STATIC_C
                     // Retail LInC births a thread if missing, then calls ThCollide.
-                    SET_MDM(NULL, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
+                    SET_MDM(rdata.s_STATIC_C, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
 
                     // 0x94 - STATIC_T
                     // Retail LInC births a thread if missing, then calls ThCollide.
-                    SET_MDM(NULL, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
+                    SET_MDM(rdata.s_STATIC_T, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
 
                     // 0x95 - STATIC_R
                     // Retail LInC births a thread if missing, then calls ThCollide.
-                    SET_MDM(NULL, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
+                    SET_MDM(rdata.s_STATIC_R, RB_CtrLetter_LInB, RB_CtrLetter_LInC),
 
                     // 0x96 - STATIC_CRASHINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_CRASHINTRO, CS_Thread_LInB, NULL),
 
                     // 0x97 - STATIC_COCOINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_COCOINTRO, CS_Thread_LInB, NULL),
 
                     // 0x98 - STATIC_CORTEXINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_CORTEXINTRO, CS_Thread_LInB, NULL),
 
                     // 0x99 - STATIC_TINYINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_TINYINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9A - STATIC_POLARINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_POLARINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9B - STATIC_DINGOINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_DINGOINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9C - STATIC_OXIDEINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDEINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9D - STATIC_SIMPLEKARTINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_SIMPLEKARTINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9E - STATIC_TINYKARTINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_TINYKARTINTRO, CS_Thread_LInB, NULL),
 
                     // 0x9F - STATIC_DINGOKARTINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_DINGOKARTINTRO, CS_Thread_LInB, NULL),
 
                     // 0xA0 - STATIC_SIMPLEOBJINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_SIMPLEOBJINTRO, CS_Thread_LInB, NULL),
 
                     // 0xA1 - STATIC_PPOINTTHINGINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_PPOINTTHINGINTRO, CS_Thread_LInB, NULL),
 
                     // 0xA2 - STATIC_PRTHINGINTRO
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_PRTHINGINTRO, CS_Thread_LInB, NULL),
 
                     // 0xA3 - STATIC_OXIDELILSHIP
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDELILSHIP, CS_Thread_LInB, NULL),
 
                     // 0xA4 - STATIC_INTROOXIDECAM
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_INTROOXIDECAM, CS_Thread_LInB, NULL),
 
                     // 0xA5 - STATIC_INTROOXIDEBODY
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_INTROOXIDEBODY, CS_Thread_LInB, NULL),
 
                     // 0xa6 - STATIC_STARTBANNERWAVE
-                    SET_MDM(NULL, RB_Banner_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_STARTBANNERWAVE, RB_Banner_LInB, NULL),
 
                     // 0xa7 - STATIC_DOOR2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_DOOR2, NULL, NULL),
 
                     // 0xa8 - STATIC_PODIUM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PODIUM, NULL, NULL),
 
                     // 0xa9 - STATIC_PINHEAD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PINHEAD, NULL, NULL),
 
                     // 0xaa - STATIC_PAPUHEAD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_PAPUHEAD, NULL, NULL),
 
                     // 0xab - STATIC_ROOHEAD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_ROOHEAD, NULL, NULL),
 
                     // 0xac - STATIC_JOEHEAD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_JOEHEAD, NULL, NULL),
 
                     // 0xad - STATIC_OXIDEHEAD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDEHEAD, NULL, NULL),
 
                     // 0xae - STATIC_AKUMOUTH
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_AKUMOUTH, NULL, NULL),
 
                     // 0xaf - STATIC_DINGOFIRE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_DINGOFIRE, NULL, NULL),
 
                     // 0xb0 - STATIC_TOMBSTONE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_TOMBSTONE, NULL, NULL),
 
                     // 0xb1 - STATIC_AKUBIG
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_AKUBIG, NULL, NULL),
 
                     // 0xb2 - STATIC_UKABIG
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_UKABIG, NULL, NULL),
 
                     // 0xb3 - STATIC_UKAMOUTH
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_UKAMOUTH, NULL, NULL),
 
                     // 0xb4 - STATIC_UNUSED03
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_UNUSED03, NULL, NULL),
 
                     // 0xb5 - STATIC_DOOR3
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_DOOR3, NULL, NULL),
 
                     // 0xb6 - NDI_BOX_BOX_01
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_01, NULL, NULL),
 
                     // 0xb7 - NDI_BOX_BOX_02
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_02, NULL, NULL),
 
                     // 0xb8 - NDI_BOX_BOX_02_BOTTOM
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_02_BOTTOM, NULL, NULL),
 
                     // 0xb9 - NDI_BOX_BOX_02_FRONT
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_02_FRONT, NULL, NULL),
 
                     // 0xba - NDI_BOX_BOX_02A
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_02A, NULL, NULL),
 
                     // 0xbb - NDI_BOX_BOX_03
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_BOX_03, NULL, NULL),
 
                     // 0xbc - NDI_BOX_CODE
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_CODE, NULL, NULL),
 
                     // 0xbd - NDI_BOX_GLOW
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_GLOW, NULL, NULL),
 
                     // 0xbe - NDI_BOX_LID
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_LID, NULL, NULL),
 
                     // 0xbf - NDI_BOX_LID2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_LID2, NULL, NULL),
 
                     // 0xc0 - NDI_BOX_PARTICLES_01
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_PARTICLES_01, NULL, NULL),
 
                     // 0xc1 - NDI_KART0
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_0, NULL, NULL),
 
                     // 0xc2 - NDI_KART1
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_1, NULL, NULL),
 
                     // 0xc3 - NDI_KART2
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_2, NULL, NULL),
 
                     // 0xc4 - NDI_KART3
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_3, NULL, NULL),
 
                     // 0xc5 - NDI_KART4
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_4, NULL, NULL),
 
                     // 0xc6 - NDI_KART5
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_5, NULL, NULL),
 
                     // 0xc7 - NDI_KART6
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_6, NULL, NULL),
 
                     // 0xc8 - NDI_KART7
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_KART_7, NULL, NULL),
 
                     // 0xc9 - NDI_BOX_LIDB
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_LIDB, NULL, NULL),
 
                     // 0xca - NDI_BOX_LIDC
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_LIDC, NULL, NULL),
 
                     // 0xcb - NDI_BOX_LIDD
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_NDI_BOX_LIDD, NULL, NULL),
 
                     // 0xcc - STATIC_INTRO_FLASH
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_INTROFLASH, CS_Thread_LInB, NULL),
 
                     // 0xcd - STATIC_INTRODOORS
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_INTRODOORS, CS_Thread_LInB, NULL),
 
                     // 0xce - STATIC_CRASHSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_CRASHSELECT, CS_Thread_LInB, NULL),
 
                     // 0xcf - STATIC_CORTEXSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_CORTEXSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd0 - STATIC_TINYSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_TINYSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd1 - STATIC_COCOSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_COCOSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd2 - STATIC_NGINSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_NGINSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd3 - STATIC_DINGOSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_DINGOSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd4 - STATIC_POLARSELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_POLARSELECT, CS_Thread_LInB, NULL),
 
                     // 0xd5 - STATIC_PURASELECT
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_PURASELECT, CS_Thread_LInB, NULL),
 
                     // 0xd6 - STATIC_ENDDOORS
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDDOORS, CS_Thread_LInB, NULL),
 
                     // 0xd7 - STATIC_ENDFLASH
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDFLASH, CS_Thread_LInB, NULL),
 
                     // 0xd8 - STATIC_ENDINGOXIDE
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDINGOXIDE, CS_Thread_LInB, NULL),
 
                     // 0xd9 - STATIC_ENDIGNOXIDE_02 (mispelled in-game)
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDIGNOXIDE02, CS_Thread_LInB, NULL),
 
                     // 0xda - STATIC_ENDOXIDEBIGSHIP
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDOXIDEBIGSHIP, CS_Thread_LInB, NULL),
 
                     // 0xdb - STATIC_ENDOXIDELILSHIP
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_ENDOXIDELILSHIP, CS_Thread_LInB, NULL),
 
                     // 0xdc - STATIC_OXIDECAMEND
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDECAMEND, CS_Thread_LInB, NULL),
 
                     // 0xdd - STATIC_OXIDECAMEND02
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDECAMEND02, CS_Thread_LInB, NULL),
 
                     // 0xde - STATIC_JLOGO_FLAG
-                    SET_MDM(NULL, NULL, NULL),
+                    SET_MDM(rdata.s_STATIC_JLOGO_FLAG, NULL, NULL),
 
                     // 0xdf - STATIC_OXIDESPEAKER
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_OXIDESPEAKER, CS_Thread_LInB, NULL),
 
                     // 0xe0 - STATIC_INTROSPARKS
-                    SET_MDM(NULL, CS_Thread_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_INTROSPARKS, CS_Thread_LInB, NULL),
 
                     // 0xe1 - STATIC_GNORMALZ
-                    SET_MDM(NULL, AH_Sign_LInB, NULL),
+                    SET_MDM(rdata.s_STATIC_GNORMALZ, AH_Sign_LInB, NULL),
 
-#endif
                 },
 
             .ptrRenderedQuadblockDestination_forEachPlayer = {&sdata_static.quadBlocksRendered[0], &sdata_static.quadBlocksRendered[0x40],
@@ -3532,9 +3513,11 @@ struct Data
                     0x00,
                 },
 
-            .driverModelExtras[0].fileBase = 0,
-            .driverModelExtras[1].fileBase = 0,
-            .driverModelExtras[2].fileBase = 0,
+            .driverModelExtras = {
+                [0] = {.fileBase = 0},
+                [1] = {.fileBase = 0},
+                [2] = {.fileBase = 0},
+            },
 
             .podiumModel_firstPlace = 0,
             .podiumModel_secondPlace = 0,
@@ -6512,42 +6495,41 @@ struct Data
             .MetaDataScrub =
                 {
                     // SOLID
-                    {0, 0x3, 0xD00, 700},
+                    {sdata_static.s_SOILD, 0x3, 0xD00, 700},
 
                     // RUBBER
-                    {0, 0x1, 0xD00, 0},
+                    {sdata_static.s_RUBBER, 0x1, 0xD00, 0},
 
                     // SANDBAG
-                    {0, 0x3, 0xD00, 0x100},
+                    {sdata_static.s_SANDBAG, 0x3, 0xD00, 0x100},
 
                     // SLOWDOWN
-                    {0, 0xC, 0xF00, 0},
+                    {rdata.s_SLOWDOWN, 0xC, 0xF00, 0},
 
                     // NO EFFECT
-                    {0, 0xC, 0x3E800, 0},
+                    {rdata.s_NO_EFFECT, 0xC, 0x3E800, 0},
 
                     // ROAD
-                    {0, 0xD, 0x3E800, 0},
+                    {sdata_static.s_ROAD, 0xD, 0x3E800, 0},
 
                     // NO SCRUB
-                    {0, 0x3, 0x3E800, 700},
+                    {sdata_static.s_NOSCRUB, 0x3, 0x3E800, 700},
                 },
 
             .emSet_DirtLR =
                 {
                     {.flags = 1,
                      .initOffset = 12,
-                     .InitTypes.FuncInit =
-                         {
+                     .InitTypes = {.FuncInit = {
                              .particle_funcPtr = 0x00000000,
                              .particle_colorFlags = 0x58a2,
                              .particle_lifespan = 0x000a,
                              .particle_Type = 0,
-                         }},
+                         }}},
 
                     {.flags = 27,
                      .initOffset = 0,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6558,11 +6540,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 27,
                      .initOffset = 2,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6573,11 +6555,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 23,
                      .initOffset = 1,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 2560,
                                                     .velocity = 1500,
@@ -6588,11 +6570,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 400,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 3,
                      .initOffset = 7,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 65280,
                                                     .velocity = -2048,
@@ -6603,11 +6585,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 3,
                      .initOffset = 8,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 32768,
                                                     .velocity = -1024,
@@ -6618,11 +6600,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 9,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 1,
                                                     .velocity = 0,
@@ -6633,7 +6615,7 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     // null terminator
                     //{},
@@ -6643,17 +6625,16 @@ struct Data
                 {
                     {.flags = 1,
                      .initOffset = 12,
-                     .InitTypes.FuncInit =
-                         {
+                     .InitTypes = {.FuncInit = {
                              .particle_funcPtr = 0x00000000,
                              .particle_colorFlags = 0x1800,
                              .particle_lifespan = 0x000a,
                              .particle_Type = 0,
-                         }},
+                         }}},
 
                     {.flags = 27,
                      .initOffset = 0,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6664,11 +6645,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 27,
                      .initOffset = 2,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6679,11 +6660,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 23,
                      .initOffset = 1,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 2560,
                                                     .velocity = 2000,
@@ -6694,19 +6675,18 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 400,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 64,
                      .initOffset = 1,
-                     .tail.oscillator =
-                         {
+                     .tail = {.oscillator = {
                              .flags = PARTICLE_OSC_MODE_SQUARE,
                              .range = {.period = 0x9600, .scale = 0x100, .offset = 0x1000, .min = 1, .max = 0x200},
-                         }},
+                         }}},
 
                     {.flags = 1,
                      .initOffset = 5,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 131072,
                                                     .velocity = 0,
@@ -6717,11 +6697,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 7,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 15360,
                                                     .velocity = 0,
@@ -6732,11 +6712,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 8,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 65280,
                                                     .velocity = 0,
@@ -6747,11 +6727,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 0,
                      .initOffset = 9,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 0,
                                                     .velocity = 0,
@@ -6762,7 +6742,7 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     // null terminator
                     //{},
@@ -6772,17 +6752,16 @@ struct Data
                 {
                     {.flags = 1,
                      .initOffset = 12,
-                     .InitTypes.FuncInit =
-                         {
+                     .InitTypes = {.FuncInit = {
                              .particle_funcPtr = 0x00000000,
                              .particle_colorFlags = 0x1800,
                              .particle_lifespan = 0x000a,
                              .particle_Type = 0,
-                         }},
+                         }}},
 
                     {.flags = 27,
                      .initOffset = 0,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6793,11 +6772,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 27,
                      .initOffset = 2,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6808,11 +6787,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 23,
                      .initOffset = 1,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 2560,
                                                     .velocity = 2000,
@@ -6823,19 +6802,18 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 400,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 64,
                      .initOffset = 1,
-                     .tail.oscillator =
-                         {
+                     .tail = {.oscillator = {
                              .flags = PARTICLE_OSC_MODE_SQUARE,
                              .range = {.period = 0x9600, .scale = 0x100, .offset = 0x1000, .min = 1, .max = 0x200},
-                         }},
+                         }}},
 
                     {.flags = 1,
                      .initOffset = 5,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 131072,
                                                     .velocity = 0,
@@ -6846,11 +6824,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 7,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 1,
                                                     .velocity = 0,
@@ -6861,11 +6839,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 8,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 40960,
                                                     .velocity = 0,
@@ -6876,11 +6854,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 0,
                      .initOffset = 9,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 0,
                                                     .velocity = 0,
@@ -6891,7 +6869,7 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     // null terminator
                     //{},
@@ -6901,17 +6879,16 @@ struct Data
                 {
                     {.flags = 1,
                      .initOffset = 12,
-                     .InitTypes.FuncInit =
-                         {
+                     .InitTypes = {.FuncInit = {
                              .particle_funcPtr = 0x00000000,
                              .particle_colorFlags = 0x58a2,
                              .particle_lifespan = 0x000a,
                              .particle_Type = 0,
-                         }},
+                         }}},
 
                     {.flags = 27,
                      .initOffset = 0,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6922,11 +6899,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 27,
                      .initOffset = 2,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = -2560,
                                                     .velocity = -500,
@@ -6937,11 +6914,11 @@ struct Data
                                                     .startVal = 5120,
                                                     .velocity = 1000,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 23,
                      .initOffset = 1,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 2560,
                                                     .velocity = 2000,
@@ -6952,11 +6929,11 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 400,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     {.flags = 1,
                      .initOffset = 7,
-                     .InitTypes.AxisInit = {.baseValue =
+                     .InitTypes = {.AxisInit = {.baseValue =
                                                 {
                                                     .startVal = 65280,
                                                     .velocity = 0,
@@ -6967,7 +6944,7 @@ struct Data
                                                     .startVal = 0,
                                                     .velocity = 0,
                                                     .accel = 0,
-                                                }}},
+                                                }}}},
 
                     // null terminator
                     //{},
@@ -6976,10 +6953,10 @@ struct Data
             .MetaDataTerrain =
                 {
                     // asphalt
-                    [TERRAIN_ASPHALT] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_ASPHALT] = {sdata_static.s_asphalt, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // dirt
-                    [TERRAIN_DIRT] = {0,
+                    [TERRAIN_DIRT] = {sdata_static.s_dirt,
                                       0,
                                       140,
                                       180,
@@ -6997,7 +6974,7 @@ struct Data
                                       0x0100},
 
                     // grass
-                    [TERRAIN_GRASS] = {0,
+                    [TERRAIN_GRASS] = {sdata_static.s_grass,
                                        0,
                                        140,
                                        180,
@@ -7015,25 +6992,25 @@ struct Data
                                        0x0100},
 
                     // wood
-                    [TERRAIN_WOOD] = {0, 33, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 4, 64}, 17, 21, {{0xffff, 0x0021, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_WOOD] = {sdata_static.s_wood, 33, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 4, 64}, 17, 21, {{0xffff, 0x0021, 0x0100, 0x0100}}, 0x0100},
 
                     // water
-                    [TERRAIN_WATER] = {0, 0, 180, 200, 256, 256, 0, 0, 256, 256, 256, {4, 3, 4, 56}, -1, 25, {{0xffff, 0x0000, 0x00b4, 0x00c8}}, 0x0100},
+                    [TERRAIN_WATER] = {sdata_static.s_water, 0, 180, 200, 256, 256, 0, 0, 256, 256, 256, {4, 3, 4, 56}, -1, 25, {{0xffff, 0x0000, 0x00b4, 0x00c8}}, 0x0100},
 
                     // stone
-                    [TERRAIN_STONE] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_STONE] = {sdata_static.s_stone, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // ice
-                    [TERRAIN_ICE] = {0, 28, 256, 100, 0, 0, 0, 0, 32, 128, 32, {0, 0, 0, 0}, -1, 22, {{0xffff, 0x001c, 0x0100, 0x0064}}, 0x0020},
+                    [TERRAIN_ICE] = {sdata_static.s_ice, 28, 256, 100, 0, 0, 0, 0, 32, 128, 32, {0, 0, 0, 0}, -1, 22, {{0xffff, 0x001c, 0x0100, 0x0064}}, 0x0020},
 
                     // track
-                    [TERRAIN_TRACK] = {0, 33, 140, 180, 256, 256, 0, 0, 256, 256, 256, {0, 0, 4, 64}, 17, 21, {{0xffff, 0x0021, 0x008c, 0x00b4}}, 0x0100},
+                    [TERRAIN_TRACK] = {sdata_static.s_track, 33, 140, 180, 256, 256, 0, 0, 256, 256, 256, {0, 0, 4, 64}, 17, 21, {{0xffff, 0x0021, 0x008c, 0x00b4}}, 0x0100},
 
                     // icy road
-                    [TERRAIN_ICY_ROAD] = {0, 64, 256, 256, 256, 256, 0, 0, 128, 256, 256, {0, 0, 0, 0}, 19, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0080},
+                    [TERRAIN_ICY_ROAD] = {rdata.s_icy_road, 64, 256, 256, 256, 256, 0, 0, 128, 256, 256, {0, 0, 0, 0}, 19, -1, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0080},
 
                     // snow
-                    [TERRAIN_SNOW] = {0,
+                    [TERRAIN_SNOW] = {sdata_static.s_snow,
                                       0,
                                       140,
                                       180,
@@ -7051,34 +7028,34 @@ struct Data
                                       0x0080},
 
                     // none
-                    [TERRAIN_NONE] = {0, 0, 256, 256, 0, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, -1, -1, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_NONE] = {sdata_static.s_none, 0, 256, 256, 0, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, -1, -1, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
 
                     // hardpack
-                    [TERRAIN_HARDPACK] = {0, 0, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 18, -1, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_HARDPACK] = {rdata.s_hardpack, 0, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 18, -1, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
 
                     // metal
-                    [TERRAIN_METAL] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {4, 10, 0, 0}, 17, 26, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_METAL] = {sdata_static.s_metal, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {4, 10, 0, 0}, 17, 26, {{0xffff, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // fastwater
-                    [TERRAIN_FASTWATER] = {0, 0, 256, 256, 256, 256, 0, 0, 256, 256, 256, {4, 3, 4, 56}, -1, 25, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_FASTWATER] = {rdata.s_fastwater, 0, 256, 256, 256, 256, 0, 0, 256, 256, 256, {4, 3, 4, 56}, -1, 25, {{0xffff, 0x0000, 0x0100, 0x0100}}, 0x0100},
 
                     // mud
-                    [TERRAIN_MUD] = {0, 128, 140, 180, 256, 256, 0, 0, 512, 256, 256, {4, 5, 4, 64}, -1, 27, {{0xffff, 0x0080, 0x008c, 0x00b4}}, 0x0200},
+                    [TERRAIN_MUD] = {sdata_static.s_mud, 128, 140, 180, 256, 256, 0, 0, 512, 256, 256, {4, 5, 4, 64}, -1, 27, {{0xffff, 0x0080, 0x008c, 0x00b4}}, 0x0200},
 
                     // sideslip
-                    [TERRAIN_SIDESLIP] = {0, 320, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0140, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_SIDESLIP] = {rdata.s_sideslip, 320, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0xffff, 0x0140, 0x0100, 0x0100}}, 0x0100},
 
                     // riverasphalt
-                    [TERRAIN_RIVERASPHALT] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x0088, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_RIVERASPHALT] = {rdata.s_riverasphalt, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x0088, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // steamasphalt
-                    [TERRAIN_STEAMASPHALT] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x008b, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_STEAMASPHALT] = {rdata.s_steamasphalt, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x008b, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // oceanasphalt
-                    [TERRAIN_OCEANASPHALT] = {0, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x0087, 0x0040, 0x0100, 0x0100}}, 0x0100},
+                    [TERRAIN_OCEANASPHALT] = {rdata.s_oceanasphalt, 64, 256, 256, 256, 256, 0, 0, 256, 256, 256, {0, 0, 0, 0}, 17, -1, {{0x0087, 0x0040, 0x0100, 0x0100}}, 0x0100},
 
                     // slowgrass
-                    [TERRAIN_SLOWGRASS] = {0,
+                    [TERRAIN_SLOWGRASS] = {rdata.s_slowgrass,
                                            0,
                                            100,
                                            180,
@@ -7096,7 +7073,7 @@ struct Data
                                            0x0100},
 
                     // slowdirt
-                    [TERRAIN_SLOWDIRT] = {0,
+                    [TERRAIN_SLOWDIRT] = {rdata.s_slowdirt,
                                           0,
                                           100,
                                           180,
@@ -7114,7 +7091,7 @@ struct Data
                                           0x0100},
                 },
 
-#define PHYSWRAP(b, c, d, e, f, g) .unusedDebugStr = 0, .offset = b, .size = c, .value[0] = d, .value[1] = e, .value[2] = f, .value[3] = g
+#define PHYSWRAP(b, c, d, e, f, g) .unusedDebugStr = 0, .offset = b, .size = c, .value = {d, e, f, g}
 
 
             // Each line is one stat with four engine-class values.
@@ -7192,16 +7169,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x08a0,
                                    .particle_lifespan = 0x001e,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 27,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -512,
                                                           .velocity = -512,
@@ -7212,10 +7188,10 @@ struct Data
                                                           .startVal = 1024,
                                                           .velocity = 1024,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 36,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 0,
@@ -7226,10 +7202,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 200,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 27,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -512,
                                                           .velocity = -512,
@@ -7240,10 +7216,10 @@ struct Data
                                                           .startVal = 1024,
                                                           .velocity = 1024,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 1,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 512,
                                                           .velocity = 0,
@@ -7254,10 +7230,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 1,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1,
                                                           .velocity = 0,
@@ -7268,7 +7244,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[6] = {},
@@ -7278,8 +7254,7 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x08a3,
 
@@ -7287,10 +7262,10 @@ struct Data
                                    .particle_lifespan = 0x0005,
 
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -250,
@@ -7301,10 +7276,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 500,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 22,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -250,
@@ -7315,10 +7290,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 500,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -250,
@@ -7329,10 +7304,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 500,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 3,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1536,
                                                           .velocity = 400,
@@ -7343,10 +7318,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 16384,
                                                           .velocity = -2560,
@@ -7357,10 +7332,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 26,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 256,
@@ -7371,7 +7346,7 @@ struct Data
                                                           .startVal = -512,
                                                           .velocity = -512,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},
@@ -7381,16 +7356,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x08a3,
                                    .particle_lifespan = 0x0005,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -200,
@@ -7401,10 +7375,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 22,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -200,
@@ -7415,10 +7389,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -200,
@@ -7429,10 +7403,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 3,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1736,
                                                           .velocity = 400,
@@ -7443,10 +7417,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = -4608,
@@ -7457,10 +7431,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 26,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 200,
@@ -7471,7 +7445,7 @@ struct Data
                                                           .startVal = -512,
                                                           .velocity = -400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},
@@ -7481,16 +7455,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x08a3,
                                    .particle_lifespan = 0x0005,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -1,
@@ -7501,10 +7474,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 2,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 22,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -1,
@@ -7515,10 +7488,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 2,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -1,
@@ -7529,10 +7502,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 2,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 3,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 2000,
                                                           .velocity = 200,
@@ -7543,10 +7516,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 40960,
                                                           .velocity = -6144,
@@ -7557,10 +7530,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 26,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 64,
@@ -7571,7 +7544,7 @@ struct Data
                                                           .startVal = -512,
                                                           .velocity = -128,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},
@@ -7581,16 +7554,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x58a2,
                                    .particle_lifespan = 0x0008,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -500,
@@ -7601,10 +7573,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1000,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -500,
@@ -7615,10 +7587,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1000,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 55,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 2048,
                                                           .velocity = 1000,
@@ -7629,10 +7601,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 800,
                                                           .accel = 100,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 17,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 131072,
                                                           .velocity = 0,
@@ -7643,10 +7615,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 200,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 65280,
                                                           .velocity = -7680,
@@ -7657,10 +7629,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 3,
                            .initOffset = 8,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 65280,
                                                           .velocity = -7680,
@@ -7671,10 +7643,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [7] = {.flags = 3,
                            .initOffset = 9,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = -3840,
@@ -7685,7 +7657,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[8] = {},
@@ -7695,16 +7667,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x58a2,
                                    .particle_lifespan = 0x0008,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -500,
@@ -7715,10 +7686,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1000,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -500,
@@ -7729,10 +7700,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1000,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 22,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 2000,
@@ -7743,10 +7714,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 1,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 131072,
                                                           .velocity = 0,
@@ -7757,10 +7728,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 65280,
                                                           .velocity = -2048,
@@ -7771,10 +7742,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 3,
                            .initOffset = 8,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 65280,
                                                           .velocity = -3072,
@@ -7785,10 +7756,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [7] = {.flags = 1,
                            .initOffset = 9,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1,
                                                           .velocity = 0,
@@ -7799,7 +7770,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[8] = {},
@@ -7809,16 +7780,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x8880,
                                    .particle_lifespan = 0x000f,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 27,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -512,
                                                           .velocity = -512,
@@ -7829,10 +7799,10 @@ struct Data
                                                           .startVal = 1024,
                                                           .velocity = 1024,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 27,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -512,
                                                           .velocity = -512,
@@ -7843,10 +7813,10 @@ struct Data
                                                           .startVal = 1024,
                                                           .velocity = 1024,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 62,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 1536,
@@ -7857,10 +7827,10 @@ struct Data
                                                           .startVal = 2048,
                                                           .velocity = 128,
                                                           .accel = -60,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 11,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 2048,
                                                           .velocity = -100,
@@ -7871,10 +7841,10 @@ struct Data
                                                           .startVal = 300,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 19,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 4096,
                                                           .velocity = -128,
@@ -7885,10 +7855,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 512,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 1,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 16384,
                                                           .velocity = 0,
@@ -7899,10 +7869,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [7] = {.flags = 1,
                            .initOffset = 8,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 9216,
                                                           .velocity = 0,
@@ -7913,10 +7883,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [8] = {.flags = 1,
                            .initOffset = 9,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 4352,
                                                           .velocity = 0,
@@ -7927,7 +7897,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[9] = {},
@@ -7937,16 +7907,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x08c2,
                                    .particle_lifespan = 0x000a,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 27,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -8192,
                                                           .velocity = -2048,
@@ -7957,10 +7926,10 @@ struct Data
                                                           .startVal = 16384,
                                                           .velocity = 4096,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 27,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 4096,
                                                           .velocity = -2048,
@@ -7971,10 +7940,10 @@ struct Data
                                                           .startVal = 8192,
                                                           .velocity = 4096,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 27,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -8192,
                                                           .velocity = -2048,
@@ -7985,10 +7954,10 @@ struct Data
                                                           .startVal = 16384,
                                                           .velocity = 4096,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 9,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 4096,
                                                           .velocity = 0,
@@ -7999,10 +7968,10 @@ struct Data
                                                           .startVal = 300,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 9,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 50,
                                                           .velocity = 0,
@@ -8013,10 +7982,10 @@ struct Data
                                                           .startVal = -100,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = -3072,
@@ -8027,7 +7996,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},
@@ -8037,16 +8006,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x88a0,
                                    .particle_lifespan = 0x000f,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 27,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -8192,
                                                           .velocity = -2048,
@@ -8057,10 +8025,10 @@ struct Data
                                                           .startVal = 16384,
                                                           .velocity = 4096,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 27,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = -8192,
                                                           .velocity = -2048,
@@ -8071,10 +8039,10 @@ struct Data
                                                           .startVal = 16384,
                                                           .velocity = 4096,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 62,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 4096,
@@ -8085,10 +8053,10 @@ struct Data
                                                           .startVal = 2048,
                                                           .velocity = 2048,
                                                           .accel = -200,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 9,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1024,
                                                           .velocity = 0,
@@ -8099,7 +8067,7 @@ struct Data
                                                           .startVal = 300,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[5] = {},
@@ -8178,16 +8146,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x0000,
                                    .particle_lifespan = AS(0xffffffff),
                                    .particle_Type = 1,
-                               }},
+                               }}},
                     [1] = {.flags = 1,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1,
                                                           .velocity = 0,
@@ -8198,10 +8165,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 1,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1,
                                                           .velocity = 0,
@@ -8212,10 +8179,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 1,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 1,
                                                           .velocity = 0,
@@ -8226,10 +8193,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 1,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = 0,
@@ -8240,10 +8207,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 1,
                            .initOffset = 8,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = 0,
@@ -8254,10 +8221,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 1,
                            .initOffset = 9,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = 0,
@@ -8268,10 +8235,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [7] = {.flags = 1,
                            .initOffset = 3,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 8192,
                                                           .velocity = 0,
@@ -8282,10 +8249,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [8] = {.flags = 1,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 6144,
                                                           .velocity = 0,
@@ -8296,10 +8263,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [9] = {.flags = 1,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 4096,
                                                           .velocity = 0,
@@ -8310,7 +8277,7 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[10] = {},
@@ -8321,16 +8288,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x50a2,
                                    .particle_lifespan = 0x0020,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 18,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -900,
@@ -8341,10 +8307,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1800,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 18,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = -900,
@@ -8355,10 +8321,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 1800,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 23,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 16384,
                                                           .velocity = 3500,
@@ -8369,10 +8335,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 700,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 1,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 131072,
                                                           .velocity = 0,
@@ -8383,10 +8349,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32512,
                                                           .velocity = -1024,
@@ -8397,10 +8363,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 3,
                            .initOffset = 9,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 65280,
                                                           .velocity = -2048,
@@ -8411,23 +8377,22 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},
 
                     [8] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x00a3,
                                    .particle_lifespan = 0x0014,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [9] = {.flags = 16,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 0,
@@ -8438,10 +8403,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 400,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [10] = {.flags = 18,
                             .initOffset = 1,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 2500,
@@ -8452,10 +8417,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 500,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [11] = {.flags = 16,
                             .initOffset = 2,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 0,
@@ -8466,10 +8431,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 4096,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [12] = {.flags = 1,
                             .initOffset = 5,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 3000,
                                                            .velocity = 0,
@@ -8480,10 +8445,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [13] = {.flags = 11,
                             .initOffset = 7,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 8192,
                                                            .velocity = -512,
@@ -8494,10 +8459,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [14] = {.flags = 11,
                             .initOffset = 8,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 8192,
                                                            .velocity = -512,
@@ -8508,10 +8473,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [15] = {.flags = 11,
                             .initOffset = 9,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 8192,
                                                            .velocity = -512,
@@ -8522,10 +8487,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [16] = {.flags = 26,
                             .initOffset = 4,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 256,
@@ -8536,23 +8501,22 @@ struct Data
                                                            .startVal = -512,
                                                            .velocity = -512,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
 
                     // null
                     //[17] = {},
 
                     [18] = {.flags = 1,
                             .initOffset = 12,
-                            .InitTypes.FuncInit =
-                                {
+                            .InitTypes = {.FuncInit = {
                                     .particle_funcPtr = 0x00000000,
                                     .particle_colorFlags = 0x00c3,
                                     .particle_lifespan = 0x0014,
                                     .particle_Type = 0,
-                                }},
+                                }}},
                     [19] = {.flags = 16,
                             .initOffset = 0,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 0,
@@ -8563,10 +8527,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 400,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [20] = {.flags = 1,
                             .initOffset = 1,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 1024,
                                                            .velocity = 0,
@@ -8577,10 +8541,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [21] = {.flags = 16,
                             .initOffset = 2,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 0,
@@ -8591,10 +8555,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 4096,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [22] = {.flags = 1,
                             .initOffset = 5,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 3000,
                                                            .velocity = 0,
@@ -8605,10 +8569,10 @@ struct Data
                                                            .startVal = 0,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [23] = {.flags = 11,
                             .initOffset = 7,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 16384,
                                                            .velocity = -512,
@@ -8619,10 +8583,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [24] = {.flags = 11,
                             .initOffset = 8,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 16384,
                                                            .velocity = -512,
@@ -8633,10 +8597,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [25] = {.flags = 11,
                             .initOffset = 9,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 8192,
                                                            .velocity = -512,
@@ -8647,10 +8611,10 @@ struct Data
                                                            .startVal = 16384,
                                                            .velocity = 0,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
                     [26] = {.flags = 26,
                             .initOffset = 4,
-                            .InitTypes.AxisInit = {.baseValue =
+                            .InitTypes = {.AxisInit = {.baseValue =
                                                        {
                                                            .startVal = 0,
                                                            .velocity = 256,
@@ -8661,7 +8625,7 @@ struct Data
                                                            .startVal = -512,
                                                            .velocity = -512,
                                                            .accel = 0,
-                                                       }}},
+                                                       }}}},
 
                     // null
                     //[27] = {}
@@ -8672,16 +8636,15 @@ struct Data
                 {
                     [0] = {.flags = 1,
                            .initOffset = 12,
-                           .InitTypes.FuncInit =
-                               {
+                           .InitTypes = {.FuncInit = {
                                    .particle_funcPtr = 0x00000000,
                                    .particle_colorFlags = 0x00c2,
                                    .particle_lifespan = 0x0014,
                                    .particle_Type = 0,
-                               }},
+                               }}},
                     [1] = {.flags = 16,
                            .initOffset = 0,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 0,
@@ -8692,10 +8655,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 256,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [2] = {.flags = 2,
                            .initOffset = 1,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 512,
@@ -8706,10 +8669,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [3] = {.flags = 16,
                            .initOffset = 2,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 0,
@@ -8720,10 +8683,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 256,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [4] = {.flags = 3,
                            .initOffset = 5,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 2000,
                                                           .velocity = 100,
@@ -8734,10 +8697,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [5] = {.flags = 3,
                            .initOffset = 7,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 32768,
                                                           .velocity = -2560,
@@ -8748,10 +8711,10 @@ struct Data
                                                           .startVal = 0,
                                                           .velocity = 0,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
                     [6] = {.flags = 26,
                            .initOffset = 4,
-                           .InitTypes.AxisInit = {.baseValue =
+                           .InitTypes = {.AxisInit = {.baseValue =
                                                       {
                                                           .startVal = 0,
                                                           .velocity = 128,
@@ -8762,7 +8725,7 @@ struct Data
                                                           .startVal = -512,
                                                           .velocity = -256,
                                                           .accel = 0,
-                                                      }}},
+                                                      }}}},
 
                     // null
                     //[7] = {},

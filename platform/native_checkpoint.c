@@ -1335,6 +1335,14 @@ internal void NativeCheckpoint_RelocateDataPointers(const struct NativeCheckpoin
 	{
 		NativeCheckpoint_RelocateMetaDataModel(oldHeader, liveHeader, &data.MetaDataModels[i]);
 	}
+	for (u32 i = 0; i < len(data.MetaDataScrub); i++)
+	{
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.MetaDataScrub[i].name);
+	}
+	for (u32 i = 0; i < len(data.MetaDataTerrain); i++)
+	{
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.MetaDataTerrain[i].name);
+	}
 	for (u32 i = 0; i < len(data.ptrRenderedQuadblockDestination_forEachPlayer); i++)
 	{
 		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.ptrRenderedQuadblockDestination_forEachPlayer[i]);

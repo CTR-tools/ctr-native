@@ -15,7 +15,7 @@
 #include <stdio.h>
 
 #include "native_gte_rcossin_tbl.h"
-#include "native_gte_ratan_tbl.h"
+#include "gte_ratan_table.c"
 #include "native_gte_sqrt_tbl.h"
 
 extern u32 gte_leadingzerocount(u32 lzcs);

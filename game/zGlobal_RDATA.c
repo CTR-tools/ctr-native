@@ -1,64 +1,157 @@
 #include <common.h>
 
+// NOTE(aalhendi): MIPS owns just these string clusters, not the intervening
+// compiler tables. Derive its storage widths from the shared rData view.
+struct RdataModelStrings
+{
+#define RDATA_MODEL_STRING(field, text) char field[sizeof(((struct rData *)0)->field)];
+#include "zGlobal_RDATA_models.inc"
+#undef RDATA_MODEL_STRING
+};
+
+struct RdataLoadingStrings
+{
+#define RDATA_LOADING_STRING(field, text) char field[sizeof(((struct rData *)0)->field)];
+#include "zGlobal_RDATA_loading.inc"
+#undef RDATA_LOADING_STRING
+};
+
+struct RdataLevelResourceStrings
+{
+#define RDATA_RESOURCE_STRING(field, text) char field[sizeof(((struct rData *)0)->field)];
+#include "zGlobal_RDATA_resources.inc"
+#undef RDATA_RESOURCE_STRING
+};
+
+struct RdataVehicleStrings
+{
+#define RDATA_VEHICLE_STRING(field, text) char field[sizeof(((struct rData *)0)->field)];
+#include "zGlobal_RDATA_vehicle.inc"
+#undef RDATA_VEHICLE_STRING
+};
+
+// NOTE(aalhendi): Each misc fragment uses the maintained field widths. The
+// list also supplies the current native seed policy without a second value list.
+#define RDATA_MISC_BEGIN(cluster, firstField, sectionName) \
+	struct RdataMisc##cluster                              \
+	{
+#define RDATA_MISC_STRING(cluster, field, text, nativeSeed) char field[sizeof(((struct rData *)0)->field)];
+#define RDATA_MISC_END(cluster, nextField) \
+	}                                      \
+	;
+#include "zGlobal_RDATA_misc.inc"
+#undef RDATA_MISC_BEGIN
+#undef RDATA_MISC_STRING
+#undef RDATA_MISC_END
+
 #ifdef CTR_NATIVE
+#define RDATA_MISC_BEGIN(cluster, firstField, sectionName)              \
+	enum                                                                \
+	{                                                                   \
+		RdataMisc##cluster##Offset = offsetof(struct rData, firstField) \
+	};
+#define RDATA_MISC_STRING(cluster, field, text, nativeSeed)                                                                      \
+	CTR_STATIC_ASSERT(offsetof(struct RdataMisc##cluster, field) == offsetof(struct rData, field) - RdataMisc##cluster##Offset); \
+	CTR_STATIC_ASSERT(sizeof(text) <= sizeof(((struct rData *)0)->field));
+#define RDATA_MISC_END(cluster, nextField) \
+	CTR_STATIC_ASSERT(sizeof(struct RdataMisc##cluster) == offsetof(struct rData, nextField) - RdataMisc##cluster##Offset);
+#include "zGlobal_RDATA_misc.inc"
+#undef RDATA_MISC_BEGIN
+#undef RDATA_MISC_STRING
+#undef RDATA_MISC_END
+
+#define RDATA_MODEL_STRING(field, text)                                                                                                        \
+	CTR_STATIC_ASSERT(offsetof(struct RdataModelStrings, field) == offsetof(struct rData, field) - offsetof(struct rData, s_STATIC_GNORMALZ)); \
+	CTR_STATIC_ASSERT(sizeof(text) <= sizeof(((struct rData *)0)->field));
+#include "zGlobal_RDATA_models.inc"
+#undef RDATA_MODEL_STRING
+CTR_STATIC_ASSERT(sizeof(struct RdataModelStrings) == offsetof(struct rData, rdataPauseData) - offsetof(struct rData, s_STATIC_GNORMALZ));
+
+#define RDATA_LOADING_STRING(field, text)                                                                                                 \
+	CTR_STATIC_ASSERT(offsetof(struct RdataLoadingStrings, field) == offsetof(struct rData, field) - offsetof(struct rData, s_screen18)); \
+	CTR_STATIC_ASSERT(sizeof(text) <= sizeof(((struct rData *)0)->field));
+#include "zGlobal_RDATA_loading.inc"
+#undef RDATA_LOADING_STRING
+CTR_STATIC_ASSERT(sizeof(struct RdataLoadingStrings) == offsetof(struct rData, jumpPointers5) - offsetof(struct rData, s_screen18));
+
+#define RDATA_RESOURCE_STRING(field, text)                                                                                                       \
+	CTR_STATIC_ASSERT(offsetof(struct RdataLevelResourceStrings, field) == offsetof(struct rData, field) - offsetof(struct rData, s_HUB_ALLOC)); \
+	CTR_STATIC_ASSERT(sizeof(text) <= sizeof(((struct rData *)0)->field));
+#include "zGlobal_RDATA_resources.inc"
+#undef RDATA_RESOURCE_STRING
+CTR_STATIC_ASSERT(sizeof(struct RdataLevelResourceStrings) == offsetof(struct rData, LOAD_TenStages_jumpPointers4) - offsetof(struct rData, s_HUB_ALLOC));
+
+#define RDATA_VEHICLE_STRING(field, text)                                                                                              \
+	CTR_STATIC_ASSERT(offsetof(struct RdataVehicleStrings, field) == offsetof(struct rData, field) - offsetof(struct rData, s_oxide)); \
+	CTR_STATIC_ASSERT(sizeof(text) <= sizeof(((struct rData *)0)->field));
+#include "zGlobal_RDATA_vehicle.inc"
+#undef RDATA_VEHICLE_STRING
+CTR_STATIC_ASSERT(sizeof(struct RdataVehicleStrings) == sizeof(struct rData) - offsetof(struct rData, s_oxide));
+
+// NOTE(aalhendi): Native MainInit reuses part of rdata as RenderBucket scratch.
+// Keep this aggregate writable; model-name contents there are not persistent.
 struct rData rdata = {
-    .s_asphalt2_thisAppearsTwice = "asphalt2",
-    .s_LoadSampleBlock = "_LoadSampleBlock",
+#define RDATA_MODEL_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_models.inc"
+#undef RDATA_MODEL_STRING
 
-    .s_crystal1 = "crystal1",
-    .s_fruitdisp = "fruitdisp",
-    .s_timebox1 = "timebox1",
+#define RDATA_MISC_BEGIN(cluster, firstField, sectionName)
+#define RDATA_MISC_NATIVE_0(field, text)
+#define RDATA_MISC_NATIVE_1(field, text)                    .field = text,
+#define RDATA_MISC_STRING(cluster, field, text, nativeSeed) CTR_JOIN(RDATA_MISC_NATIVE_, nativeSeed)(field, text)
+#define RDATA_MISC_END(cluster, nextField)
+#include "zGlobal_RDATA_misc.inc"
+#undef RDATA_MISC_BEGIN
+#undef RDATA_MISC_NATIVE_0
+#undef RDATA_MISC_NATIVE_1
+#undef RDATA_MISC_STRING
+#undef RDATA_MISC_END
 
-    // NOTE(aalhendi): retail is pre-shaped; UI_DrawRaceClock patches digits only.
-    .s_timeString_empty = "  :  :  ",
-    .s_lapString = "%2.02d/%ld",
+#define RDATA_VEHICLE_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_vehicle.inc"
+#undef RDATA_VEHICLE_STRING
 
-    .s_oxide = "oxide",
-    .s_fake = "fake",
-    .s_pen = "pen",
-    .s_ntropy = "ntropy",
-    .s_joe = "joe",
-    .s_roo = "roo",
-    .s_papu = "papu",
-    .s_pinstripe = "pinstripe",
-    .s_pura = "pura",
-    .s_polar = "polar",
-    .s_dingo = "dingo",
-    .s_ngin = "ngin",
-    .s_coco = "coco",
-    .s_tiny = "tiny",
-    .s_cortex = "cortex",
-    .s_crash = "crash",
+#define RDATA_LOADING_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_loading.inc"
+#undef RDATA_LOADING_STRING
 
-    .s_screen18 = "screen18",
-    .s_credit20 = "credit20",
-    .s_credit19 = "credit19",
-    .s_credit18 = "credit18",
-    .s_credit17 = "credit17",
-    .s_credit16 = "credit16",
-    .s_credit15 = "credit15",
-    .s_credit14 = "credit14",
-    .s_credit13 = "credit13",
-    .s_credit12 = "credit12",
-    .s_credit11 = "credit11",
-    .s_credit10 = "credit10",
-    .s_screen15 = "screen15",
-    .s_asphalt2 = "asphalt2",
-    .s_asphalt1 = "asphalt1",
+#define RDATA_RESOURCE_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_resources.inc"
+#undef RDATA_RESOURCE_STRING
 
-    .s_circle = "circle",
-    .s_clod = "clod",
-    .s_dustpuff = "dustpuff",
-    .s_smokering = "smokering",
-    .s_sparkle = "sparkle",
-    .s_lightredoff = "lightredoff",
-    .s_lightredon = "lightredon",
-    .s_lightgreenoff = "lightgreenoff",
-    .s_lightgreenon = "lightgreenon",
+};
+#else
+#define RDATA_MISC_BEGIN(cluster, firstField, sectionName)  struct RdataMisc##cluster rdataMisc##cluster __attribute__((section(sectionName))) = {
+#define RDATA_MISC_STRING(cluster, field, text, nativeSeed) .field = text,
+#define RDATA_MISC_END(cluster, nextField) \
+	}                                      \
+	;
+#include "zGlobal_RDATA_misc.inc"
+#undef RDATA_MISC_BEGIN
+#undef RDATA_MISC_STRING
+#undef RDATA_MISC_END
 
-    .s_bombtracker1 = "bombtracker1",
-    .s_shielddark = "shielddark",
-    .s_highlight = "highlight",
-    .s_warpball = "warpball",
+struct RdataModelStrings rdataModelStrings __attribute__((section(".rdata.model_names"))) = {
+#define RDATA_MODEL_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_models.inc"
+#undef RDATA_MODEL_STRING
+};
+
+struct RdataLoadingStrings rdataLoadingStrings __attribute__((section(".rdata.loading_names"))) = {
+#define RDATA_LOADING_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_loading.inc"
+#undef RDATA_LOADING_STRING
+};
+
+struct RdataVehicleStrings rdataVehicleStrings __attribute__((section(".rdata.vehicle_names"))) = {
+#define RDATA_VEHICLE_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_vehicle.inc"
+#undef RDATA_VEHICLE_STRING
+};
+
+struct RdataLevelResourceStrings rdataLevelResourceStrings __attribute__((section(".rdata.level_resource_names"))) = {
+#define RDATA_RESOURCE_STRING(field, text) .field = text,
+#include "zGlobal_RDATA_resources.inc"
+#undef RDATA_RESOURCE_STRING
 };
 #endif

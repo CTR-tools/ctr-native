@@ -28,6 +28,17 @@ class FunctionRange:
     address: int
     size: int
     source: str
+    candidate_symbol: str | None = None
+
+    @property
+    def emitted_name(self) -> str:
+        return self.candidate_symbol or self.name
+
+    def result_fields(self) -> dict[str, Any]:
+        fields = asdict(self)
+        if self.emitted_name == self.name:
+            fields.pop("candidate_symbol")
+        return fields
 
 
 def parse_symbols(path: Path) -> list[Symbol]:
@@ -107,24 +118,50 @@ def definition_count(text: str, symbol: str) -> int:
 def discover_function_ranges(
     config: dict[str, Any], symbols: list[Symbol]
 ) -> list[FunctionRange]:
+    interval = namespace_symbol_ranges(config, symbols)
+    owned = config.get("owned_symbols", {})
+    if not isinstance(owned, dict) or any(
+        not isinstance(name, str)
+        or not isinstance(candidate, str)
+        or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
+        or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", candidate)
+        for name, candidate in owned.items()
+    ):
+        raise ctr_match.MatchError("owned_symbols must map identifiers to identifiers")
+    names = {symbol.name for symbol, _ in interval}
+    if unknown := sorted(set(owned) - names):
+        raise ctr_match.MatchError(
+            f"owned_symbols names outside namespace interval: {', '.join(unknown)}"
+        )
+    resolved = {symbol.name: owned.get(symbol.name, symbol.name) for symbol, _ in interval}
+    if len(set(resolved.values())) != len(resolved):
+        raise ctr_match.MatchError("namespace functions select the same owned symbol")
+    canonical = {symbol.name: symbol.address for symbol in symbols}
+    for symbol, _ in interval:
+        candidate = resolved[symbol.name]
+        if candidate in canonical and canonical[candidate] != symbol.address:
+            raise ctr_match.MatchError(
+                f"owned symbol {candidate!r} collides with another retail address"
+            )
     sources = namespace_sources(config)
     source_text = {source: source.read_text() for source in sources}
     ranges: list[FunctionRange] = []
-    for symbol, size in namespace_symbol_ranges(config, symbols):
+    for symbol, size in interval:
+        candidate = resolved[symbol.name]
         owners: list[Path] = []
         for source, text in source_text.items():
-            count = definition_count(text, symbol.name)
+            count = definition_count(text, candidate)
             if count > 1:
                 raise ctr_match.MatchError(
                     f"production source {source.relative_to(ctr_match.ROOT)} "
-                    f"defines {symbol.name} {count} times"
+                    f"defines {candidate} {count} times"
                 )
             if count == 1:
                 owners.append(source)
         if len(owners) != 1:
             relative = [str(path.relative_to(ctr_match.ROOT)) for path in owners]
             raise ctr_match.MatchError(
-                f"expected one production definition of {symbol.name}, "
+                f"expected one production definition of {candidate}, "
                 f"found {len(owners)}: {', '.join(relative) or 'none'}"
             )
         ranges.append(
@@ -133,6 +170,7 @@ def discover_function_ranges(
                 address=symbol.address,
                 size=size,
                 source=str(owners[0].relative_to(ctr_match.ROOT)),
+                candidate_symbol=candidate if candidate != symbol.name else None,
             )
         )
 
@@ -195,11 +233,41 @@ def object_functions(objdump: Path, object_file: Path) -> dict[str, dict[str, An
             and parts[2] == "F"
             and re.fullmatch(r"[0-9a-fA-F]{8}", parts[-2])
         ):
-            functions[parts[-1]] = {
+            name = parts[-1]
+            count = functions.get(name, {}).get("count", 0) + 1
+            functions[name] = {
+                "address": int(parts[0], 16),
                 "section": parts[-3],
                 "size": int(parts[-2], 16),
+                "count": count,
             }
     return functions
+
+
+def owned_function(
+    function: FunctionRange, symbols: dict[str, dict[str, Any]], section: str
+) -> dict[str, Any]:
+    symbol = symbols.get(function.emitted_name)
+    if (
+        symbol is None
+        or symbol["count"] != 1
+        or symbol["size"] <= 0
+        or symbol["section"] != section
+    ):
+        raise ctr_match.MatchError(
+            f"expected one defined function {function.emitted_name!r} in {section!r}"
+        )
+    return symbol
+
+
+def reject_owned_aliases(config: dict[str, Any], functions: Iterable[FunctionRange]) -> None:
+    aliases = set(config.get("link_symbols", {})) & {
+        function.emitted_name for function in functions
+    }
+    if aliases:
+        raise ctr_match.MatchError(
+            f"link_symbols replaces selected function(s): {', '.join(sorted(aliases))}"
+        )
 
 
 def reference_slice(
@@ -225,7 +293,7 @@ def function_linker_script(
     function_sections: list[str],
     rodata_address: int | None = None,
 ) -> str:
-    selected = f".{function.name}"
+    selected = f".{function.emitted_name}"
     closure = "\n".join(
         f"    *({section})"
         for section in sorted(set(function_sections))
@@ -239,7 +307,7 @@ def function_linker_script(
     )
     return f"""SECTIONS
 {{
-  {selected} 0x{function.address:08x} :
+  .{function.name} 0x{function.address:08x} :
   {{
     *({selected})
   }}
@@ -271,7 +339,14 @@ def link_function(
     linker_script = output / "function.ld"
     error_file = output / "link-error.txt"
     section = f".{function.name}"
+    reject_owned_aliases(config, [function])
     symbols = {symbol.name: symbol.address for symbol in all_symbols}
+    symbols.update(
+        {
+            candidate: symbol_by_name(all_symbols, name).address
+            for name, candidate in config.get("owned_symbols", {}).items()
+        }
+    )
     symbols.update(
         {
             name: ctr_match.parse_int(address)
@@ -295,14 +370,14 @@ def link_function(
         str(toolchain.binutils["ld"]),
         "--gc-sections",
         "-e",
-        function.name,
+        function.emitted_name,
         "-T",
         str(linker_script),
         "-o",
         str(linked_object),
     ]
     for name, address in symbols.items():
-        if name != function.name:
+        if name != function.emitted_name:
             command.append(f"--defsym={name}=0x{address:08x}")
     command.append(str(object_file))
     try:
@@ -313,6 +388,17 @@ def link_function(
         summary = lines[-1] if lines else str(exc)
         raise ctr_match.MatchError(summary) from exc
     error_file.unlink(missing_ok=True)
+    linked = owned_function(
+        function,
+        object_functions(toolchain.binutils["objdump"], linked_object),
+        section,
+    )
+    placement_exact = (
+        linked["address"] == function.address
+        and linked["size"] == function.size
+        and ctr_match.linked_section(toolchain.binutils["objdump"], linked_object, section)
+        == {"address": function.address, "size": function.size}
+    )
     ctr_match.extract_binary_section(
         toolchain, linked_object, section, candidate_binary
     )
@@ -327,8 +413,9 @@ def link_function(
         f"retail/{function.name}",
         f"candidate/{function.name}",
     )
+    comparison["exact"] = comparison["exact"] and placement_exact
     return {
-        **asdict(function),
+        **function.result_fields(),
         "address": f"0x{function.address:08x}",
         **comparison,
         "candidate": str(candidate_binary.relative_to(ctr_match.ROOT)),
@@ -342,7 +429,7 @@ def link_contiguous_block(
     config: dict[str, Any],
     references: Path,
     functions: list[FunctionRange],
-    object_file: Path,
+    object_files: list[Path],
 ) -> dict[str, Any]:
     """Check the actual function order and optional initialized data in one link."""
     output = BUILD_ROOT / config["name"] / "linked_block"
@@ -358,7 +445,8 @@ def link_contiguous_block(
     has_rodata = "rodata_address" in block
     rodata_address = ctr_match.parse_int(block["rodata_address"]) if has_rodata else None
     rodata_size = ctr_match.parse_int(block["rodata_size"]) if has_rodata else 0
-    sections = " ".join(f"*(.{function.name})" for function in functions)
+    reject_owned_aliases(config, functions)
+    sections = " ".join(f"*(.{function.emitted_name})" for function in functions)
     rodata_script = (
         f"  .rodata 0x{rodata_address:08x} : SUBALIGN(4) "
         "{ *(.rodata*) *(.rdata*) }\n"
@@ -386,11 +474,14 @@ def link_contiguous_block(
         f"--defsym={name}=0x{ctr_match.parse_int(address):08x}"
         for name, address in config.get("link_symbols", {}).items()
     )
-    ctr_match.run_checked([*command, "-o", str(linked_object), str(object_file)])
-
-    symbols = ctr_match.linked_symbols(
-        toolchain.binutils["objdump"], linked_object, start
+    ctr_match.run_checked(
+        [*command, "-o", str(linked_object), *(str(path) for path in object_files)]
     )
+
+    symbols = object_functions(
+        toolchain.binutils["objdump"], linked_object
+    )
+    owned = [owned_function(function, symbols, ".resident_block") for function in functions]
     code_section = ctr_match.linked_section(
         toolchain.binutils["objdump"], linked_object, ".resident_block"
     )
@@ -400,11 +491,9 @@ def link_contiguous_block(
         else None
     )
     code_placed = code_section == {"address": start, "size": size} and all(
-        (symbol := symbols.get(function.name)) is not None
-        and symbol["address"] == function.address
+        symbol["address"] == function.address
         and symbol["size"] == function.size
-        and symbol["section"] == ".resident_block"
-        for function in functions
+        for function, symbol in zip(functions, owned)
     )
     rodata_placed = (
         rodata_section == {"address": rodata_address, "size": rodata_size}
@@ -471,7 +560,7 @@ def error_result(
     function: FunctionRange, error: str, error_file: str | None = None
 ) -> dict[str, Any]:
     result = {
-        **asdict(function),
+        **function.result_fields(),
         "address": f"0x{function.address:08x}",
         "expected_size": function.size,
         "candidate_size": 0,
@@ -556,12 +645,19 @@ def build_resident(
         compiled_functions = object_functions(
             toolchain.binutils["objdump"], object_file
         )
-        compiled = compiled_functions.get(function.name)
-        if compiled is None:
+        try:
+            section = f".{function.emitted_name}"
+            owned_function(function, compiled_functions, section)
+            # Identity assembly entries can deliberately enclose a C body.
+            if function.candidate_symbol is not None and sum(
+                entry["section"] == section for entry in compiled_functions.values()
+            ) != 1:
+                raise ctr_match.MatchError(f"multiple functions share owned section {section!r}")
+        except ctr_match.MatchError as exc:
             function_results.append(
                 error_result(
                     function,
-                    f"compiled object has no function section for {function.name}",
+                    str(exc),
                 )
             )
             continue
@@ -607,18 +703,22 @@ def build_resident(
     block_result = None
     if complete and "linked_block" in config:
         try:
-            if len(source_results) != 1:
-                raise ctr_match.MatchError("linked block requires one source")
-            source_result = next(iter(source_results.values()))
-            if not source_result["compiled"]:
-                raise ctr_match.MatchError("linked block source does not compile")
+            object_files = []
+            for source in namespace_sources(config):
+                source_name = str(source.relative_to(ctr_match.ROOT))
+                source_result = source_results[source_name]
+                if not source_result["compiled"]:
+                    raise ctr_match.MatchError(
+                        f"linked block source does not compile: {source_name}"
+                    )
+                object_files.append(source_result["object_path"])
             block_result = link_contiguous_block(
                 manifest,
                 toolchain,
                 config,
                 references,
                 inventory,
-                source_result["object_path"],
+                object_files,
             )
         except ctr_match.MatchError as exc:
             block_result = {"exact": False, "error": str(exc)}
