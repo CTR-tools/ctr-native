@@ -16,21 +16,39 @@ void MainDrawCb_DrawSync()
 // NOTE(aalhendi): CTR_NATIVE keeps native input/audio/VRAM bridge work.
 void MainDrawCb_Vsync()
 {
-	struct GameTracker *gGT;
+	register struct GameTracker *gGT CTR_PSX_REGISTER("$4");
+	register struct GameTracker *drawSyncTracker CTR_PSX_REGISTER("$5");
+	register u32 rootCounter CTR_PSX_REGISTER("$4");
+	register s32 flipTicks CTR_PSX_REGISTER("$2");
+	register s32 betweenSync CTR_PSX_REGISTER("$3");
 
-	gGT = sdata->gGT;
+	gGT = GAME_TRACKER;
 	gGT->frameTimer_VsyncCallback++;
 	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 	{
 		gGT->frameTimer_Confetti++;
 	}
 
-	sdata->vsyncTillFlip--;
-	gGT->vSync_between_drawSync++;
+	// NOTE(aalhendi): Retail reloads the tracker before updating the draw-sync
+	// counter; these value cues retain its load and store order.
+	rootCounter = 0xf2000001;
+	CTR_PSX_OBSERVE_VALUE(rootCounter);
+	drawSyncTracker = GAME_TRACKER_RELOAD();
+	CTR_PSX_OBSERVE_VALUE(drawSyncTracker);
+	flipTicks = sdata->vsyncTillFlip;
+	CTR_PSX_OBSERVE_VALUE(flipTicks);
+	betweenSync = drawSyncTracker->vSync_between_drawSync;
+	CTR_PSX_OBSERVE_VALUE(betweenSync);
+	sdata->vsyncTillFlip = flipTicks - 1;
+	CTR_PSX_OBSERVE_MEMORY(sdata->vsyncTillFlip);
+	drawSyncTracker->vSync_between_drawSync = betweenSync + 1;
 
-	// NOTE(aalhend): accumulate root-counter 1 units between VSync callbacks; Timer_GetTime_Total converts them through the retail 0x147e divisor.
-	sdata->rcntTotalUnits += GetRCnt(0xf2000001);
-	ResetRCnt(0xf2000001);
+	// NOTE(aalhendi): Accumulate root-counter 1 units between VSync callbacks;
+	// Timer_GetTime_Total converts them through the retail 0x147e divisor.
+	GAME_RCNT_TOTAL_UNITS += GetRCnt(rootCounter);
+	rootCounter = 0xf2000001;
+	CTR_PSX_OBSERVE_VALUE(rootCounter);
+	ResetRCnt(rootCounter);
 
 #ifdef CTR_NATIVE
 	// NOTE(aalhendi): Retail calls HOWL unconditionally. Native skips only while

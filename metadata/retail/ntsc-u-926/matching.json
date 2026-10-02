@@ -1797,6 +1797,29 @@
       "link_symbols": {"_gp": "0x8008cf6c", "ctr_mainFreezeGameTracker": "0x8008d2ac"}
     },
     {
+      "name": "main-freeze-config-setup-entry",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainFreeze_ConfigSetupEntry",
+      "end_symbol": "MainFreeze_MenuPtrOptions",
+      "symbol_prefix": "MainFreeze_ConfigSetupEntry",
+      "source": "game/MAIN/MainFreeze.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/main-freeze/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_mainFreezeGameTracker": "0x8008d2ac",
+        "ctr_mainFreezeLanguageStrings": "0x8008d878",
+        "ctr_mainFreezeNamcoCenterY": "0x8008d2dc",
+        "ctr_mainFreezeWheelCenterY": "0x8008d2d8",
+        "ctr_mainFreezeDisplayValue": "0x8008d2f0"
+      }
+    },
+    {
       "name": "main-freeze-menu-quit",
       "kind": "resident",
       "artifact": "exe",
@@ -2566,6 +2589,51 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "main-db",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainDB_GetClipSize",
+      "end_symbol": "MainDrawCb_DrawSync",
+      "symbol_prefix": "MainDB_",
+      "source": "game/MAIN/MainDB.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "sdata_static": "0x8008cf6c"
+      },
+      "function_rodata_addresses": {
+        "MainDB_GetClipSize": "0x8001148c"
+      },
+      "linked_block": {
+        "rodata_address": "0x8001148c",
+        "rodata_size": "0x90"
+      }
+    },
+    {
+      "name": "main-game-start",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainGameStart_Initialize",
+      "end_symbol": "MainInit_VisMem",
+      "symbol_prefix": "MainGameStart_",
+      "source": "game/MAIN/MainGameStart.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_mainGameStartGameTracker": "0x8008d2ac"
+      },
+      "linked_block": {},
+      "forced_includes": ["tools/matching/namespaces/main-game-start/retail_symbols.h"]
+    },
+    {
       "name": "load-file",
       "kind": "resident",
       "artifact": "exe",
@@ -3130,6 +3198,22 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "main-draw-cb",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainDrawCb_DrawSync",
+      "end_symbol": "MainFrame_TogglePauseAudio",
+      "symbol_prefix": "MainDrawCb_",
+      "source": "game/MAIN/MainDrawCb.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/main-draw-cb/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c", "ctr_mainDrawCbGameTracker": "0x8008d2ac"}
+    },
+    {
       "name": "BOTS_EmptyFunc",
       "kind": "probe",
       "symbol": "BOTS_EmptyFunc",
@@ -3339,6 +3423,35 @@
       }
     },
     {
+      "name": "main-race-track",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainRaceTrack_StartLoad",
+      "end_symbol": "MainStats_ClearBattleVS",
+      "symbol_prefix": "MainRaceTrack_",
+      "source": "game/MAIN/MainRaceTrack.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "forced_includes": [
+        "tools/matching/namespaces/main-race-track/retail_symbols.h"
+      ],
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_mainRaceTrackGameTracker": "0x8008d2ac",
+        "ctr_mainRaceTrackRequestedLevel": "0x8008d0fc"
+      }
+    },
+    {
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
@@ -3364,6 +3477,33 @@
       "forced_includes": [
         "tools/matching/namespaces/howl-garage/retail_symbols.h"
       ]
+    },
+    {
+      "name": "main-stats",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainStats_ClearBattleVS",
+      "end_symbol": "MATH_Sin",
+      "symbol_prefix": "MainStats_",
+      "source": "game/MAIN/MainStats.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "link_symbols": {
+        "_gp": "0x8008cf6c"
+      }
     },
     {
       "name": "load-howl-complete",

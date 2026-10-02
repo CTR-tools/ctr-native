@@ -1,4 +1,16 @@
 #include <common.h>
+#ifndef MAIN_FREEZE_WHEEL_CENTER_Y
+#define MAIN_FREEZE_WHEEL_CENTER_Y sdata->analogConfigY[0]
+#endif
+#ifndef MAIN_FREEZE_DISPLAY_VALUE
+#define MAIN_FREEZE_DISPLAY_VALUE sdata->unk_RaceWheelConfig[0]
+#endif
+#ifndef MAIN_FREEZE_LANGUAGE_STRINGS
+#define MAIN_FREEZE_LANGUAGE_STRINGS sdata->lngStrings
+#endif
+#ifndef MAIN_FREEZE_NAMCO_CENTER_Y
+#define MAIN_FREEZE_NAMCO_CENTER_Y ((u16)sdata->analogConfigY[1])
+#endif
 
 // NOTE(aalhendi): The resident build binds this table to its linked symbol;
 // native uses the shared runtime table directly.
@@ -8,7 +20,22 @@
 	{                                                  \
 		(void)sizeof(page);                            \
 		(void)sizeof(offset);                          \
-		(base) = (u8 *)data.trigApprox;                \
+		(base) = (void *)data.trigApprox;              \
+	} while (0)
+#endif
+
+#ifndef MAIN_FREEZE_LOAD_TRIG_PAGE
+#define MAIN_FREEZE_LOAD_TRIG_PAGE(page)     ((page) = 0)
+#define MAIN_FREEZE_ADD_TRIG_LOW(base, page) ((base) = MAIN_FREEZE_TRIG_TABLE)
+#endif
+
+#ifndef MAIN_FREEZE_LOAD_TRIANGLE_OPTIONS
+#define MAIN_FREEZE_LOAD_TRIANGLE_OPTIONS(page, base, dependency) \
+	do                                                            \
+	{                                                             \
+		(void)sizeof(page);                                       \
+		(void)sizeof(dependency);                                 \
+		(base) = (const s16 *)&MAIN_FREEZE_OPTION_COUNTS[2];      \
 	} while (0)
 #endif
 
@@ -174,167 +201,130 @@ void MainFreeze_ConfigDrawArrows(s16 offsetX, s16 offsetY, char *str)
 	return;
 }
 
-static inline void MainFreeze_ConfigDrawWire(s16 x1, s16 y1, s16 x2, s16 y2, u8 r, u8 g, u8 b, void *ot)
+
+#ifndef MAIN_FREEZE_TRIG_TABLE
+#define MAIN_FREEZE_TRIG_TABLE data.trigApprox
+#endif
+#ifndef MAIN_FREEZE_OPTION_COUNTS
+#define MAIN_FREEZE_OPTION_COUNTS data.raceConfig_unk80084290
+#endif
+#ifndef MAIN_FREEZE_ARROW_COLORS
+#define MAIN_FREEZE_ARROW_COLORS data.raceConfig_colors_arrows
+#endif
+#ifndef MAIN_FREEZE_BLUE_RECT_COLORS
+#define MAIN_FREEZE_BLUE_RECT_COLORS data.raceConfig_colors_blueRect
+#endif
+#ifndef MAIN_FREEZE_NAMCO_TRIANGLE_COLORS
+#define MAIN_FREEZE_NAMCO_TRIANGLE_COLORS data.jogConTriangleColors
+#endif
+#ifndef MAIN_FREEZE_NAMCO_GEOMETRY
+#define MAIN_FREEZE_NAMCO_GEOMETRY data.unkNamcoGamepad_800842DC
+#endif
+
+#ifndef MAIN_FREEZE_NAMCO_ICON_OFFSETS
+#define MAIN_FREEZE_NAMCO_ICON_OFFSETS (&MAIN_FREEZE_NAMCO_GEOMETRY[18])
+#endif
+#ifndef MAIN_FREEZE_NAMCO_ROWS
+#define MAIN_FREEZE_NAMCO_ROWS (&MAIN_FREEZE_NAMCO_GEOMETRY[6])
+#endif
+#ifndef MAIN_FREEZE_NAMCO_ICON_COLORS
+#define MAIN_FREEZE_NAMCO_ICON_COLORS (&MAIN_FREEZE_NAMCO_GEOMETRY[12])
+#endif
+
+#define MAIN_FREEZE_CONFIG_SIN_FROM_TABLE(angleValue, tableBase, result)      \
+	do                                                                        \
+	{                                                                         \
+		u32 sinAngle = (angleValue);                                          \
+		(result) = CTR_ReadU32LE(&(tableBase)[ANG_MODULO_HALF_PI(sinAngle)]); \
+		if ((sinAngle & ANG_QUADRANT_BIT) == 0)                               \
+			(result) = (u32)(result) << 16;                                   \
+		(result) = (s32)(result) >> 16;                                       \
+		if ((sinAngle & ANG_SIGN_BIT) != 0)                                   \
+			(result) = -(result);                                             \
+	} while (0)
+
+static inline int MainFreeze_ConfigSin(u32 angle)
 {
-	CTR_Box_DrawWirePrims(x1, y1, x2, y2, r, g, b, ot, &sdata->gGT->backBuffer->primMem);
+	const struct TrigTable *trigTable = MAIN_FREEZE_TRIG_TABLE;
+	int sine;
+	MAIN_FREEZE_CONFIG_SIN_FROM_TABLE(angle, trigTable, sine);
+	return sine;
 }
 
-static inline void MainFreeze_ConfigDrawRaceWheel(int value, struct GameTracker *gGT)
-{
-	s16 triangle[8];
-	RECT rect;
-	int i;
-	int tri;
-	int point;
-	int sin;
-	void *ot;
-	s16 y;
-	u32 wave;
-	int angle;
-	int angleSin;
-	int base;
+// NOTE(aalhendi): Both results must stay as local values; taking their
+// addresses makes GCC spill the pair that retail keeps in registers.
+#define MAIN_FREEZE_CONFIG_SINCOS(angle, tableBase, sine, cosine)                 \
+	do                                                                            \
+	{                                                                             \
+		u32 trigAngle = (angle);                                                  \
+		(sine) = (s32)CTR_ReadU32LE(&(tableBase)[ANG_MODULO_HALF_PI(trigAngle)]); \
+		if ((trigAngle & ANG_QUADRANT_BIT) != 0)                                  \
+		{                                                                         \
+			register u32 trigLow CTR_PSX_REGISTER("$2") = (u32)(sine) << 16;      \
+			CTR_PSX_KEEP_VALUE_RELAXED(trigLow);                                  \
+			(cosine) = (s32)trigLow >> 16;                                        \
+			(sine) = (s32)(sine) >> 16;                                           \
+			if ((trigAngle & ANG_SIGN_BIT) != 0)                                  \
+				(sine) = -(sine);                                                 \
+			else                                                                  \
+				(cosine) = -(cosine);                                             \
+		}                                                                         \
+		else                                                                      \
+		{                                                                         \
+			(cosine) = (s32)(sine) >> 16;                                         \
+			(sine) = (s16)(sine);                                                 \
+			if ((trigAngle & ANG_SIGN_BIT) != 0)                                  \
+			{                                                                     \
+				(cosine) = -(cosine);                                             \
+				(sine) = -(sine);                                                 \
+			}                                                                     \
+		}                                                                         \
+	} while (0)
 
-	for (i = 0; i < 3; i++)
-	{
-		sin = MATH_Sin(value);
-		ot = gGT->pushBuffer_UI.ptrOT;
-
-		if ((i != 1) && (value == 0x600))
-		{
-			ot = (void *)((s32)ot + 0xc);
-		}
-
-		y = sdata->analogConfigY[0] + ((sin * (i - 1) * 0x20) >> 0xc) + 0x20;
-		MainFreeze_ConfigDrawWire(0xe2, y, 0x11e, y, 0, 0xff, 0, ot);
-	}
-
-	for (tri = 0; tri < 2; tri++)
-	{
-		wave = ((u32)sdata->frameCounter << 6) + (tri * 0x800);
-		sin = MATH_Sin(wave);
-		angle = (value * sin) >> 0xc;
-		angleSin = MATH_Sin(angle);
-
-		for (point = 0; point < 3; point++)
-		{
-			base = tri * 6 + point * 2;
-			triangle[point * 2] = data.raceConfig_unk80084290[base + 2] + ((tri == 0) ? 0x114 : 0xec);
-			triangle[(point * 2) + 1] = sdata->analogConfigY[0] + ((angleSin << 5) >> 0xc) + 0x20 + data.raceConfig_unk80084290[base + 3];
-		}
-
-		RECTMENU_DrawRwdTriangle(triangle, (char *)data.raceConfig_colors_arrows, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
-	}
-
-	rect.x = 0xec;
-	rect.y = sdata->analogConfigY[0];
-	rect.w = 0x28;
-	rect.h = 0x41;
-	RECTMENU_DrawRwdBlueRect(&rect, (char *)data.raceConfig_colors_blueRect, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
-
-	rect.x = -0x14;
-	rect.y = sdata->analogConfigY[0] - 0x14;
-	rect.w = 0x228;
-	rect.h = 0x91;
-	RECTMENU_DrawInnerRect(&rect, 4, gGT->pushBuffer_UI.ptrOT);
-}
-
-static inline void MainFreeze_ConfigDrawNamco(int value, struct GameTracker *gGT)
-{
-	int mirrorValue = -value;
-	RECT rect;
-	int i;
-	int currValue;
-	u32 angle;
-	int sin;
-	int cos;
-	u32 frameAngle;
-	u32 baseAngle;
-	int baseSin;
-	int baseCos;
-	int point;
-	int offset;
-	int row;
-	int wireAngle;
-	u8 color;
-	u32 currAngle;
-	u16 iconRow;
-	int rowOffset;
-	int pointOffset;
-	s16 scale;
-
-	for (i = 0; i < 2; i++)
-	{
-		currValue = (i == 0) ? mirrorValue : value;
-		angle = (currValue - 0x400) & 0xfff;
-		sin = MATH_Sin(angle);
-		cos = MATH_Cos(angle);
-
-		MainFreeze_ConfigDrawWire(0x100 + ((cos * 400) / 0x5000), sdata->analogConfigY[1] + ((sin * 0x32) >> 0xc), 0x100 + ((cos * 0x118) / 0x5000),
-		                          sdata->analogConfigY[1] + ((sin * 0x23) >> 0xc), 0, 0xff, 0, gGT->pushBuffer_UI.ptrOT);
-	}
-
-	frameAngle = (u32)sdata->frameCounter << 6;
-	baseAngle = (((MATH_Sin(frameAngle) * value) >> 0xc) - 0x400) & 0xfff;
-	baseSin = MATH_Sin(baseAngle);
-	baseCos = MATH_Cos(baseAngle);
-
-	for (point = 0; point < 3; point++)
-	{
-		int colorOffset = point * 4;
-		offset = point * 2;
-		MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[offset] + ((baseCos * 200) / 0x5000) + 0x100,
-		                            data.unkNamcoGamepad_800842DC[offset + 1] + sdata->analogConfigY[1] + ((baseSin * 0x19) >> 0xc), 10, 0x80, baseAngle,
-		                            (char *)&data.jogConTriangleColors[colorOffset], gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
-	}
-
-	for (row = 0; row < 0x400; row += 0xaa)
-	{
-		for (wireAngle = 0; wireAngle < 0x1000; wireAngle += 0x400)
-		{
-			color = (row != 0) ? 0x50 : 0x32;
-			currAngle = (baseAngle + wireAngle + row) & 0xfff;
-			sin = MATH_Sin(currAngle);
-			cos = MATH_Cos(currAngle);
-
-			MainFreeze_ConfigDrawWire(0x100 + ((cos < 0 ? cos + 0x3f : cos) >> 6), sdata->analogConfigY[1] + ((sin * 0x28) >> 0xc),
-			                          0x100 + ((cos * 0x120) / 0x5000), sdata->analogConfigY[1] + ((sin * 0x24) >> 0xc), color, color, color,
-			                          gGT->pushBuffer_UI.ptrOT);
-		}
-	}
-
-	for (iconRow = 0; iconRow < 3; iconRow++)
-	{
-		rowOffset = iconRow * 2;
-		for (point = 0; point < 3; point++)
-		{
-			pointOffset = point * 2;
-			scale = data.unkNamcoGamepad_800842DC[rowOffset + 7];
-			MainFreeze_ConfigDrawNPC105(data.unkNamcoGamepad_800842DC[pointOffset + 18] * scale + 0x100,
-			                            sdata->analogConfigY[1] + (data.unkNamcoGamepad_800842DC[pointOffset + 19] * scale),
-			                            data.unkNamcoGamepad_800842DC[rowOffset + 6], 0x80, baseAngle, (char *)&data.unkNamcoGamepad_800842DC[pointOffset + 12],
-			                            gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
-		}
-	}
-
-	rect.x = -0x14;
-	rect.y = sdata->analogConfigY[1] - 0x3c;
-	rect.w = 0x228;
-	rect.h = 0xa0;
-	RECTMENU_DrawInnerRect(&rect, 4, gGT->pushBuffer_UI.ptrOT);
-}
+#ifndef MAIN_FREEZE_WHEEL_DATA
+#define MAIN_FREEZE_WHEEL_DATA data.rwd
+#endif
+#ifndef MAIN_FREEZE_DEAD_ZONE_OPTIONS
+#define MAIN_FREEZE_DEAD_ZONE_OPTIONS data.raceConfig_DeadZone
+#endif
+#ifndef MAIN_FREEZE_RANGE_OPTIONS
+#define MAIN_FREEZE_RANGE_OPTIONS data.raceConfig_Range
+#endif
+#ifndef MAIN_FREEZE_BUTTON_TAPS
+#define MAIN_FREEZE_BUTTON_TAPS sdata->buttonTapPerPlayer
+#endif
+#ifndef MAIN_FREEZE_MULTILINE_Y
+#define MAIN_FREEZE_MULTILINE_Y sdata->posY_MultiLine
+#endif
+#ifndef MAIN_FREEZE_ARROW_Y
+#define MAIN_FREEZE_ARROW_Y sdata->posY_Arrows
+#endif
 
 void MainFreeze_ConfigSetupEntry(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	int gamepadID;
+	// NOTE(aalhendi): Preserve retail's point stores and expose a real s16 array
+	// to the primitive drawer without stepping across struct subobjects.
+	union
+	{
+		SVec2 points[4];
+		s16 coords[8];
+	} triangle;
+	RECT configRect;
+	RECT innerRect;
 	struct GamepadBuffer *gamepad;
 	struct ControllerPacket *controller;
-	int isNamco;
-	int posIndex;
+	int gamepadID;
+	register int isNamcoArg CTR_PSX_REGISTER("$4");
+	register int isNamco CTR_PSX_REGISTER("$19");
+	register int drawMode CTR_PSX_REGISTER("$2");
+	register s16 namcoStart CTR_PSX_REGISTER("$19");
+	u32 isNamcoXor;
+	s16 pageIndex;
+	u16 pageRaw;
 
-	if ((sdata->AnyPlayerTap & (BTN_TRIANGLE | BTN_SQUARE_one)) != 0)
+	if ((GAME_ANY_PLAYER_TAP & (BTN_TRIANGLE | BTN_SQUARE_one)) != 0)
 	{
-		sdata->boolOpenWheelConfig = false;
+		*(volatile b16 *)&sdata->boolOpenWheelConfig = false;
 		return;
 	}
 
@@ -344,113 +334,543 @@ void MainFreeze_ConfigSetupEntry(void)
 
 	if ((controller == NULL) || (controller->plugged != PLUGGED))
 	{
-		sdata->boolOpenWheelConfig = false;
+		*(volatile b16 *)&sdata->boolOpenWheelConfig = false;
 		return;
 	}
 
-	isNamco = controller->controllerData == ((PAD_ID_JOGCON << 4) | 3);
-	posIndex = isNamco * 2;
+	pageIndex = sdata->raceWheelConfigPageIndex;
+	pageRaw = CTR_ReadU16LE(&sdata->raceWheelConfigPageIndex);
+	isNamcoXor = controller->controllerData ^ ((PAD_ID_JOGCON << 4) | 3);
+	isNamcoArg = (isNamcoXor == 0);
+	// NOTE(aalhendi): Keep the input live through the result to avoid register coalescing.
+	CTR_PSX_DEPEND_VALUE(isNamcoArg, isNamcoXor);
+	isNamco = isNamcoArg;
 
-	if (sdata->raceWheelConfigPageIndex == 1)
+	switch (pageIndex)
 	{
-		u32 tap = sdata->buttonTapPerPlayer[gamepadID];
-
-		if ((tap & (BTN_UP | BTN_LEFT)) != 0)
-		{
-			sdata->WheelConfigOption--;
-			if ((s16)sdata->WheelConfigOption < 0)
-			{
-				sdata->WheelConfigOption = 3;
-			}
-		}
-		else if ((tap & (BTN_DOWN | BTN_RIGHT)) != 0)
-		{
-			sdata->WheelConfigOption++;
-			if ((s16)sdata->WheelConfigOption > 3)
-			{
-				sdata->WheelConfigOption = 0;
-			}
-		}
-		else if ((tap & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
-		{
-			sdata->raceWheelConfigPageIndex = 2;
-			data.rwd[gamepadID].deadZone = data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].hi1;
-		}
-
-		DecalFont_DrawMultiLine(sdata->lngStrings[LNG_SELECT_DEAD_ZONE_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG,
-		                        JUSTIFY_CENTER);
-		DecalFont_DrawLine(sdata->lngStrings[data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].lngIndex], 0x100, sdata->posY_Arrows[posIndex], FONT_BIG,
-		                   JUSTIFY_CENTER);
-		MainFreeze_ConfigDrawArrows(0x100, sdata->posY_Arrows[posIndex], sdata->lngStrings[data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].lngIndex]);
-		sdata->unk_RaceWheelConfig[0] = data.raceConfig_DeadZone[(s16)sdata->WheelConfigOption].lo16;
-	}
-	else if (sdata->raceWheelConfigPageIndex < 2)
+	case 0:
 	{
-		if (sdata->raceWheelConfigPageIndex == 0)
-		{
-			DecalFont_DrawMultiLine(sdata->lngStrings[LNG_CENTER_THE_CONTROLLER_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG,
-			                        JUSTIFY_CENTER);
+		register int namcoIndex CTR_PSX_REGISTER("$16");
+		s16 ownerIndex;
+		register int textX CTR_PSX_REGISTER("$5") = 0x100;
+		register int textY CTR_PSX_REGISTER("$6");
+		register char **strings CTR_PSX_REGISTER("$3");
+		CTR_PSX_DEPEND_VALUE(isNamcoArg, textX);
+		CTR_PSX_COPY_VALUE(namcoIndex, isNamcoArg);
+		textY = MAIN_FREEZE_MULTILINE_Y[namcoIndex * 2];
+		CTR_PSX_LOAD_WORD_AFTER(strings, sdata->lngStrings, textY);
 
-			if ((sdata->buttonTapPerPlayer[gamepadID] & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
-			{
-				sdata->raceWheelConfigPageIndex++;
-				if (!isNamco)
-				{
-					data.rwd[gamepadID].gamepadCenter = controller->payload.analog.rightX;
-				}
-				else
-				{
-					gamepad->jogCenteringFrames = 4;
-					data.rwd[sdata->gamepadID_OwnerRaceWheelConfig].gamepadCenter = 0x80;
-				}
-				RECTMENU_ClearInput();
-			}
+		DecalFont_DrawMultiLine(strings[LNG_CENTER_THE_CONTROLLER_AND_PRESS_BUTTON], textX, textY, 0x1cc, FONT_BIG, JUSTIFY_CENTER);
 
-			sdata->unk_RaceWheelConfig[0] = 0;
-		}
-	}
-	else if (sdata->raceWheelConfigPageIndex == 2)
-	{
-		u32 tap = sdata->buttonTapPerPlayer[gamepadID];
-
-		if ((tap & (BTN_UP | BTN_LEFT)) != 0)
+		ownerIndex = sdata->gamepadID_OwnerRaceWheelConfig;
+		if ((MAIN_FREEZE_BUTTON_TAPS[ownerIndex] & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
 		{
-			sdata->raceWheelConfigOptionIndex--;
-			if ((s16)sdata->raceWheelConfigOptionIndex < 0)
+			(*(volatile s16 *)&sdata->raceWheelConfigPageIndex)++;
+			if (namcoIndex)
 			{
-				sdata->raceWheelConfigOptionIndex = data.raceConfig_unk80084290[isNamco];
+				sdata->gGamepads->gamepad[ownerIndex].jogCenteringFrames = 4;
+				MAIN_FREEZE_WHEEL_DATA[sdata->gamepadID_OwnerRaceWheelConfig].gamepadCenter = 0x80;
 			}
-		}
-		else if ((tap & (BTN_DOWN | BTN_RIGHT)) != 0)
-		{
-			sdata->raceWheelConfigOptionIndex++;
-			if ((s16)data.raceConfig_unk80084290[isNamco] < (s16)sdata->raceWheelConfigOptionIndex)
+			else
 			{
-				sdata->raceWheelConfigOptionIndex = 0;
+				MAIN_FREEZE_WHEEL_DATA[ownerIndex].gamepadCenter = sdata->gGamepads->gamepad[ownerIndex].ptrControllerPacket->payload.analog.rightX;
 			}
-		}
-		else if ((tap & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
-		{
-			sdata->boolOpenWheelConfig = false;
-			data.rwd[gamepadID].range = data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].hi1;
 			RECTMENU_ClearInput();
 		}
 
-		sdata->unk_RaceWheelConfig[0] = data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].lo16;
-		DecalFont_DrawMultiLine(sdata->lngStrings[LNG_SELECT_RANGE_AND_PRESS_BUTTON], 0x100, sdata->posY_MultiLine[posIndex], 0x1cc, FONT_BIG, JUSTIFY_CENTER);
-		DecalFont_DrawLine(sdata->lngStrings[data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].lngIndex], 0x100, sdata->posY_Arrows[posIndex],
-		                   FONT_BIG, JUSTIFY_CENTER);
-		MainFreeze_ConfigDrawArrows(0x100, sdata->posY_Arrows[posIndex],
-		                            sdata->lngStrings[data.raceConfig_Range[(s16)sdata->raceWheelConfigOptionIndex].lngIndex]);
+		*(volatile int *)&sdata->unk_RaceWheelConfig[0] = 0;
+	}
+	break;
+	case 1:
+	{
+		u32 tap = MAIN_FREEZE_BUTTON_TAPS[gamepadID];
+		s16 option;
+
+		if ((tap & (BTN_UP | BTN_LEFT)) != 0)
+		{
+			option = (s16)(sdata->WheelConfigOption - 1);
+			sdata->WheelConfigOption = option;
+			if (option < 0)
+			{
+				sdata->WheelConfigOption = 3;
+				CTR_PSX_RELOAD(sdata->WheelConfigOption);
+			}
+		}
+		else if ((tap & (BTN_DOWN | BTN_RIGHT)) != 0)
+		{
+			option = (s16)(sdata->WheelConfigOption + 1);
+			sdata->WheelConfigOption = option;
+			if (option > 3)
+			{
+				sdata->WheelConfigOption = 0;
+				CTR_PSX_RELOAD(sdata->WheelConfigOption);
+			}
+		}
+		else if ((tap & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
+		{
+			sdata->raceWheelConfigPageIndex = pageRaw + 1;
+			MAIN_FREEZE_WHEEL_DATA[gamepadID].deadZone = MAIN_FREEZE_DEAD_ZONE_OPTIONS[(s16)sdata->WheelConfigOption].inputValue;
+		}
+
+		DecalFont_DrawMultiLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_SELECT_DEAD_ZONE_AND_PRESS_BUTTON], 0x100, MAIN_FREEZE_MULTILINE_Y[isNamco * 2], 0x1cc,
+		                        FONT_BIG, JUSTIFY_CENTER);
+		{
+			int lineIndex = MAIN_FREEZE_DEAD_ZONE_OPTIONS[(s16)sdata->WheelConfigOption].lngIndex;
+			int lineY = MAIN_FREEZE_ARROW_Y[isNamco * 2];
+			CTR_PSX_DEPEND_MEMORY(&sdata->lngStrings, lineY);
+			DecalFont_DrawLine(sdata->lngStrings[lineIndex], 0x100, lineY, FONT_BIG, JUSTIFY_CENTER);
+		}
+		MainFreeze_ConfigDrawArrows(0x100, MAIN_FREEZE_ARROW_Y[isNamco * 2],
+		                            sdata->lngStrings[MAIN_FREEZE_DEAD_ZONE_OPTIONS[(s16)sdata->WheelConfigOption].lngIndex]);
+		*(volatile int *)&sdata->unk_RaceWheelConfig[0] = MAIN_FREEZE_DEAD_ZONE_OPTIONS[(s16)sdata->WheelConfigOption].previewAngle;
+	}
+	break;
+	case 2:
+	{
+		u32 tap = MAIN_FREEZE_BUTTON_TAPS[gamepadID];
+		s16 option;
+		u16 optionRaw;
+		int maxOption;
+		s16 rangeValue;
+		register const u16 *optionCountBase CTR_PSX_REGISTER("$2");
+		register int optionCountOffset CTR_PSX_REGISTER("$3");
+		register const u16 *optionCountPtr CTR_PSX_REGISTER("$3");
+		register const s16 *upperCountBase CTR_PSX_REGISTER("$3");
+		register int upperCountOffset CTR_PSX_REGISTER("$4");
+		register const s16 *upperCountPtr CTR_PSX_REGISTER("$4");
+		register int rangeOffset CTR_PSX_REGISTER("$3");
+		register struct RacingWheelData *rangeBase CTR_PSX_REGISTER("$6");
+		register struct RacingWheelData *rangeDest CTR_PSX_REGISTER("$3");
+
+		if ((tap & (BTN_UP | BTN_LEFT)) != 0)
+		{
+			option = (s16)(sdata->raceWheelConfigOptionIndex - 1);
+			sdata->raceWheelConfigOptionIndex = option;
+			if (option < 0)
+			{
+				optionCountBase = MAIN_FREEZE_OPTION_COUNTS;
+				CTR_PSX_KEEP_VALUE_RELAXED(optionCountBase);
+				optionCountOffset = isNamco * sizeof(*optionCountBase);
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(optionCountPtr, optionCountBase, optionCountOffset);
+				sdata->raceWheelConfigOptionIndex = *optionCountPtr;
+				CTR_PSX_RELOAD(sdata->raceWheelConfigOptionIndex);
+			}
+		}
+		else if ((tap & (BTN_DOWN | BTN_RIGHT)) != 0)
+		{
+			upperCountOffset = isNamco * sizeof(*upperCountPtr);
+			upperCountBase = (const s16 *)MAIN_FREEZE_OPTION_COUNTS;
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(upperCountPtr, upperCountBase, upperCountOffset);
+			optionRaw = (u16)sdata->raceWheelConfigOptionIndex;
+			CTR_PSX_LOAD_SIGNED_HALF_AFTER(maxOption, upperCountPtr, 0, *upperCountPtr, optionRaw);
+			option = (s16)(optionRaw + 1);
+			sdata->raceWheelConfigOptionIndex = option;
+			if (maxOption < option)
+			{
+				// NOTE(aalhendi): Keep the wrap path's X argument separate from the common
+				// literal so GCC fills its branch delay without moving the branch target.
+				register int wrapTextX CTR_PSX_REGISTER("$5") = 0x100;
+				sdata->raceWheelConfigOptionIndex = 0;
+				CTR_PSX_DEPEND_MEMORY(&sdata->raceWheelConfigOptionIndex, wrapTextX);
+			}
+		}
+		else if ((tap & (BTN_CIRCLE | BTN_CROSS_one)) != 0)
+		{
+			rangeBase = MAIN_FREEZE_WHEEL_DATA;
+			CTR_PSX_KEEP_VALUE_RELAXED(rangeBase);
+			rangeOffset = gamepadID * sizeof(*rangeBase);
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(rangeDest, rangeBase, rangeOffset);
+			rangeValue = MAIN_FREEZE_RANGE_OPTIONS[(s16)sdata->raceWheelConfigOptionIndex].inputValue;
+			*(volatile b16 *)&sdata->boolOpenWheelConfig = false;
+			rangeDest->range = rangeValue;
+			RECTMENU_ClearInput();
+		}
+
+		MAIN_FREEZE_DISPLAY_VALUE = MAIN_FREEZE_RANGE_OPTIONS[(s16)sdata->raceWheelConfigOptionIndex].previewAngle;
+		DecalFont_DrawMultiLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_SELECT_RANGE_AND_PRESS_BUTTON], 0x100, MAIN_FREEZE_MULTILINE_Y[isNamco * 2], 0x1cc, FONT_BIG,
+		                        JUSTIFY_CENTER);
+		{
+			int lineIndex = MAIN_FREEZE_RANGE_OPTIONS[(s16)sdata->raceWheelConfigOptionIndex].lngIndex;
+			int lineY = MAIN_FREEZE_ARROW_Y[isNamco * 2];
+			CTR_PSX_DEPEND_MEMORY(&sdata->lngStrings, lineY);
+			DecalFont_DrawLine(sdata->lngStrings[lineIndex], 0x100, lineY, FONT_BIG, JUSTIFY_CENTER);
+		}
+		MainFreeze_ConfigDrawArrows(0x100, MAIN_FREEZE_ARROW_Y[isNamco * 2],
+		                            sdata->lngStrings[MAIN_FREEZE_RANGE_OPTIONS[(s16)sdata->raceWheelConfigOptionIndex].lngIndex]);
+	}
+	break;
 	}
 
-	if (!isNamco)
+	drawMode = isNamco;
+	CTR_PSX_KEEP_VALUE_RELAXED(drawMode);
+	namcoStart = 0;
+	if (!drawMode)
 	{
-		MainFreeze_ConfigDrawRaceWheel(sdata->unk_RaceWheelConfig[0], gGT);
+		int value = sdata->unk_RaceWheelConfig[0];
+		s16 i;
+		register s16 tri CTR_PSX_REGISTER("$16");
+		register s16 point CTR_PSX_REGISTER("$5");
+		register int sin CTR_PSX_REGISTER("$4");
+		int baseY;
+		register int yOffset CTR_PSX_REGISTER("$3");
+		const struct TrigTable *triTrigBase;
+		register u32 trianglePage CTR_PSX_REGISTER("$2");
+		const s16 *triangleOptions;
+		register u32 iSpacing CTR_PSX_REGISTER("$2");
+		register void *ot CTR_PSX_REGISTER("$8");
+		register int y CTR_PSX_REGISTER("$2");
+		u32 wave;
+		register int angle CTR_PSX_REGISTER("$3");
+		register int angleSin CTR_PSX_REGISTER("$4");
+		register int triangleY CTR_PSX_REGISTER("$8");
+		register int triangleOffset CTR_PSX_REGISTER("$7");
+		register int triangleIndex CTR_PSX_REGISTER("$6");
+
+		CTR_PSX_ZERO_VALUE(i);
+		do
+		{
+			int wheelProduct;
+			struct GameTracker *tracker;
+			register int sin CTR_PSX_REGISTER("$3");
+
+			sin = MainFreeze_ConfigSin(value);
+			CTR_PSX_KEEP_VALUE_RELAXED(sin);
+			iSpacing = (u32)((s16)i - 1);
+			CTR_PSX_SHIFT_LEFT_IN_PLACE(iSpacing, 5);
+			// NOTE(aalhendi): Retail reads the full word before narrowing the drawn Y coordinate.
+			wheelProduct = sin * (s32)iSpacing;
+			baseY = MAIN_FREEZE_WHEEL_CENTER_Y;
+			yOffset = wheelProduct >> 12;
+			yOffset += 0x20;
+			y = baseY + yOffset;
+
+			CTR_Box_DrawWirePrims(
+			    0xe2, y, 0x11e, y, 0, 0xff, 0,
+			    (tracker = GAME_TRACKER, ot = tracker->pushBuffer_UI.ptrOT, ((i != 1) && (value == 0x600)) ? (ot = (void *)((u8 *)ot + 0xc)) : ot),
+			    &GAME_TRACKER->backBuffer->primMem);
+			i++;
+		} while (i < 3);
+
+		// NOTE(aalhendi): Both triangles are drawn; entering directly avoids a non-retail loop precheck.
+		tri = 0;
+		triTrigBase = MAIN_FREEZE_TRIG_TABLE;
+		do
+		{
+			int wheelProduct;
+			// NOTE(aalhendi): Retail reads the signed low half of the frame counter for this angle.
+			wave = ((u32)(s16)GAME_FRAME_COUNTER_LOW << 6) + (tri * 0x800);
+			MAIN_FREEZE_CONFIG_SIN_FROM_TABLE(wave & ~0x3f, triTrigBase, sin);
+			CTR_PSX_KEEP_VALUE_RELAXED(sin);
+			wheelProduct = value * sin;
+			angle = wheelProduct >> 12;
+			MAIN_FREEZE_CONFIG_SIN_FROM_TABLE(angle, triTrigBase, angleSin);
+			point = 0;
+			MAIN_FREEZE_LOAD_TRIANGLE_OPTIONS(trianglePage, triangleOptions, point);
+
+			CTR_PSX_DEPEND_VALUE(tri, triangleOptions);
+			{
+				register int indexWord CTR_PSX_REGISTER("$2") = (u32)tri << 16;
+				register int yDelta CTR_PSX_REGISTER("$2");
+				register u32 yBase CTR_PSX_REGISTER("$3");
+				CTR_PSX_KEEP_VALUE_RELAXED(indexWord);
+				triangleIndex = indexWord >> 16;
+				indexWord = triangleIndex * 3;
+				CTR_PSX_OBSERVE_VALUE(indexWord);
+				triangleOffset = indexWord * 4;
+				yDelta = (s32)((u32)angleSin << 5) >> 0xc;
+				CTR_PSX_LOAD_UNSIGNED_HALF_AFTER(yBase, sdata, offsetof(struct sData, analogConfigY), sdata->analogConfigY[0], yDelta);
+				yDelta += 0x20;
+				CTR_PSX_KEEP_VALUE_RELAXED(yDelta);
+				triangleY = yBase + yDelta;
+			}
+			do
+			{
+				register s16 nextPoint CTR_PSX_REGISTER("$4");
+				register int pointWord CTR_PSX_REGISTER("$3");
+				triangle.points[point].x = ((const s16 *)((u32)(point * 4 + triangleOffset) + (u32)triangleOptions))[0] + ((triangleIndex != 0) ? 0xec : 0x114);
+				CTR_PSX_KEEP_VALUE_RELAXED(point);
+				pointWord = (u32)point << 16;
+				CTR_PSX_DEPEND_VALUE(point, pointWord);
+				nextPoint = point + 1;
+				CTR_PSX_COPY_VALUE(point, nextPoint);
+				CTR_PSX_KEEP_VALUE_RELAXED(nextPoint);
+				((SVec2 *)((u8 *)triangle.points + (pointWord >> 14)))->y =
+				    triangleY + ((const s16 *)((u32)((pointWord >> 14) + triangleOffset) + (u32)triangleOptions))[1];
+				if (nextPoint >= 3)
+					break;
+			} while (1);
+
+			RECTMENU_DrawRwdTriangle(triangle.coords, (char *)MAIN_FREEZE_ARROW_COLORS, GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
+			{
+				register s16 nextTriangle CTR_PSX_REGISTER("$2") = tri + 1;
+				CTR_PSX_COPY_VALUE(tri, nextTriangle);
+				CTR_PSX_KEEP_VALUE_RELAXED(nextTriangle);
+				if (nextTriangle >= 2)
+					break;
+			}
+		} while (1);
+
+		configRect.y = sdata->analogConfigY[0];
+		configRect.x = 0xec;
+		configRect.w = 0x28;
+		configRect.h = 0x41;
+		RECTMENU_DrawRwdBlueRect(&configRect, (char *)MAIN_FREEZE_BLUE_RECT_COLORS, GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
+
+		innerRect.x = -0x14;
+		innerRect.w = 0x228;
+		innerRect.h = 0x91;
+		innerRect.y = sdata->analogConfigY[0] - 0x14;
+		RECTMENU_DrawInnerRect(&innerRect, 4, GAME_TRACKER->pushBuffer_UI.ptrOT);
 	}
 	else
 	{
-		MainFreeze_ConfigDrawNamco(sdata->unk_RaceWheelConfig[0], gGT);
+		int value;
+		u32 mirrorAngle;
+		register s16 i CTR_PSX_REGISTER("$19");
+		u32 angle;
+		register int sin CTR_PSX_REGISTER("$16");
+		register int cos CTR_PSX_REGISTER("$17");
+		u32 frameAngle;
+		register u32 baseAngle CTR_PSX_REGISTER("$21");
+		register int point CTR_PSX_REGISTER("$18");
+		register int wireAngle CTR_PSX_REGISTER("$19");
+		register int color CTR_PSX_REGISTER("$5");
+		u32 currAngle;
+		u16 iconRow;
+		int rowOffset;
+
+		{
+			register const struct TrigTable *trigTable CTR_PSX_REGISTER("$22");
+			register u32 tablePage CTR_PSX_REGISTER("$2");
+			i = namcoStart;
+			MAIN_FREEZE_LOAD_TRIG_PAGE(tablePage);
+			MAIN_FREEZE_ADD_TRIG_LOW(trigTable, tablePage);
+			value = MAIN_FREEZE_DISPLAY_VALUE;
+			mirrorAngle = (u32)(-value - 0x400) & 0xfff;
+			do
+			{
+				if ((s16)i == 0)
+				{
+					angle = mirrorAngle;
+				}
+				else
+				{
+					angle = ((u32)(value - 0x400) & 0xfff);
+				}
+				MAIN_FREEZE_CONFIG_SINCOS(angle, trigTable, sin, cos);
+
+				{
+					u16 centerY = sdata->analogConfigY[1];
+					CTR_Box_DrawWirePrims(0x100 + ((cos * 400) / 0x5000), centerY + ((sin * 0x32) >> 0xc), 0x100 + ((cos * 0x118) / 0x5000),
+					                      centerY + ((sin * 0x23) >> 0xc), 0, 0xff, 0, GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
+				}
+				{
+					register s16 nextIndex CTR_PSX_REGISTER("$2") = i + 1;
+					CTR_PSX_COPY_VALUE(i, nextIndex);
+					CTR_PSX_KEEP_VALUE_RELAXED(nextIndex);
+					if ((s16)nextIndex >= 2)
+						break;
+				}
+			} while (1);
+		}
+
+		{
+			register const struct TrigTable *frameTable CTR_PSX_REGISTER("$3");
+			register u32 framePage CTR_PSX_REGISTER("$3");
+			register int wheelAngle CTR_PSX_REGISTER("$4");
+			register int frameCounter CTR_PSX_REGISTER("$2");
+			int product;
+			register int shifted CTR_PSX_REGISTER("$2");
+			MAIN_FREEZE_LOAD_TRIG_PAGE(framePage);
+			frameCounter = (s16)GAME_FRAME_COUNTER_LOW;
+			CTR_PSX_DEPEND_VALUE(framePage, frameCounter);
+			MAIN_FREEZE_ADD_TRIG_LOW(frameTable, framePage);
+			frameAngle = (u32)frameCounter << 6;
+			MAIN_FREEZE_CONFIG_SIN_FROM_TABLE(frameAngle & ~0x3f, frameTable, sin);
+			product = sin * value;
+			frameTable = MAIN_FREEZE_TRIG_TABLE;
+			CTR_PSX_KEEP_VALUE_RELAXED(frameTable);
+			shifted = product >> 12;
+			wheelAngle = shifted - 0x400;
+			CTR_PSX_KEEP_VALUE_RELAXED(wheelAngle);
+			baseAngle = wheelAngle & 0xfff;
+			MAIN_FREEZE_CONFIG_SINCOS(wheelAngle, frameTable, sin, cos);
+		}
+
+		{
+			const s16 *geometry = MAIN_FREEZE_NAMCO_GEOMETRY;
+			register int cosDouble CTR_PSX_REGISTER("$2");
+			register int cosTriple CTR_PSX_REGISTER("$23");
+			register int nextPoint CTR_PSX_REGISTER("$3");
+
+			cosDouble = cos * 2;
+			CTR_PSX_KEEP_VALUE_RELAXED(cosDouble);
+			cosTriple = cosDouble + cos;
+			point = 0;
+			do
+			{
+				register int cosPartial CTR_PSX_REGISTER("$2");
+				int cosRadius;
+				register int cosSign CTR_PSX_REGISTER("$20");
+				// NOTE(aalhendi): Retail rebuilds the radius across the outer loop boundary.
+				CTR_PSX_DEPEND_VALUE(cosTriple, point);
+				cosPartial = cosTriple * 8 + cos;
+				CTR_PSX_OBSERVE_VALUE(cosPartial);
+				cosRadius = cosPartial * 8;
+				cosSign = cosRadius >> 31;
+				do
+				{
+					int colorOffset;
+					register const s16 *position CTR_PSX_REGISTER("$2");
+					register u8 *colorBase CTR_PSX_REGISTER("$2");
+					register u32 x CTR_PSX_REGISTER("$4");
+					register u32 y CTR_PSX_REGISTER("$5");
+					register int radius CTR_PSX_REGISTER("$6");
+					int centerX;
+					register struct GameTracker *tracker CTR_PSX_REGISTER("$8");
+					u32 centerY;
+					CTR_PSX_KEEP_VALUE_RELAXED(cosRadius);
+					// NOTE(aalhendi): Start with the sign term so GCC reuses the real result
+					// instead of reserving a stack slot for a canceled division temporary.
+					centerX = cosRadius >> 31;
+					centerX += cosRadius / 0x5000;
+					centerX -= cosSign;
+					centerX += 0x100;
+
+					colorOffset = (s16)point * 4;
+					position = (const s16 *)((u32)colorOffset + (u32)geometry);
+					CTR_PSX_KEEP_VALUE_RELAXED(position);
+					radius = 10;
+					CTR_PSX_DEPEND_VALUE(position, radius);
+					x = (u16)position[0];
+					y = (u16)position[1];
+					colorBase = MAIN_FREEZE_NAMCO_TRIANGLE_COLORS;
+					CTR_PSX_DEPEND_VALUE(colorBase, y);
+					colorOffset += (u32)colorBase;
+					tracker = GAME_TRACKER;
+					centerY = MAIN_FREEZE_NAMCO_CENTER_Y;
+
+					MainFreeze_ConfigDrawNPC105(x + (s16)centerX, y + centerY + ((sin * 0x19) >> 0xc), radius, 0x80, baseAngle, (char *)colorOffset,
+					                            tracker->pushBuffer_UI.ptrOT, &tracker->backBuffer->primMem);
+					{
+						register int nextWord CTR_PSX_REGISTER("$2");
+						nextPoint = point + 1;
+						CTR_PSX_KEEP_VALUE_RELAXED(nextPoint);
+						nextWord = (u32)nextPoint << 16;
+						CTR_PSX_KEEP_VALUE_RELAXED(nextWord);
+						point = nextPoint;
+						if ((nextWord >> 16) >= 3)
+							break;
+					}
+				} while (1);
+				{
+					register int next CTR_PSX_REGISTER("$2");
+					CTR_PSX_KEEP_VALUE_RELAXED(nextPoint);
+					next = (s16)(nextPoint + 1);
+					CTR_PSX_KEEP_VALUE_RELAXED(next);
+					point = 0;
+					if (next >= 3)
+						break;
+				}
+			} while (1);
+		}
+
+		{
+			const struct TrigTable *trigTable = MAIN_FREEZE_TRIG_TABLE;
+			do
+			{
+				register int rowWord CTR_PSX_REGISTER("$2");
+				register int narrowRow CTR_PSX_REGISTER("$20");
+				wireAngle = 0;
+				CTR_PSX_DEPEND_VALUE(point, wireAngle);
+				rowWord = (u32)point << 16;
+				CTR_PSX_KEEP_VALUE_RELAXED(rowWord);
+				narrowRow = rowWord >> 16;
+				do
+				{
+					color = (narrowRow != 0) ? 0x50 : 0x32;
+					currAngle = (baseAngle + (wireAngle + point)) & 0xfff;
+					MAIN_FREEZE_CONFIG_SINCOS(currAngle, trigTable, sin, cos);
+
+					{
+						register int x CTR_PSX_REGISTER("$4");
+						register int colorValue CTR_PSX_REGISTER("$2");
+						register u32 centerY CTR_PSX_REGISTER("$7");
+						register int yDelta CTR_PSX_REGISTER("$5");
+						int quotient;
+						if (cos < 0)
+							x = cos + 0x3f;
+						else
+							x = cos;
+						CTR_PSX_KEEP_VALUE_RELAXED(x);
+						quotient = (cos * 0x120) / 0x5000;
+						x = (s16)(0x100 + (x >> 6));
+						CTR_PSX_COPY_VALUE(colorValue, color);
+						CTR_PSX_DEPEND_VALUE(colorValue, x);
+						yDelta = (sin * 0x28) >> 0xc;
+						centerY = (u16)sdata->analogConfigY[1];
+						CTR_Box_DrawWirePrims(x, centerY + yDelta, 0x100 + quotient, centerY + ((sin * 0x24) >> 0xc), colorValue, colorValue, colorValue,
+						                      GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
+					}
+					{
+						register int next CTR_PSX_REGISTER("$2") = wireAngle + 0x400;
+						CTR_PSX_COPY_VALUE(wireAngle, next);
+						CTR_PSX_KEEP_VALUE_RELAXED(next);
+						if ((s16)next >= 0x1000)
+							break;
+					}
+				} while (1);
+				{
+					register int next CTR_PSX_REGISTER("$2") = point + 0xaa;
+					CTR_PSX_COPY_VALUE(point, next);
+					CTR_PSX_KEEP_VALUE_RELAXED(next);
+					if ((s16)next >= 0x400)
+						break;
+				}
+			} while (1);
+		}
+
+		for (iconRow = 0; iconRow < 3; iconRow++)
+		{
+			rowOffset = (s16)iconRow * 2;
+			point = 0;
+			do
+			{
+				register int byteOffset CTR_PSX_REGISTER("$3") = (s16)point * 4;
+				const s16 *position;
+				const s16 *shape;
+				register u32 x CTR_PSX_REGISTER("$4");
+				register u32 scaleValue CTR_PSX_REGISTER("$5");
+				register u32 y CTR_PSX_REGISTER("$4");
+				register int productX CTR_PSX_REGISTER("$8");
+				int productY;
+
+				CTR_PSX_KEEP_VALUE_RELAXED(byteOffset);
+				position = (const s16 *)((u32)byteOffset + (u32)MAIN_FREEZE_NAMCO_ICON_OFFSETS);
+				shape = MAIN_FREEZE_NAMCO_ROWS + rowOffset;
+				x = (u16)position[0];
+				scaleValue = (u16)shape[1];
+				productX = x * scaleValue;
+				y = (u16)position[1];
+
+				MainFreeze_ConfigDrawNPC105(productX + 0x100, MAIN_FREEZE_NAMCO_CENTER_Y + (productY = y * scaleValue), shape[0], 0x80, baseAngle,
+				                            (char *)((u32)byteOffset + (u32)MAIN_FREEZE_NAMCO_ICON_COLORS), GAME_TRACKER->pushBuffer_UI.ptrOT,
+				                            &GAME_TRACKER->backBuffer->primMem);
+				{
+					register int next CTR_PSX_REGISTER("$2") = point + 1;
+					CTR_PSX_COPY_VALUE(point, next);
+					CTR_PSX_KEEP_VALUE_RELAXED(next);
+					if ((s16)next >= 3)
+						break;
+				}
+			} while (1);
+		}
+
+		configRect.x = -0x14;
+		configRect.w = 0x228;
+		configRect.h = 0xa0;
+		configRect.y = sdata->analogConfigY[1] - 0x3c;
+		RECTMENU_DrawInnerRect(&configRect, 4, GAME_TRACKER->pushBuffer_UI.ptrOT);
 	}
 }
 

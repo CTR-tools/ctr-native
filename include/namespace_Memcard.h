@@ -505,19 +505,19 @@ struct AdvProgress
 	// 8FBD4
 	// Count up to 10 times player lost
 	// Including Crystal Challenge
-	char timesLostRacePerLev[0x12];
+	s8 timesLostRacePerLev[0x12];
 
 	// 8fbe6
 	// Count up to 10 times player lost
-	char timesLostCupRace[5];
+	s8 timesLostCupRace[5];
 
 	// 8FBEB
 	// Count up to 10 times player lost
-	char timesLostBossRace[5];
+	s8 timesLostBossRace[6];
 
-	// 8FBF0
-	// definitely saves to profile
-	int unk_8FBF0;
+	// 8FBF1
+	// NOTE(aalhendi): Retail preserves these serialized bytes; their meaning is unknown.
+	u8 reservedTail[3];
 
 	// 0x50 -- size of struct
 };
@@ -616,6 +616,19 @@ CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct AdvProgress, rewards, 3) == 0xc);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct AdvProgress, rewards, 4) == 0x10);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct AdvProgress, rewards, 5) == 0x14);
 CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, name) == 0x18);
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, timesLostRacePerLev) == 0x30);
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, timesLostCupRace) ==
+                  OFFSETOF(struct AdvProgress, timesLostRacePerLev) + sizeof(((struct AdvProgress *)0)->timesLostRacePerLev));
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, timesLostBossRace) ==
+                  OFFSETOF(struct AdvProgress, timesLostCupRace) + sizeof(((struct AdvProgress *)0)->timesLostCupRace));
+CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct AdvProgress, timesLostBossRace, 5) == 0x4c);
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, reservedTail) == 0x4d);
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, reservedTail) ==
+                  OFFSETOF(struct AdvProgress, timesLostBossRace) + sizeof(((struct AdvProgress *)0)->timesLostBossRace));
+CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, reservedTail) + sizeof(((struct AdvProgress *)0)->reservedTail) == sizeof(struct AdvProgress));
+CTR_STATIC_ASSERT(OFFSETOF(struct MemcardProfile, advProgress) == 0x4);
+CTR_STATIC_ASSERT(OFFSETOF(struct MemcardProfile, gameSave) == 0x144);
+CTR_STATIC_ASSERT(sizeof(struct MemcardProfile) == 0x1600);
 CTR_STATIC_ASSERT(sizeof(struct AdvProgress) == 0x50);
 CTR_STATIC_ASSERT(sizeof(struct GhostProfile) == 0x34);
 CTR_STATIC_ASSERT(OFFSETOF(struct GameOptions, rwd) == 0x6);

@@ -2,46 +2,32 @@
 
 void MainGameStart_Initialize(struct GameTracker *gGT, b32 boolStopAudio)
 {
-	u32 gameModeFlag;
+	// NOTE(aalhendi): Retail keeps the updated mode in v0 and its start mask in v1.
+	register u32 gameModeFlag CTR_PSX_REGISTER("$2");
+	register u32 startMask CTR_PSX_REGISTER("$3");
 
-	// DotLights_AudioAndVideo wont execute
-	// if (gGT & 0x20102000 == 0), but if it did execute,
-	// traffic lights would instantly hit green in cutscene
-	// and main menu, while starting from top-position (0xf00)
-	// when spawning in the adventure arena
-
-	// if you're not in cutscene and not in main menu
-	if ((sdata->gGT->gameMode1 & (GAME_CUTSCENE | MAIN_MENU)) == 0)
+	// The global tracker selects startup behavior; the argument receives the updates.
+	if ((GAME_TRACKER->gameMode1 & (GAME_CUTSCENE | MAIN_MENU)) != 0)
 	{
-		// traffic light countdown
-		gGT->trafficLightsTimer = 0xf00;
-
-		// fly-in camera animation
-		gameModeFlag = gGT->gameMode1 | START_OF_RACE;
+		gGT->trafficLightsTimer = 0;
+		startMask = ~START_OF_RACE;
+		gameModeFlag = gGT->gameMode1 & startMask;
 	}
-	// if you are:
 	else
 	{
-		// disable traffic lights
-		gGT->trafficLightsTimer = 0;
-
-		// no fly-in camera
-		gameModeFlag = gGT->gameMode1 & ~(START_OF_RACE);
+		gGT->trafficLightsTimer = 0xf00;
+		gameModeFlag = gGT->gameMode1 | START_OF_RACE;
 	}
 
-	// save new game mode
+	// NOTE(aalhendi): Retail stores and reloads the mode before clearing END_OF_RACE.
 	gGT->gameMode1 = gameModeFlag;
-	gGT->gameMode1 &= ~(END_OF_RACE); // Remove end-of-race flag
+	CTR_PSX_RELOAD(gGT->gameMode1);
+	gGT->gameMode1 &= ~END_OF_RACE;
 
-	// this never happens in normal gameplay
+	// Zero requests stopping music and effects; normal initialization passes one.
 	if (boolStopAudio == 0)
 	{
 		Music_Stop();
-
-		// stops menu sounds
-		// keep backup,
-		// keep music (no music to stop),
-		// stop all fx
 		howl_StopAudio(0, 0, 1);
 	}
 

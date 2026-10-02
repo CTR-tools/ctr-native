@@ -1355,7 +1355,13 @@ struct AdventureCup
 	s16 color[3];
 };
 
-// 800809a0
+struct RaceWheelConfigOption
+{
+	s16 lngIndex;
+	s16 previewAngle;
+	s16 inputValue;
+};
+
 struct Data
 {
 	// 800809a0
@@ -1693,20 +1699,10 @@ struct Data
 	// block should be 0x78 bytes
 
 	// 80084258
-	struct
-	{
-		s16 lngIndex;
-		s16 lo16;
-		s16 hi1;
-	} raceConfig_DeadZone[4];
+	struct RaceWheelConfigOption raceConfig_DeadZone[4];
 
 	// 80084270
-	struct
-	{
-		s16 lngIndex;
-		s16 lo16;
-		s16 hi1;
-	} raceConfig_Range[5];
+	struct RaceWheelConfigOption raceConfig_Range[5];
 	s16 padding8008428e;
 
 	// 80084290
@@ -3415,10 +3411,12 @@ struct sData
 	struct Instance *instMaskHints3D;
 
 	// 8008d864
-	int boolOpenWheelConfig;
+	b16 boolOpenWheelConfig;
+	s16 padding_boolOpenWheelConfig;
 
 	// 8008d868
-	int WheelConfigOption;
+	s16 WheelConfigOption;
+	s16 padding_WheelConfigOption;
 
 	// 8008d86C
 	// same as ptrBigfileCdPos_2
@@ -3440,7 +3438,8 @@ struct sData
 	char **lngStrings;
 
 	// 8008d87c
-	int gamepadID_OwnerRaceWheelConfig;
+	s16 gamepadID_OwnerRaceWheelConfig;
+	s16 padding_gamepadID_OwnerRaceWheelConfig;
 
 
 	// 8008d880
@@ -3460,10 +3459,12 @@ struct sData
 	int unk_8008d890;
 
 	// 8008d894
-	int raceWheelConfigOptionIndex;
+	s16 raceWheelConfigOptionIndex;
+	s16 padding_raceWheelConfigOptionIndex;
 
 	// 8008d898
-	int raceWheelConfigPageIndex;
+	s16 raceWheelConfigPageIndex;
+	s16 padding_raceWheelConfigPageIndex;
 
 	// 8008d89c
 	int videoSTR_dst_vramX;
