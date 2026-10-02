@@ -1070,7 +1070,9 @@ struct Driver
 	SVec3Slot rotPrev;
 
 	// 0x2FC
-	int sfxDistortOffset;
+	// NOTE(aalhendi): Engine audio updates the signed halfword and preserves the adjacent padding.
+	s16 sfxDistortOffset;
+	u16 padding_0x2fe;
 
 	// 0x300
 	// 0x300 = Kart skidmarks sound
@@ -2063,6 +2065,10 @@ CTR_STATIC_ASSERT(offsetof(struct Driver, actionsFlagSetPrevFrame) == 0x2cc);
 CTR_STATIC_ASSERT(offsetof(struct Driver, quadBlockHeight) == 0x2d0);
 CTR_STATIC_ASSERT(offsetof(struct Driver, posCurr) == 0x2d4);
 CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->posCurr) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct Driver, sfxDistortOffset) == 0x2fc);
+CTR_STATIC_ASSERT(sizeof(((struct Driver *)0)->sfxDistortOffset) == sizeof(s16));
+CTR_STATIC_ASSERT(offsetof(struct Driver, padding_0x2fe) == offsetof(struct Driver, sfxDistortOffset) + sizeof(((struct Driver *)0)->sfxDistortOffset));
+CTR_STATIC_ASSERT(offsetof(struct Driver, driverAudioPtrs) == offsetof(struct Driver, padding_0x2fe) + sizeof(((struct Driver *)0)->padding_0x2fe));
 CTR_STATIC_ASSERT(offsetof(struct Driver, forcedJumpType) == 0x366);
 CTR_STATIC_ASSERT(offsetof(struct Driver, AxisAngle2_normalVec) == 0x368);
 CTR_STATIC_ASSERT(offsetof(struct Driver, speedometerNeedleValue) == 0x36e);

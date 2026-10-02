@@ -26,19 +26,20 @@ void Music_LoadBanks(void)
 {
 	u32 bankID;
 	struct Bank thisBank;
-	struct GameTracker *gGT = sdata->gGT;
-	int level = gGT->levelID;
-	u8 *arr = (u8 *)&sdata->audioDefaults[7];
+	struct GameTracker *gGT = GAME_TRACKER;
+	s32 level;
 
 	Audio_SetReverbMode(
 	    // Level ID
-	    level,
+	    gGT->levelID,
 
-	    (IS_BOSS_RACE(gGT->gameMode1)),
+	    (u32)gGT->gameMode1 & ADVENTURE_BOSS,
 
 	    // Boss ID
 	    gGT->bossID);
 
+	// NOTE(aalhendi): Retail reloads the tracker after configuring reverb.
+	level = GAME_TRACKER->levelID;
 	if (level == INTRO_RACE_TODAY)
 	{
 		Bank_DestroyAll();
@@ -53,374 +54,316 @@ void Music_LoadBanks(void)
 
 	else
 	{
-		if (arr[0] == 0)
-		{
-			Bank_DestroyAll();
-
-			Bank_Load(0, &thisBank);
-
-			arr[0] = 1;
-		}
-
-		else
-		{
-			Bank_DestroyUntilIndex(0);
-		}
-
-		// loading state of song (one byte)
-		arr[1] = 0;
-		return;
+		goto normalBanks;
 	}
 
-	arr[0] = 0;
+	// NOTE(aalhendi): Publish the bank state before preparing the load call.
+	((u8 *)&sdata->audioDefaults[7])[0] = 0;
+	CTR_PSX_OBSERVE_MEMORY(((u8 *)&sdata->audioDefaults[7])[0]);
 
 	Bank_Load(bankID, &thisBank);
 
 	// loading state of song (one byte)
-	arr[1] = 3;
+	((u8 *)&sdata->audioDefaults[7])[1] = 3;
+	CTR_PSX_OBSERVE_MEMORY(((u8 *)&sdata->audioDefaults[7])[1]);
+	return;
+
+normalBanks:
+	if (((u8 *)&sdata->audioDefaults[7])[0] != 0)
+	{
+		Bank_DestroyUntilIndex(0);
+	}
+	else
+	{
+		Bank_DestroyAll();
+		Bank_Load(0, &thisBank);
+		((u8 *)&sdata->audioDefaults[7])[0] = 1;
+	}
+
+	// loading state of song (one byte)
+	// NOTE(aalhendi): Both normal-bank paths join before this stage write.
+	CTR_PSX_OBSERVE_MEMORY(((u8 *)&sdata->audioDefaults[7])[1]);
+	((u8 *)&sdata->audioDefaults[7])[1] = 0;
+	return;
 }
 
 u32 Music_AsyncParseBanks(void)
 {
-	u8 bVar1;
-	u16 index;
-	u32 uVar4;
-	struct GameTracker *gGT = sdata->gGT;
 	struct Bank thisBank;
-	int level = gGT->levelID;
-	u8 *arr = (u8 *)&sdata->audioDefaults[7];
+	// NOTE(aalhendi): Retail prepares the stack-bank argument before each character lookup finishes.
+	register struct Bank *bank CTR_PSX_REGISTER("$5");
+	u32 nextStage;
+	u32 bankID;
+	u32 songID;
+	u8 podiumModel;
 
-	if (arr[1] == 5)
+	// NOTE(aalhendi): The entry binding preserves the early byte load; later reads use the shared storage.
+	if (GAME_MUSIC_LOAD_STAGE_INITIAL == 5)
 	{
 		return 1;
 	}
-	if (arr[1] > 4)
-	{
-		return 0;
-	}
 
-	// loading state of song (one byte)
-	switch (arr[1])
+	switch (((u8 *)&sdata->audioDefaults[7])[1])
 	{
-	// Load Level FX Bank
+	// Finish the previous bank, then start the level FX bank.
 	case 0:
-		// unsuccessful
+	{
+		struct GameTracker *gGT;
+		s32 level;
 		if (Bank_AssignSpuAddrs() == 0)
-		{
 			goto PARSE_FINISH;
-		}
-
-		// If you're in a Boss Race
+		gGT = GAME_TRACKER;
 		if (IS_BOSS_RACE(gGT->gameMode1))
 		{
 			if (gGT->bossID >= 6)
-			{
-				break;
-			}
-
-			index = sdata->songBankBossID[gGT->bossID];
+				goto LEVEL_FX_DONE;
+			bankID = GAME_BOSS_FX_BANKS[gGT->bossID];
 		}
-
-		// any driving track
-		else if (level < INTRO_RACE_TODAY)
-		{
-			index = data.levBank_FX[level];
-		}
-
-		else if (level == MAIN_MENU_LEVEL)
-		{
-			index = 0x20;
-		}
-
-		// If you're drawing Any% ending cutscene
-		else if (level == OXIDE_ENDING)
-		{
-			index = 0x23;
-		}
-
-		// If you're drawing 100% ending cutscene
-		else if (level == OXIDE_TRUE_ENDING)
-		{
-			index = 0x24;
-		}
-
-		// if you're drawing credits
-		else if (level == CREDITS_CRASH)
-		{
-			index = 0x25;
-		}
-
-		// go to next stage
 		else
 		{
-			break;
+			level = gGT->levelID;
+			if (level < INTRO_RACE_TODAY)
+			{
+				register u8 *entry CTR_PSX_REGISTER("$2");
+				entry = (u8 *)GAME_LEVEL_FX_BANKS;
+				// NOTE(aalhendi): The table contains unsigned IDs and retail adds the index before its base.
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(entry, entry, level);
+				bankID = *entry;
+			}
+			else if (level == MAIN_MENU_LEVEL)
+				bankID = 0x20;
+			else if (level == OXIDE_ENDING)
+				bankID = 0x23;
+			else if (level == OXIDE_TRUE_ENDING)
+				bankID = 0x24;
+			else if (level == CREDITS_CRASH)
+				bankID = 0x25;
+			else
+				goto LEVEL_FX_DONE;
 		}
+		Bank_Load(bankID, &thisBank);
+	LEVEL_FX_DONE:
+		nextStage = 1;
+		goto STORE_STAGE;
+	}
 
-		Bank_Load(index, &thisBank);
-
-		// go to next stage
-		break;
-
-	// Finish Song Bank, Start Default8 Bank
+	// Finish the level bank and optionally load the original eight drivers.
 	case 1:
-		// unsuccessful
+	{
+		struct GameTracker *gGT;
+		s32 level;
+		u32 mode;
+		u32 modeBits;
 		if (Bank_AssignSpuAddrs() == 0)
-		{
 			goto PARSE_FINISH;
-		}
-
+		gGT = GAME_TRACKER;
+		level = gGT->levelID;
 		sdata->bankCount = 0;
 		sdata->bankPodiumStage = 0;
 		sdata->bankLoad54 = 0;
-
-		// if not driving track, skip
+		CTR_PSX_OBSERVE_MEMORY(sdata->bankLoad54);
 		if (level >= GEM_STONE_VALLEY)
+			goto DEFAULT_DRIVERS_DONE;
+		mode = gGT->gameMode1;
+		// NOTE(aalhendi): Keep the separate retail mask tests instead of a combined comparison.
+		if (CTR_PSX_AND_MASK_NONZERO(modeBits, ADVENTURE_MODE, mode))
 		{
-			break;
+			if (!CTR_PSX_AND_MASK_NONZERO(modeBits, ADVENTURE_BOSS | ADVENTURE_ARENA | CRYSTAL_CHALLENGE | RELIC_RACE, mode) &&
+			    (!CTR_PSX_AND_MASK_NONZERO(modeBits, ADVENTURE_CUP, mode) || gGT->cup.cupID != 4))
+				goto LOAD_DEFAULT8;
 		}
-
-		uVar4 = gGT->gameMode1;
-
-		if (
-
-		    // If this is a race with 8 drivers
-
-		    (
-		        // If you're in Adventure Mode
-		        (uVar4 & ADVENTURE_MODE) != 0 &&
-
-		        // Not in any of these...
-		        // Boss Race or Adventure Arena
-		        // Or Crystal Challenge or Relic Race
-		        ((uVar4 & 0x8c100000) == 0) &&
-
-		        // If not purple gem cup
-		        (((uVar4 & ADVENTURE_CUP) == 0) || (gGT->cup.cupID != 4))
-
-		            ) ||
-
-		    ((uVar4 & ARCADE_MODE) != 0))
+		if ((GAME_TRACKER_RELOAD()->gameMode1 & ARCADE_MODE) != 0)
+		LOAD_DEFAULT8:
 		{
-			// Load bank with 8 drivers
 			Bank_Load(54, &thisBank);
 			sdata->bankLoad54 = 1;
 		}
+		DEFAULT_DRIVERS_DONE:
+			nextStage = 2;
+		goto STORE_STAGE;
+	}
 
-		// go to next stage
-		break;
-
-	// Finish Default8 Bank, start Character Bank
+	// Load each character bank, followed by any podium character banks.
 	case 2:
-
+	{
+		struct GameTracker *gGT;
+		s32 level;
+		u32 mode;
+		u32 modeBits;
 		if (Bank_AssignSpuAddrs() == 0)
-		{
 			goto PARSE_FINISH;
-		}
-
-		// If you're on any Arcade or Battle map
+		gGT = GAME_TRACKER;
+		level = gGT->levelID;
 		if (level < GEM_STONE_VALLEY)
 		{
-			// If you're not in Adventure Cup
-			if (((gGT->gameMode1 & ADVENTURE_MODE) == 0) ||
-
-			    // If you're not in Adventure Cup
-			    ((gGT->gameMode1 & ADVENTURE_CUP) == 0) ||
-
-			    // If this is not the purple gem cup
-			    (gGT->cup.cupID != 4))
+			// Purple gem cup loads five character banks; other races use their player count.
+			mode = gGT->gameMode1;
+			if (!CTR_PSX_AND_MASK_NONZERO(modeBits, ADVENTURE_MODE, mode))
+				goto ORDINARY_PLAYERS;
+			if (!CTR_PSX_AND_MASK_NONZERO(modeBits, ADVENTURE_CUP, mode) || gGT->cup.cupID != 4)
+				goto ORDINARY_PLAYERS;
 			{
-				// numPlyrCurrGame
-				if (sdata->bankCount < gGT->numPlyrCurrGame)
+				s32 characterIndex = sdata->bankCount;
+				if (characterIndex < 5)
 				{
-					if (
-					    // if bank of 8 drivers is loaded
-					    (sdata->bankLoad54 != 0) &&
-
-					    // if characterID is part of original 8
-					    (data.characterIDs[sdata->bankCount] < PINSTRIPE))
-					{
-						// skip load bank
-						goto LAB_8002e178;
-					}
-
-					// load bank for character
-					index = data.characterIDs[sdata->bankCount] + 0x37;
-					goto LOAD_BANK;
+					register u16 *character CTR_PSX_REGISTER("$2");
+					s16 *characterBase = GAME_CHARACTER_IDS;
+					character = (u16 *)&characterBase[characterIndex];
+					bankID = *character;
+					bank = &thisBank;
+					// NOTE(aalhendi): Consume the character address before forming the bank argument.
+					CTR_PSX_DEPEND_VALUE(bankID, character);
+					bankID = (u16)(bankID + 0x37);
+					Bank_Load(bankID, &thisBank);
+					goto CHARACTER_DONE;
+				}
+				{
+					// NOTE(aalhendi): Keep the purple-cup completion separate from the normal-player exit.
+					CTR_PSX_OBSERVE_VALUE(characterIndex);
+					nextStage = 3;
+					goto STORE_STAGE;
 				}
 			}
-
-			// if purple gem cup
-			else
+		ORDINARY_PLAYERS:
+		{
+			s32 characterIndex;
+			u16 *character;
+			s16 *characterBase;
+			struct GameTracker *playerGT = GAME_TRACKER_RELOAD();
+			characterIndex = sdata->bankCount;
+			if (characterIndex >= playerGT->numPlyrCurrGame)
 			{
-				// load 5 banks, one for each driver
-				if (sdata->bankCount < 5)
-				{
-					index = data.characterIDs[sdata->bankCount] + 0x37;
-
-				LOAD_BANK:
-
-					Bank_Load(index, &thisBank);
-
-				LAB_8002e178:
-					sdata->bankCount = sdata->bankCount + 1;
-					goto PARSE_FINISH;
-				}
+				nextStage = 3;
+				goto STORE_STAGE;
 			}
+			if (sdata->bankLoad54 != 0 && GAME_CHARACTER_IDS[characterIndex] < PINSTRIPE)
+				goto CHARACTER_DONE;
+			characterBase = GAME_CHARACTER_IDS;
+			character = (u16 *)&characterBase[characterIndex];
+			bankID = *character;
+			bank = &thisBank;
+			// NOTE(aalhendi): Consume the character address before forming the bank argument.
+			CTR_PSX_DEPEND_VALUE(bankID, character);
+			bankID = (u16)(bankID + 0x37);
+			Bank_Load(bankID, &thisBank);
+			goto CHARACTER_DONE;
 		}
-
-		// if adventure arena
-		else if (level < INTRO_RACE_TODAY)
+		}
+		else if ((u32)level - GEM_STONE_VALLEY < INTRO_RACE_TODAY - GEM_STONE_VALLEY)
 		{
 			if (sdata->bankCount == 0)
 			{
-				if ((sdata->bankLoad54 != 0) ||
-
-				    // characterID is special character
-				    (PURA < data.characterIDs[0]))
-				{
-					goto LAB_8002e178;
-				}
-
-				// bank = characterID + 0x37
-				index = data.characterIDs[0] + 0x37;
-
-				// load bank
-				goto LOAD_BANK;
+				if (sdata->bankLoad54 != 0 || GAME_CHARACTER_IDS[0] >= PINSTRIPE)
+					goto CHARACTER_DONE;
+				bankID = (u16)(GAME_CHARACTER_IDS[0] + 0x37);
+				bank = &thisBank;
+				Bank_Load(bankID, bank);
+			CHARACTER_DONE:
+				sdata->bankCount++;
+				CTR_PSX_OBSERVE_MEMORY(sdata->bankCount);
+				goto PARSE_FINISH;
 			}
-
-			// if no podium reward, or all podium banks
-			// are loaded, then go to next "case 3:" stage
 			if (gGT->podiumRewardID == NOFUNC)
 			{
-				break; // 0
+				nextStage = 3;
+				goto STORE_STAGE;
 			}
-			if (sdata->bankPodiumStage >= 3)
+			if ((mode = sdata->bankPodiumStage) == 0)
 			{
-				break;
+				podiumModel = gGT->podium_modelIndex_First;
+				bank = &thisBank;
 			}
-
-			switch (sdata->bankPodiumStage)
+			else if (mode == 1)
 			{
-			case 0:
-				bVar1 = gGT->podium_modelIndex_First;
-				break;
-
-			case 1:
+				bank = &thisBank;
 				if (gGT->podium_modelIndex_Second == 0)
-				{
-					goto PODIUM_STAGE_DONE;
-				}
-
-				bVar1 = gGT->podium_modelIndex_Second;
-				break;
-
-			default:
-				if (gGT->podium_modelIndex_Third == 0)
-				{
-					goto PODIUM_STAGE_DONE;
-				}
-
-				bVar1 = gGT->podium_modelIndex_Third;
-				break;
+					goto PODIUM_DONE;
+				// NOTE(aalhendi): Retail rereads a nonzero podium model for the bank argument.
+				CTR_PSX_RELOAD(gGT->podium_modelIndex_Second);
+				podiumModel = gGT->podium_modelIndex_Second;
 			}
-
-			Bank_Load((u16)(bVar1 - 88), &thisBank);
-
-		PODIUM_STAGE_DONE:
+			else if (mode == 2)
+			{
+				bank = &thisBank;
+				if (gGT->podium_modelIndex_Third == 0)
+					goto PODIUM_DONE;
+				CTR_PSX_RELOAD(gGT->podium_modelIndex_Third);
+				podiumModel = gGT->podium_modelIndex_Third;
+			}
+			else
+			{
+				nextStage = 3;
+				goto STORE_STAGE;
+			}
+			Bank_Load((u16)(podiumModel - 88), bank);
+		PODIUM_DONE:
 			sdata->bankPodiumStage++;
+			CTR_PSX_OBSERVE_MEMORY(sdata->bankPodiumStage);
 			goto PARSE_FINISH;
 		}
-		break;
+		nextStage = 3;
+		goto STORE_STAGE;
+	}
 
-	// Finish Character Bank, Start Level Song Bank
+	// Finish character loading and select the level song.
 	case 3:
-
+	{
+		struct GameTracker *gGT;
+		s32 level;
 		if (Bank_AssignSpuAddrs() == 0)
-		{
 			goto PARSE_FINISH;
-		}
-
-		// If you're in a Boss Race
-		// 0x80000000
+		gGT = GAME_TRACKER;
 		if (IS_BOSS_RACE(gGT->gameMode1))
 		{
 			if (gGT->bossID >= 6)
-			{
-				break;
-			}
-
-			index = HOWL_SONG_BOSS_RACE;
+				goto LEVEL_SONG_DONE;
+			songID = HOWL_SONG_BOSS_RACE;
 		}
-
-		// any level you can drive on
-		else if (level < INTRO_RACE_TODAY)
-		{
-			// Set Song ID depending on track
-			index = data.levBank_Song[level];
-		}
-
-		else if (level == MAIN_MENU_LEVEL)
-		{
-			index = HOWL_SONG_MAIN_MENU;
-		}
-
-		else if (level == INTRO_RACE_TODAY)
-		{
-			index = HOWL_SONG_INTRO_RACE;
-		}
-
-		else if (level == NAUGHTY_DOG_CRATE)
-		{
-			index = HOWL_SONG_ND_CRATE;
-		}
-
-		// any%
-		else if (level == OXIDE_ENDING)
-		{
-			index = HOWL_SONG_OXIDE_END;
-		}
-
-		// 100% ending
-		else if (level == OXIDE_TRUE_ENDING)
-		{
-			index = HOWL_SONG_OXIDE_TRUE;
-		}
-
-		else if (level == CREDITS_CRASH)
-		{
-			index = HOWL_SONG_CREDITS;
-		}
-
 		else
 		{
-			break;
+			level = gGT->levelID;
+			if (level < INTRO_RACE_TODAY)
+			{
+				register u8 *entry CTR_PSX_REGISTER("$2");
+				entry = (u8 *)GAME_LEVEL_SONG_BANKS;
+				// NOTE(aalhendi): The table contains unsigned IDs and retail adds the index before its base.
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(entry, entry, level);
+				songID = *entry;
+			}
+			else if (level == MAIN_MENU_LEVEL)
+				songID = HOWL_SONG_MAIN_MENU;
+			else if (level == INTRO_RACE_TODAY)
+				songID = HOWL_SONG_INTRO_RACE;
+			else if (level == NAUGHTY_DOG_CRATE)
+				songID = HOWL_SONG_ND_CRATE;
+			else if (level == OXIDE_ENDING)
+				songID = HOWL_SONG_OXIDE_END;
+			else if (level == OXIDE_TRUE_ENDING)
+				songID = HOWL_SONG_OXIDE_TRUE;
+			else if (level == CREDITS_CRASH)
+				songID = HOWL_SONG_CREDITS;
+			else
+				goto LEVEL_SONG_DONE;
 		}
-
-		howl_SetSong(index);
-		break;
-
-	// Finish Level Song Bank
-	case 4:
-
-		if (howl_LoadSong() == 0)
-		{
-			goto PARSE_FINISH;
-		}
-
-		// go to next stage
-		break;
-
-	default:
-		return 0;
+		howl_SetSong(songID);
+	LEVEL_SONG_DONE:
+		nextStage = 4;
+		goto STORE_STAGE;
 	}
 
-	// loading state of song (one byte)
-	arr[1]++;
-
+	// Finish the level song.
+	case 4:
+		if (howl_LoadSong() == 0)
+			goto PARSE_FINISH;
+		nextStage = 5;
+		goto STORE_STAGE;
+	default:
+		goto PARSE_FINISH;
+	}
+STORE_STAGE:
+	((u8 *)&sdata->audioDefaults[7])[1] = nextStage;
 PARSE_FINISH:
-	// state == 5 is finished.
-	// if false, function failed.
-	return (arr[1] == 5);
+	return ((u8 *)&sdata->audioDefaults[7])[1] == 5;
 }
 
 void Music_SetDefaults(void)
@@ -437,38 +380,33 @@ void Music_SetDefaults(void)
 // param_2 - deltaBPM
 // param_3 - 8008d068 for AdvHub
 // param_4 - songSetActiveBits
-void Music_Adjust(u32 songID, int newTempo, struct SongSet *set, u32 songSetActiveBits)
+void Music_Adjust(u32 songID, s32 newTempo, struct SongSet *set, u32 songSetActiveBits)
 {
-	songID &= 0xffff;
+	u32 selectedSong;
+	// NOTE(aalhendi): Keep the raw input live until the final masked-ID comparison.
+	register u32 rawSong CTR_PSX_REGISTER("$16") = songID;
 
-	// if cseq music can play
-	if (sdata->cseqBoolPlay != 0)
+	// NOTE(aalhendi): The entry binding keeps the playing-state load before the stack frame.
+	if (GAME_MUSIC_PLAYING_INITIAL != 0)
 	{
-		if (sdata->cseqHighestIndex == songID)
-		{
-			// if tempo has changed
-			if (sdata->cseqTempo != newTempo)
-			{
-				CseqMusic_ChangeTempo(sdata->cseqHighestIndex, newTempo);
-				sdata->cseqTempo = newTempo;
-			}
-		}
-		else
+		u32 currentSong = sdata->cseqHighestIndex;
+		if (currentSong != (u16)rawSong)
 		{
 			CseqMusic_Stop(sdata->cseqHighestIndex);
 		}
+		else if (sdata->cseqTempo != newTempo)
+		{
+			CseqMusic_ChangeTempo((u16)rawSong, newTempo);
+			sdata->cseqTempo = newTempo;
+		}
 	}
 
-	// if new SongID
-	if (sdata->cseqHighestIndex != songID)
+	selectedSong = (u16)rawSong;
+	if (sdata->cseqHighestIndex != selectedSong)
 	{
-		//  (loopAtEnd)
-		CseqMusic_Start(songID, newTempo, set, songSetActiveBits, 1);
-
+		CseqMusic_Start(selectedSong, newTempo, set, songSetActiveBits, 1);
 		sdata->cseqBoolPlay = true;
-
-		// set active SongID and tempo
-		sdata->cseqHighestIndex = songID;
+		sdata->cseqHighestIndex = selectedSong;
 		sdata->cseqTempo = newTempo;
 	}
 }
@@ -476,47 +414,40 @@ void Music_Adjust(u32 songID, int newTempo, struct SongSet *set, u32 songSetActi
 // happens during "FINAL LAP!"
 void Music_LowerVolume(void)
 {
-	u32 setVolume;
-
-	if (sdata->cseqBoolPlay != 0)
+	if (GAME_MUSIC_PLAYING_INITIAL != 0)
 	{
-		// 50% volume
-		setVolume = 150;
-
-		if ((u32)(sdata->cseqHighestIndex - 1) >= 2)
+		// NOTE(aalhendi): Retail loads the song argument in each volume arm before their shared call.
+		if ((sdata->cseqHighestIndex - 1u) < 2u)
 		{
-			// 25% volume
-			setVolume = 90;
+			CseqMusic_ChangeVolume((u16)sdata->cseqHighestIndex, 150, 8);
 		}
-
-		CseqMusic_ChangeVolume(sdata->cseqHighestIndex & 0xffff, setVolume, 8);
+		else
+		{
+			CseqMusic_ChangeVolume((u16)sdata->cseqHighestIndex, 90, 8);
+		}
 	}
 }
 
 // after "FINAL LAP!" is done
 void Music_RaiseVolume(void)
 {
-	u32 setVolume;
-
-	if (sdata->cseqBoolPlay != 0)
+	if (GAME_MUSIC_PLAYING_INITIAL != 0)
 	{
-		// 100% volume
-		setVolume = 255;
-
-		if ((u32)(sdata->cseqHighestIndex - 1) >= 2)
+		if ((sdata->cseqHighestIndex - 1u) < 2u)
 		{
-			// 75% volume
-			setVolume = 190;
+			CseqMusic_ChangeVolume((u16)sdata->cseqHighestIndex, 255, 8);
 		}
-
-		CseqMusic_ChangeVolume(sdata->cseqHighestIndex & 0xffff, setVolume, 8);
+		else
+		{
+			CseqMusic_ChangeVolume((u16)sdata->cseqHighestIndex, 190, 8);
+		}
 	}
 }
 
 void Music_Restart(void)
 {
 	// if cseq music is playing
-	if (sdata->cseqBoolPlay != 0)
+	if (GAME_MUSIC_PLAYING_INITIAL != 0)
 	{
 		CseqMusic_Restart(sdata->cseqHighestIndex, 8);
 	}
@@ -525,7 +456,7 @@ void Music_Restart(void)
 void Music_Stop(void)
 {
 	// quit if no music is playing
-	if (sdata->cseqBoolPlay == 0)
+	if (GAME_MUSIC_PLAYING_INITIAL == 0)
 	{
 		return;
 	}

@@ -66,179 +66,233 @@ int Bank_Alloc(int bankID, struct Bank *ptrBank)
 
 int Bank_AssignSpuAddrs()
 {
-	int i;
-	int ret;
-	int audioAllocPtr;
-	int spuAddrStart;
+	s32 i;
+	s32 ret;
+	register s32 audioAllocPtr CTR_PSX_REGISTER("$6");
+	register u32 numSectors CTR_PSX_REGISTER("$2");
+	register u32 roundedSize CTR_PSX_REGISTER("$4");
+	s32 spuAddrStart;
+	struct SampleBlockHeader *sampleBlock;
+	u32 sampleCount;
 	struct SpuAddrEntry *sae;
+	struct Bank *lastBank;
+	register s32 stageOne CTR_PSX_REGISTER("$16");
+	register s32 stageDone CTR_PSX_REGISTER("$17") = 4;
 
 	// if Stage 4: Complete
-	if (sdata->bankLoadStage == 4)
+	if (GAME_BANK_LOAD_STAGE_INITIAL == stageDone)
 	{
 		return 1;
 	}
 
-	// Stage 0: Load to RAM (1/2)
-	if (sdata->bankLoadStage == 0)
+	// NOTE(aalhendi): Explicit dispatch keeps the saved stage-one comparison in retail order.
 	{
-		ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,         // CdLoc of HOWL
-		                                (void *)sdata->ptrSampleBlock2, // destination in RAM for banks
-		                                sdata->bankSectorOffset,        // bank offset on disc, from CdLoc
-		                                1                               // one sector
-		);
-
-		if (ret != 0)
+		s32 stage = sdata->bankLoadStage;
+		stageOne = 1;
+		if (stage == stageOne)
+			goto stage1;
+		if (stage < 2)
 		{
-			// go to next stage
-			sdata->bankLoadStage++;
+			if (stage == 0)
+				goto stage0;
+			goto stageExit;
 		}
+		if (stage == 2)
+			goto stage2;
+		if (stage == 3)
+			goto stage3;
+		goto stageExit;
+	}
+// Stage 0: Load to RAM (1/2)
+stage0:
+	ret = LOAD_HowlSectorChainStart(&GAME_HOWL_CD_FILE,             // CdLoc of HOWL
+	                                (void *)sdata->ptrSampleBlock2, // destination in RAM for banks
+	                                sdata->bankSectorOffset,        // bank offset on disc, from CdLoc
+	                                1                               // one sector
+	);
 
+	if (ret != 0)
+	{
+		// go to next stage
+		sdata->bankLoadStage = stageOne;
+		CTR_PSX_OBSERVE_MEMORY(sdata->bankLoadStage);
+	}
+
+	goto stageExit;
+
+// Stage 1: Load to RAM (2/2) and assign SPU Addrs
+stage1:
+	if (LOAD_HowlSectorChainEnd() == 0)
+	{
+		goto stageExit;
+	}
+
+	sampleBlock = sdata->ptrSampleBlock1;
+	sampleCount = sampleBlock->numSamples;
+	sdata->audioAllocSize = 0;
+	CTR_PSX_MEMORY_BARRIER();
+
+	i = 0;
+	if (sampleCount != 0)
+	{
+		register s32 count CTR_PSX_REGISTER("$3");
+		do
+		{
+			u32 byteOffset = (u32)i << 1;
+			u16 *sampleEntry;
+			u16 sampleIndex;
+			register u32 sampleSize CTR_PSX_REGISTER("$4");
+			struct SpuAddrEntry *entry;
+			// NOTE(aalhendi): Keep the retail indexed lookup; GCC otherwise advances a pointer.
+			CTR_PSX_ADD_POINTER_OFFSET(sampleEntry, sampleBlock, byteOffset);
+			// NOTE(aalhendi): The index advances after its address has been formed.
+			CTR_PSX_DEPEND_VALUE(i, sampleEntry);
+			i++;
+			sampleIndex = sampleEntry[1];
+			count = sampleBlock->numSamples;
+			// NOTE(aalhendi): Both targets use 32-bit pointers; offset-first addition preserves retail operands.
+			entry = (struct SpuAddrEntry *)(((u32)sampleIndex << 2) + (u32)GAME_HOWL_SPU_ADDRS);
+			count = i < count;
+			// NOTE(aalhendi): Retail compares the next index before reading the sample size.
+			CTR_PSX_DEPEND_VALUE(entry, count);
+			sampleSize = entry->spuSize;
+			sdata->audioAllocSize += sampleSize << 3;
+			CTR_PSX_OBSERVE_MEMORY(sdata->audioAllocSize);
+		} while (count);
+	}
+
+	// not last bank needed for level
+	if (sdata->bankFlags == 0)
+	{
+		sdata->ptrLastBank->max = (u32)sdata->audioAllocSize >> 3;
+	}
+
+	// last bank needed for level
+	else
+	{
+		// NOTE(aalhendi): Retail compares this bank limit directly with the byte count.
+		if ((u32)sdata->ptrLastBank->max < (u32)sdata->audioAllocSize)
+		{
+			// Stage 4: Complete
+			sdata->bankLoadStage = 4;
+			CTR_PSX_OBSERVE_MEMORY(sdata->bankLoadStage);
+			return 1;
+		}
+	}
+
+	// === more banks needed ===
+
+	numSectors = ((u32)sdata->audioAllocSize + 0x7ff) >> 0xb;
+	roundedSize = numSectors << 0xb;
+	sdata->numAudioSectors = numSectors;
+	CTR_PSX_OBSERVE_MEMORY(sdata->numAudioSectors);
+
+	MEMPACK_ReallocMem(roundedSize + 0x800);
+
+	ret = LOAD_HowlSectorChainStart(&GAME_HOWL_CD_FILE,                            // CdLoc of HOWL
+	                                (void *)((int)sdata->ptrSampleBlock2 + 0x800), // destination
+	                                sdata->bankSectorOffset + 1,                   // offset of howl
+	                                sdata->numAudioSectors                         // number of sectors
+	);
+
+	if (ret == 0)
+	{
 		return 0;
 	}
 
-	// Stage 1: Load to RAM (2/2) and assign SPU Addrs
-	if (sdata->bankLoadStage == 1)
+	// last bank needed?
+	if (sdata->bankFlags != 0)
 	{
-		if (LOAD_HowlSectorChainEnd() == 0)
+		audioAllocPtr = sdata->ptrLastBank->min;
+	}
+	else
+	{
+		audioAllocPtr = (u16)sdata->audioAllocPtr;
+		sdata->ptrLastBank->min = audioAllocPtr;
+	}
+
+	// === Assign SpuEntry for all "new" samples ===
+
+	{
+		s32 secondIndex;
+		struct SampleBlockHeader *loopHeader;
+		struct SpuAddrEntry *spuBase;
+		loopHeader = sdata->ptrSampleBlock1;
+		secondIndex = 0;
+		if (loopHeader->numSamples != 0)
 		{
-			return 0;
-		}
-
-		sdata->audioAllocSize = 0;
-
-		for (i = 0; i < sdata->ptrSampleBlock1->numSamples; i++)
-		{
-			s16 *spuIndexArr = SBHEADER_GETARR(sdata->ptrSampleBlock1);
-			sdata->audioAllocSize += sdata->howl_spuAddrs[spuIndexArr[i]].spuSize;
-		}
-
-		// convert bit-shifted count to
-		// real SPU byte count, with x8
-		sdata->audioAllocSize *= 8;
-
-		// not last bank needed for level
-		if (sdata->bankFlags == 0)
-		{
-			sdata->ptrLastBank->max = sdata->audioAllocSize >> 3;
-		}
-
-		// last bank needed for level
-		else
-		{
-			// Naughty Dog bug? No bitshift?
-			if (sdata->ptrLastBank->max < sdata->audioAllocSize)
+			u32 more;
+			spuBase = GAME_HOWL_SPU_ADDRS;
+			do
 			{
-				// Stage 4: Complete
-				sdata->bankLoadStage = 4;
-				return 1;
-			}
+				u16 *spuIndexArr = SBHEADER_GETARR(loopHeader);
+				u32 spuOffset = (u32)spuIndexArr[secondIndex] << 2;
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(sae, spuBase, spuOffset);
+
+				if (sae->spuAddr == 0)
+				{
+					sae->spuAddr = audioAllocPtr;
+				}
+				secondIndex++;
+				loopHeader = sdata->ptrSampleBlock1;
+				more = secondIndex < loopHeader->numSamples;
+				audioAllocPtr += sae->spuSize;
+
+			} while (more);
 		}
-
-		// === more banks needed ===
-
-		sdata->numAudioSectors = (sdata->audioAllocSize + 0x7ff) >> 0xb;
-
-		MEMPACK_ReallocMem(((sdata->audioAllocSize + 0x7ff) & 0xfffff800) + 0x800);
-
-		ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,                        // CdLoc of HOWL
-		                                (void *)((int)sdata->ptrSampleBlock2 + 0x800), // destination
-		                                sdata->bankSectorOffset + 1,                   // offset of howl
-		                                sdata->numAudioSectors                         // number of sectors
-		);
-
-		if (ret == 0)
-		{
-			return 0;
-		}
-
-		// not last bank needed?
-		if (sdata->bankFlags == 0)
-		{
-			sdata->ptrLastBank->min = sdata->audioAllocPtr;
-			audioAllocPtr = sdata->audioAllocPtr;
-		}
-
-		// last bank needed
-		else
-		{
-			audioAllocPtr = sdata->ptrLastBank->min;
-		}
-
-		// === Assign SpuEntry for all "new" samples ===
-
-#if 0
-		printf("New\n");
-		printf("%08x\n", sdata->audioAllocPtr);
-#endif
-
-		for (i = 0; i < sdata->ptrSampleBlock1->numSamples; i++)
-		{
-			s16 *spuIndexArr = SBHEADER_GETARR(sdata->ptrSampleBlock1);
-			sae = &sdata->howl_spuAddrs[spuIndexArr[i]];
-
-			if (sae->spuAddr == 0)
-			{
-				sae->spuAddr = audioAllocPtr;
-			}
-			audioAllocPtr += sae->spuSize;
-
-#if 0
-			printf("%08x\n", audioAllocPtr);
-#endif
-		}
-
-		sdata->bankLoadStage++;
-
-		return 0;
 	}
 
-	// Stage 2: Spu Transfer Start
-	if (sdata->bankLoadStage == 2)
+	sdata->bankLoadStage = 2;
+	CTR_PSX_OBSERVE_MEMORY(sdata->bankLoadStage);
+
+	goto stageExit;
+
+// Stage 2: Spu Transfer Start
+stage2:
+	if (LOAD_HowlSectorChainEnd() == 0)
 	{
-		if (LOAD_HowlSectorChainEnd() == 0)
-		{
-			return 0;
-		}
-
-		spuAddrStart = (u32)sdata->ptrLastBank->min * 8;
-
-		// 0x7e000 = 512kb SPU memory
-		if (spuAddrStart + sdata->audioAllocSize < 0x7e000)
-		{
-			// start transfer
-			SpuSetTransferStartAddr(spuAddrStart);
-
-			SpuWrite((u8 *)((int)sdata->ptrSampleBlock2 + 0x800), (u32)sdata->audioAllocSize);
-		}
-
-		sdata->bankLoadStage++;
-
-		return 0;
+		goto stageExit;
 	}
 
-	// Stage 3: Spu Transfer End
-	if (sdata->bankLoadStage == 3)
+	spuAddrStart = (u32)sdata->ptrLastBank->min * 8;
+
+	// Keep the transfer below retail's SPU allocation limit.
+	if ((u32)spuAddrStart + (u32)sdata->audioAllocSize < 0x7e000)
 	{
-		if (SpuIsTransferCompleted(SPU_TRANSFER_PEEK) == 0)
-		{
-			return 0;
-		}
+		// start transfer
+		SpuSetTransferStartAddr(spuAddrStart);
 
-		if (sdata->bankFlags == 0)
-		{
-			sdata->audioAllocPtr += sdata->audioAllocSize >> 3;
-		}
-
-		sdata->ptrLastBank->flags |= 2;
-
-		// SPU Transfer done, remove bank from RAM
-		MEMPACK_PopState();
-
-		sdata->bankLoadStage++;
-		return 1;
+		SpuWrite((u8 *)((int)sdata->ptrSampleBlock2 + 0x800), (u32)sdata->audioAllocSize);
 	}
 
-	return 0;
+	sdata->bankLoadStage = 3;
+	CTR_PSX_OBSERVE_MEMORY(sdata->bankLoadStage);
+
+	goto stageExit;
+
+// Stage 3: Spu Transfer End
+stage3:
+	if (SpuIsTransferCompleted(SPU_TRANSFER_PEEK) == 0)
+	{
+		goto stageExit;
+	}
+
+	if (sdata->bankFlags == 0)
+	{
+		sdata->audioAllocPtr += (u32)sdata->audioAllocSize >> 3;
+	}
+
+	lastBank = sdata->ptrLastBank;
+	lastBank->flags |= 2;
+
+	// SPU Transfer done, remove bank from RAM
+	MEMPACK_PopState();
+
+	sdata->bankLoadStage = stageDone;
+	goto stageExit;
+
+stageExit:
+	return sdata->bankLoadStage == 4;
 }
 
 void Bank_Destroy(struct Bank *ptrLastBank)

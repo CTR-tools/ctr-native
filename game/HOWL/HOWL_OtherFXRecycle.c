@@ -44,20 +44,31 @@ void OtherFX_RecycleMute(u32 *soundID_Count)
 void OtherFX_DriverCrashing(u32 boolEcho, u32 volume)
 {
 	u32 crashID;
+	u32 packedVolume;
+	// NOTE(aalhendi): Keep mode in its call argument register so volume survives its clear.
+	register u32 playMode CTR_PSX_REGISTER("$5");
 
-	if (volume < 0xdd)
+	if (volume >= 0xdd)
+	{
+		// NOTE(aalhendi): Keep the high-volume assignment on its own branch.
+		CTR_PSX_OBSERVE_VALUE(boolEcho);
+		crashID = 0xa;
+	}
+	else
 	{
 		crashID = 0xb;
-
 		if (volume > 0xa0)
 		{
 			crashID = 0xc;
 		}
 	}
-	else
-	{
-		crashID = 0xa;
-	}
 
-	OtherFX_Play_LowLevel(crashID, 0, HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, boolEcho));
+	playMode = 0;
+	// NOTE(aalhendi): Clear mode before packing the flags.
+	CTR_PSX_DEPEND_VALUE(boolEcho, playMode);
+	boolEcho <<= HOWL_SFX_ECHO_SHIFT;
+	packedVolume = (volume & 0xff) << HOWL_SFX_VOLUME_SHIFT;
+	boolEcho |= packedVolume;
+	boolEcho |= HOWL_SFX_CENTER_NO_DISTORTION;
+	OtherFX_Play_LowLevel(crashID, playMode, boolEcho);
 }

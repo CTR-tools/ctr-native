@@ -532,11 +532,11 @@ struct SongSet
 
 struct SampleBlockHeader
 {
-	s16 numSamples;
+	u16 numSamples;
 
-	// s16 spuIndexArr[0];
+	// u16 spuIndexArr[0];
 };
-#define SBHEADER_GETARR(x) (s16 *)((u32)x + sizeof(struct SampleBlockHeader))
+#define SBHEADER_GETARR(x) (u16 *)((u32)x + sizeof(struct SampleBlockHeader))
 
 struct SpuAddrEntry
 {

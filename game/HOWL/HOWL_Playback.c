@@ -1,5 +1,15 @@
 #include <common.h>
 
+#ifndef GAME_PLAYBACK_VOLUME_FX
+#define GAME_PLAYBACK_VOLUME_FX          (sdata->vol_FX)
+#define GAME_PLAYBACK_VOLUME_VOICE       (sdata->vol_Voice)
+#define GAME_PLAYBACK_ENGINE_DISTORTIONS (data.distortConst_Engine)
+#define GAME_PLAYBACK_ENGINE_FX_METADATA (sdata->howl_metaEngineFX)
+#define GAME_PLAYBACK_OTHER_FX_METADATA  (sdata->howl_metaOtherFX)
+#define GAME_PLAYBACK_CHANNEL_BACKUPS    (sdata->channelStatsCurr)
+#define GAME_PLAYBACK_BACKUP_COUNT       (sdata->numBackup_ChannelStats)
+#endif
+
 void Cutscene_VolumeBackup(void)
 {
 	// enter critical section
@@ -42,257 +52,275 @@ void Cutscene_VolumeRestore(void)
 	return;
 }
 
-void howl_PlayAudio_Update()
+void howl_PlayAudio_Update(void)
 {
-	u32 *ptrFlag;
 	struct ChannelStats *curr, *backupNext;
-	u8 statFlags;
-
-	if (sdata->boolAudioEnabled != 0)
+	if (GAME_AUDIO_ENABLED != 0)
 	{
-		// if copy exists, make audio fade slowly
 		if (sdata->boolStoringVolume != 0)
 		{
-			sdata->currentVolume -= 2;
-			if (sdata->currentVolume < 0)
+			s16 volume = sdata->currentVolume - 2;
+			sdata->currentVolume = volume;
+			if (volume < 0)
 			{
 				sdata->currentVolume = 0;
 			}
-
-			sdata->criticalSectionCount = 1;
-			howl_VolumeSet(0, sdata->currentVolume);
+			{
+				// NOTE(aalhendi): Retail reloads the low byte. PSX and native i686
+				// use little-endian storage, and unsigned-char access may alias it.
+				int currentVolume = *(u8 *)&sdata->currentVolume;
+				sdata->criticalSectionCount = 1;
+				// NOTE(aalhendi): Keep the critical-section store before the call.
+				CTR_PSX_OBSERVE_MEMORY(sdata->criticalSectionCount);
+				howl_VolumeSet(0, currentVolume);
+			}
 			sdata->criticalSectionCount = 0;
 		}
-
-		for (curr = (struct ChannelStats *)sdata->channelTaken.first; curr != NULL; curr = backupNext)
+		for (curr = (struct ChannelStats *)GAME_CHANNEL_TAKEN.first; curr != NULL; curr = backupNext)
 		{
 			backupNext = curr->link.links.next;
-
-			// if sound has no timer (plays inf)
-			statFlags = curr->flags;
-			if ((statFlags & 4) != 0)
+			if ((curr->flags & 4) != 0)
 			{
 				continue;
 			}
-
-			// play sound until timer runs out
-			curr->timeLeft -= 5;
-			if (curr->timeLeft > 0)
 			{
-				continue;
+				s16 timeLeft = curr->timeLeft - 5;
+				curr->timeLeft = timeLeft;
+				if (timeLeft > 0)
+				{
+					continue;
+				}
 			}
-
-			ptrFlag = &sdata->ChannelUpdateFlags[curr->channelID];
-			*ptrFlag |= 1;
-			*ptrFlag &= ~(2);
-
-			curr->flags = statFlags & ~(1);
-
-			LIST_RemoveMember(&sdata->channelTaken, (struct Item *)curr);
-			LIST_AddBack(&sdata->channelFree, (struct Item *)curr);
+			GAME_CHANNEL_UPDATE_FLAGS[curr->channelID] |= HOWL_CHANNEL_UPDATE_OFF;
+			// NOTE(aalhendi): Retail performs separate indexed OFF and KEY_ON updates.
+			*(volatile u32 *)&GAME_CHANNEL_UPDATE_FLAGS[curr->channelID] &= ~HOWL_CHANNEL_UPDATE_KEY_ON;
+			curr->flags &= (u8)~1;
+			LIST_RemoveMember(&GAME_CHANNEL_TAKEN, (struct Item *)curr);
+			LIST_AddBack(&GAME_CHANNEL_FREE, (struct Item *)curr);
 		}
-
 		Channel_ParseSongToChannels();
 	}
-
 	Channel_UpdateChannels();
 }
 
 void howl_InitChannelAttr_EngineFX(struct EngineFX *engineFX, struct ChannelAttr *attr, int vol, int LR, int distort)
 {
-	s16 pitch;
+	register struct EngineFX *source CTR_PSX_REGISTER("$17") = engineFX;
+	register struct ChannelAttr *output CTR_PSX_REGISTER("$18") = attr;
+	u32 volume = GAME_PLAYBACK_VOLUME_FX;
+	register u32 pitch CTR_PSX_REGISTER("$2");
 
-	Channel_SetVolume(attr, (sdata->vol_FX * engineFX->volume * vol) >> 10, LR);
-
-	pitch = engineFX->pitch;
+	// Retail reads pitch after the volume callback through the captured metadata pointer.
+	Channel_SetVolume(output, (volume * source->volume * (u32)vol) >> 10, LR);
 
 	if (distort != HOWL_SFX_DISTORTION_NONE)
 	{
-		pitch = ((u32)pitch * data.distortConst_Engine[distort]) >> 0x10;
+		pitch = ((u32)source->pitch * (u32)GAME_PLAYBACK_ENGINE_DISTORTIONS[distort]) >> 16;
+	}
+	else
+	{
+		pitch = source->pitch;
 	}
 
-	attr->pitch = pitch;
-
-	// ADSR
-	attr->ad = 0x80ff;
-	attr->sr = 0x1fc2;
-
-	attr->spuStartAddr = (void *)(sdata->howl_spuAddrs[engineFX->spuIndex].spuAddr << 3);
+	output->pitch = pitch;
+	{
+		u32 sampleAddr = GAME_HOWL_SPU_ADDRS[source->spuIndex].spuAddr;
+		u32 ad;
+		ad = 0x80ff;
+		output->ad = ad;
+		output->sr = 0x1fc2;
+		output->spuStartAddr = (void *)(sampleAddr << 3);
+	}
 }
 
 void howl_InitChannelAttr_OtherFX(struct OtherFX *otherFX, struct ChannelAttr *attr, int vol, int LR, int distort)
 {
-	int otherVol;
-	s16 pitch;
+	struct OtherFX *source = otherFX;
+	struct ChannelAttr *output = attr;
+	register u32 master CTR_PSX_REGISTER("$3");
+	register int distortion CTR_PSX_REGISTER("$4") = distort;
+	register u32 product CTR_PSX_REGISTER("$8");
+	u32 volume;
+	u32 pitch;
 
-	otherVol = sdata->vol_FX;
-
-	if ((otherFX->flags & 4) != 0)
+	if ((source->flags & 4) != 0)
 	{
-		otherVol = sdata->vol_Voice;
+		master = GAME_PLAYBACK_VOLUME_VOICE;
+	}
+	else
+	{
+		master = GAME_PLAYBACK_VOLUME_FX;
+	}
+	{
+		register u32 sampleVolume CTR_PSX_REGISTER("$2") = source->volume;
+		product = master * sampleVolume;
+		product *= (u32)vol;
+		// NOTE(aalhendi): Finish the wrapping volume product before preparing the pitch branch.
+		CTR_PSX_OBSERVE_VALUE(product);
+		volume = product >> 10;
 	}
 
-	Channel_SetVolume(attr, (otherVol * otherFX->volume * vol) >> 10, LR);
-
-	pitch = otherFX->pitch;
-
-	if (distort != HOWL_SFX_DISTORTION_NONE)
+	if (distortion != HOWL_SFX_DISTORTION_NONE)
 	{
-		pitch = ((int)pitch * (int)data.distortConst_OtherFX[distort]) >> 0x10;
+		s32 *table = GAME_DISTORT_CONST_OTHER_FX;
+		register u32 offset CTR_PSX_REGISTER("$3");
+		s32 *factor;
+		register u32 rawPitch CTR_PSX_REGISTER("$4");
+		register u32 coefficient CTR_PSX_REGISTER("$2");
+		// NOTE(aalhendi): Retail forms the table base before scaling the saved index.
+		CTR_PSX_DEPEND_VALUE(distortion, table);
+		offset = (u32)distortion << 2;
+		factor = (s32 *)((u8 *)table + offset);
+		rawPitch = source->pitch;
+		coefficient = (u32)*factor;
+		product = rawPitch * coefficient;
+		pitch = product >> 16;
+	}
+	else
+	{
+		pitch = source->pitch;
 	}
 
-	attr->pitch = pitch;
-
-	// ADSR
-	attr->ad = 0x80ff;
-	attr->sr = 0x1fc2;
-
-	attr->spuStartAddr = (void *)(sdata->howl_spuAddrs[otherFX->spuIndex].spuAddr << 3);
+	// Retail captures unsigned pitch before this callback and reloads the SPU index afterward.
+	Channel_SetVolume(output, volume, LR);
+	output->pitch = pitch;
+	{
+		u32 sampleAddr = GAME_HOWL_SPU_ADDRS[source->spuIndex].spuAddr;
+		u32 ad;
+		ad = 0x80ff;
+		output->ad = ad;
+		output->sr = 0x1fc2;
+		output->spuStartAddr = (void *)(sampleAddr << 3);
+	}
 }
 
-void howl_PauseAudio()
+void howl_PauseAudio(void)
 {
-	u32 *ptrFlag;
 	struct ChannelStats *curr, *backupNext;
-	struct ChannelStats *pausedStats;
-
 	CDSYS_XAPauseRequest();
-
-	// if already paused, quit
-	if (sdata->numBackup_ChannelStats != 0)
+	if (GAME_PLAYBACK_BACKUP_COUNT != 0)
 	{
 		return;
 	}
-
-	pausedStats = &sdata->channelStatsCurr[0];
-
 	CseqMusic_Pause();
-
 	Smart_EnterCriticalSection();
-	for (curr = (struct ChannelStats *)sdata->channelTaken.first; curr != NULL; curr = backupNext)
+	for (curr = (struct ChannelStats *)GAME_CHANNEL_TAKEN.first; curr != NULL; curr = backupNext)
 	{
-		int *dest;
-		int *src;
-
+		struct LinkedList *takenList = &GAME_CHANNEL_TAKEN;
+		struct Item *member;
+		// NOTE(aalhendi): The clear mask reuses the retail channel-ID scratch.
+		register u32 clearMask CTR_PSX_REGISTER("$3");
+		int backupIndex;
+		struct ChannelStats *snapshot;
+		u32 *updateFlags;
+		u32 *pendingFlags;
+		int oldCount;
+		// NOTE(aalhendi): Keep the initial channel-ID load in the same scratch.
+		register int channelID CTR_PSX_REGISTER("$3");
+		channelID = curr->channelID;
+		member = (struct Item *)curr;
+		updateFlags = &GAME_CHANNEL_UPDATE_FLAGS[channelID];
 		backupNext = curr->link.links.next;
-
-		ptrFlag = &sdata->ChannelUpdateFlags[curr->channelID];
-		*ptrFlag |= 1;
-		*ptrFlag &= ~(2);
-
-		dest = (int *)pausedStats++;
-		src = (int *)curr;
-
-		// psx's kernel memcpy does NOT work inside "critical" sections
-		dest[0] = src[0];
-		dest[1] = src[1];
-		dest[2] = src[2];
-		dest[3] = src[3];
-		dest[4] = src[4];
-		dest[5] = src[5];
-		dest[6] = src[6];
-		dest[7] = src[7];
-
-		LIST_RemoveMember(&sdata->channelTaken, (struct Item *)curr);
-		LIST_AddBack(&sdata->channelFree, (struct Item *)curr);
-
-		sdata->numBackup_ChannelStats++;
+		*updateFlags |= HOWL_CHANNEL_UPDATE_OFF;
+		clearMask = ~HOWL_CHANNEL_UPDATE_KEY_ON;
+		oldCount = GAME_PLAYBACK_BACKUP_COUNT;
+		pendingFlags = &GAME_CHANNEL_UPDATE_FLAGS[curr->channelID];
+		backupIndex = oldCount;
+		oldCount++;
+		GAME_PLAYBACK_BACKUP_COUNT = oldCount;
+		snapshot = &GAME_PLAYBACK_CHANNEL_BACKUPS[backupIndex];
+		// NOTE(aalhendi): Retain the second indexed flag read before the snapshot.
+		*(volatile u32 *)pendingFlags &= clearMask;
+		*snapshot = *curr;
+		LIST_RemoveMember(takenList, member);
+		LIST_AddBack(&GAME_CHANNEL_FREE, (struct Item *)curr);
 	}
 	Smart_ExitCriticalSection();
 }
 
 void howl_UnPauseChannel(struct ChannelStats *stats)
 {
-	int type;
-	int soundID;
 	struct ChannelAttr attr;
-
-	type = stats->type;
-	soundID = stats->soundID & 0xffff;
-
-	if (type == HOWL_CHANNEL_TYPE_ENGINE_FX)
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Retail FX leaves this halfword undefined. Native restores
+	// the saved channel echo; Music overwrites it with its own reverb setting.
+	attr.reverb = stats->echo;
+#endif
+	switch (stats->type)
 	{
-		howl_InitChannelAttr_EngineFX(&sdata->howl_metaEngineFX[soundID], &attr, stats->vol, stats->LR, stats->distort);
-	}
-
-	else if (type == HOWL_CHANNEL_TYPE_OTHER_FX)
-	{
-		howl_InitChannelAttr_OtherFX(&sdata->howl_metaOtherFX[soundID], &attr, stats->vol, stats->LR, stats->distort);
-	}
-
-	else if (type == HOWL_CHANNEL_TYPE_MUSIC)
-	{
-		howl_InitChannelAttr_Music(&sdata->songSeq[soundID], &attr, stats->drumIndex_pitchIndex, stats->vol);
-	}
-	else
-	{
+	case HOWL_CHANNEL_TYPE_OTHER_FX:
+		howl_InitChannelAttr_OtherFX(&GAME_PLAYBACK_OTHER_FX_METADATA[(u16)stats->soundID], &attr, stats->vol, stats->LR, stats->distort);
+		break;
+	case HOWL_CHANNEL_TYPE_ENGINE_FX:
+		howl_InitChannelAttr_EngineFX(&GAME_PLAYBACK_ENGINE_FX_METADATA[(u16)stats->soundID], &attr, stats->vol, stats->LR, stats->distort);
+		break;
+	case HOWL_CHANNEL_TYPE_MUSIC:
+		howl_InitChannelAttr_Music(&GAME_SONG_SEQUENCES[stats->soundID], &attr, stats->drumIndex_pitchIndex, stats->vol);
+		break;
+	default:
 		return;
 	}
-
-	// enable all bits in ChannelUpdate flag
-	sdata->ChannelUpdateFlags[stats->channelID] |= HOWL_CHANNEL_UPDATE_RESUME;
-
-	memcpy(&sdata->channelAttrNew[stats->channelID], &attr, sizeof(attr));
+	GAME_CHANNEL_UPDATE_FLAGS[stats->channelID] |= HOWL_CHANNEL_UPDATE_RESUME;
+	GAME_CHANNEL_ATTR_NEW[stats->channelID] = attr;
 }
 
-void howl_UnPauseAudio()
+void howl_UnPauseAudio(void)
 {
-	int i;
-	u8 backupID;
-	struct ChannelStats *backupPrev;
+	// NOTE(aalhendi): Retail preserves the loop count here across callbacks.
+	register int i CTR_PSX_REGISTER("$18");
 	struct ChannelStats *curr, *backupNext;
-	struct ChannelStats *pausedStats;
-
-	// if no paused audio, skip
-	if (sdata->numBackup_ChannelStats == 0)
+	struct ChannelStats *snapshot;
+	if (GAME_PLAYBACK_BACKUP_COUNT == 0)
 	{
 		return;
 	}
-
-	pausedStats = &sdata->channelStatsCurr[0];
-
+	i = 0;
 	Smart_EnterCriticalSection();
-	for (i = 0, curr = (struct ChannelStats *)sdata->channelFree.first; i < sdata->numBackup_ChannelStats; i++, curr = backupNext)
+	curr = (struct ChannelStats *)GAME_CHANNEL_FREE.first;
+	if (GAME_PLAYBACK_BACKUP_COUNT > 0)
 	{
-		int *src;
-		int *dest;
-
-		if (curr == NULL)
+		snapshot = GAME_PLAYBACK_CHANNEL_BACKUPS;
+		do
 		{
-			break;
-		}
-
-		backupID = curr->channelID;
-		backupPrev = curr->link.links.prev;
-		backupNext = curr->link.links.next;
-
-		src = (int *)pausedStats++;
-		dest = (int *)curr;
-
-		// psx's kernel memcpy does NOT work inside "critical" sections
-		dest[0] = src[0];
-		dest[1] = src[1];
-		dest[2] = src[2];
-		dest[3] = src[3];
-		dest[4] = src[4];
-		dest[5] = src[5];
-		dest[6] = src[6];
-		dest[7] = src[7];
-
-		curr->link.links.next = backupNext;
-		curr->link.links.prev = backupPrev;
-		curr->channelID = backupID;
-
-		LIST_RemoveMember(&sdata->channelFree, (struct Item *)curr);
-		LIST_AddBack(&sdata->channelTaken, (struct Item *)curr);
-
-		howl_UnPauseChannel(curr);
+			struct Item savedLinks;
+			u8 savedID;
+			// NOTE(aalhendi): Keep both list arguments live during the snapshot
+			// so the ordinary struct copy uses the remaining argument registers.
+			register struct LinkedList *freeList CTR_PSX_REGISTER("$4");
+			register struct Item *member CTR_PSX_REGISTER("$5");
+			if (curr == NULL)
+			{
+				break;
+			}
+			freeList = &GAME_CHANNEL_FREE;
+			backupNext = curr->link.links.next;
+			savedID = curr->channelID;
+			// NOTE(aalhendi): Save the channel ID before preparing the list member.
+			CTR_PSX_DEPEND_VALUE(curr, savedID);
+			member = (struct Item *)curr;
+			// NOTE(aalhendi): Keep the member argument live through the struct copy.
+			CTR_PSX_KEEP_VALUE_RELAXED(member);
+			savedLinks = curr->link.item;
+			*curr = *snapshot++;
+			curr->channelID = savedID;
+			curr->link.item = savedLinks;
+			// NOTE(aalhendi): Restore links before incrementing the loop count.
+			CTR_PSX_MEMORY_BARRIER();
+			i++;
+			LIST_RemoveMember(freeList, member);
+			{
+				// NOTE(aalhendi): Rematerialize the list argument after the callback.
+				register struct LinkedList *takenList CTR_PSX_REGISTER("$4") = &GAME_CHANNEL_TAKEN;
+				CTR_PSX_KEEP_VALUE_RELAXED(takenList);
+				LIST_AddBack(takenList, (struct Item *)curr);
+			}
+			howl_UnPauseChannel(curr);
+			curr = backupNext;
+		} while (i < GAME_PLAYBACK_BACKUP_COUNT);
 	}
 	Smart_ExitCriticalSection();
-
 	CseqMusic_Resume();
-
-	sdata->numBackup_ChannelStats = 0;
+	GAME_PLAYBACK_BACKUP_COUNT = 0;
 }
 
 void howl_StopAudio(b32 boolErasePauseBackup, b32 boolEraseMusic, b32 boolDestroyAllFX)

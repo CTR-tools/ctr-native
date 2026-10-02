@@ -3453,8 +3453,9 @@ struct sData
 	int bankPodiumStage;
 
 	// 8008d808 (1)
-	// Loads bank 54 (0x36)
-	int bankLoad54;
+	// Loads bank 54 (0x36); retail accesses one byte and leaves the following padding untouched.
+	u8 bankLoad54;
+	u8 _pad_bankLoad54[3];
 
 	// 8008d80c
 	int cseqBoolPlay;

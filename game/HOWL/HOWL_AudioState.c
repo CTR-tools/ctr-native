@@ -1,193 +1,183 @@
 #include <common.h>
 
+#ifndef GAME_AUDIO_STATE
+#define GAME_AUDIO_STATE        (sdata->audioState)
+#define GAME_ADV_HUB_SONG_SET   (&sdata->advHubSongSet)
+#define GAME_REVERB_BOSS        (sdata->reverbModeBossID)
+#define GAME_REVERB_LEVEL       (data.reverbMode)
+#define GAME_SOUND_FADE_0       (sdata->SoundFadeInput[0])
+#define GAME_SOUND_FADE_1       (sdata->SoundFadeInput[1])
+#define GAME_AUDIO_DEFAULT_0    (sdata->audioDefaults[0])
+#define GAME_AUDIO_DEFAULT_1    (sdata->audioDefaults[1])
+#define GAME_AUDIO_DEFAULT_2    (sdata->audioDefaults[2])
+#define GAME_AUDIO_DEFAULT_3    (sdata->audioDefaults[3])
+#define GAME_AUDIO_DEFAULT_4    (sdata->audioDefaults[4])
+#define GAME_AUDIO_DEFAULT_5    (sdata->audioDefaults[5])
+#define GAME_AUDIO_DEFAULT_6    (sdata->audioDefaults[6])
+#define GAME_AUDIO_DEFAULT_7    (*(u8 *)&sdata->audioDefaults[7])
+#define GAME_AUDIO_DEFAULT_8    (sdata->audioDefaults[8])
+#define GAME_XA_CATEGORY        (sdata->XA_Playing_Category)
+#define GAME_XA_PAUSE_FRAME     (sdata->XA_PauseFrame)
+#define GAME_XA_OFFSET          (sdata->XA_CurrOffset)
+#define GAME_NTROPY_XA          (data.nTropyXA)
+#define GAME_NTROPY_VOICE_COUNT (sdata->nTropyVoiceCount)
+#endif
+
 void Audio_SetState(u32 state)
 {
-	u8 XA_type;
-	u8 XA_index;
-
-	struct GameTracker *gGT = sdata->gGT;
-	u16 level;
-
-	XA_type = CDSYS_XA_TYPE_MUSIC;
-
+	s32 xaType;
+	s32 xaIndex;
 	switch (state)
 	{
-	// stop/pause cseq music (main: case 2)
 	case AUDIO_LOADING:
+		// NOTE(aalhendi): Keep the seek flag store before the pause callback.
 		sdata->boolNeedXASeek = 0;
-
+		CTR_PSX_MEMORY_BARRIER();
 		CDSYS_XAPauseRequest();
-
 		Music_Restart();
-
-		// erase backup, keep music, stop all fx
 		howl_StopAudio(1, 0, 1);
+		break;
+	case AUDIO_ADV_HUB:
+		CseqMusic_StopAll();
+		{
+			u32 hubIndex = (u32)GAME_TRACKER->levelID - GEM_STONE_VALLEY;
+			if (hubIndex < 5)
+			{
+				Music_Adjust(0, 0, GAME_ADV_HUB_SONG_SET, 1u << hubIndex);
+			}
+		}
 		break;
 	case AUDIO_STOP_ALL:
 	case AUDIO_GARAGE_ENTRY:
-
 		CseqMusic_StopAll();
-
 		Music_Adjust(0, 0, 0, 0);
-
-		break;
-	case AUDIO_ADV_HUB:
-
-		CseqMusic_StopAll();
-
-		level = gGT->levelID;
-
-		// Level ID on Adventure Arena
-		if (level - 0x19U < 5)
-		{
-			// convert levelID to a bitshifted flag
-			Music_Adjust(0, 0, &sdata->advHubSongSet, 1 << (level - 0x19U));
-		}
 		break;
 	case AUDIO_RACE_INTRO:
-		XA_index = sdata->desiredXA_RaceIntroIndex;
-		sdata->desiredXA_RaceIntroIndex += 1;
-		sdata->desiredXA_RaceIntroIndex &= 3;
-		goto PLAY_XA;
-
+		CDSYS_XAPlay(CDSYS_XA_TYPE_MUSIC, sdata->desiredXA_RaceIntroIndex);
+		sdata->desiredXA_RaceIntroIndex = (sdata->desiredXA_RaceIntroIndex + 1) % 4;
+		// NOTE(aalhendi): Keep the halfword store before the shared exit jump.
+		CTR_PSX_MEMORY_BARRIER();
+		break;
 	case AUDIO_TRAFFIC:
-
 		Music_Stop();
-
 		CseqMusic_StopAll();
 		break;
 	case AUDIO_RACING:
-
-		sdata->WrongWayDirection_bool = false;
-
-		sdata->framesDrivingSameDirection = 0;
-
+		GAME_WRONG_WAY_DIRECTION = 0;
+		GAME_SAME_DIRECTION_FRAMES = 0;
 		Voiceline_ToggleEnable(1);
 		break;
-
-	case AUDIO_PRE_LAST_LAP:
-
-	// last lap, distToFinish < 9000
-	case AUDIO_LAST_LAP:
-
-		Voiceline_ToggleEnable(0);
-
-		sdata->boolNeedXASeek = 1;
-		break;
-
-	// if you are on last lap
 	case AUDIO_FINAL_LAP:
+		// NOTE(aalhendi): Keep the seek flag store before lowering the volume.
 		sdata->boolNeedXASeek = 0;
-
+		CTR_PSX_MEMORY_BARRIER();
 		Music_LowerVolume();
-
-		// MUSIC_LAST_LAP
-		XA_index = 6;
-
-		goto PLAY_XA;
+		xaType = CDSYS_XA_TYPE_MUSIC;
+		xaIndex = 6;
+		goto playXA;
 	case AUDIO_POST_LAST_LAP:
-
-		sdata->WrongWayDirection_bool = false;
-
-		sdata->framesDrivingSameDirection = 0;
-
+		GAME_WRONG_WAY_DIRECTION = 0;
+		GAME_SAME_DIRECTION_FRAMES = 0;
 		Music_RaiseVolume();
-
 		Voiceline_ToggleEnable(1);
-
+		break;
+	case AUDIO_PRE_LAST_LAP:
+	case AUDIO_LAST_LAP:
+		Voiceline_ToggleEnable(0);
+		sdata->boolNeedXASeek = 1;
+		// NOTE(aalhendi): Keep the flag store before the shared exit jump.
+		CTR_PSX_MEMORY_BARRIER();
 		break;
 	case AUDIO_RACE_END:
+		// NOTE(aalhendi): Keep the seek flag store before restarting the music.
 		sdata->boolNeedXASeek = 0;
-
+		CTR_PSX_MEMORY_BARRIER();
 		Music_Restart();
-
-		// set XA
-		XA_index = sdata->desiredXA_RaceEndIndex;
-
-		if (61 < XA_index)
+		xaIndex = sdata->desiredXA_RaceEndIndex;
+		xaType = CDSYS_XA_TYPE_MUSIC;
+		if (xaIndex >= 62)
 		{
-			XA_type = CDSYS_XA_TYPE_EXTRA;
+			xaType = CDSYS_XA_TYPE_EXTRA;
+			// NOTE(aalhendi): Retain the category branch instead of XOR lowering.
+			CTR_PSX_KEEP_VALUE_RELAXED(xaType);
 		}
-
-	PLAY_XA:
-
-		CDSYS_XAPlay(XA_type, XA_index);
+	playXA:
+		CDSYS_XAPlay(xaType, xaIndex);
 	}
 }
 
 void Audio_SetState_Safe(int state)
 {
-	// If this sound isn't already playing
-	if (state != sdata->audioState)
+	s32 savedState = state;
+	// NOTE(aalhendi): Load the old state in a0 while preserving the input across calls.
+	register s32 currentState CTR_PSX_REGISTER("$4");
+	currentState = GAME_AUDIO_STATE;
+	if (savedState != currentState)
 	{
 		Voiceline_EmptyFunc();
-
-		Audio_SetState(state);
-
-		// set which sound is playing
-		sdata->audioState = state;
+		Audio_SetState(savedState);
+		GAME_AUDIO_STATE = savedState;
 	}
 }
 
 void Audio_AdvHub_SwapSong(int levelID)
 {
-	if ((sdata->audioState == AUDIO_ADV_HUB) &&
-	    // If you're on a map in the Adventure Arena
-	    (levelID - GEM_STONE_VALLEY < 5))
+	if ((GAME_AUDIO_STATE == AUDIO_ADV_HUB) && ((u32)levelID - GEM_STONE_VALLEY < 5))
 	{
-		CseqMusic_AdvHubSwap(0, &sdata->advHubSongSet, (1 << (levelID - GEM_STONE_VALLEY)));
+		CseqMusic_AdvHubSwap(0, GAME_ADV_HUB_SONG_SET, 1 << ((u32)levelID - GEM_STONE_VALLEY));
 	}
 }
 
 void Audio_SetMaskSong(u32 tempo)
 {
 	s32 i;
-	u8 isMaskUsed;
-	u32 songID;
-	struct GameTracker *gGT = sdata->gGT;
-	u32 gameMode = gGT->gameMode1;
-
-	// Assume no player is using a mask
-	isMaskUsed = false;
-
-	for (i = 0; i < gGT->numPlyrCurrGame; i++)
+	s32 hasMask;
+	s32 isMaskUsed = 0;
+	struct GameTracker *entryGT = GAME_TRACKER;
+	// NOTE(aalhendi): Keep tracker capture and accumulator initialization ahead of the scan.
+	CTR_PSX_MEMORY_BARRIER();
+	CTR_PSX_KEEP_VALUE_RELAXED(isMaskUsed);
+	for (i = 0; i < entryGT->numPlyrCurrGame; i++)
 	{
-		if ((gGT->drivers[i]->actionsFlagSet & ACTION_MASK_WEAPON) != 0)
+		if ((entryGT->drivers[i]->actionsFlagSet & ACTION_MASK_WEAPON) != 0)
 		{
-			// There is at least one player using a mask
-			isMaskUsed = true;
+			isMaskUsed = 1;
 		}
 	}
-
-	// If any player is using a mask
-	if (isMaskUsed)
+	hasMask = isMaskUsed;
+	// NOTE(aalhendi): Keep the scan result as a separate value for the song branch.
+	CTR_PSX_KEEP_VALUE_RELAXED(hasMask);
+	if (hasMask)
 	{
-		// Uka song is playing
+		u32 gameMode;
+		u32 songID;
+		gameMode = GAME_TRACKER->gameMode1;
 		songID = 2;
-
-		if (
-		    // If Uka song is playing
-		    ((gameMode & UKA_SONG) != 0) ||
-
-		    (
-		        // Aku song is playing
-		        songID = 1,
-
-		        // If Aku song is playing
-		        (gameMode & AKU_SONG) != 0))
+		if (((gameMode & UKA_SONG) != 0) || (songID = 1, (gameMode & AKU_SONG) != 0))
 		{
 			Music_Adjust(songID, tempo, 0, 0);
 		}
 	}
-
-	// If no players are using mask
 	else
 	{
-		Music_Adjust(0, tempo, 0, 0);
+		struct GameTracker *gGT;
+		u32 gameMode;
 
-		if ((gameMode & (UKA_SONG | AKU_SONG)) != 0)
+		// NOTE(aalhendi): Keep the completed scan ahead of the no-mask callback.
+		CTR_PSX_MEMORY_BARRIER();
+		Music_Adjust(0, tempo, 0, 0);
+		gGT = GAME_TRACKER_RELOAD();
+		gameMode = gGT->gameMode1;
+		if ((gameMode & UKA_SONG) != 0)
 		{
-			gGT->gameMode1 &= ~(UKA_SONG | AKU_SONG);
+			gGT->gameMode1 = gameMode & ~UKA_SONG;
+			// NOTE(aalhendi): Retail reloads tracker and mode between the separate flag clears.
+			gGT = GAME_TRACKER_RELOAD();
+			gameMode = gGT->gameMode1;
+		}
+		if ((gameMode & AKU_SONG) != 0)
+		{
+			gGT->gameMode1 = gameMode & ~AKU_SONG;
 		}
 	}
 }
@@ -195,18 +185,30 @@ void Audio_SetMaskSong(u32 tempo)
 void Audio_Update1(void)
 {
 	s32 i;
-	int raceOrderIndex;
-	s16 uVar1;
+	s32 raceOrderIndex;
+	s16 raceEndXA;
 	b32 tropyBeatenOnAllTracks;
 	struct Driver *d = 0;
 	u32 maskTempo;
-	int iVar7;
-	struct GameTracker *gGT = sdata->gGT;
+	s32 voiceLineIndex;
+	s32 lapCount;
+	struct GameTracker *gGT;
+	struct Driver *candidate;
+#if defined(CTR_NATIVE)
+	struct GameTracker *entryGT = GAME_TRACKER;
+#endif
 
-	switch (sdata->audioState - 1)
+	switch ((s16)((u16)GAME_AUDIO_STATE - 1))
 	{
+	// NOTE(aalhendi): These idle cases retain the retail state interval.
+	case AUDIO_LOADING - 1:
+	case AUDIO_STOP_ALL - 1:
+	case 2:
+	case 3:
+	case AUDIO_ADV_HUB - 1:
+		break;
 	case AUDIO_ADV_HUB_WAIT - 1:
-		if ((sdata->XA_State == XA_IDLE) || (sdata->XA_Playing_Category != 0))
+		if ((GAME_XA_STATE == XA_IDLE) || (GAME_XA_CATEGORY != 0))
 		{
 			Audio_SetState_Safe(AUDIO_ADV_HUB);
 		}
@@ -215,7 +217,7 @@ void Audio_Update1(void)
 		Garage_LerpFX();
 		break;
 	case AUDIO_RACE_INTRO - 1:
-		if (sdata->XA_State == XA_IDLE)
+		if (GAME_XA_STATE == XA_IDLE)
 		{
 			// 9 means intro cutscene
 			// 10 means traffic lights
@@ -228,7 +230,7 @@ void Audio_Update1(void)
 	case AUDIO_TRAFFIC - 1:
 		// If traffic lights finish counting down
 		// from 0x3840 to zero
-		if (gGT->trafficLightsTimer < 1)
+		if (GAME_TRACKER->trafficLightsTimer < 1)
 		{
 			// 9 means intro cutscene
 			// 10 means traffic lights
@@ -242,15 +244,16 @@ void Audio_Update1(void)
 		Audio_SetMaskSong(0);
 
 		// human driver in the lead
+		gGT = GAME_TRACKER;
 		for (i = 0; i < 8; i++)
 		{
-			d = gGT->driversInRaceOrder[i];
+			candidate = gGT->driversInRaceOrder[i];
 
-			if ((d != NULL) && ((d->actionsFlagSet & ACTION_BOT) == 0))
+			if ((candidate != NULL) && ((candidate->actionsFlagSet & ACTION_BOT) == 0))
 			{
+				d = candidate;
 				break;
 			}
-			d = 0;
 		}
 
 		Voiceline_Update();
@@ -258,7 +261,7 @@ void Audio_Update1(void)
 		Level_AmbientSound();
 
 #if defined(CTR_NATIVE)
-		// Demo mode converts P1 to ACTION_BOT, leaving retail's human-driver
+		// NOTE(aalhendi): Demo mode converts P1 to ACTION_BOT, leaving retail's human-driver
 		// scan empty. PS1 can read low RAM through a null pointer; host cannot.
 		if (d == NULL)
 		{
@@ -266,12 +269,14 @@ void Audio_Update1(void)
 		}
 #endif
 
-		// if race has more than 2 laps
-		if ((2 < sdata->gGT->numLaps) &&
+		lapCount = GAME_TRACKER->numLaps;
+
+		// if race has more than two laps
+		if ((2 < lapCount) &&
 		    // if you are on 2nd to last lap
-		    ((d->lapIndex == sdata->gGT->numLaps - 2U)) &&
+		    ((d->lapIndex == lapCount - 2)) &&
 		    // distToFinish is small
-		    (d->distanceToFinish_curr < 9000))
+		    ((s32)d->distanceToFinish_curr < 9000))
 		{
 			Audio_SetState_Safe(AUDIO_PRE_LAST_LAP);
 		}
@@ -280,21 +285,24 @@ void Audio_Update1(void)
 		Audio_SetMaskSong(0);
 
 		// human driver in the lead
+		gGT = GAME_TRACKER;
 		for (i = 0; i < 8; i++)
 		{
-			d = gGT->driversInRaceOrder[i];
+			candidate = gGT->driversInRaceOrder[i];
 
-			if ((d != NULL) && ((d->actionsFlagSet & ACTION_BOT) == 0))
+			if ((candidate != NULL) && ((candidate->actionsFlagSet & ACTION_BOT) == 0))
 			{
+				d = candidate;
 				break;
 			}
-			d = 0;
 		}
 
 #if defined(CTR_NATIVE)
+		// NOTE(aalhendi): The host cannot read the retail low-RAM null driver.
 		if (d == NULL)
 		{
-			if (((sdata->boolNeedXASeek != 0) && (sdata->XA_State == XA_IDLE)) && (9 < gGT->frameTimer_MainFrame_ResetDB - sdata->XA_PauseFrame))
+			gGT = entryGT;
+			if (((sdata->boolNeedXASeek != 0) && (GAME_XA_STATE == XA_IDLE)) && (9U < (u32)gGT->frameTimer_MainFrame_ResetDB - (u32)GAME_XA_PAUSE_FRAME))
 			{
 				sdata->boolNeedXASeek = 0;
 			}
@@ -305,10 +313,10 @@ void Audio_Update1(void)
 #endif
 
 		// if need to XASeek
-		if (((sdata->boolNeedXASeek != 0) && (sdata->XA_State == XA_IDLE)) && (9 < gGT->frameTimer_MainFrame_ResetDB - sdata->XA_PauseFrame))
+		if (((sdata->boolNeedXASeek != 0) && (GAME_XA_STATE == XA_IDLE)) && (9U < (u32)GAME_TRACKER->frameTimer_MainFrame_ResetDB - (u32)GAME_XA_PAUSE_FRAME))
 		{
 			// far from finish line
-			if (2000 < d->distanceToFinish_curr)
+			if (2000 < (s32)d->distanceToFinish_curr)
 			{
 				// (FINAL LAP! music)
 				CDSYS_XASeek(1, 0, 6);
@@ -321,7 +329,7 @@ void Audio_Update1(void)
 		Level_AmbientSound();
 
 		// if driver is on final lap
-		if (d->lapIndex == gGT->numLaps - 1U)
+		if (d->lapIndex == GAME_TRACKER->numLaps - 1)
 		{
 			// Play final lap sound
 			Audio_SetState_Safe(AUDIO_FINAL_LAP);
@@ -331,7 +339,7 @@ void Audio_Update1(void)
 		maskTempo = 0;
 
 		// if XA has been playing more than a second
-		if (0xe1 < sdata->XA_CurrOffset)
+		if (0xe1 < GAME_XA_OFFSET)
 		{
 			Music_RaiseVolume();
 
@@ -342,7 +350,7 @@ void Audio_Update1(void)
 
 		Level_AmbientSound();
 
-		if (sdata->XA_State == XA_IDLE)
+		if (GAME_XA_STATE == XA_IDLE)
 		{
 			Audio_SetState_Safe(AUDIO_POST_LAST_LAP);
 		}
@@ -351,15 +359,16 @@ void Audio_Update1(void)
 		Audio_SetMaskSong(20);
 
 		// human driver in the lead
+		gGT = GAME_TRACKER;
 		for (i = 0; i < 8; i++)
 		{
-			d = gGT->driversInRaceOrder[i];
+			candidate = gGT->driversInRaceOrder[i];
 
-			if ((d != NULL) && ((d->actionsFlagSet & ACTION_BOT) == 0))
+			if ((candidate != NULL) && ((candidate->actionsFlagSet & ACTION_BOT) == 0))
 			{
+				d = candidate;
 				break;
 			}
-			d = 0;
 		}
 
 		Voiceline_Update();
@@ -367,6 +376,7 @@ void Audio_Update1(void)
 		Level_AmbientSound();
 
 #if defined(CTR_NATIVE)
+		// NOTE(aalhendi): The host cannot read the retail low-RAM null driver.
 		if (d == NULL)
 		{
 			break;
@@ -375,10 +385,10 @@ void Audio_Update1(void)
 
 		if (
 		    // if driver's lap is the last lap
-		    (d->lapIndex == gGT->numLaps - 1U) &&
+		    (d->lapIndex == GAME_TRACKER->numLaps - 1) &&
 
 		    // if finish line is close
-		    (d->distanceToFinish_curr < 9000))
+		    ((s32)d->distanceToFinish_curr < 9000))
 		{
 			Audio_SetState_Safe(AUDIO_LAST_LAP);
 		}
@@ -388,22 +398,25 @@ void Audio_Update1(void)
 		raceOrderIndex = -1;
 
 		// human driver in the lead
+		gGT = GAME_TRACKER;
 		for (i = 0; i < 8; i++)
 		{
-			d = gGT->driversInRaceOrder[i];
+			candidate = gGT->driversInRaceOrder[i];
 
-			if ((d != NULL) && (d->instSelf->thread->modelIndex == DYNAMIC_PLAYER))
+			if ((candidate != NULL) && (candidate->instSelf->thread->modelIndex == DYNAMIC_PLAYER))
 			{
 				raceOrderIndex = i;
+				d = candidate;
 				break;
 			}
-			d = 0;
 		}
 
 #if defined(CTR_NATIVE)
+		// NOTE(aalhendi): The host cannot read the retail low-RAM null driver.
 		if (d == NULL)
 		{
-			if (((sdata->boolNeedXASeek != 0) && (sdata->XA_State == XA_IDLE)) && (9 < gGT->frameTimer_MainFrame_ResetDB - sdata->XA_PauseFrame))
+			gGT = entryGT;
+			if (((sdata->boolNeedXASeek != 0) && (GAME_XA_STATE == XA_IDLE)) && (9U < (u32)gGT->frameTimer_MainFrame_ResetDB - (u32)GAME_XA_PAUSE_FRAME))
 			{
 				sdata->boolNeedXASeek = 0;
 			}
@@ -414,10 +427,10 @@ void Audio_Update1(void)
 #endif
 
 		// if need to XASeek
-		if (((sdata->boolNeedXASeek != 0) && (sdata->XA_State == XA_IDLE)) && (9 < gGT->frameTimer_MainFrame_ResetDB - sdata->XA_PauseFrame))
+		if (((sdata->boolNeedXASeek != 0) && (GAME_XA_STATE == XA_IDLE)) && (9U < (u32)GAME_TRACKER->frameTimer_MainFrame_ResetDB - (u32)GAME_XA_PAUSE_FRAME))
 		{
 			// far from finish line
-			if (2000 < d->distanceToFinish_curr)
+			if (2000 < (s32)d->distanceToFinish_curr)
 			{
 				CDSYS_XASeek(1, 0, 4);
 			}
@@ -430,77 +443,55 @@ void Audio_Update1(void)
 
 		if ((d->actionsFlagSet & ACTION_RACE_FINISHED) != 0)
 		{
-			// if did not just open N Tropy
-			if ((gGT->gameModeEnd & NTROPY_JUST_OPENED) == 0)
+			struct GameTracker *endGT = GAME_TRACKER;
+
+			if ((endGT->gameModeEnd & NTROPY_JUST_OPENED) != 0)
 			{
-				// If you did not just beat N Tropy in Time Trial
-				if ((gGT->gameModeEnd & NTROPY_JUST_BEAT) == 0)
+				OtherFX_Play(0x5f, 0);
+				raceEndXA = 0x46;
+			}
+			else if ((endGT->gameModeEnd & NTROPY_JUST_BEAT) != 0)
+			{
+				tropyBeatenOnAllTracks = (s16)GAMEPROG_CheckGhostsBeaten(1);
+				if (tropyBeatenOnAllTracks)
 				{
-					// defeat music
-					uVar1 = 5;
-
-					if ((raceOrderIndex == 0) || ((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
-					{
-						OtherFX_Play(0x5f, 0);
-
-						// victory (fanfare) music
-						uVar1 = 4;
-					}
+					OtherFX_Play(0x5f, 0);
+					raceEndXA = 0x43;
 				}
-
-				// If you just beat N Tropy in Time Trial
 				else
 				{
-					// Check if N Tropy has been beaten on all tracks
-					tropyBeatenOnAllTracks = GAMEPROG_CheckGhostsBeaten(1);
-
-					// If there is a track where N Tropy has not been beaten
-					if (!tropyBeatenOnAllTracks)
+					s16 selectedXA;
+					b32 voiceCountInRange;
+					OtherFX_Play(0x5f, 0);
+					voiceLineIndex = GAME_NTROPY_VOICE_COUNT;
+					selectedXA = GAME_NTROPY_XA[voiceLineIndex];
+					GAME_NTROPY_VOICE_COUNT += 1;
+					voiceCountInRange = GAME_NTROPY_VOICE_COUNT < 6;
+					sdata->desiredXA_RaceEndIndex = selectedXA;
+					// NOTE(aalhendi): Retail stores the line before branching to
+					// reset the rotating counter; keep that halfword observable.
+					CTR_PSX_OBSERVE_MEMORY(sdata->desiredXA_RaceEndIndex);
+					if (!voiceCountInRange)
 					{
-						// OtherFX_Play
-						OtherFX_Play(0x5f, 0);
-
-						// count how many times N Tropy has been beaten
-						// during this playthrough
-						iVar7 = sdata->nTropyVoiceCount;
-						sdata->nTropyVoiceCount = iVar7 + 1;
-
-						// pick an N Tropy XA voiceline
-						uVar1 = data.nTropyXA[iVar7];
-
-						// if beaten more than 5 times
-						if (5 < sdata->nTropyVoiceCount)
-						{
-							// go back to 0
-							sdata->nTropyVoiceCount = 0;
-						}
+						GAME_NTROPY_VOICE_COUNT = 0;
 					}
-
-					// If N Tropy has been beaten on all tracks
-					else
-					{
-						OtherFX_Play(0x5f, 0);
-
-						// N Tropy Unlocked XA
-						// "you've earned the right to choose me in character selection"
-						uVar1 = 0x43;
-					}
+					goto FINISHED;
 				}
 			}
-
-			// if n tropy just opened
 			else
 			{
-				// OtherFX_Play
-				OtherFX_Play(0x5f, 0);
-
-				// N Tropy opened
-				// "Think your fast eh, well, lets see if you can beat my fastest time"
-				uVar1 = 0x46;
+				if ((raceOrderIndex == 0) || ((endGT->gameMode1 & ADVENTURE_CUP) != 0) || ((endGT->gameMode2 & CUP_ANY_KIND) != 0))
+				{
+					OtherFX_Play(0x5f, 0);
+					raceEndXA = 4;
+				}
+				else
+				{
+					raceEndXA = 5;
+				}
 			}
-
-			// desired XA
-			sdata->desiredXA_RaceEndIndex = uVar1;
+			sdata->desiredXA_RaceEndIndex = raceEndXA;
+		FINISHED:
 
 			Audio_SetState_Safe(AUDIO_RACE_END);
 		}
@@ -509,7 +500,7 @@ void Audio_Update1(void)
 
 		Level_AmbientSound();
 
-		if (sdata->XA_State == XA_IDLE)
+		if (GAME_XA_STATE == XA_IDLE)
 		{
 			Audio_SetMaskSong(0);
 		}
@@ -518,68 +509,52 @@ void Audio_Update1(void)
 
 void Audio_SetDefaults(void)
 {
-	sdata->audioDefaults[0] = 0;
-	sdata->audioDefaults[1] = 0;
-	sdata->audioDefaults[2] = 0;
-	sdata->audioDefaults[3] = 0;
-
-	sdata->audioDefaults[4] = 0x80;
-	sdata->audioDefaults[5] = 0x80;
-	sdata->audioDefaults[6] = 0;
-	sdata->audioDefaults[7] = 0;
-	sdata->audioDefaults[8] = 0;
-
-	// erase both SoundFadeInput
-	sdata->SoundFadeInput[0].unk = 0;
-	sdata->SoundFadeInput[0].desiredVolume = 0;
-	sdata->SoundFadeInput[0].currentVolume = 0;
-	sdata->SoundFadeInput[0].soundID_soundCount = 0;
-	sdata->SoundFadeInput[1].unk = 0;
-	sdata->SoundFadeInput[1].desiredVolume = 0;
-	sdata->SoundFadeInput[1].currentVolume = 0;
-	sdata->SoundFadeInput[1].soundID_soundCount = 0;
+	GAME_SOUND_FADE_0.unk = 0;
+	GAME_SOUND_FADE_0.desiredVolume = 0;
+	GAME_SOUND_FADE_0.currentVolume = 0;
+	GAME_SOUND_FADE_0.soundID_soundCount = 0;
+	GAME_SOUND_FADE_1.unk = 0;
+	GAME_SOUND_FADE_1.desiredVolume = 0;
+	GAME_SOUND_FADE_1.currentVolume = 0;
+	GAME_SOUND_FADE_1.soundID_soundCount = 0;
+	GAME_AUDIO_DEFAULT_6 = 0;
+	GAME_AUDIO_DEFAULT_0 = 0;
+	GAME_AUDIO_DEFAULT_1 = 0;
+	GAME_AUDIO_DEFAULT_2 = 0;
+	GAME_AUDIO_DEFAULT_3 = 0;
+	GAME_AUDIO_DEFAULT_4 = 0x80;
+	GAME_AUDIO_DEFAULT_5 = 0x80;
+	GAME_AUDIO_DEFAULT_8 = 0;
+	// NOTE(aalhendi): Retail clears only the first byte of default slot 7.
+	GAME_AUDIO_DEFAULT_7 = 0;
 }
 
 void Audio_SetReverbMode(int levelID, u32 isBossRace, int bossID)
 {
 	u32 reverb;
-	// if audio is enabled
-	if (sdata->boolAudioEnabled != false)
+	if (GAME_AUDIO_ENABLED != 0)
 	{
-		// If this is not a boss race
-		if (isBossRace == 0)
+		if (isBossRace != 0)
 		{
-			// Level ID < 30
-			// If Level ID is any level you can drive on,
-			// including adventure maps
+			if (bossID > 5)
+			{
+				return;
+			}
+			// NOTE(aalhendi): Keep the table page load out of the invalid-boss exit delay slot.
+			CTR_PSX_MEMORY_BARRIER();
+			reverb = (u8)GAME_REVERB_BOSS[bossID];
+		}
+		else
+		{
 			if (levelID < INTRO_RACE_TODAY)
 			{
-				// get reverb based on level ID
-				reverb = data.reverbMode[levelID];
+				reverb = (u8)GAME_REVERB_LEVEL[levelID];
 			}
-
-			// If this is not a level you can drive on:
-			// menu, cutscene, etc
 			else
 			{
 				reverb = 4;
 			}
 		}
-
-		// If this is a boss race
-		else
-		{
-			// if invalid bossID
-			if (5 < bossID)
-			{
-				// quit
-				return;
-			}
-
-			// get reverb based on boss
-			reverb = sdata->reverbModeBossID[bossID];
-		}
-
 		SetReverbMode(reverb);
 	}
 }

@@ -1,5 +1,15 @@
 #include <common.h>
 
+#ifndef HOWL_GARAGE_SOUND_IDS
+#define HOWL_GARAGE_SOUND_IDS (sdata->garageSoundIDs)
+#endif
+#ifndef HOWL_GARAGE_RNG_READ
+#define HOWL_GARAGE_RNG_READ (sdata->audioRNG)
+#endif
+#ifndef HOWL_GARAGE_RNG_WRITE
+#define HOWL_GARAGE_RNG_WRITE (sdata->audioRNG)
+#endif
+
 void Garage_Init(void)
 {
 	struct GarageFX *garageSounds;
@@ -23,80 +33,93 @@ void Garage_Init(void)
 void Garage_Enter(int charId)
 {
 	struct GarageFX *garageSounds;
+	// NOTE(aalhendi): Keep the pool address in v0 until its two array iterators are initialized.
+	register struct GarageFX *garageBase CTR_PSX_REGISTER("$2");
 	u8 *soundIDs;
-	int i;
-	int charRight;
-	int charLeft;
-	int LR;
 
-	//>=8
-	if (charId >= PINSTRIPE)
-	{
+	struct GarageFX *countSlot;
+	s32 i;
+	s32 charRight;
+	s32 charLeft;
+	s32 volume;
+	// NOTE(aalhendi): Keep the count argument in a0 across the signed volume reload.
+	register u32 *arg CTR_PSX_REGISTER("$4");
+	s32 LR;
+	s32 gone;
+	if (charId >= 8)
 		return;
-	}
-
-	// characterID to the left/right
-	charLeft = (charId + -1) & 7;
-	charRight = (charId + 1) & 7;
-
-	soundIDs = &sdata->garageSoundIDs[0];
-
-	// loop through all characters in garage
-	for (i = 0; i < 8; i++)
+	// NOTE(aalhendi): Retail wraps the additions, then clamps only the adjacent IDs.
+	charLeft = CTR_MipsSubLo(charId, 1);
+	charRight = CTR_MipsAddLo(charId, 1);
+	if (charLeft < 0)
+		charLeft = 7;
+	if (charRight >= 8)
+		charRight = 0;
+	i = 0;
+	gone = GSP_GONE;
+	garageBase = GAME_GARAGE_SOUND_POOL;
+	garageSounds = garageBase;
+	soundIDs = HOWL_GARAGE_SOUND_IDS;
+	// NOTE(aalhendi): Retain the independent ID iterator and its absolute address construction.
+	CTR_PSX_KEEP_VALUE_RELAXED(soundIDs);
+	countSlot = garageSounds;
+	for (; i < 8; garageSounds++, soundIDs++, i++, countSlot++)
 	{
-		garageSounds = &sdata->garageSoundPool[i];
-
-		garageSounds->gsp_prev = GSP_GONE;
-		garageSounds->volume = 0;
-
-		// if this character is in focus
+		// NOTE(aalhendi): Retain the struct base so field stores keep their retail offsets.
+		CTR_PSX_KEEP_VALUE_RELAXED(garageSounds);
 		if (i == charId)
 		{
 			garageSounds->gsp_curr = GSP_CENTER;
-
-			// Balance Left/Right
+			garageSounds->gsp_prev = gone;
+			garageSounds->volume = 0;
 			LR = 0x80;
+			garageSounds->LR = LR;
+			if (*soundIDs != 0)
+			{
+				arg = &countSlot->soundIDCount;
+				volume = garageSounds->volume;
+				// NOTE(aalhendi): The retail word combines the signed volume low word with pan/distortion.
+				OtherFX_RecycleNew(arg, *soundIDs, ((u32)volume << 16) | 0x8080);
+				continue;
+			}
 		}
-
-		// if this character is to the left
 		else if (i == charLeft)
 		{
 			garageSounds->gsp_curr = GSP_LEFT;
-
-			// 75% left, 25% right
-			LR = 0x3c;
+			garageSounds->gsp_prev = gone;
+			garageSounds->volume = 0;
+			garageSounds->LR = 0x3c;
+			if (*soundIDs != 0)
+			{
+				arg = &countSlot->soundIDCount;
+				volume = garageSounds->volume;
+				OtherFX_RecycleNew(arg, *soundIDs, ((u32)volume << 16) | 0x803c);
+				continue;
+			}
 		}
-
-		// if this character is to the right
 		else if (i == charRight)
 		{
 			garageSounds->gsp_curr = GSP_RIGHT;
-
-			// 25% left, 75% right
-			LR = 0xc3;
+			garageSounds->gsp_prev = gone;
+			garageSounds->volume = 0;
+			garageSounds->LR = 0xc3;
+			if (*soundIDs != 0)
+			{
+				arg = &countSlot->soundIDCount;
+				volume = garageSounds->volume;
+				OtherFX_RecycleNew(arg, *soundIDs, ((u32)volume << 16) | 0x80c3);
+				continue;
+			}
 		}
-
-		// if this character is too far away
-		// to make any sound at all
 		else
 		{
-			garageSounds->gsp_curr = GSP_GONE;
-			garageSounds->LR = 0x80;
-			garageSounds->soundIDCount = 0;
-			continue;
+			garageSounds->gsp_curr = gone;
+			garageSounds->gsp_prev = gone;
+			garageSounds->volume = 0;
+			LR = 0x80;
+			garageSounds->LR = LR;
 		}
-
-		// === only if 'i' is center/left/right ===
-
-		garageSounds->LR = LR;
-
-		if (soundIDs[i] == 0)
-		{
-			garageSounds->soundIDCount = 0;
-			continue;
-		}
-
-		OtherFX_RecycleNew(&garageSounds->soundIDCount, (int)soundIDs[i], HowlSfx_Pack(LR, HOWL_SFX_DISTORTION_NONE, 0, 0));
+		garageSounds->soundIDCount = 0;
 	}
 }
 
@@ -104,28 +127,43 @@ void Garage_PlayFX(u32 soundId, int charId)
 {
 	if (charId < PINSTRIPE)
 	{
-		// if sound == BIRD_RANDOM
+		u32 volumeFlags;
+		u32 lrFlags;
+		// NOTE(aalhendi): Test the full ID before the final call truncates it to 16 bits.
 		if (soundId == 0xf6)
 		{
-			sdata->audioRNG = ((sdata->audioRNG >> 3) + sdata->audioRNG * 0x20000000) * 5 + 1;
-			soundId = (sdata->audioRNG % 3) + 0xf3;
+			u32 rng = ((HOWL_GARAGE_RNG_READ >> 3) + HOWL_GARAGE_RNG_READ * 0x20000000) * 5 + 1;
+			HOWL_GARAGE_RNG_WRITE = rng;
+			soundId = (rng % 3) + 0xf3;
 		}
-
-		OtherFX_Play_LowLevel(soundId & 0xffff, 1,
-		                      HowlSfx_Pack(sdata->garageSoundPool[charId].LR, HOWL_SFX_DISTORTION_NONE, sdata->garageSoundPool[charId].volume, 0));
+		volumeFlags = (u32)(u8)GAME_GARAGE_SOUND_POOL[charId].volume << 16;
+		lrFlags = (u8)GAME_GARAGE_SOUND_POOL[charId].LR | 0x8000;
+		OtherFX_Play_LowLevel(soundId & 0xffff, 1, volumeFlags | lrFlags);
 	}
 }
 
 void Garage_LerpFX(void)
 {
-	struct GarageFX *garageSounds = sdata->garageSoundPool;
-	u32 *soundIDCountRef;
-	int i;
+	int i = 0;
+	struct GarageFX *base = GAME_GARAGE_SOUND_POOL;
+	struct GarageFX *garageSounds;
+	struct GarageFX *soundHandleEntry;
+	register u32 *soundIDCountRef CTR_PSX_REGISTER("$19");
 
-	for (i = 0; i < 8; ++i, ++garageSounds)
+	// NOTE(aalhendi): Keep the initial handle address available before the entry base.
+	soundIDCountRef = &base->soundIDCount;
+	soundHandleEntry = base;
+	garageSounds = base;
+	CTR_PSX_DEPEND_VALUE(garageSounds, soundIDCountRef);
+
+	for (; i < 8; ++soundHandleEntry, ++i, ++garageSounds)
 	{
-		s16 targetVolume, targetLR;
-		u8 garageSoundPos = garageSounds->gsp_curr;
+		u8 *soundID;
+		int targetVolume, targetLR;
+		u8 garageSoundPos;
+
+		CTR_PSX_KEEP_VALUE_RELAXED(garageSounds);
+		garageSoundPos = garageSounds->gsp_curr;
 
 		if (garageSoundPos == GSP_CENTER)
 		{
@@ -153,39 +191,60 @@ void Garage_LerpFX(void)
 			continue;
 		}
 
+		// NOTE(aalhendi): Each halfword store truncates before the signed clamp comparison.
 		if (targetVolume != garageSounds->volume)
 		{
-			s16 delta = (garageSounds->volume < targetVolume) ? 8 : -8;
-			garageSounds->volume += delta;
-			if ((delta > 0 && garageSounds->volume > targetVolume) || (delta < 0 && garageSounds->volume < targetVolume))
+			if (garageSounds->volume < targetVolume)
 			{
-				garageSounds->volume = targetVolume;
+				garageSounds->volume += 8;
+				if (garageSounds->volume > targetVolume)
+					garageSounds->volume = targetVolume;
+			}
+			else
+			{
+				garageSounds->volume -= 8;
+				if (garageSounds->volume < targetVolume)
+					garageSounds->volume = targetVolume;
 			}
 		}
 
 		if (targetLR != garageSounds->LR)
 		{
-			s16 delta = (garageSounds->LR < targetLR) ? 2 : -2;
-			garageSounds->LR += delta;
-			if ((delta > 0 && garageSounds->LR > targetLR) || (delta < 0 && garageSounds->LR < targetLR))
+			if (garageSounds->LR < targetLR)
 			{
-				garageSounds->LR = targetLR;
+				garageSounds->LR += 2;
+				if (garageSounds->LR > targetLR)
+					garageSounds->LR = targetLR;
+			}
+			else
+			{
+				garageSounds->LR -= 2;
+				if (garageSounds->LR < targetLR)
+					garageSounds->LR = targetLR;
 			}
 		}
 
-		soundIDCountRef = &garageSounds->soundIDCount;
-		if (sdata->garageSoundIDs[i] != 0)
+		CTR_PSX_MEMORY_BARRIER();
 		{
-			OtherFX_RecycleNew(soundIDCountRef, sdata->garageSoundIDs[i], HowlSfx_Pack(garageSounds->LR, HOWL_SFX_DISTORTION_NONE, garageSounds->volume, 0));
+			u8 *soundIDs = HOWL_GARAGE_SOUND_IDS;
+			CTR_PSX_KEEP_VALUE(soundIDs);
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(soundID, soundIDs, i);
+		}
+		if (*soundID != 0)
+		{
+			// NOTE(aalhendi): Retail packs both signed halfwords without byte masks.
+			u32 volumeFlags = (u32)CTR_MipsSll(garageSounds->volume, 16);
+			u32 panFlags = (u32)(s32)garageSounds->LR | 0x8000;
+			OtherFX_RecycleNew(&soundHandleEntry->soundIDCount, *soundID, volumeFlags | panFlags);
 		}
 
 		if (targetLR == garageSounds->LR && targetVolume == garageSounds->volume)
 		{
-			garageSounds->gsp_prev = garageSounds->gsp_curr;
-
-			if (garageSounds->gsp_curr == GSP_GONE)
+			garageSoundPos = garageSounds->gsp_curr;
+			garageSounds->gsp_prev = garageSoundPos;
+			if (garageSoundPos == GSP_GONE)
 			{
-				OtherFX_RecycleMute(soundIDCountRef);
+				OtherFX_RecycleMute(&soundHandleEntry->soundIDCount);
 			}
 		}
 	}
@@ -195,57 +254,46 @@ void Garage_MoveLR(int desiredId)
 {
 	struct GarageFX *garageSounds;
 	s32 i;
-	int charRight;
-	int charLeft;
-
-	// shouldn't ever happen
+	s32 charRight;
+	s32 charLeft;
+	s32 value;
 	if (desiredId > 7)
-	{
 		return;
-	}
-
-	charLeft = (desiredId + -1) & 7;
-	charRight = (desiredId + 1) & 7;
-
-	// loop through 8 characters
+	// NOTE(aalhendi): Retail wraps the additions, then clamps only the adjacent IDs.
+	charLeft = CTR_MipsSubLo(desiredId, 1);
+	charRight = CTR_MipsAddLo(desiredId, 1);
+	if (charLeft < 0)
+		charLeft = 7;
+	if (charRight >= 8)
+		charRight = 0;
 	for (i = 0; i < 8; i++)
 	{
-		garageSounds = &sdata->garageSoundPool[i];
-
-		// character in focus
+		garageSounds = &GAME_GARAGE_SOUND_POOL[i];
 		if (i == desiredId)
-		{
 			garageSounds->gsp_curr = GSP_CENTER;
-		}
-
 		else if (i == charLeft)
 		{
 			if (garageSounds->gsp_curr == GSP_GONE)
 			{
-				// 75% left, 25% right
-				garageSounds->LR = 0x3c;
+				value = 0x3c;
+				garageSounds->LR = value;
 			}
-
-			garageSounds->gsp_curr = GSP_LEFT;
+			value = GSP_LEFT;
+			garageSounds->gsp_curr = value;
 		}
-
 		else if (i == charRight)
 		{
 			if (garageSounds->gsp_curr == GSP_GONE)
 			{
-				// 25% left, 75% right
-				garageSounds->LR = 0xc3;
+				value = 0xc3;
+				garageSounds->LR = value;
 			}
-
-			garageSounds->gsp_curr = GSP_RIGHT;
+			value = GSP_RIGHT;
+			garageSounds->gsp_curr = value;
 		}
-
 		else
-		{
 			garageSounds->gsp_curr = GSP_GONE;
-		}
 	}
-	return;
 }
 
 void Garage_Leave(void)

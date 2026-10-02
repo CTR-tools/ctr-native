@@ -3,6 +3,13 @@
 
 #include <ctr_gte.h>
 
+// NOTE(aalhendi): Word-aligned data-register input with a literal reg; caller owns the load delay.
+#ifdef CTR_NATIVE
+#define CTR_GteLoadDataWord(address, reg) MTC2(CTR_ReadU32LE(address), reg)
+#else
+#define CTR_GteLoadDataWord(address, reg) __asm__ volatile("lwc2 $" CTR_GTE_STRINGIFY(reg) ",0(%0)" : : "r"(address) : "memory")
+#endif
+
 // NOTE(aalhendi): Keep the read delay inside the transfer when writing directly
 // to a signed C destination. The compiler owns the register and final store.
 #ifdef CTR_NATIVE

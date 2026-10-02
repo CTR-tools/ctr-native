@@ -42,29 +42,34 @@ void SongPool_ChangeTempo(struct Song *song, s32 deltaBPM)
 }
 
 // NOTE(aalhendi): Retail passes the full tempo delta word; the song BPM store
-// performs the 16-bit truncation after the addition.
-void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtEnd, struct SongSet *songSet, int songSetActiveBits)
+// performs the 16-bit truncation after the addition. The loop and song-set
+// arguments are reloaded from their incoming stack slots during sequence setup.
+void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 volatile boolLoopAtEnd, struct SongSet *volatile songSet, int songSetActiveBits)
 {
-	int i;
-	int vol;
-	u8 numSeqs;
+	s32 i;
+	s32 vol;
 	struct SongSeq *seqCurr;
 	struct CseqSongHeader *csh;
 	char *cnhFirst;
 	struct SongNoteHeader *cnhCurr;
 	u16 *seqOffsetArr;
+	s16 *songOffsets;
+	register struct SongSet *set CTR_PSX_REGISTER("$9");
+	register b32 loop CTR_PSX_REGISTER("$9");
+	u32 maxVolume;
+	u32 playingFlag;
 
 	// now playing
 	song->flags = 1;
+	// NOTE(aalhendi): Fetch the offset table before publishing the song ID.
+	songOffsets = sdata->ptrCseqSongStartOffset;
 	song->id = songID;
-
-	csh = GetCseqSongHeader(songID);
-	numSeqs = csh->numSeqs;
-
+	csh = (struct CseqSongHeader *)&sdata->ptrCseqSongData[(u16)songOffsets[songID]];
 	// advHub
-	if (songSet != 0)
+	set = songSet;
+	if (set != 0)
 	{
-		if (songSet->numSeqs != numSeqs)
+		if (set->numSeqs != csh->numSeqs)
 		{
 			return;
 		}
@@ -88,7 +93,8 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 
 	else
 	{
-		// partial volume
+		// NOTE(aalhendi): Keep the volume selection in this branch before the shared stores.
+		CTR_PSX_OBSERVE_MEMORY(song->vol_Curr);
 		vol = 0xbe;
 	}
 
@@ -96,7 +102,7 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 	song->vol_New = vol;
 
 	// Naughty Dog Box
-	if (sdata->gGT->levelID == NAUGHTY_DOG_CRATE)
+	if (GAME_TRACKER->levelID == NAUGHTY_DOG_CRATE)
 	{
 		song->vol_Curr = 0xbe;
 		song->vol_New = 0xbe;
@@ -109,7 +115,7 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 
 	// first note header comes after end of CseqSongHeader
 	// and the full array of seqOffsets within the header
-	cnhFirst = (char *)&seqOffsetArr[numSeqs];
+	cnhFirst = (char *)&seqOffsetArr[csh->numSeqs];
 
 	// align up by 4
 	if (((u32)cnhFirst & 1) != 0)
@@ -121,18 +127,27 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 		cnhFirst += 2;
 	}
 
-	for (i = 0; i < numSeqs; i++)
+	i = 0;
+	if (csh->numSeqs == 0)
+	{
+		return;
+	}
+	// NOTE(aalhendi): Prepare the two loop constants in retail order.
+	playingFlag = 1;
+	maxVolume = 0xff;
+	CTR_PSX_KEEP_VALUE_RELAXED(maxVolume);
+	do
 	{
 		cnhCurr = (struct SongNoteHeader *)&cnhFirst[seqOffsetArr[i]];
 
 		seqCurr = SongPool_FindFreeChannel();
 		if (seqCurr == NULL)
 		{
-			continue;
+			goto nextSequence;
 		}
 
 		// now playing
-		seqCurr->flags = 1;
+		seqCurr->flags = playingFlag;
 
 		if ((cnhCurr->flags & 1) != 0)
 		{
@@ -140,7 +155,8 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 			seqCurr->flags = 5;
 		}
 
-		if (boolLoopAtEnd != 0)
+		loop = boolLoopAtEnd;
+		if (loop != 0)
 		{
 			seqCurr->flags |= 2;
 		}
@@ -150,23 +166,19 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 		seqCurr->instrumentID = 0;
 		seqCurr->reverb = 0;
 
-		// by default, have volume
-		seqCurr->vol_Curr = 0xFF;
-		seqCurr->vol_New = 0xFF;
-
-		// songSet (advHub)
-		if (songSet != 0)
+		set = songSet;
+		if (set != 0 && (set->ptrSongSetBits[i] & song->songSetActiveBits) == 0)
 		{
-			// if seq is not in current songSet
-			if ((songSet->ptrSongSetBits[i] & song->songSetActiveBits) == 0)
-			{
-				// disable the volume from the song
-				seqCurr->vol_Curr = 0;
-				seqCurr->vol_New = 0;
-			}
+			seqCurr->vol_Curr = 0;
+			seqCurr->vol_New = 0;
+		}
+		else
+		{
+			seqCurr->vol_Curr = maxVolume;
+			seqCurr->vol_New = maxVolume;
 		}
 
-		seqCurr->vol_StepRate = 1;
+		seqCurr->vol_StepRate = playingFlag;
 
 		seqCurr->distort = 0x80;
 		seqCurr->LR = 0x80;
@@ -181,8 +193,12 @@ void SongPool_Start(struct Song *song, u16 songID, s32 deltaBPM, b32 boolLoopAtE
 
 		seqCurr->currNote = howl_GetNextNote(seqCurr->firstNote, &seqCurr->NoteLength);
 
-		song->CseqSequences[song->numSequences++] = seqCurr;
-	}
+		// Publish the sequence pointer before advancing the count.
+		song->CseqSequences[song->numSequences] = seqCurr;
+		song->numSequences++;
+	nextSequence:
+		i++;
+	} while (i < csh->numSeqs);
 }
 
 void SongPool_Volume(struct Song *song, int newVol, int newStep, b32 boolImm)

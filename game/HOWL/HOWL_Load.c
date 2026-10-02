@@ -1,5 +1,17 @@
 #include <common.h>
 
+// NOTE(aalhendi): Resident bindings distinguish the entry scalar loads from
+// later aggregate accesses and name the song buffer; native uses canonical storage.
+#ifndef HOWL_LOAD_AUDIO_ENABLED_INITIAL
+#define HOWL_LOAD_AUDIO_ENABLED_INITIAL (sdata->boolAudioEnabled)
+#endif
+#ifndef HOWL_LOAD_STAGE_INITIAL
+#define HOWL_LOAD_STAGE_INITIAL (sdata->songLoadStage)
+#endif
+#ifndef HOWL_LOAD_SONG_BUFFER
+#define HOWL_LOAD_SONG_BUFFER (sdata->sampleBlock1)
+#endif
+
 u32 howl_InstrumentPitch(int basePitch, int pitchIndex, u32 distort)
 {
 	u32 distortIndex;
@@ -22,11 +34,16 @@ u32 howl_InstrumentPitch(int basePitch, int pitchIndex, u32 distort)
 
 int howl_InitGlobals(char *filename)
 {
-	if (sdata->boolAudioEnabled != 0)
+	u32 enabled;
+
+	if (HOWL_LOAD_AUDIO_ENABLED_INITIAL != 0)
 	{
 		return 0;
 	}
 
+	// NOTE(aalhendi): Retain the enabled constant across the default-volume stores.
+	enabled = 1;
+	CTR_PSX_KEEP_VALUE(enabled);
 	sdata->vol_FX = 215;
 	sdata->vol_Music = 175;
 	sdata->vol_Voice = 255;
@@ -35,10 +52,12 @@ int howl_InitGlobals(char *filename)
 	sdata->OptionSlider_Index = 0;
 	sdata->OptionSlider_soundID = 0;
 
-	sdata->boolStereoEnabled = 1;
-	sdata->boolAudioEnabled = 1;
+	sdata->boolStereoEnabled = enabled;
+	sdata->boolAudioEnabled = enabled;
 	sdata->boolStoringVolume = 0;
 	sdata->songLoadStage = 3;
+	// Finish all defaults before entering SPU initialization.
+	CTR_PSX_MEMORY_BARRIER();
 
 	SpuInit();
 	SpuSetTransferMode(0);
@@ -185,7 +204,10 @@ headerLoaded:
 
 int howl_SetSong(int songID)
 {
-	if (sdata->boolAudioEnabled == 0)
+	// NOTE(aalhendi): The sector value remains in v1 until the return value is prepared.
+	register u32 offset CTR_PSX_REGISTER("$3");
+
+	if (HOWL_LOAD_AUDIO_ENABLED_INITIAL == 0)
 	{
 		// Stage 3: Finished
 		sdata->songLoadStage = 3;
@@ -200,81 +222,82 @@ int howl_SetSong(int songID)
 	// Stage 0: Start Loading
 	sdata->songLoadStage = 0;
 
-	sdata->songSectorOffset = sdata->howl_songOffsets[songID & 0xffff];
+	offset = sdata->howl_songOffsets[songID & 0xffff];
+	sdata->songSectorOffset = offset;
+	// Publish the selected sector before the return jump.
+	CTR_PSX_MEMORY_BARRIER();
 	return 1;
 }
 
-// similar to h23_Bank_AssignSpuAddrs, and h34_howl_LoadHeader
-int howl_LoadSong()
+int howl_LoadSong(void)
 {
 	int ret;
-	int numSector;
+	s32 numSectors;
+	register char *remaining CTR_PSX_REGISTER("$5");
+	register CdlFILE *file CTR_PSX_REGISTER("$4");
+	int stageOne;
+	int stageDone = 3;
 
-	// Stage 3: Finished
-	if (sdata->songLoadStage == 3)
+	if (HOWL_LOAD_STAGE_INITIAL == stageDone)
 	{
 		return 1;
 	}
 
-	// Stage 0: Load 1/2
-	if (sdata->songLoadStage == 0)
+	// NOTE(aalhendi): Retail dispatches once, then rereads the stage at the shared exit.
 	{
-		ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,  // CdLoc of HOWL
-		                                sdata->sampleBlock1,     // destination in RAM for songs
-		                                sdata->songSectorOffset, // song offset on disc, from CdLoc
-		                                1                        // one sector
-		);
-
-		if (ret != 0)
+		int stage = sdata->songLoadStage;
+		stageOne = 1;
+		if (stage == stageOne)
+			goto stage1;
+		if (stage < 2)
 		{
-			// go to next stage
-			sdata->songLoadStage++;
+			if (stage == 0)
+				goto stage0;
+			goto stageExit;
 		}
-
-		return 0;
+		if (stage == 2)
+			goto stage2;
+		goto stageExit;
 	}
 
-	// Stage 1: Load 2/2
-	if (sdata->songLoadStage == 1)
+stage0:
+	ret = LOAD_HowlSectorChainStart(&GAME_HOWL_CD_FILE, HOWL_LOAD_SONG_BUFFER, sdata->songSectorOffset, 1);
+	if (ret != 0)
 	{
-		if (LOAD_HowlSectorChainEnd() == 0)
-		{
-			return 0;
-		}
-
-		// CseqHeader->songSize, aligned up to sector size
-		numSector = CTR_MipsSrl(CTR_MipsAddLo(*(s32 *)&sdata->sampleBlock1[0], 0x7ff), 11);
-
-		ret = LOAD_HowlSectorChainStart(&sdata->KartHWL_CdFile,      // CdLoc of HOWL
-		                                sdata->tenSampleBlocks,      // (sampleBlock1+0x800) RAM destination
-		                                sdata->songSectorOffset + 1, // song offset on disc, from CdLoc
-		                                numSector - 1);
-
-		if (ret != 0)
-		{
-			// go to next stage
-			sdata->songLoadStage++;
-		}
-
-		return 0;
+		sdata->songLoadStage = stageOne;
+		CTR_PSX_OBSERVE_MEMORY(sdata->songLoadStage);
 	}
+	goto stageExit;
 
-	// Stage 2: Parsing Song
-	if (sdata->songLoadStage == 2)
+stage1:
+	if (LOAD_HowlSectorChainEnd() == 0)
+		goto stageExit;
+
+	// NOTE(aalhendi): Form the CD-file and buffer arguments before reading the size.
+	// Native names the following array directly; retail adds one sector to the base.
+	file = &GAME_HOWL_CD_FILE;
+	remaining = HOWL_LOAD_SONG_BUFFER;
+	CTR_PSX_ORDER_VALUES(file, remaining);
+	CTR_PSX_ADD_POINTER_IMMEDIATE(remaining, remaining, 0x800, sdata->tenSampleBlocks);
+	// Round with 32-bit wrap, then retain zero or negative remaining-sector counts.
+	numSectors = (CTR_ReadU32AlignedLE(HOWL_LOAD_SONG_BUFFER) + 0x7ffu) >> 11;
+	ret = LOAD_HowlSectorChainStart(file, remaining, CTR_MipsAddLo(sdata->songSectorOffset, 1), numSectors - 1);
+	if (ret != 0)
 	{
-		if (LOAD_HowlSectorChainEnd() == 0)
-		{
-			return 0;
-		}
-
-		howl_ParseCseqHeader((struct CseqHeader *)sdata->sampleBlock1);
-
-		// go to next stage
-		sdata->songLoadStage++;
-		return 1;
+		sdata->songLoadStage = 2;
+		CTR_PSX_OBSERVE_MEMORY(sdata->songLoadStage);
 	}
+	goto stageExit;
 
-	return 0;
+stage2:
+	if (LOAD_HowlSectorChainEnd() == 0)
+		goto stageExit;
+
+	howl_ParseCseqHeader((struct CseqHeader *)HOWL_LOAD_SONG_BUFFER);
+	sdata->songLoadStage = stageDone;
+
+stageExit:
+	return sdata->songLoadStage == 3;
 }
 
 void howl_ErasePtrCseqHeader()

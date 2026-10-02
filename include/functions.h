@@ -219,7 +219,7 @@ void Smart_EnterCriticalSection(void);
 void Smart_ExitCriticalSection(void);
 void Channel_SetVolume(struct ChannelAttr *attr, int volume, int LR);
 int Channel_FindSound(int soundID);
-struct ChannelStats *Channel_AllocSlot_AntiSpam(s16 soundID, u8 boolUseAntiSpam, int flags, struct ChannelAttr *attr);
+struct ChannelStats *Channel_AllocSlot_AntiSpam(u16 soundID, u8 boolUseAntiSpam, int flags, struct ChannelAttr *attr);
 struct ChannelStats *Channel_AllocSlot(int flags, struct ChannelAttr *attr);
 struct ChannelStats *Channel_SearchFX_EditAttr(int type, int soundID, int updateFlags, struct ChannelAttr *attr);
 struct ChannelStats *Channel_SearchFX_Destroy(int type, int soundID, int flags);
