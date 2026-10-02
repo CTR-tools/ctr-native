@@ -3884,9 +3884,9 @@ struct sData
 	// 8008db48: lev -> mesh_info
 
 
-	// 8008dD28
-	// see FUN_8001c8e4
-	char SpuDecodedBuf[0x800];
+	// 8008dd28
+	// Decoded CD left/right channels, each containing 512 signed samples.
+	s16 SpuDecodedBuf[0x400];
 
 	// 8008E528
 	// 400 bytes, 100 ints

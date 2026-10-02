@@ -1,14 +1,50 @@
 #include <common.h>
 
+// NOTE(aalhendi): CD/SPU callbacks communicate through full-width shared slots.
+#define CDSYS_CALLBACK_STATE ((volatile struct sData *)sdata)
+
+#ifndef CDSYS_DISC_ENABLED
+#define CDSYS_DISC_ENABLED (sdata->boolUseDisc)
+#endif
+#ifndef CDSYS_FINISHED
+#define CDSYS_FINISHED (sdata->XA_boolFinished)
+#endif
+#ifndef CDSYS_CLEAR_INITIAL_STATUS
+#define CDSYS_CLEAR_INITIAL_STATUS() CTR_WriteU16LE(&sdata->unused400[0], 0)
+#endif
+#ifndef CDSYS_MUSIC_VOLUME
+#define CDSYS_MUSIC_VOLUME (sdata->vol_Music)
+#endif
+#ifndef CDSYS_VOICE_VOLUME
+#define CDSYS_VOICE_VOLUME (sdata->vol_Voice)
+#endif
+#ifndef CDSYS_XNF_NAME
+#define CDSYS_XNF_NAME   (data.s_XA_ENG_XNF)
+#define CDSYS_EXTRA_NAME (data.s_XA_ENG_EXTRA)
+#define CDSYS_GAME_NAME  (data.s_XA_ENG_GAME)
+#define CDSYS_LANGUAGES  (data.xaLanguagePtrs)
+#define CDSYS_AUDIO_META (data.audioMeta)
+#define CDSYS_XNF_MAGIC  (sdata->s_XINF)
+#endif
+#ifndef CDSYS_READ_XNF_MAGIC
+#define CDSYS_READ_XNF_MAGIC(headerMagic, expectedMagic, header) \
+	do                                                           \
+	{                                                            \
+		(headerMagic) = CTR_ReadU32AlignedLE(header);            \
+		(expectedMagic) = CTR_ReadU32AlignedLE(CDSYS_XNF_MAGIC); \
+	} while (0)
+#endif
+
 #if defined(CTR_NATIVE)
 #include <platform/native_audio.h>
 #endif
 
 b32 CDSYS_Init(b32 boolUseDisc)
 {
+	register b32 result CTR_PSX_REGISTER("$2");
 	sdata->boolUseDisc = boolUseDisc;
 
-	CTR_WriteU16LE(&sdata->unused400[0], 0);
+	CDSYS_CLEAR_INITIAL_STATUS();
 
 	// if using parallel port (Naughty Dog Devs only)
 	if (boolUseDisc != 0)
@@ -16,9 +52,12 @@ b32 CDSYS_Init(b32 boolUseDisc)
 		// if Cd does not initialize
 		if (CdInit() == 0)
 		{
+			result = 0;
+			CTR_PSX_OBSERVE_VALUE(result);
 			// use parallel port (Naughty Dog Devs only)
 			sdata->boolUseDisc = 0;
-			return false;
+			CTR_PSX_MEMORY_BARRIER();
+			return result;
 		}
 
 		CdSetDebug(1);
@@ -50,10 +89,11 @@ b32 CDSYS_Init(b32 boolUseDisc)
 
 	sdata->irqAddr = 0;
 
-	// unused_8008d700
+	sdata->unused_8008d700 = 0;
 
 	sdata->XA_CurrPos = 0;
 	sdata->XA_PauseFrame = 0;
+	CTR_PSX_MEMORY_BARRIER();
 
 	CDSYS_SetMode_StreamData();
 
@@ -68,20 +108,25 @@ b32 CDSYS_Init(b32 boolUseDisc)
 u32 CDSYS_GetFilePosInt(char *fileString, int *filePos)
 {
 	CdlFILE cdlFile;
+	u32 result;
 
 	if (CdSearchFile(&cdlFile, fileString) != 0)
 	{
 		*filePos = CdPosToInt(&cdlFile.pos);
-		return 1;
+		result = 1;
 	}
-
-	return 0;
+	else
+	{
+		CTR_PSX_ZERO_VALUE(result);
+	}
+	return result;
 }
 
 
 void CDSYS_SetMode_StreamData()
 {
 	u8 buf[8];
+	s32 xnfLoaded;
 
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): Native has no disc-mode switch, but retail force-stops
@@ -98,7 +143,7 @@ void CDSYS_SetMode_StreamData()
 #endif
 
 	// quit if using parallel
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 		return;
 	}
@@ -125,10 +170,11 @@ void CDSYS_SetMode_StreamData()
 	buf[0] = CdlModeSpeed;
 	CdControl(CdlSetmode, buf, 0);
 
-	sdata->discMode = DM_DATA;
-	sdata->XA_State = XA_IDLE;
+	xnfLoaded = sdata->bool_XnfLoaded;
+	CDSYS_CALLBACK_STATE->XA_State = XA_IDLE;
+	CDSYS_CALLBACK_STATE->discMode = DM_DATA;
 
-	if (sdata->bool_XnfLoaded != 0)
+	if (xnfLoaded != 0)
 	{
 		CdSyncCallback(0);
 		CdReadyCallback(0);
@@ -140,7 +186,7 @@ void CDSYS_SetMode_StreamAudio()
 {
 	u8 buf[8];
 
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 		return;
 	}
@@ -166,7 +212,7 @@ void CDSYS_SetMode_StreamAudio()
 	CdControl(CdlSetmode, buf, 0);
 
 	sdata->discMode = DM_AUDIO;
-	sdata->XA_State = XA_IDLE;
+	CDSYS_CALLBACK_STATE->XA_State = XA_IDLE;
 
 	CdSyncCallback(CDSYS_XaCallbackCdSync);
 	CdReadyCallback(CDSYS_XaCallbackCdReady);
@@ -175,91 +221,163 @@ void CDSYS_SetMode_StreamAudio()
 
 int CDSYS_SetXAToLang(int lang)
 {
-	char *xaLang;
-	int fileSize;
-	struct XNF *xnf;
+	char **xaLang;
+	register char **languageTable CTR_PSX_REGISTER("$2");
+	char *languageCode;
+	register char *destination CTR_PSX_REGISTER("$4");
+	s32 fileSize;
+	u8 *cursor;
+	s32 value;
+	register s32 numXAs CTR_PSX_REGISTER("$3");
+	register s32 expectedTypes CTR_PSX_REGISTER("$2");
+	s32 expectedMagic;
+	s32 numTypes;
+	s32 categoryID;
+	register s32 categoryOffset CTR_PSX_REGISTER("$18");
+	struct AudioMeta *am;
 
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 		return 1;
 	}
 	if (lang >= CDSYS_LANGUAGE_COUNT)
 	{
-		return 0;
+		goto failed;
 	}
 
 	sdata->bool_XnfLoaded = 0;
+	CTR_PSX_MEMORY_BARRIER();
 	CDSYS_SetMode_StreamData();
 
-	xaLang = data.xaLanguagePtrs[lang];
-	strncpy(&data.s_XA_ENG_XNF[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
-	strncpy(&data.s_XA_ENG_EXTRA[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
-	strncpy(&data.s_XA_ENG_GAME[CDSYS_LANGUAGE_CODE_OFFSET], xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
+	languageCode = &CDSYS_XNF_NAME[CDSYS_LANGUAGE_CODE_OFFSET];
+	destination = languageCode;
+	CTR_PSX_OBSERVE_VALUE(destination);
+	languageTable = CDSYS_LANGUAGES;
+	CTR_PSX_DEPEND_VALUE(lang, languageTable);
+	xaLang = &languageTable[lang];
+	strncpy(destination, *xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
+	strncpy(&CDSYS_EXTRA_NAME[CDSYS_LANGUAGE_CODE_OFFSET], *xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
+	strncpy(&CDSYS_GAME_NAME[CDSYS_LANGUAGE_CODE_OFFSET], *xaLang, CDSYS_LANGUAGE_CODE_LENGTH);
 
-	// store on heap
-	void *ptrDst = 0;
-
-	xnf = LOAD_XnfFile(data.s_XA_ENG_XNF, ptrDst, &fileSize);
+	cursor = LOAD_XnfFile(languageCode - CDSYS_LANGUAGE_CODE_OFFSET, 0, &fileSize);
 
 	// read error
-	if (xnf == 0)
+	if (cursor == 0)
 	{
 		return 0;
 	}
 
-	// header error
-	if (xnf->magic != (s32)CTR_ReadU32LE(&sdata->s_XINF[0]))
+	// NOTE(aalhendi): XNF is serialized data. Advance a byte cursor by the
+	// canonical member sizes instead of indexing across distinct scalar fields.
+	CDSYS_READ_XNF_MAGIC(value, expectedMagic, cursor);
+	cursor += sizeof(((struct XNF *)0)->magic);
+	if (value != expectedMagic)
 	{
+		goto failed;
+	}
+	CTR_PSX_KEEP_VALUE_RELAXED(cursor);
+
+	value = CTR_ReadU32AlignedLE(cursor);
+	cursor += sizeof(((struct XNF *)0)->version);
+	if (value != CDSYS_XNF_VERSION_RETAIL)
+	{
+		goto failed;
+	}
+	CTR_PSX_KEEP_VALUE_RELAXED(cursor);
+
+	value = CTR_ReadU32AlignedLE(cursor);
+	// NOTE(aalhendi): Keep the comparison temporary independent of the loaded header word.
+	CTR_PSX_BIND_VALUE_CLOBBER(value, "$2");
+	expectedTypes = CDSYS_XA_NUM_TYPES;
+	CTR_PSX_OBSERVE_VALUE(expectedTypes);
+	sdata->xa_numTypes = value;
+	CTR_PSX_OBSERVE_MEMORY(sdata->xa_numTypes);
+	cursor += sizeof(((struct XNF *)0)->numTypes);
+	if (value != expectedTypes)
+	{
+	failed:
+		CTR_PSX_MEMORY_BARRIER();
 		return 0;
 	}
+	CTR_PSX_KEEP_VALUE_RELAXED(cursor);
 
-	if (xnf->version != CDSYS_XNF_VERSION_RETAIL)
+	numXAs = CTR_ReadU32AlignedLE(cursor);
+	cursor += sizeof(((struct XNF *)0)->numXAs_total) + sizeof(((struct XNF *)0)->numAudioTracks_total);
+	CDSYS_CALLBACK_STATE->ptrArray_NumXAs = (s32 *)cursor;
+	cursor += sizeof(((struct XNF *)0)->numXA);
+	CDSYS_CALLBACK_STATE->ptrArray_firstXaIndex = (s32 *)cursor;
+	cursor += sizeof(((struct XNF *)0)->firstXaIndex);
+	CDSYS_CALLBACK_STATE->ptrArray_numSongs = (s32 *)cursor;
+	cursor += sizeof(((struct XNF *)0)->numSongs);
+	CDSYS_CALLBACK_STATE->ptrArray_firstSongIndex = (s32 *)cursor;
+	cursor += sizeof(((struct XNF *)0)->firstSongIndex);
+	categoryID = 0;
+	// The logical category and its byte offset advance independently through
+	// the per-category word tables and the AudioMeta array.
+	CTR_PSX_COPY_VALUE(categoryOffset, categoryID);
+	am = CDSYS_AUDIO_META;
+	CDSYS_CALLBACK_STATE->ptrArray_XaCdPos = (s32 *)cursor;
+	cursor += numXAs * sizeof(s32);
+	CTR_PSX_KEEP_VALUE_RELAXED(cursor);
+	CDSYS_CALLBACK_STATE->ptrArray_XaSize = (struct XaSize *)cursor;
+
+	do
 	{
-		return 0;
-	}
+		s32 xaID;
+		s32 count;
+		register s32 *categoryEntry CTR_PSX_REGISTER("$2");
+		CTR_PSX_KEEP_VALUE_RELAXED(am);
+		categoryEntry = sdata->ptrArray_NumXAs;
+		CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(categoryEntry, categoryEntry, categoryOffset);
+		count = *categoryEntry;
 
-	sdata->xa_numTypes = xnf->numTypes;
-	if (sdata->xa_numTypes != CDSYS_XA_NUM_TYPES)
-	{
-		return 0;
-	}
-
-	sdata->ptrArray_NumXAs = &xnf->numXA[0];
-	sdata->ptrArray_firstXaIndex = &xnf->firstXaIndex[0];
-	sdata->ptrArray_numSongs = &xnf->numSongs[0];
-	sdata->ptrArray_firstSongIndex = &xnf->firstSongIndex[0];
-	sdata->ptrArray_XaCdPos = XNF_GETXACDPOS(xnf);
-	sdata->ptrArray_XaSize = (struct XaSize *)&sdata->ptrArray_XaCdPos[xnf->numXAs_total];
-
-	for (int categoryID = 0; categoryID < sdata->xa_numTypes; categoryID++)
-	{
-		struct AudioMeta *am = &data.audioMeta[categoryID];
-
-		for (int xaID = 0; xaID < sdata->ptrArray_NumXAs[categoryID]; xaID++)
+		for (xaID = 0; xaID < count;)
 		{
-			am->name[(s32)am->stringIndex_char1] = '0' + (xaID / 10);
-			am->name[(s32)am->stringIndex_char2] = '0' + (xaID % 10);
+			s32 firstXaIndex;
+			s32 found;
+			register s32 *returnPtr_xaCdPos CTR_PSX_REGISTER("$3");
+			am->name[(u8)am->stringIndex_char1] = '0' + (xaID / 10);
+			am->name[(u8)am->stringIndex_char2] = '0' + (xaID % 10);
 
-			int firstXaIndex = sdata->ptrArray_firstXaIndex[categoryID];
-			int *returnPtr_xaCdPos = &sdata->ptrArray_XaCdPos[firstXaIndex + xaID];
+			categoryEntry = sdata->ptrArray_firstXaIndex;
+			destination = am->name;
+			CTR_PSX_DEPEND_VALUE(categoryEntry, destination);
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(categoryEntry, categoryEntry, categoryOffset);
+			firstXaIndex = *categoryEntry;
+			CTR_PSX_LOAD_WORD_AFTER(returnPtr_xaCdPos, sdata->ptrArray_XaCdPos, firstXaIndex);
+			returnPtr_xaCdPos += firstXaIndex;
+			CTR_PSX_KEEP_VALUE_RELAXED(returnPtr_xaCdPos);
+			returnPtr_xaCdPos += xaID;
 
 			// quit on error to find XA file
-			if (CDSYS_GetFilePosInt(am->name, returnPtr_xaCdPos) == 0)
+			found = CDSYS_GetFilePosInt(destination, returnPtr_xaCdPos);
+			CTR_PSX_OBSERVE_VALUE(xaID);
+			xaID++;
+			if (found == 0)
 			{
-				return 0;
+				goto failed;
 			}
+			categoryEntry = sdata->ptrArray_NumXAs;
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(categoryEntry, categoryEntry, categoryOffset);
+			count = *categoryEntry;
 		}
-	}
+		categoryOffset += sizeof(s32);
+		CTR_PSX_LOAD_WORD_AFTER(numTypes, sdata->xa_numTypes, categoryOffset);
+		CTR_PSX_OBSERVE_VALUE(numTypes);
+		categoryID++;
+		am++;
+	} while (categoryID < numTypes);
 
 	sdata->bool_XnfLoaded = 1;
 	return 1;
 }
 
 
-void CDSYS_XaCallbackCdSync(u8 result, u8 *unk) //+unk to adhere to *CdlCB
+// The unused argument is required by CdlCB.
+void CDSYS_XaCallbackCdSync(u8 result, u8 *unk)
 {
+	u32 com;
 	(void)unk;
-	u8 com;
 
 	if (result == CdlComplete)
 	{
@@ -269,6 +387,8 @@ void CDSYS_XaCallbackCdSync(u8 result, u8 *unk) //+unk to adhere to *CdlCB
 		if (com < 2)
 		{
 			sdata->XA_State = XA_IDLE;
+			// NOTE(aalhendi): Complete the callback store before its return branch.
+			CTR_PSX_MEMORY_BARRIER();
 		}
 
 		return;
@@ -278,137 +398,132 @@ void CDSYS_XaCallbackCdSync(u8 result, u8 *unk) //+unk to adhere to *CdlCB
 }
 
 
-void CDSYS_XaCallbackCdReady(u8 result, u8 *unk) //+unk to adhere to *CdlCB
+// The unused argument is required by CdlCB.
+void CDSYS_XaCallbackCdReady(u8 result, u8 *unk)
 {
 	(void)unk;
 	if (result == CdlDataReady)
 	{
-		CdGetSector(&sdata->cdlFile_CdReady[0], 3);
-		sdata->XA_CurrPos = CdPosToInt(&sdata->cdlFile_CdReady[0]);
+		CdGetSector(&GAME_CD_READY_POSITION[0], 3);
+		CDSYS_CALLBACK_STATE->XA_CurrPos = CdPosToInt(&GAME_CD_READY_POSITION[0]);
 
 		if (
 		    // queued to start (CD seeking?)
-		    (sdata->XA_State == XA_STARTING) && (sdata->XA_StartPos <= sdata->XA_CurrPos))
+		    (CDSYS_CALLBACK_STATE->XA_State == XA_STARTING) && (CDSYS_CALLBACK_STATE->XA_CurrPos >= CDSYS_CALLBACK_STATE->XA_StartPos))
 		{
 			// XA playing
-			sdata->XA_State = XA_PLAYING;
+			CDSYS_CALLBACK_STATE->XA_State = XA_PLAYING;
 
-			sdata->XA_CurrOffset = (sdata->XA_CurrPos - sdata->XA_StartPos) * 4;
+			CDSYS_CALLBACK_STATE->XA_CurrOffset = (CDSYS_CALLBACK_STATE->XA_CurrPos - CDSYS_CALLBACK_STATE->XA_StartPos) * 4;
 		}
 
 		if (
 		    // XA is playing
-		    (sdata->XA_State == XA_PLAYING) && (sdata->XA_EndPos < sdata->XA_CurrPos))
+		    (CDSYS_CALLBACK_STATE->XA_State == XA_PLAYING) && (CDSYS_CALLBACK_STATE->XA_CurrPos > CDSYS_CALLBACK_STATE->XA_EndPos))
 		{
 			// XA should stop
-			sdata->XA_State = XA_FADING;
+			CDSYS_CALLBACK_STATE->XA_State = XA_FADING;
 
 			// disable music
-			sdata->XA_VolumeDeduct = CDSYS_XA_FADE_VOLUME_STEP;
+			CDSYS_CALLBACK_STATE->XA_VolumeDeduct = CDSYS_XA_FADE_VOLUME_STEP;
 		}
 
-		sdata->countPass_CdReadyCallback++;
+		CDSYS_CALLBACK_STATE->countPass_CdReadyCallback++;
+		CTR_PSX_MEMORY_BARRIER();
 		return;
 	}
 
-	sdata->countFail_CdReadyCallback++;
+	CDSYS_CALLBACK_STATE->countFail_CdReadyCallback++;
 }
 
 
-void CDSYS_SpuCallbackIRQ()
+void CDSYS_SpuCallbackIRQ(void)
 {
 	// disable IRQ, now that it's finished
 	SpuSetIRQ(0);
 
-/*
+	// SPU_CDONLY writes the two-channel CD storage, not the full four-channel
+	// SDK object. Each channel has two 256-sample halves; the transfer callback
+	// selects a half for amplitude tracking.
+	SpuReadDecodedData(GAME_SPU_DECODED_BUFFER, SPU_CDONLY);
 
-From LibRef
-When you call SpuReadDecodedData(), the SPU copies data from its buffers to the SpuDecodeData struct
-in main memory that you specify. It copies the data one-half buffer (0x200 bytes) at a time, and returns a
-code specifying which half of the buffer is currently being written to, so you can use the data from the other
-half.
-*/
-
-// from TOMB5
-// https://github.com/TOMB5/TOMB5/blob/master/EMULATOR/LIBSPU.H
-#define SPU_CDONLY 5
-	SpuReadDecodedData((SpuDecodedData *)sdata->SpuDecodedBuf, SPU_CDONLY);
-
-	if ((sdata->XA_boolFinished == 0) &&
+	if ((CDSYS_CALLBACK_STATE->XA_boolFinished == 0) &&
 
 	    // if XA is requested to stop,
 	    // either by CdReadyCallback,
 	    // or CDSYS_XAPauseRequest
-	    (sdata->XA_State == XA_FADING))
+	    (CDSYS_CALLBACK_STATE->XA_State == XA_FADING))
 	{
 		// fade volume to zero, over multiple frames
 
-		sdata->XA_VolumeBitshift -= sdata->XA_VolumeDeduct;
+		CDSYS_CALLBACK_STATE->XA_VolumeBitshift -= CDSYS_CALLBACK_STATE->XA_VolumeDeduct;
 
-		if (sdata->XA_VolumeBitshift < 0)
+		if (CDSYS_CALLBACK_STATE->XA_VolumeBitshift < 0)
 		{
-			sdata->XA_VolumeBitshift = 0;
-			sdata->XA_boolFinished = 1;
+			CDSYS_CALLBACK_STATE->XA_VolumeBitshift = 0;
+			CDSYS_CALLBACK_STATE->XA_boolFinished = 1;
 		}
 
-		SpuSetCommonCDVolume((s16)sdata->XA_VolumeBitshift, (s16)sdata->XA_VolumeBitshift);
+		SpuSetCommonCDVolume((s16)CDSYS_CALLBACK_STATE->XA_VolumeBitshift, (s16)CDSYS_CALLBACK_STATE->XA_VolumeBitshift);
 	}
 
 	// really? ND bug? or variable reuse?
-	sdata->XA_CurrOffset++;
+	GAME_XA_CURRENT_OFFSET++;
 }
 
 
-void CDSYS_SpuCallbackTransfer()
+void CDSYS_SpuCallbackTransfer(void)
 {
-	if (sdata->irqAddr == 0)
+	if (GAME_XA_IRQ_ADDRESS == 0)
 	{
-		sdata->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
+		CDSYS_CALLBACK_STATE->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
+		CTR_PSX_MEMORY_BARRIER();
 	}
 	else
 	{
-		sdata->irqAddr = 0;
+		CDSYS_CALLBACK_STATE->irqAddr = 0;
 	}
 
-	SpuSetIRQAddr(sdata->irqAddr);
+	SpuSetIRQAddr(CDSYS_CALLBACK_STATE->irqAddr);
 	SpuSetIRQ(1);
 
-	sdata->countPass_CdTransferCallback++;
+	CDSYS_CALLBACK_STATE->countPass_CdTransferCallback++;
+	CTR_PSX_MEMORY_BARRIER();
 
 	CDSYS_SpuGetMaxSample();
 }
 
 
-void CDSYS_SpuEnableIRQ()
+void CDSYS_SpuEnableIRQ(void)
 {
-	for (int i = 0; i < CDSYS_SPU_DECODED_BUFFER_SAMPLES; i++)
+	int i;
+	GAME_XA_MAX_SAMPLE = 0;
+	GAME_XA_HISTORY_MAX = 0;
+	for (i = 0; i < CDSYS_SPU_DECODED_BUFFER_SAMPLES; i++)
 	{
-		sdata->SpuDecodedBuf[i] = 0;
+		GAME_SPU_DECODED_BUFFER[i] = 0;
 	}
-
-	sdata->XA_MaxSampleVal = 0;
-	sdata->XA_MaxSampleValInArr = 0;
 
 	SpuSetTransferMode(SPU_TRANSFER_BY_DMA);
 	SpuSetTransferCallback(CDSYS_SpuCallbackTransfer);
 	SpuSetIRQCallback(CDSYS_SpuCallbackIRQ);
 
-	sdata->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
-	sdata->unused_8008d700 = 0;
+	CDSYS_CALLBACK_STATE->irqAddr = CDSYS_SPU_DECODED_IRQ_ADDR;
+	CDSYS_CALLBACK_STATE->unused_8008d700 = 0;
 
-	SpuSetIRQAddr(CDSYS_SPU_DECODED_IRQ_ADDR);
+	SpuSetIRQAddr(CDSYS_CALLBACK_STATE->irqAddr);
 	SpuSetIRQ(1);
 }
 
 
-void CDSYS_SpuDisableIRQ()
+void CDSYS_SpuDisableIRQ(void)
 {
 	SpuSetIRQ(0);
 	SpuSetIRQCallback(0);
 	SpuSetTransferCallback(0);
 
-	sdata->XA_MaxSampleValInArr = 0;
-	sdata->XA_MaxSampleVal = 0;
+	GAME_XA_MAX_SAMPLE = 0;
+	GAME_XA_HISTORY_MAX = 0;
 }
 
 
@@ -487,8 +602,13 @@ void CDSYS_SpuGetMaxSampleAtOffset(int xaCurrOffset)
 
 void CDSYS_SpuGetMaxSample(void)
 {
+	s32 rawSample;
 	s16 sample;
 	s16 max;
+	int start;
+	int end;
+	int i;
+	int index;
 	max = 0;
 
 #if defined(CTR_NATIVE)
@@ -504,23 +624,27 @@ void CDSYS_SpuGetMaxSample(void)
 		return;
 	}
 
-	int start = CDSYS_SPU_DECODED_HALF_SAMPLES;
-	int end = CDSYS_SPU_DECODED_BUFFER_SAMPLES;
 	if (sdata->irqAddr == 0)
 	{
 		start = 0;
 		end = CDSYS_SPU_DECODED_HALF_SAMPLES;
 	}
-
-	s16 *ptrSpuBuf = (s16 *)&sdata->SpuDecodedBuf[start];
+	else
+	{
+		start = CDSYS_SPU_DECODED_HALF_SAMPLES;
+		end = CDSYS_SPU_DECODED_BUFFER_SAMPLES;
+	}
 
 	// absolute value, find max in block
-	for (int i = start; i < end; i++)
+	for (i = start; i < end; i++)
 	{
-		sample = *ptrSpuBuf++;
-		if (sample < 0)
+		rawSample = GAME_SPU_DECODED_BUFFER[i];
+		sample = rawSample;
+		if (rawSample < 0)
 		{
-			sample = -sample;
+			// NOTE(aalhendi): Retail negates in place and compares the signed
+			// low halfword; -32768 therefore remains negative rather than clipping.
+			CTR_PSX_NEGATE_IN_PLACE(sample);
 		}
 		if (max < sample)
 		{
@@ -528,35 +652,42 @@ void CDSYS_SpuGetMaxSample(void)
 		}
 	}
 
-#if defined(CTR_NATIVE)
-	CDSYS_SaveMaxSample(max);
-#else
 	// save max for this block
-	sdata->XA_MaxSampleVal = max;
-	sdata->XA_MaxSampleValArr[sdata->XA_MaxSampleIndex] = max;
+	CDSYS_CALLBACK_STATE->XA_MaxSampleVal = max;
+	GAME_XA_MAX_SAMPLE_HISTORY[GAME_XA_MAX_SAMPLE_INDEX] = CDSYS_CALLBACK_STATE->XA_MaxSampleVal;
 
 	// Cycle through ring buffer
-	sdata->XA_MaxSampleIndex++;
-	if (sdata->XA_MaxSampleIndex >= CDSYS_XA_MAX_SAMPLE_WINDOW)
-		sdata->XA_MaxSampleIndex = 0;
-
-	if (sdata->XA_MaxSampleNumSaved < CDSYS_XA_MAX_SAMPLE_WINDOW)
-		sdata->XA_MaxSampleNumSaved++;
-
-	// Find max of last 3 block maxes,
-	// as long as 3 blocks have already passed
-	sdata->XA_MaxSampleValInArr = 0;
-	int index = sdata->XA_MaxSampleIndex;
-	for (int i = sdata->XA_MaxSampleNumSaved; i > 0; i--)
+	GAME_XA_MAX_SAMPLE_INDEX++;
+	if (GAME_XA_MAX_SAMPLE_INDEX >= CDSYS_XA_MAX_SAMPLE_WINDOW)
 	{
-		index--;
-		if (index < 0)
-			index = CDSYS_XA_MAX_SAMPLE_WINDOW - 1;
-
-		if (sdata->XA_MaxSampleValInArr < sdata->XA_MaxSampleValArr[index])
-			sdata->XA_MaxSampleValInArr = sdata->XA_MaxSampleValArr[index];
+		GAME_XA_MAX_SAMPLE_INDEX = 0;
 	}
-#endif
+
+	if (GAME_XA_SAMPLE_COUNT < CDSYS_XA_MAX_SAMPLE_WINDOW)
+	{
+		GAME_XA_SAMPLE_COUNT++;
+	}
+
+	// Find the maximum among the available blocks in the three-block history.
+	GAME_XA_HISTORY_MAX = 0;
+	i = GAME_XA_MAX_SAMPLE_INDEX;
+	index = GAME_XA_SAMPLE_COUNT;
+	if (index != 0)
+	{
+		for (index--; index != -1; index--)
+		{
+			i--;
+			if (i < 0)
+			{
+				i = CDSYS_XA_MAX_SAMPLE_WINDOW - 1;
+			}
+
+			if (GAME_XA_HISTORY_MAX < GAME_XA_MAX_SAMPLE_HISTORY[i])
+			{
+				GAME_XA_HISTORY_MAX = GAME_XA_MAX_SAMPLE_HISTORY[i];
+			}
+		}
+	}
 }
 
 
@@ -564,11 +695,12 @@ int CDSYS_XAGetNumTracks(int categoryID)
 {
 	if (sdata->boolUseDisc == 0)
 	{
+	no_tracks:
 		return 0;
 	}
-	if (categoryID >= CDSYS_XA_NUM_TYPES)
+	else if (categoryID >= CDSYS_XA_NUM_TYPES)
 	{
-		return 0;
+		goto no_tracks;
 	}
 
 	return sdata->ptrArray_numSongs[categoryID];
@@ -578,9 +710,17 @@ int CDSYS_XAGetNumTracks(int categoryID)
 int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID)
 {
 	CdlLOC loc;
-	int com;
+	s32 com;
+	register struct XaSize *xas CTR_PSX_REGISTER("$3");
+	s32 sum;
+	register s32 *cdPositions CTR_PSX_REGISTER("$2");
+	register s32 prefix CTR_PSX_REGISTER("$3");
+	s32 *firstXa;
+	s32 firstSong;
+	s32 firstXaIndex;
+	s32 *positionsBase;
 
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 		return 1;
 	}
@@ -605,12 +745,24 @@ int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID)
 		CDSYS_SetMode_StreamAudio();
 	}
 
-	struct XaSize *xas = &sdata->ptrArray_XaSize[sdata->ptrArray_firstSongIndex[categoryID] + xaID];
-	int sum = sdata->ptrArray_XaCdPos[sdata->ptrArray_firstXaIndex[categoryID] + xas->XaPrefix];
+	firstSong = sdata->ptrArray_firstSongIndex[categoryID];
+	// Resolve the category's base before adding the track and XA-file indices.
+	CTR_PSX_LOAD_WORD_AFTER(xas, sdata->ptrArray_XaSize, firstSong);
+	xas += firstSong;
+	CTR_PSX_KEEP_VALUE_RELAXED(xas);
+	xas += xaID;
+	firstXa = CDSYS_CALLBACK_STATE->ptrArray_firstXaIndex;
+	CTR_PSX_DEPEND_VALUE(xas, firstXa);
+	prefix = (u8)xas->XaPrefix;
+	CTR_PSX_LOAD_WORD_AFTER(firstXaIndex, firstXa[categoryID], prefix * sizeof(s32));
+	CTR_PSX_LOAD_WORD_AFTER(positionsBase, sdata->ptrArray_XaCdPos, firstXaIndex);
+	CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(cdPositions, positionsBase, firstXaIndex * sizeof(s32));
+	sum = cdPositions[prefix];
 
 	CdIntToPos(sum, &loc);
 
-	sdata->XA_State = XA_SEEKING;
+	CDSYS_CALLBACK_STATE->XA_State = XA_SEEKING;
+	CTR_PSX_MEMORY_BARRIER();
 
 	com = CdlSeekP;
 	if (boolCdControl != 0)
@@ -626,7 +778,9 @@ int CDSYS_XASeek(b32 boolCdControl, int categoryID, int xaID)
 
 int CDSYS_XAGetTrackLength(int categoryID, int xaID)
 {
-	if (sdata->boolUseDisc == 0)
+	register struct XaSize *xas CTR_PSX_REGISTER("$3");
+	s32 firstSong;
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 #if defined(CTR_NATIVE)
 		return NativeAudio_GetXATrackLength(categoryID, xaID);
@@ -649,9 +803,12 @@ int CDSYS_XAGetTrackLength(int categoryID, int xaID)
 		return 0;
 	}
 
-	int sizeIndex = sdata->ptrArray_firstSongIndex[categoryID] + xaID;
-
-	return sdata->ptrArray_XaSize[sizeIndex].XaBytes;
+	firstSong = sdata->ptrArray_firstSongIndex[categoryID];
+	CTR_PSX_LOAD_WORD_AFTER(xas, sdata->ptrArray_XaSize, firstSong);
+	xas += firstSong;
+	CTR_PSX_KEEP_VALUE_RELAXED(xas);
+	xas += xaID;
+	return xas->XaBytes;
 }
 
 
@@ -659,8 +816,21 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 {
 	u8 buf1[8];
 	u8 buf2[8];
+	s32 vol;
+	struct XaSize *xas;
+	s32 sum;
+	register s32 *cdPositions CTR_PSX_REGISTER("$2");
+	register CdlLOC *loc CTR_PSX_REGISTER("$18");
+	register s32 prefix CTR_PSX_REGISTER("$3");
+	s32 *firstXa;
+	register s32 *positionsBase CTR_PSX_REGISTER("$4");
+	s32 firstXaIndex;
+	s32 endPos;
+	register s32 command CTR_PSX_REGISTER("$4");
+	register u8 *argument CTR_PSX_REGISTER("$5");
+	register u8 *result CTR_PSX_REGISTER("$6");
 
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 #if defined(CTR_NATIVE)
 		int nativeVol = (categoryID == CDSYS_XA_TYPE_MUSIC) ? sdata->vol_Music : sdata->vol_Voice;
@@ -694,7 +864,7 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 
 	if (sdata->bool_XnfLoaded == 0)
 	{
-		return 0;
+		goto failed;
 	}
 
 	if (categoryID >= CDSYS_XA_NUM_TYPES)
@@ -707,7 +877,8 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 		return 0;
 	}
 
-	if (sdata->load_inProgress != 0)
+	CTR_PSX_CLOBBER("$2");
+	if (GAME_LOAD_IN_PROGRESS != 0)
 	{
 		OtherFX_Play(5, 1);
 		return 0;
@@ -719,30 +890,60 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	}
 
 	sdata->XA_State = XA_STARTING;
+	sdata->XA_Playing_Category = categoryID;
+	sdata->XA_Playing_Index = xaID;
+	CTR_PSX_MEMORY_BARRIER();
 
-	int vol = sdata->vol_Voice;
+	// NOTE(aalhendi): Each volume branch opens its own absolute byte slot;
+	// release the branch temporary before that branch-local address lifetime.
 	if (categoryID == CDSYS_XA_TYPE_MUSIC)
 	{
-		vol = sdata->vol_Music;
+		CTR_PSX_CLOBBER("$2");
+		vol = CDSYS_MUSIC_VOLUME << CDSYS_XA_VOLUME_SHIFT;
+	}
+	else
+	{
+		CTR_PSX_CLOBBER("$2");
+		vol = CDSYS_VOICE_VOLUME << CDSYS_XA_VOLUME_SHIFT;
 	}
 
-	sdata->XA_VolumeBitshift = vol << CDSYS_XA_VOLUME_SHIFT;
-	SpuSetCommonCDVolume((s16)sdata->XA_VolumeBitshift, (s16)sdata->XA_VolumeBitshift);
+	CDSYS_CALLBACK_STATE->XA_VolumeBitshift = vol;
+	SpuSetCommonCDVolume((s16)CDSYS_CALLBACK_STATE->XA_VolumeBitshift, (s16)CDSYS_CALLBACK_STATE->XA_VolumeBitshift);
 
-	sdata->XA_Playing_Index = xaID;
-	sdata->XA_Playing_Category = categoryID;
-
-	struct XaSize *xas = &sdata->ptrArray_XaSize[sdata->ptrArray_firstSongIndex[categoryID] + xaID];
-	int sum = sdata->ptrArray_XaCdPos[sdata->ptrArray_firstXaIndex[categoryID] + xas->XaPrefix];
+	xas = &sdata->ptrArray_XaSize[sdata->ptrArray_firstSongIndex[categoryID]];
+	CTR_PSX_KEEP_VALUE_RELAXED(xas);
+	xas += xaID;
 
 	buf1[0] = 1;
 	buf1[1] = xas->XaIndex;
 	CdControl(CdlSetfilter, &buf1[0], 0);
 
-	CdIntToPos(sum, (CdlLOC *)&buf2[0]);
-
+	loc = (CdlLOC *)&buf2[0];
+	CTR_PSX_KEEP_VALUE_RELAXED(loc);
+	firstXa = sdata->ptrArray_firstXaIndex;
+	CTR_PSX_DEPEND_VALUE(xas, firstXa);
+	prefix = (u8)xas->XaPrefix;
+	CTR_PSX_LOAD_WORD_AFTER(positionsBase, sdata->ptrArray_XaCdPos, prefix);
+	firstXaIndex = firstXa[categoryID];
+	CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(cdPositions, positionsBase, firstXaIndex * sizeof(s32));
+	sum = cdPositions[prefix];
+	endPos = sum + xas->XaBytes;
+	argument = (u8 *)loc;
+	CTR_PSX_OBSERVE_VALUE(argument);
 	sdata->XA_StartPos = sum;
-	sdata->XA_EndPos = sum + xas->XaBytes;
+	sdata->XA_EndPos = endPos;
+	CTR_PSX_MEMORY_BARRIER();
+	CdIntToPos(sum, (CdlLOC *)argument);
+
+	// Prepare the asynchronous command, then publish all reset counters before
+	// the SDK can expose the first read callback.
+	command = CdlReadS;
+	argument = (u8 *)loc;
+	result = 0;
+	CTR_PSX_OBSERVE_VALUE(command);
+	CTR_PSX_OBSERVE_VALUE(argument);
+	CTR_PSX_OBSERVE_VALUE(result);
+
 	sdata->XA_MaxSampleVal = 0;
 	sdata->XA_MaxSampleValInArr = 0;
 	sdata->unused_8008d700 = 0;
@@ -751,8 +952,9 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	sdata->countFail_CdReadyCallback = 0;
 	sdata->XA_CurrOffset = 0; // ND bug? Variable resuse?
 	sdata->countPass_CdTransferCallback = 0;
+	CTR_PSX_MEMORY_BARRIER();
 
-	if (CdControl(CdlReadS, &buf2[0], 0) == 1)
+	if (CdControl(command, argument, result) == 1)
 	{
 		// As of now, XA plays indefinitely, until CdReadyCallback
 		// determines the current CD position is past the end position,
@@ -767,6 +969,8 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	}
 
 	sdata->XA_State = XA_IDLE;
+	CTR_PSX_MEMORY_BARRIER();
+failed:
 	return 0;
 }
 
@@ -788,13 +992,13 @@ void CDSYS_XAPauseRequest()
 	{
 		return;
 	}
-	if (sdata->XA_State < XA_STARTING)
+	if (CDSYS_CALLBACK_STATE->XA_State != XA_PLAYING)
 	{
-		return;
-	}
-	if (sdata->XA_State > XA_PLAYING)
-	{
-		return;
+		CTR_PSX_MEMORY_BARRIER();
+		if (CDSYS_CALLBACK_STATE->XA_State != XA_STARTING)
+		{
+			return;
+		}
 	}
 
 	sdata->XA_State = XA_FADING;
@@ -804,7 +1008,7 @@ void CDSYS_XAPauseRequest()
 
 void CDSYS_XAPauseForce()
 {
-	if (sdata->boolUseDisc == 0)
+	if (CDSYS_DISC_ENABLED == 0)
 	{
 #if defined(CTR_NATIVE)
 		NativeAudio_StopXA();
@@ -825,21 +1029,24 @@ void CDSYS_XAPauseForce()
 
 	sdata->XA_boolFinished = 0;
 	sdata->XA_State = XA_IDLE;
+	CTR_PSX_MEMORY_BARRIER();
 
 	SpuSetIRQ(0);
 	CDSYS_SpuDisableIRQ();
 
 	CdControl(CdlPause, 0, 0);
 
-	sdata->XA_PauseFrame = sdata->gGT->frameTimer_MainFrame_ResetDB;
+	sdata->XA_PauseFrame = GAME_TRACKER->frameTimer_MainFrame_ResetDB;
 }
 
 
 void CDSYS_XAPauseAtEnd()
 {
+// NOTE(aalhendi): Native services no-disc playback here; retail checks the
+// shared finished flag directly, including when disc use is disabled.
+#if defined(CTR_NATIVE)
 	if (sdata->boolUseDisc == 0)
 	{
-#if defined(CTR_NATIVE)
 		int xaPlaying = NativeAudio_IsXAPlaying();
 		int fadeSteps = 0;
 
@@ -912,12 +1119,12 @@ void CDSYS_XAPauseAtEnd()
 			sdata->XA_MaxSampleVal = 0;
 			sdata->XA_MaxSampleValInArr = 0;
 		}
-#endif
 		return;
 	}
+#endif
 
 	// wait until IRQ says XA is finished
-	if (sdata->XA_boolFinished == 0)
+	if (CDSYS_FINISHED == 0)
 	{
 		return;
 	}

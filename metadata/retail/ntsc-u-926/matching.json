@@ -1387,6 +1387,23 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "cdsys",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CDSYS_Init",
+      "end_symbol": "COLL_LevModelMeta",
+      "symbol_prefix": "CDSYS_",
+      "source": "game/CDSYS.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/cdsys/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {"_gp": "0x8008cf6c", "cdsysCurrentOffset": "0x8008d6f8", "cdsysIrqAddress": "0x8008d6c4", "cdsysMaxSample": "0x8008d714", "cdsysHistoryMax": "0x8008d6f4", "cdsysMaxSampleIndex": "0x8008d6bc", "cdsysSampleCount": "0x8008d6c0", "cdsysUseDisc": "0x8008d6b0", "cdsysFinished": "0x8008d6b8"}
+    },
+    {
       "name": "bank-allocation",
       "kind": "resident",
       "artifact": "exe",

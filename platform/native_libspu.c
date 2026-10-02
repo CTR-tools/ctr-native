@@ -151,13 +151,13 @@ SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func)
 	return oldFn;
 }
 
-int SpuReadDecodedData(SpuDecodedData *d_data, int flag)
+int SpuReadDecodedData(void *d_data, int flag)
 {
-	size_t byteCount = sizeof(*d_data);
+	size_t byteCount = sizeof(SpuDecodedData);
 
 	if (flag == SPU_CDONLY)
 	{
-		byteCount = sizeof(d_data->cd_left) + sizeof(d_data->cd_right);
+		byteCount = offsetof(SpuDecodedData, voice1);
 	}
 
 	if (d_data != NULL)

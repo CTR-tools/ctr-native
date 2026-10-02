@@ -356,7 +356,10 @@ extern unsigned int SpuWritePartly(unsigned char *addr, unsigned int size);
 
 extern int SpuIsTransferCompleted(int flag);
 extern SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func);
-extern int SpuReadDecodedData(SpuDecodedData *d_data, int flag);
+// NOTE(aalhendi): SPU_CDONLY accepts just the two-channel CD prefix (2048
+// bytes), not a complete SpuDecodedData object. Keep this mode-sized DMA
+// destination untyped; the full-mode layout is still described above.
+extern int SpuReadDecodedData(void *d_data, int flag);
 #define SpuReadDecodeData(d_data, flag) SpuReadDecodedData((d_data), (flag))
 
 extern int SpuSetIRQ(int on_off);
