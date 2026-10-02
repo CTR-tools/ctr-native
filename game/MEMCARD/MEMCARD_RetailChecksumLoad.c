@@ -1,71 +1,47 @@
 #include <common.h>
 
-// NOTE(aalhendi): Retail interleaves checkpoint loads with saved-register
-// stores and schedules the CRC calls through delay slots. GCC 2.8.1 moves
-// these operations when compiling the equivalent C checksum loop.
-__asm__(".section .MEMCARD_ChecksumLoad,\"ax\",@progbits\n"
-        ".align 2\n"
-        ".ent\tMEMCARD_ChecksumLoad\n"
-        ".set\tnoreorder\n"
-        ".globl MEMCARD_ChecksumLoad\n"
-        "MEMCARD_ChecksumLoad:\n"
-        "addiu $sp,$sp,-40\n"
-        "sw $s3,28($sp)\n"
-        "move $s3,$a0\n"
-        "lw $a0,2404($gp)\n"
-        "lw $v0,2400($gp)\n"
-        "sw $s0,16($sp)\n"
-        "lw $s0,2372($gp)\n"
-        "sw $s1,20($sp)\n"
-        "move $s1,$a1\n"
-        "sw $ra,32($sp)\n"
-        "andi $v0,$v0,8\n"
-        "bnez $v0,.LMemcardChecksumFinish\n"
-        "sw $s2,24($sp)\n"
-        "addiu $v1,$s0,512\n"
-        "addiu $v0,$s1,-2\n"
-        "slt $v0,$v1,$v0\n"
-        "beqz $v0,.LMemcardChecksumFinish\n"
-        "move $s2,$zero\n"
-        "j .LMemcardChecksumTest\n"
-        "move $s1,$v1\n"
-        ".LMemcardChecksumFinish:\n"
-        "addiu $s2,$zero,1\n"
-        "j .LMemcardChecksumTest\n"
-        "addiu $s1,$s1,-2\n"
-        ".LMemcardChecksumBody:\n"
-        "addu $v0,$s3,$s0\n"
-        "lbu $a1,0($v0)\n"
-        "jal MEMCARD_CRC16\n"
-        "addiu $s0,$s0,1\n"
-        "move $a0,$v0\n"
-        ".LMemcardChecksumTest:\n"
-        "slt $v0,$s0,$s1\n"
-        "bnez $v0,.LMemcardChecksumBody\n"
-        "nop\n"
-        "sw $a0,2404($gp)\n"
-        "sw $s0,2372($gp)\n"
-        "beqz $s2,.LMemcardChecksumPending\n"
-        "addu $v0,$s3,$s0\n"
-        "lbu $a1,0($v0)\n"
-        "jal MEMCARD_CRC16\n"
-        "addiu $s0,$s0,1\n"
-        "addu $v1,$s3,$s0\n"
-        "lbu $a1,0($v1)\n"
-        "jal MEMCARD_CRC16\n"
-        "move $a0,$v0\n"
-        "j .LMemcardChecksumDone\n"
-        "sltu $v0,$zero,$v0\n"
-        ".LMemcardChecksumPending:\n"
-        "addiu $v0,$zero,7\n"
-        ".LMemcardChecksumDone:\n"
-        "lw $ra,32($sp)\n"
-        "lw $s3,28($sp)\n"
-        "lw $s2,24($sp)\n"
-        "lw $s1,20($sp)\n"
-        "lw $s0,16($sp)\n"
-        "jr $ra\n"
-        "addiu $sp,$sp,40\n"
-        ".end MEMCARD_ChecksumLoad\n"
-        ".set\treorder\n"
-        ".text\n");
+// NOTE(aalhendi): Matching binds canonical resident fields; native retains the live sdata pointer.
+#ifndef MEMCARD_CRC_LOAD_INDEX
+#define MEMCARD_CRC_LOAD_INDEX sdata->crc16_checkpoint_byteIndex
+#define MEMCARD_CRC_LOAD_FLAGS sdata->memcardStatusFlags
+#define MEMCARD_CRC_LOAD_CRC   sdata->crc16_checkpoint_status
+#endif
+
+int MEMCARD_ChecksumLoad(u8 *saveBytes, int len)
+{
+	// NOTE(aalhendi): Retail keeps payload, index, limit and finish state across CRC calls.
+	register u8 *bytes CTR_PSX_REGISTER("$19") = saveBytes;
+	register int crc CTR_PSX_REGISTER("$4") = MEMCARD_CRC_LOAD_CRC;
+	u32 flags = MEMCARD_CRC_LOAD_FLAGS;
+	register int byteIndex CTR_PSX_REGISTER("$16") = MEMCARD_CRC_LOAD_INDEX;
+	register int byteIndexEnd CTR_PSX_REGISTER("$17") = len;
+	register b32 boolFinishThisFrame CTR_PSX_REGISTER("$18");
+	int chunkEnd;
+	register u8 *checksumByte CTR_PSX_REGISTER("$3");
+
+	if ((flags & MEMCARD_STATUS_SYNC_CHECKSUM) == 0)
+	{
+		chunkEnd = byteIndex + 0x200;
+		boolFinishThisFrame = false;
+		if (chunkEnd < byteIndexEnd - 2)
+		{
+			byteIndexEnd = chunkEnd;
+			goto RunChecksum;
+		}
+	}
+	boolFinishThisFrame = true;
+	byteIndexEnd -= 2;
+RunChecksum:
+	for (; byteIndex < byteIndexEnd; byteIndex++)
+		crc = MEMCARD_CRC16(crc, bytes[byteIndex]);
+	// NOTE(aalhendi): Commit the prefix checkpoint before checking the two suffix bytes.
+	MEMCARD_CRC_LOAD_CRC = crc;
+	MEMCARD_CRC_LOAD_INDEX = byteIndex;
+	if (!boolFinishThisFrame)
+		return MC_RETURN_PENDING;
+	crc = MEMCARD_CRC16(crc, bytes[byteIndex++]);
+	// NOTE(aalhendi): Retail rebuilds the second byte address after the first CRC call.
+	CTR_PSX_ADD_POINTER_OFFSET(checksumByte, bytes, byteIndex);
+	crc = MEMCARD_CRC16(crc, checksumByte[0]);
+	return (u32)(crc != 0);
+}

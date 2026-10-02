@@ -3704,9 +3704,9 @@ struct sData
 	int unk_lala[2];
 
 	// 8008d944
-	// 0 for outdated
-	// 1 for this version
-	int boolMemcardDataValid;
+	// Nonzero when the saved header is from an incompatible version.
+	b16 boolMemcardDataOutdated;
+	u16 padding_8008d946;
 
 	// 8008d948
 	Color menuRowHighlight_Green;
@@ -3756,7 +3756,8 @@ struct sData
 
 	// 8008d978
 	// saving, loading, or deleting
-	int memcardAction;
+	s16 memcardAction;
+	u16 padding_8008d97a;
 
 	// 8008d97C
 	MainMenuState mainMenuState;

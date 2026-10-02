@@ -143,78 +143,168 @@ void RefreshCard_NextMemcardAction(int slot, int action, char *fileName, char *f
 }
 
 
-static int RefreshCard_GhostProfileNameExists(char *profileName)
-{
-	int i;
-
-	for (i = 0; i < sdata->memcard.numGhostProfilesSaved; i++)
-	{
-		if (strcmp(sdata->memcard.ghostProfile_memcard[i].profile_name, profileName) == 0)
-		{
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-void RefreshCard_GhostEncodeProfile(u32 slotIndex, u16 characterID, u16 levelID, int time, char *name)
+void RefreshCard_GhostEncodeProfile(u32 slotIndex, s16 characterID, s16 levelID, int time, char *name)
 {
 	char description[0x80];
-	char scrambled[0x80] = {0};
-	s32 characterID32 = (s16)characterID;
-	u32 packed;
-	int isUnique;
+	// NOTE(aalhendi): The aligned icon-copy branch requires a word-aligned source.
+	union
+	{
+		u32 alignment;
+		char bytes[0x80];
+	} scrambledStorage;
+	register s32 clampedTime CTR_PSX_REGISTER("$20") = time;
+	register u32 slot CTR_PSX_REGISTER("$21") = slotIndex;
+	register u16 level CTR_PSX_REGISTER("$23") = levelID;
+	u16 characterCopy;
+	s32 characterID32;
+	register u32 packed CTR_PSX_REGISTER("$16");
+	u32 encoded18;
+	register u32 questionPage CTR_PSX_REGISTER("$22");
+	s16 i;
+	b32 isUnique;
+	register char *question CTR_PSX_REGISTER("$17");
+	char *questionArg;
+	char *colon;
+	register char *iconHeader CTR_PSX_REGISTER("$2");
+	register struct MemcardState *card CTR_PSX_REGISTER("$18");
+	register struct MemcardState *cardStart CTR_PSX_REGISTER("$4");
+	register s32 numGhosts CTR_PSX_REGISTER("$3");
+	register u32 nextSlot CTR_PSX_REGISTER("$2");
+	register b32 loopUnique CTR_PSX_REGISTER("$2");
+	u32 cardPage;
+	s32 descriptionLen;
+	register char *descriptionPtr CTR_PSX_REGISTER("$16");
+	register char *descriptionArg CTR_PSX_REGISTER("$4");
+	struct GhostProfile *ghostList;
 	struct GhostProfile *profile;
+	struct MemcardState *profileCard;
+
+	CTR_PSX_KEEP_VALUE_RELAXED(level);
+	characterCopy = characterID;
+	characterID32 = (s16)characterID;
+	CTR_PSX_LOAD_SYMBOL_PAGE(questionPage, RETAIL_GHOST_TEMPLATE_ASM_NAME);
+	CTR_PSX_ADD_SYMBOL_LOW(question, questionPage, RETAIL_GHOST_TEMPLATE_ASM_NAME, data.s_BASCUS_94426G_Question);
+	ghostList = sdata_static.memcard.ghostProfile_memcard;
 
 	do
 	{
+		register u32 timeBits CTR_PSX_REGISTER("$2");
+
 		isUnique = 1;
 
-		if (time > 0x8c9ff)
+		if (clampedTime > 0x8c9ff)
 		{
-			time = 0x8c9ff;
+			clampedTime = 0x8c9ff;
 		}
 
-		packed = (u32)characterID32 | ((u32)((s32)(s16)levelID << 4)) | ((u32)time << 9) | (slotIndex << 0x1d);
-		data.s_BASCUS_94426G_Question[13] = RefreshCard_GhostEncodeByte(packed & 0x3f);
-		data.s_BASCUS_94426G_Question[14] = RefreshCard_GhostEncodeByte((packed >> 6) & 0x3f);
-		data.s_BASCUS_94426G_Question[15] = RefreshCard_GhostEncodeByte((packed >> 0xc) & 0x3f);
-		data.s_BASCUS_94426G_Question[16] = RefreshCard_GhostEncodeByte((packed >> 0x12) & 0x3f);
-		data.s_BASCUS_94426G_Question[17] = RefreshCard_GhostEncodeByte((packed >> 0x18) & 0x3f);
-		data.s_BASCUS_94426G_Question[18] = RefreshCard_GhostEncodeByte(packed >> 0x1e);
-		data.s_BASCUS_94426G_Question[19] = '\0';
-
-		if (RefreshCard_GhostProfileNameExists(data.s_BASCUS_94426G_Question) != 0)
+		packed = (u32)((s32)(s16)level << 4);
+		timeBits = (u32)clampedTime << 9;
+		packed = (u32)characterID32 | packed;
+		packed |= timeBits;
+		packed |= slot << 0x1d;
+		question[13] = RefreshCard_GhostEncodeByte(packed & 0x3f);
+		question[14] = RefreshCard_GhostEncodeByte((packed >> 6) & 0x3f);
+		question[15] = RefreshCard_GhostEncodeByte((packed >> 0xc) & 0x3f);
+		question[16] = RefreshCard_GhostEncodeByte((packed >> 0x12) & 0x3f);
+		question[17] = RefreshCard_GhostEncodeByte((packed >> 0x18) & 0x3f);
+		encoded18 = RefreshCard_GhostEncodeByte(packed >> 0x1e);
+		CTR_PSX_LOAD_SYMBOL_PAGE(cardPage, RETAIL_MEMCARD_STATE_ASM_NAME);
+		CTR_PSX_ADD_SYMBOL_LOW(cardStart, cardPage, RETAIL_MEMCARD_STATE_ASM_NAME, &sdata->memcard);
+		numGhosts = cardStart->numGhostProfilesSaved;
+		i = 0;
+		question[18] = encoded18;
+		question[19] = '\0';
+		if (numGhosts > 0)
 		{
-			isUnique = 0;
+			CTR_PSX_COPY_VALUE(card, cardStart);
+			do
+			{
+				questionArg = &CTR_PSX_PAGE_LVALUE(char, questionPage, (s16)OFFSETOF_DATA(s_BASCUS_94426G_Question), *question);
+				// NOTE(aalhendi): Both targets use 32-bit addresses; offset-first addition
+				// preserves the retail pointer-add operand order.
+				if (strcmp(questionArg, (char *)(i * sizeof(struct GhostProfile) + (u32)ghostList)) == 0)
+				{
+					isUnique = 0;
+					break;
+				}
+				i++;
+			} while (i < card->numGhostProfilesSaved);
 		}
 
-		slotIndex = (slotIndex + 1) & 7;
-	} while (isUnique == 0);
+		nextSlot = slot + 1;
+		slot = nextSlot & 7;
+		loopUnique = isUnique;
+	} while (loopUnique == 0);
 
 	description[0] = '\0';
+	CTR_PSX_OBSERVE_MEMORY(description[0]);
 
-	strcat(&description[strlen(description)], sdata->lngStrings[data.metaDataLEV[(s16)levelID].name_LNG]);
-	strcat(description, sdata->strcatData1_colon);
-	strcat(&description[strlen(description)], sdata->lngStrings[data.MetaDataCharacters[(s16)characterID].name_LNG_short]);
-	strcat(description, sdata->strcatData1_colon);
-	strcat(description, (char *)RECTMENU_DrawTime(time));
+	descriptionLen = strlen(description);
+	strcat(description + descriptionLen, GAME_LANGUAGE_STRINGS[GAME_LEVEL_METADATA[(s16)level].name_LNG]);
+	descriptionPtr = description;
+	CTR_PSX_COPY_VALUE(descriptionArg, descriptionPtr);
+	CTR_PSX_BIND_ABSOLUTE_PAGE_PTR(colon, sdata->strcatData1_colon[0], OFFSETOF_SDATA(strcatData1_colon));
+	strcat(descriptionArg, colon);
+	strcat(descriptionPtr + strlen(descriptionPtr), GAME_LANGUAGE_STRINGS[GAME_CHARACTER_METADATA[(s16)characterCopy].name_LNG_short]);
+	strcat(descriptionPtr, colon);
+	strcat(descriptionPtr, (char *)RECTMENU_DrawTime(clampedTime));
 
-	CTR_ScrambleGhostString(scrambled, description);
-	memcpy(sdata->memcardIcon_HeaderGHOST, scrambled, 0x3e);
+#if defined(CTR_NATIVE)
+	// NOTE(aalhendi): Native preserves zero-filled trailing icon text; retail
+	// leaves the unused stack bytes untouched before the fixed-size copy.
+	memset(scrambledStorage.bytes, 0, sizeof(scrambledStorage.bytes));
+#endif
+	CTR_ScrambleGhostString(scrambledStorage.bytes, descriptionPtr);
+	// NOTE(aalhendi): Keep the 62-byte icon text copy as three 16-byte chunks
+	// and a 14-byte tail. Typed pointers retain GCC 2.8.1 alignment information
+	// in the aligned branch; memcpy still owns all memory accesses.
+	iconHeader = sdata_static.memcardIcon_HeaderGHOST;
+	{
+		char *source = scrambledStorage.bytes;
+		char *end;
+		if ((u32)iconHeader & 3)
+		{
+			end = scrambledStorage.bytes + 48;
+			do
+			{
+				memcpy(iconHeader, source, 16);
+				source += 16;
+				iconHeader += 16;
+			} while (source != end);
+		}
+		else
+		{
+			u32 *destWords = (u32 *)iconHeader;
+			u32 *sourceWords = (u32 *)source;
+			end = scrambledStorage.bytes + 48;
+			do
+			{
+				memcpy(destWords, sourceWords, 16);
+				sourceWords = (u32 *)((char *)sourceWords + 16);
+				destWords = (u32 *)((char *)destWords + 16);
+			} while ((char *)sourceWords != end);
+			source = (char *)sourceWords;
+			iconHeader = (char *)destWords;
+		}
+		memcpy(iconHeader, source, 14);
+	}
+	CTR_PSX_MEMORY_BARRIER();
 
-	profile = &sdata->memcard.ghostProfile_current;
-	memcpy(profile->profile_name, data.s_BASCUS_94426G_Question, sizeof(data.s_BASCUS_94426G_Question));
-	profile->profile_name[sizeof(data.s_BASCUS_94426G_Question)] = data.s_BASCUS_94426G_Star[0];
+	// NOTE(aalhendi): Retail copies 21 bytes, including the first byte of
+	// the adjacent star-pattern string after the 20-byte question template.
+	memcpy(sdata_static.memcard.ghostProfile_current.profile_name, (char *)&data + OFFSETOF(struct Data, s_BASCUS_94426G_Question), 21);
+	profile = &sdata_static.memcard.ghostProfile_current;
 
 	memcpy(profile->SubmitName_name, name, sizeof(profile->SubmitName_name));
 
-	*(u8 *)&profile->alwaysOne = 1;
-	profile->trackID = levelID;
-	profile->characterID = characterID;
-	CTR_WriteU16LE(&profile->memcardProfileIndex, (u16)slotIndex);
-	profile->trackTime = time;
+	profileCard = (struct MemcardState *)((u8 *)profile - offsetof(struct MemcardState, ghostProfile_current));
+	*(u8 *)&profileCard->ghostProfile_current.alwaysOne = 1;
+	profileCard->ghostProfile_current.trackID = level;
+	CTR_PSX_MEMORY_BARRIER();
+	profileCard->ghostProfile_current.characterID = characterCopy;
+	CTR_PSX_MEMORY_BARRIER();
+	profileCard->ghostProfile_current.memcardProfileIndex = (u16)slot;
+	profileCard->ghostProfile_current.trackTime = clampedTime;
 }
 
 
@@ -434,65 +524,117 @@ __asm__(".section .RefreshCard_GameProgressAndOptions,\"ax\",@progbits\n"
 #endif
 
 
-static void RefreshCard_QueueGetInfo(void)
+// NOTE(aalhendi): The resident ABI gives these fields individual symbols; native
+// accesses their canonical aggregate storage. Symbolic GP stores retain retail
+// scheduling under GCC 2.8.1.
+#ifndef REFRESHCARD_SLOTS_ICON
+#define REFRESHCARD_SLOTS_ICON data.memcardIcon_HeaderSLOTS
+#endif
+#ifndef REFRESHCARD_GHOST_FILENAME
+#define REFRESHCARD_GHOST_FILENAME sdata_static.ghostFileNameFinal
+#endif
+#ifndef REFRESHCARD_MC_START
+#define REFRESHCARD_MC_START sdata->mcStart
+#endif
+#ifndef REFRESHCARD_ERROR_FLAG
+#define REFRESHCARD_ERROR_FLAG sdata->boolError
+#endif
+#ifndef REFRESHCARD_DATA_OUTDATED
+#define REFRESHCARD_DATA_OUTDATED sdata->boolMemcardDataOutdated
+#endif
+#ifndef REFRESHCARD_ACTION_MODE
+#define REFRESHCARD_ACTION_MODE sdata->memcardAction
+#endif
+#ifndef REFRESHCARD_UNK_8008D928
+#define REFRESHCARD_UNK_8008D928 sdata->unk_memcardRelated_8008d928
+#endif
+#ifndef REFRESHCARD_HUMAN_GHOST
+#define REFRESHCARD_HUMAN_GHOST sdata->boolReplayHumanGhost
+#endif
+#ifndef REFRESHCARD_UNK_8008D964
+#define REFRESHCARD_UNK_8008D964 sdata->unk8008d964
+#endif
+#ifndef REFRESHCARD_UNK_8008D95C
+#define REFRESHCARD_UNK_8008D95C sdata->unk8008d95c
+#endif
+#ifndef REFRESHCARD_PROFILES_CHECKED
+#define REFRESHCARD_PROFILES_CHECKED sdata->boolAdvProfilesChecked
+#endif
+#ifndef REFRESHCARD_SCREEN_TEXT
+#define REFRESHCARD_SCREEN_TEXT sdata->mcScreenText
+#endif
+
+static __inline__ void RefreshCard_QueueGetInfo(void)
 {
 	RefreshCard_NextMemcardAction(0, MC_ACTION_GetInfo, data.s_BASCUS_94426_SLOTS, NULL, NULL, 0);
 }
 
-static void RefreshCard_QueueMainLoad(void)
+static __inline__ void RefreshCard_QueueMainLoad(void)
 {
 	RefreshCard_NextMemcardAction(0, MC_ACTION_Load, data.s_BASCUS_94426_SLOTS, NULL, (struct GhostHeader *)sdata->ptrToMemcardBuffer1, 0x1680);
 }
 
-static void RefreshCard_QueueMainSave(void)
+
+static __inline__ void RefreshCard_QueueMainSave(void)
 {
-	RefreshCard_NextMemcardAction(0, MC_ACTION_Save, data.s_BASCUS_94426_SLOTS, (char *)data.memcardIcon_HeaderSLOTS,
+	RefreshCard_NextMemcardAction(0, MC_ACTION_Save, data.s_BASCUS_94426_SLOTS, (char *)REFRESHCARD_SLOTS_ICON,
 	                              (struct GhostHeader *)sdata->ptrToMemcardBuffer1, 0x1680);
 }
 
-static void RefreshCard_QueueGhostSave(void)
+static __inline__ void RefreshCard_QueueGhostSave(void)
 {
-	RefreshCard_NextMemcardAction(0, MC_ACTION_Save, data.s_BASCUS_94426G_Question, sdata->memcardIcon_HeaderGHOST, sdata->GhostRecording.ptrGhost, 0x3e00);
+	RefreshCard_NextMemcardAction(0, MC_ACTION_Save, data.s_BASCUS_94426G_Question, sdata_static.memcardIcon_HeaderGHOST, sdata_static.GhostRecording.ptrGhost,
+	                              0x3e00);
 }
 
-static void RefreshCard_QueueGhostLoad(void)
+static __inline__ void RefreshCard_QueueGhostLoad(void)
 {
-	RefreshCard_NextMemcardAction(0, MC_ACTION_Load, sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_indexLoad].profile_name, NULL,
-	                              sdata->ptrGhostTapePlaying, 0x3e00);
+	RefreshCard_NextMemcardAction(0, MC_ACTION_Load, GAME_MEMCARD_STATE.ghostProfile_memcard[GAME_MEMCARD_STATE.ghostProfile_indexLoad].profile_name, NULL,
+	                              sdata_static.ptrGhostTapePlaying, 0x3e00);
 }
 
-static void RefreshCard_SetScreenAndPoll(int screenText)
+static __inline__ void RefreshCard_SetScreenAndPoll(s32 screenText)
 {
 	RefreshCard_SetScreenText(screenText);
 	RefreshCard_QueueGetInfo();
-	sdata->boolError = 1;
+	REFRESHCARD_ERROR_FLAG = 1;
 }
+
 
 void RefreshCard_Unknown3(void)
 {
 	b32 keepPolling = false;
 
-	switch (sdata->mcScreenText)
+	switch (REFRESHCARD_SCREEN_TEXT)
 	{
 	case MC_SCREEN_WARNING_NOCARD:
+	{
+		register b32 error CTR_PSX_REGISTER("$2");
 		keepPolling = true;
-		sdata->mcStart = 2;
-		sdata->boolError = 1;
+		// NOTE(aalhendi): Keep the polling flag in s2 without fixing its C lifetime.
+		CTR_PSX_CLOBBER("$17");
+		REFRESHCARD_MC_START = 2;
+		// NOTE(aalhendi): The no-card stores remain separate from the shared error tail.
+		CTR_PSX_OBSERVE_MEMORY(REFRESHCARD_MC_START);
+		CTR_PSX_COPY_VALUE(error, keepPolling);
+		REFRESHCARD_ERROR_FLAG = error;
+		CTR_PSX_MEMORY_BARRIER();
 		break;
+	}
 
 	case MC_SCREEN_WARNING_UNFORMATTED:
-		if (sdata->mcStart != 7)
+		if (REFRESHCARD_MC_START == 7)
 		{
-			sdata->mcStart = 2;
-			keepPolling = true;
-			sdata->boolError = 1;
-			break;
+			REFRESHCARD_MC_START = 2;
+			RefreshCard_SetScreenText(MC_SCREEN_FORMATTING);
+			RefreshCard_NextMemcardAction(0, MC_ACTION_Format, data.s_BASCUS_94426_SLOTS, NULL, NULL, 0);
+			REFRESHCARD_ERROR_FLAG = 0;
 		}
-
-		sdata->mcStart = 2;
-		RefreshCard_SetScreenText(MC_SCREEN_FORMATTING);
-		RefreshCard_NextMemcardAction(0, MC_ACTION_Format, data.s_BASCUS_94426_SLOTS, NULL, NULL, 0);
-		sdata->boolError = 0;
+		else
+		{
+			REFRESHCARD_MC_START = 2;
+			goto pollError;
+		}
 		break;
 
 	case MC_SCREEN_CHECKING:
@@ -503,49 +645,68 @@ void RefreshCard_Unknown3(void)
 	case MC_SCREEN_ERROR_TIMEOUT:
 	case MC_SCREEN_NULL:
 	case MC_SCREEN_ERROR_NODATA:
-		if (sdata->mcStart == 5)
+		switch (REFRESHCARD_MC_START)
 		{
-			RefreshCard_SetScreenText(MC_SCREEN_LOADING);
-			RefreshCard_QueueGhostLoad();
-		}
-		else if (sdata->mcStart == 3)
-		{
-			sdata->mcStart = 2;
+		case 3:
+			REFRESHCARD_MC_START = 2;
 			RefreshCard_SetScreenText(MC_SCREEN_SAVING);
 			RefreshCard_QueueMainSave();
-			sdata->boolError = 0;
+			REFRESHCARD_ERROR_FLAG = 0;
 			break;
-		}
-		else if (sdata->mcStart == 6)
+		case 6:
 		{
-			if (sdata->memcard.ghostProfile_rowSelect >= 0)
+			struct MemcardState *card = &GAME_MEMCARD_STATE;
+			struct GhostProfile *profiles;
+			if (card->ghostProfile_rowSelect >= 0)
 			{
-				int remaining;
+				register s32 remaining CTR_PSX_REGISTER("$7");
+				s32 count;
+				s32 row;
+				char *profileName;
+				register char *finalName CTR_PSX_REGISTER("$16") = REFRESHCARD_GHOST_FILENAME;
+				profiles = card->ghostProfile_memcard;
+				profileName = (char *)(card->ghostProfile_rowSelect * sizeof(struct GhostProfile) + (u32)profiles);
 
-				memcpy(sdata->ghostFileNameFinal, sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_rowSelect].profile_name,
-				       sizeof(sdata->memcard.ghostProfile_memcard[0].profile_name));
+				memcpy(finalName, profileName, sizeof(card->ghostProfile_memcard[0].profile_name));
 				RefreshCard_SetScreenText(MC_SCREEN_SAVING);
-				RefreshCard_NextMemcardAction(0, MC_ACTION_Erase, sdata->ghostFileNameFinal, NULL, NULL, 0);
-				sdata->boolError = 0;
+				RefreshCard_NextMemcardAction(0, MC_ACTION_Erase, finalName, NULL, NULL, 0);
+				REFRESHCARD_ERROR_FLAG = 0;
 
-				remaining = (sdata->memcard.numGhostProfilesSaved - 1) - sdata->memcard.ghostProfile_rowSelect;
+				count = card->numGhostProfilesSaved;
+				row = card->ghostProfile_rowSelect;
+				// NOTE(aalhendi): Retail decrements the count before subtracting the row.
+				CTR_PSX_SUBTRACT(remaining, count - 1, row);
 				if (remaining != 0)
 				{
-					memmove(&sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_rowSelect],
-					        &sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_rowSelect + 1], remaining * sizeof(struct GhostProfile));
+					register char *nextProfiles CTR_PSX_REGISTER("$5");
+					char *destination = (char *)(row * sizeof(struct GhostProfile) + (u32)profiles);
+					CTR_PSX_OBSERVE_VALUE(destination);
+					CTR_PSX_ADD_POINTER_IMMEDIATE(nextProfiles, card, offsetof(struct MemcardState, ghostProfile_memcard) + sizeof(struct GhostProfile),
+					                              (char *)&card->ghostProfile_memcard[1]);
+					memmove(destination, (char *)(row * sizeof(struct GhostProfile) + (u32)nextProfiles), remaining * sizeof(struct GhostProfile));
 				}
-				sdata->memcard.numGhostProfilesSaved--;
+				card->numGhostProfilesSaved--;
 				break;
 			}
 
 			RefreshCard_SetScreenText(MC_SCREEN_SAVING);
 			RefreshCard_QueueGhostSave();
-			sdata->boolError = 0;
+			REFRESHCARD_ERROR_FLAG = 0;
 			break;
 		}
 
-		keepPolling = true;
-		sdata->boolError = 1;
+		case 5:
+			RefreshCard_SetScreenText(MC_SCREEN_LOADING);
+			RefreshCard_QueueGhostLoad();
+			REFRESHCARD_ERROR_FLAG = 0;
+			// NOTE(aalhendi): Ghost loading deliberately resumes error polling.
+			// fall through
+		default:
+		pollError:
+			keepPolling = true;
+			CTR_PSX_STORE_HALF(REFRESHCARD_ERROR_FLAG, keepPolling);
+			break;
+		}
 		break;
 	}
 
@@ -582,15 +743,23 @@ void RefreshCard_Unknown3(void)
 
 	if (RefreshCard_GetResult(MC_RESULT_ERROR_NODATA))
 	{
-		sdata->boolMemcardDataValid = 0;
+		REFRESHCARD_DATA_OUTDATED = 0;
 		RefreshCard_Unknown2();
-		sdata->boolError = 1;
+		REFRESHCARD_ERROR_FLAG = 1;
 
-		if ((sdata->memcardAction >= 0) && (sdata->memcardAction < 3))
+		switch (REFRESHCARD_ACTION_MODE)
 		{
-			RefreshCard_SetScreenText((sdata->memcardAction == 0) ? MC_SCREEN_ERROR_NODATA : MC_SCREEN_NULL);
+		case 0:
+			RefreshCard_SetScreenText(MC_SCREEN_ERROR_NODATA);
 			RefreshCard_QueueGetInfo();
 			keepPolling = false;
+			break;
+		case 1:
+		case 2:
+			RefreshCard_SetScreenText(MC_SCREEN_NULL);
+			RefreshCard_QueueGetInfo();
+			keepPolling = false;
+			break;
 		}
 		goto done;
 	}
@@ -598,11 +767,11 @@ void RefreshCard_Unknown3(void)
 	if (RefreshCard_GetResult(MC_RESULT_READY_LOAD))
 	{
 		RefreshCard_Unknown2();
-		sdata->unk8008d95c = 0;
-		sdata->boolAdvProfilesChecked = 0;
+		REFRESHCARD_UNK_8008D95C = 0;
+		REFRESHCARD_PROFILES_CHECKED = 0;
 		RefreshCard_SetScreenText(MC_SCREEN_LOADING);
 		RefreshCard_QueueMainLoad();
-		sdata->boolError = 0;
+		REFRESHCARD_ERROR_FLAG = 0;
 		keepPolling = false;
 		goto done;
 	}
@@ -621,116 +790,146 @@ void RefreshCard_Unknown3(void)
 		goto done;
 	}
 
-	sdata->boolError = 1;
+	REFRESHCARD_ERROR_FLAG = 1;
 
-	if (sdata->mcScreenText == MC_SCREEN_SAVING)
+	switch (REFRESHCARD_SCREEN_TEXT)
 	{
-		if (sdata->mcStart == 6)
+	case MC_SCREEN_FORMATTING:
+	{
+		RefreshCard_GetNumGhostsTotal();
+		RefreshCard_Unknown2();
+		REFRESHCARD_UNK_8008D928 = 1;
+
+		switch (REFRESHCARD_ACTION_MODE)
 		{
-			if (sdata->memcard.ghostProfile_rowSelect >= 0)
+		case 2:
+			REFRESHCARD_ERROR_FLAG = 1;
+			break;
+		case 0:
+		case 1:
+			keepPolling = false;
+			GAMEPROG_InitFullMemcard(sdata->ptrToMemcardBuffer2);
+			// NOTE(aalhendi): Preserve the reset across Init before preparing queue arguments.
+			CTR_PSX_KEEP_VALUE(keepPolling);
+			RefreshCard_SetScreenText(MC_SCREEN_NULL);
+			RefreshCard_QueueGetInfo();
+			break;
+		}
+		break;
+	}
+	case MC_SCREEN_LOADING:
+	{
+		if (REFRESHCARD_MC_START == 5)
+		{
+			REFRESHCARD_HUMAN_GHOST = 1;
+			REFRESHCARD_UNK_8008D964 = 1;
+			RefreshCard_SetScreenText(MC_SCREEN_NULL);
+		}
+		else if (CTR_ReadU32LE(sdata->ptrToMemcardBuffer2) != 0x1600ffee)
+		{
+			REFRESHCARD_DATA_OUTDATED = 1;
+			RefreshCard_Unknown2();
+			RefreshCard_SetScreenText(MC_SCREEN_ERROR_NODATA);
+		}
+		else
+		{
+			REFRESHCARD_DATA_OUTDATED = 0;
+			RefreshCard_GameProgressAndOptions();
+			RefreshCard_SetScreenText(MC_SCREEN_NULL);
+		}
+
+		REFRESHCARD_MC_START = 2;
+		RefreshCard_QueueGetInfo();
+		keepPolling = false;
+
+		break;
+	}
+	case MC_SCREEN_SAVING:
+	{
+		register s32 screenText CTR_PSX_REGISTER("$4");
+		if (REFRESHCARD_MC_START == 6)
+		{
+			struct MemcardState *card = &GAME_MEMCARD_STATE;
+			if (card->ghostProfile_rowSelect >= 0)
 			{
-				sdata->memcard.ghostProfile_rowSelect = -1;
+				card->ghostProfile_rowSelect = -1;
 				RefreshCard_SetScreenText(MC_SCREEN_SAVING);
 				RefreshCard_QueueGhostSave();
-				sdata->boolError = 0;
+				REFRESHCARD_ERROR_FLAG = 0;
 				keepPolling = false;
 				goto done;
 			}
 
 			{
-				int remaining = (sdata->memcard.numGhostProfilesSaved - 1) - sdata->memcard.ghostProfile_indexSave;
+				register s32 remaining CTR_PSX_REGISTER("$7");
+				s32 count = card->numGhostProfilesSaved;
+				s32 row = card->ghostProfile_indexSave;
+				CTR_PSX_SUBTRACT(remaining, count - 1, row);
 
 				if (remaining != 0)
 				{
-					memmove(&sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_indexSave + 1],
-					        &sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_indexSave], remaining * sizeof(struct GhostProfile));
+					register char *destination CTR_PSX_REGISTER("$4") = (char *)&card->ghostProfile_memcard[1];
+					register char *source CTR_PSX_REGISTER("$5");
+					CTR_PSX_KEEP_VALUE_RELAXED(destination);
+					destination = (char *)(row * sizeof(struct GhostProfile) + (u32)destination);
+					CTR_PSX_OBSERVE_VALUE(destination);
+					CTR_PSX_ADD_POINTER_IMMEDIATE(source, card, offsetof(struct MemcardState, ghostProfile_memcard), (char *)card->ghostProfile_memcard);
+					memmove(destination, (char *)(row * sizeof(struct GhostProfile) + (u32)source), remaining * sizeof(struct GhostProfile));
 				}
 
-				sdata->memcard.numGhostProfilesSaved++;
-				sdata->memcard.ghostProfile_memcard[sdata->memcard.ghostProfile_indexSave] = sdata->memcard.ghostProfile_current;
+				{
+					// NOTE(aalhendi): One aligned 52-byte copy keeps the retail 16-byte loop and word tail.
+					u32 *source = (u32 *)&card->ghostProfile_current;
+					struct GhostProfile *profiles = card->ghostProfile_memcard;
+					register u32 *destination CTR_PSX_REGISTER("$2");
+					destination = (u32 *)(card->ghostProfile_indexSave * sizeof(struct GhostProfile) + (u32)profiles);
+					card->numGhostProfilesSaved++;
+					memcpy(destination, source, sizeof(struct GhostProfile));
+					screenText = MC_SCREEN_NULL;
+				}
 			}
+			REFRESHCARD_UNK_8008D964 = 1;
+			REFRESHCARD_ERROR_FLAG = 1;
+			REFRESHCARD_MC_START = 2;
 		}
-
-		sdata->unk8008d964 = 1;
-		sdata->mcStart = 2;
-		RefreshCard_SetScreenText(MC_SCREEN_NULL);
+		else
+		{
+			screenText = MC_SCREEN_NULL;
+			REFRESHCARD_UNK_8008D964 = 1;
+			REFRESHCARD_ERROR_FLAG = 1;
+			REFRESHCARD_MC_START = 2;
+		}
+		RefreshCard_SetScreenText(screenText);
 		RefreshCard_QueueGetInfo();
 		keepPolling = false;
 		goto done;
 	}
-
-	if (sdata->mcScreenText < MC_SCREEN_LOADING)
+	case MC_SCREEN_CHECKING:
 	{
-		if (sdata->mcScreenText == MC_SCREEN_FORMATTING)
-		{
-			RefreshCard_GetNumGhostsTotal();
-			RefreshCard_Unknown2();
-			sdata->unk_memcardRelated_8008d928 = 1;
-
-			if (sdata->memcardAction >= 0)
-			{
-				if (sdata->memcardAction < 2)
-				{
-					GAMEPROG_InitFullMemcard(sdata->ptrToMemcardBuffer2);
-					RefreshCard_SetScreenText(MC_SCREEN_NULL);
-					RefreshCard_QueueGetInfo();
-					keepPolling = false;
-				}
-				else if (sdata->memcardAction == 2)
-				{
-					sdata->boolError = 1;
-				}
-			}
-		}
-		goto done;
-	}
-
-	if (sdata->mcScreenText != MC_SCREEN_LOADING)
-	{
-		if (sdata->mcScreenText == MC_SCREEN_CHECKING)
-		{
-			RefreshCard_GetNumGhostsTotal();
-			RefreshCard_Unknown2();
-			sdata->unk8008d95c = 0;
-			sdata->boolAdvProfilesChecked = 0;
-			RefreshCard_SetScreenText(MC_SCREEN_LOADING);
-			RefreshCard_QueueMainLoad();
-			sdata->boolError = 0;
-			keepPolling = false;
-		}
-		goto done;
-	}
-
-	if (sdata->mcStart == 5)
-	{
-		sdata->boolReplayHumanGhost = 1;
-		sdata->unk8008d964 = 1;
-		RefreshCard_SetScreenText(MC_SCREEN_NULL);
-	}
-	else if (CTR_ReadU32LE(sdata->ptrToMemcardBuffer2) == 0x1600ffee)
-	{
-		sdata->boolMemcardDataValid = 0;
-		RefreshCard_GameProgressAndOptions();
-		RefreshCard_SetScreenText(MC_SCREEN_NULL);
-	}
-	else
-	{
-		sdata->boolMemcardDataValid = 1;
+		RefreshCard_GetNumGhostsTotal();
 		RefreshCard_Unknown2();
-		RefreshCard_SetScreenText(MC_SCREEN_ERROR_NODATA);
+		REFRESHCARD_UNK_8008D95C = 0;
+		REFRESHCARD_PROFILES_CHECKED = 0;
+		RefreshCard_SetScreenText(MC_SCREEN_LOADING);
+		RefreshCard_QueueMainLoad();
+		REFRESHCARD_ERROR_FLAG = 0;
+		keepPolling = false;
+		break;
 	}
-
-	sdata->mcStart = 2;
-	RefreshCard_QueueGetInfo();
-	keepPolling = false;
+	}
 
 done:
-	if (keepPolling && !RefreshCard_GetResult(MC_RESULT_PENDING))
+{
+	register b32 pollResult CTR_PSX_REGISTER("$2");
+	// NOTE(aalhendi): Keep the final copy in v0 available to incoming branch delay slots.
+	pollResult = keepPolling;
+	CTR_PSX_KEEP_VALUE_RELAXED(pollResult);
+	if (pollResult && !RefreshCard_GetResult(MC_RESULT_PENDING))
 	{
 		RefreshCard_QueueGetInfo();
 	}
 }
-
+}
 
 void RefreshCard_Unknown4(void)
 {

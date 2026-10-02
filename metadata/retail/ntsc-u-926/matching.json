@@ -1695,6 +1695,8 @@
       "symbol_prefix": "MEMCARD_ChecksumLoad",
       "source": "game/MEMCARD/MEMCARD_RetailChecksumLoad.c",
       "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/memcard-checksum-load/retail_symbols.h"],
+      "linked_block": {},
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
@@ -1864,6 +1866,7 @@
       "symbol_prefix": "MEMCARD_",
       "source": "game/MEMCARD/MEMCARD_FileIO.c",
       "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/memcard-fileio/retail_symbols.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
@@ -1879,10 +1882,28 @@
       "symbol_prefix": "MEMCARD_",
       "source": "game/MEMCARD/MEMCARD_FileIO.c",
       "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/memcard-fileio/retail_symbols.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "link_symbols": {"_gp": "0x8008cf6c"}
+    },
+    {
+      "name": "memcard-fileio",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MEMCARD_NewTask",
+      "end_symbol": "MEMCARD_GetFreeBytes",
+      "symbol_prefix": "MEMCARD_",
+      "source": "game/MEMCARD/MEMCARD_FileIO.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "linked_block": {},
+      "forced_includes": ["tools/matching/namespaces/memcard-fileio/retail_symbols.h"]
     },
     {
       "name": "memcard-get-info",
@@ -2275,6 +2296,22 @@
       "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
+      "name": "refresh-card-ghost-profile-encode",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "RefreshCard_GhostEncodeProfile",
+      "end_symbol": "RefreshCard_GhostDecodeProfile",
+      "symbol_prefix": "RefreshCard_",
+      "source": "game/RefreshCard.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c"}
+    },
+    {
       "name": "refresh-card-ghost-profile-decode",
       "kind": "resident",
       "artifact": "exe",
@@ -2323,6 +2360,36 @@
       "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
+      "name": "refresh-card-polling",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "RefreshCard_Unknown3",
+      "end_symbol": "RefreshCard_Entry",
+      "symbol_prefix": "RefreshCard_Unknown",
+      "source": "game/RefreshCard.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/refresh-card-unknown3/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "function_rodata_addresses": {
+        "RefreshCard_Unknown3": "0x80011650",
+        "RefreshCard_Unknown4": "0x80011650"
+      },
+      "linked_block": {"rodata_address": "0x80011650", "rodata_size": 96},
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "RefreshCard_GetResult": "0x80046a90",
+        "RefreshCard_NextMemcardAction": "0x80046b1c",
+        "RefreshCard_GhostDecodeProfile": "0x80047034",
+        "RefreshCard_SetScreenText": "0x800471c4",
+        "RefreshCard_Unknown2": "0x800471e8",
+        "RefreshCard_GetNumGhostsTotal": "0x80047224",
+        "RefreshCard_GameProgressAndOptions": "0x80047230"
+      }
+    },
+    {
       "name": "refresh-card-entry",
       "kind": "resident",
       "artifact": "exe",
@@ -2337,6 +2404,27 @@
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "link_symbols": {"_gp": "0x8008cf6c"}
+    },
+    {
+      "name": "select-profile",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "SelectProfile_QueueLoadHub_MenuProc",
+      "end_symbol": "SubmitName_RestoreName",
+      "symbol_prefix": "SelectProfile_",
+      "source": "game/SelectProfile.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/select-profile-all/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "menu224": "0x800a0458",
+        "menu224NoSave": "0x800a04a4"
+      }
     },
     {
       "name": "cseq-opcodes-early",
@@ -3143,6 +3231,34 @@
       "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
+      "name": "submit-name",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "SubmitName_RestoreName",
+      "end_symbol": "TakeCupProgress_Activate",
+      "symbol_prefix": "SubmitName_",
+      "source": "game/SubmitName.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/namespaces/submit-name/retail_symbols.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "menu224": "0x800a0458"
+      }
+    },
+    {
       "name": "howl-cseq-opcode",
       "kind": "resident",
       "artifact": "exe",
@@ -3224,23 +3340,6 @@
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77"
-    },
-    {
-      "name": "refresh-card-unknown4",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "RefreshCard_Unknown4",
-      "end_symbol": "RefreshCard_Entry",
-      "symbol_prefix": "RefreshCard_Unknown4",
-      "source": "game/RefreshCard.c",
-      "include_directories": ["include"],
-      "forced_includes": ["tools/matching/retail_bindings.h"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77",
-      "function_rodata_addresses": {"RefreshCard_Unknown4": "0x80011650"},
-      "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
       "name": "load-file-init-cd",
