@@ -1,435 +1,161 @@
 #include <common.h>
 
 #ifdef CTR_NATIVE
-static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_info *mesh)
-{
-	if (mesh == NULL || mesh->bspRoot == NULL)
-	{
-		return;
-	}
-
-	for (int playerIndex = 0; playerIndex < 4; playerIndex++)
-	{
-		struct VisMemBspListNode *bspList = visMem->bspList[playerIndex];
-
-		if (bspList == NULL)
-		{
-			continue;
-		}
-
-		for (int bspIndex = 0; bspIndex < mesh->numBspNodes; bspIndex++)
-		{
-			// NOTE(aalhendi): Native 226 reads the retained BSP pointer; RenderLists only rewrites the link word.
-			bspList[bspIndex].next = NULL;
-			bspList[bspIndex].bsp = &mesh->bspRoot[bspIndex];
-		}
-	}
-}
-#endif
-
-void MainInit_VisMem(struct GameTracker *gGT)
-{
-	struct VisMem *visMem = gGT->level1->visMem;
-	gGT->visMem1 = visMem;
-
-	if (visMem == NULL)
-	{
-		return;
-	}
-
-	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
-	{
-		visMem->visLeafSrc[i] = NULL;
-		visMem->visFaceSrc[i] = NULL;
-		visMem->visOVertSrc[i] = NULL;
-		visMem->visSCVertSrc[i] = NULL;
-	}
-
-#ifdef CTR_NATIVE
-	MainInit_InitVisMemBspListNodes(visMem, gGT->level1->ptr_mesh_info);
-#endif
-}
-
-void MainInit_RainBuffer(struct GameTracker *gGT)
-{
-	u8 numPlyr = gGT->numPlyrCurrGame;
-
-	if (numPlyr == 0)
-	{
-		return;
-	}
-
-	for (int i = 0; i < numPlyr; i++)
-	{
-		struct RainBuffer *dst = &gGT->rainBuffer[i];
-		const u32 *srcWords = (const u32 *)(const void *)&gGT->level1->rainBuffer;
-		u32 *dstWords = (u32 *)(void *)dst;
-
-		for (int word = 0; word < (int)(sizeof(struct RainBuffer) / sizeof(u32)); word += 4)
-		{
-			dstWords[word + 0] = srcWords[word + 0];
-			dstWords[word + 1] = srcWords[word + 1];
-			dstWords[word + 2] = srcWords[word + 2];
-			dstWords[word + 3] = srcWords[word + 3];
-		}
-
-		dst->numParticles_curr /= numPlyr;
-		dst->numParticles_max = (s16)((u16)dst->numParticles_max / numPlyr);
-	}
-}
-
-static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
-{
-	int levelID;
-
-	// adv garage
-	if (gGT->levelID == ADVENTURE_GARAGE)
-	{
-		return 0x1b800;
-	}
-
-	// main menu
-	if ((gGT->gameMode1 & MAIN_MENU) != 0)
-	{
-		return 0x17c00;
-	}
-
-	levelID = gGT->levelID;
-
-	switch (gGT->numPlyrCurrGame)
-	{
-	case 0:
-		return 0x25800;
-
-	case 1:
-		if ((gGT->gameMode1 & ADVENTURE_ARENA) != 0)
-		{
-			return 0x1c000;
-		}
-
-		if ((u32)(levelID - INTRO_RACE_TODAY) < 9)
-		{
-			return 0x1e000;
-		}
-
-		if (levelID < GEM_STONE_VALLEY)
-		{
-			return data.primMem_SizePerLEV_1P[levelID] << 10;
-		}
-
-		return 0x17c00;
-
-	case 2:
-		if (levelID < GEM_STONE_VALLEY)
-		{
-			return data.primMem_SizePerLEV_2P[levelID] << 10;
-		}
-
-		return 0x1e000;
-
-	case 3:
-	case 4:
-		if (levelID < GEM_STONE_VALLEY)
-		{
-			return data.primMem_SizePerLEV_4P[levelID] << 10;
-		}
-
-		return 0x25800;
-
-	default:
-		return 0;
-	}
-}
-
-void MainInit_PrimMem(struct GameTracker *gGT)
-{
-	int size = MainInit_GetPrimMemSize(gGT);
-
-	if (size == 0)
-	{
-		return;
-	}
-
-	MainDB_PrimMem(&gGT->db[0].primMem, size);
-	MainDB_PrimMem(&gGT->db[1].primMem, size);
-}
-
-void MainInit_JitPoolsReset(struct GameTracker *gGT)
-{
-	JitPool_Clear(&gGT->JitPools.thread);
-	JitPool_Clear(&gGT->JitPools.instance);
-	JitPool_Clear(&gGT->JitPools.smallStack);
-	JitPool_Clear(&gGT->JitPools.mediumStack);
-	JitPool_Clear(&gGT->JitPools.largeStack);
-	JitPool_Clear(&gGT->JitPools.particle);
-	JitPool_Clear(&gGT->JitPools.oscillator);
-	JitPool_Clear(&gGT->JitPools.rain);
-}
-
-void MainInit_OTMem(struct GameTracker *gGT)
-{
-	int size;
-	u32 gameMode = gGT->gameMode1;
-
-	if ((gameMode & MAIN_MENU) != 0)
-	{
-		size = 0x1800;
-		goto EndFunc;
-	}
-
-	if ((gameMode & ADVENTURE_ARENA) != 0)
-	{
-		size = 0x2c00;
-		goto EndFunc;
-	}
-
-	if ((gameMode & BATTLE_MODE) != 0)
-	{
-		size = 0x8000;
-		goto EndFunc;
-	}
-
-	// 1P/2P mode
-	if (gGT->numPlyrCurrGame < 3)
-	{
-		size = 0x2000;
-		goto EndFunc;
-	}
-
-	// 3P/4P mode
-	size = 0x3000;
-
-EndFunc:
-
-	MainDB_OTMem(&gGT->db[0].otMem, size);
-	MainDB_OTMem(&gGT->db[1].otMem, size);
-
-	// 0x1000 per player, plus 0x18 for linking
-	size = ((gGT->numPlyrCurrGame) << 0xC) | 0x18;
-	gGT->otSwapchainDB[0] = MEMPACK_AllocMem(size, NULL); // "ot1"
-	gGT->otSwapchainDB[1] = MEMPACK_AllocMem(size, NULL); // "ot2"
-}
-
-void MainInit_JitPoolsNew(struct GameTracker *gGT)
-{
-	u32 gameMode = gGT->gameMode1;
-	int poolScale = 0x800;
-	if ((gameMode & ADVENTURE_ARENA) == 0)
-	{
-		poolScale = 0x1000;
-		if ((gameMode & MAIN_MENU) != 0)
-		{
-			poolScale = 0x400;
-		}
-	}
-
-	int renderBucketSize = 0x800;
-	if ((gameMode & ADVENTURE_ARENA) == 0)
-	{
-		renderBucketSize = 0x1000;
-		if ((gameMode & MAIN_MENU) != 0)
-		{
-			renderBucketSize = 0x400;
-			if (gGT->levelID == ADVENTURE_GARAGE)
-			{
-				renderBucketSize = 0x800;
-			}
-		}
-	}
-
-	MEMPACK_PushState();
-
-	JitPool_Init(&gGT->JitPools.thread, (renderBucketSize * 3) >> 7, sizeof(struct Thread), rdata.s_ThreadPool);
-	JitPool_Init(&gGT->JitPools.instance, renderBucketSize >> 5, sizeof(struct Instance) + (sizeof(struct InstDrawPerPlayer) * gGT->numPlyrCurrGame),
-	             rdata.s_InstancePool);
-	JitPool_Init(&gGT->JitPools.smallStack, (poolScale * 0x19) >> 10, THREAD_SMALL_STACK_SIZE, rdata.s_SmallStackPool);
-	JitPool_Init(&gGT->JitPools.mediumStack, poolScale >> 7, THREAD_MEDIUM_STACK_SIZE, rdata.s_MediumStackPool);
-
-	int numDriver = poolScale >> 9;
-	if ((gameMode & MAIN_MENU) != 0)
-	{
-		numDriver = 4;
-	}
-	JitPool_Init(&gGT->JitPools.largeStack, numDriver, THREAD_LARGE_STACK_SIZE, rdata.s_LargeStackPool);
-
-	int numParticle = poolScale >> 5;
-	JitPool_Init(&gGT->JitPools.particle, numParticle, sizeof(struct Particle), rdata.s_ParticlePool);
-	JitPool_Init(&gGT->JitPools.oscillator, numParticle, 0x18, rdata.s_OscillatorPool);
-	JitPool_Init(&gGT->JitPools.rain, poolScale >> 9, sizeof(struct RainLocal), rdata.s_RainPool);
-
-#ifndef CTR_NATIVE
-	gGT->ptrRenderBucketInstance = MEMPACK_AllocMem(renderBucketSize, NULL);
+// NOTE(aalhendi): Native retains its pre-callback level snapshot; PSX rereads
+// the live level, including across aliasing color publications.
+#define MAININIT_LEVEL(tracker, cachedLevel) (cachedLevel)
 #else
-	// NOTE(aalhendi): Native reuses static RDATA scratch for existing PC memory headroom.
-	gGT->ptrRenderBucketInstance = (void *)((u32)&rdata.s_STATIC_GNORMALZ[0] + 148);
+#define MAININIT_LEVEL(tracker, cachedLevel) ((tracker)->level1)
 #endif
-
-	for (int i = 0; i < 3; i++)
-	{
-		struct JitPool *pool = (struct JitPool *)((char *)&gGT->JitPools.smallStack + (sizeof(struct JitPool) * i));
-		int *pointer = (int *)pool->free.first;
-		while (pointer != (int *)0x0)
-		{
-			*(int **)(pointer + 2) = pointer + 2;
-			pointer = (int *)*pointer;
-		}
-	}
-
-	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
-	{
-		data.PtrClipBuffer[i] = MEMPACK_AllocMem(MainDB_GetClipSize(gGT->levelID, gGT->numPlyrCurrGame) << 2, NULL);
-	}
-}
-
-void MainInit_Drivers(struct GameTracker *gGT)
-{
-	u8 numPlyrCurrGame = gGT->numPlyrCurrGame;
-	u8 numDrivers;
-	int gameMode = gGT->gameMode1;
-
-	for (int i = 0; i < 8; i++)
-	{
-		gGT->drivers[i] = NULL;
-	}
-
-	gGT->numBotsNextGame = 0;
-
-	if ((gameMode & (GAME_CUTSCENE | ADVENTURE_ARENA | MAIN_MENU)) == 0)
-	{
-		BOTS_Adv_AdjustDifficulty();
-	}
-
-	GhostReplay_Init1();
-
-	if (LOAD_IsOpen_RacingOrBattle())
-	{
-		RB_MinePool_Init();
-	}
-
-	// Spawn all players,
-	// This MUST be in reverse order,
-	// because of threadBucket linked list order
-	for (int i = numPlyrCurrGame - 1; i >= 0; i--)
-	{
-		gGT->drivers[i] = VehBirth_Player(i);
-	}
-
-	// spawn all AIs
-	if ((
-	        // exclude cutscene, relic, Time Trial,
-	        // Adventure Hub, Main Menu, Battle
-	        ((gameMode & 0x2c122020) == 0) &&
-
-	        // numPlyrCurrGame requires AIs
-	        (numPlyrCurrGame < 3)) &&
-	    (
-	        // in Arcade or Adventure
-	        (gameMode & (ARCADE_MODE | ADVENTURE_MODE)) != 0))
-	{
-		// If you're in Boss Mode
-		// 0x80000000
-		if (gameMode < 0)
-		{
-			numDrivers = numPlyrCurrGame + 1;
-		}
-
-		// Purple Gem Cup
-		else if (
-
-		    // If you are in Adventure cup
-		    ((gameMode & ADVENTURE_CUP) != 0) &&
-
-		    // purple gem cup
-		    (gGT->cup.cupID == 4))
-		{
-			numDrivers = numPlyrCurrGame + 4;
-		}
-
-		else if (numPlyrCurrGame == 1)
-		{
-			numDrivers = 8;
-		}
-
-		else // if (numPlyrCurrGame == 2)
-		{
-			numDrivers = 6;
-		}
-
-		// Spawn AIs
-		for (int i = numPlyrCurrGame; i < numDrivers; i++)
-		{
-			// spawn an AI at this character index
-			BOTS_Driver_Init(i);
-		}
-	}
-
-	// If number of AIs is not zero
-	if (gGT->numBotsNextGame != 0)
-	{
-		// Init AI engine sounds
-		EngineAudio_InitOnce(0x10, HOWL_SFX_CENTER_NO_DISTORTION);
-		EngineAudio_InitOnce(0x11, HOWL_SFX_CENTER_NO_DISTORTION);
-	}
-
-	// if this is main menu
-	if ((gameMode & MAIN_MENU) != 0)
-	{
-		// fill up 4 players
-		for (int i = numPlyrCurrGame; i < 4; i++)
-		{
-			gGT->drivers[i] = VehBirth_Player(i);
-		}
-	}
-
-	// if you're in time trial, not main menu, not cutscene.
-	// basically, if you're in time trial gameplay
-	if ((gameMode & GAME_MODE_TIME_TRIAL_GAMEPLAY_MASK) == TIME_TRIAL)
-	{
-		GhostReplay_Init2();
-
-		GhostTape_Start();
-
-#if defined(CTR_NATIVE)
-		struct Model **humanPlyrDriverModel = &gGT->threadBuckets[PLAYER].thread->inst->model;
-
-		// that's characterIDs[1] from the MPK
-		// humanGhost = *humanPlyrDriverModel,
-
-		// then replace with intended P1 model
-		*humanPlyrDriverModel = data.driverModelExtras[0].model;
-#endif
-	}
-}
 
 void MainInit_FinalizeInit(struct GameTracker *gGT)
 {
 	int i;
 	int numPlyr;
 	struct Driver *d;
-	struct Level *lev1;
 	struct Instance *inst;
 
-	// === Naughty Dog Bug ===
-	// Quitting a race while heldItem is warpball,
-	// never resets this flag, and then the game
-	// can not give warpball again until you reboot
+#ifdef CTR_NATIVE
+	struct Level *lev1;
+
+	// NOTE(aalhendi): Native repairs the race-quit warpball lock; retail deliberately retains it.
 	gGT->gameMode1 &= ~(WARPBALL_HELD);
+#endif
 
 	// enable collisions with all temporary walls
 	// (adv hub doors, tiger temple teeth, etc)
-	sdata->doorAccessFlags = 0;
+	GAME_DOOR_ACCESS_FLAGS = 0;
 
 	// add a bookmark
 	MEMPACK_PushState();
 
-	gGT->pushBuffer[0].distanceToScreen_PREV = 0x100;
-	gGT->pushBuffer[0].distanceToScreen_CURR = 0x100;
+	{
+		struct GameTracker *tracker = GAME_TRACKER;
+		tracker->pushBuffer[0].distanceToScreen_PREV = 0x100;
+		tracker->pushBuffer[0].distanceToScreen_CURR = 0x100;
+	}
 
 	memset(gGT->threadBuckets, 0, sizeof(gGT->threadBuckets));
+	// Initialize bucket names, pause policy, and debug colors.
+
+	gGT->threadBuckets[PLAYER].s_longName = GAME_SDATA_NAME(s_PLAYER);
+	gGT->threadBuckets[PLAYER].s_shortName = GAME_SDATA_NAME(s_PLYR);
+	gGT->threadBuckets[PLAYER].boolCantPause = 0;
+	gGT->threadBuckets[PLAYER].rectCol[0] = 64;
+	gGT->threadBuckets[PLAYER].rectCol[1] = 64;
+	gGT->threadBuckets[PLAYER].rectCol[2] = 128;
+
+	gGT->threadBuckets[ROBOT].s_longName = GAME_SDATA_NAME(s_ROBOT);
+	gGT->threadBuckets[ROBOT].s_shortName = GAME_SDATA_NAME(s_RBOT);
+	gGT->threadBuckets[ROBOT].boolCantPause = 0;
+	gGT->threadBuckets[ROBOT].rectCol[0] = 64;
+	gGT->threadBuckets[ROBOT].rectCol[1] = 128;
+	gGT->threadBuckets[ROBOT].rectCol[2] = 64;
+
+	gGT->threadBuckets[STATIC].s_longName = GAME_SDATA_NAME(s_STATIC);
+	gGT->threadBuckets[STATIC].s_shortName = GAME_SDATA_NAME(s_STAT);
 	gGT->threadBuckets[STATIC].boolCantPause = 1;
+	gGT->threadBuckets[STATIC].rectCol[0] = 64;
+	gGT->threadBuckets[STATIC].rectCol[1] = 128;
+	gGT->threadBuckets[STATIC].rectCol[2] = 128;
+
+	gGT->threadBuckets[MINE].s_longName = GAME_SDATA_NAME(s_MINE);
+	gGT->threadBuckets[MINE].s_shortName = GAME_SDATA_NAME(s_MINE);
+	gGT->threadBuckets[MINE].boolCantPause = 0;
+	gGT->threadBuckets[MINE].rectCol[0] = 128;
+	gGT->threadBuckets[MINE].rectCol[1] = 128;
+	gGT->threadBuckets[MINE].rectCol[2] = 128;
+
+	gGT->threadBuckets[WARPPAD].s_longName = GAME_SDATA_NAME(s_WARPPAD);
+	gGT->threadBuckets[WARPPAD].s_shortName = GAME_SDATA_NAME(s_WRPD);
 	gGT->threadBuckets[WARPPAD].boolCantPause = 1;
+	gGT->threadBuckets[WARPPAD].rectCol[0] = 128;
+	gGT->threadBuckets[WARPPAD].rectCol[1] = 64;
+	gGT->threadBuckets[WARPPAD].rectCol[2] = 128;
+
+	gGT->threadBuckets[TRACKING].s_longName = GAME_RDATA_NAME(s_TRACKING);
+	gGT->threadBuckets[TRACKING].s_shortName = GAME_SDATA_NAME(s_TRKG);
+	gGT->threadBuckets[TRACKING].boolCantPause = 0;
+	gGT->threadBuckets[TRACKING].rectCol[0] = 128;
+	gGT->threadBuckets[TRACKING].rectCol[1] = 128;
+	gGT->threadBuckets[TRACKING].rectCol[2] = 128;
+
+	gGT->threadBuckets[BURST].s_longName = GAME_SDATA_NAME(s_BURST);
+	gGT->threadBuckets[BURST].s_shortName = GAME_SDATA_NAME(s_BRST);
+	gGT->threadBuckets[BURST].boolCantPause = 0;
+	gGT->threadBuckets[BURST].rectCol[0] = 128;
+	gGT->threadBuckets[BURST].rectCol[1] = 64;
+	gGT->threadBuckets[BURST].rectCol[2] = 128;
+
+	gGT->threadBuckets[BLOWUP].s_longName = GAME_SDATA_NAME(s_BLOWUP);
+	gGT->threadBuckets[BLOWUP].s_shortName = GAME_SDATA_NAME(s_BLWP);
+	gGT->threadBuckets[BLOWUP].boolCantPause = 0;
+	gGT->threadBuckets[BLOWUP].rectCol[0] = 128;
+	gGT->threadBuckets[BLOWUP].rectCol[1] = 128;
+	gGT->threadBuckets[BLOWUP].rectCol[2] = 0;
+
+	gGT->threadBuckets[TURBO].s_longName = GAME_SDATA_NAME(s_TURBO_again);
+	gGT->threadBuckets[TURBO].s_shortName = GAME_SDATA_NAME(s_TRBO);
+	gGT->threadBuckets[TURBO].boolCantPause = 0;
+	gGT->threadBuckets[TURBO].rectCol[0] = 0;
+	gGT->threadBuckets[TURBO].rectCol[1] = 0;
+	gGT->threadBuckets[TURBO].rectCol[2] = 128;
+
+	gGT->threadBuckets[SPIDER].s_longName = GAME_SDATA_NAME(s_SPIDER);
+	gGT->threadBuckets[SPIDER].s_shortName = GAME_SDATA_NAME(s_SPDR);
+	gGT->threadBuckets[SPIDER].boolCantPause = 0;
+	gGT->threadBuckets[SPIDER].rectCol[0] = 128;
+	gGT->threadBuckets[SPIDER].rectCol[1] = 64;
+	gGT->threadBuckets[SPIDER].rectCol[2] = 128;
+
+	gGT->threadBuckets[FOLLOWER].s_longName = GAME_RDATA_NAME(s_FOLLOWER);
+	gGT->threadBuckets[FOLLOWER].s_shortName = GAME_SDATA_NAME(s_FLWR);
+	gGT->threadBuckets[FOLLOWER].boolCantPause = 0;
+	gGT->threadBuckets[FOLLOWER].rectCol[0] = 64;
+	gGT->threadBuckets[FOLLOWER].rectCol[1] = 64;
+	gGT->threadBuckets[FOLLOWER].rectCol[2] = 128;
+
+	gGT->threadBuckets[STARTTEXT].s_longName = GAME_RDATA_NAME(s_STARTTEXT);
+	gGT->threadBuckets[STARTTEXT].s_shortName = GAME_SDATA_NAME(s_STXT);
+	gGT->threadBuckets[STARTTEXT].boolCantPause = 0;
+	gGT->threadBuckets[STARTTEXT].rectCol[0] = 128;
+	gGT->threadBuckets[STARTTEXT].rectCol[1] = 128;
+	gGT->threadBuckets[STARTTEXT].rectCol[2] = 64;
+
+	gGT->threadBuckets[OTHER].s_longName = GAME_SDATA_NAME(s_OTHER);
+	gGT->threadBuckets[OTHER].s_shortName = GAME_SDATA_NAME(s_OTHR);
+	gGT->threadBuckets[OTHER].boolCantPause = 0;
+	gGT->threadBuckets[OTHER].rectCol[0] = 128;
+	gGT->threadBuckets[OTHER].rectCol[1] = 64;
+	gGT->threadBuckets[OTHER].rectCol[2] = 64;
+
+	gGT->threadBuckets[AKUAKU].s_longName = GAME_SDATA_NAME(s_AKUAKU);
+	gGT->threadBuckets[AKUAKU].s_shortName = GAME_SDATA_NAME(s_AKUU);
+	gGT->threadBuckets[AKUAKU].boolCantPause = 0;
+	gGT->threadBuckets[AKUAKU].rectCol[0] = 128;
+	gGT->threadBuckets[AKUAKU].rectCol[1] = 64;
+	gGT->threadBuckets[AKUAKU].rectCol[2] = 64;
+
+	gGT->threadBuckets[CAMERA].s_longName = GAME_SDATA_NAME(s_CAMERA);
+	gGT->threadBuckets[CAMERA].s_shortName = GAME_SDATA_NAME(s_CAMR);
 	gGT->threadBuckets[CAMERA].boolCantPause = 1;
+	gGT->threadBuckets[CAMERA].rectCol[0] = 128;
+	gGT->threadBuckets[CAMERA].rectCol[1] = 128;
+	gGT->threadBuckets[CAMERA].rectCol[2] = 64;
+
+	gGT->threadBuckets[HUD].s_longName = GAME_SDATA_NAME(s_HUD);
+	gGT->threadBuckets[HUD].s_shortName = GAME_SDATA_NAME(s_THUD);
 	gGT->threadBuckets[HUD].boolCantPause = 1;
+	gGT->threadBuckets[HUD].rectCol[0] = 128;
+	gGT->threadBuckets[HUD].rectCol[1] = 128;
+	gGT->threadBuckets[HUD].rectCol[2] = 128;
+
+	gGT->threadBuckets[PAUSE].s_longName = GAME_SDATA_NAME(s_PAUSE);
+	gGT->threadBuckets[PAUSE].s_shortName = GAME_SDATA_NAME(s_PAUS);
+	gGT->threadBuckets[PAUSE].boolCantPause = 0;
+	gGT->threadBuckets[PAUSE].rectCol[0] = 0;
+	gGT->threadBuckets[PAUSE].rectCol[1] = 128;
+	gGT->threadBuckets[PAUSE].rectCol[2] = 0;
 
 	// particles
 	gGT->particleList_ordinary = NULL;
@@ -452,15 +178,23 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	MainInit_JitPoolsReset(gGT);
 
+#ifdef CTR_NATIVE
 	lev1 = gGT->level1;
 
-#if defined(CTR_NATIVE)
 	// NOTE(aalhendi): Native menu LEVs may publish no restart table.
 	if (lev1->ptr_restart_points != NULL)
 #endif
-	// 0x1d7c
 	{
-		gGT->trackLength_x_numLaps_x_8 = lev1->ptr_restart_points[0].distToFinish * gGT->numLaps * 8;
+		struct Level *lapLevel = gGT->level1;
+		struct CheckpointNode *restartPoints = lapLevel->ptr_restart_points;
+		struct GameTracker *lapTracker = GAME_TRACKER;
+		int lapScale;
+		int lapCount;
+		int distance;
+		lapCount = lapTracker->numLaps;
+		distance = restartPoints[0].distToFinish;
+		lapScale = lapCount * 8;
+		gGT->trackLength_x_numLaps_x_8 = distance * lapScale;
 	}
 
 	MainInit_Drivers(gGT);
@@ -480,248 +214,191 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	PushBuffer_Init(&gGT->pushBuffer[2], 2, numPlyr);
 	PushBuffer_Init(&gGT->pushBuffer[3], 3, numPlyr);
 
-	struct PushBuffer *pb;
-
-	pb = &gGT->pushBuffer_UI;
-	PushBuffer_Init(pb, 0, 1);
-
-	pb->rot.x = 0x800;
-	PushBuffer_SetPsyqGeom(pb);
-	PushBuffer_SetMatrixVP(pb);
-
-	if ((gGT->hudFlags & HUD_FLAG_INIT_UI_INSTANCES) != 0)
 	{
-		UI_INSTANCE_InitAll();
-	}
+		struct PushBuffer *pb;
 
-	gGT->unk1cac[4] = 2;
+		pb = &gGT->pushBuffer_UI;
+		PushBuffer_Init(pb, 0, 1);
 
-	for (i = 0; i < 8; i++)
-	{
-		// get pointer to player structure of each driver
-		d = gGT->drivers[i];
+		gGT->pushBuffer_UI.rot.x = 0x800;
+		PushBuffer_SetPsyqGeom(pb);
+		PushBuffer_SetMatrixVP(pb);
 
-		// if pointer is not nullptr
-		if (d == NULL)
+		if ((GAME_TRACKER->hudFlags & HUD_FLAG_INIT_UI_INSTANCES) != 0)
 		{
-			continue;
+			UI_INSTANCE_InitAll();
 		}
 
-		inst = d->instSelf;
-		if (inst != 0)
-		{
-			inst->scale = (SVec3){0xccc, 0xccc, 0xccc};
-		}
+		GAME_TRACKER->unk1cac[4] = 2;
 
-		if (i < gGT->numPlyrCurrGame)
+		for (i = 0; i < 8; i++)
 		{
-			CAM_Init(&gGT->cameraDC[i], i, d, &gGT->pushBuffer[i]);
+			// get pointer to player structure of each driver
+			struct GameTracker *driverTracker = GAME_TRACKER_RELOAD();
+			d = driverTracker->drivers[i];
 
-			// freeze camera of P1, only in main menu
-			if (((gGT->gameMode1 & MAIN_MENU) == 0) || (i < 1))
+			// if pointer is not nullptr
+			if (d == NULL)
 			{
-				// remove frozen camera flag
-				gGT->cameraDC[i].flags &= ~CAMERA_FLAG_FROZEN;
+				continue;
+			}
+
+			inst = d->instSelf;
+			if (i < driverTracker->numPlyrCurrGame)
+			{
+				CAM_Init(&gGT->cameraDC[i], i, d, &gGT->pushBuffer[i]);
+
+				// NOTE(aalhendi): Freeze secondary cameras in the main menu.
+				if ((GAME_TRACKER->gameMode1 & MAIN_MENU) != 0 && i > 0)
+				{
+					gGT->cameraDC[i].flags |= CAMERA_FLAG_FROZEN;
+				}
+				else
+				{
+					gGT->cameraDC[i].flags &= ~CAMERA_FLAG_FROZEN;
+				}
+			}
+			if (inst != NULL)
+			{
+				inst->scale.x = 0xccc;
+				inst->scale.y = 0xccc;
+				inst->scale.z = 0xccc;
+			}
+		}
+
+		{
+			struct GameTracker *menuTracker = GAME_TRACKER;
+			if (menuTracker->levelID == MAIN_MENU_LEVEL)
+			{
+				// 30 seconds
+				menuTracker->demoCountdownTimer = 900;
+			}
+		}
+
+		// copy InstDef to InstancePool
+		INSTANCE_LevInitAll(MAININIT_LEVEL(gGT, lev1)->ptrInstDefs, MAININIT_LEVEL(gGT, lev1)->numInstances);
+
+		// Debug_ToggleNormalSpawn == normal spawn
+		if (GAME_TRACKER->Debug_ToggleNormalSpawn != 0)
+		{
+			MainGameStart_Initialize(gGT, 1);
+
+			if (GAME_TRACKER->boolDemoMode != 0)
+			{
+				for (i = 0; i < GAME_TRACKER->numPlyrCurrGame; i++)
+				{
+					BOTS_Driver_Convert(GAME_TRACKER->drivers[i]);
+				}
+			}
+		}
+
+		// execute all camera thread update functions
+		ThTick_RunBucket(gGT->threadBuckets[CAMERA].thread);
+
+		{
+			struct GameTracker *clearTracker = GAME_TRACKER;
+			// NOTE(aalhendi): Character alias reads expose the three unsigned bytes of the level word.
+			GAME_LEVEL_CLEAR_RED = ((u8 *)&MAININIT_LEVEL(clearTracker, lev1)->clearColorRGBA)[0];
+			GAME_LEVEL_CLEAR_GREEN = ((u8 *)&MAININIT_LEVEL(clearTracker, lev1)->clearColorRGBA)[1];
+			GAME_LEVEL_CLEAR_BLUE = ((u8 *)&MAININIT_LEVEL(clearTracker, lev1)->clearColorRGBA)[2];
+			if (clearTracker->numPlyrCurrGame == 1 && MAININIT_LEVEL(clearTracker, lev1)->clearColor[0].enable != 0 &&
+			    MAININIT_LEVEL(clearTracker, lev1)->clearColor[1].enable != 0)
+			{
+				clearTracker->db[0].drawEnv.isbg = 0;
+				GAME_TRACKER_RELOAD()->db[1].drawEnv.isbg = 0;
 			}
 			else
 			{
-				gGT->cameraDC[i].flags |= CAMERA_FLAG_FROZEN;
+				GAME_TRACKER_RELOAD()->db[0].drawEnv.isbg = 1;
+				GAME_TRACKER_RELOAD()->db[1].drawEnv.isbg = 1;
 			}
 		}
-	}
-
-	if (gGT->levelID == MAIN_MENU_LEVEL)
-	{
-		// 30 seconds
-		gGT->demoCountdownTimer = 900;
-	}
-
-	// copy InstDef to InstancePool
-	INSTANCE_LevInitAll(lev1->ptrInstDefs, lev1->numInstances);
-
-	// Debug_ToggleNormalSpawn == normal spawn
-	if (gGT->Debug_ToggleNormalSpawn != 0)
-	{
-		MainGameStart_Initialize(gGT, 1);
-
-		if (gGT->boolDemoMode != 0)
 		{
-			for (i = 0; i < gGT->numPlyrCurrGame; i++)
+			struct GameTracker *rgbTracker;
+			// NOTE(aalhendi): Each retail component publication reacquires one source/destination tracker.
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[0].drawEnv.r0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[0];
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[0].drawEnv.g0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[1];
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[0].drawEnv.b0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[2];
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[1].drawEnv.r0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[0];
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[1].drawEnv.g0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[1];
+			rgbTracker = GAME_TRACKER_RELOAD();
+			rgbTracker->db[1].drawEnv.b0 = ((u8 *)&MAININIT_LEVEL(rgbTracker, lev1)->clearColorRGBA)[2];
+		}
+
+		{
+			struct Level *meshLevel = MAININIT_LEVEL(gGT, lev1);
+			if (meshLevel != NULL)
 			{
-				BOTS_Driver_Convert(gGT->drivers[i]);
+				if (meshLevel->ptr_mesh_info != NULL)
+				{
+					LevInstDef_UnPack(meshLevel->ptr_mesh_info);
+				}
 			}
 		}
-	}
 
-	// execute all camera thread update functions
-	ThTick_RunBucket(gGT->threadBuckets[CAMERA].thread);
+		MainInit_VisMem(gGT);
 
-// dont write unused variables
-#if 0
-    // lev -> clearColor rgb
-    sdata->LevClearColorRGB[0] = (u32)(char *)(lev1->clearColorRGBA)[0];
-    sdata->LevClearColorRGB[1] = (u32)(char *)(lev1->clearColorRGBA)[1];
-    sdata->LevClearColorRGB[2] = (u32)(char *)(lev1->clearColorRGBA)[2];
-#endif
+		MainInit_RainBuffer(gGT);
 
-	// Used in Coco Park, encoded as Blue
-	*(int *)&gGT->db[0].drawEnv.isbg = lev1->clearColorRGBA << 8;
-	*(int *)&gGT->db[1].drawEnv.isbg = lev1->clearColorRGBA << 8;
-
-	if ((gGT->numPlyrCurrGame == 1) && (lev1->clearColor[0].enable != 0) && (lev1->clearColor[1].enable != 0))
-	{
-		// set isbg of both DBs to false
-		gGT->db[0].drawEnv.isbg = 0;
-		gGT->db[1].drawEnv.isbg = 0;
-	}
-	else
-	{
-		// set isbg of both DBs to true
-		gGT->db[0].drawEnv.isbg = 1;
-		gGT->db[1].drawEnv.isbg = 1;
-	}
-
-	if (lev1 != NULL)
-	{
-		if (lev1->ptr_mesh_info != NULL)
+		// animates water, 1P mode
 		{
-			LevInstDef_UnPack(lev1->ptr_mesh_info);
+			struct Level *waterLevel = MAININIT_LEVEL(gGT, lev1);
+			AnimateWater1P(gGT->timer, waterLevel->numWaterVertices, waterLevel->ptr_water, waterLevel->ptr_tex_waterEnvMap, waterLevel->visOVertSrc);
 		}
-	}
 
-	MainInit_VisMem(gGT);
+		gGT->pushBuffer_UI.fadeFromBlack_desiredResult = 0x1000;
+		gGT->pushBuffer_UI.fade_step = 0x200;
 
-	MainInit_RainBuffer(gGT);
+		// stars
+		gGT->stars.numStars = (s16)(MAININIT_LEVEL(gGT, lev1)->stars.numStars / gGT->numPlyrCurrGame);
+		gGT->stars.spread = MAININIT_LEVEL(gGT, lev1)->stars.spread;
+		gGT->stars.seed = MAININIT_LEVEL(gGT, lev1)->stars.seed;
+		gGT->stars.distance = MAININIT_LEVEL(gGT, lev1)->stars.distance;
 
-	// animates water, 1P mode
-	AnimateWater1P(gGT->timer, lev1->numWaterVertices, lev1->ptr_water, lev1->ptr_tex_waterEnvMap, lev1->visOVertSrc);
-
-	gGT->pushBuffer_UI.fadeFromBlack_desiredResult = 0x1000;
-	gGT->pushBuffer_UI.fade_step = 0x200;
-
-	numPlyr = gGT->numPlyrCurrGame;
-
-	// stars
-	gGT->stars.numStars = (s16)(lev1->stars.numStars / numPlyr);
-	gGT->stars.spread = lev1->stars.spread;
-	gGT->stars.seed = lev1->stars.seed;
-	gGT->stars.distance = lev1->stars.distance;
-
-	// confetti
-	gGT->confetti.numParticles_currWord = 0;
-	gGT->confetti.numParticles_max = 0;
-	gGT->confetti.vanishRate = 0;
-	gGT->confetti.velY = -10;
-
-	for (i = 0; i < 4; i++)
-	{
-		gGT->winnerIndex[i] = 0;
-	}
-
-#if 0
-    BOTS_EmptyFunc();
-#endif
-
-	if ((gGT->gameMode1 & GAME_CUTSCENE) != 0)
-	{
-		// freecam mode
-		gGT->cameraDC[0].cameraMode = CAMERA_MODE_FREECAM;
-
-		// disable all HUD flags
-		gGT->hudFlags = 0;
-
-		CS_Cutscene_Start();
-	}
-
-	if ((gGT->gameMode1 & ADVENTURE_ARENA) != 0)
-	{
-		// 0
-		if (gGT->podiumRewardID != NOFUNC)
+		// confetti
 		{
-			CS_Podium_FullScene_Init();
-		}
-	}
+			struct GameTracker *endTracker = GAME_TRACKER;
+			endTracker->confetti.numParticles_currWord = 0;
+			endTracker->confetti.numParticles_max = 0;
+			endTracker->confetti.vanishRate = 0;
+			endTracker->confetti.velY = -10;
 
-	PickupBots_Init();
+			for (i = 0; i < 4; i++)
+			{
+				endTracker->winnerIndex[i] = 0;
+			}
+		}
+
+		{
+			struct GameTracker *sceneTracker = GAME_TRACKER;
+			if ((sceneTracker->gameMode1 & GAME_CUTSCENE) != 0)
+			{
+				sceneTracker->cameraDC[0].cameraMode = CAMERA_MODE_FREECAM;
+				sceneTracker->hudFlags = 0;
+			}
+		}
+
+		BOTS_EmptyFunc();
+
+		{
+			struct GameTracker *sceneTracker = GAME_TRACKER;
+			if ((sceneTracker->gameMode1 & ADVENTURE_ARENA) != 0 && sceneTracker->podiumRewardID != NOFUNC)
+			{
+				CS_Podium_FullScene_Init();
+			}
+		}
+
+		if ((GAME_TRACKER->gameMode1 & GAME_CUTSCENE) != 0)
+		{
+			CS_Cutscene_Start();
+		}
+		PickupBots_Init();
+	}
 }
 
-int MainInit_StringToLevID(char *str)
-{
-	for (int levelID = 0; levelID < 0x41; levelID++)
-	{
-		char *debugName = data.metaDataLEV[levelID].name_Debug;
-
-		if (strncmp(debugName, str, strlen(debugName)) == 0)
-		{
-			return levelID;
-		}
-	}
-
-	return 0;
-}
-
-void MainInit_VRAMClear()
-{
-	DRAWENV drawEnv;
-
-	struct
-	{
-		int a;
-		s16 b1, b2, c, d, e, f;
-	} commands;
-
-	SetDefDrawEnv(&drawEnv, 0, 0, 0x400, 0x200);
-	drawEnv.dfe = '\x01';
-	PutDrawEnv(&drawEnv);
-
-	commands.a = 0x3ffffff;
-	commands.b1 = 0;
-	commands.b2 = 0x200;
-	commands.c = 0;
-	commands.d = 0;
-	commands.e = 0x3ff;
-	commands.f = 0x1ff;
-	DrawOTag(&commands);
-
-	commands.d = 0x1ff;
-	commands.f = 1;
-	DrawOTag(&commands);
-}
-
-// Native wraps the VRAM page moves in a platform frame for presentation.
-void MainInit_VRAMDisplay()
-{
-	RECT r;
-	DR_MOVE move;
-
-	s16 x[2];
-	s16 y[2];
-
-	x[0] = 0;
-	x[1] = 0x100;
-
-	y[0] = 0;
-	y[1] = 0x128;
-
-	for (int i = 0; i < 2; i++)
-	{
-		for (int j = 0; j < 2; j++)
-		{
-			r.x = x[i] + 0x200;
-			r.y = 0x10c;
-			r.w = 0x100;
-			r.h = 0xd8;
-
-			SetDrawMove(&move, &r, x[i], y[j]);
-
-			move.tag |= 0xffffff;
-
-			DrawOTag(&move);
-			DrawSync(0);
-		}
-	}
-
-#ifdef CTR_NATIVE
-	Platform_PresentVRAMDisplay();
-#endif
-}
+#undef MAININIT_LEVEL

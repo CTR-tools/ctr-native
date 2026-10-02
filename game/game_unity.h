@@ -113,6 +113,11 @@
 #include "LOAD/LOAD_Level.c"
 #include "LOAD/LOAD_IsOpen.c"
 
+#include "MAIN/MainInit_Memory.c"
+#include "MAIN/MainInit_Peripheral.c"
+#include "MAIN/MainVisibility.c"
+#include "MAIN/MainInit_Pools.c"
+#include "MAIN/MainInit_Drivers.c"
 #include "MAIN/MainInit.c"
 #include "MAIN/MainKillGame.c"
 #include "MAIN/MainLoadVLC.c"
@@ -120,6 +125,8 @@
 #include "MAIN/MainDB.c"
 #include "MAIN/MainDrawCb.c"
 
+#include "MAIN/MainFrame_Services.c"
+#include "MAIN/MainFrame_ResetDB.c"
 #include "MAIN/MainFrame.c"
 #include "MAIN/MainFrame_RenderFrame.c"
 

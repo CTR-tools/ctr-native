@@ -1,306 +1,244 @@
 #include <common.h>
 
-#if defined(CTR_NATIVE)
-static void MainFrame_RegisterGpuLinkRanges(struct GameTracker *gGT)
-{
-	static const char *const primLabels[2] = {"db0 prim", "db1 prim"};
-	static const char *const otLabels[2] = {"db0 OT", "db1 OT"};
-	static const char *const swapchainLabels[2] = {"swapchain OT0", "swapchain OT1"};
-
-	NativeGpuLinks_Reset();
-
-	// NOTE(aalhendi): Retail links PS1 RAM addresses directly in 24-bit GPU
-	// tags. Native keeps the same packet shape, but maps the double-buffered
-	// host draw arenas to stable 24-bit tokens before any OT/tag writer runs.
-	for (int i = 0; i < 2; i++)
-	{
-		struct DB *db = &gGT->db[i];
-		NativeGpuLinks_RegisterRangeChecked(primLabels[i], db->primMem.start, db->primMem.capacityBytes);
-		NativeGpuLinks_RegisterRangeChecked(otLabels[i], db->otMem.start, db->otMem.capacityBytes);
-	}
-
-	u32 swapchainOTBytes = ((u32)gGT->numPlyrCurrGame << 12) | 0x18u;
-	for (int i = 0; i < 2; i++)
-	{
-		NativeGpuLinks_RegisterRangeChecked(swapchainLabels[i], gGT->otSwapchainDB[i], swapchainOTBytes);
-	}
-}
+#ifndef MAIN_FRAME_ACTIVE_MENU
+#define MAIN_FRAME_ACTIVE_MENU (sdata->ptrActiveMenu)
+#define MAIN_FRAME_ANY_TAP     (sdata->AnyPlayerTap)
+#define MAIN_FRAME_SAVE_CUP    (sdata->boolSaveCupProgress)
 #endif
 
-void MainFrame_TogglePauseAudio(b32 bool_pause)
-{
-	if (bool_pause == 0)
-	{
-		if (sdata->boolSoundPaused)
-		{
-			howl_StopAudio(0, 0, 1);
-			howl_UnPauseAudio();
-			sdata->boolSoundPaused = 0;
-		}
-	}
-	else if (sdata->boolSoundPaused == 0)
-	{
-		OtherFX_Stop2(1);
-		howl_PauseAudio();
-		sdata->boolSoundPaused = 1;
-	}
-	return;
-}
-
-void MainFrame_ResetDB(struct GameTracker *gGT)
-{
-	u32 *puVar3;
-	int iVar4;
-	struct DB *db;
-	int otSwapchainDB;
-
-	// check if new adv hub should be loaded,
-	// this was a random place for ND to put it
-	LOAD_Hub_Main(sdata->ptrBigfile1);
-
-	gGT->swapchainIndex = 1 - gGT->swapchainIndex;
-
-	gGT->backBuffer = &gGT->db[gGT->swapchainIndex];
-	gGT->frameTimer_MainFrame_ResetDB++;
-
-	otSwapchainDB = (int)gGT->otSwapchainDB[gGT->swapchainIndex];
-
-	db = gGT->backBuffer;
-	db->blurCameraMask = 0;
-	db->primMem.cursor = db->primMem.start;
-	db->primMem.primitiveCount = 0;
-	db->otMem.cursor = db->otMem.start;
-
-#if defined(CTR_NATIVE)
-	MainFrame_RegisterGpuLinkRanges(gGT);
+#ifndef MAIN_FRAME_BOTS_UPDATE
+#define MAIN_FRAME_BOTS_UPDATE(tracker)     BOTS_UpdateGlobals()
+#define MAIN_FRAME_PARTICLE_UPDATE(tracker) Particle_UpdateAllParticles()
 #endif
-
-	CTR_EmptyFunc_MainFrame_ResetDB();
-	DecalGlobal_EmptyFunc_MainFrame_ResetDB();
-
-	ClearOTagR((u32 *)otSwapchainDB, sdata->gGT->numPlyrCurrGame << 10 | 6);
-
-	for (iVar4 = 0; iVar4 < sdata->gGT->numPlyrCurrGame; iVar4++)
-	{
-		gGT->pushBuffer[iVar4].ptrOT = (u32 *)((int)otSwapchainDB + (sdata->gGT->numPlyrCurrGame - iVar4 - 1) * 0x1000 + 0x18);
-	}
-
-	for (; iVar4 < 4; iVar4++)
-	{
-		// but why?
-		gGT->pushBuffer[iVar4].ptrOT = (u32 *)((int)otSwapchainDB + 3 * 0x1000 + 0x18);
-	}
-
-	puVar3 = (u32 *)((int)otSwapchainDB + 4);
-	gGT->pushBuffer_UI.ptrOT = puVar3;
-	db->otMem.uiOT = puVar3;
-
-#if defined(CTR_NATIVE)
-	if (sdata->ptrPushBufferUI != 0)
-	{
-		struct PushBuffer *wumpaPushBuffer = (struct PushBuffer *)(u32)sdata->ptrPushBufferUI;
-
-		// NOTE(aalhendi): Retail stores PS1 RAM OT addresses here. Native stores
-		// host pointers, so reset the fake UI pushbuffer to the current backbuffer
-		// before RenderBucket can publish this frame's range metadata.
-		wumpaPushBuffer->ptrOT = gGT->pushBuffer_UI.ptrOT;
-		wumpaPushBuffer->renderBucketOTRangeEnd = NULL;
-		wumpaPushBuffer->renderBucketOTByteOffset = 0;
-	}
-#endif
-
-	return;
-}
 
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 #include <platform/native_replay_scheduler.h>
 #endif
 
-void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
+void MainFrame_GameLogic(struct GameTracker *frameTracker, struct GamepadSystem *gGamepads)
 {
-	b32 wasPausedAtFrameStart;
+	register struct GameTracker *gGT CTR_PSX_REGISTER("$21") = frameTracker;
+	u16 wasPausedAtFrameStart;
 	s16 sVar2;
 	u32 uVar3;
+	u32 frameMode;
+	struct GameTracker *modeTracker;
+	u32 modeMask;
+	u32 initialMode;
 	int iVar4;
 	DriverFunc pcVar5;
 	u32 uVar5;
+	u32 connectedPads;
 	struct Driver *psVar8;
 	struct Driver *psVar9;
-	struct PushBuffer *pushBuffer;
 	int iVar11;
 	struct Thread *psVar12;
+	u8 *threadBucketBase;
+	int threadBucketOffset;
+	int stageBucketOffset;
 
+	// NOTE(aalhendi): Observe the mode load before setting the saved pause flag;
+	// otherwise GCC hoists that setup ahead of the load.
+	initialMode = gGT->gameMode1;
+	CTR_PSX_OBSERVE_VALUE(initialMode);
 	wasPausedAtFrameStart = true;
-	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
+	if ((initialMode & PAUSE_ALL) == 0)
 	{
-		wasPausedAtFrameStart = false;
-		pushBuffer = gGT->pushBuffer;
-		for (psVar12 = gGT->threadBuckets[0].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
 		{
-			psVar9 = (struct Driver *)psVar12->object;
-
-			if (psVar9->clockSend)
+			struct Driver *psVar9;
+			struct PushBuffer *pushBuffer;
+			struct Thread *psVar12;
+			struct GameTracker *clockTracker;
+			register u32 clockValue CTR_PSX_REGISTER("$2");
+			s32 blurValue;
+			struct PushBuffer *blurBuffer;
+			clockTracker = GAME_TRACKER;
+			wasPausedAtFrameStart = false;
+			pushBuffer = clockTracker->pushBuffer;
+			for (psVar12 = clockTracker->threadBuckets[0].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
 			{
-				psVar9->clockSend--;
-			}
-			uVar3 = psVar9->clockFlash;
-			if (uVar3 == 0)
-			{
-				if (psVar9->clockReceive == 0)
+				psVar9 = (struct Driver *)psVar12->object;
+				if (psVar9->clockSend)
+					psVar9->clockSend--;
+				clockValue = psVar9->clockFlash;
+				if (clockValue != 0)
 				{
-					uVar3 = (u32)psVar9->clockSend;
-					if (uVar3 == 0)
-					{
-						if ((gGT->clockEffectEnabled & 1) == 0)
-						{
-							goto LAB_80034e74;
-						}
-						uVar3 = 10000;
-					}
+					blurValue = clockValue;
+					CTR_PSX_KEEP_VALUE_RELAXED(blurValue);
+					DISPLAY_Blur_Main(pushBuffer, -blurValue);
+					psVar9->clockFlash--;
+					goto clockNext;
+				}
+				else if (psVar9->clockReceive != 0)
+				{
+					if ((psVar9->actionsFlagSet & ACTION_RACE_FINISHED) != 0)
+						psVar9->clockReceive = 0;
+					blurValue = psVar9->clockReceive;
+					blurBuffer = pushBuffer;
+					goto drawClock;
 				}
 				else
 				{
-					if ((psVar9->actionsFlagSet & ACTION_RACE_FINISHED) != 0)
+					clockValue = psVar9->clockSend;
+					blurValue = clockValue;
+					if (clockValue != 0)
 					{
-						psVar9->clockReceive = 0;
+						blurBuffer = pushBuffer;
+						goto drawClock;
 					}
-					uVar3 = (u32)psVar9->clockReceive;
+					clockValue = GAME_TRACKER->clockEffectEnabled & 1;
+					blurBuffer = pushBuffer;
+					if (clockValue == 0)
+						goto clockNext;
+					blurValue = 10000;
 				}
+				goto drawClock;
+			drawClock:
+				DISPLAY_Blur_Main(blurBuffer, blurValue);
+			clockNext:
+				pushBuffer++;
+			}
+		}
 
-#if defined(CTR_NATIVE)
-				DISPLAY_Blur_Main(pushBuffer, uVar3);
+		gGT->timer = gGT->timer + 1;
+		gGT->framesInThisLEV = gGT->framesInThisLEV + 1;
+		GAME_TRACKER->unk1cc4[4] = 0;
+
+		{
+			int iVar4;
+			iVar4 = Timer_GetTime_Elapsed(gGT->clockFrameStart, &gGT->clockFrameStart);
+			iVar4 = (iVar4 << 5) / 100;
+
+			gGT->elapsedTimeMS = iVar4;
+			if (iVar4 < 0)
+			{
+				gGT->elapsedTimeMS = 0x20;
+			}
+			if (0x40 < gGT->elapsedTimeMS)
+			{
+				gGT->elapsedTimeMS = 0x40;
+			}
+			if ((GAME_TRACKER->gameMode1_prevFrame & PAUSE_ALL) != 0)
+			{
+				gGT->elapsedTimeMS = 0x20;
+			}
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			// NOTE(aalhendi): Replay playback must not let host RCNT timing decide
+			// cutscene/gameplay advancement. Use the recorded PS1-shaped frame delta
+			// before msInThisLEV and elapsedEventTime consume it.
+			NativeReplayScheduler_ConsumeFrameElapsedTimeMS(&gGT->elapsedTimeMS);
 #endif
+			gGT->msInThisLEV += gGT->elapsedTimeMS;
+			if (gGT->trafficLightsTimer > 0)
+			{
+				gGT->elapsedEventTime = 0;
 			}
 			else
 			{
-#if defined(CTR_NATIVE)
-				DISPLAY_Blur_Main(pushBuffer, -uVar3);
-#endif
-				psVar9->clockFlash--;
-			}
-		LAB_80034e74:
-			pushBuffer = pushBuffer + 1;
-		}
-		gGT->timer = gGT->timer + 1;
-		gGT->framesInThisLEV = gGT->framesInThisLEV + 1;
-		gGT->unk1cc4[4] = 0;
-
-		iVar4 = Timer_GetTime_Elapsed(gGT->clockFrameStart, &gGT->clockFrameStart);
-		iVar4 = (iVar4 << 5) / 100;
-
-		gGT->elapsedTimeMS = iVar4;
-		if (iVar4 < 0)
-		{
-			gGT->elapsedTimeMS = 0x20;
-		}
-		if (0x40 < gGT->elapsedTimeMS)
-		{
-			gGT->elapsedTimeMS = 0x40;
-		}
-		if ((gGT->gameMode1_prevFrame & PAUSE_ALL) != 0)
-		{
-			gGT->elapsedTimeMS = 0x20;
-		}
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-		// NOTE(aalhendi): Replay playback must not let host RCNT timing decide
-		// cutscene/gameplay advancement. Use the recorded PS1-shaped frame delta
-		// before msInThisLEV and elapsedEventTime consume it.
-		NativeReplayScheduler_ConsumeFrameElapsedTimeMS(&gGT->elapsedTimeMS);
-#endif
-		gGT->msInThisLEV += gGT->elapsedTimeMS;
-		if (gGT->trafficLightsTimer < 1)
-		{
-			if ((gGT->gameMode1 & DEBUG_MENU) == 0)
-			{
-				if (gGT->frozenTimeRemaining < 1)
+				if ((GAME_TRACKER->gameMode1 & DEBUG_MENU) == 0)
 				{
-					if ((gGT->gameMode1 & END_OF_RACE) == 0)
+					if (gGT->frozenTimeRemaining > 0)
 					{
-						gGT->elapsedEventTime += gGT->elapsedTimeMS;
-					}
-				}
-				else
-				{
-					iVar4 = gGT->frozenTimeRemaining - gGT->elapsedTimeMS;
-					gGT->frozenTimeRemaining = iVar4;
-					if (iVar4 < 0)
-					{
-						gGT->frozenTimeRemaining = 0;
+						int frozenDifference = gGT->frozenTimeRemaining - gGT->elapsedTimeMS;
+						gGT->frozenTimeRemaining = frozenDifference;
+						if (frozenDifference < 0)
+						{
+							gGT->frozenTimeRemaining = 0;
+						}
+						else
+						{
+							uVar3 = GAME_TRACKER->timer;
+							if (uVar3 == (uVar3 / 6) * 6)
+							{
+								if (uVar3 == (uVar3 / 0xc) * 0xc)
+								{
+									OtherFX_Play_LowLevel(0x40, '\0', 0x8c9080);
+								}
+								else
+								{
+									OtherFX_Play_LowLevel(0x40, '\0', 0x8c8880);
+								}
+							}
+						}
 					}
 					else
 					{
-						uVar3 = gGT->timer;
-						if (uVar3 == (uVar3 / 6) * 6)
+						if ((GAME_TRACKER->gameMode1 & END_OF_RACE) == 0)
 						{
-							if (uVar3 == (uVar3 / 0xc) * 0xc)
-							{
-								OtherFX_Play_LowLevel(0x40, '\0', 0x8c9080);
-							}
-							else
-							{
-								OtherFX_Play_LowLevel(0x40, '\0', 0x8c8880);
-							}
+							gGT->elapsedEventTime += gGT->elapsedTimeMS;
 						}
 					}
 				}
 			}
-		}
-		else
-		{
-			gGT->elapsedEventTime = 0;
 		}
 
 		CTR_CycleTex_AllModels(-1, (struct Model **)sdata->PLYROBJECTLIST, gGT->timer);
 		CTR_CycleTex_AllModels(gGT->level1->numModels, gGT->level1->ptrModelsPtrArray, gGT->timer);
 
-		psVar8 = 0;
-		psVar9 = 0;
+		{
+			struct GameTracker *tallyTracker = GAME_TRACKER;
+			struct Thread *psVar12;
+			psVar8 = 0;
+			psVar12 = tallyTracker->threadBuckets[0].thread;
+			psVar9 = psVar8;
+			if (psVar12 != 0)
+			{
+				for (; psVar12 != 0; psVar12 = psVar12->siblingThread)
+				{
+					struct Driver *currentDriver = psVar12->object;
+
+					if (currentDriver->driverID == 0)
+					{
+						psVar8 = currentDriver;
+						continue;
+					}
+
+					if (currentDriver->driverID == 1)
+					{
+						psVar9 = currentDriver;
+					}
 
 #if defined(CTR_NATIVE)
-		for (psVar12 = gGT->threadBuckets[0].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
-		{
-			struct Driver *currentDriver = psVar12->object;
-
-			if (currentDriver->driverID == 0)
-			{
-				psVar8 = currentDriver;
-				continue;
-			}
-
-			if (currentDriver->driverID == 1)
-			{
-				psVar9 = currentDriver;
-			}
-
-			// NOTE(aalhendi): Retail may read PSX low memory before driver 0 appears.
-			if (psVar8 == NULL)
-			{
-				continue;
-			}
-
-			if (currentDriver->numTimesAttacking < psVar8->numTimesAttacking)
-			{
-				psVar9 = psVar8;
-				psVar8 = currentDriver;
-			}
-		}
+					// NOTE(aalhendi): Retail may read PSX low memory before driver 0 appears.
+					if (psVar8 == NULL)
+					{
+						continue;
+					}
 #endif
 
-		if (((psVar8 != 0) && (psVar9 != 0)) && (iVar4 = (u32)psVar9->numTimesAttacking - (u32)psVar8->numTimesAttacking, psVar8->quip2 < iVar4))
-		{
-			psVar8->quip2 = (s16)iVar4;
+					if (currentDriver->numTimesAttacking < psVar8->numTimesAttacking)
+					{
+						psVar9 = psVar8;
+						psVar8 = currentDriver;
+					}
+				}
+			}
 		}
 
-		for (iVar4 = 0; iVar4 < PAUSE; iVar4++)
 		{
-			if ((((gGT->gameMode1 & DEBUG_MENU) == 0) || ((gGT->threadBuckets[iVar4].boolCantPause & 1) != 0)) &&
+			int attackDifference;
+			if (((psVar8 != 0) && (psVar9 != 0)) &&
+			    (attackDifference = (u32)psVar9->numTimesAttacking - (u32)psVar8->numTimesAttacking, psVar8->quip2 < attackDifference))
+			{
+				psVar8->quip2 = (s16)attackDifference;
+			}
+		}
 
-			    // if threads exist
-			    (gGT->threadBuckets[iVar4].thread != 0))
+		iVar4 = 0;
+		threadBucketBase = (u8 *)gGT;
+		stageBucketOffset = iVar4;
+		threadBucketOffset = offsetof(struct GameTracker, threadBuckets);
+		for (; iVar4 < PAUSE; threadBucketBase += sizeof(struct ThreadBucket), stageBucketOffset += sizeof(struct ThreadBucket), iVar4++,
+		                      threadBucketOffset += sizeof(struct ThreadBucket))
+		{
+			struct GameTracker *bucketGlobal = GAME_TRACKER;
+			struct ThreadBucket *currentBucket;
+			currentBucket = (struct ThreadBucket *)((u8 *)gGT + threadBucketOffset);
+			if ((((bucketGlobal->gameMode1 & DEBUG_MENU) == 0) || ((currentBucket->boolCantPause & 1) != 0)) && currentBucket->thread != 0)
 			{
 				if (iVar4 == 0)
 				{
-					for (psVar12 = gGT->threadBuckets[iVar4].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
+					for (psVar12 = bucketGlobal->threadBuckets[0].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
 					{
 						VehPickupItem_ShootOnCirclePress((struct Driver *)psVar12->object);
 					}
@@ -308,135 +246,242 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 					// run all driver funcPtrs,
 					// all drivers must run the same DRIVER_FUNC_* stage
 					// at the same time, that's why the stages exist
-					for (iVar11 = 0; iVar11 < DRIVER_FUNC_COUNT; iVar11++)
 					{
-						for (psVar12 = gGT->threadBuckets[iVar4].thread; psVar12 != 0; psVar12 = psVar12->siblingThread)
+						int driverStageOffset;
+						iVar11 = 0;
+						driverStageOffset = stageBucketOffset;
+						for (; iVar11 < DRIVER_FUNC_COUNT; iVar11++)
 						{
-							// if PLYR converted to robotcar at end of race,
-							// dont run funcPtrs from inside driver struct
-							if (psVar12->funcThTick != 0)
+							struct ThreadBucket *stageBucket;
+							// NOTE(aalhendi): 32-bit address sums preserve retail operand order;
+							// the loads still address the actual bucket and Driver fields.
+							stageBucket = (struct ThreadBucket *)((u32)GAME_TRACKER + (u32)driverStageOffset + offsetof(struct GameTracker, threadBuckets));
+							psVar12 = stageBucket->thread;
+							if (psVar12 != 0)
 							{
-								continue;
-							}
-
-							psVar9 = (struct Driver *)psVar12->object;
-
-							pcVar5 = psVar9->funcPtrs[iVar11];
-
-							if (pcVar5 != 0)
-							{
-								pcVar5(psVar12, psVar9);
+								int driverFuncOffset = iVar11 * sizeof(DriverFunc);
+								do
+								{
+									if (psVar12->funcThTick == 0)
+									{
+										struct Driver *stageDriver = (struct Driver *)psVar12->object;
+										u8 *stageFuncAddress;
+										stageFuncAddress = (u8 *)((u32)stageDriver + (u32)driverFuncOffset);
+										pcVar5 = *(DriverFunc *)(stageFuncAddress + offsetof(struct Driver, funcPtrs));
+										if (pcVar5 != 0)
+											pcVar5(psVar12, stageDriver);
+									}
+									psVar12 = psVar12->siblingThread;
+								} while (psVar12 != 0);
 							}
 						}
 					}
 				}
 
-				ThTick_RunBucket(gGT->threadBuckets[iVar4].thread);
+				ThTick_RunBucket(((struct ThreadBucket *)(threadBucketBase + offsetof(struct GameTracker, threadBuckets)))->thread);
 			}
 		}
 
-#if defined(CTR_NATIVE)
-		BOTS_UpdateGlobals();
-#endif
+		MAIN_FRAME_BOTS_UPDATE(GAME_TRACKER);
 		GhostTape_WriteMoves(0);
-		gGT->unk1cc4[4] = (u32)(gGT->unk1cc4[4] * 10000) / 0x147e;
-
-#if defined(CTR_NATIVE)
-
-
-		Particle_UpdateAllParticles();
-
-#endif
+		{
+			struct GameTracker *particleTracker = GAME_TRACKER;
+			particleTracker->unk1cc4[4] = (u32)(particleTracker->unk1cc4[4] * 10000) / 0x147e;
+			MAIN_FRAME_PARTICLE_UPDATE(particleTracker);
+		}
 	}
 	else
 	{
-		psVar12 = gGT->threadBuckets[AKUAKU].thread;
-		if (psVar12 != 0)
+		struct Thread *akuThread = gGT->threadBuckets[AKUAKU].thread;
+		if (akuThread != 0)
 		{
-			ThTick_RunBucket(psVar12);
+			ThTick_RunBucket(akuThread);
 		}
 	}
 
 	uVar5 = LOAD_IsOpen_RacingOrBattle();
 	if (uVar5 != 0)
 	{
-#if defined(CTR_NATIVE)
-		if ((gGT->gameMode1 & PAUSE_ALL) == 0)
+		if ((GAME_TRACKER->gameMode1 & PAUSE_ALL) == 0)
 		{
 			RB_Bubbles_RoosTubes();
 		}
-#endif
-		if (gGT->threadBuckets[BURST].thread != 0)
+		if (GAME_TRACKER->threadBuckets[BURST].thread != 0)
 		{
-			RB_Burst_DrawAll(gGT);
+			RB_Burst_DrawAll(GAME_TRACKER);
 		}
 	}
 
 	PROC_CheckAllForDead();
 
-	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
+	if ((GAME_TRACKER->gameMode1 & PAUSE_ALL) == 0)
 	{
 		Audio_Update1();
 	}
 
 	gGT->gameMode1_prevFrame = gGT->gameMode1;
-	uVar5 = GAMEPAD_GetNumConnected(gGamepads);
-	uVar3 = gGT->gameMode1;
+	connectedPads = GAMEPAD_GetNumConnected(GAMEPADS);
+	modeTracker = GAME_TRACKER;
+	frameMode = modeTracker->gameMode1;
 
-	if ((uVar3 & END_OF_RACE) == 0)
+	if ((frameMode & END_OF_RACE) != 0)
 	{
-		if (wasPausedAtFrameStart || ((uVar3 & PAUSE_ALL) != 0))
+		if (GAME_TRACKER->timerEndOfRaceVS != 0)
 		{
-			if (gGT->cooldownfromPauseUntilUnpause == 0)
+			modeMask = frameMode & ARCADE_MODE;
+			if (modeMask == 0)
 			{
-				if (((sdata->ptrActiveMenu != &data.menuRacingWheelConfig) && (sdata->ptrActiveMenu != &D232.menuHintMenu) // in 232
+				if (GAME_TRACKER->timerEndOfRaceVS < 0x96)
+				{
+					UI_VsQuipDrawAll();
+					UI_VsWaitForPressX();
+				}
+				if (0x1e < GAME_TRACKER->timerEndOfRaceVS)
+				{
+					GAME_TRACKER->timerEndOfRaceVS--;
+				}
+			}
+			else
+			{
+				GAME_TRACKER->timerEndOfRaceVS = 0;
+			}
+		}
+		else
+		{
+			uVar3 = GAME_TRACKER->gameModeEnd;
+			if ((uVar3 & AKU_SONG) == 0)
+			{
+				if ((uVar3 & CRYSTAL_CHALLENGE) != 0)
+				{
+					if (GAME_TRACKER->unk_timerCooldown_similarTo_1d36 == 0)
+					{
+						u32 endPause = uVar3 & PAUSE_2;
+						if (endPause == 0)
+						{
+							return;
+						}
+
+						sVar2 = SubmitName_DrawMenu(0x140);
+
+						// if not done yet
+						if (sVar2 == 0)
+						{
+							return;
+						}
+
+
+						// if SAVE
+						if (sVar2 == 1)
+						{
+							MAIN_FRAME_SAVE_CUP = 0;
+
+							SelectProfile_ToggleMode(SELECT_PROFILE_MODE_SLOT_SAVE);
+
+							RECTMENU_Show(&data.menuWarning2);
+							GAME_TRACKER->gameModeEnd |= NEW_NAME;
+
+							return;
+						}
+
+						// if -1 (cancel)
+						{
+							// NOTE(aalhendi): Keep -1 full-width until the byte store.
+							int cancelIndex = -1;
+							GAME_TRACKER->newHighScoreIndex = cancelIndex;
+						}
+						GAME_TRACKER->gameModeEnd &= ~(NEW_BEST_LAP | NEW_HIGH_SCORE);
+						return;
+					}
+				}
+				else
+				{
+					if (GAME_TRACKER->unk_timerCooldown_similarTo_1d36 == 0)
+					{
+						return;
+					}
+				}
+				GAME_TRACKER->unk_timerCooldown_similarTo_1d36--;
+			}
+		}
+	}
+	else
+	{
+		u32 pauseTest;
+		// NOTE(aalhendi): Copy the actual spilled flag so old GCC can reuse
+		// its reload scratch for this conversion and the earlier divides.
+		CTR_PSX_COPY_VALUE(pauseTest, wasPausedAtFrameStart);
+		if (pauseTest || ((gGT->gameMode1 & PAUSE_ALL) != 0))
+		{
+			if (GAME_TRACKER->cooldownfromPauseUntilUnpause != 0)
+			{
+				GAME_TRACKER->cooldownfromPauseUntilUnpause--;
+			}
+			else
+			{
+				if (((MAIN_FRAME_ACTIVE_MENU != &data.menuRacingWheelConfig) && (MAIN_FRAME_ACTIVE_MENU != &D232.menuHintMenu) // in 232
 				     ) &&
-				    ((sdata->AnyPlayerTap & BTN_START) != 0))
+				    ((MAIN_FRAME_ANY_TAP & BTN_START) != 0))
 				{
 					RECTMENU_ClearInput();
-					gGT->gameMode1 &= ~PAUSE_1;
+					GAME_TRACKER->gameMode1 &= ~PAUSE_1;
 
 					MainFrame_TogglePauseAudio(0);
 					OtherFX_Play(1, 1);
 
 					MainFreeze_SafeAdvDestroy();
-					ElimBG_Deactivate(gGT);
+					ElimBG_Deactivate(GAME_TRACKER);
 
-					RECTMENU_Hide(sdata->ptrActiveMenu);
-					gGT->cooldownFromUnpauseUntilPause = 5;
+					RECTMENU_Hide(MAIN_FRAME_ACTIVE_MENU);
+					GAME_TRACKER->cooldownFromUnpauseUntilPause = 5;
 				}
+			}
+		}
+		else
+		{
+			if (GAME_TRACKER->cooldownFromUnpauseUntilPause != 0)
+			{
+				GAME_TRACKER->cooldownFromUnpauseUntilPause--;
 			}
 			else
 			{
-				gGT->cooldownfromPauseUntilUnpause--;
-			}
-		}
-		else if (gGT->cooldownFromUnpauseUntilPause == 0)
-		{
-			if ((uVar3 & (GAME_CUTSCENE | END_OF_RACE | MAIN_MENU)) == 0)
-			{
-				if (sdata->ptrActiveMenu == 0)
+				modeMask = frameMode & (GAME_CUTSCENE | END_OF_RACE | MAIN_MENU);
+				if (modeMask == 0)
 				{
-					if (sdata->AkuAkuHintState == 0)
+					if (MAIN_FRAME_ACTIVE_MENU == 0)
 					{
-						if (!RaceFlag_IsFullyOnScreen())
+						if (sdata->AkuAkuHintState == 0)
 						{
-							for (iVar4 = 0; iVar4 < gGT->numPlyrCurrGame; iVar4++)
+							if (!RaceFlag_IsFullyOnScreen())
 							{
-								if ((((uVar5 != 0) && ((
-#if defined(CTR_NATIVE)
-								                          !MainFrame_HaveAllPads((u16)gGT->numPlyrNextGame) &&
-#endif
-								                          ((gGT->gameMode1 & PAUSE_ALL) == 0)))) ||
-								     ((gGamepads->gamepad[iVar4].buttonsTapped & BTN_START) != 0)) &&
-								    (gGT->overlayIndex_Threads != OVERLAY_INDEX_NONE))
 								{
-									// NOTE(aalhendi): Retail writes this before freezing the game for pause.
-									gGT->gameModeEnd = (gGT->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK) | PAUSE_1;
+									struct GamepadBuffer *pausePad;
+									int padPlayers;
+									iVar4 = 0;
+									if (gGT->numPlyrCurrGame != 0)
+									{
+										pausePad = &gGamepads->gamepad[0];
+										do
+										{
+											if ((((connectedPads != 0) && ((!(b16)MainFrame_HaveAllPads((u16)GAME_TRACKER->numPlyrNextGame) &&
 
-									MainFreeze_IfPressStart();
+											                                ((gGT->gameMode1 & PAUSE_ALL) == 0)))) ||
+											     ((pausePad->buttonsTapped & BTN_START) != 0)) &&
+											    (GAME_TRACKER->overlayIndex_Threads != OVERLAY_INDEX_NONE))
+											{
+												// NOTE(aalhendi): Retail writes this before freezing the game for pause.
+												GAME_TRACKER->gameModeEnd = (GAME_TRACKER->gameMode1 & GAME_MODE_END_RETAINED_MODE_MASK) | PAUSE_1;
 
-									gGT->cooldownfromPauseUntilUnpause = 5;
+												MainFreeze_IfPressStart();
+
+												GAME_TRACKER->cooldownfromPauseUntilUnpause = 5;
+											}
+
+											padPlayers = gGT->numPlyrCurrGame;
+											CTR_PSX_KEEP_VALUE_RELAXED(padPlayers);
+											iVar4++;
+											pausePad++;
+										} while (iVar4 < padPlayers);
+									}
 								}
 							}
 						}
@@ -444,354 +489,6 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 				}
 			}
 		}
-		else
-		{
-			gGT->cooldownFromUnpauseUntilPause--;
-		}
-	}
-	else if (gGT->timerEndOfRaceVS == 0)
-	{
-		uVar3 = gGT->gameModeEnd;
-		if ((uVar3 & AKU_SONG) == 0)
-		{
-			if ((uVar3 & CRYSTAL_CHALLENGE) == 0)
-			{
-				if (gGT->unk_timerCooldown_similarTo_1d36 == 0)
-				{
-					return;
-				}
-			}
-			else if (gGT->unk_timerCooldown_similarTo_1d36 == 0)
-			{
-				if ((uVar3 & PAUSE_2) == 0)
-				{
-					return;
-				}
-
-				sVar2 = SubmitName_DrawMenu(0x140);
-
-				// if not done yet
-				if (sVar2 == 0)
-				{
-					return;
-				}
-
-
-#if defined(CTR_NATIVE)
-
-				// if SAVE
-				if (sVar2 == 1)
-				{
-					sdata->boolSaveCupProgress = 0;
-
-					SelectProfile_ToggleMode(SELECT_PROFILE_MODE_SLOT_SAVE);
-
-					RECTMENU_Show(&data.menuWarning2);
-					gGT->gameModeEnd |= NEW_NAME;
-
-					return;
-				}
-#endif
-
-				// if -1 (cancel)
-				gGT->newHighScoreIndex = -1;
-				gGT->gameModeEnd &= ~(NEW_BEST_LAP | NEW_HIGH_SCORE);
-				return;
-			}
-			gGT->unk_timerCooldown_similarTo_1d36--;
-		}
-	}
-	else if ((uVar3 & ARCADE_MODE) == 0)
-	{
-		if (gGT->timerEndOfRaceVS < 0x96)
-		{
-#if defined(CTR_NATIVE)
-			UI_VsQuipDrawAll();
-			UI_VsWaitForPressX();
-#endif
-		}
-		if (0x1e < gGT->timerEndOfRaceVS)
-		{
-			gGT->timerEndOfRaceVS--;
-		}
-	}
-	else
-	{
-		gGT->timerEndOfRaceVS = 0;
-	}
-	return;
-}
-
-void MainFrame_InitVideoSTR(u32 boolPlayVideoStr, RECT *r, s16 posX, s16 posY)
-{
-#ifdef CTR_NATIVE
-	if (r == NULL)
-	{
-		// NOTE(aalhendi): Native overlay 230 uses NULL to disable STR copy;
-		// retail blindly copies the RECT fields in the PSX path below.
-		sdata->videoSTR_src_vramRect.x = 0;
-		sdata->videoSTR_src_vramRect.y = 0;
-		sdata->videoSTR_src_vramRect.w = 0;
-		sdata->videoSTR_src_vramRect.h = 0;
-	}
-	else
-#endif
-	{
-		sdata->videoSTR_src_vramRect.x = r->x;
-		sdata->videoSTR_src_vramRect.y = r->y;
-		sdata->videoSTR_src_vramRect.w = r->w;
-		sdata->videoSTR_src_vramRect.h = r->h;
-	}
-
-	sdata->boolPlayVideoSTR = boolPlayVideoStr;
-	sdata->videoSTR_dst_vramX = posX;
-	sdata->videoSTR_dst_vramY = posY;
-}
-
-b32 MainFrame_HaveAllPads(s16 numPlyrNextGame)
-{
-	// if game is not loading
-	if (sdata->Loading.stage == LOAD_IDLE)
-	{
-		struct GamepadBuffer *gb = &sdata->gGamepads->gamepad[0];
-
-		if (numPlyrNextGame == 0)
-		{
-			return false;
-		}
-
-		for (int i = 0; i < numPlyrNextGame; i++)
-		{
-			struct ControllerPacket *packet = gb->ptrControllerPacket;
-
-			if (packet == NULL)
-			{
-				return false;
-			}
-			if (packet->plugged != PLUGGED)
-			{
-				return false;
-			}
-
-			gb++;
-		}
-	}
-
-	return true;
-}
-
-static void MainFrame_ReplacePackedVisList(int *dst, void *src, int byteCount)
-{
-	u32 srcWord = (u32)src;
-
-	if ((srcWord & 1) == 0)
-	{
-		memcpy(dst, src, byteCount);
-		return;
-	}
-
-	CTR_unknownMaybeThunk1(dst, (void *)(srcWord & ~(u32)3));
-}
-
-static void MainFrame_OrPackedVisList(int *dst, void *src, int byteCount)
-{
-	u32 srcWord = (u32)src;
-
-	if ((srcWord & 1) == 0)
-	{
-		CTR_unknownMaybeThunk3(dst, src, byteCount);
-		return;
-	}
-
-	CTR_unknownMaybeThunk2(dst, (void *)(srcWord & ~(u32)3));
-}
-
-static int MainFrame_VisMemHasQuad(const int *visFaceList, const struct QuadBlock *quad, const struct mesh_info *mesh)
-{
-	int quadIndex = (int)(quad - mesh->ptrQuadBlockArray);
-
-	return (visFaceList[quadIndex >> 5] & (1 << (quadIndex & 0x1f))) != 0;
-}
-
-static void MainFrame_VisMemAddDriverPVS(struct GameTracker *gGT, int playerIndex)
-{
-	struct Driver *driver = gGT->drivers[playerIndex];
-	struct mesh_info *mesh = gGT->level1->ptr_mesh_info;
-	struct QuadBlock *quad = driver->underDriver;
-	struct PVS *pvs;
-
-	if (quad == NULL)
-	{
-		return;
-	}
-
-	pvs = quad->pvs;
-	if (pvs == NULL)
-	{
-		return;
-	}
-
-	if (pvs->visLeafSrc != NULL)
-	{
-		MainFrame_OrPackedVisList(gGT->visMem1->visLeafList[playerIndex], pvs->visLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
-	}
-
-	if (pvs->visFaceSrc != NULL)
-	{
-		MainFrame_OrPackedVisList(gGT->visMem1->visFaceList[playerIndex], pvs->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
-	}
-}
-
-void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
-{
-	struct VisMem *visMem;
-	struct mesh_info *mesh;
-	int playerIndex;
-
-	visMem = gGT->visMem1;
-	if (visMem == NULL)
-	{
-		return;
-	}
-
-	if (level == NULL)
-	{
-		return;
-	}
-
-	if (gGT->numPlyrCurrGame == 0)
-	{
-		return;
-	}
-
-	mesh = level->ptr_mesh_info;
-
-	for (playerIndex = 0; playerIndex < gGT->numPlyrCurrGame; playerIndex++)
-	{
-		struct CameraDC *camDC = &gGT->cameraDC[playerIndex];
-		struct Driver *driver = gGT->drivers[playerIndex];
-		struct QuadBlock *driverQuad = driver->underDriver;
-		struct PVS *driverPVS = NULL;
-
-		if (driverQuad != NULL)
-		{
-			driverPVS = driverQuad->pvs;
-		}
-
-		camDC->flags &= ~0x4000;
-
-		if (camDC->visLeafSrc == NULL)
-		{
-			if ((driverPVS != NULL) && (driverPVS->visLeafSrc != NULL))
-			{
-				visMem->visLeafSrc[playerIndex] = driverPVS->visLeafSrc;
-				MainFrame_ReplacePackedVisList(visMem->visLeafList[playerIndex], driverPVS->visLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
-			}
-		}
-		else if (visMem->visLeafSrc[playerIndex] != camDC->visLeafSrc)
-		{
-			visMem->visLeafSrc[playerIndex] = camDC->visLeafSrc;
-			MainFrame_ReplacePackedVisList(visMem->visLeafList[playerIndex], camDC->visLeafSrc, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
-		}
-
-		if (camDC->visFaceSrc == NULL)
-		{
-			if ((driverPVS != NULL) && (driverPVS->visFaceSrc != NULL))
-			{
-				visMem->visFaceSrc[playerIndex] = driverPVS->visFaceSrc;
-				MainFrame_ReplacePackedVisList(visMem->visFaceList[playerIndex], driverPVS->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
-			}
-		}
-		else if (visMem->visFaceSrc[playerIndex] != camDC->visFaceSrc)
-		{
-			visMem->visFaceSrc[playerIndex] = camDC->visFaceSrc;
-			MainFrame_ReplacePackedVisList(visMem->visFaceList[playerIndex], camDC->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
-
-			if ((driverPVS == NULL) || (driverPVS->visLeafSrc == NULL) || (driverPVS->visFaceSrc == NULL) || (driverPVS->visInstSrc == NULL) ||
-			    MainFrame_VisMemHasQuad(visMem->visFaceList[playerIndex], driverQuad, mesh))
-			{
-				camDC->flags &= ~0x2000;
-			}
-			else
-			{
-				camDC->flags |= 0x2000;
-			}
-
-			if ((camDC->flags & 0x2000) != 0)
-			{
-				MainFrame_VisMemAddDriverPVS(gGT, playerIndex);
-				camDC->flags |= 0x4000;
-			}
-		}
-
-		if ((camDC->flags & 0x5000) == 0x1000)
-		{
-			MainFrame_VisMemAddDriverPVS(gGT, playerIndex);
-		}
-
-		if ((camDC->cameraMode == 0) && ((camDC->flags & 0x2000) != 0) && (driverPVS != NULL) && (driverPVS->visInstSrc != NULL))
-		{
-			camDC->visInstSrc = driverPVS->visInstSrc;
-		}
-
-		if ((level->configFlags & 4) == 0)
-		{
-			if (visMem->visOVertSrc[playerIndex] != camDC->visOVertSrc)
-			{
-				visMem->visOVertSrc[playerIndex] = camDC->visOVertSrc;
-				MainFrame_ReplacePackedVisList(visMem->visOVertList[playerIndex], camDC->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
-			}
-			else if (visMem->visOVertSrc[playerIndex] == NULL)
-			{
-				memcpy(visMem->visOVertList[playerIndex], level->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
-			}
-		}
-		else
-		{
-			if (visMem->visSCVertSrc[playerIndex] != camDC->visSCVertSrc)
-			{
-				visMem->visSCVertSrc[playerIndex] = camDC->visSCVertSrc;
-				MainFrame_ReplacePackedVisList(visMem->visSCVertList[playerIndex], camDC->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
-			}
-			else if (visMem->visSCVertSrc[playerIndex] == NULL)
-			{
-				memcpy(visMem->visSCVertList[playerIndex], level->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
-			}
-		}
-	}
-}
-
-// Request Aku Hint, doesn't start till FUN_800b3dd8
-// hintId:
-//	0x00 - Welcome to Adventure Arena
-//	0x01 - using a warp pad (part of welcome)
-// 	0x02 - Need more trophies
-//	0x03 - Need 4 trophies for Boss
-//	0x04 - Need 4 keys for oxide
-//	0x05 - Must have 1 Boss Key
-//	0x06 - This is the load/save screen
-// 	0x07 - Congrats on opening new area
-//	0x12 - Must have 2 Boss Key
-//	0x19 - Collect every crystal in arena
-//	0x1a - CTR Token
-//	0x1b - Gem Cups
-//	0x1c - Must get 10 relics
-//	0x1d - Relic
-// param2:
-//	0x00 - not interrupting a warppad load screen
-// 	0x01 - interrupting (CTR, Relic, or Crystal hints)
-void MainFrame_RequestMaskHint(s16 hintId, s16 interruptWarpPad)
-{
-	struct GameTracker *gGT = sdata->gGT;
-
-	if (((gGT->gameMode1 & PAUSE_ALL) == 0) && (sdata->AkuHint_RequestedHint == -1))
-	{
-		sdata->AkuAkuHintState = 1;
-
-		gGT->drivers[0]->funcPtrs[DRIVER_FUNC_INIT] = VehPhysProc_FreezeEndEvent_Init;
-
-		sdata->AkuHint_RequestedHint = hintId;
-		sdata->AkuHint_boolInterruptWarppad = interruptWarpPad;
 	}
 	return;
 }

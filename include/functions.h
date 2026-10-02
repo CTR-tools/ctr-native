@@ -76,7 +76,7 @@ u32 DecalFont_boolRacingWheel(void);
 void DecalFont_DrawLine(char *str, s16 posX, s16 posY, s16 fontType, s16 flags);
 void DecalFont_DrawLineStrlen(char *str, s16 len, s16 posX, s16 posY, s16 fontType, s16 flags);
 s32 DecalFont_DrawMultiLine(char *str, s16 posX, s16 posY, s16 maxPixLen, s16 fontType, s16 flags);
-void DecalGlobal_EmptyFunc_MainFrame_ResetDB(void);
+void DecalGlobal_EmptyFunc_MainFrame_ResetDB(struct GameTracker *tracker);
 void DecalGlobal_Clear(struct GameTracker *gGT);
 void DecalGlobal_Store(struct GameTracker *gGT, struct LevTexLookup *LTL);
 // Lookup keys contain 16 readable bytes (including padding), word-aligned on PSX.

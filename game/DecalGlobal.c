@@ -13,8 +13,9 @@ static inline u32 DecalGlobal_ReadNameWord(const char *name, s32 wordIndex)
 	((DecalGlobal_ReadNameWord(lhs, 0) == DecalGlobal_ReadNameWord(rhs, 0)) && (DecalGlobal_ReadNameWord(lhs, 1) == DecalGlobal_ReadNameWord(rhs, 1)) && \
 	 (DecalGlobal_ReadNameWord(lhs, 2) == DecalGlobal_ReadNameWord(rhs, 2)) && (DecalGlobal_ReadNameWord(lhs, 3) == DecalGlobal_ReadNameWord(rhs, 3)))
 
-void DecalGlobal_EmptyFunc_MainFrame_ResetDB(void)
+void DecalGlobal_EmptyFunc_MainFrame_ResetDB(struct GameTracker *tracker)
 {
+	(void)tracker;
 }
 
 

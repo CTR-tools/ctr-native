@@ -2668,6 +2668,22 @@
       "forced_includes": ["tools/matching/namespaces/main-game-start/retail_symbols.h"]
     },
     {
+      "name": "main-kill-game",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainKillGame_StopCTR",
+      "end_symbol": "MainLoadVLC_Callback",
+      "symbol_prefix": "MainKillGame_",
+      "source": "game/MAIN/MainKillGame.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "linked_block": {}
+    },
+    {
       "name": "load-file",
       "kind": "resident",
       "artifact": "exe",
@@ -3401,6 +3417,23 @@
       "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
+      "name": "main-game-end",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainGameEnd_SoloRaceGetReward",
+      "end_symbol": "MainGameStart_Initialize",
+      "symbol_prefix": "MainGameEnd_",
+      "source": "game/MAIN/MainGameEnd.c",
+      "include_directories": ["include", "."],
+      "forced_includes": ["tools/matching/namespaces/main-game-end/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {"_gp": "0x8008cf6c", "ctr_mainGameEndTracker": "0x8008d2ac"}
+    },
+    {
       "name": "submit-name",
       "kind": "resident",
       "artifact": "exe",
@@ -3565,6 +3598,285 @@
       },
       "forced_includes": [
         "tools/matching/namespaces/load-howl/retail_symbols.h"
+      ]
+    },
+    {
+      "name": "main-load-vlc",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainLoadVLC_Callback",
+      "end_symbol": "main",
+      "symbol_prefix": "MainLoadVLC",
+      "source": "game/MAIN/MainLoadVLC.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "_gp": "0x8008cf6c"
+      },
+      "forced_includes": [
+        "tools/matching/namespaces/main-load-vlc/retail_symbols.h"
+      ]
+    },
+    {
+      "name": "main-init",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainInit_VisMem",
+      "end_symbol": "MainKillGame_StopCTR",
+      "symbol_prefix": "MainInit_",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float",
+        "-DRETAIL_GAME_TRACKER_ASM_NAME=\"ctr_gameTrackerPtr\""
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_gameTrackerPtr": "0x8008d2ac"
+      },
+      "function_rodata_addresses": {
+        "MainInit_PrimMem": "0x8001157c"
+      },
+      "linked_block": {
+        "rodata_address": "0x8001157c",
+        "rodata_size": 20
+      },
+      "sources": [
+        "game/MAIN/MainInit.c",
+        "game/MAIN/MainInit_Memory.c",
+        "game/MAIN/MainInit_Peripheral.c",
+        "game/MAIN/MainVisibility.c",
+        "game/MAIN/MainInit_Pools.c",
+        "game/MAIN/MainInit_Drivers.c"
+      ]
+    },
+    {
+      "name": "main-init-drivers",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainInit_Drivers",
+      "end_symbol": "MainInit_FinalizeInit",
+      "symbol_prefix": "MainInit_",
+      "source": "game/MAIN/MainInit_Drivers.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-DRETAIL_GAME_TRACKER_ASM_NAME=\"ctr_gameTrackerPtr\""],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_gameTrackerPtr": "0x8008d2ac"
+      },
+      "linked_block": {}
+    },
+    {
+      "name": "main-init-pools",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainInit_JitPoolsNew",
+      "end_symbol": "MainInit_Drivers",
+      "symbol_prefix": "MainInit_",
+      "source": "game/MAIN/MainInit_Pools.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-DRETAIL_GAME_TRACKER_ASM_NAME=\"ctr_gameTrackerPtr\""],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c", "ctr_gameTrackerPtr": "0x8008d2ac"},
+      "linked_block": {}
+    },
+    {
+      "name": "main-init-memory",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainInit_RainBuffer",
+      "end_symbol": "MainInit_JitPoolsNew",
+      "symbol_prefix": "MainInit_",
+      "source": "game/MAIN/MainInit_Memory.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float",
+        "-DRETAIL_GAME_TRACKER_ASM_NAME=\"ctr_gameTrackerPtr\""
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_gameTrackerPtr": "0x8008d2ac"
+      },
+      "function_rodata_addresses": {
+        "MainInit_PrimMem": "0x8001157c"
+      },
+      "linked_block": {
+        "rodata_address": "0x8001157c",
+        "rodata_size": 20
+      }
+    },
+    {
+      "name": "main-init-peripheral",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainInit_StringToLevID",
+      "end_symbol": "MainKillGame_StopCTR",
+      "symbol_prefix": "MainInit_",
+      "source": "game/MAIN/MainInit_Peripheral.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "main-frame",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainFrame_TogglePauseAudio",
+      "end_symbol": "MainFrame_RenderFrame",
+      "symbol_prefix": "MainFrame_",
+      "sources": [
+        "game/MAIN/MainFrame.c",
+        "game/MAIN/MainFrame_Services.c",
+        "game/MAIN/MainVisibility.c",
+        "game/MAIN/MainFrame_ResetDB.c"
+      ],
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_mainFrameVideoDstX": "0x8008d89c",
+        "ctr_mainFrameVideoDstY": "0x8008d8a0",
+        "D232": "0x800b4ddc",
+        "ctr_mainFrameGameTracker": "0x8008d2ac",
+        "ctr_mainFrameGamepads": "0x8008d2b0",
+        "ctr_mainFrameBigfile1": "0x8008d86c"
+      },
+      "linked_block": {},
+      "forced_includes": [
+        "tools/matching/namespaces/main-frame/retail_symbols.h"
+      ]
+    },
+    {
+      "name": "main-frame-reset-db",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "MainFrame_ResetDB",
+      "end_symbol": "MainFrame_GameLogic",
+      "symbol_prefix": "MainFrame_",
+      "source": "game/MAIN/MainFrame_ResetDB.c",
+      "include_directories": ["include"],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h",
+        "tools/matching/namespaces/main-frame/reset_symbols.h"
+      ],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-DRETAIL_GAME_TRACKER_ASM_NAME=\"ctr_gameTrackerPtr\""],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_gameTrackerPtr": "0x8008d2ac",
+        "ctr_mainFrameBigfile1": "0x8008d86c"
+      },
+      "linked_block": {}
+    },
+    {
+      "name": "main-visibility",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "start_symbol": "MainFrame_VisMemAddDriverPVS",
+          "end_symbol": "MainFrame_InitVideoSTR"
+        },
+        {
+          "start_symbol": "MainInit_VisMem",
+          "end_symbol": "MainInit_RainBuffer"
+        }
+      ],
+      "symbol_prefix": "Main",
+      "source": "game/MAIN/MainVisibility.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "main-frame-services",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "start_symbol": "MainFrame_TogglePauseAudio",
+          "end_symbol": "MainFrame_ResetDB"
+        },
+        {
+          "start_symbol": "MainFrame_InitVideoSTR",
+          "end_symbol": "MainFrame_RenderFrame"
+        }
+      ],
+      "symbol_prefix": "MainFrame_",
+      "source": "game/MAIN/MainFrame_Services.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_mainFrameVideoDstX": "0x8008d89c",
+        "ctr_mainFrameVideoDstY": "0x8008d8a0"
+      },
+      "linked_block": {},
+      "forced_includes": [
+        "tools/matching/namespaces/main-frame/video_symbols.h"
       ]
     },
     {
