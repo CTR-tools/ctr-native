@@ -2186,6 +2186,22 @@
       "linked_block": {}
     },
     {
+      "name": "queue-load-track",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "QueueLoadTrack_MenuProc",
+      "end_symbol": "RaceConfig_LoadGameOptions",
+      "symbol_prefix": "QueueLoadTrack_",
+      "source": "game/QueueLoadTrack.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "ui-convert-y",
       "kind": "resident",
       "artifact": "exe",
@@ -2529,6 +2545,23 @@
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77"
+    },
+    {
+      "name": "load-file",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "LOAD_StringToUpper",
+      "end_symbol": "LOAD_HowlHeaderSectors",
+      "symbol_prefix": "LOAD_",
+      "source": "game/LOAD/LOAD_File.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "owned_symbols": {"LOAD_ReadFile": "LOAD_ReadFile_ex"},
+      "linked_block": {}
     },
     {
       "name": "load-run-ptr-map",
@@ -3314,6 +3347,34 @@
       ]
     },
     {
+      "name": "load-howl-complete",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "LOAD_HowlHeaderSectors",
+      "end_symbol": "LOAD_RunPtrMap",
+      "symbol_prefix": "LOAD_Howl",
+      "source": "game/LOAD/LOAD_Howl.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_loadHowlChainStateInitial": "0x8008d840"
+      },
+      "forced_includes": [
+        "tools/matching/namespaces/load-howl/retail_symbols.h"
+      ]
+    },
+    {
       "name": "matrix-load-rotation-gte",
       "kind": "resident",
       "artifact": "exe",
@@ -3322,62 +3383,6 @@
       "end_symbol": "Unknown_8006c558",
       "symbol_prefix": "MATRIX_SET_r11r12r13r14r15",
       "source": "game/MATH/MATH_7_MatrixStubs.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "queue-load-track-menu-ptr",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "QueueLoadTrack_GetMenuPtr",
-      "end_symbol": "RaceConfig_LoadGameOptions",
-      "symbol_prefix": "QueueLoadTrack_GetMenuPtr",
-      "source": "game/QueueLoadTrack.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "load-file-init-cd",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "LOAD_StringToUpper",
-      "end_symbol": "LOAD_ReadDirectory",
-      "symbol_prefix": "LOAD_",
-      "source": "game/LOAD/LOAD_File.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "load-read-directory",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "LOAD_ReadDirectory",
-      "end_symbol": "LOAD_DramFileCallback",
-      "symbol_prefix": "LOAD_ReadDirectory",
-      "source": "game/LOAD/LOAD_File.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "load-find-file",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "LOAD_FindFile",
-      "end_symbol": "LOAD_HowlHeaderSectors",
-      "symbol_prefix": "LOAD_FindFile",
-      "source": "game/LOAD/LOAD_File.c",
       "include_directories": ["include"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,

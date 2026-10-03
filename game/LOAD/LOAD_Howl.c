@@ -90,16 +90,18 @@ int LOAD_HowlSectorChainStart(CdlFILE *cdlFileHWL, void *ptrDestination, int fir
 	return (CdRead(numSector, ptrDestination, CdlModeSpeed) != 0);
 }
 
-int LOAD_HowlSectorChainEnd()
+#ifndef LOAD_HOWL_CHAIN_STATE_INITIAL
+#define LOAD_HOWL_CHAIN_STATE_INITIAL (sdata->howlChainState)
+#endif
+
+int LOAD_HowlSectorChainEnd(void)
 {
-	int *howlChainParams;
-	int howlChainState = sdata->howlChainState;
-	howlChainParams = sdata->howlChainParams;
+	int howlChainState = LOAD_HOWL_CHAIN_STATE_INITIAL;
 
 	if (howlChainState == -1)
 	{
-		LOAD_HowlSectorChainStart((CdlFILE *)howlChainParams[0], (void *)howlChainParams[1], howlChainParams[2], howlChainParams[3]);
-
+		LOAD_HowlSectorChainStart((CdlFILE *)sdata->howlChainParams[0], (void *)sdata->howlChainParams[1], sdata->howlChainParams[2],
+		                          sdata->howlChainParams[3]);
 		return 0;
 	}
 

@@ -127,7 +127,7 @@ void *LOAD_ReadDirectory(char *filename)
 void LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 {
 	char *fileBuf = lqs->ptrDestination;
-	void (*callback)(struct LoadQueueSlot *) = lqs->callbackFuncPtr;
+	void (*callback)(struct LoadQueueSlot *);
 
 	if (fileBuf != NULL)
 	{
@@ -154,21 +154,23 @@ void LOAD_DramFileCallback(struct LoadQueueSlot *lqs)
 			lqs->flags |= LT_GETADDR;
 		}
 
-		lqs->ptrDestination = &fileBuf[4];
+		lqs->ptrDestination = (char *)lqs->ptrDestination + 4;
 	}
+
+	callback = lqs->callbackFuncPtr;
 
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): CTR_NATIVE keeps host callback pointers and queue sentinels.
 	if ((callback != NULL) && (callback != LOAD_DramFileCallback) && (callback != (void (*)(struct LoadQueueSlot *))-1) &&
 	    (callback != LOAD_QUEUE_CALLBACK_SET_POINTER))
 #else
-	if ((callback != NULL) && (((u32)(u32)callback & 0xff000000) == 0x80000000))
+	if ((callback != NULL) && (((u32)callback & 0xff000000) == 0x80000000))
 #endif
 	{
 		callback(lqs);
 	}
 
-	sdata->queueReady = 1;
+	GAME_LOAD_QUEUE_READY = 1;
 }
 
 void *LOAD_DramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u32 *sizePtr, int callbackOrFlags)
@@ -178,19 +180,18 @@ void *LOAD_DramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u3
 
 	if (callbackOrFlags == -1)
 	{
-		loadedFile = LOAD_ReadFile_ex(bigfilePtr, LT_GETADDR, subfileIndex, ptrDestination, sizePtr, NULL);
-
 		lqs.ptrBigfileCdPos_UNUSED = bigfilePtr;
 		lqs.flags = 0;
 		lqs.type_UNUSED = LT_DRAM;
 		lqs.subfileIndex = subfileIndex;
-		lqs.ptrDestination = loadedFile;
+		lqs.ptrDestination = LOAD_ReadFile_ex(bigfilePtr, LT_GETADDR, subfileIndex, ptrDestination, sizePtr, NULL);
 		lqs.size_UNUSED = *sizePtr;
 		lqs.callbackFuncPtr = NULL;
 
 		LOAD_DramFileCallback(&lqs);
 
-		return loadedFile;
+		// NOTE(aalhendi): DRAM relocation has advanced this slot past its header.
+		return lqs.ptrDestination;
 	}
 
 	if (callbackOrFlags == -2)
@@ -206,39 +207,42 @@ void *LOAD_DramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u3
 
 void LOAD_VramFileCallback(struct LoadQueueSlot *lqs)
 {
-	int *vramBuf = lqs->ptrDestination;
+	RECT rect;
+	struct VramHeader *vh = lqs->ptrDestination;
 
-	struct VramHeader *vh = (struct VramHeader *)vramBuf;
-
-	// if just one TIM
-	if ((vramBuf != NULL) && (vramBuf[0] != 0x20))
+	if (vh != NULL)
 	{
-		LoadImage(&vh->rect, VRAMHEADER_GETPIXLES(vh));
-	}
-
-	// if multiple TIMs are packed together
-	if ((vramBuf != NULL) && (vramBuf[0] == 0x20))
-	{
-		int size;
-		vramBuf++;
-
-		size = vramBuf[0];
-		vh = (struct VramHeader *)&vramBuf[1];
-
-		while (size != 0)
+		// Packed TIMs start with the container tag and record lengths.
+		if (*(int *)vh == 0x20)
 		{
-			LoadImage(&vh->rect, VRAMHEADER_GETPIXLES(vh));
-
-			// goto next
-			vramBuf = (int *)((u8 *)vh + (size & ~3));
-
-			size = vramBuf[0];
-			vh = (struct VramHeader *)&vramBuf[1];
+			int size;
+			vh = (struct VramHeader *)((int *)vh + 1);
+			size = *(int *)vh;
+			vh = (struct VramHeader *)((int *)vh + 1);
+			while (size != 0)
+			{
+				rect.x = vh->rect.x;
+				rect.y = vh->rect.y;
+				rect.w = vh->rect.w;
+				rect.h = vh->rect.h;
+				LoadImage(&rect, VRAMHEADER_GETPIXLES(vh));
+				vh = (struct VramHeader *)((int *)vh + (size >> 2));
+				size = *(int *)vh;
+				vh = (struct VramHeader *)((int *)vh + 1);
+			}
+		}
+		else
+		{
+			rect.x = vh->rect.x;
+			rect.y = vh->rect.y;
+			rect.w = vh->rect.w;
+			rect.h = vh->rect.h;
+			LoadImage(&rect, VRAMHEADER_GETPIXLES(vh));
 		}
 	}
 
 	// LOAD_NextQueuedFile waits 3 vsync frames before releasing the queue.
-	sdata->frameFinishedVRAM = sdata->gGT->frameTimer_VsyncCallback;
+	GAME_LOAD_VRAM_FINISHED = GAME_TRACKER->frameTimer_VsyncCallback;
 }
 
 void *LOAD_VramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u32 *sizePtr, int callbackOrFlags)
@@ -253,27 +257,25 @@ void *LOAD_VramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u3
 
 	if (callbackOrFlags == -1)
 	{
-		loadedFile = LOAD_ReadFile_ex(bigfilePtr, LT_VRAM, subfileIndex, ptrDestination, sizePtr, NULL);
-
 		lqs.ptrBigfileCdPos_UNUSED = bigfilePtr;
 		lqs.flags = 0;
 		lqs.type_UNUSED = LT_VRAM;
 		lqs.subfileIndex = subfileIndex;
-		lqs.ptrDestination = loadedFile;
+		lqs.ptrDestination = LOAD_ReadFile_ex(bigfilePtr, LT_VRAM, subfileIndex, ptrDestination, sizePtr, NULL);
 		lqs.size_UNUSED = *sizePtr;
 		lqs.callbackFuncPtr = NULL;
 
 		LOAD_VramFileCallback(&lqs);
 
 		VSync(2);
-		sdata->frameFinishedVRAM = 0;
+		GAME_LOAD_VRAM_FINISHED = 0;
 
 		if (ptrDestination == NULL)
 		{
 			MEMPACK_PopState();
 		}
 
-		return loadedFile;
+		return lqs.ptrDestination;
 	}
 
 	if (callbackOrFlags == -2)
@@ -287,18 +289,15 @@ void *LOAD_VramFile(void *bigfilePtr, int subfileIndex, void *ptrDestination, u3
 	return LOAD_ReadFile_ex(bigfilePtr, LT_VRAM, subfileIndex, ptrDestination, sizePtr, LOAD_VramFileCallback);
 }
 
-void LOAD_ReadFileASyncCallback(u8 result, u8 *unk)
+void LOAD_ReadFileASyncCallback(u8 result, u8 *unused)
 {
-	struct LoadQueueSlot *lqs;
-
-	(void)unk;
+	(void)unused;
 	CdReadCallback(0);
 	result &= 0xff;
 
-	lqs = &data.currSlot;
-
 	if (result == CdlComplete)
 	{
+		struct LoadQueueSlot *lqs = &data.currSlot;
 #if defined(CTR_NATIVE)
 		if ((lqs->flags & LT_MEMPACK) != 0)
 #else
@@ -318,9 +317,9 @@ void LOAD_ReadFileASyncCallback(u8 result, u8 *unk)
 	else
 	{
 #if defined(CTR_NATIVE)
-		if ((lqs->flags & LT_MEMPACK) != 0)
+		if ((data.currSlot.flags & LT_MEMPACK) != 0)
 #else
-		if ((lqs->flags & LT_SETADDR) != 0)
+		if ((data.currSlot.flags & LT_SETADDR) != 0)
 #endif
 		{
 			// undo allocation, try again
@@ -333,17 +332,14 @@ void LOAD_ReadFileASyncCallback(u8 result, u8 *unk)
 
 void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex, void *ptrDst, u32 *sizePtr, void (*callback)(struct LoadQueueSlot *))
 {
-	int uVar5;
+	b32 commandSuccess;
 	CdlLOC cdLoc;
 	u8 paramOutput[8];
-	void *originalDst;
+	void *originalDst = ptrDst;
 	int sectorSize;
-	int sectorCount;
-	int readComplete;
+	// NOTE(aalhendi): The initial success state stays live across CD setup on GCC 2.8.
+	register b32 readComplete = 1;
 	struct BigEntry *entry;
-	int eSize;
-	int eOffs;
-	struct LoadQueueSlot *lqs;
 
 	(void)loadType;
 	CDSYS_SetMode_StreamData();
@@ -358,22 +354,17 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 #endif
 
 	// get size and offset of subfile
-	entry = BIG_GETENTRY(bigfile);
-	eSize = entry[subfileIndex].size;
-	eOffs = entry[subfileIndex].offset;
+	entry = BIG_GETENTRY((struct BigHeader *)((char *)bigfile + subfileIndex * sizeof(struct BigEntry)));
+	// NOTE(aalhendi): Publish size before reading offset; sizePtr may alias the entry.
+	*sizePtr = entry->size;
+	commandSuccess = 0;
 
-	*sizePtr = eSize;
-
-	CdIntToPos(bigfile->cdpos + eOffs, &cdLoc);
-
-	lqs = &data.currSlot;
-	originalDst = ptrDst;
-	sectorCount = (eSize + LOAD_CD_DATA_SECTOR_ROUND_MASK) >> LOAD_CD_DATA_SECTOR_SHIFT;
-	readComplete = 1;
+	CdIntToPos(bigfile->cdpos + entry->offset, &cdLoc);
 
 	// If no address given, then find one.
 	if (ptrDst == NULL)
 	{
+		struct LoadQueueSlot *lqs = &data.currSlot;
 #if defined(CTR_NATIVE)
 		lqs->flags |= LT_MEMPACK;
 #else
@@ -382,15 +373,16 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 
 		// allocate room for all sectors,
 		// remove alignment before next Read
-		sectorSize = sectorCount << LOAD_CD_DATA_SECTOR_SHIFT;
-		ptrDst = (void *)MEMPACK_AllocMem(sectorSize, NULL); // "FILE"
+		sectorSize = ((*sizePtr + LOAD_CD_DATA_SECTOR_ROUND_MASK) >> LOAD_CD_DATA_SECTOR_SHIFT) << LOAD_CD_DATA_SECTOR_SHIFT;
+		ptrDst = (void *)MEMPACK_AllocMem(sectorSize, GAME_LOAD_FILE_LABEL);
 		if (ptrDst == NULL)
 		{
-			return NULL;
+			return (void *)commandSuccess;
 		}
 	}
 	else
 	{
+		struct LoadQueueSlot *lqs = &data.currSlot;
 #if defined(CTR_NATIVE)
 		lqs->flags &= ~LT_MEMPACK;
 #else
@@ -401,13 +393,13 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): native CD reads can call back before wrapper callers store
 	// the returned pointer back into data.currSlot.
-	lqs->ptrDestination = ptrDst;
-	lqs->size_UNUSED = eSize;
+	data.currSlot.ptrDestination = ptrDst;
+	data.currSlot.size_UNUSED = *sizePtr;
 #endif
 
-	while (1)
+	while ((commandSuccess == 0) || (readComplete == 0))
 	{
-		uVar5 = CdControl(CdlSetloc, (u8 *)&cdLoc, &paramOutput[0]);
+		commandSuccess = CdControl(CdlSetloc, (u8 *)&cdLoc, &paramOutput[0]);
 
 		if (callback != NULL)
 		{
@@ -420,18 +412,12 @@ void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex
 			CdReadCallback(NULL);
 		}
 
-		uVar5 &= CdRead(sectorCount, ptrDst, CdlModeSpeed);
+		commandSuccess &= CdRead((*sizePtr + LOAD_CD_DATA_SECTOR_ROUND_MASK) >> LOAD_CD_DATA_SECTOR_SHIFT, ptrDst, CdlModeSpeed);
 
 		if (callback == NULL)
 		{
 			// Wait for all sectors to finish
 			readComplete = CdReadSync(0, (u8 *)0x0) == 0;
-		}
-
-		// If either command failed, or sync read did not finish, retry.
-		if ((uVar5 != 0) && (readComplete != 0))
-		{
-			break;
 		}
 	}
 
@@ -448,7 +434,7 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 {
 	CdlFILE cdlFile;
 	u8 buf[8];
-	int allocated;
+	void *originalDst = ptrDestination;
 
 	LOAD_StringToUpper(filename);
 	CDSYS_SetMode_StreamData();
@@ -460,13 +446,12 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 
 	*size = cdlFile.size;
 
-	allocated = ptrDestination == NULL;
-	if (allocated)
+	if (ptrDestination == NULL)
 	{
 		// allocate room for all sectors,
 		// remove alignment before next Read
-		int sectorSize = (cdlFile.size + LOAD_CD_DATA_SECTOR_ROUND_MASK) & LOAD_CD_DATA_SECTOR_ALIGN_MASK;
-		ptrDestination = MEMPACK_AllocMem(sectorSize, NULL /* fileName */);
+		int sectorSize = ((cdlFile.size + LOAD_CD_DATA_SECTOR_ROUND_MASK) >> LOAD_CD_DATA_SECTOR_SHIFT) << LOAD_CD_DATA_SECTOR_SHIFT;
+		ptrDestination = MEMPACK_AllocMem(sectorSize, filename);
 		if (ptrDestination == NULL)
 		{
 			return NULL;
@@ -485,7 +470,7 @@ void *LOAD_XnfFile(char *filename, void *ptrDestination, int *size)
 		return 0;
 	}
 
-	if (allocated)
+	if (originalDst == NULL)
 	{
 		MEMPACK_ReallocMem(cdlFile.size);
 	}
