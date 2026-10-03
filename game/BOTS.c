@@ -1,9 +1,31 @@
 #include <common.h>
 
+#ifndef BOT_NAV_HEADERS
+#define BOT_NAV_HEADERS         (sdata->NavPath_ptrHeader)
+#define BOT_NAV_FRAMES          (sdata->NavPath_ptrNavFrameArray)
+#define BOT_NAV_FALLBACK_HEADER (sdata->blank_NavHeader)
+#define BOT_NAV_NUM_POINTS      (sdata->nav_NumPointsOnPath)
+#define BOT_NAV_LAST_PATH       (sdata->lastPathIndex)
+#endif
+
+
+#ifndef BOTS_ADV_PROGRESS
+#define BOTS_ADV_PROGRESS (sdata->advProgress)
+#define BOTS_KART_ORDER   (sdata->kartSpawnOrderArray)
+#define BOTS_DRIVER_PATHS (sdata->driver_pathIndexIDs)
+#define BOTS_ACCEL_ORDER  (sdata->accelerateOrder)
+#define BOTS_NAV_LIST     (sdata->navBotList)
+#define BOTS_ADV_RNG      (sdata->advRng)
+#endif
+
+#ifndef BOTS_ROBOT_DEBUG_NAME
+// NOTE(aalhendi): Native omits debug names; retail supplies the resident robot string.
+#define BOTS_ROBOT_DEBUG_NAME NULL
+#endif
+
 enum
 {
 	BOTS_ADV_MAX_LOSS_DIFFICULTY_INDEX = 10,
-	BOTS_DIFFICULTY_PARAM_COUNT = 14,
 	BOTS_DIFFICULTY_BLEND_DENOMINATOR = 0xf0,
 	BOTS_DIFFICULTY_SUPERHARD = 0x140,
 	BOTS_DIFFICULTY_CUP_OFFSET = 0x50,
@@ -82,6 +104,7 @@ static s16 BOTS_PathChangeCap(void)
 
 int BOTS_Adv_NumTimesLostEvent(int numLost)
 {
+	s16 *difficulty;
 	// if you lost more than 10 times
 	// the difficulty will not get lower.
 	if ((u16)numLost > BOTS_ADV_MAX_LOSS_DIFFICULTY_INDEX)
@@ -90,47 +113,77 @@ int BOTS_Adv_NumTimesLostEvent(int numLost)
 		numLost = BOTS_ADV_MAX_LOSS_DIFFICULTY_INDEX;
 	}
 
-	return data.advDifficulty[numLost];
+	difficulty = data.advDifficulty;
+	CTR_PSX_OBSERVE_VALUE(difficulty);
+	return difficulty[(s16)numLost];
 }
 
 void BOTS_SetGlobalNavData(u16 index)
 {
-	sdata->lastPathIndex = index;
+	register u8 *headers CTR_PSX_REGISTER("$3");
+	register s32 indexOffset CTR_PSX_REGISTER("$5");
+	register u8 *frames CTR_PSX_REGISTER("$2");
+	register struct NavHeader *header CTR_PSX_REGISTER("$3");
+	register struct NavFrame **frameSlot CTR_PSX_REGISTER("$5");
+	register u16 numPoints CTR_PSX_REGISTER("$2");
+	register struct NavFrame *firstPoint CTR_PSX_REGISTER("$3");
 
-	sdata->nav_NumPointsOnPath = sdata->NavPath_ptrHeader[index]->numPoints;
-
-	sdata->nav_ptrFirstPoint = sdata->NavPath_ptrNavFrameArray[index];
-
-	sdata->nav_ptrLastPoint = &sdata->nav_ptrFirstPoint[sdata->nav_NumPointsOnPath];
-
+	headers = (u8 *)&BOT_NAV_HEADERS;
+	indexOffset = (s16)index * (s32)sizeof(struct NavFrame *);
+	CTR_PSX_OBSERVE_MEMORY(*(struct NavHeader **)(headers + indexOffset));
+	frames = (u8 *)&BOT_NAV_FRAMES;
+	header = *(struct NavHeader **)(headers + indexOffset);
+	frameSlot = (struct NavFrame **)(frames + indexOffset);
+	numPoints = (u16)header->numPoints;
+	firstPoint = *frameSlot;
+	BOT_NAV_LAST_PATH = index;
+	BOT_NAV_NUM_POINTS = (s16)numPoints;
+	sdata->nav_ptrFirstPoint = firstPoint;
+	sdata->nav_ptrLastPoint = &(*frameSlot)[(s16)numPoints];
+	CTR_PSX_OBSERVE_MEMORY(sdata->nav_ptrLastPoint);
 	return;
 }
 
 void BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
 {
+	register s32 incomingIndex CTR_PSX_REGISTER("$5");
+	s32 pathIndex;
+	struct NavHeader *nh;
+	struct NavHeader *pathHeader;
+	struct NavFrame *lastPoint;
+	struct NavFrame *firstPoint;
+	struct NavHeader **LevNavTable;
+	struct NavHeader **navSlot;
 	(void)gGT;
-	struct NavHeader *nh = 0;
-	struct NavHeader **LevNavTable = sdata->gGT->level1->LevNavTable;
+	LevNavTable = GAME_TRACKER->level1->LevNavTable;
+	CTR_PSX_CAPTURE_REGISTER(incomingIndex, index);
+	CTR_PSX_OBSERVE_VALUE(incomingIndex);
+	pathIndex = incomingIndex;
 
 	if (LevNavTable != 0)
 	{
 		// nullptr on Nitro Court
-		nh = LevNavTable[index];
+		CTR_PSX_ADD_POINTER_OFFSET(navSlot, LevNavTable, pathIndex * (s32)sizeof(*LevNavTable));
+		nh = *navSlot;
+	}
+	else
+	{
+		nh = 0;
 	}
 
 	// if path exists
 	if (nh != 0)
 	{
 		// grab the data
-		sdata->NavPath_ptrHeader[index] = nh;
+		BOT_NAV_HEADERS[pathIndex] = nh;
 
-		sdata->NavPath_ptrNavFrameArray[index] = NAVHEADER_GETFRAME(sdata->NavPath_ptrHeader[index]);
+		BOT_NAV_FRAMES[pathIndex] = NAVHEADER_GETFRAME(BOT_NAV_HEADERS[pathIndex]);
 
 		// if data is outdated
-		if (sdata->NavPath_ptrHeader[index]->magicNumber != -0x1303)
+		if ((u16)BOT_NAV_HEADERS[pathIndex]->magicNumber != (u16)-0x1303)
 		{
 			// never mind then
-			sdata->NavPath_ptrHeader[index]->numPoints = 0;
+			BOT_NAV_HEADERS[pathIndex]->numPoints = 0;
 		}
 	}
 
@@ -138,24 +191,28 @@ void BOTS_InitNavPath(struct GameTracker *gGT, s16 index)
 	else
 	{
 		// use a template, which cancels AIs
-		sdata->NavPath_ptrHeader[index] = &sdata->blank_NavHeader;
+		BOT_NAV_HEADERS[pathIndex] = &BOT_NAV_FALLBACK_HEADER;
 
-		sdata->NavPath_ptrNavFrameArray[index] = NAVHEADER_GETFRAME(&sdata->blank_NavHeader);
+		BOT_NAV_FRAMES[pathIndex] = NAVHEADER_GETFRAME(&BOT_NAV_FALLBACK_HEADER);
 
-		sdata->NavPath_ptrHeader[index]->numPoints = 0;
+		BOT_NAV_HEADERS[pathIndex]->numPoints = 0;
 	}
 
 	// save number of points
-	sdata->nav_NumPointsOnPath = sdata->NavPath_ptrHeader[index]->numPoints;
+	BOT_NAV_NUM_POINTS = BOT_NAV_HEADERS[pathIndex]->numPoints;
+	pathHeader = BOT_NAV_HEADERS[pathIndex];
 
 	// global last point
-	sdata->nav_ptrLastPoint = &sdata->NavPath_ptrNavFrameArray[index][sdata->nav_NumPointsOnPath];
+	lastPoint = &BOT_NAV_FRAMES[pathIndex][(s16)BOT_NAV_NUM_POINTS];
 
 	// header last point
-	sdata->NavPath_ptrHeader[index]->last = sdata->nav_ptrLastPoint;
+	pathHeader->last = lastPoint;
 
 	// global first point
-	sdata->nav_ptrFirstPoint = sdata->NavPath_ptrNavFrameArray[index];
+	firstPoint = BOT_NAV_FRAMES[pathIndex];
+	sdata->nav_ptrLastPoint = lastPoint;
+	sdata->nav_ptrFirstPoint = firstPoint;
+	CTR_PSX_OBSERVE_MEMORY(sdata->nav_ptrFirstPoint);
 
 	return;
 }
@@ -164,21 +221,186 @@ void BOTS_EmptyFunc(void)
 {
 }
 
-internal void BOTS_Adv_LerpDifficulty(s16 *dst, s16 factor)
+// NOTE(aalhendi): Difficulty banks share the full Data object. Read their
+// halfwords without aliasing; retail subtracts signed values but adds an unsigned low.
+static inline s16 BOTS_ReadDifficultyHalf(const s16 *src)
 {
-	s16 *lo = sdata->difficultyParams[1];
-	s16 *hi = sdata->difficultyParams[0];
-
-	for (s32 i = 0; i < BOTS_DIFFICULTY_PARAM_COUNT; i++)
-	{
-		dst[i] = lo[i] + (s16)((factor * (hi[i] - lo[i])) / BOTS_DIFFICULTY_BLEND_DENOMINATOR);
-	}
+	s16 value;
+	memcpy(&value, src, sizeof(value));
+	return value;
 }
 
-internal void BOTS_Adv_CopySpawnOrder(s32 first, s32 second)
+static inline u16 BOTS_ReadDifficultyUnsignedHalf(const s16 *src)
 {
-	*(s32 *)&sdata->kartSpawnOrderArray[0] = first;
-	*(s32 *)&sdata->kartSpawnOrderArray[4] = second;
+	u16 value;
+	memcpy(&value, src, sizeof(value));
+	return value;
+}
+
+// NOTE(aalhendi): Arcade and cup loops keep distinct register lifetimes to
+// preserve retail scheduling. Both blend the eight per-kart difficulty entries.
+static inline void BOTS_Adv_LerpDifficulty(s32 slotOffset, s16 factor, s16 initialIndex)
+{
+	register s16 *lo;
+	register s16 *hi CTR_PSX_REGISTER("$9");
+	register s16 *loopDst CTR_PSX_REGISTER("$11");
+	register s32 shiftedFactor CTR_PSX_REGISTER("$2") = CTR_MipsSll(factor, 16);
+	register s32 loopFactor CTR_PSX_REGISTER("$13");
+	s16 next;
+	register s16 i CTR_PSX_REGISTER("$17") = initialIndex;
+	CTR_PSX_OBSERVE_VALUE(i);
+	CTR_PSX_OBSERVE_VALUE(shiftedFactor);
+	loopFactor = CTR_MipsSra(shiftedFactor, 16);
+	CTR_PSX_OBSERVE_VALUE(loopFactor);
+	CTR_PSX_MEMORY_BARRIER();
+	loopDst = *(s16 **)((u8 *)sdata + slotOffset);
+	lo = sdata->difficultyParams[1];
+	hi = sdata->difficultyParams[0];
+	do
+	{
+		register s32 offset CTR_PSX_REGISTER("$6") = i * sizeof(s16);
+		register s16 *output CTR_PSX_REGISTER("$6");
+		register const u8 *hiPointer CTR_PSX_REGISTER("$2");
+		register const u8 *loPointer CTR_PSX_REGISTER("$7");
+		register s32 hiValue CTR_PSX_REGISTER("$4");
+		register s32 loValue CTR_PSX_REGISTER("$2");
+		register s32 blend CTR_PSX_REGISTER("$4");
+		register s32 quotient;
+		CTR_PSX_ADD_POINTER_OFFSET(hiPointer, (const u8 *)hi, offset);
+		CTR_PSX_ADD_POINTER_OFFSET(loPointer, (const u8 *)lo, offset);
+		hiValue = BOTS_ReadDifficultyHalf((const s16 *)hiPointer);
+		loValue = BOTS_ReadDifficultyHalf((const s16 *)loPointer);
+		hiValue = hiValue - loValue;
+		CTR_PSX_OBSERVE_VALUE(hiValue);
+		blend = loopFactor * hiValue;
+		CTR_PSX_DEPEND_MEMORY((u8 *)loPointer, blend);
+		quotient = blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+		next = i + 1;
+		CTR_PSX_COPY_VALUE(i, next);
+		CTR_PSX_DEPEND_VALUE(offset, i);
+		CTR_PSX_ADD_POINTER_OFFSET(output, loopDst, offset);
+		*output = BOTS_ReadDifficultyUnsignedHalf((const s16 *)loPointer) + quotient;
+	} while (next < BOTS_MAX_KARTS);
+}
+
+static inline void BOTS_Adv_LerpCupDifficulty(s16 factor, s16 *sourceHi, s16 *sourceLo)
+{
+	register s16 *boundSourceLo CTR_PSX_REGISTER("$8") = sourceLo;
+	register s16 *lo CTR_PSX_REGISTER("$11");
+	register s16 *hi CTR_PSX_REGISTER("$9");
+	register s16 *loopDst CTR_PSX_REGISTER("$12");
+	register s32 shiftedFactor CTR_PSX_REGISTER("$2");
+	register s32 loopFactor;
+	s16 next;
+	register s16 i CTR_PSX_REGISTER("$17") = 0;
+	CTR_PSX_OBSERVE_VALUE(i);
+	CTR_PSX_DEPEND_MEMORY(&sdata->cup_difficultyParams, i);
+	CTR_PSX_LOAD_WORD_AFTER(loopDst, sdata->cup_difficultyParams, i);
+	CTR_PSX_DEPEND_VALUE(boundSourceLo, loopDst);
+	CTR_PSX_COPY_VALUE(lo, boundSourceLo);
+	hi = sourceHi;
+	CTR_PSX_CLOBBER("$2");
+	shiftedFactor = CTR_MipsSll(factor, 16);
+	CTR_PSX_OBSERVE_VALUE(shiftedFactor);
+	loopFactor = CTR_MipsSra(shiftedFactor, 16);
+	CTR_PSX_OBSERVE_VALUE(loopFactor);
+	CTR_PSX_OBSERVE_VALUE(boundSourceLo);
+
+	do
+	{
+		register s32 offset CTR_PSX_REGISTER("$6") = i * sizeof(s16);
+		register s16 *output CTR_PSX_REGISTER("$6");
+		register const u8 *hiPointer CTR_PSX_REGISTER("$2");
+		register const u8 *loPointer CTR_PSX_REGISTER("$7");
+		register s32 hiValue CTR_PSX_REGISTER("$4");
+		register s32 loValue CTR_PSX_REGISTER("$2");
+		register s32 blend CTR_PSX_REGISTER("$4");
+		register s32 quotient;
+		CTR_PSX_ADD_POINTER_OFFSET(hiPointer, (const u8 *)hi, offset);
+		CTR_PSX_ADD_POINTER_OFFSET(loPointer, (const u8 *)lo, offset);
+		hiValue = BOTS_ReadDifficultyHalf((const s16 *)hiPointer);
+		loValue = BOTS_ReadDifficultyHalf((const s16 *)loPointer);
+		hiValue = hiValue - loValue;
+		CTR_PSX_OBSERVE_VALUE(hiValue);
+		blend = loopFactor * hiValue;
+		CTR_PSX_DEPEND_MEMORY((u8 *)loPointer, blend);
+		quotient = blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+		next = i + 1;
+		CTR_PSX_COPY_VALUE(i, next);
+		CTR_PSX_DEPEND_VALUE(offset, i);
+		CTR_PSX_ADD_POINTER_OFFSET(output, loopDst, offset);
+		*output = BOTS_ReadDifficultyUnsignedHalf((const s16 *)loPointer) + quotient;
+	} while (next < BOTS_MAX_KARTS);
+}
+
+static inline struct GameTracker *BOTS_Adv_LerpRemainingDifficulty(s16 *dst, s32 shiftedFactor, s16 *hi, s16 *lo, b32 captureTracker)
+{
+	register s32 factor CTR_PSX_REGISTER("$5");
+	register struct GameTracker *nextTracker CTR_PSX_REGISTER("$4") = 0;
+
+	{
+		register s32 hiValue;
+		register s32 loValue CTR_PSX_REGISTER("$2");
+		register s32 blend;
+		hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 11 * sizeof(s16)));
+		CTR_PSX_OBSERVE_VALUE(hiValue);
+		loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 11 * sizeof(s16)));
+		CTR_PSX_DEPEND_VALUE(shiftedFactor, loValue);
+		factor = CTR_MipsSra(shiftedFactor, 16);
+		hiValue -= loValue;
+		CTR_PSX_OBSERVE_VALUE(hiValue);
+		blend = factor * hiValue;
+		CTR_PSX_OBSERVE_VALUE(blend);
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 11 * sizeof(s16), blend);
+		dst[11] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 11 * sizeof(s16))) + blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+	}
+	{
+		s16 hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 12 * sizeof(s16)));
+		s16 loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 12 * sizeof(s16)));
+		register s32 blend CTR_PSX_REGISTER("$2") = factor * (hiValue - loValue);
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 12 * sizeof(s16), blend);
+		dst[12] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 12 * sizeof(s16))) + blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+	}
+	{
+		s16 hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 13 * sizeof(s16)));
+		s16 loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 13 * sizeof(s16)));
+		register s32 blend CTR_PSX_REGISTER("$2") = factor * (hiValue - loValue);
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 13 * sizeof(s16), blend);
+		dst[13] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 13 * sizeof(s16))) + blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+	}
+	{
+		s16 hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 9 * sizeof(s16)));
+		s16 loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 9 * sizeof(s16)));
+		register s32 blend CTR_PSX_REGISTER("$2") = factor * (hiValue - loValue);
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 9 * sizeof(s16), blend);
+		dst[9] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 9 * sizeof(s16))) + blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+	}
+	{
+		s16 hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 8 * sizeof(s16)));
+		s16 loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 8 * sizeof(s16)));
+		register s32 blend CTR_PSX_REGISTER("$2") = factor * (hiValue - loValue);
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 8 * sizeof(s16), blend);
+		dst[8] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 8 * sizeof(s16))) + blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+	}
+	{
+		s16 hiValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)hi + 10 * sizeof(s16)));
+		s16 loValue = BOTS_ReadDifficultyHalf((const s16 *)((const u8 *)lo + 10 * sizeof(s16)));
+		register s32 blend CTR_PSX_REGISTER("$5") = factor * (hiValue - loValue);
+		s32 quotient;
+		CTR_PSX_DEPEND_MEMORY((u8 *)lo + 10 * sizeof(s16), blend);
+		quotient = blend / BOTS_DIFFICULTY_BLEND_DENOMINATOR;
+		if (captureTracker)
+		{
+			nextTracker = GAME_TRACKER;
+		}
+		dst[10] = BOTS_ReadDifficultyUnsignedHalf((const s16 *)((const u8 *)lo + 10 * sizeof(s16))) + quotient;
+	}
+	return nextTracker;
+}
+
+static inline void BOTS_Adv_CopySpawnOrder(const u8 *source)
+{
+	memcpy(BOTS_KART_ORDER, source, sizeof(sdata->kartSpawnOrderArray));
 }
 
 internal s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
@@ -198,341 +420,683 @@ internal s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
 
 void BOTS_Adv_AdjustDifficulty(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	u32 gameMode1 = gGT->gameMode1;
-	u32 gameMode2 = gGT->gameMode2;
-	s32 currDifficulty;
+	register s32 currDifficulty CTR_PSX_REGISTER("$8");
 	s16 cupDifficulty = 0;
 
-	// NOTE(aalhendi): Retail stores params1 in slot 1 and params2 in slot 0.
-	if ((gameMode1 & ADVENTURE_BOSS) != 0)
 	{
-		sdata->difficultyParams[1] = data.BossDifficulty[gGT->bossID].params1;
-		sdata->difficultyParams[0] = data.BossDifficulty[gGT->bossID].params2;
-	}
-	else
-	{
-		sdata->difficultyParams[1] = data.ArcadeDifficulty[gGT->levelID].params1;
-		sdata->difficultyParams[0] = data.ArcadeDifficulty[gGT->levelID].params2;
-	}
-
-	if ((gameMode1 & ARCADE_MODE) != 0)
-	{
-		currDifficulty = (u16)gGT->arcadeDifficulty;
-
-		if ((gameMode2 & CHEAT_SUPERHARD) != 0)
+		register struct GameTracker *tracker CTR_PSX_REGISTER("$4") = GAME_TRACKER;
+		register u8 *rowBase;
+		s32 firstIndex;
+		register s32 secondIndex CTR_PSX_REGISTER("$4");
+		register s32 firstOffset CTR_PSX_REGISTER("$2");
+		u32 initialMode;
+		// NOTE(aalhendi): Battle level IDs extend past the arcade bank into
+		// adjacent retail data. Address the enclosing object, not ArcadeDifficulty[18].
+		initialMode = tracker->gameMode1;
+		if ((initialMode & ADVENTURE_BOSS) != 0)
 		{
-			currDifficulty = BOTS_DIFFICULTY_SUPERHARD;
-		}
-
-		cupDifficulty = (s16)((u16)gGT->arcadeDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
-	}
-	else if ((gameMode1 & ADVENTURE_CUP) != 0)
-	{
-		s32 track = gGT->cup.trackIndex;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]);
-		s32 maxDifficulty = track * BOTS_ADV_NORMAL_SCALE;
-
-		if (gGT->cup.cupID == 4)
-		{
-			lostModifier -= BOTS_ADV_HIGH_TIER_LOSS_BASE;
-
-			if ((gameMode2 & CHEAT_ADV) != 0)
-			{
-				maxDifficulty = track * BOTS_ADV_CHEAT_SCALE;
-				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
-			}
+			CTR_PSX_LOAD_WORD_VOLATILE(firstIndex, tracker->bossID);
+			CTR_PSX_LOAD_WORD_VOLATILE(secondIndex, tracker->bossID);
+			CTR_PSX_OBSERVE_VALUE(secondIndex);
+			firstOffset = firstIndex * sizeof(struct Difficulty);
+			CTR_PSX_OBSERVE_VALUE(firstOffset);
+			rowBase = (u8 *)&data + offsetof(struct Data, BossDifficulty);
 		}
 		else
 		{
-			lostModifier -= BOTS_ADV_CUP_LOSS_BASE;
+			CTR_PSX_LOAD_WORD_VOLATILE(firstIndex, tracker->levelID);
+			CTR_PSX_LOAD_WORD_VOLATILE(secondIndex, tracker->levelID);
+			CTR_PSX_OBSERVE_VALUE(secondIndex);
+			firstOffset = firstIndex * sizeof(struct Difficulty);
+			CTR_PSX_OBSERVE_VALUE(firstOffset);
+			rowBase = (u8 *)&data + offsetof(struct Data, ArcadeDifficulty);
+		}
+		{
+			register u8 *firstPointer CTR_PSX_REGISTER("$2");
+			register u8 *secondPointer CTR_PSX_REGISTER("$2");
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(firstPointer, rowBase, firstOffset);
+			CTR_PSX_OBSERVE_VALUE(firstPointer);
+			sdata->difficultyParams[1] = (s16 *)firstPointer;
+			CTR_PSX_OBSERVE_MEMORY(sdata->difficultyParams[1]);
+			firstOffset = secondIndex * sizeof(struct Difficulty);
+			CTR_PSX_DEPEND_VALUE(rowBase, firstOffset);
+			CTR_PSX_ADD_POINTER_IMMEDIATE(rowBase, rowBase, 28, rowBase + offsetof(struct Difficulty, params2));
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(secondPointer, rowBase, firstOffset);
+			CTR_PSX_OBSERVE_VALUE(secondPointer);
+			sdata->difficultyParams[0] = (s16 *)secondPointer;
+			CTR_PSX_OBSERVE_MEMORY(sdata->difficultyParams[0]);
+		}
+	}
 
-			if ((gameMode2 & CHEAT_ADV) != 0)
+	{
+		register struct GameTracker *modeTracker CTR_PSX_REGISTER("$5") = GAME_TRACKER;
+		register s32 finalLost CTR_PSX_REGISTER("$2");
+		s32 finalBase;
+		CTR_PSX_OBSERVE_VALUE(modeTracker);
+		if ((modeTracker->gameMode1 & ARCADE_MODE) != 0)
+		{
+			register u32 cheatMask = CHEAT_SUPERHARD;
+			u32 cheats;
+			CTR_PSX_OBSERVE_VALUE(cheatMask);
+			cheats = modeTracker->gameMode2;
+			CTR_PSX_LOAD_UNSIGNED_HALF_AFTER(currDifficulty, modeTracker, 7868, modeTracker->arcadeDifficulty, cheats);
+			if ((cheats & cheatMask) != 0)
+				currDifficulty = BOTS_DIFFICULTY_SUPERHARD;
+			cupDifficulty = (s16)((u16)modeTracker->arcadeDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
+			goto difficultyReady;
+		}
+		else if ((modeTracker->gameMode1 & ADVENTURE_CUP) != 0)
+		{
+			register s32 lostModifier CTR_PSX_REGISTER("$2");
+			register s32 cupCheatTrack CTR_PSX_REGISTER("$4");
+			register s32 cupCheatBase;
+			if (modeTracker->cup.cupID == 4)
 			{
-				maxDifficulty = track * BOTS_ADV_CHEAT_SCALE;
-				lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostCupRace[track]) - BOTS_ADV_CUP_CHEAT_LOSS_BASE;
+				lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostCupRace[modeTracker->cup.trackIndex]);
+				{
+					register struct GameTracker *phaseTracker CTR_PSX_REGISTER("$4") = GAME_TRACKER;
+					register s32 track CTR_PSX_REGISTER("$5");
+					register s32 difficultyBase;
+					CTR_PSX_OBSERVE_VALUE(phaseTracker);
+					track = phaseTracker->cup.trackIndex;
+					CTR_PSX_DEPEND_VALUE(lostModifier, track);
+					lostModifier -= BOTS_ADV_HIGH_TIER_LOSS_BASE;
+					difficultyBase = track * BOTS_ADV_NORMAL_SCALE;
+					CTR_PSX_DEPEND_VALUE(difficultyBase, lostModifier);
+					CTR_PSX_BIND_VALUE_CLOBBER(difficultyBase, "$8");
+					currDifficulty = difficultyBase - lostModifier;
+					if ((phaseTracker->gameMode2 & CHEAT_ADV) != 0)
+					{
+						lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostCupRace[phaseTracker->cup.trackIndex]);
+						{
+							register struct GameTracker *cheatTracker = GAME_TRACKER;
+							CTR_PSX_OBSERVE_VALUE(cheatTracker);
+							cupCheatTrack = cheatTracker->cup.trackIndex;
+							CTR_PSX_DEPEND_VALUE(lostModifier, cupCheatTrack);
+							lostModifier -= BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
+							goto cupCheatDifficulty;
+						}
+					}
+				}
 			}
+			else
+			{
+				lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostCupRace[modeTracker->cup.trackIndex]);
+				{
+					register struct GameTracker *phaseTracker CTR_PSX_REGISTER("$4") = GAME_TRACKER;
+					register s32 track CTR_PSX_REGISTER("$5");
+					register s32 difficultyBase;
+					CTR_PSX_OBSERVE_VALUE(phaseTracker);
+					track = phaseTracker->cup.trackIndex;
+					CTR_PSX_DEPEND_VALUE(lostModifier, track);
+					lostModifier -= BOTS_ADV_CUP_LOSS_BASE;
+					difficultyBase = track * BOTS_ADV_NORMAL_SCALE;
+					CTR_PSX_DEPEND_VALUE(difficultyBase, lostModifier);
+					CTR_PSX_BIND_VALUE_CLOBBER(difficultyBase, "$8");
+					currDifficulty = difficultyBase - lostModifier;
+					if ((phaseTracker->gameMode2 & CHEAT_ADV) != 0)
+					{
+						lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostCupRace[phaseTracker->cup.trackIndex]);
+						{
+							register struct GameTracker *cheatTracker = GAME_TRACKER;
+							CTR_PSX_OBSERVE_VALUE(cheatTracker);
+							cupCheatTrack = cheatTracker->cup.trackIndex;
+							CTR_PSX_DEPEND_VALUE(lostModifier, cupCheatTrack);
+							lostModifier -= BOTS_ADV_CUP_CHEAT_LOSS_BASE;
+							goto cupCheatDifficulty;
+						}
+					}
+				}
+			}
+			goto cupDifficultyReady;
+		cupCheatDifficulty:
+			cupCheatBase = cupCheatTrack * BOTS_ADV_CHEAT_SCALE;
+			CTR_PSX_DEPEND_VALUE(cupCheatBase, lostModifier);
+			CTR_PSX_BIND_VALUE_CLOBBER(cupCheatBase, "$8");
+			currDifficulty = cupCheatBase - lostModifier;
+		cupDifficultyReady:
+			cupDifficulty = (s16)(currDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
+			goto difficultyReady;
 		}
+		else if ((modeTracker->gameMode1 & ADVENTURE_BOSS) != 0)
+		{
+			register s32 lostModifier CTR_PSX_REGISTER("$2");
+			lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostBossRace[modeTracker->bossID]);
+			{
+				register struct GameTracker *phaseTracker CTR_PSX_REGISTER("$4") = GAME_TRACKER;
+				register s32 track CTR_PSX_REGISTER("$5");
+				register s32 difficultyBase;
+				CTR_PSX_OBSERVE_VALUE(phaseTracker);
+				track = phaseTracker->bossID;
+				CTR_PSX_DEPEND_VALUE(lostModifier, track);
+				lostModifier -= BOTS_ADV_HIGH_TIER_LOSS_BASE;
+				difficultyBase = track * BOTS_ADV_NORMAL_SCALE;
+				CTR_PSX_DEPEND_VALUE(difficultyBase, lostModifier);
+				CTR_PSX_BIND_VALUE_CLOBBER(difficultyBase, "$8");
+				currDifficulty = difficultyBase - lostModifier;
+				if ((phaseTracker->gameMode2 & CHEAT_ADV) != 0)
+				{
+					lostModifier = BOTS_Adv_NumTimesLostEvent((s8)BOTS_ADV_PROGRESS.timesLostBossRace[phaseTracker->bossID]);
+					{
+						register struct GameTracker *cheatTracker = GAME_TRACKER;
+						register s32 cheatTrack CTR_PSX_REGISTER("$4");
+						register s32 cheatDifficultyBase;
 
-		currDifficulty = maxDifficulty - lostModifier;
-		cupDifficulty = (s16)(currDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
-	}
-	else if ((gameMode1 & ADVENTURE_BOSS) != 0)
+						CTR_PSX_OBSERVE_VALUE(cheatTracker);
+						cheatTrack = cheatTracker->bossID;
+						CTR_PSX_DEPEND_VALUE(lostModifier, cheatTrack);
+						lostModifier -= BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
+						cheatDifficultyBase = cheatTrack * BOTS_ADV_CHEAT_SCALE;
+						finalBase = cheatDifficultyBase;
+						finalLost = lostModifier;
+						goto finalCheatDifficulty;
+					}
+				}
+			}
+
+			goto difficultyReady;
+		}
+		else
+		{
+			u8 *lossRecordBase = (u8 *)&BOTS_ADV_PROGRESS;
+			register s32 numTrophies;
+			register s32 lostModifier CTR_PSX_REGISTER("$2");
+			register s32 maxDifficulty;
+			register s32 lossCount CTR_PSX_REGISTER("$4");
+			register u8 *lossAddress CTR_PSX_REGISTER("$2");
+			struct GameTracker *phaseTracker;
+			lossAddress = lossRecordBase + modeTracker->levelID;
+			CTR_PSX_LOAD_SIGNED_BYTE(lossCount, lossAddress, 48, *(s8 *)(lossAddress + offsetof(struct AdvProgress, timesLostRacePerLev)));
+			CTR_PSX_LOAD_UNSIGNED_HALF_AFTER(numTrophies, modeTracker, 7728, modeTracker->currAdvProfile.numTrophies, lossCount);
+			numTrophies = (s32)((u32)numTrophies << 16);
+			lostModifier = BOTS_Adv_NumTimesLostEvent(lossCount);
+			CTR_PSX_DEPEND_VALUE(numTrophies, lostModifier);
+			numTrophies >>= 16;
+			// NOTE(aalhendi): Retail adds in a word; native keeps the signed-halfword wrap.
+			CTR_PSX_ADD_POINTER_IMMEDIATE(numTrophies, numTrophies, 1, (s16)(numTrophies + 1));
+			CTR_PSX_OBSERVE_VALUE(numTrophies);
+			maxDifficulty = numTrophies * BOTS_ADV_RACE_TROPHY_SCALE;
+			if (maxDifficulty < 0)
+				maxDifficulty += BOTS_ADV_RACE_TROPHY_BIAS;
+			maxDifficulty >>= BOTS_ADV_RACE_TROPHY_SHIFT;
+			CTR_PSX_DEPEND_VALUE(lostModifier, maxDifficulty);
+			lostModifier -= BOTS_ADV_RACE_LOSS_BASE;
+			phaseTracker = GAME_TRACKER;
+			currDifficulty = maxDifficulty - lostModifier;
+			if ((phaseTracker->gameMode2 & CHEAT_ADV) != 0)
+			{
+				lossAddress = lossRecordBase + phaseTracker->levelID;
+				CTR_PSX_LOAD_SIGNED_BYTE(lossCount, lossAddress, 48, *(s8 *)(lossAddress + offsetof(struct AdvProgress, timesLostRacePerLev)));
+				lostModifier = BOTS_Adv_NumTimesLostEvent(lossCount);
+				maxDifficulty = numTrophies * BOTS_ADV_RACE_CHEAT_TROPHY_SCALE;
+				CTR_PSX_DEPEND_VALUE(lostModifier, maxDifficulty);
+				lostModifier -= BOTS_ADV_RACE_CHEAT_LOSS_BASE;
+				finalBase = maxDifficulty;
+				finalLost = lostModifier;
+			}
+			else
+				goto difficultyReady;
+		}
+	finalCheatDifficulty:
 	{
-		s32 bossID = gGT->bossID;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - BOTS_ADV_HIGH_TIER_LOSS_BASE;
-		s32 maxDifficulty = bossID * BOTS_ADV_NORMAL_SCALE;
-
-		if ((gameMode2 & CHEAT_ADV) != 0)
-		{
-			maxDifficulty = bossID * BOTS_ADV_CHEAT_SCALE;
-			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostBossRace[bossID]) - BOTS_ADV_HIGH_TIER_CHEAT_LOSS_BASE;
-		}
-
-		currDifficulty = maxDifficulty - lostModifier;
+		register s32 sharedBase;
+		register s32 sharedLost CTR_PSX_REGISTER("$2");
+		sharedBase = finalBase;
+		sharedLost = finalLost;
+		CTR_PSX_DEPEND_VALUE(sharedBase, sharedLost);
+		CTR_PSX_BIND_VALUE_CLOBBER(sharedBase, "$8");
+		currDifficulty = sharedBase - sharedLost;
 	}
-	else
-	{
-		s16 numTrophies = (s16)gGT->currAdvProfile.numTrophies + 1;
-		s32 lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - BOTS_ADV_RACE_LOSS_BASE;
-		s32 maxDifficulty = numTrophies * BOTS_ADV_RACE_TROPHY_SCALE;
-
-		if (maxDifficulty < 0)
-		{
-			maxDifficulty += BOTS_ADV_RACE_TROPHY_BIAS;
-		}
-
-		maxDifficulty >>= BOTS_ADV_RACE_TROPHY_SHIFT;
-
-		if ((gameMode2 & CHEAT_ADV) != 0)
-		{
-			maxDifficulty = numTrophies * BOTS_ADV_RACE_CHEAT_TROPHY_SCALE;
-			lostModifier = BOTS_Adv_NumTimesLostEvent(sdata->advProgress.timesLostRacePerLev[gGT->levelID]) - BOTS_ADV_RACE_CHEAT_LOSS_BASE;
-		}
-
-		currDifficulty = maxDifficulty - lostModifier;
+	difficultyReady:;
 	}
-
 	if ((s16)currDifficulty < 0)
 	{
 		currDifficulty = 0;
 	}
 
-	BOTS_Adv_LerpDifficulty(sdata->arcade_difficultyParams, (s16)currDifficulty);
-
-	if (((gameMode1 & ADVENTURE_CUP) != 0) || ((gameMode2 & CUP_ANY_KIND) != 0))
 	{
-		BOTS_Adv_LerpDifficulty(sdata->cup_difficultyParams, cupDifficulty);
+		register s16 initialIndex CTR_PSX_REGISTER("$17") = 0;
+		CTR_PSX_OBSERVE_VALUE(initialIndex);
+		CTR_PSX_FORGET_VALUE(currDifficulty);
+		BOTS_Adv_LerpDifficulty(offsetof(struct sData, arcade_difficultyParams), (s16)currDifficulty, initialIndex);
 	}
-
-	sdata->aiCollisionDelayFrameCount = 0;
-
-	if ((sdata->advRng.state0 == 0) && (sdata->advRng.state1 == 0))
+	CTR_PSX_RELOAD(sdata->arcade_difficultyParams);
+	CTR_PSX_RELOAD(sdata->difficultyParams);
 	{
-		sdata->advRng.state0 = 0x30215400;
-		sdata->advRng.state1 = 0x493583fe;
-	}
+		register s16 *tailDst CTR_PSX_REGISTER("$7");
+		register s16 *tailHi CTR_PSX_REGISTER("$9");
+		register s32 savedFactor CTR_PSX_REGISTER("$5");
+		register s16 *tailLo CTR_PSX_REGISTER("$8");
+		struct GameTracker *cupTracker;
+		CTR_PSX_LOAD_WORD(tailDst, sdata->arcade_difficultyParams);
+		CTR_PSX_LOAD_WORD(tailHi, sdata->difficultyParams[0]);
+		savedFactor = CTR_MipsSll(currDifficulty, 16);
+		CTR_PSX_OBSERVE_VALUE(savedFactor);
+		tailLo = sdata->difficultyParams[1];
+		CTR_PSX_OBSERVE_VALUE(tailLo);
+		cupTracker = BOTS_Adv_LerpRemainingDifficulty(tailDst, savedFactor, tailHi, tailLo, 1);
 
-	for (s16 i = 0; i < BOTS_NAV_PATH_COUNT; i++)
-	{
-		LIST_Clear(&sdata->navBotList[i]);
-
-		if ((gameMode1 & (GAME_CUTSCENE | MAIN_MENU)) == 0)
+		if (((cupTracker->gameMode1 & ADVENTURE_CUP) != 0) || ((cupTracker->gameMode2 & CUP_ANY_KIND) != 0))
 		{
-			BOTS_InitNavPath(gGT, i);
+			BOTS_Adv_LerpCupDifficulty(cupDifficulty, tailHi, tailLo);
+			CTR_PSX_RELOAD(sdata->cup_difficultyParams);
+			CTR_PSX_RELOAD(sdata->difficultyParams);
+			{
+				register s16 *tailDst CTR_PSX_REGISTER("$9");
+				register s16 *tailHi CTR_PSX_REGISTER("$7");
+				register s32 savedFactor CTR_PSX_REGISTER("$5");
+				register s16 *tailLo CTR_PSX_REGISTER("$8");
+				CTR_PSX_LOAD_WORD(tailDst, sdata->cup_difficultyParams);
+				CTR_PSX_LOAD_WORD(tailHi, sdata->difficultyParams[0]);
+				tailLo = sdata->difficultyParams[1];
+				CTR_PSX_OBSERVE_VALUE(tailLo);
+				savedFactor = CTR_MipsSll(cupDifficulty, 16);
+				CTR_PSX_OBSERVE_VALUE(savedFactor);
+				{
+					BOTS_Adv_LerpRemainingDifficulty(tailDst, savedFactor, tailHi, tailLo, 0);
+				}
+			}
 		}
+	}
+
+	{
+		register u32 initialState CTR_PSX_REGISTER("$2") = sdata->advRng.state0;
+		sdata->aiCollisionDelayFrameCount = 0;
+		CTR_PSX_OBSERVE_VALUE(initialState);
+
+		if ((initialState == 0) && (sdata->advRng.state1 == 0))
+		{
+			sdata->advRng.state0 = 0x30215400;
+			sdata->advRng.state1 = 0x493583fe;
+		}
+	}
+
+	{
+		register s32 i CTR_PSX_REGISTER("$17");
+		s32 next;
+		i = 0;
+		do
+		{
+			LIST_Clear(&BOTS_NAV_LIST[(s16)i]);
+			if ((GAME_TRACKER->gameMode1 & (GAME_CUTSCENE | MAIN_MENU)) == 0)
+			{
+				BOTS_InitNavPath(GAME_TRACKER, (s16)i);
+			}
+			next = i + 1;
+			CTR_PSX_COPY_VALUE(i, next);
+		} while ((s16)next < BOTS_NAV_PATH_COUNT);
 	}
 
 	BOTS_SetGlobalNavData(0);
 
-	gGT->numBotsNextGame = 0;
+	GAME_TRACKER->numBotsNextGame = 0;
 
-	if (((gameMode2 & CUP_ANY_KIND) == 0) || (gGT->cup.trackIndex == 0))
+	if (((GAME_TRACKER->gameMode2 & CUP_ANY_KIND) == 0) || (GAME_TRACKER->cup.trackIndex == 0))
 	{
-		if (gGT->numPlyrCurrGame == 2)
+		if (GAME_TRACKER->numPlyrCurrGame == 2)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.VS_2P_1, data.kartSpawnOrder.VS_2P_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.VS_2P_1));
 		}
-		else if (gGT->numPlyrCurrGame > 2)
+		else if (GAME_TRACKER->numPlyrCurrGame > 2)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.VS_3P_4P_1, data.kartSpawnOrder.VS_3P_4P_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.VS_3P_4P_1));
 		}
 
-		if ((gameMode1 & (RELIC_RACE | TIME_TRIAL)) != 0)
+		if ((GAME_TRACKER->gameMode1 & (RELIC_RACE | TIME_TRIAL)) != 0)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.time_trial_1, data.kartSpawnOrder.time_trial_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.time_trial_1));
 		}
-		else if ((gameMode1 & CRYSTAL_CHALLENGE) != 0)
+		else if ((GAME_TRACKER->gameMode1 & CRYSTAL_CHALLENGE) != 0)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.crystal_challenge_1, data.kartSpawnOrder.crystal_challenge_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.crystal_challenge_1));
 		}
-		else if ((gameMode1 & ADVENTURE_BOSS) != 0)
+		else if ((GAME_TRACKER->gameMode1 & ADVENTURE_BOSS) != 0)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.boss_challenge_1, data.kartSpawnOrder.boss_challenge_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.boss_challenge_1));
 		}
-		else if (((gameMode1 & ADVENTURE_CUP) != 0) && (gGT->cup.cupID == 4))
+		else if (((GAME_TRACKER->gameMode1 & ADVENTURE_CUP) != 0) && (GAME_TRACKER->cup.cupID == 4))
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.purple_cup_1, data.kartSpawnOrder.purple_cup_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.purple_cup_1));
 		}
-		else if ((gameMode1 & ADVENTURE_MODE) == 0)
+		else if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) == 0)
 		{
-			BOTS_Adv_CopySpawnOrder(data.kartSpawnOrder.arcade_1, data.kartSpawnOrder.arcade_2);
+			BOTS_Adv_CopySpawnOrder((const u8 *)&data + offsetof(struct Data, kartSpawnOrder.arcade_1));
 		}
 	}
 
-	u8 pathOrder[8];
-	pathOrder[0] = 0;
-	pathOrder[4] = 0;
-	pathOrder[3] = 2;
-	pathOrder[7] = 2;
 
-	u8 firstPath = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
-	pathOrder[1] = firstPath;
-	pathOrder[5] = firstPath ^ 1;
-
-	u8 secondPath = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
-	pathOrder[2] = secondPath + 1;
-	pathOrder[6] = (secondPath ^ 1) + 1;
-
-	for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
 	{
-		sdata->driver_pathIndexIDs[i] = pathOrder[(u8)sdata->kartSpawnOrderArray[i]];
-	}
+		u8 pathOrder[8];
+		u8 firstPath;
+		u8 secondPath;
+		pathOrder[0] = 0;
+		pathOrder[4] = 0;
+		pathOrder[3] = 2;
+		pathOrder[7] = 2;
 
-	if ((gameMode1 & ADVENTURE_BOSS) != 0)
-	{
-		sdata->driver_pathIndexIDs[0] = 0;
-		sdata->driver_pathIndexIDs[1] = 1;
-	}
+		firstPath = ((s32)RngDeadCoed(&BOTS_ADV_RNG) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
+		CTR_PSX_OBSERVE_VALUE(firstPath);
+		pathOrder[1] = firstPath;
+		pathOrder[5] = firstPath ^ 1;
 
-	if ((gameMode1 & BATTLE_MODE) != 0)
-	{
-		for (s16 i = 0; i < BOTS_BATTLE_DRIVER_COUNT; i++)
+		secondPath = ((s32)RngDeadCoed(&BOTS_ADV_RNG) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_BIT_MASK;
+		CTR_PSX_OBSERVE_VALUE(secondPath);
+		pathOrder[2] = secondPath + 1;
+		pathOrder[6] = (secondPath ^ 1) + 1;
+
 		{
-			sdata->driver_pathIndexIDs[i] = (RngDeadCoed(&sdata->advRng) & BOTS_BATTLE_PATH_RANDOM_MASK) / BOTS_BATTLE_PATH_RANDOM_DIVISOR;
+			register s32 i CTR_PSX_REGISTER("$17") = 0;
+			register char *driverPaths CTR_PSX_REGISTER("$7") = BOTS_DRIVER_PATHS;
+			register char *kartOrder CTR_PSX_REGISTER("$6") = BOTS_KART_ORDER;
+			register u8 *pathBase CTR_PSX_REGISTER("$5") = pathOrder;
+			s32 next;
+			do
+			{
+				register s32 offset CTR_PSX_REGISTER("$4") = (s16)i;
+				register char *kartSlot CTR_PSX_REGISTER("$2");
+				register char *driverSlot CTR_PSX_REGISTER("$4");
+				register u32 path CTR_PSX_REGISTER("$2");
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(kartSlot, kartOrder, offset);
+				CTR_PSX_DEPEND_VALUE(i, offset);
+				next = i + 1;
+				CTR_PSX_COPY_VALUE(i, next);
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(driverSlot, driverPaths, offset);
+				path = (u8)*kartSlot;
+				path = pathBase[path];
+				*driverSlot = path;
+			} while ((s16)next < BOTS_MAX_KARTS);
 		}
 	}
 
-	if ((((gameMode1 & ADVENTURE_CUP) == 0) && ((gameMode2 & CUP_ANY_KIND) == 0)) || (gGT->cup.trackIndex == 0))
+	{
+		register struct GameTracker *pathTracker = GAME_TRACKER;
+		CTR_PSX_OBSERVE_VALUE(pathTracker);
+		if ((pathTracker->gameMode1 & ADVENTURE_BOSS) != 0)
+		{
+			sdata->driver_pathIndexIDs[0] = 0;
+			sdata->driver_pathIndexIDs[1] = 1;
+		}
+
+		if ((pathTracker->gameMode1 & BATTLE_MODE) != 0)
+		{
+			{
+				register s32 i CTR_PSX_REGISTER("$17") = 0;
+				s32 next;
+				do
+				{
+					BOTS_DRIVER_PATHS[(s16)i] = ((s32)RngDeadCoed(&BOTS_ADV_RNG) & BOTS_BATTLE_PATH_RANDOM_MASK) / BOTS_BATTLE_PATH_RANDOM_DIVISOR;
+					next = i + 1;
+					CTR_PSX_COPY_VALUE(i, next);
+				} while ((s16)next < BOTS_BATTLE_DRIVER_COUNT);
+			}
+		}
+	}
+	if ((((GAME_TRACKER->gameMode1 & ADVENTURE_CUP) == 0) && ((GAME_TRACKER->gameMode2 & CUP_ANY_KIND) == 0)) || (GAME_TRACKER->cup.trackIndex == 0))
 	{
 		u8 accelOrder[8];
-		u32 accel = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
-		u32 rearAccel = (RngDeadCoed(&sdata->advRng) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
+		register s32 gridIndex CTR_PSX_REGISTER("$17") = 0;
+		u32 accel = ((s32)RngDeadCoed(&BOTS_ADV_RNG) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
+		u32 rearAccel = ((s32)RngDeadCoed(&BOTS_ADV_RNG) >> BOTS_RNG_BYTE_SHIFT) & BOTS_RNG_ACCEL_MASK;
 
-		for (s16 i = 0; i < BOTS_GRID_ROW_KART_COUNT; i++)
 		{
-			accelOrder[i] = accel;
-			accel = (accel + 1) & BOTS_RNG_ACCEL_MASK;
-
-			accelOrder[i + BOTS_GRID_REAR_ROW_OFFSET] = rearAccel + BOTS_GRID_REAR_ROW_OFFSET;
-			rearAccel = (rearAccel - 1) & BOTS_RNG_ACCEL_MASK;
+			register u8 *orderBase CTR_PSX_REGISTER("$6") = accelOrder;
+			s32 next;
+			do
+			{
+				register s32 offset = (s16)gridIndex;
+				register u8 *frontSlot CTR_PSX_REGISTER("$2");
+				register u8 *rearSlot;
+				register u32 rearValue CTR_PSX_REGISTER("$4");
+				CTR_PSX_ADD_POINTER_OFFSET(frontSlot, orderBase, offset);
+				*frontSlot = accel;
+				CTR_PSX_FORGET_VALUE(rearAccel);
+				accel++;
+				CTR_PSX_FORGET_VALUE(accel);
+				rearValue = rearAccel + BOTS_GRID_REAR_ROW_OFFSET;
+				rearAccel--;
+				CTR_PSX_FORGET_VALUE(rearAccel);
+				accel &= BOTS_RNG_ACCEL_MASK;
+				rearAccel &= BOTS_RNG_ACCEL_MASK;
+				CTR_PSX_DEPEND_VALUE(gridIndex, offset);
+				next = gridIndex + 1;
+				CTR_PSX_COPY_VALUE(gridIndex, next);
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(rearSlot, orderBase, offset);
+				rearSlot[BOTS_GRID_REAR_ROW_OFFSET] = rearValue;
+			} while ((s16)next < BOTS_GRID_ROW_KART_COUNT);
 		}
 
-		for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
+
 		{
-			sdata->accelerateOrder[i] = accelOrder[(u8)sdata->kartSpawnOrderArray[i]];
+			register s32 i CTR_PSX_REGISTER("$17") = 0;
+			register u8 *accelDest CTR_PSX_REGISTER("$7") = BOTS_ACCEL_ORDER;
+			register char *kartOrder CTR_PSX_REGISTER("$6") = BOTS_KART_ORDER;
+			register u8 *accelBase CTR_PSX_REGISTER("$5") = accelOrder;
+			s32 next;
+			do
+			{
+				register s32 offset CTR_PSX_REGISTER("$4") = (s16)i;
+				register char *kartSlot CTR_PSX_REGISTER("$2");
+				register char *accelSlot CTR_PSX_REGISTER("$4");
+				register u32 accelValue CTR_PSX_REGISTER("$2");
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(kartSlot, kartOrder, offset);
+				CTR_PSX_DEPEND_VALUE(i, offset);
+				next = i + 1;
+				CTR_PSX_COPY_VALUE(i, next);
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(accelSlot, accelDest, offset);
+				accelValue = (u8)*kartSlot;
+				accelValue = accelBase[accelValue];
+				*accelSlot = accelValue;
+			} while ((s16)next < BOTS_MAX_KARTS);
 		}
 	}
 
-	if ((((gameMode1 & ADVENTURE_CUP) != 0) || ((gameMode2 & CUP_ANY_KIND) != 0)) && (gGT->cup.trackIndex > 0))
 	{
-		s16 bestPoints = -1;
-		s16 bestDriverIndex = 0;
-		s16 topAccelIndex = 0;
-
-		for (s16 i = 0; i < BOTS_MAX_KARTS; i++)
+		register struct GameTracker *cupModeTracker CTR_PSX_REGISTER("$4") = GAME_TRACKER;
+		CTR_PSX_OBSERVE_VALUE(cupModeTracker);
+		if ((((cupModeTracker->gameMode1 & ADVENTURE_CUP) != 0) || ((cupModeTracker->gameMode2 & CUP_ANY_KIND) != 0)) && (cupModeTracker->cup.trackIndex > 0))
 		{
-			if ((gGT->numPlyrCurrGame <= i) && (bestPoints < gGT->cup.points[i]))
+			register s16 bestPoints CTR_PSX_REGISTER("$5");
+			register s16 bestDriverIndex CTR_PSX_REGISTER("$7");
+			register s16 topAccelIndex CTR_PSX_REGISTER("$8");
+			register s32 i CTR_PSX_REGISTER("$17");
+			bestPoints = -1;
+			CTR_PSX_OBSERVE_VALUE(bestPoints);
+			bestDriverIndex = 0;
+			CTR_PSX_OBSERVE_VALUE(bestDriverIndex);
+			CTR_PSX_COPY_VALUE(topAccelIndex, bestDriverIndex);
+			CTR_PSX_COPY_VALUE(i, bestDriverIndex);
 			{
-				bestPoints = (s16)gGT->cup.points[i];
-				bestDriverIndex = i;
+				register struct GameTracker *cupTracker CTR_PSX_REGISTER("$6") = cupModeTracker;
+				register s32 numPlayers CTR_PSX_REGISTER("$9");
+				u8 *orderBase;
+				s32 next;
+				CTR_PSX_OBSERVE_VALUE(cupTracker);
+				numPlayers = cupTracker->numPlyrCurrGame;
+				orderBase = BOTS_ACCEL_ORDER;
+				do
+				{
+					if (numPlayers <= (s16)i)
+					{
+						register s32 pointsOffset CTR_PSX_REGISTER("$2") = (s16)i * (s32)sizeof(s32);
+						register const u8 *pointsBase CTR_PSX_REGISTER("$4");
+						register s32 currentPoints;
+						register s32 shiftedBest CTR_PSX_REGISTER("$2");
+						CTR_PSX_ADD_POINTER_OFFSET(pointsBase, (const u8 *)cupTracker, pointsOffset);
+						CTR_PSX_DEPEND_VALUE(bestPoints, pointsBase);
+						shiftedBest = (s32)((u32)(s32)bestPoints << 16);
+						CTR_PSX_LOAD_WORD_AFTER(currentPoints, *(const s32 *)(pointsBase + offsetof(struct GameTracker, cup.points)), shiftedBest);
+						if ((shiftedBest >> 16) < currentPoints)
+						{
+							bestPoints = (s16)BOTS_ReadDifficultyUnsignedHalf((const s16 *)(pointsBase + offsetof(struct GameTracker, cup.points)));
+							bestDriverIndex = (s16)i;
+						}
+					}
+					{
+						register s32 orderOffset CTR_PSX_REGISTER("$2") = (s16)i;
+						register const u8 *orderSlot CTR_PSX_REGISTER("$2");
+						CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(orderSlot, orderBase, orderOffset);
+						if (*orderSlot == 0)
+							topAccelIndex = (s16)i;
+					}
+					next = i + 1;
+					CTR_PSX_COPY_VALUE(i, next);
+				} while ((s16)next < BOTS_MAX_KARTS);
 			}
-
-			if (sdata->accelerateOrder[i] == 0)
 			{
-				topAccelIndex = i;
+				register s32 bestOffset = bestDriverIndex;
+				register s32 topOffset CTR_PSX_REGISTER("$2");
+				register u8 *orderBase CTR_PSX_REGISTER("$4") = BOTS_ACCEL_ORDER;
+				register u8 *bestSlot;
+				register u8 *topSlot CTR_PSX_REGISTER("$2");
+				register u32 topValue CTR_PSX_REGISTER("$4");
+				register u32 bestValue CTR_PSX_REGISTER("$5");
+				CTR_PSX_DEPEND_VALUE(bestOffset, bestDriverIndex);
+				CTR_PSX_BIND_VALUE_CLOBBER(bestOffset, "$2");
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(bestSlot, orderBase, bestOffset);
+				CTR_PSX_DEPEND_VALUE(topAccelIndex, bestSlot);
+				topOffset = topAccelIndex;
+				CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(topSlot, orderBase, topOffset);
+				topValue = *topSlot;
+				bestValue = *bestSlot;
+				*bestSlot = topValue;
+				*topSlot = bestValue;
 			}
 		}
-
-		u8 topAccel = sdata->accelerateOrder[topAccelIndex];
-		sdata->accelerateOrder[topAccelIndex] = sdata->accelerateOrder[bestDriverIndex];
-		sdata->accelerateOrder[bestDriverIndex] = topAccel;
 	}
 }
 
 void BOTS_UpdateGlobals(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	register struct Driver *worstRobotDriver CTR_PSX_REGISTER("$5");
+	register s32 i CTR_PSX_REGISTER("$4");
+	register s32 nextIndex CTR_PSX_REGISTER("$2");
+	register struct GameTracker *gGT CTR_PSX_REGISTER("$6");
+	register u32 botFlag CTR_PSX_REGISTER("$7");
 
-	if (gGT->numBotsNextGame != 0)
+	if (GAME_TRACKER->numBotsNextGame != 0)
 	{
 		EngineSound_NearestAIs();
 	}
 
+	worstRobotDriver = NULL;
+	i = 7;
+	gGT = GAME_TRACKER;
+	botFlag = ACTION_BOT;
 	sdata->bestHumanRank = NULL;
 	sdata->bestRobotRank = NULL;
-	struct Driver *worstRobotDriver = NULL;
+	sdata->aiCollisionDelayFrameCount++;
 
-	for (int i = BOTS_MAX_KARTS - 1; i >= 0; i--)
+	do
 	{
-		struct Driver *d = gGT->driversInRaceOrder[i];
-
-		if (d == NULL)
+		register struct Driver *d CTR_PSX_REGISTER("$3") = gGT->driversInRaceOrder[(s16)i];
+		if (d != NULL)
 		{
-			continue;
-		}
-
-		if ((d->actionsFlagSet & ACTION_BOT) != 0)
-		{
-			if (sdata->bestRobotRank == 0)
+			if (d->actionsFlagSet & botFlag)
 			{
-				worstRobotDriver = d;
+				sdata->bestRobotRank = d;
+				CTR_PSX_OBSERVE_MEMORY(sdata->bestRobotRank);
+				if (worstRobotDriver == NULL)
+				{
+					worstRobotDriver = d;
+				}
 			}
-
-			sdata->bestRobotRank = d;
+			else
+			{
+				sdata->bestHumanRank = d;
+			}
 		}
-		else
-		{
-			sdata->bestHumanRank = d;
-		}
-	}
+		nextIndex = i - 1;
+		CTR_PSX_COPY_VALUE(i, nextIndex);
+	} while ((s16)nextIndex >= 0);
 
 	if (sdata->bestHumanRank == NULL)
 	{
 		sdata->bestHumanRank = worstRobotDriver;
 	}
-
-	sdata->aiCollisionDelayFrameCount++;
 }
 
 void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 {
-	struct NavFrame *nf = bot->botData.botNavFrame;
+	register int deltaNavX CTR_PSX_REGISTER("$23");
+	register int deltaNavY CTR_PSX_REGISTER("$16");
+	register int deltaNavZ CTR_PSX_REGISTER("$21");
+	int xzDist;
+	int xyzDist;
+	register s32 xSquared CTR_PSX_REGISTER("$17");
+	register s32 zSquared CTR_PSX_REGISTER("$18");
+	register s32 ySquared CTR_PSX_REGISTER("$3");
+	int rot;
+	register int incomingSpawnYaw CTR_PSX_REGISTER("$5") = useSpawnYaw;
+	register int spawnYaw CTR_PSX_REGISTER("$19");
+	register int navY CTR_PSX_REGISTER("$16");
+	register int estimateY CTR_PSX_REGISTER("$2");
+	s16 v;
+	register s32 posX CTR_PSX_REGISTER("$2") = bot->posCurr.x;
+	register s32 posY CTR_PSX_REGISTER("$3") = bot->posCurr.y;
+	register struct NavFrame *nf CTR_PSX_REGISTER("$22") = bot->botData.botNavFrame;
 
-	CTR_SET_VEC3(CTR_VECTOR_DATA(&(bot->botData.aiPhysics.velocity)), 0, 0, 0);
+	CTR_PSX_ORDER_VALUES(posX, posY);
+	bot->botData.aiPhysics.velocity.z = 0;
+	bot->botData.aiPhysics.velocity.y = 0;
+	bot->botData.aiPhysics.velocity.x = 0;
+	CTR_PSX_OBSERVE_MEMORY(bot->botData.aiPhysics.velocity);
 
 	// ======== Get Driver Position =============
 
-	bot->botData.estimateNavFrame.pos.x = (s16)CTR_MipsSra(bot->posCurr.x, FRACTIONAL_BITS_8);
-	bot->botData.estimateNavFrame.pos.y = (s16)CTR_MipsSra(bot->posCurr.y, FRACTIONAL_BITS_8);
+	bot->botData.estimateNavFrame.pos.x = (s16)CTR_MipsSra(posX, FRACTIONAL_BITS_8);
+	bot->botData.estimateNavFrame.pos.y = (s16)CTR_MipsSra(posY, FRACTIONAL_BITS_8);
 	bot->botData.estimateNavFrame.pos.z = (s16)CTR_MipsSra(bot->posCurr.z, FRACTIONAL_BITS_8);
+	CTR_PSX_RELOAD(bot->botData.estimateNavFrame.pos);
 
 	// ======== Compare to Nav Position =============
 
-	int deltaNavX = CTR_MipsSubLo(nf->pos.x, bot->botData.estimateNavFrame.pos.x);
-	int deltaNavY = CTR_MipsSubLo(nf->pos.y, bot->botData.estimateNavFrame.pos.y);
-	int deltaNavZ = CTR_MipsSubLo(nf->pos.z, bot->botData.estimateNavFrame.pos.z);
+	deltaNavX = CTR_MipsSubLo(nf->pos.x, bot->botData.estimateNavFrame.pos.x);
+	xSquared = CTR_MipsMulLo(deltaNavX, deltaNavX);
+	deltaNavZ = CTR_MipsSubLo(nf->pos.z, bot->botData.estimateNavFrame.pos.z);
+	zSquared = CTR_MipsMulLo(deltaNavZ, deltaNavZ);
+	navY = nf->pos.y;
+	estimateY = bot->botData.estimateNavFrame.pos.y;
+	CTR_PSX_DEPEND_VALUE(incomingSpawnYaw, estimateY);
+	CTR_PSX_COPY_VALUE(spawnYaw, incomingSpawnYaw);
+	deltaNavY = CTR_MipsSubLo(navY, estimateY);
 
 	// ======== Calculate Distance =============
 
 	// xz dist from driver to nav
-	int xzDist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsMulLo(deltaNavX, deltaNavX), CTR_MipsMulLo(deltaNavZ, deltaNavZ)));
+	xzDist = SquareRoot0_stub(CTR_MipsAddLo(xSquared, zSquared));
 	bot->botData.estimateNavFrame.distToNextNavXZ = xzDist;
 	// xyz distance from driver to nav
-	int xyzDist = SquareRoot0_stub(
-	    CTR_MipsAddLo(CTR_MipsAddLo(CTR_MipsMulLo(deltaNavX, deltaNavX), CTR_MipsMulLo(deltaNavY, deltaNavY)), CTR_MipsMulLo(deltaNavZ, deltaNavZ)));
+	ySquared = CTR_MipsMulLo(deltaNavY, deltaNavY);
+	CTR_PSX_OBSERVE_VALUE(ySquared);
+	xyzDist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsAddLo(xSquared, ySquared), zSquared));
 	bot->botData.estimateNavFrame.distToNextNavXYZ = xyzDist;
 
 	// ======== Calculate Rotation =============
 
-	int rot = ratan2(CTR_MipsSll(deltaNavY, BOTS_RATAN_ARG_SHIFT), CTR_MipsSll(bot->botData.estimateNavFrame.distToNextNavXZ, BOTS_RATAN_ARG_SHIFT));
-	bot->botData.estimateNavFrame.rot[3] = (u8)CTR_MipsSra(rot, BOTS_ROT_BYTE_SHIFT);
+	rot = ratan2(CTR_MipsSll(deltaNavY, BOTS_RATAN_ARG_SHIFT), CTR_MipsSll(bot->botData.estimateNavFrame.distToNextNavXZ, BOTS_RATAN_ARG_SHIFT));
+	rot = CTR_MipsSra(rot, BOTS_ROT_BYTE_SHIFT);
+	CTR_PSX_OBSERVE_VALUE(rot);
+	// NOTE(aalhendi): Retail tests the low halfword; native retains the full API int.
+	CTR_PSX_SHIFT_LEFT_IN_PLACE(spawnYaw, 16);
+	CTR_PSX_OBSERVE_VALUE(spawnYaw);
+	CTR_PSX_CAPTURE_REGISTER(spawnYaw, useSpawnYaw);
+	bot->botData.estimateNavFrame.rot[3] = (u8)rot;
 	bot->botData.navProgressRemainder = 0;
 
-	if (!useSpawnYaw)
+	if (spawnYaw)
+	{
+		bot->botData.estimateNavFrame.rot[1] =
+		    (u8)CTR_MipsSra(CTR_MipsAddLo(GAME_TRACKER->level1->DriverSpawn[0].rot.y, BOTS_SPAWN_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
+	}
+	else
 	{
 		bot->botData.estimateNavFrame.rot[0] = nf->rot[0];
 		rot = ratan2(CTR_MipsNegLo(deltaNavX), CTR_MipsNegLo(deltaNavZ));
 		bot->botData.estimateNavFrame.rot[1] = (u8)CTR_MipsSra(CTR_MipsAddLo(rot, BOTS_NAV_REVERSE_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
 		bot->botData.estimateNavFrame.rot[2] = nf->rot[2];
 	}
-	else
-	{
-		bot->botData.estimateNavFrame.rot[1] =
-		    (u8)CTR_MipsSra(CTR_MipsAddLo(sdata->gGT->level1->DriverSpawn[0].rot.y, BOTS_SPAWN_YAW_OFFSET), BOTS_ROT_BYTE_SHIFT);
-	}
 
-	s16 v = (s16)CTR_MipsSll(bot->botData.estimateNavFrame.rot[1], BOTS_ROT_BYTE_SHIFT);
+	v = (s16)CTR_MipsSll(bot->botData.estimateNavFrame.rot[1], BOTS_ROT_BYTE_SHIFT);
 
 	// Keep every AI-facing yaw cache in sync with the nav estimate.
 	bot->botData.ai_rotY_608 = v;
@@ -546,26 +1110,28 @@ void BOTS_SetRotation(struct Driver *bot, int useSpawnYaw)
 
 void BOTS_LevInstColl(struct Thread *botThread)
 {
+	SVec3 currPos;
+	SVec3 prevPos;
+	struct InstDef *instDef;
+	struct Instance *inst;
+	struct MetaDataMODEL *mdm;
+	register int modelID CTR_PSX_REGISTER("$4");
 	struct Driver *driver = (struct Driver *)botThread->object;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 
-	sps->ptr_mesh_info = sdata->gGT->level1->ptr_mesh_info;
+	sps->ptr_mesh_info = GAME_TRACKER->level1->ptr_mesh_info;
 	sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_TEST_INSTANCES;
 	sps->Input1.modelID = DYNAMIC_ROBOT_CAR;
 	sps->Union.QuadBlockColl.quadFlagsWanted = 0;
 	sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
 	sps->Input1.hitRadius = BOTS_LEVEL_INST_COLL_RADIUS;
 
-	SVec3 currPos = {
-	    .x = (s16)CTR_MipsSra(driver->posCurr.x, FRACTIONAL_BITS_8),
-	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS),
-	    .z = (s16)CTR_MipsSra(driver->posCurr.z, FRACTIONAL_BITS_8),
-	};
-	SVec3 prevPos = {
-	    .x = (s16)CTR_MipsSra(driver->posPrev.x, FRACTIONAL_BITS_8),
-	    .y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS),
-	    .z = (s16)CTR_MipsSra(driver->posPrev.z, FRACTIONAL_BITS_8),
-	};
+	currPos.x = (s16)CTR_MipsSra(driver->posCurr.x, FRACTIONAL_BITS_8);
+	currPos.y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posCurr.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS);
+	currPos.z = (s16)CTR_MipsSra(driver->posCurr.z, FRACTIONAL_BITS_8);
+	prevPos.x = (s16)CTR_MipsSra(driver->posPrev.x, FRACTIONAL_BITS_8);
+	prevPos.y = (s16)CTR_MipsAddLo(CTR_MipsSra(driver->posPrev.y, FRACTIONAL_BITS_8), BOTS_LEVEL_INST_COLL_RADIUS);
+	prevPos.z = (s16)CTR_MipsSra(driver->posPrev.z, FRACTIONAL_BITS_8);
 
 	COLL_FIXED_BotsSearch(&currPos, &prevPos, sps);
 
@@ -576,19 +1142,23 @@ void BOTS_LevInstColl(struct Thread *botThread)
 
 	sps->Union.QuadBlockColl.searchFlags &= ~COLL_SEARCH_REUSE_NORMALS;
 
-	if ((sps->bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
+	if (((u8)sps->bspHitbox->flag & BSP_HITBOX_COLLIDABLE) == 0)
 	{
 		return;
 	}
 
-	struct InstDef *instDef = sps->bspHitbox->data.hitbox.instDef;
-	struct Instance *inst = instDef->ptrInstance;
+	instDef = sps->bspHitbox->data.hitbox.instDef;
+	inst = instDef->ptrInstance;
 	if (inst == NULL)
 	{
 		return;
 	}
 
-	struct MetaDataMODEL *mdm = COLL_LevModelMeta(instDef->modelID);
+	// NOTE(aalhendi): Retail passes the signed low halfword; native keeps the full model ID.
+	modelID = (s16)instDef->modelID;
+	CTR_PSX_OBSERVE_VALUE(modelID);
+	CTR_PSX_CAPTURE_REGISTER(modelID, instDef->modelID);
+	mdm = COLL_LevModelMeta(modelID);
 	if ((mdm != NULL) && (mdm->LInC != NULL))
 	{
 		mdm->LInC(inst, botThread, sps);
@@ -598,25 +1168,11 @@ void BOTS_LevInstColl(struct Thread *botThread)
 void BOTS_ThTick_RevEngine(struct Thread *botThread)
 {
 	struct Driver *botDriver = (struct Driver *)botThread->object;
+	register s32 currentY CTR_PSX_REGISTER("$3") = botDriver->posCurr.y;
 	struct MaskHeadWeapon *mask = botDriver->botData.maskObj;
 
-	if (botDriver->botData.positionBackup.y < botDriver->posCurr.y)
-	{ // mask grabbed
-		botDriver->posCurr.y = CTR_MipsSubLo(botDriver->posCurr.y, CTR_MipsSra(CTR_MipsSll(sdata->gGT->elapsedTimeMS, 9), 5));
-
-		if (mask != NULL)
-		{
-			mask->pos.x = (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8);
-			mask->pos.y = (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8);
-			mask->pos.z = (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8);
-		}
-
-		VehPhysForce_TranslateMatrix(botThread, botDriver);
-		VehFrameProc_Driving(botThread, botDriver);
-		VehEmitter_DriverMain(botThread, botDriver);
-	}
-	else
-	{ // not a mask grab
+	if (botDriver->botData.positionBackup.y >= currentY)
+	{
 		if (mask != NULL)
 		{
 			mask->scale = MASK_HEAD_SCALE_NORMAL;
@@ -631,59 +1187,88 @@ void BOTS_ThTick_RevEngine(struct Thread *botThread)
 
 		ThTick_SetAndExec(botThread, BOTS_ThTick_Drive);
 	}
+	else
+	{
+		register s32 updatedY CTR_PSX_REGISTER("$2") = CTR_MipsSubLo(currentY, CTR_MipsSra(CTR_MipsSll(GAME_TRACKER->elapsedTimeMS, 9), 5));
+		CTR_PSX_OBSERVE_VALUE(updatedY);
+		botDriver->posCurr.y = updatedY;
+
+		if (mask != NULL)
+		{
+			mask->pos.x = (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8);
+			mask->pos.y = (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8);
+			mask->pos.z = (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8);
+		}
+
+		VehPhysForce_TranslateMatrix(botThread, botDriver);
+		VehFrameProc_Driving(botThread, botDriver);
+		VehEmitter_DriverMain(botThread, botDriver);
+	}
 }
 
 void BOTS_MaskGrab(struct Thread *botThread)
 {
+	int midpoint;
+	u32 groundActions;
+	register struct Driver *maskDriver CTR_PSX_REGISTER("$4");
+	register int spawnCoord CTR_PSX_REGISTER("$2");
+	register int maskEnabled CTR_PSX_REGISTER("$5");
+	register int spawnY CTR_PSX_REGISTER("$3");
+	register int spawnZ CTR_PSX_REGISTER("$6");
+	register int currentZ CTR_PSX_REGISTER("$5");
+	register int nextZ CTR_PSX_REGISTER("$4");
+	struct MaskHeadWeapon *mask;
 	struct Driver *bot = botThread->object;
-	struct NavFrame *frame = bot->botData.botNavFrame;
-	struct NavFrame *nextFrame = frame + 1;
+	register struct NavFrame *frame CTR_PSX_REGISTER("$6") = bot->botData.botNavFrame;
+	register struct NavFrame *nextFrame CTR_PSX_REGISTER("$7") = frame + 1;
 
 	// if the next nav point is a farther address than last point
-	if (sdata->NavPath_ptrHeader[bot->botData.botPath]->last <= nextFrame)
+	if (BOT_NAV_HEADERS[bot->botData.botPath]->last <= nextFrame)
 	{
 		// set next nav point to first nav point
-		nextFrame = sdata->NavPath_ptrNavFrameArray[bot->botData.botPath];
+		nextFrame = BOT_NAV_FRAMES[bot->botData.botPath];
 	}
 
 	bot->kartState = KS_MASK_GRABBED;
 
-	bot->botData.navProgressRemainder = CTR_MipsSll(CTR_MipsDiv(frame->distToNextNavXZ, BOTS_MASK_MIDPOINT_DIVISOR), FRACTIONAL_BITS_8);
+	bot->botData.navProgressRemainder = CTR_MipsSll((frame->distToNextNavXZ / BOTS_MASK_MIDPOINT_DIVISOR), FRACTIONAL_BITS_8);
 
 	// midpointX between nav frames
-	int midpoint =
-	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.x, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.x, frame->pos.x), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
+	midpoint = CTR_MipsSll(CTR_MipsAddLo(frame->pos.x, (CTR_MipsSubLo(nextFrame->pos.x, frame->pos.x) / BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
 	bot->botData.positionBackup.x = midpoint;
 	bot->posPrev.x = midpoint;
 
 	// midpointY between nav frames
-	midpoint =
-	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.y, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.y, frame->pos.y), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
+	midpoint = CTR_MipsSll(CTR_MipsAddLo(frame->pos.y, (CTR_MipsSubLo(nextFrame->pos.y, frame->pos.y) / BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
 	bot->botData.positionBackup.y = midpoint;
 	bot->posPrev.y = midpoint;
 	bot->quadBlockHeight = midpoint;
 
-	// midpointZ between nav frames
-	midpoint =
-	    CTR_MipsSll(CTR_MipsAddLo(frame->pos.z, CTR_MipsDiv(CTR_MipsSubLo(nextFrame->pos.z, frame->pos.z), BOTS_MASK_MIDPOINT_DIVISOR)), FRACTIONAL_BITS_8);
-	bot->botData.positionBackup.z = midpoint;
-	bot->posPrev.z = midpoint;
-
-	bot->botData.aiPhysics.mulDrift = 0;
-	bot->botData.aiPhysics.squishCooldown = 0;
-	bot->botData.aiPhysics.reserved_0x5cc = 0;
-	bot->botData.aiPhysics.speedY = 0;
+	// Read both Z endpoints before resetting independent physics fields.
+	currentZ = frame->pos.z;
+	groundActions = bot->actionsFlagSet;
+	nextZ = nextFrame->pos.z;
 	bot->botData.aiPhysics.speedLinear = 0;
-	CTR_SET_VEC3(CTR_VECTOR_DATA(&(bot->botData.aiPhysics.velocity)), 0, 0, 0);
+	bot->botData.aiPhysics.speedY = 0;
+	bot->botData.aiPhysics.reserved_0x5cc = 0;
+	bot->botData.aiPhysics.velocity.z = 0;
+	bot->botData.aiPhysics.velocity.y = 0;
+	bot->botData.aiPhysics.velocity.x = 0;
 
-	bot->actionsFlagSet |= ACTION_TOUCH_GROUND;
-
+	bot->actionsFlagSet = groundActions | ACTION_TOUCH_GROUND;
 	bot->botData.botFlags &=
 	    ~(BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER | BOT_FLAG_FREE_PHYSICS | BOT_FLAG_BOSS_PATH_REQUESTED);
+
+	currentZ = CTR_MipsSll(CTR_MipsAddLo(currentZ, CTR_MipsSubLo(nextZ, currentZ) / BOTS_MASK_MIDPOINT_DIVISOR), FRACTIONAL_BITS_8);
+	bot->botData.positionBackup.z = currentZ;
+	bot->posPrev.z = currentZ;
 
 	bot->rotCurr.x = (s16)CTR_MipsSll(frame->rot[0], BOTS_ROT_BYTE_SHIFT);
 	bot->rotCurr.y = (s16)CTR_MipsSll(frame->rot[1], BOTS_ROT_BYTE_SHIFT);
 	bot->rotCurr.z = (s16)CTR_MipsSll(frame->rot[2], BOTS_ROT_BYTE_SHIFT);
+
+	bot->botData.aiPhysics.squishCooldown = 0;
+	bot->botData.aiPhysics.mulDrift = 0;
 
 	bot->turbo_MeterRoomLeft = 0;
 	bot->reserves = 0;
@@ -702,12 +1287,27 @@ void BOTS_MaskGrab(struct Thread *botThread)
 		botThread->flags &= ~THREAD_FLAG_DISABLE_COLLISION;
 	}
 
-	// posY, plus height to be dropped from
-	bot->posCurr.x = bot->botData.positionBackup.x;
-	bot->posCurr.y = CTR_MipsAddLo(bot->botData.positionBackup.y, BOTS_MASK_DROP_HEIGHT);
-	bot->posCurr.z = bot->botData.positionBackup.z;
+	// Preserve the midpoint stores before adding the drop height.
+	maskDriver = bot;
+	CTR_PSX_OBSERVE_VALUE(maskDriver);
+	spawnCoord = bot->botData.positionBackup.x;
+	spawnY = bot->botData.positionBackup.y;
+	CTR_PSX_DEPEND_MEMORY(&bot->botData.positionBackup.z, spawnY);
+	spawnZ = bot->botData.positionBackup.z;
+	CTR_PSX_BIND_VALUE_CLOBBER(spawnZ, "$5");
+	maskEnabled = true;
+	CTR_PSX_OBSERVE_VALUE(maskEnabled);
+	bot->posCurr.x = spawnCoord;
+	CTR_PSX_OBSERVE_MEMORY(bot->posCurr.x);
+	bot->posCurr.y = spawnY;
+	CTR_PSX_OBSERVE_MEMORY(bot->posCurr.y);
+	spawnCoord = spawnY;
+	CTR_PSX_FORGET_VALUE(spawnCoord);
+	spawnCoord = (s32)((u32)spawnCoord + BOTS_MASK_DROP_HEIGHT);
+	bot->posCurr.z = spawnZ;
+	bot->posCurr.y = spawnCoord;
 
-	struct MaskHeadWeapon *mask = VehPickupItem_MaskUseWeapon(bot, true);
+	mask = VehPickupItem_MaskUseWeapon(maskDriver, maskEnabled);
 	bot->botData.maskObj = mask;
 
 	if (mask != 0)
@@ -724,36 +1324,51 @@ void BOTS_MaskGrab(struct Thread *botThread)
 
 void BOTS_Killplane(struct Thread *botThread)
 {
-	struct Driver *bot = botThread->object;
-	b32 usingTinyArenaOverride = false;
+	register struct Thread *savedThread CTR_PSX_REGISTER("$18") = botThread;
+	register struct Driver *bot CTR_PSX_REGISTER("$16");
+	register b32 usingTinyArenaOverride CTR_PSX_REGISTER("$17");
+	register b32 overrideActive CTR_PSX_REGISTER("$2");
+	register struct GameTracker *tracker CTR_PSX_REGISTER("$4");
+	register u32 arenaPage CTR_PSX_REGISTER("$5");
+	register const char *arenaName CTR_PSX_REGISTER("$5");
+	CTR_PSX_BIND_VALUE_CLOBBER(savedThread, "$17");
+	usingTinyArenaOverride = false;
+	CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(arenaPage, "rdata", usingTinyArenaOverride);
+	tracker = GAME_TRACKER;
+	CTR_PSX_DEPEND_VALUE(arenaPage, tracker);
+	CTR_PSX_ADD_SYMBOL_LOW(arenaName, arenaPage, "rdata", rdata.s_asphalt2_thisAppearsTwice);
+	CTR_PSX_DEPEND_VALUE(savedThread, arenaName);
+	bot = savedThread->object;
 
 	// check for Tiny Arena
-	if (strcmp(sdata->gGT->levelName, rdata.s_asphalt2_thisAppearsTwice) == 0)
+	if (strcmp(tracker->levelName, arenaName) == 0)
 	{
 		// edge-case override?
-		u8 override;
-		switch (bot->checkpoint.currentIndex)
+		register s32 override CTR_PSX_REGISTER("$6");
+		register s32 selectedOverride CTR_PSX_REGISTER("$3");
+		register s32 checkpoint CTR_PSX_REGISTER("$3") = bot->checkpoint.currentIndex;
+		CTR_PSX_BIND_VALUE_CLOBBER(checkpoint, "$6");
+		override = 0xff;
+		if (checkpoint == 0x94)
 		{
-		case 0x94:
 			override = 0x84;
-			break;
-		case 0xa0:
+		}
+		else if (checkpoint == 0xa0)
+		{
 			override = 0x80;
-			break;
-		default:
-			override = 0xff;
 		}
 
-		if (override != 0xff)
+		selectedOverride = override;
+		CTR_PSX_OBSERVE_VALUE(selectedOverride);
+		if (selectedOverride != 0xff)
 		{
 			// pointer to nav point
-			struct NavFrame *frame = bot->botData.botNavFrame;
+			register struct NavFrame *frame CTR_PSX_REGISTER("$5") = bot->botData.botNavFrame;
 
 			// goBackCount
-			u8 backCount = frame->goBackCount;
-			usingTinyArenaOverride = (backCount < (override - 1));
+			register s32 backCount CTR_PSX_REGISTER("$4") = frame->goBackCount;
 
-			while ((usingTinyArenaOverride || (override + 1 < backCount)))
+			while (backCount < (selectedOverride - 1) || selectedOverride + 1 < backCount)
 			{
 				// nav path index
 				s16 i = bot->botData.botPath;
@@ -762,33 +1377,40 @@ void BOTS_Killplane(struct Thread *botThread)
 				frame -= 1;
 
 				// if this is less than address of first nav point
-				if (frame < sdata->NavPath_ptrNavFrameArray[i])
+				if (frame < BOT_NAV_FRAMES[i])
 				{
 					// go to last nav point
-					frame = &sdata->NavPath_ptrHeader[i]->last[-1];
+					register struct NavFrame *last CTR_PSX_REGISTER("$2") = BOT_NAV_HEADERS[i]->last;
+					CTR_PSX_OBSERVE_VALUE(last);
+					frame = &last[-1];
 				}
 
 				backCount = frame->goBackCount;
-				usingTinyArenaOverride = (backCount < (override - 1));
+				selectedOverride = override;
+				CTR_PSX_OBSERVE_VALUE(selectedOverride);
 			}
+			CTR_PSX_OBSERVE_VALUE(selectedOverride);
 			bot->botData.botNavFrame = frame;
+			CTR_PSX_OBSERVE_MEMORY(bot->botData.botNavFrame);
 			usingTinyArenaOverride = true;
 		}
 	}
 
 	// if not Tiny Arena, or goBackCount didn't happen
-	if (!usingTinyArenaOverride)
+	overrideActive = usingTinyArenaOverride;
+	CTR_PSX_OBSERVE_VALUE(overrideActive);
+	if (!overrideActive)
 	{
 		// pointer to navFrame
-		struct NavFrame *frame = bot->botData.botNavFrame;
+		register struct NavFrame *frame CTR_PSX_REGISTER("$4") = bot->botData.botNavFrame;
 
 		// current nav point (player turned AI)
-		u8 currNav = bot->checkpoint.currentIndex;
+		register u32 currNav CTR_PSX_REGISTER("$2") = bot->checkpoint.currentIndex;
 
 		// goBackCount
-		u8 backCount = frame->goBackCount;
+		register s32 backCount CTR_PSX_REGISTER("$3") = frame->goBackCount;
 
-		while ((backCount == currNav || ((frame->flags & 0x4000) != 0)))
+		while ((backCount == (s32)currNav || ((frame->flags & 0x4000) != 0)))
 		{
 			// nav path index
 			s16 i = bot->botData.botPath;
@@ -797,10 +1419,12 @@ void BOTS_Killplane(struct Thread *botThread)
 			frame -= 1;
 
 			// if you go back to far
-			if (frame < sdata->NavPath_ptrNavFrameArray[i])
+			if (frame < BOT_NAV_FRAMES[i])
 			{
 				// loop back to last navFrame
-				frame = &sdata->NavPath_ptrHeader[i]->last[-1];
+				register struct NavFrame *last CTR_PSX_REGISTER("$2") = BOT_NAV_HEADERS[i]->last;
+				CTR_PSX_OBSERVE_VALUE(last);
+				frame = &last[-1];
 			}
 			backCount = frame->goBackCount;
 			currNav = bot->checkpoint.currentIndex;
@@ -809,13 +1433,41 @@ void BOTS_Killplane(struct Thread *botThread)
 		bot->botData.botNavFrame = frame;
 	}
 
-	BOTS_MaskGrab(botThread);
+	BOTS_MaskGrab(savedThread);
 	return;
 }
 
 
 void BOTS_ThTick_Drive(struct Thread *botThread)
 {
+	int elapsedMilliseconds;
+	int speedApprox;
+	u32 local_38;
+	s16 tireColorStep;
+	struct NavFrame *navFrameCurr;
+	struct NavFrame *navFrameNext; // psVar21
+	struct DriverCollisionSearch driverSearch;
+	struct Thread *hitThread;
+	int deltaPosThisFrame; // iVar4
+	int navFrameFlags;
+	int navFrameSpecialBits;
+	int gravity;
+	s16 navDist; // sVar7
+	int local_3c;
+	b32 useGroundedNavDistance;
+	int iVar15;
+	int iVar3;
+	int navActionFlags;
+	struct Terrain *terrain;
+	int percentage; // iVar13
+	int iVar4_lifetime_3;
+	s16 iVar3_lifetime_2;
+	u8 cmp1;
+	u8 cmp2;
+	int badnessRecieveTimer;
+	int iVar4_lifetime_2;
+	int uVar11;
+	s16 camRot;
 	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 	struct Driver *botDriver = (struct Driver *)botThread->object;     // iVar17
 	struct Instance *botInstance = (struct Instance *)botThread->inst; // iVar22
@@ -850,7 +1502,7 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 		BOTS_ChangeState(botDriver, botDriver->pendingDamageType, botDriver->pendingDamageAttacker, botDriver->pendingDamageReasonByte);
 	}
 
-	int elapsedMilliseconds = gGT->elapsedTimeMS; // local_34
+	elapsedMilliseconds = gGT->elapsedTimeMS; // local_34
 
 	botDriver->reserves = (s16)CTR_MipsSubLo((u16)botDriver->reserves, elapsedMilliseconds);
 	if (botDriver->reserves < 0)
@@ -888,7 +1540,7 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	botDriver->actionsFlagSetPrevFrame = botDriver->actionsFlagSet;
 	botDriver->actionsFlagSet &= ~(ACTION_DROPPING_MINE | ACTION_JUMP_STARTED | ACTION_STARTED_TOUCH_GROUND);
 
-	int speedApprox = botDriver->speedApprox; // iVar4
+	speedApprox = botDriver->speedApprox; // iVar4
 
 	if (speedApprox < 0)
 	{
@@ -905,11 +1557,11 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	}
 
 	// NOTE(aalhendi): Retail initializes this boost scale before catch-up can overwrite it.
-	u32 local_38 = 1;
-	s16 tireColorStep = (s16)CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(speedApprox, DRIVER_TIRE_COLOR_SPEED_WEIGHT),
-	                                                               CTR_MipsMulLo(botDriver->tireColorCycleStep, DRIVER_TIRE_COLOR_STEP_WEIGHT)),
-	                                                 3),
-	                                     0xC);
+	local_38 = 1;
+	tireColorStep = (s16)CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(speedApprox, DRIVER_TIRE_COLOR_SPEED_WEIGHT),
+	                                                           CTR_MipsMulLo(botDriver->tireColorCycleStep, DRIVER_TIRE_COLOR_STEP_WEIGHT)),
+	                                             3),
+	                                 0xC);
 	botDriver->tireColorCycleStep = tireColorStep;
 
 	if ((botDriver->actionsFlagSetPrevFrame & ACTION_ACCEL_PREVENTION) == 0)
@@ -948,15 +1600,16 @@ UpdateTireColorTimer:
 		botDriver->tireColor = DRIVER_TIRE_COLOR_DEFAULT;
 	}
 
-	struct NavFrame *navFrameCurr = &botDriver->botData.estimateNavFrame; // psVar19
-	struct NavFrame *navFrameNext;                                        // psVar21
+	navFrameCurr = &botDriver->botData.estimateNavFrame; // psVar19
+
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
 	{
+		int pathID;
 		navFrameCurr = botDriver->botData.botNavFrame;
 		navFrameNext = navFrameCurr + 1;
 
-		int pathID = botDriver->botData.botPath;
+		pathID = botDriver->botData.botPath;
 
 		if (navFrameNext >= sdata->NavPath_ptrHeader[pathID]->last)
 		{
@@ -968,7 +1621,7 @@ UpdateTireColorTimer:
 		navFrameNext = botDriver->botData.botNavFrame;
 	}
 
-	struct DriverCollisionSearch driverSearch;
+
 	CTR_SET_VEC3(CTR_VECTOR_DATA(&(driverSearch.bucket.pos)), (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8),
 	             (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8), (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8));
 	driverSearch.bucket.th = NULL;
@@ -987,25 +1640,24 @@ UpdateTireColorTimer:
 		}
 	}
 
-	struct Thread *hitThread = driverSearch.bucket.th;
+	hitThread = driverSearch.bucket.th;
 	if (hitThread != NULL)
 	{
 		int combinedRadius = CTR_MipsAddLo(botThread->driverHitRadius, hitThread->driverHitRadius);
 		if (driverSearch.bucket.bestDistSq < CTR_MipsMulLo(combinedRadius, combinedRadius))
 		{
-			Vec3 selfVelocity = {
-			    .x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.aiPhysics.accel.x),
-			    .y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.aiPhysics.accel.y),
-			    .z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.aiPhysics.accel.z),
-			};
+			Vec3 selfVelocity;
+			selfVelocity.x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.aiPhysics.accel.x);
+			selfVelocity.y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.aiPhysics.accel.y);
+			selfVelocity.z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.aiPhysics.accel.z);
 			VehPhysCrash_AnyTwoCars(botThread, &driverSearch, &selfVelocity);
 		}
 	}
 
-	int deltaPosThisFrame; // iVar4
 
 	if (botDriver->botData.ai_progress_cooldown == 0)
 	{
+		u32 botFlags;
 		int trafficLightsTimer = gGT->trafficLightsTimer;
 
 		if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE) // check is oxide
@@ -1047,7 +1699,7 @@ UpdateTireColorTimer:
 
 		// between these start and end tags, there's confusing variable lifetime that needs to be looked at closer.
 
-		u32 botFlags = botDriver->botData.botFlags; // uVar8
+		botFlags = botDriver->botData.botFlags; // uVar8
 
 		// if path change is requested, but not started (BOSS ONLY)
 		if ((botFlags & (BOT_FLAG_BOSS_PATH_REQUESTED | BOT_FLAG_BOSS_PATH_ACTIVE)) == BOT_FLAG_BOSS_PATH_REQUESTED)
@@ -1059,16 +1711,18 @@ UpdateTireColorTimer:
 
 			if ((changeOpcode < cap) && (newPathID == botDriver->botData.desiredPath_BossOnly))
 			{
+				s16 oldPathID;
+				struct NavFrame *firstNavFrameOnPath;
 				// record that change is requested (boss only)
 				botDriver->botData.botFlags = botFlags | BOT_FLAG_BOSS_PATH_ACTIVE;
 
-				s16 oldPathID = botDriver->botData.botPath;
+				oldPathID = botDriver->botData.botPath;
 				botDriver->botData.botPath = newPathID;
 
 				LIST_RemoveMember(&sdata->navBotList[oldPathID], &botDriver->botData.item);
 				LIST_AddFront(&sdata->navBotList[newPathID], &botDriver->botData.item);
 
-				struct NavFrame *firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
+				firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
 				botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex];
 
 				BOTS_SetRotation(botDriver, 0);
@@ -1091,6 +1745,7 @@ UpdateTireColorTimer:
 					for (botData = (struct BotData *)LIST_GetFirstItem(&sdata->navBotList[botDriver->botData.botPath]); botData != NULL;
 					     botData = (struct BotData *)LIST_GetNextItem((struct Item *)botData), sVar7 = (s16)iVar3)
 					{
+						int iVar13;
 						struct Driver *driverFromBotData = (struct Driver *)((char *)botData - offsetof(struct Driver, botData));
 
 						if (driverFromBotData == botDriver)
@@ -1100,7 +1755,7 @@ UpdateTireColorTimer:
 
 
 						// Find the signed index difference between nav frames on this path.
-						int iVar13 = (int)(botData->botNavFrame - botDriver->botData.botNavFrame);
+						iVar13 = (int)(botData->botNavFrame - botDriver->botData.botNavFrame);
 
 						// if "other" botData driver is behind "this" botDriver driver,
 						if (iVar13 < 0)
@@ -1143,13 +1798,14 @@ UpdateTireColorTimer:
 
 							if (changeOpcode < cap)
 							{
+								struct NavFrame *firstNavFrameOnPath;
 								s16 oldPathID = botDriver->botData.botPath;
 								botDriver->botData.botPath = newPathID;
 
 								LIST_RemoveMember(&sdata->navBotList[oldPathID], &botDriver->botData.item);
 								LIST_AddFront(&sdata->navBotList[newPathID], &botDriver->botData.item);
 
-								struct NavFrame *firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
+								firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
 								botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex & BOTS_PATH_CHANGE_FRAME_MASK];
 
 								BOTS_SetRotation(botDriver, 0);
@@ -1203,16 +1859,20 @@ UpdateTireColorTimer:
 		}
 		else
 		{
+			struct Driver *bestDriverRank;
+			int botVelocity; // iVar3
+			struct Terrain *botTerrain;
+			int velocityAccountingForTerrain;
+			int levelID;
 			botDriver->actionsFlagSet &= ~ACTION_AIRBORNE;
 
-			struct Driver *bestDriverRank = sdata->bestHumanRank; // iVar4
+			bestDriverRank = sdata->bestHumanRank; // iVar4
 
 			if ((gGT->gameMode1 & RELIC_RACE) != 0)
 			{
 				bestDriverRank = sdata->bestRobotRank;
 			}
 
-			int botVelocity; // iVar3
 
 			if ((bestDriverRank == NULL) || (bestDriverRank == botDriver))
 			{
@@ -1220,6 +1880,17 @@ UpdateTireColorTimer:
 			}
 			else
 			{
+				s16 difficultyStat; // sVar7
+				int distToFinish;
+				int lapIndex;
+				int botLapIndex;
+				int complexDifficultyStat;
+				int otherDifficultyStat; // iVar13
+				int iVar9;
+				int bestDriverWumpaCount;
+				int turboMult;
+				int netSpeedStat;
+				int additionalVelocity;
 				int driverRank = botDriver->driverRank; // uVar8
 				b32 isInAdvArcadeOrVSCup = false;       // bVar1
 
@@ -1251,7 +1922,6 @@ UpdateTireColorTimer:
 					}
 				}
 
-				s16 difficultyStat; // sVar7
 
 				if (bestDriverRank->lapIndex == 0)
 				{
@@ -1269,16 +1939,16 @@ UpdateTireColorTimer:
 					}
 				}
 
-				int distToFinish = BOTS_GetTrackDistanceToFinish(gGT); // iVar3
+				distToFinish = BOTS_GetTrackDistanceToFinish(gGT); // iVar3
 
-				int lapIndex = bestDriverRank->lapIndex; // uVar20
+				lapIndex = bestDriverRank->lapIndex; // uVar20
 
 				if ((bestDriverRank->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
 				{
 					lapIndex--;
 				}
 
-				int botLapIndex = botDriver->lapIndex; // uVar18
+				botLapIndex = botDriver->lapIndex; // uVar18
 
 				if ((botDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
 				{
@@ -1286,12 +1956,12 @@ UpdateTireColorTimer:
 				}
 
 				// not super meaningful, probably just a difficulty statistic
-				int complexDifficultyStat = CTR_MipsSubLo(
+				complexDifficultyStat = CTR_MipsSubLo(
 				    CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsSubLo(distToFinish, bestDriverRank->distanceToFinish_curr), CTR_MipsMulLo(lapIndex, distToFinish)),
 				                  CTR_MipsAddLo(CTR_MipsSubLo(distToFinish, botDriver->distanceToFinish_curr), CTR_MipsMulLo(botLapIndex, distToFinish))),
 				    CTR_MipsAddLo(sdata->arcade_difficultyParams[driverRank], difficultyStat));
 
-				int otherDifficultyStat; // iVar13
+
 				if (isInAdvArcadeOrVSCup && ((driverRank & 0xffff) == 0))
 				{
 					if (complexDifficultyStat < 1)
@@ -1333,7 +2003,7 @@ UpdateTireColorTimer:
 				{
 					botVelocity = CTR_MipsNegLo(complexDifficultyStat);
 				}
-				int iVar9 = otherDifficultyStat;
+				iVar9 = otherDifficultyStat;
 				if (otherDifficultyStat < 0)
 				{
 					iVar9 = CTR_MipsNegLo(otherDifficultyStat);
@@ -1352,22 +2022,22 @@ UpdateTireColorTimer:
 					botVelocity = CTR_MipsNegLo(iVar9);
 				}
 
-				int bestDriverWumpaCount = bestDriverRank->numWumpas; // iVar15, assume max of 9?
+				bestDriverWumpaCount = bestDriverRank->numWumpas; // iVar15, assume max of 9?
 				if (9 < bestDriverWumpaCount)
 				{
 					bestDriverWumpaCount = 9;
 				}
 
-				int turboMult = bestDriverRank->turboConst; // iVar13, max of 5
+				turboMult = bestDriverRank->turboConst; // iVar13, max of 5
 				if (5 < turboMult)
 				{
 					turboMult = 5;
 				}
 
-				int netSpeedStat = CTR_MipsSubLo(
+				netSpeedStat = CTR_MipsSubLo(
 				    CTR_MipsDiv(CTR_MipsSll(CTR_MipsSubLo(bestDriverRank->const_AccelSpeed_ClassStat, bestDriverRank->const_Speed_ClassStat), 0xc), 5), 1);
 
-				int additionalVelocity = CTR_MipsAddLo(
+				additionalVelocity = CTR_MipsAddLo(
 				    CTR_MipsDiv(CTR_MipsSll(bestDriverRank->const_Speed_ClassStat, 3), 10),
 				    CTR_MipsSra(CTR_MipsAddLo(CTR_MipsDiv(CTR_MipsMulLo(bestDriverWumpaCount, netSpeedStat), 10), CTR_MipsMulLo(turboMult, netSpeedStat)),
 				                0xc));
@@ -1442,7 +2112,7 @@ UpdateTireColorTimer:
 				botVelocity = 0;
 			}
 
-			struct Terrain *botTerrain = botDriver->terrainMeta1; // iVar15
+			botTerrain = botDriver->terrainMeta1; // iVar15
 
 			botDriver->botData.aiPhysics.speedLinear =
 			    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
@@ -1458,15 +2128,16 @@ UpdateTireColorTimer:
 				botVelocity = 0x6900;
 			}
 
-			int velocityAccountingForTerrain = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->bot.fields.targetSpeedScale), 8); // iVar4
+			velocityAccountingForTerrain = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->bot.fields.targetSpeedScale), 8); // iVar4
 
 			if ((botTerrain->bot.fields.speedFlags & TERRAIN_BOT_FLAG_DECEL_TO_TARGET_SPEED) == 0)
 			{
 			CheckAccelerationTowardTerrainTarget:
 				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
 				{
-				ApplyTerrainAcceleration:;
 					s16 accel; // sVar7
+				ApplyTerrainAcceleration:;
+
 					if (botDriver->reserves < 1)
 					{
 						accel = botDriver->const_Accel_ClassStat;
@@ -1505,10 +2176,11 @@ UpdateTireColorTimer:
 				}
 			}
 
-			int levelID = gGT->levelID; // iVar3
+			levelID = gGT->levelID; // iVar3
 
 			if ((levelID == HOT_AIR_SKYWAY || levelID == PAPU_PYRAMID) || levelID == POLAR_PASS)
 			{
+				int navFrameIndexOnPath;
 				int botPathIndex = botDriver->botData.botPath; // iVar3
 
 				if (levelID == POLAR_PASS)
@@ -1527,7 +2199,7 @@ UpdateTireColorTimer:
 					}
 				}
 
-				int navFrameIndexOnPath = (int)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
+				navFrameIndexOnPath = (int)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
 
 				if ((data.botsThrottle[botPathIndex] <= navFrameIndexOnPath) && (navFrameIndexOnPath < CTR_MipsAddLo(data.botsThrottle[botPathIndex], 0xb)) &&
 				    (9000 < botDriver->botData.aiPhysics.speedLinear))
@@ -1586,15 +2258,15 @@ UpdateTireColorTimer:
 		deltaPosThisFrame = botDriver->botData.navProgressRemainder;
 	}
 
-	int navFrameFlags = navFrameCurr->flags;
-	int navFrameSpecialBits = navFrameCurr->specialBits;
+	navFrameFlags = navFrameCurr->flags;
+	navFrameSpecialBits = navFrameCurr->specialBits;
 	// local_3c == 0
 	if ((navFrameSpecialBits & BOTS_NAV_SPECIAL_MOON_GRAVITY) != 0)
 	{
 		botDriver->botData.botFlags |= BOT_FLAG_MOON_GRAVITY;
 	}
 
-	int gravity;
+
 	if ((botDriver->botData.botFlags & BOT_FLAG_MOON_GRAVITY) == 0)
 	{
 		gravity = botDriver->const_Gravity;
@@ -1615,7 +2287,6 @@ UpdateTireColorTimer:
 	botDriver->botData.positionBackup.y =
 	    CTR_MipsAddLo(botDriver->botData.positionBackup.y, CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, elapsedMilliseconds), 5));
 
-	s16 navDist; // sVar7
 
 	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 	{
@@ -1626,22 +2297,26 @@ UpdateTireColorTimer:
 		navDist = navFrameCurr->distToNextNavXYZ;
 	}
 
-	int local_3c = 0;
-	b32 useGroundedNavDistance = false;
+	local_3c = 0;
+	useGroundedNavDistance = false;
 	if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_RAMP_PHYS) != 0)
 	{
 		local_3c = navFrameCurr->specialBits;
 	}
-	int iVar15 = CTR_MipsSra(deltaPosThisFrame, 8);
-	int iVar3;
+	iVar15 = CTR_MipsSra(deltaPosThisFrame, 8);
+
 
 	for (iVar3 = navDist; iVar3 <= iVar15; /* decrement inside loop */)
 	{
+		int index;
+		int uVar8;
+		s16 nextNavDist; // sVar7
+		u8 compare;
 		navFrameCurr = navFrameNext;
 
 		deltaPosThisFrame = CTR_MipsSubLo(deltaPosThisFrame, CTR_MipsSll(iVar3, 8));
 
-		int index = botDriver->botData.botPath; // index = iVar13
+		index = botDriver->botData.botPath; // index = iVar13
 
 		navFrameNext = NAVFRAME_GETNEXTFRAME(navFrameCurr);
 
@@ -1660,7 +2335,7 @@ UpdateTireColorTimer:
 		navFrameFlags |= navFrameCurr->flags;
 		navFrameSpecialBits |= navFrameCurr->specialBits;
 
-		int uVar8;
+
 		if ((botDriver->botData.botFlags & BOT_FLAG_BOSS_PATH_ACTIVE) == 0)
 		{
 			uVar8 = ~BOT_FLAG_ESTIMATE_NAV;
@@ -1672,12 +2347,11 @@ UpdateTireColorTimer:
 
 		botDriver->botData.botFlags &= uVar8;
 
-		s16 nextNavDist; // sVar7
 
 		// MUST be unsigned,
 		// this makes a range-value check, and makes negatives positive,
 		// so its really checking value between 0x31 and 0x31+0x9e
-		u8 compare = navFrameCurr->rot[3] - 0x31;
+		compare = navFrameCurr->rot[3] - 0x31;
 		if (!useGroundedNavDistance && (0x9e < compare))
 		{
 			if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
@@ -1706,7 +2380,7 @@ UpdateTireColorTimer:
 
 	botDriver->botData.navProgressRemainder = deltaPosThisFrame;
 
-	int navActionFlags = ((navFrameFlags & BOTS_NAV_FLAG_BACK_SKID) != 0) ? ACTION_BACK_SKID : 0;
+	navActionFlags = ((navFrameFlags & BOTS_NAV_FLAG_BACK_SKID) != 0) ? ACTION_BACK_SKID : 0;
 
 	if ((navFrameFlags & BOTS_NAV_FLAG_ENGINE_ECHO) != 0)
 	{
@@ -1721,7 +2395,7 @@ UpdateTireColorTimer:
 	botDriver->actionsFlagSet &= ~(ACTION_ENGINE_ECHO | ACTION_BACK_SKID | ACTION_FRONT_SKID);
 	botDriver->actionsFlagSet |= navActionFlags;
 
-	struct Terrain *terrain = VehAfterColl_GetTerrain(((u8)navFrameCurr->flags) >> 3);
+	terrain = VehAfterColl_GetTerrain(((u8)navFrameCurr->flags) >> 3);
 
 	botDriver->terrainMeta1 = terrain;
 
@@ -1759,9 +2433,10 @@ UpdateTireColorTimer:
 	}
 	else
 	{
+		int uVar6;
 		botDriver->actionsFlagSet |= ACTION_TURBO_INPUT_LATCH;
 		botDriver->botData.aiPhysics.turboMeter = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.turboMeter, elapsedMilliseconds);
-		int uVar6;
+
 		// this ugly tree of ifs may have been a switch perhaps?
 		if ((botDriver->botData.aiPhysics.turboMeter < 0xb41) || (5 < botDriver->botData.aiPhysics.fireLevel))
 		{
@@ -1829,9 +2504,10 @@ UpdateTireColorTimer:
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
 	{
+		s16 botPath;
 		botDriver->botData.botNavFrame = navFrameCurr;
 
-		s16 botPath = botDriver->botData.botPath;
+		botPath = botDriver->botData.botPath;
 
 		navFrameNext = NAVFRAME_GETNEXTFRAME(navFrameCurr);
 
@@ -1841,7 +2517,7 @@ UpdateTireColorTimer:
 		}
 	}
 
-	int percentage; // iVar13
+
 	if (iVar3 == 0)
 	{
 		percentage = 0;
@@ -1868,12 +2544,16 @@ UpdateTireColorTimer:
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_FREE_PHYSICS) != 0)
 	{
+		int preAccelX;
+		int preAccelZ;
+		int preX;
+		int preZ;
 		botDriver->botData.aiPhysics.accel.y = 0;
 		botDriver->botData.aiPhysics.velocity.x = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.x, botDriver->botData.aiPhysics.accel.x);
 		botDriver->botData.aiPhysics.velocity.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.aiPhysics.accel.y);
 		botDriver->botData.aiPhysics.velocity.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.z, botDriver->botData.aiPhysics.accel.z);
-		int preAccelX = botDriver->botData.aiPhysics.accel.x; // iVar3
-		int preAccelZ = botDriver->botData.aiPhysics.accel.z; // iVar15
+		preAccelX = botDriver->botData.aiPhysics.accel.x; // iVar3
+		preAccelZ = botDriver->botData.aiPhysics.accel.z; // iVar15
 		botDriver->botData.aiPhysics.accel.x = CTR_MipsSra(botDriver->botData.aiPhysics.accel.x, 1);
 		botDriver->botData.aiPhysics.accel.z = CTR_MipsSra(botDriver->botData.aiPhysics.accel.z, 1);
 		botDriver->botData.aiPhysics.velocity.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.aiPhysics.accel.y);
@@ -1881,7 +2561,7 @@ UpdateTireColorTimer:
 		botDriver->botData.aiPhysics.velocity.x = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.x, preAccelX);
 		botDriver->botData.aiPhysics.velocity.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.z, preAccelZ);
 
-		int preX = botDriver->botData.aiPhysics.velocity.x; // iVar3
+		preX = botDriver->botData.aiPhysics.velocity.x; // iVar3
 		if (preX != 0)
 		{
 			if (preX < 1)
@@ -1915,7 +2595,7 @@ UpdateTireColorTimer:
 				}
 			}
 		}
-		int preZ = botDriver->botData.aiPhysics.velocity.z; // iVar3
+		preZ = botDriver->botData.aiPhysics.velocity.z; // iVar3
 		if (preZ != 0)
 		{
 			if (preZ < 1)
@@ -1961,6 +2641,11 @@ UpdateTireColorTimer:
 	}
 	else
 	{
+		s16 probeY;
+		s16 probeX;
+		s16 probeZ;
+		SVec3 probeTop;
+		SVec3 probeBottom;
 		int deltaRotY = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), CTR_MipsSll(navFrameCurr->rot[1], 4)) & 0xfff;
 		if (0x7ff < deltaRotY)
 		{
@@ -1969,19 +2654,15 @@ UpdateTireColorTimer:
 
 		botDriver->botData.aiRot.y = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[1], 4), CTR_MipsSra(CTR_MipsMulLo(deltaRotY, percentage), 0xc)) & 0xfff;
 
-		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
-		s16 probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
-		s16 probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
-		SVec3 probeTop = {
-		    .x = probeX,
-		    .y = (s16)CTR_MipsSubLo(probeY, 0x100),
-		    .z = probeZ,
-		};
-		SVec3 probeBottom = {
-		    .x = probeX,
-		    .y = (s16)CTR_MipsAddLo(probeY, 0x80),
-		    .z = probeZ,
-		};
+		probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
+		probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
+		probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
+		probeTop.x = probeX;
+		probeTop.y = (s16)CTR_MipsSubLo(probeY, 0x100);
+		probeTop.z = probeZ;
+		probeBottom.x = probeX;
+		probeBottom.y = (s16)CTR_MipsAddLo(probeY, 0x80);
+		probeBottom.z = probeZ;
 
 		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
@@ -2021,8 +2702,12 @@ UpdateTireColorTimer:
 			{
 				if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 				{
+					int iVar3;
+					s16 sVar7;
 					if (botDriver->instSelf->thread->modelIndex == DYNAMIC_PLAYER)
 					{
+						u32 echo;
+						int flags;
 						int mapped = VehCalc_MapToRange(CTR_MipsSubLo(botDriver->jumpHeightCurr, botDriver->jumpHeightPrev), 0x300, 0x1400, 0x4b, 200); // uVar8
 
 						int volume; // uVar20
@@ -2039,12 +2724,12 @@ UpdateTireColorTimer:
 								volume = 0xff;
 							}
 						}
-						u32 echo = ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
-						int flags = (int)HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, echo);
+						echo = ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
+						flags = (int)HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, echo);
 
 						OtherFX_Play_LowLevel(7, 1, flags);
 					}
-					int iVar3 = navFrameCurr->distToNextNavXZ;
+					iVar3 = navFrameCurr->distToNextNavXZ;
 					if (iVar3 != 0)
 					{
 #if 0
@@ -2060,7 +2745,7 @@ UpdateTireColorTimer:
 						botDriver->botData.navProgressRemainder =
 						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(deltaPosThisFrame, navFrameCurr->distToNextNavXYZ), iVar3), 8);
 					}
-					s16 sVar7 = botDriver->jump_LandingBoost;
+					sVar7 = botDriver->jump_LandingBoost;
 
 					if (sVar7 < 0x5a1)
 					{
@@ -2130,6 +2815,7 @@ UpdateTireColorTimer:
 			}
 			else
 			{
+				u8 bVar10;
 				if (((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0))
 				{
 					int iVar3 = navFrameCurr->distToNextNavXZ;
@@ -2158,7 +2844,7 @@ UpdateTireColorTimer:
 					botDriver->botData.aiPhysics.speedY = CTR_MipsNegLo(deltaPosThisFrame);
 				}
 
-				u8 bVar10 = (u8)CTR_MipsAddLo(botDriver->botData.blastBounceCount, 1);
+				bVar10 = (u8)CTR_MipsAddLo(botDriver->botData.blastBounceCount, 1);
 				botDriver->botData.blastBounceCount = bVar10;
 
 				if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_SPIN)
@@ -2213,14 +2899,14 @@ UpdateTireColorTimer:
 		botDriver->jump_LandingBoost = (s16)CTR_MipsAddLo((u16)botDriver->jump_LandingBoost, elapsedMilliseconds);
 	}
 
-	int iVar4_lifetime_3 = 0x18;
+	iVar4_lifetime_3 = 0x18;
 
 	if (botDriver->botData.aiPhysics.driftTarget != 0)
 	{
 		iVar4_lifetime_3 = 0x60;
 	}
 
-	s16 iVar3_lifetime_2 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
+	iVar3_lifetime_2 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
 	if (botDriver->botData.aiPhysics.driftTarget < botDriver->botData.aiPhysics.mulDrift)
 	{
 		botDriver->botData.aiPhysics.mulDrift = iVar3_lifetime_2;
@@ -2298,12 +2984,21 @@ UpdateTireColorTimer:
 				{
 					if (sVar7 == BOTS_DAMAGE_STATE_MASK_GRAB)
 					{
+						int iVar4;
 						struct Thread *plant = botDriver->plantEatingMe;
 
 						struct Instance *plantInst = plant->inst;
 
 						if (botDriver->botData.aiPhysics.rotXZ < 0xb40)
 						{
+							VECTOR v2;
+							s32 l3;
+							int camDriverXDelta;
+							int camY;
+							int driverY;
+							int camDriverZDelta;
+							int rotY;
+							int rotX;
 							SVECTOR v;
 							v.vx = 0xfa;
 							if ((plant->object != NULL) && (((struct Plant *)plant->object)->side != 0))
@@ -2316,8 +3011,6 @@ UpdateTireColorTimer:
 							SetRotMatrix(&plantInst->matrix);
 							SetTransMatrix(&plantInst->matrix);
 
-							VECTOR v2;
-							s32 l3;
 
 							RotTrans(&v, &v2, &l3);
 
@@ -2325,15 +3018,15 @@ UpdateTireColorTimer:
 							gGT->pushBuffer[botDriver->driverID].pos.y = CTR_MipsAddLo(plantInst->matrix.t[1], 0xc0);
 							gGT->pushBuffer[botDriver->driverID].pos.z = v2.vz;
 
-							int camDriverXDelta = CTR_MipsSubLo(v2.vx, plantInst->matrix.t[0]);
-							int camY = gGT->pushBuffer[botDriver->driverID].pos.y;
-							int driverY = plantInst->matrix.t[1];
-							int camDriverZDelta = CTR_MipsSubLo(v2.vz, plantInst->matrix.t[2]);
+							camDriverXDelta = CTR_MipsSubLo(v2.vx, plantInst->matrix.t[0]);
+							camY = gGT->pushBuffer[botDriver->driverID].pos.y;
+							driverY = plantInst->matrix.t[1];
+							camDriverZDelta = CTR_MipsSubLo(v2.vz, plantInst->matrix.t[2]);
 
-							int rotY = ratan2(camDriverXDelta, camDriverZDelta);
+							rotY = ratan2(camDriverXDelta, camDriverZDelta);
 							gGT->pushBuffer[botDriver->driverID].rot.y = rotY;
 
-							int rotX = SquareRoot0_stub(
+							rotX = SquareRoot0_stub(
 							    CTR_MipsAddLo(CTR_MipsMulLo(camDriverXDelta, camDriverXDelta), CTR_MipsMulLo(camDriverZDelta, camDriverZDelta)));
 							rotX = ratan2(CTR_MipsSubLo(camY, driverY), rotX);
 
@@ -2342,7 +3035,7 @@ UpdateTireColorTimer:
 						}
 
 						botDriver->botData.aiPhysics.speedLinear = 0;
-						int iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
+						iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
 						botDriver->botData.aiPhysics.rotXZ = iVar4;
 						newKartState = 5;
 						if (iVar4 < 1)
@@ -2393,11 +3086,15 @@ UpdateTireColorTimer:
 	}
 
 	// MUST be unsigned, same reason as the other -0x31
-	u8 cmp1 = navFrameCurr->rot[3] - 0x31;
-	u8 cmp2 = navFrameNext->rot[3] - 0x31;
+	cmp1 = navFrameCurr->rot[3] - 0x31;
+	cmp2 = navFrameNext->rot[3] - 0x31;
 
 	if ((0x9e < cmp1) && (0x9e < cmp2))
 	{
+		int other_uVar8;
+		b32 bVar1;
+		s16 sVar7;
+		b32 other_bVar1;
 		if (((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0) && ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
 		{
 			// Lerp nav-frame rotation through the shortest signed 12-bit delta.
@@ -2418,7 +3115,7 @@ UpdateTireColorTimer:
 			botDriver->botData.aiRot.z = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[2], 4), CTR_MipsSra(CTR_MipsMulLo(uVar8, percentage), 0xc)) & 0xfff;
 		}
 
-		int other_uVar8 = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), CTR_MipsSll(navFrameCurr->rot[1], 4)) & 0xfff;
+		other_uVar8 = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), CTR_MipsSll(navFrameCurr->rot[1], 4)) & 0xfff;
 		if (0x7ff < other_uVar8)
 		{
 			other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
@@ -2433,7 +3130,7 @@ UpdateTireColorTimer:
 
 		other_uVar8 = CTR_MipsSubLo(CTR_MipsSll(other_uVar8, 1), botDriver->turnAngleCurr) & 0xfff;
 
-		b32 bVar1 = other_uVar8 < 0x21;
+		bVar1 = other_uVar8 < 0x21;
 		if (0x7ff < other_uVar8)
 		{
 			other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
@@ -2453,7 +3150,7 @@ UpdateTireColorTimer:
 		other_uVar8 = (s16)CTR_MipsAddLo((u16)botDriver->turnAngleCurr, other_uVar8);
 		botDriver->turnAngleCurr = other_uVar8;
 
-		s16 sVar7;
+
 		if (botDriver->botData.aiPhysics.driftTarget == 0)
 		{
 			other_uVar8 &= 0xfff;
@@ -2480,7 +3177,7 @@ UpdateTireColorTimer:
 		botDriver->botData.aiPhysics.simpTurnState = sVar7;
 
 		other_uVar8 = CTR_MipsSubLo(botDriver->botData.aiPhysics.simpTurnState, botDriver->wheelRotation) & 0xfff;
-		b32 other_bVar1 = other_uVar8 < 0x21;
+		other_bVar1 = other_uVar8 < 0x21;
 
 		if (0x7ff < other_uVar8)
 		{
@@ -2508,7 +3205,7 @@ UpdateTireColorTimer:
 	botDriver->rotCurr.y = botDriver->botData.aiRot.y;
 	botDriver->rotCurr.z = botDriver->botData.aiRot.z;
 
-	int badnessRecieveTimer = botDriver->clockReceive; // iVar4
+	badnessRecieveTimer = botDriver->clockReceive; // iVar4
 
 	if (badnessRecieveTimer == 0)
 	{
@@ -2525,15 +3222,16 @@ UpdateTireColorTimer:
 	}
 	else
 	{
+		int wiggleX;
+		int wiggleZ;
+		SVECTOR wiggle;
 	badEffectKartWiggle:;
-		int wiggleX = CTR_MipsSra(CTR_MipsMulLo(MATH_Sin(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
-		int wiggleZ = CTR_MipsSra(CTR_MipsMulLo(MATH_Cos(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
-		SVECTOR wiggle = {
-		    .vx = (s16)wiggleX,
-		    .vy = 0,
-		    .vz = (s16)wiggleZ,
-		    .pad = 0,
-		};
+		wiggleX = CTR_MipsSra(CTR_MipsMulLo(MATH_Sin(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
+		wiggleZ = CTR_MipsSra(CTR_MipsMulLo(MATH_Cos(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
+		wiggle.vx = (s16)wiggleX;
+		wiggle.vy = 0;
+		wiggle.vz = (s16)wiggleZ;
+		wiggle.pad = 0;
 
 		CTR_GteLoadSV0(&wiggle);
 		gte_mvmva(1, 0, 0, 3, 0);
@@ -2547,11 +3245,12 @@ UpdateTireColorTimer:
 
 	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) == 0)
 	{
+		MATRIX m;
 		SVec3 rot;
 		rot.x = (s16)CTR_MipsSll(navFrameCurr->rot[0], 4);
 		rot.y = (s16)CTR_MipsSll(navFrameCurr->rot[1], 4);
 		rot.z = (s16)CTR_MipsSll(navFrameCurr->rot[2], 4);
-		MATRIX m;
+
 
 		ConvertRotToMatrix(&m, &rot);
 
@@ -2577,7 +3276,7 @@ UpdateTireColorTimer:
 	botDriver->jumpHeightPrev = botDriver->jumpHeightCurr;
 	botDriver->axisRotationX = botDriver->botData.aiRot.y & 0xfff;
 
-	int iVar4_lifetime_2 = MATH_Cos(navFrameCurr->rot[3]);
+	iVar4_lifetime_2 = MATH_Cos(navFrameCurr->rot[3]);
 
 	botDriver->jumpHeightCurr = (s16)CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, iVar4_lifetime_2), 0xc);
 
@@ -2587,7 +3286,7 @@ UpdateTireColorTimer:
 
 	iVar4_lifetime_2 = MATH_Sin(botDriver->axisRotationX);
 
-	int uVar11 = botDriver->rotCurr.z & 0xfff;
+	uVar11 = botDriver->rotCurr.z & 0xfff;
 
 	botDriver->ySpeed = botDriver->botData.aiPhysics.speedY;
 	botDriver->rotCurr.z = uVar11;
@@ -2615,12 +3314,13 @@ UpdateTireColorTimer:
 		badnessRecieveTimer = botDriver->squishTimer;
 		if (badnessRecieveTimer == 0)
 		{
+			u16 uVar11;
 			if (0x100 < botDriver->speedApprox)
 			{
 				botDriver->hazardTimer = (s16)CTR_MipsSubLo((u16)botDriver->hazardTimer, elapsedMilliseconds);
 			}
 
-			u16 uVar11 = (u16)botDriver->hazardTimer & 0xfffe;
+			uVar11 = (u16)botDriver->hazardTimer & 0xfffe;
 			botDriver->hazardTimer = (s16)uVar11;
 
 			if ((s16)uVar11 >= 0)
@@ -2726,7 +3426,7 @@ FinishHazardTimerUpdate:
 		EngineSound_Player(botDriver);
 	}
 
-	s16 camRot = CTR_MipsSubLo(botDriver->angle, botDriver->botData.ai_rotY_608) & 0xfff;
+	camRot = CTR_MipsSubLo(botDriver->angle, botDriver->botData.ai_rotY_608) & 0xfff;
 
 	botDriver->rotCurr.w = (s16)CTR_MipsNegLo(camRot);
 
@@ -2740,19 +3440,17 @@ FinishHazardTimerUpdate:
 
 	if (botThread->modelIndex == DYNAMIC_PLAYER)
 	{
+		SVec3 probeTop;
+		SVec3 probeBottom;
 		s16 probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
 		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
 		s16 probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
-		SVec3 probeTop = {
-		    .x = probeX,
-		    .y = (s16)CTR_MipsSubLo(probeY, 0x100),
-		    .z = probeZ,
-		};
-		SVec3 probeBottom = {
-		    .x = probeX,
-		    .y = (s16)CTR_MipsAddLo(probeY, 0x40),
-		    .z = probeZ,
-		};
+		probeTop.x = probeX;
+		probeTop.y = (s16)CTR_MipsSubLo(probeY, 0x100);
+		probeTop.z = probeZ;
+		probeBottom.x = probeX;
+		probeBottom.y = (s16)CTR_MipsAddLo(probeY, 0x40);
+		probeBottom.z = probeZ;
 
 		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
@@ -2781,28 +3479,36 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 
 	switch (damageType)
 	{
-	case 0:
-		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
-		{
-			return 0;
-		}
-		break;
 	case 1:
 	case 4:
+	{
+		s16 *characters;
+		u32 victimID;
+		u32 characterPage;
+		s32 spinState;
 		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
 		{
-			driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_SPIN;
+			// Keep the canonical character array address whole during the first lookup.
+			CTR_PSX_LOAD_IMMEDIATE(spinState, BOTS_DAMAGE_STATE_SPIN);
+			CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(characterPage, "data+25828", spinState);
+			CTR_PSX_STORE_HALF(driverVictim->botData.aiDamageState, spinState);
+			CTR_PSX_BIND_VALUE_CLOBBER(characterPage, "$2");
+			victimID = driverVictim->driverID;
+			CTR_PSX_DEPEND_VALUE(characterPage, victimID);
+			CTR_PSX_ADD_SYMBOL_LOW(characters, characterPage, "data+25828", data.characterIDs);
+			CTR_PSX_FORGET_VALUE(characters);
 			driverVictim->botData.aiPhysics.turboMeter = 0;
+			CTR_PSX_DEPEND_MEMORY(&driverVictim->botData.aiPhysics.turboMeter, characters);
+			CTR_PSX_FORGET_VALUE(victimID);
 
-			if ((data.characterIDs[driverVictim->driverID] != NITROS_OXIDE) || ((driverVictim->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
+			if ((characters[victimID] != NITROS_OXIDE) || ((driverVictim->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
 			{
+				int newSpeed;
 				driverVictim->reserves = 0;
 				driverVictim->turbo_outsideTimer = 0;
 				driverVictim->botData.aiPhysics.reserved_0x5cc = 0;
 
-				int newSpeed;
-
-				if (data.characterIDs[driverVictim->driverID] == NITROS_OXIDE)
+				if (characters[driverVictim->driverID] == NITROS_OXIDE)
 				{
 					newSpeed = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 1);
 				}
@@ -2830,16 +3536,27 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 			driverVictim->burnTimer = 0xf00;
 		}
 		break;
+	}
 	case 2:
+	{
+		s32 speedY;
+		u32 damageFlags;
 		driverVictim->botData.blastBounceCount = 0;
+		CTR_PSX_MEMORY_BARRIER();
+		speedY = sdata->AI_VelY_WhenBlasted_0x3000;
+		CTR_PSX_LOAD_WORD_AFTER(damageFlags, driverVictim->botData.botFlags, speedY);
+		CTR_PSX_OBSERVE_VALUE(speedY);
+		CTR_PSX_BIND_VALUE_CLOBBER(damageFlags, "$2");
 		driverVictim->botData.aiPhysics.turboMeter = 0;
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_BLAST;
 		driverVictim->reserves = 0;
 		driverVictim->turbo_outsideTimer = 0;
 		driverVictim->botData.aiPhysics.reserved_0x5cc = 0;
-		driverVictim->botData.aiPhysics.speedY = sdata->AI_VelY_WhenBlasted_0x3000;
+		CTR_PSX_MEMORY_BARRIER();
+		CTR_PSX_FORGET_VALUE(damageFlags);
+		driverVictim->botData.aiPhysics.speedY = speedY;
 
-		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
+		if ((damageFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
 		{
 			driverVictim->botData.aiPhysics.speedLinear = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 3);
 			driverVictim->botData.positionBackup.y = CTR_MipsAddLo(driverVictim->botData.positionBackup.y, 0x4000);
@@ -2851,15 +3568,35 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 
 		if (driverAttacker == NULL)
 		{
-			return 1;
+			goto ChangeStateSuccess;
 		}
 
 		if ((driverAttacker->actionsFlagSet & ACTION_BOT) == 0)
 		{
-			Voiceline_RequestPlay(1, data.characterIDs[driverVictim->driverID], 0x10);
+			int voiceKind = 1;
+			u32 characterPage = 0x80080000;
+			u32 victimID;
+			s16 *characters;
+			s16 *characterEntry;
+			u32 victimOffset;
+			CTR_PSX_OBSERVE_VALUE(voiceKind);
+			CTR_PSX_FORGET_VALUE(voiceKind);
+			CTR_PSX_BIND_VALUE_CLOBBER(characterPage, "$2");
+			victimID = driverVictim->driverID;
+			CTR_PSX_DEPEND_VALUE(characterPage, victimID);
+			CTR_PSX_ADD_PAGE_OFFSET(characters, characterPage, 0x6e84, data.characterIDs);
+			CTR_PSX_FORGET_VALUE(characters);
+			victimOffset = (u32)CTR_MipsSll(victimID, voiceKind);
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(characterEntry, characters, victimOffset);
+			Voiceline_RequestPlay(voiceKind, *characterEntry, 0x10);
 		}
 		break;
+	}
 	case 3:
+	{
+		// This role receives the complete speedLinear word before the shift.
+		register s32 speed CTR_PSX_REGISTER("$2");
+		u32 damageFlags;
 		driverVictim->botData.aiPhysics.turboMeter = 0;
 
 		if (driverVictim->instSelf->thread->modelIndex == DYNAMIC_PLAYER && driverVictim->botData.aiPhysics.squishCooldown == 0)
@@ -2869,27 +3606,49 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_SQUISH;
 		driverVictim->botData.aiPhysics.squishCooldown = 0x300;
+		CTR_PSX_MEMORY_BARRIER();
+		CTR_PSX_LOAD_WORD_VOLATILE(speed, driverVictim->botData.aiPhysics.speedLinear);
 		driverVictim->botData.aiPhysics.rotXZ = 0xf00;
 		driverVictim->squishTimer = 0xf00;
+		CTR_PSX_MEMORY_BARRIER();
+		CTR_PSX_LOAD_WORD_VOLATILE(damageFlags, driverVictim->botData.botFlags);
 		driverVictim->reserves = 0;
 		driverVictim->turbo_outsideTimer = 0;
 		driverVictim->botData.aiPhysics.reserved_0x5cc = 0;
 		driverVictim->botData.aiPhysics.speedY = 0;
 		driverVictim->botData.ai_progress_cooldown = 0;
-		driverVictim->botData.aiPhysics.speedLinear = CTR_MipsSra(driverVictim->botData.aiPhysics.speedLinear, 1);
-		driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
+		CTR_PSX_MEMORY_BARRIER();
+		CTR_PSX_FORGET_VALUE(speed);
+		CTR_PSX_FORGET_VALUE(damageFlags);
+		CTR_PSX_SHIFT_RIGHT_ARITHMETIC_IN_PLACE(speed, 1);
+		CTR_PSX_DEPEND_VALUE(damageFlags, speed);
+		damageFlags |= BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
+		driverVictim->botData.aiPhysics.speedLinear = speed;
+		driverVictim->botData.botFlags = damageFlags;
 		break;
+	}
 	case 5:
+	{
+		u32 damageFlags;
 		driverVictim->botData.aiPhysics.turboMeter = 0;
 		driverVictim->botData.aiPhysics.speedLinear = 0;
 		driverVictim->botData.aiPhysics.speedY = 0;
 		driverVictim->botData.aiPhysics.reserved_0x5cc = 0;
 		driverVictim->instSelf->flags |= HIDE_MODEL;
 		driverVictim->botData.aiPhysics.rotXZ = 0xd20;
+		CTR_PSX_LOAD_WORD_VOLATILE(damageFlags, driverVictim->botData.botFlags);
+		CTR_PSX_BIND_VALUE_CLOBBER(damageFlags, "$3");
 		driverVictim->botData.aiDamageState = BOTS_DAMAGE_STATE_MASK_GRAB;
 		driverVictim->kartState = KS_MASK_GRABBED;
-		driverVictim->botData.botFlags |= BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
+		driverVictim->botData.botFlags = damageFlags | BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER;
 		driverVictim->instSelf->thread->flags |= THREAD_FLAG_DISABLE_COLLISION;
+		break;
+	}
+	case 0:
+		if ((driverVictim->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
+		{
+			return 0;
+		}
 		break;
 	default:
 		driverVictim->botData.ai_progress_cooldown = 0x3c;
@@ -2911,68 +3670,63 @@ u32 BOTS_ChangeState(struct Driver *driverVictim, int damageType, struct Driver 
 			break;
 		}
 	}
+ChangeStateSuccess:
 	return 1;
 }
 
 void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2)
 {
+	register SVec3 *navSegmentStartPos CTR_PSX_REGISTER("$19");
+	register SVec3 *navSegmentEndPos CTR_PSX_REGISTER("$16");
+	SVec3 pos;
+	int res1;
+	int res2;
 	// first determine which driver bumps forward and which bumps backwards
 	if (robot_1->driverRank < robot_2->driverRank)
 	{
-		struct Driver *temp = robot_2;
-		robot_2 = robot_1;
-		robot_1 = temp;
+		struct Driver *temp = robot_1;
+		robot_1 = robot_2;
+		robot_2 = temp;
 	}
-	// robot_1 = iVar2
-	// robot_2 = param_2
 
-	SVec3 *navSegmentStartPos;
-	SVec3 *navSegmentEndPos;
-	if ((robot_1->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
-	{
-		// nav path index
-		s16 botPathIndex = robot_1->botData.botPath;
-
-		// pointer to navFrame
-		struct NavFrame *navFrameCurr = robot_1->botData.botNavFrame;
-		struct NavFrame *navFrameNext = navFrameCurr + 1;
-
-		// iVar4
-		navSegmentStartPos = &navFrameCurr->pos;
-
-		// if you go out of bounds
-		if (sdata->NavPath_ptrHeader[botPathIndex]->last <= navFrameNext)
-		{
-			// loop back to first navFrame
-			navFrameNext = sdata->NavPath_ptrNavFrameArray[botPathIndex];
-		}
-		navSegmentEndPos = &navFrameNext->pos;
-	}
-	else
+	if ((robot_1->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) != 0)
 	{
 		// pointer to nav frame
 		struct NavFrame *navFrameNext = robot_1->botData.botNavFrame;
 
-		// iVar4
 		navSegmentStartPos = &robot_1->botData.estimateNavFrame.pos;
 		navSegmentEndPos = &navFrameNext->pos;
 	}
+	else
+	{
+		// nav path index
+		s16 botPathIndex = robot_1->botData.botPath;
 
-	SVec3 pos = {
-	    .x = (s16)CTR_MipsSra(robot_1->posCurr.x, FRACTIONAL_BITS_8),
-	    .y = (s16)CTR_MipsSra(robot_1->posCurr.y, FRACTIONAL_BITS_8),
-	    .z = (s16)CTR_MipsSra(robot_1->posCurr.z, FRACTIONAL_BITS_8),
-	};
+		// NavFrame.pos is the first member, so these roles also hold its position pointer.
+		register struct NavFrame *navFrameCurr CTR_PSX_REGISTER("$19") = robot_1->botData.botNavFrame;
+		register struct NavFrame *navFrameNext CTR_PSX_REGISTER("$16") = navFrameCurr + 1;
 
-	int res1 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
+		navSegmentStartPos = &navFrameCurr->pos;
 
-	pos = (SVec3){
-	    .x = (s16)CTR_MipsSra(robot_2->posCurr.x, FRACTIONAL_BITS_8),
-	    .y = (s16)CTR_MipsSra(robot_2->posCurr.y, FRACTIONAL_BITS_8),
-	    .z = (s16)CTR_MipsSra(robot_2->posCurr.z, FRACTIONAL_BITS_8),
-	};
+		// if you go out of bounds
+		if (BOT_NAV_HEADERS[botPathIndex]->last <= navFrameNext)
+		{
+			// loop back to first navFrame
+			navFrameNext = BOT_NAV_FRAMES[botPathIndex];
+		}
+		navSegmentEndPos = &navFrameNext->pos;
+	}
+	pos.x = (s16)CTR_MipsSra(robot_1->posCurr.x, FRACTIONAL_BITS_8);
+	pos.y = (s16)CTR_MipsSra(robot_1->posCurr.y, FRACTIONAL_BITS_8);
+	pos.z = (s16)CTR_MipsSra(robot_1->posCurr.z, FRACTIONAL_BITS_8);
 
-	int res2 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
+	res1 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
+
+	pos.x = (s16)CTR_MipsSra(robot_2->posCurr.x, FRACTIONAL_BITS_8);
+	pos.y = (s16)CTR_MipsSra(robot_2->posCurr.y, FRACTIONAL_BITS_8);
+	pos.z = (s16)CTR_MipsSra(robot_2->posCurr.z, FRACTIONAL_BITS_8);
+
+	res2 = CAM_MapRange_PosPoints(navSegmentEndPos, navSegmentStartPos, &pos);
 
 	// reduce speed of one AI,
 	// the AI that is closer to the previous nav point,
@@ -2981,51 +3735,67 @@ void BOTS_CollideWithOtherAI(struct Driver *robot_1, struct Driver *robot_2)
 	if (res1 < res2)
 	{
 		int speed = CTR_MipsSubLo(robot_2->botData.aiPhysics.speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
-		speed = ((speed < 0) ? 0 : speed); // clamp to 0
-
 		robot_1->botData.aiPhysics.speedLinear = speed;
+		if (speed < 0)
+		{
+			robot_1->botData.aiPhysics.speedLinear = 0;
+		}
 	}
 	else
 	{
 		int speed = CTR_MipsSubLo(robot_1->botData.aiPhysics.speedLinear, BOTS_AI_COLLISION_SPEED_PENALTY);
-		speed = ((speed < 0) ? 0 : speed); // clamp to 0
-
 		robot_2->botData.aiPhysics.speedLinear = speed;
+		if (speed < 0)
+		{
+			robot_2->botData.aiPhysics.speedLinear = 0;
+		}
 	}
 }
 
 void BOTS_GotoStartingLine(struct Driver *d)
 {
+	register s32 teleportKind CTR_PSX_REGISTER("$5") = VEH_BIRTH_SPAWN_RACE_START;
+	register struct Driver *rotationDriver CTR_PSX_REGISTER("$4");
+	struct NavFrame *navFrame;
+	u32 spawnPos;
+	s32 accelDuration;
+	u32 accel;
+	s16 rotY;
+	int rng;
+	s32 posX;
+	s32 posY;
+	register s32 posZ CTR_PSX_REGISTER("$5");
+	CTR_PSX_OBSERVE_VALUE(teleportKind);
 	sdata->aiCollisionDelayFrameCount = 0;
-
-	VehBirth_TeleportSelf(d, VEH_BIRTH_SPAWN_RACE_START, 0);
-
-	// get position where driver should spawn
-	u8 spawnPos = sdata->kartSpawnOrderArray[d->driverID];
-
-	d->botData.aiPhysics.reserved_0x5cc = 0;
-	d->botData.aiPhysics.speedY = 0;
+	CTR_PSX_OBSERVE_MEMORY(sdata->aiCollisionDelayFrameCount);
+	VehBirth_TeleportSelf(d, teleportKind, 0);
+	spawnPos = (u8)BOTS_KART_ORDER[d->driverID];
+	posZ = d->posCurr.z;
+	posX = d->posCurr.x;
+	posY = d->posCurr.y;
+	CTR_PSX_CLOBBER("$4");
+	rotationDriver = d;
+	CTR_PSX_OBSERVE_VALUE(rotationDriver);
+	d->botData.positionBackup.z = posZ;
+	CTR_PSX_MEMORY_BARRIER();
+	d->botData.aiPhysics.velocity.z = 0;
+	d->botData.aiPhysics.velocity.y = 0;
+	d->botData.aiPhysics.velocity.x = 0;
+	d->botData.aiPhysics.accel.z = 0;
+	d->botData.aiPhysics.accel.y = 0;
+	d->botData.aiPhysics.accel.x = 0;
 	d->botData.aiPhysics.speedLinear = 0;
-	CTR_SET_VEC3(CTR_VECTOR_DATA(&(d->botData.aiPhysics.accel)), 0, 0, 0);
-	CTR_SET_VEC3(CTR_VECTOR_DATA(&(d->botData.aiPhysics.velocity)), 0, 0, 0);
-
-	d->botData.positionBackup.x = d->posCurr.x;
-	d->botData.positionBackup.y = d->posCurr.y;
-	d->botData.positionBackup.z = d->posCurr.z;
-
+	d->botData.aiPhysics.speedY = 0;
+	d->botData.aiPhysics.reserved_0x5cc = 0;
+	d->botData.positionBackup.x = posX;
+	d->botData.positionBackup.y = posY;
+	navFrame = BOT_NAV_FRAMES[d->botData.botPath];
+	CTR_PSX_DEPEND_MEMORY(&d->botData.navProgressRemainder, navFrame);
 	d->botData.navProgressRemainder = 0;
-
-	// current navFrame pointer, first navFrame on path
-	d->botData.botNavFrame = sdata->NavPath_ptrNavFrameArray[d->botData.botPath];
-
-	BOTS_SetRotation(d, 1);
-
-	// time until full acceleration from start
-	int accelDuration = sdata->AI_AccelFrameCount;
-
-	// get acceleration order from spawn order
-	u8 accel = sdata->accelerateOrder[spawnPos];
-
+	d->botData.botNavFrame = navFrame;
+	BOTS_SetRotation(rotationDriver, 1);
+	accel = BOTS_ACCEL_ORDER[spawnPos];
+	accelDuration = sdata->AI_AccelFrameCount;
 	d->rotCurr.z = 0;
 	d->rotPrev.z = 0;
 	d->botData.aiRot.z = 0;
@@ -3033,177 +3803,267 @@ void BOTS_GotoStartingLine(struct Driver *d)
 	d->rotPrev.x = 0;
 	d->botData.aiRot.x = 0;
 	d->turnAngleCurr = 0;
-
-	// turn on 21st flag of actions flag set, means driver is AI
 	d->actionsFlagSet |= ACTION_BOT;
-
-	// calculate Y rotation
-	s16 rotY = (s16)CTR_MipsSll((u8)d->botData.estimateNavFrame.rot[1], BOTS_ROT_BYTE_SHIFT);
-
-	// every possible Y rotation
+	rotY = (s16)CTR_MipsSll((u8)d->botData.estimateNavFrame.rot[1], BOTS_ROT_BYTE_SHIFT);
 	d->botData.ai_rotY_608 = rotY;
 	d->angle = rotY;
 	d->rotCurr.y = rotY;
 	d->rotPrev.y = rotY;
 	d->botData.aiRot.y = rotY;
-
-	// acceleration from start-line to full speed
 	d->botData.botAccel = CTR_MipsMulLo(accelDuration, accel);
-
-	// cooldown before next weapon
-	int rng = RngDeadCoed(&sdata->advRng);
+	rng = RngDeadCoed(&BOTS_ADV_RNG);
 	d->botData.weaponCooldown = (s16)CTR_MipsAddLo(CTR_MipsSra(rng, 8) & 0xff, 300);
 }
 
 struct Driver *BOTS_Driver_Init(int driverID)
 {
-	s8 initialNavPathIndex = sdata->driver_pathIndexIDs[driverID];
-	s8 navPathIndex = initialNavPathIndex;
+	register struct Thread *t CTR_PSX_REGISTER("$16");
+	register struct Driver *d CTR_PSX_REGISTER("$18");
+	register s32 navPathIndex CTR_PSX_REGISTER("$17");
+	register s16 initialNavPathIndex CTR_PSX_REGISTER("$6");
+	register int pathFound CTR_PSX_REGISTER("$5");
+	register int points CTR_PSX_REGISTER("$2");
+	register u32 rawPath CTR_PSX_REGISTER("$2");
+	register char *pathSlot CTR_PSX_REGISTER("$2");
+	register struct NavHeader *header CTR_PSX_REGISTER("$2");
+	register struct NavHeader **headerSlot CTR_PSX_REGISTER("$2");
+	register struct NavHeader **headers CTR_PSX_REGISTER("$3");
+
+	register int id CTR_PSX_REGISTER("$19") = driverID;
+	CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(pathSlot, "sdata_static+12", id);
+	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(pathSlot, "sdata_static+12", BOTS_DRIVER_PATHS);
+	CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(pathSlot, pathSlot, id);
+	CTR_PSX_ZERO_VALUE_AFTER(d, id, pathSlot);
+	CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(headers, "sdata_static+2944", d);
+	CTR_PSX_LOAD_UNSIGNED_BYTE(rawPath, pathSlot, 0, (u8)*pathSlot);
+	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(headers, "sdata_static+2944", BOT_NAV_HEADERS);
+	CTR_PSX_OBSERVE_VALUE(rawPath);
+	navPathIndex = (s8)rawPath;
+	CTR_PSX_KEEP_VALUE(navPathIndex);
+	{
+		register s32 headerOffset CTR_PSX_REGISTER("$2") = CTR_MipsSll((s16)navPathIndex, 2);
+		CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(headerSlot, headers, headerOffset);
+	}
+	CTR_PSX_LOAD_WORD_FROM_PAGE(header, headerSlot, "0", BOT_NAV_HEADERS[(s16)navPathIndex]);
+	CTR_PSX_DEPEND_VALUE(d, header);
+	CTR_PSX_COPY_VALUE(pathFound, (u32)d);
+	CTR_PSX_LOAD_SIGNED_HALF(points, header, 2, header->numPoints);
+	initialNavPathIndex = navPathIndex;
+	goto CheckInitNavCount;
 	while (1)
 	{
-		s16 navPathPointsCount = sdata->NavPath_ptrHeader[navPathIndex]->numPoints;
-		if (1 < navPathPointsCount)
 		{
-			break; // success
+			register int next CTR_PSX_REGISTER("$2") = navPathIndex - 1;
+			CTR_PSX_COPY_VALUE(navPathIndex, next);
+			if ((s16)next < 0)
+				navPathIndex = 2;
 		}
-
-		navPathIndex--;
-
-		// If subtracted below zero,
-		// go back to highest index (2)
-		if (navPathIndex < 0)
+		if ((s16)navPathIndex == initialNavPathIndex)
+			break;
+		CTR_PSX_LOAD_WORD(header, BOT_NAV_HEADERS[(s16)navPathIndex]);
+		CTR_PSX_LOAD_SIGNED_HALF(points, header, 2, header->numPoints);
+	CheckInitNavCount:
+		if (1 < points)
 		{
-			navPathIndex = 2;
-		}
-
-		// If all 3 are checked, quit
-		if (navPathIndex == initialNavPathIndex)
-		{
-			return NULL;
+			pathFound = 1;
+			break;
 		}
 	}
-
-	// path data found
-	struct Thread *t = PROC_BirthWithObject(
-	    // creation flags
-	    SIZE_RELATIVE_POOL_BUCKET(DRIVER_NTSC_RETAIL_SIZE, NONE, LARGE, ROBOT),
-
-	    BOTS_ThTick_Drive, // behavior
-	    0,                 //"robotcar",	// debug name
-	    0                  // thread relative
-	);
-
-	struct Driver *d = t->object;
-	memset(d, 0x0, DRIVER_NTSC_RETAIL_SIZE);
-	VehBirth_NonGhost(t, driverID);
-	sdata->gGT->drivers[driverID] = d;
-	t->modelIndex = DYNAMIC_ROBOT_CAR;
-
-	d->botData.botPath = navPathIndex;
-	d->botData.botNavFrame = sdata->NavPath_ptrNavFrameArray[navPathIndex];
-	d->actionsFlagSet |= ACTION_BOT;
-	LIST_AddFront(&sdata->navBotList[navPathIndex], &d->botData.item);
-
-	sdata->gGT->numBotsNextGame++;
-	BOTS_GotoStartingLine(d);
+	CTR_PSX_COPY_VALUE(points, pathFound);
+	if (points)
+	{
+		t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(DRIVER_NTSC_RETAIL_SIZE, NONE, LARGE, ROBOT), BOTS_ThTick_Drive, BOTS_ROBOT_DEBUG_NAME, 0);
+		d = t->object;
+		memset(d, 0, DRIVER_NTSC_RETAIL_SIZE);
+		VehBirth_NonGhost(t, id);
+		{
+			register struct LinkedList *list CTR_PSX_REGISTER("$4") = &BOTS_NAV_LIST[(s16)navPathIndex];
+			register int driverOffset CTR_PSX_REGISTER("$6");
+			register int frameOffset CTR_PSX_REGISTER("$5");
+			register struct GameTracker *tracker CTR_PSX_REGISTER("$2");
+			register struct Driver *object CTR_PSX_REGISTER("$3");
+			CTR_PSX_OBSERVE_VALUE(list);
+			driverOffset = CTR_MipsSll(id, 2);
+			CTR_PSX_OBSERVE_VALUE(driverOffset);
+			frameOffset = CTR_MipsSll((s16)navPathIndex, 2);
+			CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(tracker, "sdata_static+832", frameOffset);
+			CTR_PSX_LOAD_WORD_FROM_PAGE(tracker, tracker, "sdata_static+832", GAME_TRACKER);
+			object = t->object;
+			CTR_PSX_DEPEND_VALUE(tracker, object);
+			tracker->drivers[id] = object;
+			t->modelIndex = DYNAMIC_ROBOT_CAR;
+			d->botData.botPath = (s16)navPathIndex;
+			d->actionsFlagSet |= ACTION_BOT;
+			d->botData.botNavFrame = *(struct NavFrame **)((u8 *)BOT_NAV_FRAMES + frameOffset);
+			LIST_AddFront(list, &d->botData.item);
+		}
+		GAME_TRACKER->numBotsNextGame++;
+		BOTS_GotoStartingLine(d);
+	}
 	return d;
 }
 
-void BOTS_Driver_Convert(struct Driver *d)
+void BOTS_Driver_Convert(struct Driver *driver)
 {
-	// if already AI, quit
-	if ((d->actionsFlagSet & ACTION_BOT) != 0)
-	{
+	register struct Driver *original CTR_PSX_REGISTER("$18") = driver;
+	register struct Driver *d CTR_PSX_REGISTER("$17");
+	register s32 navPathIndex CTR_PSX_REGISTER("$16");
+	register s16 initialNavPathIndex CTR_PSX_REGISTER("$6");
+	register int pathFound CTR_PSX_REGISTER("$5");
+	register int points CTR_PSX_REGISTER("$2");
+	register u32 rawPath CTR_PSX_REGISTER("$2");
+	register char *pathSlot CTR_PSX_REGISTER("$2");
+	register char *paths CTR_PSX_REGISTER("$3");
+	register struct NavHeader *header CTR_PSX_REGISTER("$2");
+	register struct NavHeader **headerSlot CTR_PSX_REGISTER("$2");
+	register struct NavHeader **headers CTR_PSX_REGISTER("$3");
+	register s32 speedApprox CTR_PSX_REGISTER("$2");
+	register struct NavFrame *firstNavFrame CTR_PSX_REGISTER("$2");
+	register u32 oldActionFlagsSet CTR_PSX_REGISTER("$2");
+	int damageType;
+	if ((original->actionsFlagSet & ACTION_BOT) != 0)
 		return;
-	}
-
+	d = original;
+	CTR_PSX_KEEP_VALUE_RELAXED(d);
+	CTR_PSX_CLOBBER("$4");
 	UI_RaceEnd_GetDriverClock(d);
-
-	s8 initialNavPathIndex = sdata->driver_pathIndexIDs[d->driverID];
-	s8 navPathIndex = initialNavPathIndex;
+	rawPath = d->driverID;
+	CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(paths, "sdata_static+12", rawPath);
+	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(paths, "sdata_static+12", BOTS_DRIVER_PATHS);
+	CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(pathSlot, paths, rawPath);
+	CTR_PSX_LOAD_SYMBOL_PAGE(headers, "sdata_static+2944");
+	CTR_PSX_LOAD_UNSIGNED_BYTE(rawPath, pathSlot, 0, (u8)*pathSlot);
+	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(headers, "sdata_static+2944", BOT_NAV_HEADERS);
+	CTR_PSX_OBSERVE_VALUE(rawPath);
+	navPathIndex = (s8)rawPath;
+	CTR_PSX_KEEP_VALUE(navPathIndex);
+	{
+		register s32 headerOffset CTR_PSX_REGISTER("$2") = CTR_MipsSll((s16)navPathIndex, 2);
+		CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(headerSlot, headers, headerOffset);
+	}
+	CTR_PSX_LOAD_WORD_FROM_PAGE(header, headerSlot, "0", BOT_NAV_HEADERS[(s16)navPathIndex]);
+	CTR_PSX_ZERO_VALUE_AFTER(pathFound, header, navPathIndex);
+	CTR_PSX_LOAD_SIGNED_HALF(points, header, 2, header->numPoints);
+	initialNavPathIndex = navPathIndex;
+	goto CheckConvertNavCount;
 	while (1)
 	{
-		s16 navPathPointsCount = sdata->NavPath_ptrHeader[navPathIndex]->numPoints;
-		if (1 < navPathPointsCount)
 		{
-			break; // success
+			register int next CTR_PSX_REGISTER("$2") = navPathIndex - 1;
+			CTR_PSX_COPY_VALUE(navPathIndex, next);
+			if ((s16)next < 0)
+				navPathIndex = 2;
 		}
-
-		navPathIndex--;
-
-		// If subtracted below zero,
-		// go back to highest index (2)
-		if (navPathIndex < 0)
+		if ((s16)navPathIndex == initialNavPathIndex)
+			break;
+		CTR_PSX_LOAD_WORD(header, BOT_NAV_HEADERS[(s16)navPathIndex]);
+		CTR_PSX_LOAD_SIGNED_HALF(points, header, 2, header->numPoints);
+	CheckConvertNavCount:
+		if (1 < points)
 		{
-			navPathIndex = 2;
-		}
-
-		// If all 3 are checked, quit
-		if (navPathIndex == initialNavPathIndex)
-		{
-			return;
+			pathFound = 1;
+			break;
 		}
 	}
+	CTR_PSX_COPY_VALUE(points, pathFound);
+	if (!points)
+		return;
 
-	memset(&d->botData, 0, sizeof(struct BotData));
+	memset(&original->botData, 0, sizeof(struct BotData));
 
-	d->botData.aiPhysics.speedY = d->ySpeed;
+	{
+		register s32 signedPath CTR_PSX_REGISTER("$5");
+		register s32 pathHigh CTR_PSX_REGISTER("$3") = CTR_MipsSll(navPathIndex, 16);
+		register s32 ySpeed CTR_PSX_REGISTER("$2") = original->ySpeed;
+		register int frameOffset CTR_PSX_REGISTER("$6");
+		register struct GameTracker *tracker CTR_PSX_REGISTER("$4");
+		CTR_PSX_LOAD_SYMBOL_PAGE_AFTER(tracker, "sdata_static+832", ySpeed);
+		CTR_PSX_LOAD_WORD_FROM_PAGE(tracker, tracker, "sdata_static+832", GAME_TRACKER);
+		CTR_PSX_SHIFT_RIGHT_ARITHMETIC(signedPath, pathHigh, 16);
+		d->botData.aiPhysics.speedY = ySpeed;
+		speedApprox = original->speedApprox;
+		CTR_PSX_DEPEND_VALUE(signedPath, speedApprox);
+		frameOffset = CTR_MipsSll(signedPath, 2);
+		CTR_PSX_STORE_HALF(d->botData.botPath, navPathIndex);
+		if (speedApprox < 0)
+			CTR_PSX_NEGATE_IN_PLACE(speedApprox);
+		d->botData.aiPhysics.speedLinear = speedApprox;
+		{
+			register struct NavFrame **frameSlot CTR_PSX_REGISTER("$2") = BOT_NAV_FRAMES;
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(frameSlot, frameSlot, frameOffset);
+			CTR_PSX_LOAD_WORD_FROM_PAGE(firstNavFrame, frameSlot, "0", BOT_NAV_FRAMES[(s16)navPathIndex]);
+		}
 
-	s32 speedApprox = d->speedApprox;
+		d->botData.navProgressRemainder = 0;
+		d->turnAngleCurr = 0;
+		d->multDrift = 0;
+		d->ampTurnState = 0;
+		d->wallRubTimer = 0;
 
-	d->botData.botPath = navPathIndex;
+		CTR_PSX_DEPEND_MEMORY(&d->botData.botNavFrame, firstNavFrame);
+		d->botData.botNavFrame = firstNavFrame;
 
-	speedApprox = ((speedApprox < 0) ? CTR_MipsNegLo(speedApprox) : speedApprox);
+		original->instSelf->thread->funcThTick = BOTS_ThTick_Drive;
 
-	d->botData.aiPhysics.speedLinear = speedApprox;
+		if ((tracker->gameMode1 & BATTLE_MODE) != 0)
+		{ // you are in battle mode
+			register struct NavHeader **slot CTR_PSX_REGISTER("$3") = BOT_NAV_HEADERS;
+			register struct NavHeader *h CTR_PSX_REGISTER("$2");
+			register int coordinate CTR_PSX_REGISTER("$2");
+			CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(slot, slot, frameOffset);
+			CTR_PSX_LOAD_WORD(h, *slot);
+			CTR_PSX_LOAD_SIGNED_HALF(coordinate, h, 0x4c, NAVHEADER_GETFRAME(h)->pos.x);
+			original->posCurr.x = CTR_MipsSll(coordinate, 8);
+			CTR_PSX_LOAD_WORD(h, *slot);
+			CTR_PSX_LOAD_SIGNED_HALF(coordinate, h, 0x4e, NAVHEADER_GETFRAME(h)->pos.y);
+			original->posCurr.y = CTR_MipsSll(coordinate, 8);
+			CTR_PSX_LOAD_WORD(h, *slot);
+			CTR_PSX_LOAD_SIGNED_HALF(coordinate, h, 0x50, NAVHEADER_GETFRAME(h)->pos.z);
+			original->posCurr.z = CTR_MipsSll(coordinate, 8);
+		}
 
-	struct NavFrame *firstNavFrame = sdata->NavPath_ptrNavFrameArray[navPathIndex];
-
-	d->botData.navProgressRemainder = 0;
-	d->turnAngleCurr = 0;
-	d->multDrift = 0;
-	d->ampTurnState = 0;
-	d->wallRubTimer = 0;
-
-	d->botData.botNavFrame = firstNavFrame;
-
-	d->instSelf->thread->funcThTick = BOTS_ThTick_Drive;
-
-	if ((sdata->gGT->gameMode1 & BATTLE_MODE) != 0)
-	{ // you are in battle mode
-		struct NavFrame *nf = NAVHEADER_GETFRAME(sdata->NavPath_ptrHeader[navPathIndex]);
-		d->posCurr.x = CTR_MipsSll(nf->pos.x, 8);
-		d->posCurr.y = CTR_MipsSll(nf->pos.y, 8);
-		d->posCurr.z = CTR_MipsSll(nf->pos.z, 8);
+		CTR_PSX_KEEP_VALUE(signedPath);
+		LIST_AddFront(&BOTS_NAV_LIST[signedPath], &d->botData.item);
 	}
-
-	LIST_AddFront(&sdata->navBotList[navPathIndex], &d->botData.item);
-
 	BOTS_SetRotation(d, 0);
 
-	GAMEPAD_JogCon2(d, 0, 0);
+	GAMEPAD_JogCon2(original, 0, 0);
 
-	u32 oldActionFlagsSet = d->actionsFlagSet;
+	oldActionFlagsSet = original->actionsFlagSet;
 
-	d->actionsFlagSet = (oldActionFlagsSet & ~(ACTION_JUMP_BUTTON_HELD | ACTION_ACCEL_PREVENTION)) | ACTION_BOT;
+	oldActionFlagsSet |= ACTION_BOT;
+	CTR_PSX_OBSERVE_VALUE(oldActionFlagsSet);
+	oldActionFlagsSet &= ~(ACTION_JUMP_BUTTON_HELD | ACTION_ACCEL_PREVENTION);
+	original->actionsFlagSet = oldActionFlagsSet;
 
 	if ((oldActionFlagsSet & ACTION_RACE_FINISHED) != 0)
 	{
-		CAM_EndOfRace(&sdata->gGT->cameraDC[d->driverID], d);
+		CAM_EndOfRace(&GAME_TRACKER->cameraDC[original->driverID], original);
 	}
 
-	int damageType;
-	switch (d->kartState)
+
 	{
-	default:
-		return;
-	case KS_SPINNING:
-		damageType = 1;
-		break;
-	case KS_BLASTED:
-		damageType = 2;
-		break;
+		register struct Driver *victim CTR_PSX_REGISTER("$4");
+		switch (original->kartState)
+		{
+		case 0:
+		case 1:
+		case 2:
+		case 4:
+		case 5:
+		default:
+			return;
+		case KS_SPINNING:
+			victim = d;
+			CTR_PSX_KEEP_VALUE_RELAXED(victim);
+			damageType = 1;
+			break;
+		case KS_BLASTED:
+			victim = d;
+			CTR_PSX_KEEP_VALUE_RELAXED(victim);
+			damageType = 2;
+			break;
+		}
+		BOTS_ChangeState(victim, damageType, NULL, 0);
 	}
-
-	BOTS_ChangeState(d, damageType, NULL, 0);
 }

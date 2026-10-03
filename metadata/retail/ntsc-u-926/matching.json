@@ -3375,6 +3375,92 @@
       ]
     },
     {
+      "name": "bots-init-difficulty",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "BOTS_SetGlobalNavData",
+      "end_symbol": "BOTS_UpdateGlobals",
+      "symbol_prefix": "BOTS_",
+      "source": "game/BOTS.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/namespaces/bots-init-difficulty/retail_symbols.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "bots-support",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "BOTS_UpdateGlobals",
+      "end_symbol": "BOTS_ThTick_Drive",
+      "symbol_prefix": "BOTS_",
+      "source": "game/BOTS.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/namespaces/bots-init-difficulty/retail_symbols.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "BOTS_ThTick_Drive": "0x80013c18"
+      }
+    },
+    {
+      "name": "bots-state-lifecycle",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "BOTS_ChangeState",
+      "end_symbol": "CAM_SkyboxGlow",
+      "symbol_prefix": "BOTS_",
+      "source": "game/BOTS.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/namespaces/bots-init-difficulty/retail_symbols.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80010018",
+        "rodata_size": 52
+      },
+      "function_rodata_addresses": {
+        "BOTS_ChangeState": "0x80010018",
+        "BOTS_Driver_Convert": "0x80010018"
+      },
+      "link_symbols": {
+        "BOTS_ThTick_Drive": "0x80013c18",
+        "BOTS_SetRotation": "0x80013444"
+      }
+    },
+    {
       "name": "matrix-load-rotation-gte",
       "kind": "resident",
       "artifact": "exe",
