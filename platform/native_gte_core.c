@@ -84,7 +84,7 @@ internal inline s64 gte_shift(s64 a, int sf)
 	}
 	else if (sf < 0)
 	{
-		return a << 12;
+		return a * 4096;
 	}
 
 	return a;
@@ -402,15 +402,15 @@ int GTE_operator(int op)
 			C2_MAC1 = A1((s64)(MX12(mx) * VY(v)) + (MX13(mx) * VZ(v)));
 			C2_MAC2 = A2((s64)(MX22(mx) * VY(v)) + (MX23(mx) * VZ(v)));
 			C2_MAC3 = A3((s64)(MX32(mx) * VY(v)) + (MX33(mx) * VZ(v)));
-			Lm_B1(A1(((s64)CV1(cv) << 12) + (MX11(mx) * VX(v))), 0);
-			Lm_B2(A2(((s64)CV2(cv) << 12) + (MX21(mx) * VX(v))), 0);
-			Lm_B3(A3(((s64)CV3(cv) << 12) + (MX31(mx) * VX(v))), 0);
+			Lm_B1(A1(((s64)CV1(cv) * 4096) + (MX11(mx) * VX(v))), 0);
+			Lm_B2(A2(((s64)CV2(cv) * 4096) + (MX21(mx) * VX(v))), 0);
+			Lm_B3(A3(((s64)CV3(cv) * 4096) + (MX31(mx) * VX(v))), 0);
 			break;
 
 		default:
-			C2_MAC1 = A1(/*int44*/ (s64)((s64)CV1(cv) << 12) + (MX11(mx) * VX(v)) + (MX12(mx) * VY(v)) + (MX13(mx) * VZ(v)));
-			C2_MAC2 = A2(/*int44*/ (s64)((s64)CV2(cv) << 12) + (MX21(mx) * VX(v)) + (MX22(mx) * VY(v)) + (MX23(mx) * VZ(v)));
-			C2_MAC3 = A3(/*int44*/ (s64)((s64)CV3(cv) << 12) + (MX31(mx) * VX(v)) + (MX32(mx) * VY(v)) + (MX33(mx) * VZ(v)));
+			C2_MAC1 = A1(/*int44*/ (s64)((s64)CV1(cv) * 4096) + (MX11(mx) * VX(v)) + (MX12(mx) * VY(v)) + (MX13(mx) * VZ(v)));
+			C2_MAC2 = A2(/*int44*/ (s64)((s64)CV2(cv) * 4096) + (MX21(mx) * VX(v)) + (MX22(mx) * VY(v)) + (MX23(mx) * VZ(v)));
+			C2_MAC3 = A3(/*int44*/ (s64)((s64)CV3(cv) * 4096) + (MX31(mx) * VX(v)) + (MX32(mx) * VY(v)) + (MX33(mx) * VZ(v)));
 			break;
 		}
 

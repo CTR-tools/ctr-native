@@ -165,5 +165,22 @@ if(BUILD_TESTING)
         )
         target_link_options(ctr_particle_renderer_smoke PRIVATE -Wl,--gc-sections)
         add_test(NAME ctr_particle_renderer_smoke COMMAND $<TARGET_FILE:ctr_particle_renderer_smoke>)
+
+        add_executable(ctr_gte_gpl_shift_regression
+            tests/gte_gpl_shift_regression.c
+            platform/native_gte_core.c
+        )
+        set_target_properties(ctr_gte_gpl_shift_regression PROPERTIES
+            C_STANDARD 17
+            C_STANDARD_REQUIRED ON
+            C_EXTENSIONS OFF
+        )
+        target_include_directories(ctr_gte_gpl_shift_regression PRIVATE ${CMAKE_SOURCE_DIR}/include)
+        target_compile_definitions(ctr_gte_gpl_shift_regression PRIVATE CTR_NATIVE)
+        target_compile_options(ctr_gte_gpl_shift_regression PRIVATE
+            -O2 -Wall -Wextra -fsanitize=undefined -fno-sanitize-recover=all
+        )
+        target_link_options(ctr_gte_gpl_shift_regression PRIVATE -fsanitize=undefined -fno-sanitize-recover=all)
+        add_test(NAME ctr_gte_gpl_shift_regression COMMAND $<TARGET_FILE:ctr_gte_gpl_shift_regression>)
     endif()
 endif()
