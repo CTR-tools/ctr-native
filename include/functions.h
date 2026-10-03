@@ -1238,6 +1238,7 @@ struct RectMenu *MainFreeze_GetMenuPtr(void);
 void LOAD_TalkingMask(int packID, int maskID);
 int LOAD_GetAdvPackIndex(void);
 void CAM_ProcessTransition(SVec3 *currPos, SVec3 *currRot, SVec3 *startPos, SVec3 *startRot, SVec3 *endPos, SVec3 *endRot, s32 frame);
+struct ScratchpadStruct *CAM_StartLine_FlyIn_FixY(SVec3 *posRot);
 void CAM_LookAtPosition(struct CameraScratchWork *scratchWork, Vec3 *positions, SVec3 *desiredPos, SVec3 *desiredRot);
 void CAM_FollowDriver_Spin360(struct CameraDC *cDC, struct CameraScratchWork *scratchWork, struct Driver *d, SVec3 *desiredPos, SVec3 *desiredRot);
 void CAM_FollowDriver_AngleAxis(struct CameraDC *cDC, struct Driver *d, struct CameraAngleAxisScratch *scratchWork, SVec3 *pushBufferPos, SVec3 *pushBufferRot);

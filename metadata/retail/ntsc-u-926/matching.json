@@ -3461,6 +3461,97 @@
       }
     },
     {
+      "name": "cam-setup",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_ClearScreen",
+      "end_symbol": "CAM_Path_GetNumPoints",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "CAM_ThTick": "0x8001b334"
+      }
+    },
+    {
+      "name": "cam-path-race",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_Path_GetNumPoints",
+      "end_symbol": "CAM_StartLine_FlyIn_FixY",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "cam-transition",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_StartLine_FlyIn_FixY",
+      "end_symbol": "CAM_FollowDriver_AngleAxis",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "cam-pose",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_LookAtPosition",
+      "end_symbol": "CAM_FollowDriver_Normal",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "matrix-load-rotation-gte",
       "kind": "resident",
       "artifact": "exe",
