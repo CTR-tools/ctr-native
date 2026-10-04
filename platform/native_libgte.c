@@ -65,7 +65,7 @@ void SetGeomOffset(int ofx, int ofy)
 
 void SetGeomScreen(int h)
 {
-	C2_H = h;
+	gte_SetGeomScreen(h);
 }
 
 void SetRotMatrix(MATRIX *m)

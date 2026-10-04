@@ -238,11 +238,33 @@ void SetDrawEnv(DR_ENV *dr_env, DRAWENV *env)
 	dr_env->code[0] = ((env->clip.y & 0x3FF) << 10) | (env->clip.x & 0x3FF) | 0xE3000000;
 	dr_env->code[1] = (((env->clip.y + env->clip.h - 1) & 0x3FF) << 10) | ((env->clip.x + env->clip.w - 1) & 0x3FF) | 0xE4000000;
 	dr_env->code[2] = ((env->ofs[1] & 0x7FF) << 11) | (env->ofs[0] & 0x7FF) | 0xE5000000;
-	dr_env->code[3] = 32 * (((256 - env->tw.h) >> 3) & 0x1F) | (((256 - env->tw.w) >> 3) & 0x1F) | (((env->tw.y >> 3) & 0x1F) << 15) |
+	dr_env->code[3] = ((env->dtd != 0) << 9) | ((env->dfe != 0) << 10) | (env->tpage & 0x1FF) | 0xE1000000;
+	dr_env->code[4] = 32 * (((256 - env->tw.h) >> 3) & 0x1F) | (((256 - env->tw.w) >> 3) & 0x1F) | (((env->tw.y >> 3) & 0x1F) << 15) |
 	                  (((env->tw.x >> 3) & 0x1F) << 10) | 0xE2000000;
-	dr_env->code[4] = ((env->dtd != 0) << 9) | ((env->dfe != 0) << 10) | (env->tpage & 0x1FF) | 0xE1000000;
+	dr_env->code[5] = 0xE6000000;
 
-	setlen(dr_env, 5);
+	int length = 6;
+	if (env->isbg != 0)
+	{
+		int width = env->clip.w;
+		int height = env->clip.h;
+		if (width < 0)
+			width = 0;
+		else if (width >= VRAM_WIDTH)
+			width = VRAM_WIDTH - 1;
+		if (height < 0)
+			height = 0;
+		else if (height >= VRAM_HEIGHT)
+			height = VRAM_HEIGHT - 1;
+
+		// NOTE(aalhendi): PsyQ queues an opaque TILE after the environment, not
+		// an immediate VRAM clear. Subtract offsets to cover the VRAM clip rectangle.
+		dr_env->code[6] = 0x60000000u | env->r0 | ((u32)env->g0 << 8) | ((u32)env->b0 << 16);
+		dr_env->code[7] = (u32)(u16)(env->clip.x - env->ofs[0]) | ((u32)(u16)(env->clip.y - env->ofs[1]) << 16);
+		dr_env->code[8] = (u32)width | ((u32)height << 16);
+		length = 9;
+	}
+	setlen(dr_env, length);
 }
 
 void SetDrawMove(DR_MOVE *p, RECT16 *rect, int x, int y)

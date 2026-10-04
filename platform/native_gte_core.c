@@ -301,9 +301,11 @@ internal int Lm_H(s64 value, int sf)
 
 internal int GTE_RotTransPers(int idx, int lm)
 {
-	C2_MAC1 = A1(/*int44*/ (s64)((s64)C2_TRX << 12) + (C2_R11 * VX(idx)) + (C2_R12 * VY(idx)) + (C2_R13 * VZ(idx)));
-	C2_MAC2 = A2(/*int44*/ (s64)((s64)C2_TRY << 12) + (C2_R21 * VX(idx)) + (C2_R22 * VY(idx)) + (C2_R23 * VZ(idx)));
-	C2_MAC3 = A3(/*int44*/ (s64)((s64)C2_TRZ << 12) + (C2_R31 * VX(idx)) + (C2_R32 * VY(idx)) + (C2_R33 * VZ(idx)));
+	// NOTE(aalhendi): Signed translation lanes may be negative. Multiplication
+	// preserves the exact 44-bit scale without undefined signed left shifts.
+	C2_MAC1 = A1(/*int44*/ (s64)C2_TRX * 4096 + (C2_R11 * VX(idx)) + (C2_R12 * VY(idx)) + (C2_R13 * VZ(idx)));
+	C2_MAC2 = A2(/*int44*/ (s64)C2_TRY * 4096 + (C2_R21 * VX(idx)) + (C2_R22 * VY(idx)) + (C2_R23 * VZ(idx)));
+	C2_MAC3 = A3(/*int44*/ (s64)C2_TRZ * 4096 + (C2_R31 * VX(idx)) + (C2_R32 * VY(idx)) + (C2_R33 * VZ(idx)));
 	C2_IR1 = Lm_B1(C2_MAC1, lm);
 	C2_IR2 = Lm_B2(C2_MAC2, lm);
 	C2_IR3 = Lm_B3_sf(m_mac3, m_sf, lm);
