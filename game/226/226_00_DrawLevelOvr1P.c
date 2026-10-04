@@ -9638,17 +9638,12 @@ static void *DrawLevelOvr1P_GetRenderListBucketValue(struct DrawLevelOvr1PRender
 
 static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb)
 {
-	s16 *data6 = CTR_VECTOR_DATA(&(DrawLevelOvr1P_Scratch()->projectedCenter));
-
 	for (s32 controlWordIndex = 0; controlWordIndex < 8; controlWordIndex++)
 	{
 		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, (u32)(controlWordIndex * 4)), controlWordIndex);
 	}
 
-	for (s32 centerIndex = 0; centerIndex < 3; centerIndex++)
-	{
-		data6[centerIndex] = (s16)((u16)(u8)pb->data6[centerIndex * 2] | ((u16)(u8)pb->data6[centerIndex * 2 + 1] << 8));
-	}
+	DrawLevelOvr1P_Scratch()->projectedCenter = pb->frustumReferencePoint;
 
 	CTC2((u32)(s32)pb->rect.w << 15, 24);
 	CTC2((u32)(s32)pb->rect.h << 15, 25);

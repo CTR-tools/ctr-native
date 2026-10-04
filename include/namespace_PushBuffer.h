@@ -67,9 +67,8 @@ struct PushBuffer
 	SVec3 rot;
 
 	// 0xc
-	// set at bottom of Camera_UpdateFrustum,
-	// used in 226-229 overlays for LEV
-	char data6[6];
+	// NOTE(aalhendi): World-space reference for LEV distance and clipping tests.
+	SVec3 frustumReferencePoint;
 
 	// 0x12
 	// 0 for black,
@@ -142,13 +141,26 @@ struct PushBuffer
 	int renderBucketOTByteOffset;
 
 	// 0x100
-	int renderBucketScreenPos;
+	// Packed by RenderBucket; consumed as signed pixel halves by DecalMP.
+	union
+	{
+		u32 packed;
+		SVec2 pos;
+	} renderBucketScreenPos;
 
 	// 0x104
-	int renderBucketScreenSize;
+	union
+	{
+		u32 packed;
+		struct
+		{
+			s16 w, h;
+		} size;
+	} renderBucketScreenSize;
 
 	// 0x108
-	int cameraID;
+	s8 cameraID;
+	u8 reserved109[3];
 
 	// 0x10c
 	int distanceToScreen_CURR;
@@ -157,6 +169,8 @@ struct PushBuffer
 };
 
 CTR_STATIC_ASSERT(sizeof(struct PushBuffer) == 0x110);
+CTR_STATIC_ASSERT(offsetof(struct PushBuffer, frustumReferencePoint) == 0x0c);
+CTR_STATIC_ASSERT(offsetof(struct PushBuffer, fadeFromBlack_currentValue) == 0x12);
 CTR_STATIC_ASSERT(offsetof(struct PushBuffer, distanceToScreen_PREV) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct PushBuffer, rect) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(RECT, w) == 0x4);

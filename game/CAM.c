@@ -1848,6 +1848,31 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 	}
 }
 
+// NOTE(aalhendi): The stack vectors have word-aligned XY pairs. Retail loads
+// each pair with Z before transferring them to the GTE, using t4/t5. This
+// writes the full second rotation word, not a row update preserving its high
+// half. Native keeps the existing typed register transfers.
+static inline void CAM_LoadProjectionInputs(const SVec3 *vector, const SVec3 *row)
+{
+#ifdef CTR_NATIVE
+	CTC2(CTR_PackS16Pair(row->x, row->y), 0);
+	CTC2((s32)row->z, 1);
+	CTR_GteLoadSVec3V0(vector);
+#else
+	__asm__ volatile("lw $12,0(%1)\n\t"
+	                 "lh $13,4(%1)\n\t"
+	                 "ctc2 $12,$0\n\t"
+	                 "ctc2 $13,$1\n\t"
+	                 "lw $12,0(%0)\n\t"
+	                 "lh $13,4(%0)\n\t"
+	                 "mtc2 $12,$0\n\t"
+	                 "mtc2 $13,$1"
+	                 :
+	                 : "r"(vector), "r"(row)
+	                 : "$12", "$13", "memory");
+#endif
+}
+
 s32 CAM_MapRange_PosPoints(SVec3 *pos1, SVec3 *pos2, SVec3 *currPos)
 {
 	SVec3 pathDelta;
@@ -1863,9 +1888,8 @@ s32 CAM_MapRange_PosPoints(SVec3 *pos1, SVec3 *pos2, SVec3 *currPos)
 		currDelta.y = currPos->y - pos1->y;
 		currDelta.z = currPos->z - pos1->z;
 
-		CTC2(CTR_PackS16Pair(pathDelta.x, pathDelta.y), 0);
-		CTC2((s32)pathDelta.z, 1);
-		CTR_GteLoadSVec3V0(&currDelta);
+		CAM_LoadProjectionInputs(&currDelta, &pathDelta);
+		CTR_GteLoadDelay();
 		gte_mvmva(0, 0, 0, 3, 0);
 
 		return MFC2_S(25) >> 12;

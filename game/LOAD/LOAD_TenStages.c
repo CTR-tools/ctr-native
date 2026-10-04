@@ -659,10 +659,10 @@ int LOAD_TenStages(struct GameTracker *unusedGameTracker, int loadingStage, stru
 		// if linked list of icons exists
 		if (GAME_TRACKER->mpkIcons != 0)
 		{
-			GAME_TRACKER->trafficLightIcon[0] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightredoff));
-			GAME_TRACKER->trafficLightIcon[1] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightredon));
-			GAME_TRACKER->trafficLightIcon[2] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightgreenoff));
-			GAME_TRACKER->trafficLightIcon[3] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightgreenon));
+			GAME_TRACKER->trafficLights.all[0] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightredoff));
+			GAME_TRACKER->trafficLights.all[1] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightredon));
+			GAME_TRACKER->trafficLights.all[2] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightgreenoff));
+			GAME_TRACKER->trafficLights.all[3] = DecalGlobal_FindInMPK((struct Icon *)*(u32 *)(GAME_TRACKER->mpkIcons + 4), GAME_RDATA_NAME(s_lightgreenon));
 		}
 
 		GAME_TRACKER->gameMode1_prevFrame = 1;

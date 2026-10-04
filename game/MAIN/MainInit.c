@@ -444,10 +444,10 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	for (i = 0; i < 12; i++)
 	{
 		gGT->DecalMP[i].inst = NULL;
-		*(s16 *)&gGT->DecalMP[i].data[0] = 1000;
+		gGT->DecalMP[i].timer = 1000;
 
-		gGT->DecalMP[i].ptrOT1 = 0;
-		gGT->DecalMP[i].ptrOT2 = 0;
+		gGT->DecalMP[i].pb.ptrOT = NULL;
+		gGT->DecalMP[i].pb.renderBucketOTRangeEnd = NULL;
 	}
 
 	MainInit_JitPoolsReset(gGT);

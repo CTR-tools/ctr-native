@@ -1768,8 +1768,8 @@ internal void NativeCheckpoint_RelocateGameTrackerPointers(const struct NativeCh
 	for (u32 i = 0; i < len(gGT->DecalMP); i++)
 	{
 		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->DecalMP[i].inst);
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->DecalMP[i].ptrOT1);
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->DecalMP[i].ptrOT2);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->DecalMP[i].pb.ptrOT);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->DecalMP[i].pb.renderBucketOTRangeEnd);
 	}
 	NativeCheckpoint_RelocatePushBuffer(oldHeader, liveHeader, &gGT->pushBuffer_UI);
 	for (u32 i = 0; i < len(gGT->cameraDC); i++)
@@ -1827,9 +1827,9 @@ internal void NativeCheckpoint_RelocateGameTrackerPointers(const struct NativeCh
 	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->particleList_heatWarp);
 	NativeCheckpoint_RelocateParticleList(oldHeader, liveHeader, gGT->particleList_ordinary, gGT->JitPools.particle.maxItems);
 	NativeCheckpoint_RelocateParticleList(oldHeader, liveHeader, gGT->particleList_heatWarp, gGT->JitPools.particle.maxItems);
-	for (u32 i = 0; i < len(gGT->trafficLightIcon); i++)
+	for (u32 i = 0; i < len(gGT->trafficLights.all); i++)
 	{
-		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->trafficLightIcon[i]);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &gGT->trafficLights.all[i]);
 	}
 	for (u32 i = 0; i < len(gGT->ptrIcons); i++)
 	{

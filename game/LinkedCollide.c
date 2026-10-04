@@ -3,27 +3,40 @@
 
 struct Instance *LinkedCollide_Radius(struct Instance *objInst, struct Thread *_objTh, struct Thread *thBucket, u32 hitRadius)
 {
-	(void)_objTh;
-	int diff_z, diff_y, diff_x;
+	u32 diff_z, diff_x;
+	s32 diff_y;
 	u32 diff_dist;
 	struct Instance *thInst;
 
-	// if thread valid, loop through every thread in the linked list until there are no more threads
+	(void)_objTh;
+
+	// NOTE(aalhendi): Retail compares squared distances modulo 32 bits.
+	// Unsigned deltas keep subtraction, products, and sums defined on native.
+
+	// Find the first collision in the thread bucket.
 	while (thBucket != 0)
 	{
 		thInst = thBucket->inst;
 
-		// get difference in X, Y, and Z, from both instances
-		diff_x = thInst->matrix.t[0] - objInst->matrix.t[0];
-		diff_y = thInst->matrix.t[1] - objInst->matrix.t[1];
-		diff_z = thInst->matrix.t[2] - objInst->matrix.t[2];
+		// Acquire the horizontal deltas before the signed cylinder height.
+		diff_x = (u32)thInst->matrix.t[0] - (u32)objInst->matrix.t[0];
+		diff_z = (u32)thInst->matrix.t[2] - (u32)objInst->matrix.t[2];
+		diff_y = (s32)((u32)thInst->matrix.t[1] - (u32)objInst->matrix.t[1]);
 
-		diff_dist = diff_x * diff_x + diff_z * diff_z;
+
+		// NOTE(aalhendi): Keep each metric branch-local and the Z square
+		// separate; old GCC otherwise hoists it or reuses the delta's register.
 
 		// Minecart
 		if (objInst->model->id == DYNAMIC_MINE_CART)
 		{
-			// Cylinder collision
+			u32 zSquared;
+
+			diff_x *= diff_x;
+			zSquared = diff_z * diff_z;
+			diff_dist = diff_x + zSquared;
+
+			// Cylinder collision; hitRadius is already a squared threshold.
 			if ((diff_dist < hitRadius) && (-0x20 < diff_y))
 			{
 				return thInst;
@@ -31,15 +44,23 @@ struct Instance *LinkedCollide_Radius(struct Instance *objInst, struct Thread *_
 		}
 
 		// Spherical collision for everything else
-		else if (diff_dist + diff_y * diff_y < hitRadius)
+		else
 		{
-			return thInst;
+			u32 zSquared;
+
+			diff_x *= diff_x;
+			zSquared = diff_z * diff_z;
+			diff_dist = diff_x + zSquared;
+			if (diff_dist + (u32)diff_y * (u32)diff_y < hitRadius)
+			{
+				return thInst;
+			}
 		}
 
 		// next thread in the list (thread bucket)
 		thBucket = thBucket->siblingThread;
 	}
-	// no collision
+	// No collision.
 	return 0;
 }
 
@@ -66,11 +87,13 @@ struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_
 	{
 		thInst = thBucket->inst;
 
+		// NOTE(aalhendi): Height uses full instance translations, not the
+		// narrowed SDK vector used for the horizontal transform below.
+		diff_y = thInst->matrix.t[1] - objInst->matrix.t[1];
+
 		thInstPos.vx = thInst->matrix.t[0];
 		thInstPos.vy = thInst->matrix.t[1];
 		thInstPos.vz = thInst->matrix.t[2];
-
-		diff_y = thInst->matrix.t[1] - objInst->matrix.t[1];
 
 		MATH_HitboxMatrix(&thInstMatrix, &objInst->matrix);
 
@@ -79,7 +102,7 @@ struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_
 
 		RotTrans(&thInstPos, &outVec, flags);
 
-		if ((bbox.min.x < outVec.vx) && (outVec.vx < bbox.max.x) && (bbox.min.z < outVec.vz) && (outVec.vz < bbox.max.z) && (bbox.min.y <= diff_y) &&
+		if ((outVec.vx < bbox.max.x) && (bbox.min.x < outVec.vx) && (outVec.vz < bbox.max.z) && (bbox.min.z < outVec.vz) && (bbox.min.y <= diff_y) &&
 		    (diff_y < bbox.max.y))
 		{
 			return thInst; // collision thread instance

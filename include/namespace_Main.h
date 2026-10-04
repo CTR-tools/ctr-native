@@ -296,6 +296,25 @@ CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, numParticles_max) == 0x4)
 CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, vanishRate) == 0x6);
 CTR_STATIC_ASSERT(OFFSETOF(struct GameTrackerConfetti, velY) == 0x8);
 
+// Pixel-LOD cache entry shared by each remote driver/viewport pair.
+struct DecalMPEntry
+{
+	s16 timer;
+	u8 kartState;
+	u8 reserved3[3];
+	b16 boolUpdatedThisFrame;
+	struct Instance *inst;
+	u8 reservedC[4];
+	s16 renderW;
+	s16 renderH;
+	s32 lodIndex;
+	struct PushBuffer pb;
+};
+
+CTR_STATIC_ASSERT(sizeof(struct DecalMPEntry) == 0x128);
+CTR_STATIC_ASSERT(offsetof(struct DecalMPEntry, inst) == 0x8);
+CTR_STATIC_ASSERT(offsetof(struct DecalMPEntry, pb) == 0x18);
+
 struct GameTracker
 {
 	// 0x0
@@ -336,37 +355,8 @@ struct GameTracker
 	struct PushBuffer pushBuffer[4];
 
 	// 0x5A8
-	// see 80023784
-	// Each of these is a "pixel LOD" driver, if all drivers see each other, there's
-	// three drivers on each screen, which can all have pixelLOD if far enough away,
-	struct
-	{
-		// 0x0
-		// 0x4
-		char data[6];
-
-		// 0x6
-		s16 boolUpdatedThisFrame;
-
-		// 0x8
-		struct Instance *inst;
-
-		// 0xC
-		char data2[0x100];
-
-		// 0x10C and 0x110
-		int ptrOT1;
-		int ptrOT2;
-
-		// 0x114
-		char data3[0x14];
-
-		// 0x120
-		// InstDrawPerPlayer ID
-
-		// 0x128 - size
-
-	} DecalMP[3 * 4];
+	// Remote racers across multiplayer viewports; four-player mode fills all slots.
+	struct DecalMPEntry DecalMP[3 * 4];
 
 	// 0x1388
 	struct PushBuffer pushBuffer_UI;
@@ -802,7 +792,16 @@ struct GameTracker
 
 	// 1ecc
 	// RedOff, RedOn, GreenOff, GreenOn
-	struct Icon *trafficLightIcon[4];
+	// NOTE(aalhendi): HUD indexes color/state pairs; loading and relocation use the same slots as a flat array.
+	union
+	{
+		struct Icon *all[4];
+		struct
+		{
+			struct Icon *red[2];
+			struct Icon *green[2];
+		} color;
+	} trafficLights;
 
 	// 1edc
 	// Ends Demo Mode after watching AI drivers.

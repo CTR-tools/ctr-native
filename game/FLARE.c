@@ -1,44 +1,86 @@
 #include <common.h>
+#include <ctr_gte_transfer.h>
+
+struct FlareObject
+{
+	s32 frameCount;
+	// NOTE(aalhendi): Init copies all eight caller bytes; Tick uses XYZ, not W.
+	SVec4 position;
+};
+
+CTR_STATIC_ASSERT(sizeof(struct FlareObject) == 0xc);
 
 static inline u32 FLARE_PackXY(s16 x, s16 y)
 {
 	return (u16)x | ((u32)(u16)y << 16);
 }
 
+// Project three rows of a 3x3 grid; their shared Z words are initialized once.
 static inline void FLARE_LoadGridRow(s16 y)
 {
 	MTC2(FLARE_PackXY(-409, y), 0);
-	MTC2(0, 1);
 	MTC2(FLARE_PackXY(0, y), 2);
-	MTC2(0, 3);
 	MTC2(FLARE_PackXY(409, y), 4);
-	MTC2(0, 5);
 }
 
-static inline void FLARE_WriteTexture(POLY_GT4 *poly, struct Icon *icon, u32 texWord1)
-{
-	CtrGpu_WritePackedUVWord(&poly->u0, CTR_ReadU32LE(&icon->texLayout.u0));
-	CtrGpu_WritePackedUVWord(&poly->u1, texWord1);
-	CtrGpu_WritePackedUV(&poly->u2, CTR_ReadU16LE(&icon->texLayout.u2));
-	CtrGpu_WritePackedUV(&poly->u3, CTR_ReadU16LE(&icon->texLayout.u3));
-}
+#define FLARE_WriteTexture(poly, word0, word1, uv2, uv3)                        \
+	do                                                                          \
+	{                                                                           \
+		POLY_GT4 *flare_texture_poly = (poly);                                  \
+		u32 flare_texture_word0 = (word0);                                      \
+		u32 flare_texture_word1 = (word1);                                      \
+		u16 flare_texture_uv2 = (uv2);                                          \
+		u16 flare_texture_uv3 = (uv3);                                          \
+		CtrGpu_WritePackedUVWord(&flare_texture_poly->u0, flare_texture_word0); \
+		CtrGpu_WritePackedUVWord(&flare_texture_poly->u1, flare_texture_word1); \
+		CtrGpu_WritePackedUV(&flare_texture_poly->u2, flare_texture_uv2);       \
+		CtrGpu_WritePackedUV(&flare_texture_poly->u3, flare_texture_uv3);       \
+	} while (0)
 
-static inline void FLARE_WriteColors(POLY_GT4 *poly)
-{
-	CtrGpu_WriteColorCode(&poly->r0, 0x3e000000);
-	CtrGpu_WriteColorCode(&poly->r1, 0);
-	CtrGpu_WriteColorCode(&poly->r2, 0);
-	CtrGpu_WriteColorCode(&poly->r3, 0x007f7f7f);
-}
+#define FLARE_WriteColors(poly, word0, word3)                            \
+	do                                                                   \
+	{                                                                    \
+		POLY_GT4 *flare_color_poly = (poly);                             \
+		u32 flare_color_word0 = (word0);                                 \
+		u32 flare_color_word3 = (word3);                                 \
+		CtrGpu_WriteColorCode(&flare_color_poly->r0, flare_color_word0); \
+		CtrGpu_WriteColorCode(&flare_color_poly->r1, 0);                 \
+		CtrGpu_WriteColorCode(&flare_color_poly->r2, 0);                 \
+		CtrGpu_WriteColorCode(&flare_color_poly->r3, flare_color_word3); \
+	} while (0)
 
 void FLARE_ThTick(struct Thread *th)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	struct PushBuffer *pb = &gGT->pushBuffer[0];
-	s32 *flare = th->object;
-	s32 timer = flare[0];
+	struct GameTracker *gGT;
+	struct PushBuffer *pb;
+	struct FlareObject *flare = th->object;
+	s32 timer = flare->frameCount;
+	POLY_GT4 *prim;
+	s32 relX;
+	s32 relY;
+	s32 relZ;
+	s32 scale;
+	s32 sin;
+	s32 cos;
+	s32 scaledCos;
+	s32 scaledSin;
+	struct Icon *icon;
+	u32 texWord0;
+	u32 texWord1;
+	s32 texUV2;
+	s32 texUV3;
+	u32 colorWord0;
+	u32 colorWord3;
+	void *rowFirstXY;
+	POLY_GT4 *p0;
+	POLY_GT4 *p1;
+	POLY_GT4 *p2;
+	POLY_GT4 *p3;
+	s32 depth;
+	u32 *ot;
+	u32 firstOTToken;
 
-	flare[0] = timer + 1;
+	flare->frameCount = timer + 1;
 
 	if (timer >= 20)
 	{
@@ -46,120 +88,129 @@ void FLARE_ThTick(struct Thread *th)
 		return;
 	}
 
-	POLY_GT4 *prim = gGT->backBuffer->primMem.cursor;
+	gGT = GAME_TRACKER;
+	prim = gGT->backBuffer->primMem.cursor;
 	if ((char *)(prim + 4) >= (char *)gGT->backBuffer->primMem.guardEnd)
 	{
 		return;
 	}
 
+	pb = &gGT->pushBuffer[0];
 	PushBuffer_SetPsyqGeom(pb);
-	gte_SetLightMatrix(&pb->matrix_ViewProj);
+	SetLightMatrix(&pb->matrix_ViewProj);
 
-	s32 relX = ((s32) * (s16 *)&flare[1] - pb->matrix_Camera.t[0]) << 2;
-	s32 relY = ((s32) * (s16 *)((u8 *)flare + 6) - pb->matrix_Camera.t[1]) << 2;
-	s32 relZ = ((s32) * (s16 *)&flare[2] - pb->matrix_Camera.t[2]) << 2;
+	relX = CTR_MipsSll((s32)flare->position.x - pb->matrix_Camera.t[0], 2);
+	relY = CTR_MipsSll((s32)flare->position.y - pb->matrix_Camera.t[1], 2);
 
 	MTC2(((u32)(u16)relX) | ((u32)relY << 16), 0);
+	relZ = CTR_MipsSll((s32)flare->position.z - pb->matrix_Camera.t[2], 2);
 	MTC2(relZ, 1);
+	CTR_PSX_GTE_PIPELINE_DELAY();
 	gte_llv0();
 
-	CTC2(MFC2(25), 5);
-	CTC2(MFC2(26), 6);
-	CTC2(MFC2(27), 7);
+	CTR_GteMoveMACToTranslation();
 
-	s32 oldMin;
-	s32 oldMax;
-	s32 newMin;
-	s32 newMax;
 	if (timer < 2)
 	{
-		oldMin = 0;
-		oldMax = 2;
-		newMin = 0x400;
-		newMax = 0x2000;
+		scale = VehCalc_MapToRange(timer, 0, 2, 0x400, 0x2000);
 	}
 	else if (timer < 4)
 	{
-		oldMin = 2;
-		oldMax = 4;
-		newMin = 0x2000;
-		newMax = 0xc00;
+		scale = VehCalc_MapToRange(timer, 2, 4, 0x2000, 0xc00);
 	}
 	else if (timer < 8)
 	{
-		oldMin = 4;
-		oldMax = 8;
-		newMin = 0xc00;
-		newMax = 0x266;
+		scale = VehCalc_MapToRange(timer, 4, 8, 0xc00, 0x266);
 	}
 	else
 	{
-		oldMin = 8;
-		oldMax = 20;
-		newMin = 0x266;
-		newMax = 0;
+		scale = VehCalc_MapToRange(timer, 8, 20, 0x266, 0);
 	}
 
-	s32 scale = VehCalc_MapToRange(timer, oldMin, oldMax, newMin, newMax);
-	u32 angle = ((u32)flare[0] << 12) / 20;
-	s32 sin = (MATH_Sin(angle) * scale) >> 12;
-	s32 cos = (MATH_Cos(angle) * scale) >> 12;
-	s32 scaledCos = (cos << 9) / 0xf0;
-	s32 scaledSin = (sin << 9) / 0xf0;
+	sin = (MATH_Sin((u32)(CTR_MipsSll(flare->frameCount, 12) / 20)) * scale) >> 12;
+	cos = (MATH_Cos((u32)(CTR_MipsSll(flare->frameCount, 12) / 20)) * scale) >> 12;
+	p0 = prim;
+	p1 = prim + 1;
+	p2 = prim + 2;
+	p3 = prim + 3;
+
+	scaledCos = CTR_MipsSll(cos, 9) / 0xf0;
+	scaledSin = CTR_MipsSll(sin, 9) / 0xf0;
 
 	CTC2(((u16)scaledCos) | ((u32)(u16)-scaledSin << 16), 0);
 	CTC2((u32)sin << 16, 1);
-	CTC2((u16)cos, 2);
+	CTC2((u32)cos & 0xffff, 2);
 	CTC2(0, 3);
 	CTC2(scale, 4);
 
-	struct Icon *icon = gGT->ptrIcons[0x87];
+	icon = GAME_TRACKER->ptrIcons[0x87];
 	if (icon == NULL)
 	{
 		return;
 	}
 
-	u32 texWord1 = (CTR_ReadU32LE(&icon->texLayout.u1) & 0xff9fffff) | 0x00200000;
-	POLY_GT4 *p0 = prim;
-	POLY_GT4 *p1 = prim + 1;
-	POLY_GT4 *p2 = prim + 2;
-	POLY_GT4 *p3 = prim + 3;
+	texWord0 = CTR_ReadU32LE(&icon->texLayout.u0);
+	texWord1 = (CTR_ReadU32LE(&icon->texLayout.u1) & 0xff9fffff) | 0x00200000;
+	// NOTE(aalhendi): Signed UV snapshots retain retail LH; packet writers keep the low 16 bits.
+	texUV2 = CTR_ReadS16LE(&icon->texLayout.u2);
+	texUV3 = CTR_ReadS16LE(&icon->texLayout.u3);
 
+	MTC2(0, 1);
+	MTC2(0, 3);
+	MTC2(0, 5);
 	FLARE_LoadGridRow(-409);
+	CTR_PSX_GTE_PIPELINE_DELAY();
 	gte_rtpt();
-	FLARE_WriteTexture(p0, icon, texWord1);
-	FLARE_WriteTexture(p1, icon, texWord1);
-	CtrGpu_WritePackedXY(&p0->x0, MFC2(12));
-	CtrGpu_WritePackedXY(&p0->x1, MFC2(13));
-	CtrGpu_WritePackedXY(&p1->x1, MFC2(13));
-	CtrGpu_WritePackedXY(&p1->x0, MFC2(14));
+	colorWord0 = 0x3e000000;
+	colorWord3 = 0x007f7f7f;
+	{
+		// NOTE(aalhendi): This destination belongs to one row; consume SXY before the next RTPT.
+		void *firstRowXY = &p0->x0;
+		FLARE_WriteTexture(p0, texWord0, texWord1, texUV2, texUV3);
+		FLARE_WriteTexture(p1, texWord0, texWord1, texUV2, texUV3);
+		CTR_PSX_STORE_COP2_WORD(firstRowXY, 12);
+		CTR_PSX_STORE_COP2_WORD(&p0->x1, 13);
+		CTR_PSX_STORE_COP2_WORD(&p1->x1, 13);
+		CTR_PSX_STORE_COP2_WORD(&p1->x0, 14);
+	}
 
 	FLARE_LoadGridRow(0);
+	CTR_PSX_GTE_PIPELINE_DELAY();
 	gte_rtpt();
-	FLARE_WriteColors(p0);
-	FLARE_WriteColors(p1);
-	FLARE_WriteTexture(p2, icon, texWord1);
-	CtrGpu_WritePackedXY(&p0->x2, MFC2(12));
-	CtrGpu_WritePackedXY(&p0->x3, MFC2(13));
-	CtrGpu_WritePackedXY(&p1->x3, MFC2(13));
-	CtrGpu_WritePackedXY(&p1->x2, MFC2(14));
-	CtrGpu_WritePackedXY(&p2->x2, MFC2(12));
-	CtrGpu_WritePackedXY(&p2->x3, MFC2(13));
-	CtrGpu_WritePackedXY(&p3->x3, MFC2(13));
-	CtrGpu_WritePackedXY(&p3->x2, MFC2(14));
-	s32 depth = MFC2(18);
+	rowFirstXY = &p0->x2;
+	FLARE_WriteColors(p0, colorWord0, colorWord3);
+	FLARE_WriteColors(p1, colorWord0, colorWord3);
+	FLARE_WriteTexture(p2, texWord0, texWord1, texUV2, texUV3);
+	CTR_PSX_STORE_COP2_WORD(rowFirstXY, 12);
+	CTR_PSX_STORE_COP2_WORD(&p0->x3, 13);
+	CTR_PSX_STORE_COP2_WORD(&p1->x3, 13);
+	CTR_PSX_STORE_COP2_WORD(&p1->x2, 14);
+	CTR_PSX_STORE_COP2_WORD(&p2->x2, 12);
+	CTR_PSX_STORE_COP2_WORD(&p2->x3, 13);
+	CTR_PSX_STORE_COP2_WORD(&p3->x3, 13);
+	CTR_PSX_STORE_COP2_WORD(&p3->x2, 14);
+	depth = MFC2(18);
 
 	FLARE_LoadGridRow(409);
+	CTR_PSX_GTE_PIPELINE_DELAY();
 	gte_rtpt();
-	FLARE_WriteColors(p2);
-	FLARE_WriteColors(p3);
-	FLARE_WriteTexture(p3, icon, texWord1);
-	CtrGpu_WritePackedXY(&p2->x0, MFC2(12));
-	CtrGpu_WritePackedXY(&p2->x1, MFC2(13));
-	CtrGpu_WritePackedXY(&p3->x1, MFC2(13));
-	CtrGpu_WritePackedXY(&p3->x0, MFC2(14));
+	rowFirstXY = &p2->x0;
+	FLARE_WriteColors(p2, colorWord0, colorWord3);
+	FLARE_WriteColors(p3, colorWord0, colorWord3);
+	FLARE_WriteTexture(p3, texWord0, texWord1, texUV2, texUV3);
+	CTR_PSX_STORE_COP2_WORD(rowFirstXY, 12);
+	CTR_PSX_STORE_COP2_WORD(&p2->x1, 13);
+	CTR_PSX_STORE_COP2_WORD(&p3->x1, 13);
+	CTR_PSX_STORE_COP2_WORD(&p3->x0, 14);
 
-	depth = (depth >> 8) - 2;
+	firstOTToken = CtrGpu_PrimToOTLink24(p1);
+	depth >>= 8;
+	depth -= 2;
+	// The bridge returns a 24-bit link; each GT4 packet has twelve payload words.
+	firstOTToken |= 0x0c000000;
+	p0->tag = firstOTToken;
+	p1->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p2), 0x0c000000);
+	p2->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p3), 0x0c000000);
 	if (depth < 0)
 	{
 		depth = 0;
@@ -169,29 +220,22 @@ void FLARE_ThTick(struct Thread *th)
 		depth = 0x3ff;
 	}
 
-	u32 *ot = &pb->ptrOT[depth];
-	p0->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p1), 0x0c000000);
-	p1->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p2), 0x0c000000);
-	p2->tag = CtrGpu_PackOTTag(CtrGpu_PrimToOTLink24(p3), 0x0c000000);
-	p3->tag = CtrGpu_PackOTTag(*ot, 0x0c000000);
+	ot = &pb->ptrOT[depth];
+	p3->tag = *ot | 0x0c000000;
 	*ot = CtrGpu_PrimToOTLink24(p0);
 
-	gGT->backBuffer->primMem.cursor = prim + 4;
+	GAME_TRACKER->backBuffer->primMem.cursor = prim + 4;
 }
 
 
 void FLARE_Init(s16 *pos)
 {
-	// 0xc = size
-	// 0 = no relation to param4
-	// 0x300 = SmallStackPool
-	// 0xd = "other" thread bucket
+	// Twelve-byte object in the small-stack pool, attached to the OTHER thread bucket.
 	struct Thread *th = PROC_BirthWithObject(0xc030d, FLARE_ThTick, rdata.s_lensflare, NULL);
 	if (th != NULL)
 	{
-		// Get the pointer to flare, attached to the thread
-		int *flare = th->object;
-		*flare = 0; // frameCount = 0
-		memcpy(&flare[1], pos, 2 * sizeof(int));
+		struct FlareObject *flare = th->object;
+		flare->frameCount = 0;
+		memcpy(&flare->position, pos, sizeof(flare->position));
 	}
 }

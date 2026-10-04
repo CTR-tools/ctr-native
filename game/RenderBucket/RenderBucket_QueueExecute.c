@@ -1753,8 +1753,8 @@ static void RenderBucket_UpdatePushBufferMetadata(struct PushBuffer *pb, const s
 	width = RenderBucket_MipsSub(bounds->maxX, bounds->minX);
 	height = RenderBucket_MipsSub(bounds->maxY, bounds->minY);
 	packedWidth = (u16)width;
-	pb->renderBucketScreenPos = RenderBucket_PackXY(bounds->minX, bounds->minY);
-	pb->renderBucketScreenSize = RenderBucket_PackXY(width, height);
+	pb->renderBucketScreenPos.packed = RenderBucket_PackXY(bounds->minX, bounds->minY);
+	pb->renderBucketScreenSize.packed = RenderBucket_PackXY(width, height);
 
 	if ((bounds->minX < 0) || (bounds->minY < 0) || (RenderBucket_MipsSub(height, 0x40) > 0) || (RenderBucket_MipsSub(packedWidth, 0x60) > 0) ||
 	    (RenderBucket_MipsSub(bounds->maxX, (s16)pb->rect.w) >= 0) || (RenderBucket_MipsSub(bounds->maxY, (s16)pb->rect.h) >= 0))
