@@ -458,22 +458,44 @@ void PROC_PerBspLeaf_CheckInstances(struct BSP *bspLeaf, struct ScratchpadStruct
 
 void PROC_StartSearch_Self(struct ScratchpadStruct *sps)
 {
-	s16 hitRadius;
+	register u32 radius CTR_PSX_REGISTER("$4");
+	register u32 radiusOther CTR_PSX_REGISTER("$5");
+	u32 posA;
+	u32 posB;
 	struct GameTracker *gGT;
+	struct BSP *root;
 
-	hitRadius = sps->Input1.hitRadius;
-
-	sps->Union.ThBuckColl.bbox.min.x = (s16)((u16)sps->Input1.pos.x - (u16)hitRadius);
-	sps->Union.ThBuckColl.bbox.min.y = (s16)((u16)sps->Input1.pos.y - (u16)hitRadius);
-	sps->Union.ThBuckColl.bbox.min.z = (s16)((u16)sps->Input1.pos.z - (u16)hitRadius);
-
-	sps->Union.ThBuckColl.bbox.max.x = (s16)((u16)sps->Input1.pos.x + (u16)hitRadius);
-	sps->Union.ThBuckColl.bbox.max.y = (s16)((u16)sps->Input1.pos.y + (u16)hitRadius);
-	sps->Union.ThBuckColl.bbox.max.z = (s16)((u16)sps->Input1.pos.z + (u16)hitRadius);
-
-	gGT = sdata->gGT;
-
-	COLL_SearchBSP_CallbackPARAM(gGT->level1->ptr_mesh_info->bspRoot, &sps->Union.ThBuckColl.bbox, PROC_PerBspLeaf_CheckInstances, sps);
+	// NOTE(aalhendi): Interleave X/Z/Y in posA with Y/X/Z in posB to retain
+	// retail's load/store order. The independent radius copy spans both lanes;
+	// unsigned arithmetic preserves the low 16 bits stored in each bound.
+	posA = (u16)sps->Input1.pos.x;
+	radius = (u16)sps->Input1.hitRadius;
+	posB = (u16)sps->Input1.pos.y;
+	radiusOther = radius;
+	CTR_PSX_KEEP_VALUE_RELAXED(radiusOther);
+	posA -= radius;
+	sps->Union.ThBuckColl.bbox.min.x = (s16)posA;
+	posA = (u16)sps->Input1.pos.z;
+	posB -= radiusOther;
+	sps->Union.ThBuckColl.bbox.min.y = (s16)posB;
+	posB = (u16)sps->Input1.pos.x;
+	posA -= radius;
+	sps->Union.ThBuckColl.bbox.min.z = (s16)posA;
+	posA = (u16)sps->Input1.pos.y;
+	posB += radiusOther;
+	sps->Union.ThBuckColl.bbox.max.x = (s16)posB;
+	posB = (u16)sps->Input1.pos.z;
+	posA += radius;
+	sps->Union.ThBuckColl.bbox.max.y = (s16)posA;
+	// NOTE(aalhendi): These empty constraints keep late Z and the root load
+	// ahead of call preparation; native retains ordinary C value semantics.
+	CTR_PSX_ORDER_VALUES(posB, radius);
+	gGT = GAME_TRACKER;
+	posB += radiusOther;
+	sps->Union.ThBuckColl.bbox.max.z = (s16)posB;
+	root = gGT->level1->ptr_mesh_info->bspRoot;
+	CTR_PSX_DEPEND_VALUE(sps, root);
+	COLL_SearchBSP_CallbackPARAM(root, &sps->Union.ThBuckColl.bbox, PROC_PerBspLeaf_CheckInstances, sps);
 }
 
 

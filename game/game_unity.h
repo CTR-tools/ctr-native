@@ -30,6 +30,7 @@
 #include "CDSYS.c"
 
 #include "COLL.c"
+#include "COLL/COLL_InstanceQuery.c"
 
 #include "CTR/CTR_Box.c"
 #include "CTR/CTR_CycleTex.c"

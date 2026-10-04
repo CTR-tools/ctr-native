@@ -2295,15 +2295,16 @@
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
       "start_symbol": "PROC_PerBspLeaf_CheckInstances",
-      "end_symbol": "PROC_StartSearch_Self",
-      "symbol_prefix": "PROC_PerBspLeaf_CheckInstances",
+      "end_symbol": "PROC_CollideHitboxWithBucket",
+      "symbol_prefix": "PROC_",
       "source": "game/PROC.c",
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
-      "link_symbols": {"_gp": "0x8008cf6c"}
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "linked_block": {}
     },
     {
       "name": "proc-hitbox-bucket",
@@ -3618,6 +3619,57 @@
         "BOTS_ThTick_Drive": "0x80013c18",
         "BOTS_SetRotation": "0x80013444"
       }
+    },
+    {
+      "name": "coll-barycentrics",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_TRIANGL_Barycentrics",
+      "end_symbol": "COLL_FIXED_TRIANGL_UNUSED",
+      "symbol_prefix": "COLL_FIXED_TRIANGL_Barycentrics",
+      "source": "game/COLL/COLL_Barycentrics.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-triangle-normal",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_TRIANGL_GetNormVec",
+      "end_symbol": "COLL_FIXED_QUADBLK_TestTriangles",
+      "symbol_prefix": "COLL_FIXED_TRIANGL_GetNormVec",
+      "source": "game/COLL/COLL_GetNormVec.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-instance-query",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_INSTANC_TestPoint",
+      "end_symbol": "COLL_FIXED_PlayerSearch",
+      "symbol_prefix": "COLL_",
+      "sources": [
+        "game/COLL/COLL_InstancePoint.c",
+        "game/COLL/COLL_InstanceQuery.c"
+      ],
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
     },
     {
       "name": "cam-setup",
