@@ -667,10 +667,10 @@ int UI_ConvertY_2(int posY, int scale);
 void UI_INSTANCE_InitAll(void);
 struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudSlot, int rotateToHud, int pushBuffer, int threadName);
 
-void UI_DrawBattleScores(int posX, int posY, struct Driver *d);
+void UI_DrawBattleScores(s32 posX, s32 posY, struct Driver *d);
 void UI_BattleDrawHeadArrows(struct Driver *player);
 void UI_TrackerSelf(struct Driver *d);
-void UI_DrawLapCount(s16 posX, int posY, int unusedScale, struct Driver *d);
+void UI_DrawLapCount(s16 posX, s32 posY, s32 unusedScale, struct Driver *d);
 void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_WeaponBG_AnimateShine(void);
@@ -682,7 +682,7 @@ void UI_DrawNumRelic(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawNumTrophy(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawNumCrystal(s16 posX, s16 posY, struct Driver *d);
 void UI_DrawNumTimebox(s16 posX, s16 posY, struct Driver *d);
-void UI_DrawSpeedBG(void);
+void UI_DrawSpeedBG(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver);
 void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver);
 void UI_JumpMeter_Update(struct Driver *d);
@@ -702,7 +702,7 @@ void UI_CupStandings_FinalizeCupRanks(void);
 void UI_CupStandings_UpdateCupRanks(void);
 void UI_CupStandings_InputAndDraw(void);
 
-void UI_SaveLapTime(int numLaps, int lapTime, s16 driverID);
+void UI_SaveLapTime(s32 lapIndex, s32 lapTime, s16 driverID);
 
 void UI_Map_GetIconPos(struct UIMap *map, s32 *posX, s32 *posY);
 void UI_Map_DrawMap(struct Icon *mapTop, struct Icon *mapBottom, s32 posX, s32 posY, struct PrimMem *primMem, u32 *otMem, u8 colorID);

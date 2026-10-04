@@ -209,6 +209,7 @@
 #include "UI/UI_Rank.c"
 #include "UI/UI_RenderFrame.c"
 #include "UI/UI_VsQuip.c"
+#include "UI/UI_VsWait.c"
 #include "UI/UI_RaceFlow.c"
 #include "UI/UI_CupStandings.c"
 

@@ -406,7 +406,7 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
                              .s_intSpace = "%d ",
                              .s_str = "%s",
 
-                             .multiplayerWumpaHudData = {0x18003e0, 0x180020, 0x1000320, 0x180020},
+                             .multiplayerWumpaHudData = {{0x3e0, 0x180, 0x20, 0x18}, {0x320, 0x100, 0x20, 0x18}},
 
                              .Battle_EndOfRace =
                                  {

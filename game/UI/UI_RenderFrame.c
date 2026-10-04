@@ -183,7 +183,7 @@ void UI_RenderFrame_Racing()
 				UI_DrawSpeedNeedle(hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].x + offset, hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].y, playerStruct);
 				UI_JumpMeter_Draw(hudStructPtr[UI_HUD_SLOT_JUMP_METER].x, hudStructPtr[UI_HUD_SLOT_JUMP_METER].y, playerStruct);
 				UI_DrawSlideMeter(hudStructPtr[UI_HUD_SLOT_SLIDE_METER].x + offset, hudStructPtr[UI_HUD_SLOT_SLIDE_METER].y, playerStruct);
-				UI_DrawSpeedBG();
+				UI_DrawSpeedBG(hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].x, hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].y, playerStruct);
 			}
 
 			if ((playerStruct->actionsFlagSet & ACTION_RACE_FINISHED) == 0)
@@ -918,7 +918,7 @@ void UI_RenderFrame_CrystChall(void)
 
 	UI_DrawSlideMeter(hudStructPtr[UI_HUD_SLOT_SLIDE_METER].x, hudStructPtr[UI_HUD_SLOT_SLIDE_METER].y, player);
 
-	UI_DrawSpeedBG();
+	UI_DrawSpeedBG(hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].x, hudStructPtr[UI_HUD_SLOT_SPEEDOMETER].y, player);
 
 	UI_DrawNumCrystal(hudStructPtr[UI_HUD_SLOT_CRYSTAL].x + 0x10, hudStructPtr[UI_HUD_SLOT_CRYSTAL].y - 0x10, player);
 
@@ -1065,22 +1065,9 @@ void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT)
 	RECT viewport3P4P;
 	RECT *viewport;
 	struct PushBuffer *wumpaPushBuffer;
-	u32 packedRect;
 
-	// NOTE(aalhendi): Retail copies packed RECT halfwords; native unpacks them
-	// explicitly to avoid strict-aliasing UB from writing RECT fields as u32.
-	packedRect = sdata->multiplayerWumpaHudData[0];
-	viewport2P.x = (s16)packedRect;
-	viewport2P.y = (s16)(packedRect >> 16);
-	packedRect = sdata->multiplayerWumpaHudData[1];
-	viewport2P.w = (s16)packedRect;
-	viewport2P.h = (s16)(packedRect >> 16);
-	packedRect = sdata->multiplayerWumpaHudData[2];
-	viewport3P4P.x = (s16)packedRect;
-	viewport3P4P.y = (s16)(packedRect >> 16);
-	packedRect = sdata->multiplayerWumpaHudData[3];
-	viewport3P4P.w = (s16)packedRect;
-	viewport3P4P.h = (s16)(packedRect >> 16);
+	viewport2P = GAME_WUMPA_HUD_VIEWPORTS[0];
+	viewport3P4P = GAME_WUMPA_HUD_VIEWPORTS[1];
 
 	viewport = &viewport2P;
 	if (gGT->numPlyrCurrGame >= 3)

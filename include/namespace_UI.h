@@ -43,6 +43,33 @@ enum UIRaceClockFlags
 	UI_RACE_CLOCK_FLASH_LAP_3 = 0x20,
 };
 
+enum UIWeaponBGConstants
+{
+	UI_WEAPON_BG_SHINE_THETA_STEP = 0x100,
+	UI_WEAPON_BG_SHINE_SCALE_MUL = 0xd000,
+	UI_WEAPON_BG_SHINE_SCALE_SHIFT = 0x10,
+	UI_WEAPON_BG_SHINE_ICON_INDEX = 0x31,
+	UI_WEAPON_BG_SHINE_TRANSPARENCY_BASE = 2,
+};
+
+enum UIJumpMeterConstants
+{
+	UI_JUMP_METER_SIGNIFICANT_THRESHOLD = 0x150,
+	UI_JUMP_METER_HANG_TIME_SMALL = 640,
+	UI_JUMP_METER_HANG_TIME_MEDIUM = 960,
+	UI_JUMP_METER_HANG_TIME_LARGE = 1440,
+	UI_JUMP_METER_HANG_TIME_RESERVES = 960,
+	UI_JUMP_METER_HANG_TIME_FIRE_SMALL = 0,
+	UI_JUMP_METER_HANG_TIME_FIRE_MEDIUM = 0x80,
+	UI_JUMP_METER_HANG_TIME_FIRE_LARGE = 0x100,
+	UI_JUMP_METER_LANDING_VOICELINE_MIN = 0x480,
+	UI_JUMP_METER_LANDING_VOICELINE_CUTOFF = 0x481,
+	UI_JUMP_METER_LANDING_VOICELINE_ID = 7,
+	UI_JUMP_METER_LANDING_VOICELINE_FLAGS = 0x10,
+	UI_JUMP_METER_MAX = 0x960,
+	UI_JUMP_METER_DISPLAY_TIMER = 0x5a0,
+};
+
 struct UiElement3D
 {
 	// 0x0
@@ -61,6 +88,19 @@ struct UiElement3D
 
 	// 0x38 bytes
 };
+
+struct UILapTimes
+{
+	// NOTE(aalhendi): Each digit has seven lap slots for each of two players.
+	// One array keeps player-two indexing within the declared C object.
+	s32 minuteUnits[14];
+	s32 centisecondTens[14];
+	s32 centisecondUnits[14];
+	s32 secondTens[14];
+	s32 secondUnits[14];
+};
+
+CTR_STATIC_ASSERT(sizeof(struct UILapTimes) == 0x118);
 
 struct UIMap
 {
@@ -101,6 +141,21 @@ struct QuipMeta
 	int dataSize;
 };
 
+// NOTE(aalhendi): Quip ranges point into these owned arrays on both targets.
+struct EndRaceQuipData
+{
+	struct QuipStr vsStrings[46];
+	struct QuipMeta vsMetadata[39];
+	struct QuipStr battleStrings[67];
+	struct QuipMeta battleMetadata[12];
+};
+
+struct UI_VsWaitRdata
+{
+	SVec2 positions3P4P[4];
+	char statFormat[12];
+};
+
 CTR_STATIC_ASSERT(sizeof(struct UiElement2D) == 0x8);
 CTR_STATIC_ASSERT(OFFSETOF(struct UiElement3D, rot) == 0x0);
 CTR_STATIC_ASSERT(OFFSETOF(struct UiElement3D, scale) == 0x6);
@@ -112,5 +167,11 @@ CTR_STATIC_ASSERT(offsetof(struct UIMapSpawnMetadata, topHalfMode) == 0x12);
 CTR_STATIC_ASSERT(sizeof(struct UIMapSpawnMetadata) == 0x14);
 CTR_STATIC_ASSERT(sizeof(struct QuipStr) == 0x8);
 CTR_STATIC_ASSERT(sizeof(struct QuipMeta) == 0x18);
+CTR_STATIC_ASSERT(offsetof(struct EndRaceQuipData, vsMetadata) == 0x170);
+CTR_STATIC_ASSERT(offsetof(struct EndRaceQuipData, battleStrings) == 0x518);
+CTR_STATIC_ASSERT(offsetof(struct EndRaceQuipData, battleMetadata) == 0x730);
+CTR_STATIC_ASSERT(sizeof(struct EndRaceQuipData) == 0x850);
+CTR_STATIC_ASSERT(offsetof(struct UI_VsWaitRdata, statFormat) == 0x10);
+CTR_STATIC_ASSERT(sizeof(struct UI_VsWaitRdata) == 0x1c);
 
 #endif

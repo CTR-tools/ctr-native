@@ -16,7 +16,7 @@
 // and retail globals are defined, so they can snapshot the same process-local
 // regions the game mutates.
 #define NATIVE_CHECKPOINT_MAGIC              NATIVE_CHECKPOINT_FOURCC('C', 'T', 'R', 'C')
-#define NATIVE_CHECKPOINT_VERSION            3u
+#define NATIVE_CHECKPOINT_VERSION            5u
 #define NATIVE_CHECKPOINT_ADDRESS_RANGE_CAP  19u
 #define NATIVE_CHECKPOINT_POINTER_SLOT_CAP   65536u
 #define NATIVE_CHECKPOINT_CREDITS_STRING_CAP 4096u
@@ -1404,6 +1404,16 @@ internal void NativeCheckpoint_RelocateDataPointers(const struct NativeCheckpoin
 	for (u32 i = 0; i < len(data.hudStructPtr); i++)
 	{
 		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.hudStructPtr[i]);
+	}
+	for (u32 i = 0; i < len(data.endRaceQuips.vsMetadata); i++)
+	{
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.endRaceQuips.vsMetadata[i].ptrQuipStrCurr);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.endRaceQuips.vsMetadata[i].ptrQuipStrNext);
+	}
+	for (u32 i = 0; i < len(data.endRaceQuips.battleMetadata); i++)
+	{
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.endRaceQuips.battleMetadata[i].ptrQuipStrCurr);
+		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &data.endRaceQuips.battleMetadata[i].ptrQuipStrNext);
 	}
 }
 

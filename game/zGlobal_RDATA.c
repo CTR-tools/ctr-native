@@ -1,7 +1,14 @@
 #include <common.h>
 
-// NOTE(aalhendi): MIPS owns just these string clusters, not the intervening
+// NOTE(aalhendi): MIPS owns these initialized fragments, not the intervening
 // compiler tables. Derive its storage widths from the shared rData view.
+
+#define UI_VS_WAIT_RDATA_INITIALIZER {{{0x55, 0x35}, {0xaa, 0x35}, {0x55, 0x43}, {0xaa, 0x43}}, "p%d:%2.02d"}
+
+CTR_STATIC_ASSERT(offsetof(struct rData, uiVsWait) == 0x16ec);
+CTR_STATIC_ASSERT(offsetof(struct rData, uiVsQuipDispatchStorage) == 0x1718);
+CTR_STATIC_ASSERT(offsetof(struct rData, s_oxide) == 0x1740);
+
 struct RdataModelStrings
 {
 #define RDATA_MODEL_STRING(field, text) char field[sizeof(((struct rData *)0)->field)];
@@ -91,6 +98,8 @@ CTR_STATIC_ASSERT(sizeof(struct RdataVehicleStrings) == sizeof(struct rData) - o
 // NOTE(aalhendi): Native MainInit reuses part of rdata as RenderBucket scratch.
 // Keep this aggregate writable; model-name contents there are not persistent.
 struct rData rdata = {
+    .uiVsWait = UI_VS_WAIT_RDATA_INITIALIZER,
+
 #define RDATA_MODEL_STRING(field, text) .field = text,
 #include "zGlobal_RDATA_models.inc"
 #undef RDATA_MODEL_STRING
@@ -121,6 +130,8 @@ struct rData rdata = {
 
 };
 #else
+struct UI_VsWaitRdata rdataUiVsWait __attribute__((section(".rdata.ui.vs_wait"))) = UI_VS_WAIT_RDATA_INITIALIZER;
+
 #define RDATA_MISC_BEGIN(cluster, firstField, sectionName)  struct RdataMisc##cluster rdataMisc##cluster __attribute__((section(sectionName))) = {
 #define RDATA_MISC_STRING(cluster, field, text, nativeSeed) .field = text,
 #define RDATA_MISC_END(cluster, nextField) \
@@ -155,3 +166,5 @@ struct RdataLevelResourceStrings rdataLevelResourceStrings __attribute__((sectio
 #undef RDATA_RESOURCE_STRING
 };
 #endif
+
+#undef UI_VS_WAIT_RDATA_INITIALIZER

@@ -121,13 +121,19 @@ const Color DrawSpeedBG_Colors[7] = {
     [6] = {.r = 0xdb, .g = 0x00, .b = 0x00},
 };
 
-void UI_DrawSpeedBG(void)
+void UI_DrawSpeedBG(s16 posX, s16 posY, struct Driver *driver)
 {
 	Point *vertexes = (Point *)&data.speedometerBG_vertData[0];
 	Point *vertexesExtLine = (Point *)&data.speedometerBG_vertData[1];
 	int pointCount = sizeof(data.speedometerBG_vertData) / (sizeof(Point) * 2);
 	const s16 xOffset = 480;
 	const s16 yOffset = 190;
+
+	// NOTE(aalhendi): Retail callers supply the HUD position and driver,
+	// but this background uses fixed screen coordinates.
+	(void)posX;
+	(void)posY;
+	(void)driver;
 
 	/* Draw the horizontal lines - they're a bit wider than the speedometer width */
 	for (int i = 0; i < pointCount; i += 2)

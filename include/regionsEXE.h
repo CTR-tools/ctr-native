@@ -1223,7 +1223,14 @@ struct rData
 	char s_lapString[0xc];
 
 	// 800116ec
-	char rdata54[0x54];
+	struct UI_VsWaitRdata uiVsWait;
+
+	// 80011708
+	char uiRaceFormatStorage[0x10];
+
+	// 80011718
+	// Compiler-owned UI_VsQuipAssignAll dispatch table.
+	char uiVsQuipDispatchStorage[0x28];
 
 	// 80011740
 	char s_oxide[0x18];
@@ -2100,113 +2107,7 @@ struct Data
 	Point speedometerBG_vertData[2][14];
 
 	// 0x800864DC
-	// LNG index for end-of-race comments
-	u8 data850[0x850];
-
-#if 0
-
-	// VS QUIPs
-	// [0x00] = HOP HAPPY,		RARE AIR, 		0, 1, 0x28, 	0x554(numberOfJumps), 2
-	// [0x01] = RARE AIR, 		WALLFLOWER, 	1, 1, 0x12c0, 	0x53c(timeSpentJumping), 4
-	// [0x02] = WALLFLOWER, 	MISSILE MAGNET	0, 1, 0xf00,	0x530(timeSpentAgainstWall), 4
-	// [0x03] = MISSILE MAGNET,		---,		0, 0, 2, 		0x55d(numTimesMissileHitYou), 1
-	// [0x04] = MOST BOMBED, 		---, 		0, 0, 2,		0x55e(numTimesBombHitYou), 1
-	// [0x05] = WHAT'S A PICKUP?, 	---,		1, 1, 1,		0x568(numTimesHitWeaponBox), 1	
-	// [0x06] = SLOWPOKE,			---,		1, 0, 0xfa0,	0x518(distanceDriven), 4
-	// [0x07] = MOST DIZZY, 		---,		0, 1, 0xb40,	0x540(timeSpentSpinningOut), 4
-	// [0x08] = SITTING DUCK,		---,		4, 0, 3,		0x57c(numTimesAttacked), 4
-	// [0x09] = S'S CHUMP,			---,		3, 0, 3,		0x560(numTimesAttackedByPlayer), 8
-	// [0x0A] = BAD SHOT,			---,		1, 0, 0x800,	0x574(NumMissilesComparedToNumAttacks), 4
-	// [0x0B] = FALL GUY,			---,		0, 0, 3,		0x56a(numTimesMaskGrab), 1
-	// [0x0C] = LEAST FRUIT,		---,		1, 1, 6,		0x569(numTimesWumpa), 1
-	// [0x0D] = MINE SWEEPER,		---,		0, 1, 1,		0x55f(numTimesMotionlessPotionHitYou), 1
-	// [0x0E] = MUD DOG,			---,		0, 1, 0xf00,	0x524(timeSpentInMud), 4
-	// [0x0F] = PLANT FOOD,			---,		0, 0, 0xb40,	0x548(timeSpentEaten), 4
-	// [0x10] = MOST BURNED,		---,		0, 1, 0xf00,	0x54c(timeSpentBurnt), 4
-	// [0x11] = FLATMAN,			---,		0, 1, 0x12c0,	0x544(timeSpentSquished), 4
-	// [0x12] = MR. REVERSE,		---,		0, 1, 0x1e00,	0x520(timeSpentReversing), 4
-	// [0x13] = SKID SQUID,			---,		0, 1, 0x12c0,	0x51c(timeSpentWithHighSpeed), 4
-	// [0x14] = TURBO MASTER,		---,		0, 1, 0x4b00,	0x534(timeSpentUsingReserves), 4
-	// [0x15] = SUPER SLIDER,		---,		0, 1, 0x4b00, 	0x538(timeSpentDrifting), 4
-	// [0x16] = MOST AIR TIME,		---,		0, 1, 0x1e00,	0x53c(timeSpentJumping), 4
-	// [0x17] = BIGGEST AIR,		---,		0, 0, 0x3c0,	0x550(highestJump), 2
-	// [0x18] = BEAKER ACE,			---,		0, 0, 0,		0x556(numTimesMovingPotionHitSomeone), 1
-	// [0x19] = MISSILE MASTER,		---,		0, 0, 2,		0x557(numTimesMissileHitSomeone), 1
-	// [0x1a] = CRATES 'R' US,		---,		0, 1, 2,		0x568(numTimesHitWeaponBox), 1
-	// [0x1b] = FASTEST RACER,		---,		0, 0, 0xfa0,	0x518(distanceDriven), 4
-	// [0x1c] = KING OF THE PACK,	---,		0, 0, 3,		0x559(numTimesAttacking), 1
-	// [0x1d] = UNTOUCHABLE,		---,		1, 0, 1,		0x57c(numTimesAttacked), 4
-	// [0x1e] = BEST AIM,			---,		0, 0, 0x800,	0x574(NumMissilesComparedToNumAttacks), 4
-	// [0x1f] = LONGEST SHOT,		---,		0, 0, 0x3c0,	0x552(longestShot), 2
-	// [0x20] = MOST JUICED UP,		---,		0, 1, 0x12c0,	0x52c(timeSpentInTenWumpa), 4
-	// [0x21] = FRUIT HOG,			---,		0, 1, 0xc,		0x569(numTimesWumpa), 1
-	// [0x22] = COMEBACK KID,		---,		0, 0, 0x2580,	0x578(TimeWinningDriverSpentLastPlace), 4
-	// [0x23] = CLOCK JOCK,			---,		0, 0, 1,		0x558(numTimesClockWeaponUsed), 1
-	// [0x24] = SPEED DEMON!,		---,		5, 0, 0x2580,	0x514(timeElapsedInRace), 4
-	// [0x25] = STEAMROLLER,		---,		0, 0, 1,		0x55b(numTimesSquishedSomeone), 1
-	// [0x26] = OUT OF GAS!,		NULL,		9, 0, 0,		0x559(numTimesAttacking), 1
-
-	// 0x27 quip metas,
-	800864DC - 8008664c // VS QuipStr array (0x2E)
-	8008664c - 800869f4 // VS QuipMeta array (0x27)
-
-	// BATTLE QUIPs
-	// [0x0] = SMACK MAN, 	DISASTER MASTER!,	7, 0, 0,	0x559(numTimesAttacking), 1
-	// [0x1] = SO CLOSE!,	SMACK MAN,			7, 0, 1,	0x559(numTimesAttacking), 1
-	// [0x2] = TOASTED!,	LOST IN SPACE,		8, 8, 0,	0x559(numTimesAttacking), 1
-	// [0x3] = DISASTER MASTER!, THE DOMINATOR!,8, 2, 0xF,	0x4f6(quip4), 2
-	// [0x4] = THE DOMINATOR!, COMEBACK KID!,	4, 6, 2,	0x559(numTimesAttacking), 1
-	// [0x5] = COMEBACK KID!, GAVE IT AWAY!,	0, 6, 3,	0x4f2(quip2), 2
-	// [0x6] = GAVE IT AWAY!, DEATH TOUCH!,		0, 2, 2,	0x4f4(quip3), 2
-	// [0x7] = DEATH TOUCH!, ACID RAINMAN!,		8, 6, 6,	0x4f0(quip1), 2
-	// [0x8] = ACID RAINMAN!, BULL'S EYE!,		8, 6, 4,	0x4f0(quip1), 2
-	// [0x9] = BULL'S EYE!, FISH IN A BARREL!,	8, 6, 1,	0x4f0(quip1), 2
-	// [0xA] = FISH IN A BARREL!, --invalid--,	6, 4, 0,	0x575(NumMissilesComparedToNumAttacks>>8), 1
-	// [0xB] = LOST IN SPACE, SO CLOSE!,		9, 0, 0, 	0x559(numTimesAttacking, 1)
-	
-	// --invalid-- maybe should've been TOASTED,
-	// accidentally pointed to 80086c0c instead of QuipStr
-
-	// 0xC quip metas,
-	800869f4 - 80086c0c // Battle QuipStr array (0x43)
-	80086c0c - 80086d2c // Battle QuipMeta array (0xC)
-
-	struct QuipStr
-	{
-		s16 lngIndex;
-		s16 flag; // &1 means include Crash/Cortex/Coco name
-		
-		s16 unused1;
-		s16 unused2;
-	};
-
-	// Quip = End-Of-Race comment
-	struct QuipMeta
-	{
-		// QuipMeta->next = QuipMeta->next->next,
-		// This removes QuipStr from search algorithm,
-		// to make it impossible for quips to repeat.
-		// Somewhere the linked list needs to restart itself
-		struct QuipStr* ptrQuipStrCurr;
-		struct QuipStr* ptrQuipStrNext;
-		
-		s16 unk0;
-
-		// 0xA
-		s16 unk1;
-
-		// 0xC
-		int unk2;
-
-		// 0x10
-		// offset of driver to pull data from,
-		// and the amount of bytes in the variable
-		int driverOffset;
-		int dataSize;
-
-		// 0x18 each
-	};
-#endif
+	struct EndRaceQuipData endRaceQuips;
 
 	// 0x80086d2c
 	// Red, Green, Blue, Yellow, Purple, NULL
@@ -3007,8 +2908,8 @@ struct sData
 	char s_str[4];
 
 	// 8008d554
-	// one for each player
-	int multiplayerWumpaHudData[4];
+	// 2P and 3P/4P render-to-texture viewports
+	RECT multiplayerWumpaHudData[2];
 
 	// 8008d564
 	struct
@@ -4126,34 +4027,7 @@ struct sData
 	struct MemcardState memcard;
 
 	// 8009AC00
-	struct
-	{
-		// 8009AC00
-		// 0x:00:00
-		int p1_Min1s[7];
-		int p2_Min1s[7];
-
-		// 8009AC38
-		// 00:00:x0
-		int p1_Ms10s[7];
-		int p2_Ms10s[7];
-
-		// 8009ac70
-		// 00:00:0x
-		int p1_Ms1s[7];
-		int p2_Ms1s[7];
-
-		// 8009aca8
-		// 00:x0:00
-		int p1_Sec10s[7];
-		int p2_Sec10s[7];
-
-		// 8009ace0
-		// 00:0x:00
-		int p1_Sec1s[7];
-		int p2_Sec1s[7];
-
-	} LapTimes;
+	struct UILapTimes LapTimes;
 
 	// 8009ad18 -- 1c34 from mempack
 
@@ -4221,6 +4095,8 @@ CTR_STATIC_ASSERT(sizeof(struct MetaDataCHAR) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct MetaDataCHAR, iconID) == 0x8);
 CTR_STATIC_ASSERT(sizeof(((struct MetaDataCHAR *)0)->iconID) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct MetaDataCHAR, engineID) == 0xc);
+CTR_STATIC_ASSERT(offsetof(struct sData, multiplayerWumpaHudData) == 0x5e8);
+CTR_STATIC_ASSERT(offsetof(struct sData, Battle_EndOfRace) == 0x5f8);
 CTR_STATIC_ASSERT(offsetof(struct sData, numIconsEOR) == 0x604);
 CTR_STATIC_ASSERT(sizeof(((struct sData *)0)->numIconsEOR) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct sData, s_additionInt) == 0x608);

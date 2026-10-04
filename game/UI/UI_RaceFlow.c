@@ -26,71 +26,13 @@ enum UIRaceFlowConstants
 	UI_RACE_START_DIVIDER_HEIGHT = 2,
 	UI_RACE_START_BAR_HEIGHT = 0x1e,
 	UI_RACE_START_BAR_ALPHA_MASK = 0xff000000,
-	UI_RACE_END_DRIVER_COUNT = 8,
-	UI_RACE_END_AVG_SPEED_SCALE = 100,
-	UI_RACE_END_MIN_MISSILES_FOR_RATIO = 4,
-	UI_RACE_END_ATTACK_RATIO_SHIFT = 0xc,
-	UI_RACE_END_ATTACK_RATIO_INVALID = -1,
-	UI_RACE_END_FIRST_PLACE_RANK = 0,
 	UI_RACE_END_MIN_SPLITSCREEN_MENU_PLAYERS = 3,
 	UI_RACE_END_INITIAL_ICON_COUNT = 1,
 	UI_RACE_END_SAVE_GHOST_FRAME = 0x3f9,
 };
 
 
-void UI_RaceEnd_GetDriverClock(struct Driver *driver)
-{
-	u8 missilesLaunched;
-	int scaledDistance;
-	int timeElapsed;
-	int attacksReceived;
-
-	if ((driver->actionsFlagSet & ACTION_RACE_TIMER_FROZEN) == 0)
-	{
-		timeElapsed = driver->timeElapsedInRace;
-		driver->actionsFlagSet |= ACTION_RACE_TIMER_FROZEN;
-
-		if (timeElapsed != 0)
-		{
-			// get average speed over time
-			scaledDistance = driver->distanceDriven * UI_RACE_END_AVG_SPEED_SCALE;
-			driver->distanceDriven = scaledDistance / timeElapsed;
-		}
-
-		// if missiles launched is less than 4
-		if (driver->numTimesMissileLaunched < UI_RACE_END_MIN_MISSILES_FOR_RATIO)
-		{
-			driver->NumMissilesComparedToNumAttacks = UI_RACE_END_ATTACK_RATIO_INVALID;
-		}
-
-		// if missiles launched is more than 4
-		else
-		{
-			// number of missiles launched
-			missilesLaunched = driver->numTimesMissileLaunched;
-
-			// compare number of missiles to number of attacks
-			driver->NumMissilesComparedToNumAttacks = (int)((driver->numTimesAttacking << UI_RACE_END_ATTACK_RATIO_SHIFT) / missilesLaunched);
-		}
-
-		attacksReceived = 0;
-
-		// count number of times you were attacked in race
-		for (int i = 0; i < UI_RACE_END_DRIVER_COUNT; i++)
-		{
-			attacksReceived += driver->numTimesAttackedByPlayer[i];
-		}
-
-		driver->numTimesAttacked = attacksReceived;
-
-		// if driver is in first place
-		if (driver->driverRank == UI_RACE_END_FIRST_PLACE_RANK)
-		{
-			// duplicate amount of time spent in last place
-			driver->TimeWinningDriverSpentLastPlace = driver->timeSpentInLastPlace;
-		}
-	}
-}
+#include "UI_RaceEndClock.c"
 
 
 // You see this in 1P mode, right before traffic lights count down

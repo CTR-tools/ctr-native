@@ -22,7 +22,6 @@ enum
 	UI_RACE_CLOCK_RELIC_HUD_LABEL_Y_OFFSET = 0x18,
 	UI_RACE_CLOCK_RELIC_HUD_TIME_Y_OFFSET = 0x20,
 	UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET = 0x11,
-	UI_LIMIT_CLOCK_FLASH_THRESHOLD = 0x3840,
 };
 
 
@@ -261,11 +260,11 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 				// Convert each number from the binary version of the number to the ascii version of the number by adding ascii value of '0'
 				// This is dynamically programmed to handle time for more than one player, see UI_SaveLapTime
 
-				rdata.s_timeString_empty[1] = sdata->LapTimes.p1_Min1s[iVar5] + '0';
-				rdata.s_timeString_empty[3] = sdata->LapTimes.p1_Sec10s[iVar5] + '0';
-				rdata.s_timeString_empty[4] = sdata->LapTimes.p1_Sec1s[iVar5] + '0';
-				rdata.s_timeString_empty[6] = sdata->LapTimes.p1_Ms10s[iVar5] + '0';
-				rdata.s_timeString_empty[7] = sdata->LapTimes.p1_Ms1s[iVar5] + '0';
+				rdata.s_timeString_empty[1] = GAME_LAP_MINUTE_UNITS[iVar5] + '0';
+				rdata.s_timeString_empty[3] = GAME_LAP_SECOND_TENS[iVar5] + '0';
+				rdata.s_timeString_empty[4] = GAME_LAP_SECOND_UNITS[iVar5] + '0';
+				rdata.s_timeString_empty[6] = GAME_LAP_CENTISECOND_TENS[iVar5] + '0';
+				rdata.s_timeString_empty[7] = GAME_LAP_CENTISECOND_UNITS[iVar5] + '0';
 
 				// default
 				lapOrRelicColor = PERIWINKLE;
@@ -441,62 +440,4 @@ LAB_8004f378:
 	DecalFont_DrawLine(sdata->raceClockStr, (int)(s16)relicTimeX, (int)relicTimeY, FONT_BIG, (int)(s16)(lapOrRelicColor & (0xffff ^ JUSTIFY_RIGHT)));
 }
 
-// countdown clock, used for Battle Mode and Crystal Challenge
-void UI_DrawLimitClock(s16 posX, s16 posY, s16 fontType)
-{
-	char *str;
-	u32 flags;
-	struct GameTracker *gGT = sdata->gGT;
-
-	// amount of time event should last, minus, time elapsed in the event.
-	// basically, time remaining in the event
-	int timeRemaining = gGT->originalEventTime - gGT->elapsedEventTime;
-
-	// if you run out of time
-	if (timeRemaining < 0)
-	{
-		// Make a time string with zero milliseconds on the clock
-		str = RECTMENU_DrawTime(0);
-
-		// If you're not in End-Of-Race menu
-		if ((gGT->gameMode1 & END_OF_RACE) == 0)
-		{
-			// dont check if numPlyrCurrGame != 0,
-			// when would that ever be false
-
-			// end race for all players
-			for (int i = 0; i < gGT->numPlyrCurrGame; i++)
-			{
-				// pointer of each player (P1, P2, P3, P4)
-				struct Driver *d = gGT->drivers[i];
-				d->actionsFlagSet |= ACTION_RACE_FINISHED;
-			}
-
-			MainGameEnd_Initialize();
-		}
-	}
-
-	// if you have not run out of time
-	else
-	{
-		// make a string with the remaining time
-		str = RECTMENU_DrawTime(timeRemaining);
-	}
-
-	// default color is dark red
-	flags = DARK_RED;
-
-	if (
-	    // if less than 15 seconds remain
-	    (timeRemaining < UI_LIMIT_CLOCK_FLASH_THRESHOLD) &&
-
-	    // if number of frames is an even number
-	    ((gGT->timer & 1) == 0))
-	{
-		// set color to white
-		flags = WHITE;
-	}
-
-	// put the time string on the screen
-	DecalFont_DrawLine(str, (int)posX, (int)posY, (int)fontType, flags);
-}
+#include "UI_LimitClock.c"

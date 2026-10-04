@@ -33,4 +33,4 @@ RDATA_MISC_STRING(Hud, s_timebox1, "timebox1", 1)
 // NOTE(aalhendi): retail is pre-shaped; UI_DrawRaceClock patches digits only.
 RDATA_MISC_STRING(Hud, s_timeString_empty, "  :  :  ", 1)
 RDATA_MISC_STRING(Hud, s_lapString, "%2.02d/%ld", 1)
-RDATA_MISC_END(Hud, rdata54)
+RDATA_MISC_END(Hud, uiVsWait)

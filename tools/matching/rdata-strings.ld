@@ -12,6 +12,7 @@ SECTIONS
     .rdata.loading_names 0x800112e4 : { *(.rdata.loading_names) }
     .rdata.misc.menus 0x80011620 : { *(.rdata.misc.menus) }
     .rdata.misc.hud 0x800116b0 : { *(.rdata.misc.hud) }
+    .rdata.ui.vs_wait 0x800116ec : { *(.rdata.ui.vs_wait) }
     .rdata.vehicle_names 0x80011740 : { *(.rdata.vehicle_names) }
 
     /DISCARD/ :
@@ -39,5 +40,7 @@ ASSERT(rdataMiscMenus == ADDR(.rdata.misc.menus), "Menu strings symbol misplaced
 ASSERT(SIZEOF(.rdata.misc.menus) == 0x30, "Menu strings initialized size changed")
 ASSERT(rdataMiscHud == ADDR(.rdata.misc.hud), "HUD strings symbol misplaced")
 ASSERT(SIZEOF(.rdata.misc.hud) == 0x3c, "HUD strings initialized size changed")
+ASSERT(rdataUiVsWait == ADDR(.rdata.ui.vs_wait), "VS wait data symbol misplaced")
+ASSERT(SIZEOF(.rdata.ui.vs_wait) == 0x1c, "VS wait initialized size changed")
 ASSERT(rdataVehicleStrings == ADDR(.rdata.vehicle_names), "Vehicle strings symbol misplaced")
 ASSERT(SIZEOF(.rdata.vehicle_names) == 0x260, "Vehicle strings initialized size changed")

@@ -2,26 +2,14 @@
 
 u32 UI_VsQuipReadDriver(struct Driver *d, int offset, int size)
 {
-	char *data = (char *)d + offset;
-
-	if (size == 2)
+	switch (size)
 	{
-		return *(s16 *)data;
-	}
-
-	if (size < 3)
-	{
-		if (size == 1)
-		{
-			return *(u8 *)data;
-		}
-
-		return 0;
-	}
-
-	if (size == 4)
-	{
-		return *(u32 *)data;
+	case 1:
+		return *(u8 *)((char *)d + offset);
+	case 2:
+		return *(s16 *)((char *)d + offset);
+	case 4:
+		return *(u32 *)((char *)d + offset);
 	}
 
 	return 0;
@@ -29,6 +17,9 @@ u32 UI_VsQuipReadDriver(struct Driver *d, int offset, int size)
 
 void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver *bestDriver, int characterID)
 {
+	struct QuipStr *selected;
+	struct GameTracker *gGT;
+
 	if (driver == NULL)
 	{
 		return;
@@ -39,44 +30,56 @@ void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver
 		return;
 	}
 
-	struct QuipStr *selected = meta->ptrQuipStrCurr;
+	selected = meta->ptrQuipStrCurr;
 
-	for (struct QuipStr *curr = selected + 1; curr < meta->ptrQuipStrNext; curr++)
 	{
-		if (selected->priority < curr->priority)
-		{
-			selected = curr;
-			continue;
-		}
+		struct QuipStr *curr;
 
-		if ((curr->priority == selected->priority) && (((MixRNG_Scramble() >> 3) & 0xff) < 0x40))
+		for (curr = selected + 1; curr < meta->ptrQuipStrNext; curr++)
 		{
-			selected = curr;
+			if (curr->priority > selected->priority)
+			{
+				selected = curr;
+				continue;
+			}
+
+			if ((curr->priority == selected->priority) && (((MixRNG_Scramble() >> 3) & 0xff) < 0x40))
+			{
+				selected = curr;
+			}
 		}
 	}
 
-	struct QuipStr *oldQuip = (struct QuipStr *)driver->EndOfRaceComment_ptrQuip;
-
-	if (oldQuip != NULL)
 	{
-		int oldPriority = oldQuip->priority;
+		struct QuipStr *oldQuip = (struct QuipStr *)driver->EndOfRaceComment_ptrQuip;
 
-		if (selected->priority <= oldPriority)
+		if (oldQuip != NULL)
 		{
-			if (selected->priority != oldPriority)
+			int selectedPriority = selected->priority;
+			int oldPriority = oldQuip->priority;
+
+			if (selectedPriority <= oldPriority)
 			{
-				return;
+				if (selectedPriority != oldPriority)
+				{
+					return;
+				}
+
+				if (((MixRNG_Scramble() >> 3) & 0xff) > 0x3f)
+				{
+					return;
+				}
 			}
 
-			if (((MixRNG_Scramble() >> 3) & 0xff) > 0x3f)
 			{
-				return;
-			}
-		}
+				// NOTE(aalhendi): Retail rereads the old quip after the tie test.
+				struct QuipStr *oldQuip = (struct QuipStr *)driver->EndOfRaceComment_ptrQuip;
 
-		if (oldQuip->priority < 0)
-		{
-			oldQuip->priority = -oldQuip->priority;
+				if ((oldQuip != NULL) && (oldQuip->priority < 0))
+				{
+					oldQuip->priority = -oldQuip->priority;
+				}
+			}
 		}
 	}
 
@@ -85,113 +88,87 @@ void UI_VsQuipAssign(struct Driver *driver, struct QuipMeta *meta, struct Driver
 		selected->priority = -selected->priority;
 	}
 
+	gGT = GAME_TRACKER;
+
 	driver->EndOfRaceComment_ptrQuip = (s16 *)selected;
 	driver->EndOfRaceComment_characterID = characterID;
 
-	sdata->gGT->timerEndOfRaceVS = ((sdata->gGT->gameMode1 & BATTLE_MODE) != 0) ? 150 : 300;
-}
-
-#define UI_QUIP_DATA_BASE_PSX 0x800864dcu
-#define UI_QUIP_VS_META_OFF   0x170u
-#define UI_QUIP_VS_META_END   0x518u
-#define UI_QUIP_BAT_META_OFF  0x730u
-#define UI_QUIP_BAT_META_END  0x850u
-
-struct QuipMetaRaw
-{
-	u32 ptrQuipStrCurr;
-	u32 ptrQuipStrNext;
-	s16 conditionType;
-	s16 flags;
-	int threshold;
-	int driverOffset;
-	int dataSize;
-};
-
-CTR_STATIC_ASSERT(sizeof(struct QuipMetaRaw) == 0x18);
-
-static u8 *UI_VsQuipData(void)
-{
-	return data.data850;
-}
-
-static struct QuipStr *UI_VsQuipPtrFromPsx(u32 psxAddr)
-{
-	return (struct QuipStr *)(void *)(UI_VsQuipData() + (psxAddr - UI_QUIP_DATA_BASE_PSX));
-}
-
-static struct QuipMeta UI_VsQuipMetaFromRaw(struct QuipMetaRaw *raw)
-{
-	struct QuipMeta meta;
-
-	meta.ptrQuipStrCurr = UI_VsQuipPtrFromPsx(raw->ptrQuipStrCurr);
-	meta.ptrQuipStrNext = UI_VsQuipPtrFromPsx(raw->ptrQuipStrNext);
-	meta.conditionType = raw->conditionType;
-	meta.flags = raw->flags;
-	meta.threshold = raw->threshold;
-	meta.driverOffset = raw->driverOffset;
-	meta.dataSize = raw->dataSize;
-
-	return meta;
+	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
+	{
+		gGT->timerEndOfRaceVS = 300;
+	}
+	else
+	{
+		gGT->timerEndOfRaceVS = 150;
+	}
 }
 
 void UI_VsQuipAssignAll(void)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	struct GameTracker *gGT = GAME_TRACKER;
+	struct QuipMeta *metaStart;
+	struct QuipMeta *metaEnd;
+	// NOTE(aalhendi): The attacker index persists across quip conditions.
 	int characterID = 0;
+	struct QuipMeta *meta;
+	struct Driver *bestDriver;
+	struct Driver *driver;
+	int bestScore;
+	int secondScore;
+	int scoreByDriverID[8];
+	struct Thread *thread;
 
 	if (gGT->numPlyrCurrGame < 2)
 	{
 		return;
 	}
 
-	u8 *quipData = UI_VsQuipData();
-	u32 metaStartOff = UI_QUIP_VS_META_OFF;
-	u32 metaEndOff = UI_QUIP_VS_META_END;
-
 	if ((gGT->gameMode1 & BATTLE_MODE) != 0)
 	{
-		metaStartOff = UI_QUIP_BAT_META_OFF;
-		metaEndOff = UI_QUIP_BAT_META_END;
+		metaStart = data.endRaceQuips.battleMetadata;
+		metaEnd = metaStart + 12;
+	}
+	else
+	{
+		metaStart = data.endRaceQuips.vsMetadata;
+		metaEnd = metaStart + 39;
 	}
 
-	struct QuipMetaRaw *metaStart = (struct QuipMetaRaw *)(void *)(quipData + metaStartOff);
-	struct QuipMetaRaw *metaEnd = (struct QuipMetaRaw *)(void *)(quipData + metaEndOff);
-
-	for (struct QuipMetaRaw *raw = metaStart; raw < metaEnd; raw++)
 	{
-		struct QuipStr *curr = UI_VsQuipPtrFromPsx(raw->ptrQuipStrCurr);
-		struct QuipStr *next = UI_VsQuipPtrFromPsx(raw->ptrQuipStrNext);
-
-		while (curr < next)
+		for (meta = metaStart; meta < metaEnd; meta++)
 		{
-			curr->priority++;
-			curr++;
+			struct QuipStr *curr = meta->ptrQuipStrCurr;
+
+			while (curr < meta->ptrQuipStrNext)
+			{
+				curr->priority++;
+				curr++;
+			}
 		}
 	}
 
-	struct Driver *bestDriver = NULL;
-	int bestScore = 0;
-	int secondScore = 0;
-	int scoreByDriverID[8];
+	// NOTE(aalhendi): secondScore retains the previous or tied maximum, not a sorted runner-up.
+	bestScore = 0;
+	secondScore = 0;
+	bestDriver = NULL;
 
-	struct Thread *thread = gGT->threadBuckets[PLAYER].thread;
+	thread = GAME_TRACKER->threadBuckets[PLAYER].thread;
 
 	while (thread != NULL)
 	{
-		struct Driver *driver = thread->object;
+		int score;
+
+		driver = thread->object;
 
 		driver->EndOfRaceComment_ptrQuip = NULL;
 
-		int score;
-
-		if ((gGT->gameMode1 & POINT_LIMIT) == 0)
+		if ((GAME_TRACKER->gameMode1 & POINT_LIMIT) != 0)
 		{
-			score = driver->BattleHUD.numLives;
+			score = GAME_TRACKER->battleSetup.pointsPerTeam[driver->BattleHUD.teamID];
 		}
 		else
 		{
-			score = gGT->battleSetup.pointsPerTeam[driver->BattleHUD.teamID];
+			score = driver->BattleHUD.numLives;
 		}
 
 		scoreByDriverID[driver->driverID] = score;
@@ -211,226 +188,231 @@ void UI_VsQuipAssignAll(void)
 		thread = thread->siblingThread;
 	}
 
-	for (struct QuipMetaRaw *raw = metaStart; raw < metaEnd; raw++)
 	{
-		struct QuipMeta meta = UI_VsQuipMetaFromRaw(raw);
-		struct Driver *selectedDriver = NULL;
-		int threshold = meta.threshold;
-		u32 bestValue = (meta.conditionType == 5) ? 0x7fffffff : 0;
-
-		if ((meta.flags & 1) != 0)
+		for (meta = metaStart; meta < metaEnd; meta++)
 		{
-			int numLaps = gGT->numLaps;
+			struct Driver *selectedDriver;
+			int threshold;
+			u32 bestValue;
 
-			if (numLaps < 0)
+			bestValue = (meta->conditionType == 5) ? 0x7fffffff : 0;
+			threshold = meta->threshold;
+			selectedDriver = NULL;
+
+			if ((meta->flags & 1) != 0)
 			{
-				numLaps = -numLaps;
+				int numLaps = GAME_TRACKER->numLaps;
+
+				numLaps = abs(numLaps);
+
+				threshold *= numLaps;
 			}
 
-			threshold *= numLaps;
-		}
+			thread = GAME_TRACKER->threadBuckets[PLAYER].thread;
 
-		thread = gGT->threadBuckets[PLAYER].thread;
-
-		while (thread != NULL)
-		{
-			struct Driver *driver = thread->object;
-			struct Driver *nextSelectedDriver = selectedDriver;
-			int nextThreshold = threshold;
-			u32 nextBestValue = bestValue;
-
-			switch (meta.conditionType)
+			while (thread != NULL)
 			{
-			case 0:
-			{
-				int value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
+				u32 sampledValue;
 
-				nextSelectedDriver = driver;
-				nextThreshold = value;
+				driver = thread->object;
 
-				if (value <= threshold)
+				switch (meta->conditionType)
 				{
-					nextSelectedDriver = selectedDriver;
-					nextThreshold = threshold;
+				case 7:
+				{
+					switch (threshold)
+					{
+					case 0:
+					{
+						if (driver == bestDriver)
+						{
+							selectedDriver = bestDriver;
+						}
+						break;
+					}
+
+					case 1:
+					{
+						if ((secondScore != 0) && (scoreByDriverID[driver->driverID] == secondScore))
+						{
+							selectedDriver = driver;
+						}
+						break;
+					}
+
+					default:
+					{
+						break;
+					}
+					}
+					break;
+				}
+
+				case 6:
+				{
+					u32 value = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
+
+					if (value == driver->numTimesAttacking)
+					{
+						selectedDriver = driver;
+					}
+					break;
+				}
+
+				case 8:
+				{
+					int value = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
 
 					if (value == threshold)
 					{
-						nextSelectedDriver = NULL;
+						selectedDriver = driver;
 					}
+					break;
 				}
-				break;
-			}
 
-			case 1:
-			{
-				int value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
-
-				if (value >= 0)
+				case 0:
 				{
-					nextSelectedDriver = driver;
-					nextThreshold = value;
+					int value = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
 
-					if (threshold <= value)
+					if (value > threshold)
 					{
-						nextSelectedDriver = selectedDriver;
-						nextThreshold = threshold;
+						selectedDriver = driver;
+						threshold = value;
+					}
+					else if (value == threshold)
+					{
+						selectedDriver = NULL;
+					}
+					break;
+				}
 
-						if (value == threshold)
+				case 1:
+				{
+					int value = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
+
+					if (value >= 0)
+					{
+						if (value < threshold)
 						{
-							nextSelectedDriver = NULL;
+							selectedDriver = driver;
+							threshold = value;
+						}
+						else if (value == threshold)
+						{
+							selectedDriver = NULL;
 						}
 					}
+					break;
 				}
-				break;
-			}
 
-			case 3:
-			{
-				for (int i = 0; i < 8; i++)
+				case 4:
 				{
-					u32 value = driver->numTimesAttackedByPlayer[i];
-					int delta = value - bestValue;
+					int delta;
+
+					sampledValue = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
+					delta = sampledValue - bestValue;
 
 					if (threshold < delta)
 					{
-						characterID = i;
+						bestValue = sampledValue;
 						selectedDriver = driver;
-						bestValue = value;
 					}
 					else if (-threshold < delta)
 					{
 						selectedDriver = NULL;
 
-						if ((int)bestValue < (int)value)
+						if ((int)bestValue < (int)sampledValue)
 						{
-							bestValue = value;
+							bestValue = sampledValue;
 						}
 					}
+					break;
 				}
 
-				nextSelectedDriver = selectedDriver;
-				nextBestValue = bestValue;
-				break;
-			}
-
-			case 4:
-			{
-				u32 value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
-				int delta = value - bestValue;
-
-				if (threshold < delta)
+				case 5:
 				{
-					nextSelectedDriver = driver;
-					nextBestValue = value;
-				}
-				else
-				{
-					nextSelectedDriver = selectedDriver;
-					nextBestValue = bestValue;
+					int delta;
 
-					if (-threshold < delta)
+					sampledValue = UI_VsQuipReadDriver(driver, meta->driverOffset, meta->dataSize);
+					delta = bestValue - sampledValue;
+
+					if ((int)sampledValue >= 0)
 					{
-						nextSelectedDriver = NULL;
-
-						if ((int)bestValue < (int)value)
+						if (threshold < delta)
 						{
-							nextBestValue = value;
+							bestValue = sampledValue;
+							selectedDriver = driver;
 						}
-					}
-				}
-				break;
-			}
-
-			case 5:
-			{
-				u32 value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
-				int delta = bestValue - value;
-
-				if ((int)value >= 0)
-				{
-					if (threshold < delta)
-					{
-						nextSelectedDriver = driver;
-						nextBestValue = value;
-					}
-					else
-					{
-						nextSelectedDriver = selectedDriver;
-						nextBestValue = bestValue;
-
-						if (-threshold < delta)
+						else if (-threshold < delta)
 						{
-							nextSelectedDriver = NULL;
+							selectedDriver = NULL;
 
-							if ((int)value < (int)bestValue)
+							if ((int)sampledValue < (int)bestValue)
 							{
-								nextBestValue = value;
+								bestValue = sampledValue;
 							}
 						}
 					}
+					break;
 				}
-				break;
-			}
 
-			case 6:
-			{
-				u32 value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
-
-				if (value == driver->numTimesAttacking)
+				case 3:
 				{
-					nextSelectedDriver = driver;
-				}
-				break;
-			}
-
-			case 7:
-				if (threshold == 0)
-				{
-					if (driver == bestDriver)
 					{
-						nextSelectedDriver = bestDriver;
+						int i;
+
+						for (i = 0; i < 8; i++)
+						{
+							// NOTE(aalhendi): Keep the sampled byte in v1 rather than exchanging it with the delta.
+							register u32 value CTR_PSX_REGISTER("$3") = driver->numTimesAttackedByPlayer[i];
+							int delta = value - bestValue;
+
+							if (threshold < delta)
+							{
+								bestValue = value;
+								selectedDriver = driver;
+								characterID = i;
+							}
+							else if (-threshold < delta)
+							{
+								selectedDriver = NULL;
+
+								if ((int)bestValue < (int)value)
+								{
+									bestValue = value;
+								}
+							}
+						}
 					}
-				}
-				else if ((threshold == 1) && (secondScore != 0) && (scoreByDriverID[driver->driverID] == secondScore))
-				{
-					nextSelectedDriver = driver;
-				}
-				break;
 
-			case 8:
-			{
-				int value = UI_VsQuipReadDriver(driver, meta.driverOffset, meta.dataSize);
-
-				if (value == threshold)
-				{
-					nextSelectedDriver = driver;
+					break;
 				}
-				break;
+
+				case 9:
+				{
+					if (driver->EndOfRaceComment_ptrQuip == NULL)
+					{
+						UI_VsQuipAssign(driver, meta, bestDriver, 0);
+					}
+					break;
+				}
+
+				default:
+				{
+					break;
+				}
+				}
+
+				if ((selectedDriver != NULL) && ((meta->flags & 0xc) != 0))
+				{
+					UI_VsQuipAssign(selectedDriver, meta, bestDriver, characterID);
+				}
+
+				thread = thread->siblingThread;
 			}
 
-			case 9:
-				if (driver->EndOfRaceComment_ptrQuip == NULL)
-				{
-					UI_VsQuipAssign(driver, &meta, bestDriver, 0);
-				}
-				break;
-
-			default:
-				break;
-			}
-
-			if ((nextSelectedDriver != NULL) && ((meta.flags & 0xc) != 0))
-			{
-				UI_VsQuipAssign(nextSelectedDriver, &meta, bestDriver, characterID);
-			}
-
-			thread = thread->siblingThread;
-			selectedDriver = nextSelectedDriver;
-			threshold = nextThreshold;
-			bestValue = nextBestValue;
+			UI_VsQuipAssign(selectedDriver, meta, bestDriver, characterID);
 		}
-
-		UI_VsQuipAssign(selectedDriver, &meta, bestDriver, characterID);
 	}
 }
 
@@ -441,232 +423,60 @@ void UI_VsQuipDrawAll(void)
 		UI_VS_QUIP_FORMAT_BUFFER_SIZE = 0x80
 	};
 
-	char *print;
 	char printBuffer[UI_VS_QUIP_FORMAT_BUFFER_SIZE];
-	s16 *printArr;
+	struct QuipStr *quip;
 	struct Driver *d;
 
-	struct GameTracker *gGT = sdata->gGT;
+	struct GameTracker *gGT = GAME_TRACKER;
 	struct Thread *thread;
+	struct PushBuffer *pushBuffer;
 
 	// loop through player threads
 	int playerIndex = 0;
-	for (thread = gGT->threadBuckets[0].thread; thread != 0; thread = thread->siblingThread, playerIndex++)
+	int fontType = FONT_CREDITS;
+	thread = gGT->threadBuckets[0].thread;
+	pushBuffer = gGT->pushBuffer;
+	for (; thread != 0; playerIndex++, thread = thread->siblingThread, pushBuffer++)
 	{
+		RECT *r;
+		char *pressX;
+		struct MetaDataCHAR *characterMetadata;
+		int pressIndex;
+		int centerX;
+		int centerY;
+
+		// NOTE(aalhendi): Keep the viewport snapshot before skips and formatting.
+		r = &pushBuffer->rect;
+		centerX = r->x + (r->w >> 1);
+		centerY = r->y + (r->h >> 3);
+
 		// get player struct from thread
 		d = (struct Driver *)thread->object;
 
-		// If driver already pressed X to continue
-		if ((sdata->Battle_EndOfRace.boolPressX[playerIndex] & 2) != 0)
+		// NOTE(aalhendi): Snapshot the metadata and resident press array here.
+		characterMetadata = GAME_CHARACTER_METADATA;
+		pressIndex = (s16)playerIndex;
+		pressX = sdata_static.Battle_EndOfRace.boolPressX;
+		// Draw only while this player is active and has a selected quip.
+		if ((pressX[pressIndex] & 2) == 0)
 		{
-			continue;
-		}
-
-		// This is secretly a s16[2], to hold a config bit
-		printArr = (s16 *)d->EndOfRaceComment_ptrQuip;
-
-		if (printArr == 0)
-		{
-			continue;
-		}
-
-		printArr[2] = 0;
-		printArr[3] = 0;
-
-		// if this is only one comment
-		if ((printArr[1] & 1) == 0)
-		{
-			// Print the string as a comment
-			print = sdata->lngStrings[printArr[0]];
-		}
-
-		// if the comment is conjoined
-		else
-		{
-			// Add two strings together
-			sprintf(printBuffer,
-
-			        // Contains '%s' format:
-			        // Original end-of-race comment
-			        sdata->lngStrings[printArr[0]],
-
-			        // second part of comment,
-			        // lngIndex of driver,
-			        // for stuff like "hit by Crash Bandicoot" or something
-			        sdata->lngStrings[data.MetaDataCharacters[d->EndOfRaceComment_characterID].name_LNG_long]);
-
-			print = printBuffer;
-		}
-
-		// get current player's pushBuffer
-		RECT *r = &gGT->pushBuffer[playerIndex].rect;
-
-		// Draw the string with a box around it
-		RECTMENU_DrawQuip(print,
-		                  (r->x + (r->w >> 1)), // 50% width
-		                  (r->y + (r->h >> 3)), // 12% height
-		                  0, FONT_CREDITS, JUSTIFY_CENTER | ORANGE, 4);
-	}
-}
-
-// Retail 0x800116ec: Battle end stat positions for 3P/4P.
-static const SVec2 s_battleStatsPos3P4P[4] = {
-    {0x55, 0x35},
-    {0xaa, 0x35},
-    {0x55, 0x43},
-    {0xaa, 0x43},
-};
-
-enum
-{
-	UI_VS_WAIT_STAT_MODE_HIT_YOU = 1,
-	UI_VS_WAIT_PLAYER_READY = 2,
-	UI_VS_WAIT_READY_COOLDOWN_FRAMES = 0x78,
-	UI_VS_WAIT_PROMPT_Y_OFFSET = 0x23,
-	UI_VS_WAIT_STAT_TEXT_SIZE = 8,
-	UI_VS_WAIT_TEAM_COLOR_BASE = PLAYER_BLUE,
-	UI_VS_WAIT_TEAM_TEXT_FLAGS = JUSTIFY_CENTER,
-};
-
-CTR_STATIC_ASSERT(LNG_HIT_YOU == LNG_YOU_HIT + 1);
-
-void UI_VsWaitForPressX(void)
-{
-	char statText[UI_VS_WAIT_STAT_TEXT_SIZE];
-	Color clearColor;
-	RECT clearRect;
-
-	struct GameTracker *gGT = sdata->gGT;
-	u8 numPlayers = gGT->numPlyrCurrGame;
-
-	int readyCount = 0;
-
-	for (s32 playerIndex = 0; playerIndex < numPlayers; playerIndex++)
-	{
-		// flags, for which players have pressed X to continue
-		char *pressState = &sdata->Battle_EndOfRace.boolPressX[playerIndex];
-
-		struct Driver *driver = gGT->drivers[playerIndex];
-		RECT *viewport = &gGT->pushBuffer[playerIndex].rect;
-		int buttonsTapped = sdata->gGamepads->gamepad[playerIndex].buttonsTapped;
-
-		// If Player has not pressed X to continue
-		// Draw comment, and battle stats
-		if ((*pressState & UI_VS_WAIT_PLAYER_READY) == 0)
-		{
-			// If you hit left or right on the D-Pad, or Analog Stick
-			if ((buttonsTapped & (BTN_LEFT | BTN_RIGHT)) != 0)
+			quip = (struct QuipStr *)d->EndOfRaceComment_ptrQuip;
+			if (quip != 0)
 			{
-				// Invert &1 bit
-				*pressState = *pressState ^ UI_VS_WAIT_STAT_MODE_HIT_YOU;
-			}
+				quip->priority = 0;
 
-			if (
-			    // ready to continue, after cooldown
-			    (gGT->timerEndOfRaceVS < UI_VS_WAIT_READY_COOLDOWN_FRAMES) && ((buttonsTapped & (BTN_CROSS_one | BTN_START)) != 0))
-			{
-				// invert &2 bit
-				*pressState = *pressState ^ UI_VS_WAIT_PLAYER_READY;
-			}
-
-			// If you're in Battle Mode
-			if ((gGT->gameMode1 & BATTLE_MODE) != 0)
-			{
-				int promptString = LNG_YOU_HIT + (*pressState & UI_VS_WAIT_STAT_MODE_HIT_YOU);
-
-				DecalFont_DrawLine(sdata->lngStrings[promptString],
-
-				                   // Midpoint between pushBuffer Start X and End X
-				                   viewport->x + (viewport->w >> 1),
-
-				                   (viewport->y + UI_VS_WAIT_PROMPT_Y_OFFSET),
-
-				                   FONT_CREDITS, JUSTIFY_CENTER | WHITE);
-
-				// If you have 3 screens, you need 9 prints
-				// If you have 4 screens, you need 16 prints
-
-				// for (a in players)
-				// for (b in players)
-				// print a hit b
-				// print b hit a
-
-				const SVec2 *battleStatsPos = s_battleStatsPos3P4P;
-				if (numPlayers == 2)
+				// NOTE(aalhendi): Keep each branch's formatting and draw arguments together.
+				if ((quip->flags & 1) != 0)
 				{
-					battleStatsPos = sdata->Battle_EndOfRace.textPos2P;
+					sprintf(printBuffer, GAME_LANGUAGE_STRINGS[(u16)quip->lngIndex],
+					        GAME_LANGUAGE_STRINGS[characterMetadata[d->EndOfRaceComment_characterID].name_LNG_long]);
+					RECTMENU_DrawQuip(printBuffer, centerX, centerY, 0, fontType, JUSTIFY_CENTER | ORANGE, 4);
 				}
-
-				for (s32 statPlayerIndex = 0; statPlayerIndex < numPlayers; statPlayerIndex++)
+				else
 				{
-					// YOU HIT THEM
-					u8 numAttacked;
-					if ((*pressState & UI_VS_WAIT_STAT_MODE_HIT_YOU) == 0)
-					{
-						numAttacked = driver->numTimesAttackingPlayer[statPlayerIndex];
-					}
-
-					// HIT YOU
-					else
-					{
-						numAttacked = driver->numTimesAttackedByPlayer[statPlayerIndex];
-					}
-
-					sprintf(statText, "p%d:%2.02d",
-
-					        // basically, j + 1
-					        // which is (1, 2, 3, 4)
-					        (statPlayerIndex + 1),
-
-					        // Amount of times this player hit you,
-					        // or amount of times you hit them
-					        numAttacked);
-
-
-					// Get font color based on battle team
-					s16 teamID = (s16)gGT->drivers[statPlayerIndex]->BattleHUD.teamID;
-					int statTextFlags = ((teamID + (u32)UI_VS_WAIT_TEAM_COLOR_BASE) | UI_VS_WAIT_TEAM_TEXT_FLAGS);
-
-
-					DecalFont_DrawLine(statText,
-
-					                   // midpoint between Start X and Size X
-					                   (viewport->x + battleStatsPos[statPlayerIndex].x),
-
-					                   // midpoint between Start Y and Size Y
-					                   (viewport->y + battleStatsPos[statPlayerIndex].y),
-
-					                   FONT_SMALL, statTextFlags);
+					RECTMENU_DrawQuip(GAME_LANGUAGE_STRINGS[(u16)quip->lngIndex], centerX, centerY, 0, fontType, JUSTIFY_CENTER | ORANGE, 4);
 				}
 			}
 		}
-
-		// If Player has pressed X to continue
-		else
-		{
-			// Stop drawing comment + battle stats
-
-			memset(&clearColor, 0, sizeof(clearColor));
-			clearRect = *viewport;
-			CTR_Box_DrawClearBox(&clearRect, &clearColor, 0, gGT->backBuffer->otMem.uiOT, &gGT->backBuffer->primMem);
-
-			// Allow Go-Back option to YouHit/HitYou
-			if ((buttonsTapped & BTN_SQUARE_two) != 0)
-			{
-				// invert &2 bit
-				*pressState = *pressState ^ UI_VS_WAIT_PLAYER_READY;
-			}
-
-			// increment counter of players ready to continue
-			readyCount++;
-		}
-	}
-
-	// If all players press X to continue
-	if (readyCount == numPlayers)
-	{
-		// Stop drawing 4 screens, draw 1 screen and options
-		gGT->timerEndOfRaceVS = 0;
-		*(int *)&sdata->Battle_EndOfRace.boolPressX[0] = 0;
 	}
 }
