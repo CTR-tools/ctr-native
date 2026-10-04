@@ -1,0 +1,468 @@
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -52,6 +52,7 @@
+ #include "tree.h"
+ #include "expr.h"
+ #include "flags.h"
++#include "except.h"
+ 
+ #ifndef R_OK
+ #define R_OK 4
+@@ -210,6 +211,14 @@
+ char *mips_psx_normal_ram_lhu_delay_string;
+ char *mips_psx_local_bgez_string;
+ char *mips_psx_ctc2_return_delay_string;
++char *mips_stack_align_string;
++char *mips_prologue_arg_alias_string;
++char *mips_framed_return_boundary_string;
++char *mips_ordered_gp_prologue_string;
++int mips_ordered_gp_prologue;
++int mips_framed_return_boundary;
++int mips_prologue_arg_alias;
++int mips_stack_align = 8;
+ int mips_psx_normal_ram_lhu_delay;
+ int mips_psx_local_bgez;
+ int mips_psx_ctc2_return_delay;
+@@ -3525,6 +3534,17 @@
+   register int regno;
+   register enum machine_mode mode;
+ 
++  /* This selects a distinct word-stack calling convention, not a size cue.  */
++  mips_stack_align = 8;
++  if (mips_stack_align_string != 0)
++    {
++      if (!strcmp (mips_stack_align_string, "4"))
++        mips_stack_align = 4;
++      else if (strcmp (mips_stack_align_string, "8"))
++        error ("bad value (%s) for -mstack-align= (expected 4 or 8)",
++               mips_stack_align_string);
++    }
++
+   mips_psx_normal_ram_lhu_delay
+     = mips_psx_policy_option ("psx-normal-ram-lhu-delay",
+                               mips_psx_normal_ram_lhu_delay_string);
+@@ -3533,6 +3553,15 @@
+   mips_psx_ctc2_return_delay
+     = mips_psx_policy_option ("psx-ctc2-return-delay",
+                               mips_psx_ctc2_return_delay_string);
++  mips_prologue_arg_alias
++    = mips_psx_policy_option ("prologue-arg-alias",
++                              mips_prologue_arg_alias_string);
++  mips_framed_return_boundary
++    = mips_psx_policy_option ("framed-return-boundary",
++                              mips_framed_return_boundary_string);
++  mips_ordered_gp_prologue
++    = mips_psx_policy_option ("ordered-gp-prologue",
++                              mips_ordered_gp_prologue_string);
+ 
+   mips_section_threshold = (g_switch_set) ? g_switch_value : MIPS_DEFAULT_GVALUE;
+ 
+@@ -3966,6 +3995,12 @@
+ 	  mips_hard_regno_mode_ok[(int)mode][regno] = temp;
+ 	}
+     }
++  if (mips_stack_align == 4
++      && (mips_isa != 1 || TARGET_BIG_ENDIAN || TARGET_64BIT
++          || mips_abi != ABI_32 || INT_TYPE_SIZE != 32
++          || TARGET_HARD_FLOAT || TARGET_ABICALLS || flag_pic))
++    error ("-mstack-align=4 requires little-endian MIPS-I/ABI32 soft-float without PIC");
++
+ }
+ 
+ 
+@@ -5353,6 +5388,12 @@
+   int  fp_inc;			/* 1 or 2 depending on the size of fp regs */
+   long fp_bits;			/* bitmask to use for each fp register */
+ 
++  if (mips_stack_align == 4
++      && (current_function_varargs || current_function_stdarg
++          || current_function_calls_alloca || current_function_calls_setjmp
++          || current_function_returns_struct || profile_flag))
++    fatal ("-mstack-align=4 does not support varargs, dynamic frames, setjmp, structure returns or profiling");
++
+   gp_reg_size	 = 0;
+   fp_reg_size	 = 0;
+   mask		 = 0;
+@@ -5482,6 +5523,54 @@
+
+ #define BITSET_P(value,bit) (((value) & (1L << (bit))) != 0)
+
++/* A bounded RTL-only fixed-frame policy.  Other ABIs, save kinds and
++   prologue emitters retain their existing order and scheduling boundaries. */
++static int
++mips_ordered_gp_prologue_p ()
++{
++  long low, high;
++  int regno, count = 0;
++  tree arg;
++  if (!mips_ordered_gp_prologue || !reload_completed || mips_isa != 1
++      || TARGET_BIG_ENDIAN || TARGET_64BIT || TARGET_LONG64
++      || mips_abi != ABI_32 || INT_TYPE_SIZE != 32 || UNITS_PER_WORD != 4
++      || word_mode != SImode || !TARGET_SOFT_FLOAT || TARGET_ABICALLS
++      || TARGET_EMBEDDED_PIC || HALF_PIC_P () || flag_pic
++      || frame_pointer_needed || profile_flag || profile_block_flag
++      || flag_exceptions || asynchronous_exceptions
++      || current_function_varargs || current_function_stdarg
++      || current_function_calls_alloca || current_function_calls_setjmp
++      || current_function_calls_longjmp || current_function_returns_struct
++      || current_function_returns_pcc_struct || current_function_needs_context
++      || current_function_contains_functions || current_function_has_nonlocal_label
++      || current_function_has_nonlocal_goto || !current_frame_info.initialized
++      || current_frame_info.total_size <= 0 || current_frame_info.total_size > 32767
++      || current_frame_info.mask == 0 || current_frame_info.fmask != 0
++      || current_frame_info.fp_reg_size != 0 || current_frame_info.gp_reg_size <= 0)
++    return 0;
++  /* Aggregate argument adjustments can precede frame allocation.  Limit
++     this policy to ordinary scalar/pointer argument RTL. */
++  for (arg = DECL_ARGUMENTS (current_function_decl); arg; arg = TREE_CHAIN (arg))
++    {
++      tree type = DECL_ARG_TYPE (arg);
++      rtx incoming = DECL_INCOMING_RTL (arg);
++      if (type == 0 || AGGREGATE_TYPE_P (type)
++          || AGGREGATE_TYPE_P (TREE_TYPE (arg)) || TREE_ADDRESSABLE (type)
++          || incoming == 0
++          || (GET_CODE (incoming) != REG && GET_CODE (incoming) != MEM))
++        return 0;
++    }
++  for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; ++regno)
++    if (BITSET_P (current_frame_info.mask, regno - GP_REG_FIRST))
++      ++count;
++  if (count * UNITS_PER_WORD != current_frame_info.gp_reg_size)
++    return 0;
++  high = current_frame_info.gp_sp_offset;
++  low = high - (current_frame_info.gp_reg_size - UNITS_PER_WORD);
++  return (low >= 0 && high + UNITS_PER_WORD <= current_frame_info.total_size
++          && low % UNITS_PER_WORD == 0 && high % UNITS_PER_WORD == 0);
++}
++
+ static void
+ save_restore_insns (store_p, large_reg, large_offset, file)
+      int store_p;		/* true if this is prologue */
+@@ -5504,6 +5593,27 @@
+
+   if (mask == 0 && fmask == 0)
+     return;
++
++  /* Preserve the existing homes, mask and frame notes; change only the
++     eligible RTL store traversal, then finish the prologue before body work. */
++  if (store_p && file == (FILE *)0 && mips_ordered_gp_prologue_p ())
++    {
++      gp_offset = current_frame_info.gp_sp_offset
++                  - (current_frame_info.gp_reg_size - UNITS_PER_WORD);
++      for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; ++regno)
++        if (BITSET_P (mask, regno - GP_REG_FIRST))
++          {
++            rtx reg_rtx = gen_rtx (REG, word_mode, regno);
++            rtx mem_rtx = gen_rtx (MEM, word_mode,
++                                 gen_rtx (PLUS, Pmode, stack_pointer_rtx,
++                                          GEN_INT (gp_offset)));
++            insn = emit_move_insn (mem_rtx, reg_rtx);
++            RTX_FRAME_RELATED_P (insn) = 1;
++            gp_offset += UNITS_PER_WORD;
++          }
++      emit_insn (gen_blockage ());
++      return;
++    }
+
+   /* Save registers starting from high to low.  The debuggers prefer
+      at least the return register be stored at func+4, and also it
+@@ -6039,6 +6149,8 @@
+ 					  tsize_rtx));
+ 
+ 	  RTX_FRAME_RELATED_P (insn) = 1;
++          if (mips_prologue_arg_alias)
++            emit_insn (gen_blockage ());
+ 	}
+ 
+       save_restore_insns (TRUE, tmp_rtx, tsize, (FILE *)0);
+@@ -6161,6 +6273,147 @@
+ }
+ 
+ 
++/* Only a real compiler-generated GPR save at its computed new-frame home.
++   FRAME_RELATED alone is not a claim that arbitrary stack memory is private. */
++static int
++mips_new_frame_gpr_save_p (insn, mem)
++     rtx insn, mem;
++{
++  rtx set, addr, src;
++  int n, regno;
++  long offset;
++  if (GET_CODE (insn) != INSN || !RTX_FRAME_RELATED_P (insn)
++      || GET_CODE (mem) != MEM || GET_MODE (mem) != SImode
++      || MEM_VOLATILE_P (mem) || (set = single_set (insn)) == 0
++      || SET_DEST (set) != mem)
++    return 0;
++  src = SET_SRC (set);
++  if (GET_CODE (src) != REG || !GP_REG_P (REGNO (src)))
++    return 0;
++  regno = REGNO (src) - GP_REG_FIRST;
++  if (!BITSET_P (current_frame_info.mask, regno))
++    return 0;
++  offset = current_frame_info.gp_sp_offset;
++  for (n = GP_REG_NUM - 1; n > regno; --n)
++    if (BITSET_P (current_frame_info.mask, n))
++      offset -= UNITS_PER_WORD;
++  addr = XEXP (mem, 0);
++  return (offset >= 0 && offset + UNITS_PER_WORD <= current_frame_info.total_size
++          && GET_CODE (addr) == PLUS && XEXP (addr, 0) == stack_pointer_rtx
++          && GET_CODE (XEXP (addr, 1)) == CONST_INT
++          && INTVAL (XEXP (addr, 1)) == offset);
++}
++
++/* Sched2-only, entry-prefix subset of stack/argument base-origin analysis.
++   It does not infer through pointer loads, copies, arbitrary expressions,
++   calls, ASM, frame exposure or control flow.  Existing non-memory edges,
++   barriers, unwind notes and all other alias predicates remain unchanged. */
++int
++mips_prologue_arg_read_disjoint_p (save, mem, insn, read_mem)
++     rtx save, mem, insn, read_mem;
++{
++  rtx addr, base, set, p, src, allocation = NULL_RTX;
++  tree arg;
++  int regno, allocated = 0, saved = 0, prologue_end = 0;
++  int allocation_boundary = 0;
++  if (!mips_prologue_arg_alias || !reload_completed || TARGET_64BIT
++      || TARGET_ABICALLS || TARGET_EMBEDDED_PIC || mips_abi != ABI_32
++      || UNITS_PER_WORD != 4 || frame_pointer_needed || profile_flag
++      || flag_exceptions || asynchronous_exceptions
++      || current_function_calls_alloca || current_function_calls_setjmp
++      || current_function_calls_longjmp || current_function_has_nonlocal_label
++      || current_function_has_nonlocal_goto || current_function_contains_functions
++      || current_function_needs_context || current_function_varargs
++      || current_function_stdarg || current_function_returns_struct
++      || !current_frame_info.initialized || current_frame_info.total_size <= 0
++      || current_frame_info.total_size > 32767
++      || !mips_new_frame_gpr_save_p (save, mem)
++      || GET_CODE (insn) != INSN || GET_CODE (read_mem) != MEM
++      || GET_MODE (read_mem) != SImode || MEM_VOLATILE_P (read_mem)
++      || (set = single_set (insn)) == 0 || SET_SRC (set) != read_mem
++      || GET_CODE (SET_DEST (set)) != REG)
++    return 0;
++  addr = XEXP (read_mem, 0);
++  if (GET_CODE (addr) == PLUS)
++    {
++      if (GET_CODE (XEXP (addr, 1)) != CONST_INT)
++        return 0;
++      addr = XEXP (addr, 0);
++    }
++  if (GET_CODE (addr) != REG || GET_MODE (addr) != Pmode)
++    return 0;
++  base = addr;
++  regno = REGNO (base);
++  if (regno < GP_ARG_FIRST || regno > GP_ARG_FIRST + 3 || global_regs[regno])
++    return 0;
++  for (arg = DECL_ARGUMENTS (current_function_decl); arg; arg = TREE_CHAIN (arg))
++    if (TREE_CODE (TREE_TYPE (arg)) == POINTER_TYPE
++        && DECL_INCOMING_RTL (arg) != 0
++        && GET_CODE (DECL_INCOMING_RTL (arg)) == REG
++        && GET_MODE (DECL_INCOMING_RTL (arg)) == Pmode
++        && REGNO (DECL_INCOMING_RTL (arg)) == regno)
++      break;
++  if (arg == 0)
++    return 0;
++  for (p = get_insns (); p && p != insn; p = NEXT_INSN (p))
++    {
++      if (GET_CODE (p) == NOTE)
++        {
++          if (NOTE_LINE_NUMBER (p) == NOTE_INSN_PROLOGUE_END)
++            prologue_end = 1;
++          else if (NOTE_LINE_NUMBER (p) == NOTE_INSN_EPILOGUE_BEG
++                   || NOTE_LINE_NUMBER (p) == NOTE_INSN_EH_REGION_BEG
++                   || NOTE_LINE_NUMBER (p) == NOTE_INSN_EH_REGION_END)
++            return 0;
++          continue;
++        }
++      /* Only the backend's boundary immediately after this real allocation.
++         This scan exception does not remove its scheduler dependencies. */
++      if (GET_CODE (p) == INSN && allocated && !saved && !prologue_end
++          && !allocation_boundary && prev_nonnote_insn (p) == allocation
++          && GET_CODE (PATTERN (p)) == UNSPEC_VOLATILE
++          && XINT (PATTERN (p), 1) == 0 && XVECLEN (PATTERN (p), 0) == 1
++          && XVECEXP (PATTERN (p), 0, 0) == const0_rtx
++          && recog_memoized (p) == CODE_FOR_blockage)
++        {
++          allocation_boundary = 1;
++          continue;
++        }
++      if (GET_CODE (p) != INSN || asm_noperands (PATTERN (p)) >= 0
++          || GET_CODE (PATTERN (p)) == ASM_INPUT
++          || volatile_insn_p (PATTERN (p)) || volatile_refs_p (PATTERN (p))
++          || GET_CODE (PATTERN (p)) == TRAP_IF || reg_set_p (base, p))
++        return 0;
++      if (reg_mentioned_p (stack_pointer_rtx, PATTERN (p)))
++        {
++          set = single_set (p);
++          if (set == 0)
++            return 0;
++          src = SET_SRC (set);
++          if (!allocated && !prologue_end && RTX_FRAME_RELATED_P (p)
++              && SET_DEST (set) == stack_pointer_rtx
++              && GET_CODE (src) == MINUS && XEXP (src, 0) == stack_pointer_rtx
++              && GET_CODE (XEXP (src, 1)) == CONST_INT
++              && INTVAL (XEXP (src, 1)) == current_frame_info.total_size)
++            {
++              allocated = 1;
++              allocation = p;
++            }
++          else if (!allocated || prologue_end
++                   || !mips_new_frame_gpr_save_p (p, SET_DEST (set)))
++            return 0;
++        }
++      if (p == save)
++        {
++          if (!allocated || prologue_end)
++            return 0;
++          saved = 1;
++        }
++    }
++  return (p == insn && allocated && allocation_boundary
++          && saved && prologue_end);
++}
++
+ /* Expand the epilogue into a bunch of separate insns.  */
+ 
+ void
+@@ -6210,6 +6463,10 @@
+       else
+ 	emit_insn (gen_addsi3 (stack_pointer_rtx, stack_pointer_rtx,
+ 			       tsize_rtx));
++      /* Keep the completed frame teardown outside the return delay slot.
++         Null epilogues take the earlier ordinary-return path unchanged. */
++      if (mips_framed_return_boundary)
++        emit_insn (gen_blockage ());
+     }
+ 
+   emit_jump_insn (gen_return_internal ());
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -144,6 +144,14 @@
+ extern int mips_psx_normal_ram_lhu_delay;
+ extern int mips_psx_local_bgez;
+ extern int mips_psx_ctc2_return_delay;
++extern char *mips_stack_align_string;
++extern int mips_stack_align;
++extern char *mips_prologue_arg_alias_string;
++extern char *mips_framed_return_boundary_string;
++extern char *mips_ordered_gp_prologue_string;
++extern int mips_ordered_gp_prologue;
++extern int mips_framed_return_boundary;
++extern int mips_prologue_arg_alias;
+ #define TARGET_PSX_NORMAL_RAM_LHU_DELAY mips_psx_normal_ram_lhu_delay
+ #define TARGET_PSX_LOCAL_BGEZ mips_psx_local_bgez
+ #define TARGET_PSX_CTC2_RETURN_DELAY mips_psx_ctc2_return_delay
+@@ -196,6 +204,10 @@
+ extern int		mips_sxy2_delay_p ();
+ extern int              mips_adjacent_volatile_lhu_delay_p ();
+ extern int              mips_ctc2_return_delay_p ();
++
++extern int mips_prologue_arg_read_disjoint_p ();
++#define PROLOGUE_ARG_READ_DISJOINT_P(SAVE, MEM, INSN, READ_MEM) \
++  mips_prologue_arg_read_disjoint_p ((SAVE), (MEM), (INSN), (READ_MEM))
+
+ /* Per-compilation opt-ins, not game modes or generic volatile optimization.
+    LHU requires normal aligned mapped RAM; CTC2 requires enabled, nonfaulting
+@@ -543,6 +555,10 @@
+   { "psx-normal-ram-lhu-delay=", &mips_psx_normal_ram_lhu_delay_string }, \
+   { "psx-local-bgez=", &mips_psx_local_bgez_string },		\
+   { "psx-ctc2-return-delay=", &mips_psx_ctc2_return_delay_string }, \
++  { "stack-align=", &mips_stack_align_string }, \
++  { "prologue-arg-alias=", &mips_prologue_arg_alias_string }, \
++  { "framed-return-boundary=", &mips_framed_return_boundary_string }, \
++  { "ordered-gp-prologue=", &mips_ordered_gp_prologue_string }, \
+   { "cpu=",	&mips_cpu_string	},				\
+   { "ips",	&mips_isa_string	}				\
+ }
+@@ -2116,8 +2132,13 @@
+    `current_function_outgoing_args_size'.  */
+ #define OUTGOING_REG_PARM_STACK_SPACE
+ 
+-/* Align stack frames on 64 bits (Double Word ).  */
+-#define STACK_BOUNDARY 64
++/* The default remains o32's double-word alignment.  Four bytes is a
++   separately selected word-stack ABI; all callees must be compatible.  */
++#define STACK_BOUNDARY (mips_stack_align * BITS_PER_UNIT)
++
++/* Alignment in bits for reload's zero-size frame bookkeeping only.  */
++#define RELOAD_FRAME_ALIGNMENT \
++  (mips_stack_align == 4 ? 4 * BITS_PER_UNIT : BIGGEST_ALIGNMENT)
+ 
+ /* Make sure 4 words are always allocated on the stack.  */
+ 
+@@ -2335,9 +2356,16 @@
+   || (regno == FRAME_POINTER_REGNUM && frame_pointer_needed)	\
+   || (regno == (GP_REG_FIRST + 31) && regs_ever_live[GP_REG_FIRST + 31]))
+ 
+-/* ALIGN FRAMES on double word boundaries */
+-
+-#define MIPS_STACK_ALIGN(LOC) (((LOC)+7) & ~7)
++/* Align each frame component consistently with the selected stack ABI.  */
++#define MIPS_STACK_ALIGN(LOC) \
++  (((LOC) + mips_stack_align - 1) & -mips_stack_align)
++
++/* Do not silently misalign a stronger-aligned local/spill slot.  */
++#define CHECK_STACK_SLOT_ALIGNMENT(ALIGNMENT) \
++  do { \
++    if (mips_stack_align == 4 && (ALIGNMENT) > 4) \
++      fatal ("-mstack-align=4 cannot allocate a stack slot aligned above 4 bytes"); \
++  } while (0)
+ 
+ 
+ /* Output assembler code to FILE to increment profiler label # LABELNO
+--- a/function.c
++++ b/function.c
+@@ -701,6 +701,10 @@
+   else
+     alignment = align / BITS_PER_UNIT;
+ 
++#ifdef CHECK_STACK_SLOT_ALIGNMENT
++  CHECK_STACK_SLOT_ALIGNMENT (alignment);
++#endif
++
+   /* Round frame offset to that alignment.
+      We must be careful here, since FRAME_OFFSET might be negative and
+      division with a negative dividend isn't as well defined as we might
+@@ -775,6 +779,10 @@
+     }
+   else
+     alignment = align / BITS_PER_UNIT;
++
++#ifdef CHECK_STACK_SLOT_ALIGNMENT
++  CHECK_STACK_SLOT_ALIGNMENT (alignment);
++#endif
+
+   /* Round frame offset to that alignment.  */
+ #ifdef FRAME_GROWS_DOWNWARD
+--- a/reload1.c
++++ b/reload1.c
+@@ -912,11 +912,16 @@
+ 	 changes from 0 to 1 in this pass.  */
+       new_basic_block_needs = 0;
+ 
+-      /* Round size of stack frame to BIGGEST_ALIGNMENT.  This must be done
++      /* Round size of stack frame to the target's reload frame alignment
++	 (normally BIGGEST_ALIGNMENT).  This must be done
+ 	 here because the stack size may be a part of the offset computation
+ 	 for register elimination, and there might have been new stack slots
+ 	 created in the last iteration of this loop.   */
++#ifdef RELOAD_FRAME_ALIGNMENT
++      assign_stack_local (BLKmode, 0, RELOAD_FRAME_ALIGNMENT);
++#else
+       assign_stack_local (BLKmode, 0, 0);
++#endif
+ 
+       starting_frame_size = get_frame_size ();
+ 
+--- a/sched.c
++++ b/sched.c
+@@ -1952,6 +1952,10 @@
+ 	    /* If a dependency already exists, don't create a new one.  */
+ 	    if (! find_insn_list (XEXP (pending, 0), LOG_LINKS (insn)))
+ 	      if (true_dependence (XEXP (pending_mem, 0), x))
++#ifdef PROLOGUE_ARG_READ_DISJOINT_P
++        if (! PROLOGUE_ARG_READ_DISJOINT_P (XEXP (pending, 0),
++                                           XEXP (pending_mem, 0), insn, x))
++#endif
+ 		add_dependence (insn, XEXP (pending, 0), 0);
+ 
+ 	    pending = XEXP (pending, 1);

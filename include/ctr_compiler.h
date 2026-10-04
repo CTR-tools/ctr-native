@@ -185,6 +185,7 @@
 		(value) = (nativeValue);                                              \
 	} while (0)
 #else
+#define CTR_NegateS32(value) __builtin_mips_neg_si(value)
 #define CTR_PSX_MATCH_SECTION(sectionName)                                      __attribute__((section(sectionName)))
 #define CTR_PSX_REGISTER(registerName)                                          __asm__(registerName)
 #define CTR_PSX_BIND_VALUE_CLOBBER(value, registerName)                         __asm__("" : "+r"(value) : : registerName)

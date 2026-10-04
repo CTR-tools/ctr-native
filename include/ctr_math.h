@@ -184,6 +184,15 @@ static inline s32 CTR_MipsNegLo(s32 value)
 	return CTR_MipsSubLo(0, value);
 }
 
+// NOTE(aalhendi): Ordinary signed negation requires value != INT_MIN. The
+// PSX compiler primitive selects SUB without changing other C operators.
+#ifdef CTR_NATIVE
+static inline s32 CTR_NegateS32(s32 value)
+{
+	return -value;
+}
+#endif
+
 static inline u32 CTR_PackS16Pair(s32 lo, s32 hi)
 {
 	return (u32)(u16)lo | ((u32)(u16)hi << 16);

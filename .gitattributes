@@ -1,4 +1,6 @@
 # Vendored upstream snapshots are byte-preserved.
 /externals/maspsx/** -text
 /externals/old-gcc/** -text
+# Unified-diff context preserves upstream blank lines and space-prefixed tabs.
+/externals/old-gcc/patches/psx-gte-delay-policies-2.8.1.patch whitespace=-blank-at-eol,-space-before-tab
 /externals/psx-binutils/** -text

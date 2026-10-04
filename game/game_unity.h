@@ -140,12 +140,17 @@
 
 #include "MATH/MATH_0_Sin.c"
 #include "MATH/MATH_1_Cos.c"
+// NOTE(aalhendi): Retail register owners belong to their isolated leaf TU.
+#ifdef CTR_NATIVE
 #include "MATH/TRIG_AngleSinCos.c"
+#include "MATH/TRIG_AngleSinCos_Unsigned.c"
+#endif
 #include "MATH/MATH_2_FastSqrt.c"
 #include "MATH/MATH_3_HitboxMatrix.c"
 #include "MATH/MATH_7_MatrixStubs.c"
-// NOTE(aalhendi): Retail compiles this register-entry leaf separately.
+// NOTE(aalhendi): Retail compiles these register-entry leaves separately.
 #ifdef CTR_NATIVE
+#include "MATH/MATH_RotMatrix.c"
 #include "MATH/MATH_LightMatrix.c"
 #endif
 #include "MATH/MATH_MatrixRotate.c"

@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctr_gte_transfer.h>
 
 #include "RenderBucket_ProjectedBounds.h"
 
@@ -1286,7 +1287,7 @@ static void RenderBucket_GteLoadLightMatrixWords(const MATRIX *m)
 static void RenderBucket_GteScaleMatrixColumns(u32 *m0, u32 *m1, u32 *m2, u32 *m3, u32 *m4)
 {
 	// Transform the retail t3/t4/t5/t6/t7 tuple and fall through to 0x8006c540.
-	Unknown_8006c49c(m0, m1, m2, m3, m4);
+	CTR_GteComposeRotationWords(m0, m1, m2, m3, m4);
 }
 
 #include "RenderBucket_LightMatrix.c"

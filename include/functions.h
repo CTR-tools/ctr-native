@@ -454,20 +454,23 @@ void MainRaceTrack_RequestLoad(s16 levelID);
 int MATH_Sin(u32 angle);
 int MATH_Cos(u32 angle);
 s32 MATH_FastSqrt(u32 value, s32 shift);
+#ifdef CTR_NATIVE
+// NOTE(aalhendi): Retail trig entries use the named register lanes, not C pointer arguments.
 void TRIG_AngleSinCos_r19r17r18(u32 angle, s32 *sine, s32 *cosine);
 void TRIG_AngleSinCos_r15r16r17(u32 angle, s32 *sine, s32 *cosine);
 void TRIG_AngleSinCos_r16r17r18_duplicate(u32 angle, u32 *sine, u32 *cosine);
 void TRIG_AngleSinCos_r9r8r10(u32 angle, s32 *sine, s32 *cosine);
 void TRIG_AngleSinCos_r16r17r18(u32 angle, s32 *sine, s32 *cosine);
+#endif
 void MATH_HitboxMatrix(MATRIX *output, MATRIX *input);
 void ConvertRotToMatrix_InverseTranspose_NoRotY(MATRIX *m, const SVec3 *rot);
 void ConvertRotToMatrix_InverseTranspose(MATRIX *m, const SVec3 *rot);
 void ConvertRotToMatrix(MATRIX *m, const SVec3 *rot);
 void ConvertRotToMatrix_Transpose(MATRIX *m, const SVec3 *rot);
 void MatrixRotate(void *dst, MATRIX *src, MATRIX *rot);
-void Unknown_8006c49c(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 #ifdef CTR_NATIVE
 // NOTE(aalhendi): Retail matrix kernels/loaders take t3-t7, not C ABI arguments.
+void Unknown_8006c49c(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 void Unknown_8006c558(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 void MATRIX_SET_r11r12r13r14r15(u32 r0, u32 r1, u32 r2, u32 r3, u32 r4);
 void Unknown_8006c600(u32 r0, u32 r1, u32 r2, u32 r3, u32 r4);

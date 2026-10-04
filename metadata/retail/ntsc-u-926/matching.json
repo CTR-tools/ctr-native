@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "2258e9e4c4feefd7478ca2f665e9792dd2e4998ba6b3987a8bfe2690644f2529",
+        "cc1": "94873e8608def44bfac4d24408e6853afbb48ae979afc4e5d81be2b46778b735",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -2148,6 +2148,30 @@
       "linked_block": {}
     },
     {
+      "name": "math-signed-trig",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "TRIG_AngleSinCos_",
+      "sources": [
+        "game/MATH/TRIG_AngleSinCos_r19r17r18.c",
+        "game/MATH/TRIG_AngleSinCos_r15r16r17.c",
+        "game/MATH/TRIG_AngleSinCos_r9r8r10.c",
+        "game/MATH/TRIG_AngleSinCos_r16r17r18.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "TRIG_AngleSinCos_r19r17r18", "end_symbol": "DrawConfetti"},
+        {"start_symbol": "TRIG_AngleSinCos_r15r16r17", "end_symbol": "RenderBucket_DrawFunc_Normal"},
+        {"start_symbol": "TRIG_AngleSinCos_r9r8r10", "end_symbol": "Unknown_8006ef98"},
+        {"start_symbol": "TRIG_AngleSinCos_r16r17r18", "end_symbol": "RenderLists_Init1P2P"}
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-fno-crossjumping"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "math-vector-normalize",
       "kind": "resident",
       "artifact": "exe",
@@ -2208,42 +2232,23 @@
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "ConvertRotToMatrix_InverseTranspose_NoRotY",
+      "end_symbol": "RngDeadCoed",
       "symbol_prefix": "",
-      "sources": ["game/MATH/MATH_7_MatrixStubs.c", "game/MATH/MATH_LightMatrix.c"],
+      "sources": [
+        "game/MATH/MATH_7_MatrixStubs.c",
+        "game/MATH/TRIG_AngleSinCos_Unsigned.c",
+        "game/MATH/MATH_RotMatrix.c",
+        "game/MATH/MATH_LightMatrix.c"
+      ],
+      "source_flags": {
+        "game/MATH/MATH_RotMatrix.c": ["-finhibit-size-directive", "-mpsx-ctc2-return-delay=on"]
+      },
       "include_directories": ["include"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
-      "linked_block": {},
-      "code_intervals": [{"start_symbol": "Unknown_8006c558", "end_symbol": "Unknown_8006c600"}, {"start_symbol": "ApplyMatrixLV_stub", "end_symbol": "Unknown_8006c778"}]
-    },
-    {
-      "name": "matrix-load-light-gte",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "Unknown_8006c600",
-      "end_symbol": "SquareRoot0_stub",
-      "symbol_prefix": "Unknown_8006c600",
-      "source": "game/MATH/MATH_7_MatrixStubs.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "matrix-square-root0",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "SquareRoot0_stub",
-      "end_symbol": "RngDeadCoed",
-      "symbol_prefix": "SquareRoot0_stub",
-      "source": "game/MATH/MATH_7_MatrixStubs.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
+      "linked_block": {}
     },
     {
       "name": "matrix-lv-pair",
@@ -4780,20 +4785,6 @@
       "small_data_limit": 0,
       "aspsx_version": "2.77",
       "linked_block": {}
-    },
-    {
-      "name": "matrix-load-rotation-gte",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "MATRIX_SET_r11r12r13r14r15",
-      "end_symbol": "Unknown_8006c558",
-      "symbol_prefix": "MATRIX_SET_r11r12r13r14r15",
-      "source": "game/MATH/MATH_7_MatrixStubs.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
     }
   ]
 }
