@@ -42,6 +42,7 @@
 #define GAME_LEVEL_PREFIX_HUB        (sdata->s_hub)
 #define GAME_LEVEL_PREFIX_CREDIT     (sdata->s_credit)
 #define GAME_RDATA_NAME(name)        (rdata.name)
+#define GAME_DATA_NAME(name)         (data.name)
 #define GAME_SDATA_NAME(name)        (sdata->name)
 #define GAME_PRIM_MEM_SIZES_1P       (data.primMem_SizePerLEV_1P)
 #define GAME_PRIM_MEM_SIZES_2P       (data.primMem_SizePerLEV_2P)

@@ -169,6 +169,14 @@ static inline u32 CTR_MipsMulHiU(u32 lhs, u32 rhs)
 	return (u32)(((u64)lhs * (u64)rhs) >> 32);
 }
 
+#ifdef CTR_NATIVE
+// NOTE(aalhendi): Pure signed high half; no emulated HI/LO state is changed.
+static inline s32 CTR_MipsMulHiS(s32 lhs, s32 rhs)
+{
+	return (s32)((u64)((s64)lhs * (s64)rhs) >> 32);
+}
+#endif
+
 static inline s32 CTR_MipsAddLo(s32 lhs, s32 rhs)
 {
 	return (s32)((u32)lhs + (u32)rhs);

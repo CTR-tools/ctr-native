@@ -1,0 +1,76 @@
+--- a/tree.h
++++ b/tree.h
+@@ -117,6 +117,9 @@
+   BUILT_IN_VEC_NEW,
+   BUILT_IN_DELETE,
+   BUILT_IN_VEC_DELETE,
++
++  /* Signed upper half of a 32-bit product, as an ordinary value.  */
++  BUILT_IN_SMUL_HIGH_SI,
+ 
+   /* Explicit MIPS operation with ordinary signed-C negation semantics.  */
+   BUILT_IN_MIPS_NEG_SI,
+--- a/c-decl.c
++++ b/c-decl.c
+@@ -3274,6 +3274,11 @@
+ 						    endlink)),
+ 		    BUILT_IN_ALLOCA, "alloca");
+   builtin_function ("__builtin_ffs", int_ftype_int, BUILT_IN_FFS, NULL_PTR);
++  builtin_function ("__builtin_smul_high_si",
++		    build_function_type (integer_type_node,
++		      tree_cons (NULL_TREE, integer_type_node,
++			 tree_cons (NULL_TREE, integer_type_node, endlink))),
++		    BUILT_IN_SMUL_HIGH_SI, NULL_PTR);
+   builtin_function ("__builtin_mips_neg_si", int_ftype_int,
+ 		    BUILT_IN_MIPS_NEG_SI, NULL_PTR);
+   void_ftype_uint_int = build_function_type (void_type_node,
+--- a/expr.c
++++ b/expr.c
+@@ -8381,6 +8381,47 @@
+       emit_barrier ();
+       return const0_rtx;
+ 
++    case BUILT_IN_SMUL_HIGH_SI:
++      {
++	tree args[2], type;
++	rtx operands[2], result;
++	int i;
++
++	if (arglist == 0 || TREE_CHAIN (arglist) == 0
++	    || TREE_CHAIN (TREE_CHAIN (arglist)) != 0)
++	  goto smul_high_invalid;
++	args[0] = TREE_VALUE (arglist);
++	args[1] = TREE_VALUE (TREE_CHAIN (arglist));
++	for (i = 0; i < 3; i++)
++	  {
++	    type = i < 2 ? TREE_TYPE (args[i]) : TREE_TYPE (exp);
++	    if (TREE_CODE (type) != INTEGER_TYPE || TREE_UNSIGNED (type)
++		|| TYPE_PRECISION (type) != 32 || TYPE_MODE (type) != SImode)
++	      goto smul_high_invalid;
++	  }
++	if (smul_highpart_optab->handlers[(int) SImode].insn_code
++	    == CODE_FOR_nothing)
++	  goto smul_high_unavailable;
++	/* Snapshot raw QUEUED values before flushing argument effects.  */
++	for (i = 0; i < 2; i++)
++	  operands[i] = force_reg (SImode,
++			   expand_expr (args[i], NULL_RTX, VOIDmode, 0));
++	if (target && !register_operand (target, SImode))
++	  target = NULL_RTX;
++	emit_queue ();
++	result = expand_binop (SImode, smul_highpart_optab,
++			       operands[0], operands[1], target, 0, OPTAB_DIRECT);
++	if (result != 0)
++	  return result;
++      smul_high_unavailable:
++	error ("__builtin_smul_high_si is not supported for this target");
++	return const0_rtx;
++      smul_high_invalid:
++	error ("__builtin_smul_high_si requires a signed 32-bit int result"
++	       " and two signed 32-bit int arguments");
++	return const0_rtx;
++      }
++
+     case BUILT_IN_MIPS_CTC2:
+ #ifdef EXPAND_BUILTIN_MIPS_CTC2
+       return EXPAND_BUILTIN_MIPS_CTC2 (exp);

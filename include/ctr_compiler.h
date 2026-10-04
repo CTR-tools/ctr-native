@@ -216,6 +216,7 @@
 #define CTR_PSX_PRESERVES_AT24                                                  __attribute__((mips_preserves_at24))
 #define CTR_PSX_REGCALL_S012(readMask)                                          __attribute__((mips_regcall_s012(readMask)))
 
+#define CTR_MipsMulHiS(lhs, rhs) __builtin_smul_high_si((s32)(lhs), (s32)(rhs))
 #define CTR_NegateS32(value) __builtin_mips_neg_si(value)
 #define CTR_PSX_MATCH_SECTION(sectionName)                                      __attribute__((section(sectionName)))
 #define CTR_PSX_REGISTER(registerName)                                          __asm__(registerName)

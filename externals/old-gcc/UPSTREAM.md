@@ -266,18 +266,12 @@ trap behavior or scheduling policy; ordinary/immediate/other-profile output
 retains the original template. No game names, addresses or expected words
 select any of these behaviors.
 
-The expected continuation compiler pin is
-`90a506b6a4d6b690672eedfaf6e639b76e790d3038eca909d1cb1afb4f8557bc`.
-Its generated regular-source fingerprint is
-`51f82c250bbd0a0556098f9c0cde2b67424bfcbe0c3a3a7f27de5662f92e3400`,
-count1221, zero symlinks. Hash input is C-sorted `./path`, NUL, octal mode,
-NUL, lowercase content SHA-256, newline for each regular file before configure.
-No per-file source registry is maintained: the archive and pinned patches
-determine the files. This tuple requires its maintained export/smoke gates
-before it becomes a tested release; the previously tested tuple below is
-retained separately. The C++ frontend and four stock exported files do not
-gain these C contracts. None of these compile/output checks proves hardware
-execution, universal provider balance or exception/interrupt equivalence.
+The archive and ordered pinned patches determine the source; no per-file public
+registry is maintained. Source fingerprints use C-sorted `./path`, NUL, octal
+mode, NUL, lowercase content SHA-256 and newline for each regular file before
+configure. The current complete tuple is recorded below. The C++ frontend and
+four stock exported files do not gain these C contracts. Compile/output checks
+do not prove hardware execution, universal provider balance or fault equivalence.
 
 ## Sparse S-bank owners and typed ordered operations
 
@@ -344,16 +338,53 @@ Actual AS/link collision/PC16 and complete application-window ownership remain
 separate integration gates; case16 and TEST_BORROWER in the owned return fixture
 are available for those real-tool checks without any private include.
 
-The proposed five-export tuple keeps the four stock files below and replaces
-only cc1 with
-`61b00602d935ee40f6a18e4d3463e3252e0ec671ed463c1054e8d77aa30e3617`.
-Its deterministic pre-configure source fingerprint uses the format above:
-`77f877a7444229893126a17dd24474a0c07889707d2b60140b10558209787792`,
-1221 regular files, zero symlinks. Archive plus ordered pinned patches determine
-the source; no per-file public registry is added. The updated maintained recipe,
-new smoke fixtures, whole-export reproducibility, default aggregates and native
-integration must pass before treating this proposed tuple as a release. Cached
-offline provisioning is distinct from running the Dockerfile's mutable apt steps.
+## Code-generation policies and signed high values
+
+`psx-codegen-policies-2.8.1.patch` follows animation: 74 added lines, SHA-256
+`341a6892bc34d6470c40809f5d748d59aaac7398b5a379026f4c8e633195950e`.
+Both policies default off and are selected only for the Clock translation unit.
+
+- `-fschedule-store-load-order` adds conservative order-only ANTI dependencies
+  for eligible simple, nongrouped loads in the first scheduler. Existing TRUE
+  dependencies remain; self edges, groups and cc0 participation are excluded.
+  It neither changes alias analysis nor supplies a CPU/C memory fence.
+- `-mpreserve-small-si-constants=on|off` protects necessary one-word, nonzero
+  signed16 SI literal assignments from two late reload rewrites on MIPS-I/ABI32.
+  Only allocatable GPR2..25 qualify. It does not preserve dead constants or
+  arbitrary immediate operands. The final option wins; invalid values diagnose.
+
+`generic-smul-high-2.8.1.patch` follows that patch: 49 added frontend/expander
+lines, SHA-256
+`d9db3535d1fe3b4641f6369b544d76f433eb581b2c559375f36849da88467dc0`.
+`int __builtin_smul_high_si(int,int)` returns the signed upper32 of a signed32
+product. Converted arguments evaluate once; raw queued values are captured before
+their effects complete. It requires signed32 SI arguments/result and an existing
+direct signed-high optab handler, otherwise diagnoses without library fallback.
+The operation has ordinary value semantics and truthful HI/LO effects, not a
+global hardware-state token, new calling ABI or compile-wide arithmetic policy.
+
+`tests/check_psx_codegen.sh` checks actual added/retained dependencies, literal
+default/OFF behavior, boundaries/exclusions, reached literal preservation and
+parser refusals. `tests/check_smul_high.sh` checks real O0/O2 signed products,
+queued old-value snapshots, live results through later writers/calls and arity
+errors with standalone C/provider fixtures. These are finite compiler-output
+controls, not MIPS execution or universal scheduling/availability coverage.
+
+## Current complete compiler tuple
+
+Two fresh maintained constructions produced byte-identical complete five-export
+tuples, with all seven maintained smoke suites passing on both binaries. The
+replacement cc1 is
+`8c1112f99e9e47a496a1d98bc9efc468c630a4925361e56b7801da5016fa5207`,
+a statically linked Linux i386 executable. The four stock companions retain the
+hashes listed in the historical release table below. The complete deterministic
+pre-configure source fingerprint is
+`b5a88639f676ad13568262c0cdd4685516a143f85a5cfdb58ffd5f3877bbe443`,
+1221 regular files, zero symlinks, with original source modes retained. Cached
+offline Ubuntu20.04/GCC9.4.0 provisioning is distinct from freshly executing the
+Dockerfile's mutable apt steps. Matching and native coverage are verified
+separately; these compiler constructions and output controls do not establish
+whole-game or MIPS-hardware correctness.
 
 ## Previously tested compiler release
 

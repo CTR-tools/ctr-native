@@ -1,0 +1,177 @@
+--- a/flags.h
++++ b/flags.h
+@@ -307,6 +307,9 @@
+ extern int flag_schedule_insns;
+ extern int flag_schedule_insns_after_reload;
+ 
++/* Restrict store-to-load motion in the first scheduling pass only.  */
++extern int flag_schedule_store_load_order;
++
+ /* Nonzero means put things in delayed-branch slots if supported. */
+ 
+ extern int flag_delayed_branch;
+--- a/toplev.c
++++ b/toplev.c
+@@ -586,6 +586,9 @@
+ 
+ int flag_schedule_insns = 0;
+ int flag_schedule_insns_after_reload = 0;
++
++/* Restrict store-to-load motion in the first scheduling pass only.  */
++int flag_schedule_store_load_order = 0;
+ 
+ /* -finhibit-size-directive inhibits output of .size for ELF.
+    This is used only for compiling crtstuff.c, 
+@@ -677,6 +680,7 @@
+   {"pretend-float", &flag_pretend_float, 1},
+   {"schedule-insns", &flag_schedule_insns, 1},
+   {"schedule-insns2", &flag_schedule_insns_after_reload, 1},
++  {"schedule-store-load-order", &flag_schedule_store_load_order, 1},
+   {"pic", &flag_pic, 1},
+   {"PIC", &flag_pic, 2},
+   {"exceptions", &flag_exceptions, 1},
+--- a/sched.c
++++ b/sched.c
+@@ -1931,6 +1931,24 @@
+ 	/* Reading memory.  */
+ 
+ 	rtx pending, pending_mem;
++	int order_load = 0;
++
++	/* Exclude groups, including unmarked heads and future cc0 groups.  */
++	if (flag_schedule_store_load_order && !reload_completed
++	    && GET_CODE (insn) == INSN && ! SCHED_GROUP_P (insn)
++	    && GET_CODE (PATTERN (insn)) == SET
++	    && GET_CODE (SET_DEST (PATTERN (insn))) == REG)
++	  {
++	    rtx next = next_nonnote_insn (insn);
++	    order_load = (!next || GET_CODE (next) == CODE_LABEL
++			  || ! SCHED_GROUP_P (next));
++#ifdef HAVE_cc0
++	    if (reg_mentioned_p (cc0_rtx, PATTERN (insn))
++		|| (next && GET_RTX_CLASS (GET_CODE (next)) == 'i'
++		    && reg_mentioned_p (cc0_rtx, PATTERN (next))))
++	      order_load = 0;
++#endif
++	  }
+ 
+ 	pending = pending_read_insns;
+ 	pending_mem = pending_read_mems;
+@@ -1957,6 +1975,11 @@
+                                            XEXP (pending_mem, 0), insn, x))
+ #endif
+ 		add_dependence (insn, XEXP (pending, 0), 0);
++
++	    /* An order-only edge must not replace a stock dependency.  */
++	    if (order_load && XEXP (pending, 0) != insn
++		&& ! find_insn_list (XEXP (pending, 0), LOG_LINKS (insn)))
++	      add_dependence (insn, XEXP (pending, 0), REG_DEP_ANTI);
+ 
+ 	    pending = XEXP (pending, 1);
+ 	    pending_mem = XEXP (pending_mem, 1);
+--- a/reload1.c
++++ b/reload1.c
+@@ -8190,6 +8190,11 @@
+   enum reg_class dclass;
+   register int i;
+ 
++#ifdef PRESERVE_RELOAD_CONSTANT_P
++  if (PRESERVE_RELOAD_CONSTANT_P (insn))
++    return 0;
++#endif
++
+   dreg = true_regnum (SET_DEST (set));
+   if (dreg < 0)
+     return 0;
+@@ -8266,6 +8271,11 @@
+   /* Array of alternatives, sorted in order of decreasing desirability.  */
+   int *alternative_order;
+   
++#ifdef PRESERVE_RELOAD_CONSTANT_P
++  if (PRESERVE_RELOAD_CONSTANT_P (insn))
++    return 0;
++#endif
++
+   /* Find out some information about this insn.  */
+   insn_code_number = recog_memoized (insn);
+   /* We don't modify asm instructions.  */
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -232,6 +232,8 @@
+ int mips_psx_ctc2_return_delay;
+ char *mips_common_head_slot_string;
+ int mips_common_head_slot;
++char *mips_preserve_small_si_constants_string;
++int mips_preserve_small_si_constants;
+ 
+ /* If TRUE, we split addresses into their high and low parts in the RTL.  */
+ int mips_split_addresses;
+@@ -4799,6 +4801,29 @@
+   return 1;
+ }
+ 
++/* Preserve necessary one-word SI literals, not arbitrary immediate operands. */
++int
++mips_preserve_small_si_constant_p (insn)
++     rtx insn;
++{
++  rtx set, dest, src;
++  if (!mips_preserve_small_si_constants || !reload_completed || mips_isa != 1
++      || TARGET_64BIT || mips_abi != ABI_32 || INT_TYPE_SIZE != 32
++      || GET_CODE (insn) != INSN || RTX_FRAME_RELATED_P (insn))
++    return 0;
++  set = PATTERN (insn);
++  if (GET_CODE (set) != SET
++      || recog_memoized (insn) != CODE_FOR_movsi_internal2
++      || get_attr_length (insn) != 1)
++    return 0;
++  dest = SET_DEST (set);
++  src = SET_SRC (set);
++  return GET_CODE (dest) == REG && GET_MODE (dest) == SImode
++    && REGNO (dest) >= 2 && REGNO (dest) <= 25 && !fixed_regs[REGNO (dest)]
++    && GET_CODE (src) == CONST_INT && INTVAL (src) != 0
++    && INTVAL (src) >= -32768 && INTVAL (src) <= 32767;
++}
++
+ /* Admit only an ordinary old-value zero test and a nontrapping GPR update.
+    Ownership and identical successor heads are checked by delay reorg. */
+ int
+@@ -4981,6 +5006,9 @@
+     = mips_psx_policy_option ("psx-local-bgez", mips_psx_local_bgez_string);
+   mips_common_head_slot
+     = mips_psx_policy_option ("common-head-slot", mips_common_head_slot_string);
++  mips_preserve_small_si_constants
++    = mips_psx_policy_option ("preserve-small-si-constants",
++                              mips_preserve_small_si_constants_string);
+   mips_psx_ctc2_return_delay
+     = mips_psx_policy_option ("psx-ctc2-return-delay",
+                               mips_psx_ctc2_return_delay_string);
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -150,6 +150,8 @@
+ extern int mips_psx_ctc2_return_delay;
+ extern char *mips_common_head_slot_string;
+ extern int mips_common_head_slot;
++extern char *mips_preserve_small_si_constants_string;
++extern int mips_preserve_small_si_constants;
+ extern char *mips_stack_align_string;
+ extern int mips_stack_align;
+ extern char *mips_prologue_arg_alias_string;
+@@ -264,6 +266,9 @@
+   mips_first_fallthrough_lw_p ((BRANCH), (SLOT))
+ #define PROTECTED_DELAY_SLOT_P(SLOT) mips_prebranch_lw_slot_p (SLOT)
+ extern int              mips_ctc2_return_delay_p ();
++extern int mips_preserve_small_si_constant_p ();
++#define PRESERVE_RELOAD_CONSTANT_P(INSN) \
++  mips_preserve_small_si_constant_p (INSN)
+ extern int mips_common_head_delay_p ();
+ #define COMMON_HEAD_DELAY_P(BRANCH, SLOT) \
+   mips_common_head_delay_p ((BRANCH), (SLOT))
+@@ -627,6 +632,7 @@
+   { "psx-local-bgez=", &mips_psx_local_bgez_string },		\
+   { "psx-ctc2-return-delay=", &mips_psx_ctc2_return_delay_string }, \
+   { "common-head-slot=", &mips_common_head_slot_string }, \
++  { "preserve-small-si-constants=", &mips_preserve_small_si_constants_string }, \
+   { "stack-align=", &mips_stack_align_string }, \
+   { "prologue-arg-alias=", &mips_prologue_arg_alias_string }, \
+   { "framed-return-boundary=", &mips_framed_return_boundary_string }, \

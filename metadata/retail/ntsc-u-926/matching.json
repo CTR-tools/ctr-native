@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "61b00602d935ee40f6a18e4d3463e3252e0ec671ed463c1054e8d77aa30e3617",
+        "cc1": "8c1112f99e9e47a496a1d98bc9efc468c630a4925361e56b7801da5016fa5207",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -4619,6 +4619,29 @@
       "aspsx_version": "2.77",
       "function_rodata_addresses": {"RenderLists_PreInit": "0x8008a408"},
       "linked_block": {"rodata_address": "0x8008a408", "rodata_size": 32}
+    },
+    {
+      "name": "ui-race-clock",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_DrawRaceClock",
+      "end_symbol": "UI_DrawLimitClock",
+      "symbol_prefix": "UI_DrawRaceClock",
+      "source": "game/UI/UI_Clock.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-fschedule-store-load-order", "-mpreserve-small-si-constants=on"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_sdata_relicTime_1min": "0x8008d9b0",
+        "ctr_sdata_relicTime_10sec": "0x8008d9e0",
+        "ctr_sdata_relicTime_1sec": "0x8008d9e8",
+        "ctr_sdata_relicTime_10ms": "0x8008d9d4",
+        "ctr_sdata_relicTime_1ms": "0x8008d9b8"
+      }
     },
     {
       "name": "ui-limit-clock",

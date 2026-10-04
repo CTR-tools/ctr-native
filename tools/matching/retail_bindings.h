@@ -72,6 +72,7 @@
 #define GAME_LEVEL_PREFIX_HUB                                ctr_levelPrefixHub
 #define GAME_LEVEL_PREFIX_CREDIT                             ctr_levelPrefixCredit
 #define GAME_RDATA_NAME(name)                                ctr_retail_##name
+#define GAME_DATA_NAME(name)                                 ctr_data_##name
 #define GAME_SDATA_NAME(name)                                ctr_sdata_##name
 #define GAME_PRIM_MEM_SIZES_1P                               ctr_primMemSizes1P
 #define GAME_PRIM_MEM_SIZES_2P                               ctr_primMemSizes2P
@@ -170,7 +171,20 @@ extern s32 ctr_languageStringCount asm("sdata_static+420");
 extern char **ctr_languageStrings asm(RETAIL_LANGUAGE_STRINGS_ASM_NAME);
 extern s16 ctr_positionSuffixIndices[8] asm("data+23196");
 extern s16 ctr_battleScoreColors[4][4] asm("data+23212");
-// NOTE(aalhendi): Unspecified format extents retain absolute resident addresses.
+extern s16 ctr_data_font_charPixWidth[] asm("data+6592");
+extern s16 ctr_data_font_charPixHeight[] asm("data+6600");
+// NOTE(aalhendi): Unspecified string extents retain absolute resident addresses.
+extern char ctr_retail_s_timeString_empty[] asm("rdata+5844");
+extern char ctr_sdata_raceClockStr[] asm("sdata_static+1432");
+// NOTE(aalhendi): Link aliases preserve these four-byte fields' GP-relative
+// addressing and named storage, distinct from outgoing stack arguments.
+extern s32 ctr_sdata_relicTime_1min;
+extern s32 ctr_sdata_relicTime_10sec;
+extern s32 ctr_sdata_relicTime_1sec;
+extern s32 ctr_sdata_relicTime_10ms;
+extern s32 ctr_sdata_relicTime_1ms;
+extern char ctr_sdata_s_Ln[] asm("sdata_static+1440");
+extern char ctr_sdata_s_int[] asm("sdata_static+1444");
 extern char ctr_sdata_s_intDividing[] asm("sdata_static+1448");
 extern char ctr_sdata_s_printDividing[] asm("sdata_static+1456");
 extern char ctr_sdata_s_longInt[] asm("sdata_static+1460");

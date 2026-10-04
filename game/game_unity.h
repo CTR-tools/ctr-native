@@ -224,6 +224,7 @@
 #include "UI/UI_Icon.c"
 #include "UI/UI_Lerp2D.c"
 #include "UI/UI_Clock.c"
+#include "UI/UI_LimitClock.c"
 #include "UI/UI_RaceHud.c"
 #include "UI/UI_Weapon.c"
 #include "UI/UI_DrawNum.c"
