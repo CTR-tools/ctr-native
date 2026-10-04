@@ -4116,6 +4116,30 @@
       "linked_block": {}
     },
     {
+      "name": "ui-render-frame-adv-crystal",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_RenderFrame_AdvHub",
+      "end_symbol": "UI_RenderFrame_Wumpa3D_2P3P4P",
+      "symbol_prefix": "UI_RenderFrame_",
+      "source": "game/UI/UI_RenderFrame.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "display-swap",
       "kind": "resident",
       "artifact": "exe",
