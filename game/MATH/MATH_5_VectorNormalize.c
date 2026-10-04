@@ -6,9 +6,9 @@ s32 MATH_VectorNormalize(SVec3 *vector)
 
 	if (length != 0)
 	{
-		vector->x = (vector->x << 0xc) / length;
-		vector->y = (vector->y << 0xc) / length;
-		vector->z = (vector->z << 0xc) / length;
+		vector->x = (vector->x * 0x1000) / length;
+		vector->y = (vector->y * 0x1000) / length;
+		vector->z = (vector->z * 0x1000) / length;
 	}
 
 	return length;

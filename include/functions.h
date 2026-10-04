@@ -467,11 +467,11 @@ void ConvertRotToMatrix_Transpose(MATRIX *m, const SVec3 *rot);
 void MatrixRotate(void *dst, MATRIX *src, MATRIX *rot);
 void Unknown_8006c49c(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 #ifdef CTR_NATIVE
-// NOTE(aalhendi): Retail GTE loaders take t3-t7, not five C ABI arguments.
+// NOTE(aalhendi): Retail matrix kernels/loaders take t3-t7, not C ABI arguments.
+void Unknown_8006c558(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 void MATRIX_SET_r11r12r13r14r15(u32 r0, u32 r1, u32 r2, u32 r3, u32 r4);
 void Unknown_8006c600(u32 r0, u32 r1, u32 r2, u32 r3, u32 r4);
 #endif
-void Unknown_8006c558(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4);
 int SquareRoot0_stub(int param_1);
 VECTOR *Unknown_8006c6c8(VECTOR *input, VECTOR *output, MATRIX *matrix);
 VECTOR *ApplyMatrixLV_stub(VECTOR *input, VECTOR *output);

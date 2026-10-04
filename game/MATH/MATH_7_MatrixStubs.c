@@ -170,59 +170,6 @@ void Unknown_8006c49c(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4)
 	MATH_Matrix_MulRotWords(r0, r1, r2, r3, r4);
 }
 
-void Unknown_8006c558(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4)
-{
-	u32 t3 = *r0;
-	u32 t4 = *r1;
-	u32 t5 = *r2;
-	u32 t6 = *r3;
-	u32 t7 = *r4;
-	u32 nextT6;
-	u32 nextT5;
-
-	u32 v0 = (t3 & 0xffff) | (t4 & 0xffff0000);
-	MTC2(v0, 0);
-	MTC2(t6, 1);
-
-	v0 = (t3 >> 0x10) | (t5 << 0x10);
-	gte_llv0_b();
-	MTC2(v0, 2);
-	MTC2(t6 >> 0x10, 3);
-
-	v0 = (t4 & 0xffff) | (t5 & 0xffff0000);
-	t3 = MFC2(9);
-	t4 = MFC2(10);
-	t6 = MFC2(11);
-	gte_llv1_b();
-	MTC2(v0, 4);
-	MTC2(t7, 5);
-
-	t3 &= 0xffff;
-	t4 <<= 0x10;
-	t6 &= 0xffff;
-
-	v0 = MFC2(9);
-	t5 = MFC2(10);
-	nextT6 = MFC2(11);
-	gte_llv2_b();
-
-	t3 |= v0 << 0x10;
-	t5 &= 0xffff;
-	t6 |= nextT6 << 0x10;
-
-	v0 = MFC2(9) & 0xffff;
-	nextT5 = MFC2(10);
-	t7 = MFC2(11);
-
-	t4 |= v0;
-	t5 |= nextT5 << 0x10;
-
-	*r0 = t3;
-	*r1 = t4;
-	*r2 = t5;
-	*r3 = t6;
-	*r4 = t7;
-}
 
 static void MATH_Matrix_StoreWords(void *m, u32 r0, u32 r1, u32 r2, u32 r3, u32 r4)
 {
@@ -463,24 +410,30 @@ __asm__(".section .SquareRoot0_stub,\"ax\",@progbits\n"
         ".text\n");
 #endif
 
-#ifdef CTR_NATIVE
+// NOTE(aalhendi): The payload is three aligned words, including MATRIX's
+// translation arrays. Local t0-t5 bindings retain the two GTE passes' retail
+// schedule without reserving registers outside this function.
 VECTOR *ApplyMatrixLV_stub(VECTOR *input, VECTOR *output)
 {
-	u32 x = (u32)input->vx;
-	u32 y = (u32)input->vy;
-	u32 z = (u32)input->vz;
-	u32 highX;
-	u32 highY;
-	u32 highZ;
+	register u32 x CTR_PSX_REGISTER("$8") = CTR_ReadU32LE((const u8 *)input + 0);
+	register u32 y CTR_PSX_REGISTER("$9") = CTR_ReadU32LE((const u8 *)input + 4);
+	register u32 z CTR_PSX_REGISTER("$10") = CTR_ReadU32LE((const u8 *)input + 8);
+	register u32 highX CTR_PSX_REGISTER("$11");
+	register u32 highY CTR_PSX_REGISTER("$12");
+	register u32 highZ CTR_PSX_REGISTER("$13");
+	VECTOR *destination = output;
 
-	MTC2((u32)((s32)x >> 0xf), 9);
-	MTC2((u32)((s32)y >> 0xf), 10);
-	MTC2((u32)((s32)z >> 0xf), 11);
+	highX = (u32)((s32)x >> 0xf);
+	highY = (u32)((s32)y >> 0xf);
+	highZ = (u32)((s32)z >> 0xf);
+	MTC2(highX, 9);
+	MTC2(highY, 10);
+	MTC2(highZ, 11);
 
-	x &= 0x7fff;
+	x &= 0x7fffu;
 	gte_rtir_sf0_b();
-	y &= 0x7fff;
-	z &= 0x7fff;
+	y &= 0x7fffu;
+	z &= 0x7fffu;
 
 	highX = MFC2(25);
 	highY = MFC2(26);
@@ -495,13 +448,22 @@ VECTOR *ApplyMatrixLV_stub(VECTOR *input, VECTOR *output)
 	highY <<= 3;
 	highZ <<= 3;
 
-	output->vx = (s32)(MFC2(25) + highX);
-	output->vy = (s32)(MFC2(26) + highY);
-	output->vz = (s32)(MFC2(27) + highZ);
+	x = MFC2(25);
+	y = MFC2(26);
+	z = MFC2(27);
+	x += highX;
+	y += highY;
+	z += highZ;
+	CTR_WriteU32AlignedLE((u8 *)destination + 0, x);
+	CTR_WriteU32AlignedLE((u8 *)destination + 4, y);
+	CTR_WriteU32AlignedLE((u8 *)destination + 8, z);
+	// NOTE(aalhendi): Delay the return copy so GCC can fill JR's slot with it.
+	CTR_PSX_CLOBBER("$2");
 
-	return output;
+	return destination;
 }
 
+#ifdef CTR_NATIVE
 VECTOR *Unknown_8006c6c8(VECTOR *input, VECTOR *output, MATRIX *matrix)
 {
 	MATH_Matrix_LoadRotWords(MATH_Matrix_ReadWord(matrix, 0x0), MATH_Matrix_ReadWord(matrix, 0x4), MATH_Matrix_ReadWord(matrix, 0x8),
@@ -533,47 +495,4 @@ __asm__(".section .Unknown_8006c6c8,\"ax\",@progbits\n"
         ".set\treorder\n"
         ".text\n");
 
-__asm__(".section .ApplyMatrixLV_stub,\"ax\",@progbits\n"
-        ".align 2\n"
-        ".ent ApplyMatrixLV_stub\n"
-        ".set\tnoreorder\n"
-        ".globl ApplyMatrixLV_stub\n"
-        "ApplyMatrixLV_stub:\n"
-        "lw $t0,0($a0)\n"
-        "lw $t1,4($a0)\n"
-        "lw $t2,8($a0)\n"
-        "sra $t3,$t0,15\n"
-        "sra $t4,$t1,15\n"
-        "sra $t5,$t2,15\n"
-        "mtc2 $t3,$9\n"
-        "mtc2 $t4,$10\n"
-        "mtc2 $t5,$11\n"
-        "andi $t0,$t0,0x7fff\n"
-        "cop2 0x041e012\n"
-        "andi $t1,$t1,0x7fff\n"
-        "andi $t2,$t2,0x7fff\n"
-        "mfc2 $t3,$25\n"
-        "mfc2 $t4,$26\n"
-        "mfc2 $t5,$27\n"
-        "mtc2 $t0,$9\n"
-        "mtc2 $t1,$10\n"
-        "mtc2 $t2,$11\n"
-        "sll $t3,$t3,3\n"
-        "cop2 0x049e012\n"
-        "sll $t4,$t4,3\n"
-        "sll $t5,$t5,3\n"
-        "mfc2 $t0,$25\n"
-        "mfc2 $t1,$26\n"
-        "mfc2 $t2,$27\n"
-        "addu $t0,$t0,$t3\n"
-        "addu $t1,$t1,$t4\n"
-        "addu $t2,$t2,$t5\n"
-        "sw $t0,0($a1)\n"
-        "sw $t1,4($a1)\n"
-        "sw $t2,8($a1)\n"
-        "jr $ra\n"
-        "addu $v0,$a1,$zero\n"
-        ".end ApplyMatrixLV_stub\n"
-        ".set\treorder\n"
-        ".text\n");
 #endif

@@ -42,6 +42,12 @@ static inline MatrixNDAuthored *MatrixND_GetAuthored(struct MatrixND *matrix)
 	return (MatrixNDAuthored *)matrix;
 }
 
+struct BakedGteMatrixTable
+{
+	struct MatrixND *physEntry;
+	s32 numEntries;
+};
+
 enum
 {
 	BAKED_GTE_MATRIX_NONE = 0,
@@ -2163,11 +2169,7 @@ struct Data
 	// (0xF) oxide uses crash bandicoot
 
 	// 0x80087EF4 - pointer to 0x80086e94
-	struct
-	{
-		void *physEntry;
-		int numEntries;
-	} bakedGteMath[BAKED_GTE_MATRIX_COUNT];
+	struct BakedGteMatrixTable bakedGteMath[BAKED_GTE_MATRIX_COUNT];
 
 	// 0x80087f94
 	struct Scrub MetaDataScrub[7];
@@ -2275,6 +2277,8 @@ CTR_STATIC_ASSERT(offsetof(struct Data, podiumModel_firstPlace) == offsetof(stru
 CTR_STATIC_ASSERT(offsetof(struct Data, currSlot) == offsetof(struct Data, driverModelExtras) + 11 * sizeof(void *));
 CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->characterIDs_2P_AIs) == 0x1c);
 CTR_STATIC_ASSERT(offsetof(struct Data, bakedGteMath) == 0x7554);
+CTR_STATIC_ASSERT(offsetof(struct Data, endRaceQuips) == 0x5b3c);
+CTR_STATIC_ASSERT(offsetof(struct Data, advCupStringIndex) == 0x638c);
 CTR_STATIC_ASSERT(sizeof(((struct Data *)0)->bakedGteMath) == BAKED_GTE_MATRIX_COUNT * 8);
 
 // NOTE(aalhendi): Grouping the resident block keeps its far-page base and
@@ -2949,7 +2953,8 @@ struct sData
 	} UnlockBitIndex;
 
 	// 8008D590
-	int matrixTableBaked;
+	u8 matrixTableBaked;
+	u8 _pad_matrixTableBaked[3];
 
 	// 8008D594
 	char s_NOSCRUB[8];

@@ -137,6 +137,10 @@
 #include "MATH/MATH_2_FastSqrt.c"
 #include "MATH/MATH_3_HitboxMatrix.c"
 #include "MATH/MATH_7_MatrixStubs.c"
+// NOTE(aalhendi): Retail compiles this register-entry leaf separately.
+#ifdef CTR_NATIVE
+#include "MATH/MATH_LightMatrix.c"
+#endif
 #include "MATH/MATH_MatrixRotate.c"
 #include "MATH/MATH_6_MatrixMul.c"
 

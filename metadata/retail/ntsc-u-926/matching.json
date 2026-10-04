@@ -2185,6 +2185,20 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "matrix-rotation-light",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": ["game/MATH/MATH_7_MatrixStubs.c", "game/MATH/MATH_LightMatrix.c"],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "code_intervals": [{"start_symbol": "Unknown_8006c558", "end_symbol": "Unknown_8006c600"}, {"start_symbol": "ApplyMatrixLV_stub", "end_symbol": "Unknown_8006c778"}]
+    },
+    {
       "name": "matrix-load-light-gte",
       "kind": "resident",
       "artifact": "exe",
@@ -3827,6 +3841,21 @@
       "linked_block": {}
     },
     {
+      "name": "lh-matrix-parent",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "LHMatrix_Parent",
+      "end_symbol": "LibraryOfModels_Store",
+      "symbol_prefix": "LHMatrix_",
+      "source": "game/LHMatrix.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "linked-collide",
       "kind": "resident",
       "artifact": "exe",
@@ -3915,6 +3944,22 @@
       "end_symbol": "DISPLAY_Blur_SubFunc",
       "symbol_prefix": "DecalMP_",
       "source": "game/DecalMP.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "vector",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "Vector_SpecLightSpin2D",
+      "end_symbol": "VehAfterColl_GetSurface",
+      "symbol_prefix": "Vector_",
+      "source": "game/Vector.c",
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
