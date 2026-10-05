@@ -1,232 +1,265 @@
 #include <common.h>
+#include <ctr_gte_transfer.h>
 
-struct AnimateQuadTrig
-{
-	s32 sin;
-	s32 cos;
-};
-
-static struct AnimateQuadTrig AnimateQuad_GetTrig(s32 angle)
-{
-	u32 packed = CTR_ReadU32LE(&data.trigApprox[ANG_MODULO_HALF_PI(angle)]);
-	struct AnimateQuadTrig trig;
-
-	if (IS_ANG_FIRST_OR_THIRD_QUADRANT(angle))
-	{
-		trig.sin = (s16)packed;
-		trig.cos = (s32)packed >> 16;
-	}
-	else
-	{
-		trig.sin = (s32)packed >> 16;
-		trig.cos = -(s16)packed;
-	}
-
-	if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
-	{
-		trig.sin = -trig.sin;
-		trig.cos = -trig.cos;
-	}
-
-	return trig;
-}
-
-void AnimateQuadVertex(int timer, struct SCVert *scVert, u32 *visBits)
+#ifdef CTR_NATIVE
+void AnimateWaterVertex(struct WaterVert *waterVert, u16 colorOffset, s32 firstOffset, s32 secondOffset, u32 *visBits)
 {
 	u32 bits = *visBits;
+	struct LevVertex *levVert;
+	struct OVert *waterColor;
+	u16 first, second;
+	u32 rgb, farR, farG, farB, color;
+
 	*visBits = bits >> 1;
-
 	if ((bits & 1) == 0)
-	{
 		return;
-	}
-
-	struct LevVertex *levVert = scVert->v;
-	u32 offsetPosZw = (u32)scVert->offset_pos_zw;
-	s32 flags = (s32)offsetPosZw >> 16;
-	struct AnimateQuadTrig trig = AnimateQuad_GetTrig((flags & 0x3fff) + timer);
-
-	if (flags < 0)
-	{
-		u32 offsetPosXy = (u32)scVert->offset_pos_xy;
-		u32 originalY = ((offsetPosXy >> 16) << 16);
-		u32 animatedXy = offsetPosXy + (u32)(trig.sin >> 7);
-		u32 animatedZw = offsetPosZw + (u32)(trig.cos >> 7);
-
-		CTR_WriteU32LE(&levVert->pos, animatedXy | originalY);
-		levVert->pos.z = (s16)animatedZw;
-	}
-
-	if ((flags & 0x4000) != 0)
-	{
-		MTC2((u32)((trig.sin + 0x1000) >> 2), 8);
-		MTC2((u32)scVert->offset_color_rgba, 6);
-		gte_dpcs();
-
-		u32 color = MFC2(22);
-		CTR_WriteU32LE(&levVert->color_hi[0], color);
-		CTR_WriteU32LE(&levVert->color_lo[0], color);
-	}
-}
-
-void AnimateQuad(int timer, int numSCVert, struct SCVert *scVert, int *visSCVertList)
-{
-	u32 *visList = (u32 *)visSCVertList;
-	u32 visBits = *visList++;
-	int bitCount = 32;
-
-	CTC2(0, 21);
-	CTC2(0, 22);
-	CTC2(0, 23);
-
-	scVert--;
-
-	while (numSCVert != 0)
-	{
-		numSCVert--;
-
-		if (bitCount == 0)
-		{
-			visBits = *visList++;
-			bitCount = 31;
-		}
-		else
-		{
-			bitCount--;
-		}
-
-		scVert++;
-		AnimateQuadVertex(timer, scVert, &visBits);
-	}
-}
-
-void AnimateWaterVertex(struct WaterVert *waterVert, u16 colorOffset, int firstOffset, int secondOffset, u32 *visBits)
-{
-	u32 bits = *visBits;
-	*visBits = bits >> 1;
-
-	if ((bits & 1) == 0)
-	{
-		return;
-	}
-
-	struct LevVertex *levVert = waterVert->v;
-	struct OVert *waterColor = waterVert->w;
-	u16 first = CTR_ReadU16LE((char *)waterColor + firstOffset);
-	u16 second = CTR_ReadU16LE((char *)waterColor + secondOffset);
-
-	u32 rgb = (first & 0x3f);
-	u32 farR = (second & 0x3f) << 4;
-	u32 farG = (second & 0xfc0) >> 2;
-	u32 farB = (second & 0xf000) >> 4;
-
+	levVert = waterVert->v;
+	waterColor = waterVert->w;
+	first = CTR_ReadU16LE((char *)waterColor + firstOffset);
+	second = CTR_ReadU16LE((char *)waterColor + secondOffset);
+	rgb = first & 0x3f;
+	farR = (second & 0x3f) << 4;
+	farG = (second & 0xfc0) >> 2;
+	farB = (second & 0xf000) >> 4;
 	rgb |= (first & 0xfc0) << 2;
 	rgb |= (first & 0xf000) << 8;
 	rgb |= (first & 0xf000) << 4;
 	farB |= (second & 0xf000) >> 8;
-
 	MTC2(rgb, 6);
 	CTC2(farR, 21);
 	CTC2(farG, 22);
 	CTC2(farB, 23);
 	gte_dpcs();
-
-	u32 color = MFC2(22);
+	color = MFC2(22);
 	CTR_WriteU16LE(&levVert->color_lo[0], (u16)(color + colorOffset));
-
 	color = (color >> 16) & 0xff;
 	CTR_WriteU32LE(&levVert->color_hi[0], (color << 16) | (color << 8) | color);
 }
 
-static u16 AnimateWater_ReadTextureHalf(const struct TextureLayout *layout, int offset)
+#define ANIMATE_WATER_LISTS 3
+#include "Animate_ScratchFrame.h"
+void AnimateWater3P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList0,
+                    s32 *visOVertList1, s32 *visOVertList2)
 {
-	return CTR_ReadU16LE((const u8 *)layout + offset);
+#include "AnimateWater_Body.inc"
 }
+#undef ANIMATE_WATER_LISTS
+#undef ANIMATE_SCRATCH_DECLARE
+#undef ANIMATE_SCRATCH_SAVE
+#undef ANIMATE_SCRATCH_RESTORE
 
-static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int numLists,
-                                int **visLists)
+#define ANIMATE_WATER_LISTS 4
+#include "Animate_ScratchFrame.h"
+void AnimateWater4P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList0,
+                    s32 *visOVertList1, s32 *visOVertList2, s32 *visOVertList3)
 {
-#if defined(CTR_NATIVE)
-	// NOTE(aalhendi): CTR_NATIVE divergence, not retail ASM: native tracks can
-	// supply empty water lists with null water data.
-	if (numWaterVertices == 0)
-	{
-		return;
-	}
+#include "AnimateWater_Body.inc"
+}
+#undef ANIMATE_WATER_LISTS
+#undef ANIMATE_SCRATCH_DECLARE
+#undef ANIMATE_SCRATCH_SAVE
+#undef ANIMATE_SCRATCH_RESTORE
+
+// Native unity includes each shared leaf once; MIPS compiles these as real TUs.
+#include "AnimateQuadVertex.c"
+#include "AnimateQuad.c"
+#include "AnimateWater1P.c"
+#include "AnimateWater2P.c"
+#else
+
+// NOTE(aalhendi): These retail adapters save S0-S7/RA at scratch 0x00..0x28,
+// not in a C stack frame. Three players borrow GP as list 2; four also borrow
+// SP as list 3, only after all original-stack arguments have been read.
+// Kernels preserve A0-A3, T3/T4, T6 and list cursors; T5 is shifted. Ordinary
+// setup/visibility logic remains ASM here; native entries 1-4 share the C body.
+// WaterVertex's invisible path uses 4P's final JR/NOP without its restores.
+#define ANIMATE_SAVE_REGISTERS \
+	"lui $at,0x1f80\n"         \
+	"sw $s0,0($at)\n"          \
+	"sw $s1,4($at)\n"          \
+	"sw $s2,8($at)\n"          \
+	"sw $s3,12($at)\n"         \
+	"sw $s4,16($at)\n"         \
+	"sw $s5,20($at)\n"         \
+	"sw $s6,24($at)\n"         \
+	"sw $s7,28($at)\n"
+
+#define ANIMATE_RESTORE_REGISTERS(returnLabel) \
+	"lw $s7,28($at)\n"                         \
+	"lw $s6,24($at)\n"                         \
+	"lw $s5,20($at)\n"                         \
+	"lw $s4,16($at)\n"                         \
+	"lw $s3,12($at)\n"                         \
+	"lw $s2,8($at)\n"                          \
+	"lw $s1,4($at)\n"                          \
+	"lw $s0,0($at)\n" returnLabel "jr $ra\n"   \
+	"nop\n"
+
+#define ANIMATE_WATER_FRAME_SETUP \
+	"addiu $a2,$a2,-8\n"          \
+	"addiu $v1,$zero,28\n"        \
+	"srl $t0,$a0,3\n"             \
+	"divu $zero,$t0,$v1\n"        \
+	"lhu $a3,0($a3)\n"            \
+	"mfhi $t0\n"                  \
+	"andi $t1,$a0,7\n"            \
+	"sll $t1,$t1,9\n"             \
+	"mtc2 $t1,$8\n"               \
+	"addiu $t1,$t0,1\n"           \
+	"divu $zero,$t1,$v1\n"
+
+#define ANIMATE_WATER_READ_LIST0 \
+	"lw $t5,0($t8)\n"            \
+	"addiu $t8,$t8,4\n"
+
+#define ANIMATE_WATER_READ_LIST1 \
+	"lw $v1,0($t9)\n"            \
+	"addiu $t9,$t9,4\n"          \
+	"or $t5,$t5,$v1\n"
+
+#define ANIMATE_WATER_READ_LIST2 \
+	"lw $v1,0($gp)\n"            \
+	"addiu $gp,$gp,4\n"          \
+	"or $t5,$t5,$v1\n"
+
+#define ANIMATE_WATER_READ_LIST3 \
+	"lw $v1,0($sp)\n"            \
+	"addiu $sp,$sp,4\n"          \
+	"or $t5,$t5,$v1\n"
+
+__asm__(".section .AnimateWater3P,\"ax\",@progbits\n"
+        ".align 2\n"
+        ".ent\tAnimateWater3P\n"
+        ".set\tnoreorder\n"
+        ".set\tnoat\n"
+        ".globl AnimateWater3P\n"
+        "AnimateWater3P:\n" ANIMATE_SAVE_REGISTERS "sw $gp,32($at)\n"
+        "sw $ra,40($at)\n"
+        "lw $t8,16($sp)\n"
+        "lw $t9,20($sp)\n"
+        "lw $gp,24($sp)\n" ANIMATE_WATER_FRAME_SETUP ANIMATE_WATER_READ_LIST0 ANIMATE_WATER_READ_LIST1 ANIMATE_WATER_READ_LIST2 "sll $t3,$t0,1\n"
+        "mfhi $t1\n"
+        "addiu $t6,$zero,32\n"
+        "bgez $zero,.LAnimateWater3PTest\n"
+        "sll $t4,$t1,1\n"
+        ".LAnimateWater3PVertexCall:\n"
+        "jal AnimateWaterVertex\n"
+        "addiu $a2,$a2,8\n"
+        ".LAnimateWater3PTest:\n"
+        "beqz $a1,.LAnimateWater3PRestore\n"
+        "addiu $a1,$a1,-1\n"
+        "bnez $t6,.LAnimateWater3PVertexCall\n"
+        "addiu $t6,$t6,-1\n" ANIMATE_WATER_READ_LIST0 ANIMATE_WATER_READ_LIST1 ANIMATE_WATER_READ_LIST2 "bgez $zero,.LAnimateWater3PVertexCall\n"
+        "addiu $t6,$zero,31\n"
+        ".LAnimateWater3PRestore:\n"
+        "lw $ra,40($at)\n"
+        "lw $gp,32($at)\n" ANIMATE_RESTORE_REGISTERS(".LAnimateWater3PReturn:\n") ".end AnimateWater3P\n"
+                                                                                  ".set\tat\n"
+                                                                                  ".set\treorder\n"
+                                                                                  ".text\n");
+
+__asm__(".section .AnimateWater4P,\"ax\",@progbits\n"
+        ".align 2\n"
+        ".ent\tAnimateWater4P\n"
+        ".set\tnoreorder\n"
+        ".set\tnoat\n"
+        ".globl AnimateWater4P\n"
+        "AnimateWater4P:\n" ANIMATE_SAVE_REGISTERS "sw $gp,32($at)\n"
+        "sw $sp,36($at)\n"
+        "sw $ra,40($at)\n"
+        "lw $t8,16($sp)\n"
+        "lw $t9,20($sp)\n"
+        "lw $gp,24($sp)\n"
+        "lw $sp,28($sp)\n" ANIMATE_WATER_FRAME_SETUP ANIMATE_WATER_READ_LIST0 ANIMATE_WATER_READ_LIST1 ANIMATE_WATER_READ_LIST2 ANIMATE_WATER_READ_LIST3
+        "sll $t3,$t0,1\n"
+        "mfhi $t1\n"
+        "addiu $t6,$zero,32\n"
+        "bgez $zero,.LAnimateWater4PTest\n"
+        "sll $t4,$t1,1\n"
+        ".LAnimateWater4PVertexCall:\n"
+        "jal AnimateWaterVertex\n"
+        "addiu $a2,$a2,8\n"
+        ".LAnimateWater4PTest:\n"
+        "beqz $a1,.LAnimateWater4PRestore\n"
+        "addiu $a1,$a1,-1\n"
+        "bnez $t6,.LAnimateWater4PVertexCall\n"
+        "addiu $t6,$t6,-1\n" ANIMATE_WATER_READ_LIST0 ANIMATE_WATER_READ_LIST1 ANIMATE_WATER_READ_LIST2 ANIMATE_WATER_READ_LIST3
+        "bgez $zero,.LAnimateWater4PVertexCall\n"
+        "addiu $t6,$zero,31\n"
+        ".LAnimateWater4PRestore:\n"
+        "lw $ra,40($at)\n"
+        "lw $sp,36($at)\n"
+        "lw $gp,32($at)\n" ANIMATE_RESTORE_REGISTERS(".LAnimateWater4PReturn:\n") ".end AnimateWater4P\n"
+                                                                                  ".set\tat\n"
+                                                                                  ".set\treorder\n"
+                                                                                  ".text\n");
+
+#undef ANIMATE_SAVE_REGISTERS
+#undef ANIMATE_RESTORE_REGISTERS
+#undef ANIMATE_WATER_FRAME_SETUP
+#undef ANIMATE_WATER_READ_LIST0
+#undef ANIMATE_WATER_READ_LIST1
+#undef ANIMATE_WATER_READ_LIST2
+#undef ANIMATE_WATER_READ_LIST3
+
+// NOTE(aalhendi): These retail kernels have a custom register ABI, not the
+// native C argument ABI: a2 is the vertex, t5 the shifting visibility word,
+// a3 the water color offset, and t3/t4 the two water-frame byte offsets.
+// Their invisible path shares the final wrapper's jr ra instead of creating
+// another return. Preserve the explicit GTE pipeline and read delays.
+__asm__(".section .AnimateWaterVertex,\"ax\",@progbits\n"
+        ".align 2\n"
+        ".ent\tAnimateWaterVertex\n"
+        ".set\tnoreorder\n"
+        ".globl AnimateWaterVertex\n"
+        "AnimateWaterVertex:\n"
+        "andi $v1,$t5,1\n"
+        "beqz $v1,AnimateWater4P+(.LAnimateWater4PReturn-AnimateWater4P)\n"
+        "srl $t5,$t5,1\n"
+        "lw $t0,4($a2)\n"
+        "lw $t7,0($a2)\n"
+        "addu $v1,$t0,$t3\n"
+        "addu $t0,$t0,$t4\n"
+        "lhu $v1,0($v1)\n"
+        "lhu $t2,0($t0)\n"
+        "andi $t0,$v1,0x0fc0\n"
+        "andi $t1,$v1,0xf000\n"
+        "andi $v1,$v1,0x003f\n"
+        "sll $t0,$t0,2\n"
+        "or $v1,$v1,$t0\n"
+        "sll $t1,$t1,8\n"
+        "or $v1,$v1,$t1\n"
+        "srl $t1,$t1,4\n"
+        "or $v1,$v1,$t1\n"
+        "mtc2 $v1,$6\n"
+        "andi $t0,$t2,0x0fc0\n"
+        "andi $t1,$t2,0xf000\n"
+        "andi $v1,$t2,0x003f\n"
+        "sll $v1,$v1,4\n"
+        "srl $t0,$t0,2\n"
+        "ctc2 $v1,$21\n"
+        "ctc2 $t0,$22\n"
+        "srl $t1,$t1,4\n"
+        "srl $t0,$t1,4\n"
+        "or $t1,$t1,$t0\n"
+        "ctc2 $t1,$23\n"
+        "nop\n"
+        "nop\n"
+        "cop2 0x0780010\n"
+        "mfc2 $t0,$22\n"
+        "nop\n"
+        "addu $v1,$t0,$a3\n"
+        "sh $v1,12($t7)\n"
+        "srl $t0,$t0,16\n"
+        "andi $t0,$t0,0xff\n"
+        "sll $v1,$t0,8\n"
+        "or $v1,$v1,$t0\n"
+        "sll $v1,$v1,8\n"
+        "or $v1,$v1,$t0\n"
+        "jr $ra\n"
+        "sw $v1,8($t7)\n"
+        ".end AnimateWaterVertex\n"
+        ".set\treorder\n"
+        ".text\n");
+
 #endif
-
-	u16 colorOffset = AnimateWater_ReadTextureHalf(waterEnvMap, 0);
-	u32 visBits = 0;
-	u32 *visList[4];
-	int firstFrame;
-	int secondFrame;
-	int firstOffset;
-	int secondOffset;
-	int bitCount = 32;
-
-	for (int i = 0; i < numLists; i++)
-	{
-		visList[i] = (u32 *)visLists[i];
-		visBits |= *visList[i]++;
-	}
-
-	firstFrame = ((u32)timer >> 3) % 28;
-	secondFrame = (firstFrame + 1) % 28;
-	firstOffset = firstFrame * 2;
-	secondOffset = secondFrame * 2;
-
-	MTC2((timer & 7) << 9, 8);
-
-	waterVert--;
-
-	while (numWaterVertices != 0)
-	{
-		numWaterVertices--;
-
-		if (bitCount == 0)
-		{
-			visBits = 0;
-
-			for (int i = 0; i < numLists; i++)
-			{
-				visBits |= *visList[i]++;
-			}
-
-			bitCount = 31;
-		}
-		else
-		{
-			bitCount--;
-		}
-
-		waterVert++;
-		AnimateWaterVertex(waterVert, colorOffset, firstOffset, secondOffset, &visBits);
-	}
-}
-
-void AnimateWater1P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList)
-{
-	int *visLists[1] = {visOVertList};
-	AnimateWater_Common(timer, numWaterVertices, waterVert, waterEnvMap, 1, visLists);
-}
-
-void AnimateWater2P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1)
-{
-	int *visLists[2] = {visOVertList0, visOVertList1};
-	AnimateWater_Common(timer, numWaterVertices, waterVert, waterEnvMap, 2, visLists);
-}
-
-void AnimateWater3P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1, int *visOVertList2)
-{
-	int *visLists[3] = {visOVertList0, visOVertList1, visOVertList2};
-	AnimateWater_Common(timer, numWaterVertices, waterVert, waterEnvMap, 3, visLists);
-}
-
-void AnimateWater4P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1, int *visOVertList2, int *visOVertList3)
-{
-	int *visLists[4] = {visOVertList0, visOVertList1, visOVertList2, visOVertList3};
-	AnimateWater_Common(timer, numWaterVertices, waterVert, waterEnvMap, 4, visLists);
-}

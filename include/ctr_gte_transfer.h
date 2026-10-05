@@ -23,6 +23,14 @@
 #define CTR_GteWriteControl(value, reg) __builtin_mips_ctc2((value), (reg))
 #endif
 
+// NOTE(aalhendi): Literal data index0-31; typed CPU use and GTE alias effects.
+// This is a transfer, not a GTE command, latency barrier or arbitrary opcode.
+#ifdef CTR_NATIVE
+#define CTR_GteWriteData(value, reg) MTC2((value), (reg))
+#else
+#define CTR_GteWriteData(value, reg) __builtin_mips_mtc2((value), (reg))
+#endif
+
 // NOTE(aalhendi): Compose five packed words through the current GTE ROT matrix
 // and leave the product loaded. The shared body uses retail's t3-t7 tuple;
 // native callers use the pointer interface directly.

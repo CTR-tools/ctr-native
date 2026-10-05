@@ -279,6 +279,82 @@ retained separately. The C++ frontend and four stock exported files do not
 gain these C contracts. None of these compile/output checks proves hardware
 execution, universal provider balance or exception/interrupt equivalence.
 
+## Sparse S-bank owners and typed ordered operations
+
+`psx-animation-2.8.1.patch` follows the continuation patch. Its SHA-256 is
+`f6ad3c811fa75bc93a63755439b2a806b0344013bbe837db46fd6cca1312b1c0`.
+The delta is759 added/25 removed lines across nine C/target owners,734 net.
+The ordinary flow/allocation passes remain unchanged; one bounded delay-slot
+helper is added to reorg.c. No game name, address or expected word selects it.
+
+`mips_unsafe_manual_at44` marks one emitted ordinary C void body per translation
+unit with four to six o32 SI arguments. Source owns the original S0-S7/RA
+captures, mapped/disjoint AT-based scratch image, restoration and provider
+preservation. The used offsets are0..28 and40;32/36 are not compiler-managed
+saves. Actual storage, automatic homes, SP/GP/S8 use, unsupported calls/contexts
+or unsafe return/slot shapes are refused, including after allocation and DBR.
+The marker suppresses automatic frames, not the outward ordinary caller homes.
+It is unsafe: acceptance does not prove path balance or hardware preservation.
+
+An optional single bounded C identifier exports a real GLOBAL zero-size CODE
+label on the same certified JRRA/NOP as the internal owned return. Consistent
+redeclarations inherit it; conflicting names, malformed names, own C/assembler
+names and multiple emitted owners are rejected. Other global symbol collisions
+remain the real assembler/linker's responsibility. The interface does not
+provide an offset, EQU, trampoline, alternate entry frame or cross-owner restore.
+
+`mips_regcall_sbank(mask)` describes direct non-inline C void(void) calls with
+hidden reads selected from GPR2..25, an AT read, actual RA/S0-S7 kills and the
+remaining conservative ordinary-call effects. It requires the separate
+`mips_preserves_at44` provider assertion inside a sparse owner. Function
+addresses, incompatible declarations and unsupported contexts are errors.
+
+`__builtin_mips_incoming_ptr(formal)` reads only an owner's actual fifth/sixth
+pointer from original SP16/20, once each and before control transfers. It is
+not arbitrary stack addressing. Typed `__builtin_mips_mtc2(value,index)` accepts
+only literal data indices0..31, completes queued argument effects, records its
+CPU input and conservatively invalidates the modeled SXY2/VXY0 aliases. It
+promises neither C-valued GTE storage, a command nor a hardware latency barrier.
+
+`__builtin_mips_umod_hi(n,divisor)` has unsigned32 remainder value semantics;
+the divisor is a nonzero constant. It uses allocatable HI plus truthful LO/HILO
+scratches. The pure validated divisor is materialized before the dividend;
+argument effects still complete once. `__builtin_mips_read_hi(value)` transfers
+that value to a GPR, using MFHI for HI or a normal move for a materialized GPR.
+A value can survive other writers/spills without a spurious MTHI restoring it
+over an unread multiply result. Neither operation exposes a global HI token;
+ordinary multiplication, reload and quotient/remainder lowering are unchanged.
+
+`-mcommon-head-slot=on|off` defaults to off and uses the last supplied value.
+On the supported non-PIC MIPS-I/ABI32 target, its post-reload helper admits
+only owned EQ/NE-zero branches whose two immediate successors contain the
+identical nontrapping one-word SI register signed16 update. It excludes
+protected registers, memory/opaque effects, alternate entries, unsupported
+notes and debug/profiling contexts; it updates real resource/block ownership
+and installs one unannulled slot using the old branch condition. It is not a
+generic opposite-path speculation or register-allocation policy.
+
+`tests/check_psx_scratch.sh` reuses its existing compile/body/refusal helpers
+with five shared standalone fixtures. They check actual emitted sparse images,
+typed incoming reads, real call uses/kills/homes, HI values across MULT/spills,
+GTE aliases, common-head positive/refusal/default output and named-return
+metadata/diagnostics. They are compiler-output controls, not MIPS execution,
+physical assembler macro/latency proof or automatic unsafe-source certification.
+Actual AS/link collision/PC16 and complete application-window ownership remain
+separate integration gates; case16 and TEST_BORROWER in the owned return fixture
+are available for those real-tool checks without any private include.
+
+The proposed five-export tuple keeps the four stock files below and replaces
+only cc1 with
+`61b00602d935ee40f6a18e4d3463e3252e0ec671ed463c1054e8d77aa30e3617`.
+Its deterministic pre-configure source fingerprint uses the format above:
+`77f877a7444229893126a17dd24474a0c07889707d2b60140b10558209787792`,
+1221 regular files, zero symlinks. Archive plus ordered pinned patches determine
+the source; no per-file public registry is added. The updated maintained recipe,
+new smoke fixtures, whole-export reproducibility, default aggregates and native
+integration must pass before treating this proposed tuple as a release. Cached
+offline provisioning is distinct from running the Dockerfile's mutable apt steps.
+
 ## Previously tested compiler release
 
 - Release:

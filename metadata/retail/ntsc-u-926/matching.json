@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "90a506b6a4d6b690672eedfaf6e639b76e790d3038eca909d1cb1afb4f8557bc",
+        "cc1": "61b00602d935ee40f6a18e4d3463e3252e0ec671ed463c1054e8d77aa30e3617",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -4439,6 +4439,69 @@
           "-mpsx-normal-ram-lhu-delay=on",
           "-mpsx-local-bgez=on",
           "-mpsx-normal-ram-lw-delay=on"
+        ]
+      },
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "animate-quad",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "start_symbol": "AnimateQuad",
+          "end_symbol": "DrawConfetti"
+        }
+      ],
+      "symbol_prefix": "",
+      "sources": [
+        "game/RenderLevel/AnimateQuad.c",
+        "game/RenderLevel/AnimateQuadVertex.c",
+        "game/MATH/TRIG_AngleSinCos_r19r17r18.c"
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "source_flags": {
+        "game/RenderLevel/AnimateQuad.c": [
+          "-fomit-frame-pointer", "-mpsx-local-bgez=on", "-mcommon-head-slot=on",
+          "-fno-schedule-insns", "-fno-schedule-insns2"
+        ],
+        "game/MATH/TRIG_AngleSinCos_r19r17r18.c": ["-fno-crossjumping"]
+      },
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "animate-water",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "start_symbol": "AnimateWater1P",
+          "end_symbol": "RedBeaker_RenderRain"
+        }
+      ],
+      "symbol_prefix": "AnimateWater",
+      "sources": [
+        "game/RenderLevel/AnimateWater1P.c",
+        "game/RenderLevel/AnimateWater2P.c",
+        "game/RenderLevel/AnimateWater.c"
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "source_flags": {
+        "game/RenderLevel/AnimateWater1P.c": [
+          "-fomit-frame-pointer", "-mpsx-local-bgez=on", "-mcommon-head-slot=on",
+          "-fno-schedule-insns", "-fno-schedule-insns2", "-ffixed-2"
+        ],
+        "game/RenderLevel/AnimateWater2P.c": [
+          "-fomit-frame-pointer", "-mpsx-local-bgez=on", "-mcommon-head-slot=on",
+          "-fno-schedule-insns", "-fno-schedule-insns2", "-ffixed-2"
         ]
       },
       "small_data_limit": 8,

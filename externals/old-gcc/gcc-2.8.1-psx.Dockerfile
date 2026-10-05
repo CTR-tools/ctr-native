@@ -25,6 +25,8 @@ RUN echo 'a2221b5a05bf81f3797b20725e901422e52579681ba5b9b1e95a60767154cd37  ../p
 RUN patch --batch --forward --fuzz=0 -u -p2 < ../patches/psx-ram-load-2.8.1.patch
 RUN echo '698ebf5719f8a6ac8a594af894da1dee94400826f04263ee84e53dc2c1d27dcb  ../patches/psx-continuations-2.8.1.patch' | sha256sum -c -
 RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/psx-continuations-2.8.1.patch
+RUN echo 'f6ad3c811fa75bc93a63755439b2a806b0344013bbe837db46fd6cca1312b1c0  ../patches/psx-animation-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/psx-animation-2.8.1.patch
 
 RUN ./configure \
     --target=mips-sony-psx \

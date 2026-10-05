@@ -405,8 +405,17 @@ void RenderBucket_Execute(void *param_1, struct PrimMem *param_2);
 void DrawTires_Solid(struct Thread *thread, struct PrimMem *primMem, u8 numPlyr);
 void DrawTires_Reflection(struct Thread *thread, struct PrimMem *primMem, u8 numPlyr);
 void Torch_Main(void *particleList_heatWarp, struct PushBuffer *pb, struct PrimMem *primMem, u8 numPlyr, int swapchainIndex);
-void AnimateWater1P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList);
-void AnimateQuad(int timer, int numSCVert, struct SCVert *scVert, int *visSCVertList);
+void AnimateWater1P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList);
+void AnimateQuad(s32 timer, s32 numSCVert, struct SCVert *scVert, s32 *visSCVertList);
+#ifdef CTR_NATIVE
+void AnimateQuadVertex(s32 timer, struct SCVert *scVert, u32 *visBits);
+void AnimateWaterVertex(struct WaterVert *waterVert, u16 colorOffset, s32 firstOffset, s32 secondOffset, u32 *visBits);
+#else
+// NOTE(aalhendi): Custom kernel lanes, not ordinary argument lists. AT survives
+// the S-bank call while the wrapper's source-owned sparse scratch image is live.
+void CTR_PSX_REGCALL_SBANK(0x2050) CTR_PSX_PRESERVES_AT44 AnimateQuadVertex(void);
+void CTR_PSX_REGCALL_SBANK(0x38c0) CTR_PSX_PRESERVES_AT44 AnimateWaterVertex(void);
+#endif
 void RenderLists_PreInit(void);
 void RenderBucket_InitDepthGTE(void);
 void WindowBoxLines(struct GameTracker *gGT);
@@ -1309,12 +1318,12 @@ void DrawLevelOvr3P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspL
                     const int *visFaceList2, const struct TextureLayout *waterEnvMap);
 void DrawLevelOvr4P(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem, const int *visFaceList0, const int *visFaceList1,
                     const int *visFaceList2, const int *visFaceList3, const struct TextureLayout *waterEnvMap);
-void AnimateWater2P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1);
-void AnimateWater3P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1, int *visOVertList2);
-void AnimateWater4P(int timer, int numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, int *visOVertList0,
-                    int *visOVertList1, int *visOVertList2, int *visOVertList3);
+void AnimateWater2P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList0,
+                    s32 *visOVertList1);
+void AnimateWater3P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList0,
+                    s32 *visOVertList1, s32 *visOVertList2);
+void AnimateWater4P(s32 timer, s32 numWaterVertices, struct WaterVert *waterVert, const struct TextureLayout *waterEnvMap, s32 *visOVertList0,
+                    s32 *visOVertList1, s32 *visOVertList2, s32 *visOVertList3);
 int RenderLists_Init1P2P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList, u8 numPlyr);
 int RenderLists_Init3P4P(struct BSP *bspRoot, int *visLeafList, struct PushBuffer *pb, u32 LevRenderList, void *bspList);
 // TODO:

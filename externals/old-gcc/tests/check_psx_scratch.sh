@@ -253,3 +253,128 @@ for task_case in GAP_HALF GAP_VOLATILE; do
     cmp "$task_out/on-jump.s" "$task_out/extended-jump.s"
 done
 echo 'Continuation/full-scratch/tied-ADDU/branch-gap semantic controls passed'
+
+# Sparse original S0-S7/RA images retain their two real unused words.
+for task_case in 1 2; do
+    task_compile "at44-$task_case" psx_at44.c "-DCASE=$task_case" -fomit-frame-pointer
+    task_body "Incoming$(test "$task_case" = 1 && echo Five || echo Six)" "at44-$task_case" > "$task_out/at44-body.s"
+    for task_pair in 0:16 4:17 8:18 12:19 16:20 20:21 24:22 28:23 40:31; do
+        task_offset=${task_pair%:*}; task_reg=${task_pair#*:}
+        for task_op in sw lw; do
+            grep -Eq "$task_op[[:space:]]+\\\$$task_reg,$task_offset\\(\\\$1\\)" "$task_out/at44-body.s"
+        done
+    done
+    if grep -Eq '\.frame|[sl]w[[:space:]]+[^,]+,(32|36)\(\$1\)' "$task_out/at44-body.s"; then exit 1; fi
+    grep -Eq 'lw[[:space:]]+\$24,16\(\$sp\)' "$task_out/at44-body.s"
+    if test "$task_case" = 2; then grep -Eq 'lw[[:space:]]+\$25,20\(\$sp\)' "$task_out/at44-body.s"; fi
+    for task_name in mips_incoming_ptr mips_umod_hi mips_read_hi mips_mtc2 mips_owned_at44_return; do
+        grep -Fq "{$task_name}" "$task_out/psx_at44.c.dbr"
+    done
+    for task_reg in 65 66 76 77; do
+        grep -Eq '\(clobber \(reg:SI '"$task_reg"' ' "$task_out/psx_at44.c.dbr"
+    done
+done
+task_compile at44-call psx_at44.c -DTEST_SBANK -fomit-frame-pointer
+grep -Eq 'jal[[:space:]]+Provider' "$task_out/at44-call.s"
+grep -Eq '\(use \(reg:SI 1 ' "$task_out/psx_at44.c.rtl"
+for task_reg in 16 17 18 19 20 21 22 23 31; do
+    grep -Eq '\(clobber \(reg:SI '"$task_reg"' ' "$task_out/psx_at44.c.rtl"
+done
+task_compile at44-callers psx_at44.c -DTEST_CALLERS -fomit-frame-pointer
+for task_name in OrdinaryBefore OrdinaryAfter; do
+    task_body "$task_name" at44-callers | grep -Eq 'jal[[:space:]]+IncomingFive'
+    task_body "$task_name" at44-callers | grep -Eq '\.frame.*args= 24'
+done
+for task_case in 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    case "$task_case" in
+        3) task_diag='sparse AT44 requires its explicit typed incoming reads' ;;
+        4|5|9|10) task_diag='invalid MIPS ordered builtin: incoming pointer or unsigned HI operation/nonzero constant divisor required' ;;
+        6|7|13) task_diag='sparse AT44 requires ordinary operands and empty register cues' ;;
+        8|15) task_diag='manual AT ABI requires a supported non-inline C void prototype and no attribute arguments' ;;
+        11|12) task_diag='__builtin_mips_mtc2 requires a constant data index 0..31' ;;
+        14) task_diag='sparse incoming reads must precede all control transfers' ;;
+    esac
+    task_reject "at44-refuse-$task_case" "$task_diag" psx_at44.c "-DCASE=$task_case" -fomit-frame-pointer
+done
+task_reject at44-call-type 'mips_regcall_sbank requires non-inline C void(void)' psx_at44.c -DTEST_SBANK -DTEST_BAD_CALL
+task_reject at44-call-preserves 'manual AT ABI call lacks an AT/scratch-window assertion' psx_at44.c -DTEST_SBANK -DTEST_NO_PRESERVE
+task_reject at44-call-address 'require direct calls, not addresses' psx_at44.c -DTEST_SBANK -DTEST_CALL_ADDRESS
+
+# An unsigned remainder is a C value even after another HI/LO writer or spill.
+task_compile hi-values psx_at44_ops.c
+for task_name in PendingAcrossMultiply TwoPending; do
+    task_body "$task_name" hi-values > "$task_out/hi-body.s"
+    awk '
+        $1 ~ /^(mult|multu|div|divu)$/ { pending=1 }
+        $1 ~ /^(mfhi|mflo)$/ { pending=0 }
+        $1 == "mthi" && pending { bad=1 }
+        END { exit bad }
+    ' "$task_out/hi-body.s"
+    grep -Eq 'mfhi[[:space:]]' "$task_out/hi-body.s"
+done
+task_body PendingAcrossMultiply hi-values | grep -Eq 'mult[[:space:]]'
+task_body PendingAcrossMultiply hi-values | grep -Eq 'mflo[[:space:]]'
+for task_index in 0 14 15; do
+    task_compile "mtc2-$task_index" psx_at44_ops.c -DTEST_ALIAS "-DDATA_INDEX=$task_index"
+    test "$(grep -Ec '^[[:space:]]*mtc2[[:space:]]' "$task_out/mtc2-$task_index.s")" -eq 2
+    test "$(grep -Ec '^[[:space:]]*mfc2[[:space:]]' "$task_out/mtc2-$task_index.s")" -eq 2
+    test "$(grep -Ec '^[[:space:]]*lwc2[[:space:]]' "$task_out/mtc2-$task_index.s")" -eq 2
+    for task_reg in 76 77; do
+        grep -Eq '\(clobber \(reg:SI '"$task_reg"' ' "$task_out/psx_at44_ops.c.dbr"
+    done
+done
+
+# Merge only two owned identical heads; the input branch uses the old count.
+for task_case in 1 9; do
+    for task_policy in off on; do
+        task_compile "heads-$task_case-$task_policy" psx_common_head.c "-DCASE=$task_case" \
+            -fomit-frame-pointer -fno-schedule-insns -fno-schedule-insns2 "-mcommon-head-slot=$task_policy"
+    done
+    test "$(grep -Ec '^[[:space:]]*addu[[:space:]]+\$4,\$4,-1' "$task_out/heads-$task_case-off.s")" -eq 2
+    test "$(grep -Ec '^[[:space:]]*addu[[:space:]]+\$4,\$4,-1' "$task_out/heads-$task_case-on.s")" -eq 1
+    task_branch=beq; test "$task_case" = 1 || task_branch=bne
+    sed '/^[[:space:]]*#/d' "$task_out/heads-$task_case-on.s" \
+        | grep -A1 -E "$task_branch[[:space:]]+\\\$4,\\\$0," \
+        | grep -Eq 'addu[[:space:]]+\$4,\$4,-1'
+done
+for task_case in 2 3 4 5 6 7; do
+    for task_policy in off on; do
+        task_compile "head-refuse-$task_case-$task_policy" psx_common_head.c "-DCASE=$task_case" -DORDINARY \
+            -fno-schedule-insns -fno-schedule-insns2 "-mcommon-head-slot=$task_policy"
+    done
+    cmp "$task_out/head-refuse-$task_case-off.s" "$task_out/head-refuse-$task_case-on.s"
+done
+for task_opt in O0 O2; do
+    task_compile "head-default-$task_opt" psx_common_head.c -DORDINARY "-$task_opt"
+    task_compile "head-off-$task_opt" psx_common_head.c -DORDINARY "-$task_opt" -mcommon-head-slot=off
+    cmp "$task_out/head-default-$task_opt.s" "$task_out/head-off-$task_opt.s"
+done
+task_compile head-arcs psx_common_head.c -DORDINARY -fprofile-arcs -mcommon-head-slot=on
+grep -Fq '__bb' "$task_out/head-arcs.s"
+task_reject head-option 'bad value (banana)' psx_common_head.c -DORDINARY -mcommon-head-slot=banana
+grep -Fq 'common-head-slot' "$task_out/head-option.stderr"
+
+# The outward call ABI is unchanged; the optional label owns actual JR/NOP code.
+for task_case in 1 2 3 5 6 9 14; do
+    task_compile "return-$task_case" psx_at44_return.c "-DCASE=$task_case" -fomit-frame-pointer
+    task_body "$(test "$task_case" = 9 && echo RenamedProbe || echo OwnedProbe)" "return-$task_case" > "$task_out/return-body.s"
+    if test "$task_case" != 1; then
+        test "$(grep -c '^OwnedProbe_Return:$' "$task_out/return-body.s")" -eq 1
+        grep -A8 '^OwnedProbe_Return:$' "$task_out/return-body.s" | grep -Eq 'jr[[:space:]]+\$31'
+        grep -Fq '{mips_owned_at44_return}' "$task_out/psx_at44_return.c.dbr"
+    fi
+done
+for task_case in 4 7 8 15; do
+    task_diag='sparse AT44 return metadata changed on redeclaration'
+    test "$task_case" != 15 || task_diag='sparse AT44 permits one bounded return identifier and consistent metadata'
+    task_reject "return-conflict-$task_case" "$task_diag" psx_at44_return.c "-DCASE=$task_case"
+done
+task_reject return-two-owners 'sparse AT44 requires one ordinary emitted owner per TU' psx_at44_return.c -DCASE=13
+task_reject return-self 'sparse AT44 return export conflicts with its owner name' psx_at44_return.c '-DRETURN_NAME="OwnedProbe"'
+task_name_case=0
+for task_name in '""' '"1Bad"' '"bad name"' '"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789AB"' 1; do
+    task_name_case=$((task_name_case + 1))
+    task_reject "return-bad-name-$task_name_case" 'sparse AT44 permits one bounded return identifier and consistent metadata' \
+        psx_at44_return.c "-DRETURN_NAME=$task_name"
+done
+echo 'Sparse/S-bank/incoming/HI/MTC2/common-head/named-return compile controls passed'
