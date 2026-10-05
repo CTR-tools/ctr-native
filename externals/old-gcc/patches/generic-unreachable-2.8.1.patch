@@ -1,0 +1,46 @@
+--- a/tree.h
++++ b/tree.h
+@@ -121,6 +121,9 @@
+   /* Explicit MIPS operation with ordinary signed-C negation semantics.  */
+   BUILT_IN_MIPS_NEG_SI,
+   BUILT_IN_MIPS_CTC2,
++
++  /* Assert that C execution cannot continue at this point.  */
++  BUILT_IN_UNREACHABLE,
+ 
+   /* Upper bound on non-language-specific builtins. */
+   END_BUILTINS
+--- a/c-decl.c
++++ b/c-decl.c
+@@ -3198,6 +3198,12 @@
+     = build_function_type (ptr_type_node,
+ 			   tree_cons (NULL_TREE, ptr_type_node, endlink));
+ 
++  temp = builtin_function ("__builtin_unreachable",
++			   build_function_type (void_type_node, endlink),
++			   BUILT_IN_UNREACHABLE, NULL_PTR);
++  TREE_THIS_VOLATILE (temp) = 1;
++  TREE_SIDE_EFFECTS (temp) = 1;
++
+   builtin_function ("__builtin_constant_p", default_function_type,
+ 		    BUILT_IN_CONSTANT_P, NULL_PTR);
+ 
+--- a/expr.c
++++ b/expr.c
+@@ -8371,6 +8371,16 @@
+ 
+   switch (DECL_FUNCTION_CODE (fndecl))
+     {
++    case BUILT_IN_UNREACHABLE:
++      if (arglist != 0 || TREE_CODE (TREE_TYPE (exp)) != VOID_TYPE)
++	{
++	  error ("invalid use of __builtin_unreachable");
++	  return const0_rtx;
++	}
++      emit_queue ();
++      emit_barrier ();
++      return const0_rtx;
++
+     case BUILT_IN_MIPS_CTC2:
+ #ifdef EXPAND_BUILTIN_MIPS_CTC2
+       return EXPAND_BUILTIN_MIPS_CTC2 (exp);

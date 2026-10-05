@@ -36,8 +36,9 @@ are disabled unless selected for a compilation:
   not gain this eligibility.
 
 All three options accept only `on` or `off`, default to `off`, and use the last
-supplied value. The first two are selected only for `game/DrawSky.c`; the CTC2
-policy is scoped to the isolated rotation-composition/loader translation unit.
+supplied value. Enabled compilations are scoped by
+`metadata/retail/ntsc-u-926/matching.json`; the CTC2 policy remains limited to
+the isolated rotation-composition/loader translation unit.
 No function names or retail addresses select behavior inside the compiler.
 The patch SHA-256 is
 `bd7e26fc281eb104a2c40e5965aa7401de8515f364ca741cb87166d797091936`.
@@ -117,6 +118,18 @@ and genuine excluded frame/FPU/PIC/profile contexts, not game-specific bytes.
 The debug control checks emitted records and frame/save/restore layout only,
 not debugger execution or unwind correctness.
 
+## Unreachable assertion
+
+`generic-unreachable-2.8.1.patch` adds the target-independent C builtin
+`void __builtin_unreachable(void)` in 19 frontend lines. Its SHA-256 is
+`0274f15c7160a44b19cef40e8a1dd157d9ea1d362d4387425696697a23cf3d2d`.
+It completes queued expression effects and emits an RTL barrier, not a CPU
+instruction, call, trap, fence or physical transfer. Reaching it is undefined
+execution; it neither restores a frame nor makes an escaping ASM boundary safe.
+Unoptimized output may serialize dead continuation after the barrier.
+`tests/check_unreachable.sh` checks real O0/O2 barriers, earlier effects,
+optimized dead-continuation cleanup, valid framed returns and argument errors.
+
 ## Tested compiler release
 
 - Release:
@@ -126,18 +139,19 @@ not debugger execution or unwind correctness.
 - Platform: statically linked Linux i386
 - Local directory: `prebuilt/linux-i386/2.8.1`
 
-The C compiler pass (`cc1`) below includes both local patches. Two clean builds
-produced this hash in the fixed Ubuntu 20.04/GCC 9.4.0 environment: one from the
-recorded 1,221-file source input set, and one freshly reconstructed from the GNU
-archive and the public patch recipe. The latter also passed the maintained
-base, GTE and frame smoke controls.
+The C compiler pass (`cc1`) below includes the GTE, frame and unreachable
+patches. Two clean builds produced this hash in the fixed Ubuntu 20.04/GCC 9.4.0
+environment: one from the recorded 1,221-file source input set, and one freshly
+reconstructed from the GNU archive and public patch recipe. The latter passed
+the maintained base/GTE/frame smokes; a smoke-only successor on its unchanged
+binary passed the unreachable controls and ordinary O0/O2 raw-output parity.
 The other four files remain unchanged from the release archive. The Dockerfile
 builds only the replacement `cc1` and exports it alongside those stock files.
 Its pinned base image and source archive do not freeze future apt repositories;
 the executable hashes, not a fresh package-manager run, identify the tested tuple.
 
 ```text
-94873e8608def44bfac4d24408e6853afbb48ae979afc4e5d81be2b46778b735  cc1
+ee617951e9c8cfc98fb407fb319477a94ef7e0e2e592f03f1cf8467669741e7d  cc1
 93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572  cc1plus
 8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb  cpp
 a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd  g++

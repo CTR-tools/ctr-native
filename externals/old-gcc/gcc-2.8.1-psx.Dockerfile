@@ -19,6 +19,7 @@ RUN patch -u -p1 config/mips/mips.h -i ../patches/mips.patch
 RUN patch -su -p1 < ../patches/psx.patch
 RUN patch --fuzz=0 -u -p1 < ../patches/psx-gte-delay-policies-2.8.1.patch
 RUN patch --fuzz=0 -u -p1 < ../patches/psx-frame-policies-2.8.1.patch
+RUN patch --fuzz=0 -u -p1 < ../patches/generic-unreachable-2.8.1.patch
 
 RUN ./configure \
     --target=mips-sony-psx \
@@ -45,6 +46,7 @@ RUN ./cc1 -version </dev/null 2>&1 | grep -- -msplit-addresses
 RUN ./cc1 -version </dev/null 2>&1 | grep -- -mgpopt
 RUN sh /work/tests/check_psx_gte.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_psx_frames.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_unreachable.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 
 FROM scratch AS export
 COPY prebuilt/linux-i386/2.8.1/ /

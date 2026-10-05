@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "94873e8608def44bfac4d24408e6853afbb48ae979afc4e5d81be2b46778b735",
+        "cc1": "ee617951e9c8cfc98fb407fb319477a94ef7e0e2e592f03f1cf8467669741e7d",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -4358,6 +4358,108 @@
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}
+    },
+    {
+      "name": "renderbucket",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "RenderBucket_",
+      "sources": [
+        "game/RenderBucket/RenderBucket_Normal.c",
+        "game/RenderBucket/RenderBucket_Execute.c",
+        "game/RenderBucket/RenderBucket_DrawInstPrim_ClampDepth.c",
+        "game/RenderBucket/RenderBucket_DrawInstPrim_Normal.c",
+        "game/RenderBucket/RenderBucket_DrawInstPrim_DepthFade.c",
+        "game/RenderBucket/RenderBucket_Special.c",
+        "game/RenderBucket/RenderBucket_Split.c",
+        "game/RenderBucket/RenderBucket_UncompressAnimationFrame.c",
+        "game/RenderBucket/RenderBucket_UncompressAnimationFrame_NextFrame.c",
+        "game/RenderBucket/RenderBucket_QueueInstances.c",
+        "game/RenderBucket/RenderBucket_CopyDispatchTables.c",
+        "game/RenderBucket/RenderBucket_QueueDraw.c",
+        "game/RenderBucket/RenderBucket_ExpandProjectedBounds.c",
+        "game/RenderBucket/RenderBucket_InstSetupCallbacks.c",
+        "game/RenderBucket/RenderBucket_UncompressAnimationFrame_Transformed.c",
+        "game/RenderBucket/RenderBucket_Reflection.c"
+      ],
+      "source_flags": {
+        "game/RenderBucket/RenderBucket_DrawInstPrim_Normal.c": [
+          "-fno-schedule-insns",
+          "-fno-schedule-insns2"
+        ],
+        "game/RenderBucket/RenderBucket_DrawInstPrim_DepthFade.c": [
+          "-fno-schedule-insns",
+          "-fno-schedule-insns2"
+        ],
+        "game/RenderBucket/RenderBucket_DrawInstPrim_ClampDepth.c": [
+          "-fno-schedule-insns",
+          "-fno-schedule-insns2",
+          "-mpsx-local-bgez=on"
+        ]
+      },
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "code_intervals": [
+        {
+          "start_symbol": "RenderBucket_DrawFunc_Normal",
+          "end_symbol": "RenderBucket_Execute"
+        },
+        {
+          "start_symbol": "RenderBucket_Execute",
+          "end_symbol": "RenderBucket_InitDepthGTE"
+        },
+        {
+          "start_symbol": "RenderBucket_DrawFunc_Split",
+          "end_symbol": "RenderBucket_UncompressAnimationFrame_NextFrame"
+        },
+        {
+          "start_symbol": "RenderBucket_UncompressAnimationFrame_NextFrame",
+          "end_symbol": "Unknown_8006b4c8"
+        },
+        {
+          "start_symbol": "RenderBucket_DrawInstPrim_DepthFade",
+          "end_symbol": "RenderBucket_UncompressAnimationFrame_Split"
+        },
+        {
+          "start_symbol": "RenderBucket_UncompressAnimationFrame_Split",
+          "end_symbol": "ConvertRotToMatrix_InverseTranspose_NoRotY"
+        },
+        {
+          "start_symbol": "RenderBucket_InstSetupLightColor",
+          "end_symbol": "RenderBucket_DrawFunc_Reflection"
+        },
+        {
+          "start_symbol": "RenderBucket_DrawFunc_Reflection",
+          "end_symbol": "RenderBucket_UncompressAnimationFrame_ReflectNextFrame"
+        },
+        {
+          "start_symbol": "RenderBucket_UncompressAnimationFrame_ReflectNextFrame",
+          "end_symbol": "Unknown_8006d094"
+        },
+        {
+          "start_symbol": "RenderBucket_QueueLevInstances",
+          "end_symbol": "RenderBucket_CopyDispatchTables"
+        },
+        {
+          "start_symbol": "RenderBucket_CopyDispatchTables",
+          "end_symbol": "ThTick_RunBucket"
+        }
+      ],
+      "link_symbols": {
+        "RenderBucket_WaterSplit_Import": "0x8006d094",
+        "RenderBucket_SetupDispatchWindow_Import": "0x8008a428",
+        "RenderBucket_PrimitiveDispatchWindow_Import": "0x8008a444"
+      }
     },
     {
       "name": "ui-cup-ranks",
