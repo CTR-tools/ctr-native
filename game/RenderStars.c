@@ -5,6 +5,8 @@ CTR_STATIC_ASSERT(offsetof(TILE_1, tag) == 0x00);
 CTR_STATIC_ASSERT(offsetof(TILE_1, r0) == 0x04);
 CTR_STATIC_ASSERT(offsetof(TILE_1, x0) == 0x08);
 
+#ifdef CTR_NATIVE
+
 static s32 RenderStars_MulLowShift(s32 value, s32 scale)
 {
 	return (s32)(u32)((s64)value * (s64)scale) >> 12;
@@ -58,9 +60,8 @@ void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *s
 	u32 *prim = (u32 *)primMem->cursor;
 	int playerCount = numPlyr;
 
-	// NOTE(aalhendi): PSX-backfeed blocker: retail uses 0x1f800000-0x1f80002c
-	// to spill callee-save registers. This C port relies on the compiler ABI
-	// because no retail data temporary lives in that scratchpad span.
+	// NOTE(aalhendi): Native relies on the host ABI instead of retail's GPR
+	// saves at scratchpad 0x00-0x2c; no data temporary lives in that span.
 	CTC2(0, 5);
 	CTC2(0, 6);
 	CTC2(0, 7);
@@ -180,7 +181,7 @@ void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *s
 
 				CtrGpu_WriteColorCode(&star->r0, color);
 				CtrGpu_WritePackedXY(&star->x0, sxy);
-				CtrGpu_LinkPacket24(ot, &star->tag, star, 0x02000000);
+				CtrGpu_LinkPacketFullOTTag(ot, &star->tag, star, 0x02000000);
 				prim = (u32 *)(star + 1);
 			}
 
@@ -192,9 +193,221 @@ void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *s
 		struct CtrGpuDrawModePacket *drawMode = (struct CtrGpuDrawModePacket *)prim;
 		drawMode->drawMode = 0xe1000a20;
 		drawMode->terminator = 0;
-		CtrGpu_LinkPacket24(ot, &drawMode->tag, drawMode, 0x02000000);
+		CtrGpu_LinkPacketFullOTTag(ot, &drawMode->tag, drawMode, 0x02000000);
 		prim = (u32 *)(drawMode + 1);
 	}
 
 	primMem->cursor = prim;
 }
+
+#else
+
+// NOTE(aalhendi): Retail saves the caller's GPRs through at in scratchpad,
+// then uses gp/sp as seed/color lanes without an ordinary stack frame.
+// There are no external calls. Preserve the division padding, GTE hazards,
+// signed loop delay slots and original one-star minimum for legal 1P..4P.
+#define RENDER_STARS_RNG(lane, seedOr) \
+	"sll $t6,$t8,24\n"                 \
+	"srl $t8,$t8,8\n"                  \
+	"addu " lane ",$s7,$t8\n"          \
+	"srl $s7,$s7,8\n"                  \
+	"or $s7,$s7," seedOr "\n"          \
+	"srl $t6,$s7,8\n"                  \
+	"addu " lane "," lane ",$t6\n"     \
+	"sll " lane "," lane ",24\n"       \
+	"or $t8,$t8," lane "\n"
+
+// NOTE(aalhendi): Keep the adjacent RNG fragments aligned as instructions;
+// clang-format otherwise reads them as nested expressions. Native C is formatted.
+// clang-format off
+__asm__(".section .RenderStars,\"ax\",@progbits\n"
+        ".align 2\n"
+        ".ent\tRenderStars\n"
+        ".set\tnoreorder\n"
+        ".set\tnoat\n"
+        ".globl RenderStars\n"
+        "RenderStars:\n"
+        "lui $at,0x1f80\n"
+        "sw $s0,0($at)\n"
+        "sw $s1,4($at)\n"
+        "sw $s2,8($at)\n"
+        "sw $s3,12($at)\n"
+        "sw $s4,16($at)\n"
+        "sw $s5,20($at)\n"
+        "sw $s6,24($at)\n"
+        "sw $s7,28($at)\n"
+        "sw $gp,32($at)\n"
+        "sw $sp,36($at)\n"
+        "sw $s8,40($at)\n"
+        "sw $ra,44($at)\n"
+        "ctc2 $zero,$5\n"
+        "ctc2 $zero,$6\n"
+        "ctc2 $zero,$7\n"
+        "addiu $a3,$a3,-1\n"
+        "lw $v0,12($a1)\n"
+        ".Lstars_player:\n"
+        "lw $t7,40($a0)\n"
+        "lw $s0,44($a0)\n"
+        "lw $s1,48($a0)\n"
+        "lw $s2,52($a0)\n"
+        "lw $s3,56($a0)\n"
+        "ctc2 $t7,$0\n"
+        "ctc2 $s0,$1\n"
+        "ctc2 $s1,$2\n"
+        "ctc2 $s2,$3\n"
+        "ctc2 $s3,$4\n"
+        "lh $v1,32($a0)\n"
+        "lh $t0,34($a0)\n"
+        "lw $t1,24($a0)\n"
+        "lw $s5,32($a0)\n"
+        "lw $s4,244($a0)\n"
+        "sll $v1,$v1,15\n"
+        "sll $t0,$t0,15\n"
+        "ctc2 $v1,$24\n"
+        "ctc2 $t0,$25\n"
+        "ctc2 $t1,$26\n"
+        "ctc2 $zero,$5\n"
+        "ctc2 $zero,$6\n"
+        "ctc2 $zero,$7\n"
+        "lhu $s6,0($a2)\n"
+        "lhu $t9,2($a2)\n"
+        "lhu $gp,4($a2)\n"
+        "lhu $v1,6($a2)\n"
+        "addi $gp,$gp,20\n"
+        "sll $v1,$v1,2\n"
+        "addu $s4,$s4,$v1\n"
+        "lui $s7,0x3012\n"
+        "ori $s7,$s7,0x5400\n"
+        "lui $t8,0x4935\n"
+        "bgez $zero,.Lstars_next\n"
+        "ori $t8,$t8,0x83fe\n"
+        ".Lstars_star:\n"
+        RENDER_STARS_RNG("$v1", "$v1")
+        RENDER_STARS_RNG("$t0", "$v1")
+        RENDER_STARS_RNG("$t1", "$v1")
+        "sra $v1,$v1,20\n"
+        "srav $t0,$t0,$gp\n"
+        "sra $t1,$t1,20\n"
+        "bgez $v1,.Lstars_abs_y\n"
+        "move $t2,$v1\n"
+        "sub $t2,$zero,$v1\n"
+        ".Lstars_abs_y:\n"
+        "bgez $t0,.Lstars_abs_z\n"
+        "move $t3,$t0\n"
+        "bne $t9,$zero,.Lstars_abs_z\n"
+        "sub $t3,$zero,$t0\n"
+        "move $t0,$t3\n"
+        ".Lstars_abs_z:\n"
+        "bgez $t1,.Lstars_sort_y\n"
+        "move $t4,$t1\n"
+        "sub $t4,$zero,$t1\n"
+        ".Lstars_sort_y:\n"
+        "subu $t5,$t2,$t3\n"
+        "bgtz $t5,.Lstars_sort_z\n"
+        "move $t5,$t2\n"
+        "move $t2,$t3\n"
+        "move $t3,$t5\n"
+        ".Lstars_sort_z:\n"
+        "subu $t5,$t2,$t4\n"
+        "bgtz $t5,.Lstars_scale\n"
+        "move $t5,$t2\n"
+        "move $t2,$t4\n"
+        "move $t4,$t5\n"
+        ".Lstars_scale:\n"
+        "sra $t3,$t3,2\n"
+        "sra $t4,$t4,2\n"
+        "addu $t2,$t2,$t3\n"
+        "addu $t2,$t2,$t4\n"
+        "lui $t3,0x100\n"
+        "div $zero,$t3,$t2\n"
+        "mflo $t2\n"
+        "nop\n"
+        "nop\n"
+        "mult $v1,$t2\n"
+        "mflo $v1\n"
+        "sra $v1,$v1,12\n"
+        "andi $v1,$v1,0xffff\n"
+        "mult $t0,$t2\n"
+        "mflo $t0\n"
+        "sra $t0,$t0,12\n"
+        "sll $t0,$t0,16\n"
+        "mult $t1,$t2\n"
+        "or $v1,$v1,$t0\n"
+        "mflo $t1\n"
+        "sra $t1,$t1,12\n"
+        "mtc2 $v1,$0\n"
+        "mtc2 $t1,$1\n"
+        RENDER_STARS_RNG("$sp", "$v1")
+        "cop2 0x180001\n"
+        "srl $sp,$sp,24\n"
+        "ori $sp,$sp,0x40\n"
+        "andi $sp,$sp,0xff\n"
+        "sll $v1,$sp,8\n"
+        "or $sp,$sp,$v1\n"
+        "sll $v1,$v1,8\n"
+        "or $sp,$sp,$v1\n"
+        "lui $v1,0x6800\n"
+        "or $sp,$sp,$v1\n"
+        "lui $t4,0xd9\n"
+        "ori $t4,$t4,0x200\n"
+        "cfc2 $v1,$31\n"
+        "mfc2 $t2,$14\n"
+        "sll $v1,$v1,13\n"
+        "bltz $v1,.Lstars_next\n"
+        "subu $v1,$t2,$t4\n"
+        "nor $v1,$v1,$t2\n"
+        "bltz $v1,.Lstars_next\n"
+        "sll $v1,$v1,16\n"
+        "bltz $v1,.Lstars_next\n"
+        "lui $t0,0x200\n"
+        "lw $v1,0($s4)\n"
+        "sw $sp,4($v0)\n"
+        "or $v1,$v1,$t0\n"
+        "sw $v1,0($v0)\n"
+        "sll $t3,$v0,8\n"
+        "srl $t3,$t3,8\n"
+        "sw $t2,8($v0)\n"
+        "sw $t3,0($s4)\n"
+        "addiu $v0,$v0,12\n"
+        ".Lstars_next:\n"
+        "bgez $s6,.Lstars_star\n"
+        "addiu $s6,$s6,-1\n"
+        "lui $t0,0x200\n"
+        "lui $v1,0xe100\n"
+        "ori $v1,$v1,0xa20\n"
+        "sw $v1,4($v0)\n"
+        "sw $zero,8($v0)\n"
+        "lw $v1,0($s4)\n"
+        "sll $t2,$v0,8\n"
+        "or $v1,$v1,$t0\n"
+        "sw $v1,0($v0)\n"
+        "srl $t2,$t2,8\n"
+        "sw $t2,0($s4)\n"
+        "addiu $v0,$v0,12\n"
+        "addiu $a0,$a0,272\n"
+        "bne $a3,$zero,.Lstars_player\n"
+        "addiu $a3,$a3,-1\n"
+        "sw $v0,12($a1)\n"
+        "lw $ra,44($at)\n"
+        "lw $s8,40($at)\n"
+        "lw $sp,36($at)\n"
+        "lw $gp,32($at)\n"
+        "lw $s7,28($at)\n"
+        "lw $s6,24($at)\n"
+        "lw $s5,20($at)\n"
+        "lw $s4,16($at)\n"
+        "lw $s3,12($at)\n"
+        "lw $s2,8($at)\n"
+        "lw $s1,4($at)\n"
+        "lw $s0,0($at)\n"
+        "jr $ra\n"
+        "nop\n"
+        ".end RenderStars\n"
+        ".set\tat\n"
+        ".set\treorder\n"
+        ".text\n");
+// clang-format on
+
+#undef RENDER_STARS_RNG
+
+#endif

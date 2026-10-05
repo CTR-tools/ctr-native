@@ -5,6 +5,27 @@ static const u8 sDrawConfettiColorTable8008a2a0[36] = {
     0x7d, 0x85, 0x8d, 0x95, 0x9e, 0xa7, 0xb1, 0xbb, 0xc5, 0xd0, 0xdb, 0xe7, 0xf3, 0xff, 0xff, 0xff, 0xff, 0xff,
 };
 
+struct DrawConfettiCorner
+{
+	u32 xy;
+	s32 z;
+};
+
+struct DrawConfettiScratch
+{
+	u32 remainingParticles;
+	u32 color;
+	struct DrawConfettiCorner corners[4];
+	u8 colorTable[36];
+};
+
+CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, remainingParticles) == 0x00);
+CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, color) == 0x04);
+CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, corners) == 0x08);
+CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, colorTable) == 0x28);
+
+#ifdef CTR_NATIVE
+
 struct DrawConfettiRng
 {
 	u32 x;
@@ -12,56 +33,16 @@ struct DrawConfettiRng
 	u32 z;
 };
 
-struct DrawConfettiScratch
-{
-	u32 remainingParticles;
-	u32 color;
-	u8 pad_08[0x20];
-	u8 colorTable[36];
-};
-
-CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, remainingParticles) == 0x00);
-CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, color) == 0x04);
-CTR_STATIC_ASSERT(offsetof(struct DrawConfettiScratch, colorTable) == 0x28);
-
 static u32 DrawConfetti_ReadWord(const void *base, int offset)
 {
-	return *(const u32 *)(const void *)((const char *)base + offset);
+	return CTR_ReadU32LE((const u8 *)base + offset);
 }
 
 static struct TrigPair DrawConfetti_TrigAngleSinCos(int angle)
 {
-	u32 packed = DrawConfetti_ReadWord(&data.trigApprox[ANG_MODULO_HALF_PI(angle)], 0);
 	struct TrigPair pair;
 
-	// NOTE(aalhendi): PSX-backfeed blocker: retail calls TRIG_AngleSinCos_r15r16r17 with angle in t7 and returns sine/cosine in s0/s1.
-	// Native C uses an explicit helper; restore the register ABI before PSX backfeed.
-	if (IS_ANG_FIRST_OR_THIRD_QUADRANT(angle))
-	{
-		pair.sin = (s16)packed;
-		pair.cos = (s16)(packed >> 16);
-
-		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
-		{
-			pair.sin = -pair.sin;
-			pair.cos = -pair.cos;
-		}
-	}
-	else
-	{
-		pair.sin = (s16)(packed >> 16);
-		pair.cos = (s16)packed;
-
-		if (IS_ANG_THIRD_OR_FOURTH_QUADRANT(angle))
-		{
-			pair.sin = -pair.sin;
-		}
-		else
-		{
-			pair.cos = -pair.cos;
-		}
-	}
-
+	TRIG_AngleSinCos_r15r16r17(angle, &pair.sin, &pair.cos);
 	return pair;
 }
 
@@ -157,9 +138,8 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTra
 	u32 state1;
 	struct DrawConfettiRng rng;
 
-	// NOTE(aalhendi): PSX-backfeed blocker: retail saves/restores callee
-	// registers in scratchpad 0x00-0x2c. Native C relies on the host ABI; the
-	// retail data scratch range starts at 0x30 and is explicit below.
+	// NOTE(aalhendi): Native relies on the host ABI instead of retail's GPR
+	// saves at scratchpad 0x00-0x2c. Its data scratch range starts at 0x30.
 	CTC2(0, 5);
 	CTC2(0, 6);
 	CTC2(0, 7);
@@ -273,7 +253,8 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTra
 		scratch->remainingParticles = particleCount;
 
 		x = (((s32)rng.x >> 21) + baseX) & 0x7ff;
-		y = (((s32)rng.y >> 21) + baseY) & 0x7ff;
+		// NOTE(aalhendi): Retail ADDU wraps before ANDI, even at timer extrema.
+		y = (s32)(((u32)((s32)rng.y >> 21) + (u32)baseY) & 0x7ffu);
 		z = (((s32)rng.z >> 21) + baseZ) & 0x7ff;
 		x -= centerX;
 		y -= 0x400;
@@ -305,6 +286,17 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTra
 		z2 = z - halfZ - skewZ;
 		xy3 = DrawConfetti_PackXY(x + halfX + skewX, y + halfY);
 		z3 = z + halfZ - skewZ;
+
+		// NOTE(aalhendi): Retail writes all four scratch corners before the
+		// GTE loads, including for rejected particles. Preserve that image.
+		scratch->corners[0].xy = xy0;
+		scratch->corners[0].z = z0;
+		scratch->corners[1].xy = xy1;
+		scratch->corners[1].z = z1;
+		scratch->corners[2].xy = xy2;
+		scratch->corners[2].z = z2;
+		scratch->corners[3].xy = xy3;
+		scratch->corners[3].z = z3;
 
 		MTC2(xy0, 0);
 		MTC2((u32)z0, 1);
@@ -358,3 +350,319 @@ void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTra
 
 	primMem->cursor = prim;
 }
+
+#else
+
+// NOTE(aalhendi): Retail owns at as the scratchpad base and repurposes gp/sp
+// for RNG/vertex lanes after saving the ordinary caller's GPRs. The fifth
+// argument is loaded from the original sp before those custom-register uses.
+// Trig consumes t7 and returns s0/s1 while the other live lanes survive.
+// These source instructions retain the GTE/load hazards and branch delays.
+#define DRAW_CONFETTI_RNG_BYTE(lane) \
+	"sll $v1,$t8,24\n"               \
+	"srl $t8,$t8,8\n"                \
+	"addu " lane ",$s7,$t8\n"        \
+	"srl $s7,$s7,8\n"                \
+	"or $s7,$s7,$v1\n"               \
+	"srl $v1,$s7,8\n"                \
+	"addu " lane "," lane ",$v1\n"   \
+	"sll " lane "," lane ",24\n"     \
+	"or $t8,$t8," lane "\n"
+#define DRAW_CONFETTI_RNG DRAW_CONFETTI_RNG_BYTE("$t9") DRAW_CONFETTI_RNG_BYTE("$gp") DRAW_CONFETTI_RNG_BYTE("$sp")
+
+// NOTE(aalhendi): clang-format reads adjacent RNG fragments as nested
+// expressions. Keep this instruction listing aligned; native C stays formatted.
+// clang-format off
+__asm__(".section .DrawConfetti,\"ax\",@progbits\n"
+        ".align 2\n"
+        ".ent\tDrawConfetti\n"
+        ".set\tnoreorder\n"
+        ".set\tnoat\n"
+        ".globl DrawConfetti\n"
+        "DrawConfetti:\n"
+        "lui $at,0x1f80\n"
+        "sw $s0,0($at)\n"
+        "sw $s1,4($at)\n"
+        "sw $s2,8($at)\n"
+        "sw $s3,12($at)\n"
+        "sw $s4,16($at)\n"
+        "sw $s5,20($at)\n"
+        "sw $s6,24($at)\n"
+        "sw $s7,28($at)\n"
+        "sw $gp,32($at)\n"
+        "sw $sp,36($at)\n"
+        "sw $s8,40($at)\n"
+        "sw $ra,44($at)\n"
+        "ctc2 $zero,$5\n"
+        "ctc2 $zero,$6\n"
+        "ctc2 $zero,$7\n"
+        "lw $v0,12($a1)\n"
+        "lw $s8,16($sp)\n"
+        "lui $v1,%hi(sDrawConfettiColorTable8008a2a0)\n"
+        "addiu $v1,$v1,%lo(sDrawConfettiColorTable8008a2a0)\n"
+        "addiu $t0,$at,88\n"
+        "addiu $t1,$zero,8\n"
+        ".Lconfetti_copy_shades:\n"
+        "lw $t2,0($v1)\n"
+        "addiu $v1,$v1,4\n"
+        "sw $t2,0($t0)\n"
+        "addiu $t0,$t0,4\n"
+        "bgtz $t1,.Lconfetti_copy_shades\n"
+        "addiu $t1,$t1,-1\n"
+        "lw $v1,40($a0)\n"
+        "lw $t0,44($a0)\n"
+        "lw $t1,48($a0)\n"
+        "lw $t2,52($a0)\n"
+        "lw $t3,56($a0)\n"
+        "ctc2 $v1,$0\n"
+        "lh $t7,8($a0)\n"
+        "ctc2 $t0,$1\n"
+        "ctc2 $t1,$2\n"
+        "ctc2 $t2,$3\n"
+        "jal TRIG_AngleSinCos_r15r16r17\n"
+        "ctc2 $t3,$4\n"
+        "sra $s0,$s0,2\n"
+        "addiu $s5,$s0,1024\n"
+        "sra $s1,$s1,2\n"
+        "addiu $s6,$s1,1024\n"
+        "lw $s3,8($a2)\n"
+        "addiu $s2,$zero,0\n"
+        "addiu $s4,$zero,0\n"
+        "mult $s3,$a3\n"
+        "lh $v1,32($a0)\n"
+        "lh $t0,34($a0)\n"
+        "lw $t1,24($a0)\n"
+        "lw $t4,32($a0)\n"
+        "lw $t3,244($a0)\n"
+        "sll $v1,$v1,15\n"
+        "sll $t0,$t0,15\n"
+        "ctc2 $v1,$24\n"
+        "ctc2 $t0,$25\n"
+        "ctc2 $t1,$26\n"
+        "lw $t5,0($a2)\n"
+        "bne $s8,$zero,.Lconfetti_particle_count_ready\n"
+        "lhu $v1,4($a2)\n"
+        "lhu $t0,6($a2)\n"
+        "beq $v1,$t5,.Lconfetti_particle_count_ready\n"
+        "subu $t1,$v1,$t5\n"
+        "bgez $t1,.Lconfetti_particle_count_grow\n"
+        "addu $t2,$t1,$t0\n"
+        "blez $t2,.Lconfetti_store_particle_count\n"
+        "subu $t5,$t5,$t0\n"
+        "bgez $zero,.Lconfetti_store_particle_count\n"
+        "move $t5,$v1\n"
+        ".Lconfetti_particle_count_grow:\n"
+        "subu $t2,$t1,$t0\n"
+        "bgez $t2,.Lconfetti_store_particle_count\n"
+        "addu $t5,$t5,$t0\n"
+        "move $t5,$v1\n"
+        ".Lconfetti_store_particle_count:\n"
+        "sw $t5,0($a2)\n"
+        ".Lconfetti_particle_count_ready:\n"
+        "lh $v1,0($a0)\n"
+        "lh $t0,2($a0)\n"
+        "lh $t1,4($a0)\n"
+        "mflo $s3\n"
+        "subu $s2,$s2,$v1\n"
+        "subu $s3,$s3,$t0\n"
+        "subu $s4,$s4,$t1\n"
+        "addu $s2,$s2,$s5\n"
+        "addu $s4,$s4,$s6\n"
+        "lui $t0,0x2800\n"
+        "sw $t0,52($at)\n"
+        "addiu $s8,$zero,6\n"
+        "lui $s7,0x3012\n"
+        "ori $s7,$s7,0x5400\n"
+        "lui $t8,0x4935\n"
+        "bgez $zero,.Lconfetti_initial_rng\n"
+        "ori $t8,$t8,0x83fe\n"
+        ".Lconfetti_particle:\n"
+        "sw $t5,48($at)\n"
+        "sra $t9,$t9,21\n"
+        "sra $gp,$gp,21\n"
+        "sra $sp,$sp,21\n"
+        "addu $t9,$t9,$s2\n"
+        "addu $gp,$gp,$s3\n"
+        "addu $sp,$sp,$s4\n"
+        "andi $t9,$t9,0x7ff\n"
+        "andi $gp,$gp,0x7ff\n"
+        "andi $sp,$sp,0x7ff\n"
+        "subu $t9,$t9,$s5\n"
+        "addiu $gp,$gp,-1024\n"
+        "subu $sp,$sp,$s6\n"
+        "andi $t2,$s8,1\n"
+        "beq $t2,$zero,.Lconfetti_spin_angle\n"
+        "move $t7,$a3\n"
+        "sub $t7,$zero,$a3\n"
+        ".Lconfetti_spin_angle:\n"
+        "jal TRIG_AngleSinCos_r15r16r17\n"
+        "sll $t7,$t7,4\n"
+        "sra $t2,$s0,5\n"
+        "addu $t9,$t9,$t2\n"
+        "sra $t2,$s1,5\n"
+        "addu $sp,$sp,$t2\n"
+        "move $t1,$s0\n"
+        "move $t2,$s1\n"
+        "jal TRIG_AngleSinCos_r15r16r17\n"
+        "sll $t7,$t7,3\n"
+        "bgtz $s1,.Lconfetti_shade_index\n"
+        "sra $t0,$s1,7\n"
+        "sub $t0,$zero,$s1\n"
+        "sra $t0,$t0,7\n"
+        ".Lconfetti_shade_index:\n"
+        "addu $t0,$t0,$at\n"
+        "lbu $t0,88($t0)\n"
+        "andi $v1,$s8,1\n"
+        "beq $v1,$zero,.Lconfetti_green\n"
+        "sb $zero,52($at)\n"
+        "sb $t0,52($at)\n"
+        ".Lconfetti_green:\n"
+        "andi $v1,$s8,2\n"
+        "beq $v1,$zero,.Lconfetti_blue\n"
+        "sb $zero,53($at)\n"
+        "sb $t0,53($at)\n"
+        ".Lconfetti_blue:\n"
+        "andi $v1,$s8,4\n"
+        "beq $v1,$zero,.Lconfetti_corners\n"
+        "sb $zero,54($at)\n"
+        "sb $t0,54($at)\n"
+        ".Lconfetti_corners:\n"
+        "mult $s0,$t1\n"
+        "sra $s1,$s1,8\n"
+        "subu $t0,$gp,$s1\n"
+        "sh $t0,58($at)\n"
+        "sh $t0,66($at)\n"
+        "addu $t0,$gp,$s1\n"
+        "sh $t0,74($at)\n"
+        "mflo $v1\n"
+        "sh $t0,82($at)\n"
+        "sra $v1,$v1,20\n"
+        "mult $s0,$t2\n"
+        "sra $s0,$s0,8\n"
+        "sra $t2,$t2,8\n"
+        "subu $t0,$t9,$t2\n"
+        "subu $t0,$t0,$v1\n"
+        "sh $t0,56($at)\n"
+        "addu $t0,$t9,$t2\n"
+        "subu $t0,$t0,$v1\n"
+        "sh $t0,64($at)\n"
+        "subu $t0,$t9,$t2\n"
+        "addu $t0,$t0,$v1\n"
+        "sh $t0,72($at)\n"
+        "addu $t0,$t9,$t2\n"
+        "addu $t0,$t0,$v1\n"
+        "sh $t0,80($at)\n"
+        "mflo $v1\n"
+        "sra $t1,$t1,8\n"
+        "sra $v1,$v1,20\n"
+        "subu $t0,$sp,$t1\n"
+        "addu $t0,$t0,$v1\n"
+        "sw $t0,60($at)\n"
+        "addu $t0,$sp,$t1\n"
+        "addu $t0,$t0,$v1\n"
+        "sw $t0,68($at)\n"
+        "subu $t0,$sp,$t1\n"
+        "subu $t0,$t0,$v1\n"
+        "sw $t0,76($at)\n"
+        "addu $t0,$sp,$t1\n"
+        "subu $t0,$t0,$v1\n"
+        "sw $t0,84($at)\n"
+        "lwc2 $0,56($at)\n"
+        "lwc2 $1,60($at)\n"
+        "lwc2 $2,64($at)\n"
+        "lwc2 $3,68($at)\n"
+        "lwc2 $4,72($at)\n"
+        "lwc2 $5,76($at)\n"
+        "sll $v1,$t8,24\n"
+        "srl $t8,$t8,8\n"
+        "cop2 0x280030\n"
+        "addu $t9,$s7,$t8\n"
+        "srl $s7,$s7,8\n"
+        "or $s7,$s7,$v1\n"
+        "srl $v1,$s7,8\n"
+        "addu $t9,$t9,$v1\n"
+        "sll $t9,$t9,24\n"
+        "or $t8,$t8,$t9\n"
+        DRAW_CONFETTI_RNG_BYTE("$gp") DRAW_CONFETTI_RNG_BYTE("$sp")
+        "mfc2 $v1,$12\n"
+        "cfc2 $t2,$31\n"
+        "mfc2 $t0,$13\n"
+        "mfc2 $t1,$14\n"
+        "swc2 $12,8($v0)\n"
+        "lwc2 $0,80($at)\n"
+        "lwc2 $1,84($at)\n"
+        "sll $t2,$t2,14\n"
+        "bltz $t2,.Lconfetti_next_particle\n"
+        "and $t6,$v1,$t0\n"
+        "cop2 0x180001\n"
+        "and $t6,$t6,$t1\n"
+        "subu $v1,$v1,$t4\n"
+        "subu $t0,$t0,$t4\n"
+        "subu $t1,$t1,$t4\n"
+        "mfc2 $t2,$14\n"
+        "or $v1,$v1,$t0\n"
+        "or $v1,$v1,$t1\n"
+        "nor $v1,$v1,$t2\n"
+        "cfc2 $t1,$31\n"
+        "and $t6,$t6,$t2\n"
+        "sll $t1,$t1,14\n"
+        "bltz $t1,.Lconfetti_next_particle\n"
+        "or $v1,$v1,$t6\n"
+        "cop2 0x168002e\n"
+        "bltz $v1,.Lconfetti_next_particle\n"
+        "sll $v1,$v1,16\n"
+        "bltz $v1,.Lconfetti_next_particle\n"
+        "lw $t0,52($at)\n"
+        "swc2 $12,12($v0)\n"
+        "swc2 $13,16($v0)\n"
+        "swc2 $14,20($v0)\n"
+        "mfc2 $t6,$24\n"
+        "sw $t0,4($v0)\n"
+        "srl $t6,$t6,18\n"
+        "sll $t6,$t6,2\n"
+        "addu $t6,$t6,$t3\n"
+        "lw $t2,0($t6)\n"
+        "sll $v1,$v0,8\n"
+        "srl $v1,$v1,8\n"
+        "lui $t1,0x500\n"
+        "or $t2,$t2,$t1\n"
+        "sw $t2,0($v0)\n"
+        "sw $v1,0($t6)\n"
+        "lw $t5,48($at)\n"
+        "bgez $zero,.Lconfetti_next_particle\n"
+        "addiu $v0,$v0,24\n"
+        ".Lconfetti_initial_rng:\n"
+        DRAW_CONFETTI_RNG
+        ".Lconfetti_next_particle:\n"
+        "addiu $s8,$s8,-1\n"
+        "bne $s8,$zero,.Lconfetti_cycle_ready\n"
+        "addiu $a3,$a3,23\n"
+        "addiu $s8,$zero,6\n"
+        ".Lconfetti_cycle_ready:\n"
+        "bne $t5,$zero,.Lconfetti_particle\n"
+        "addiu $t5,$t5,-1\n"
+        "sw $v0,12($a1)\n"
+        "lw $ra,44($at)\n"
+        "lw $s8,40($at)\n"
+        "lw $sp,36($at)\n"
+        "lw $gp,32($at)\n"
+        "lw $s7,28($at)\n"
+        "lw $s6,24($at)\n"
+        "lw $s5,20($at)\n"
+        "lw $s4,16($at)\n"
+        "lw $s3,12($at)\n"
+        "lw $s2,8($at)\n"
+        "lw $s1,4($at)\n"
+        "lw $s0,0($at)\n"
+        "jr $ra\n"
+        "nop\n"
+        ".end DrawConfetti\n"
+        ".set\tat\n"
+        ".set\treorder\n"
+        ".text\n");
+// clang-format on
+
+#undef DRAW_CONFETTI_RNG
+#undef DRAW_CONFETTI_RNG_BYTE
+
+#endif

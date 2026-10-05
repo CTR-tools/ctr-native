@@ -145,6 +145,16 @@ static inline void CtrGpu_LinkPacket24(u32 *ot, u32 *packetTag, const void *pack
 	*ot = (u32)CtrGpu_PrimToOTLink24(packet);
 }
 
+#ifdef CTR_NATIVE
+// NOTE(aalhendi): Some retail emitters OR the full old OT word, including
+// its high byte. Translate only the new packet's pointer encoding.
+static inline void CtrGpu_LinkPacketFullOTTag(u32 *ot, u32 *packetTag, const void *packet, u32 tag)
+{
+	*packetTag = *ot | tag;
+	*ot = CtrGpu_PrimToOTLink24(packet);
+}
+#endif
+
 static inline void CtrGpu_LinkPrimToOT(u32 *ot, const void *prim)
 {
 	*ot = (u32)CtrGpu_PrimToOTLink24(prim);

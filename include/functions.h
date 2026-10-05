@@ -479,7 +479,10 @@ int SquareRoot0_stub(int param_1);
 VECTOR *Unknown_8006c6c8(VECTOR *input, VECTOR *output, MATRIX *matrix);
 VECTOR *ApplyMatrixLV_stub(VECTOR *input, VECTOR *output);
 void MATH_MatrixMul(MATRIX *output, MATRIX *input, MATRIX *transform);
+#ifdef CTR_NATIVE
+// NOTE(aalhendi): The retail wheel renderer passes s5 and receives s6, not a0/v0.
 s32 Unknown_8006ef98(s32 radicand);
+#endif
 
 void MEMCARD_InitCard(void);
 void MEMCARD_SetIcon(int iconID);

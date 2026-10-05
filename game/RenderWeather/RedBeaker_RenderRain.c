@@ -1,5 +1,7 @@
 #include <common.h>
 
+#ifdef CTR_NATIVE
+
 #define RED_BEAKER_CENTER_XY 0x02000080u
 #define RED_BEAKER_XY_MASK   0xfffeffffu
 #define RED_BEAKER_WRAP_MASK 0x01fe00ffu
@@ -19,12 +21,12 @@ CTR_STATIC_ASSERT(offsetof(LINE_G2, x1) == 0x10);
 
 static u32 RedBeaker_ReadWord(const void *base, int offset)
 {
-	return *(const u32 *)(const void *)((const char *)base + offset);
+	return CTR_ReadU32LE((const u8 *)base + offset);
 }
 
 static s16 RedBeaker_ReadS16(const void *base, int offset)
 {
-	return *(const s16 *)(const void *)((const char *)base + offset);
+	return CTR_ReadS16LE((const u8 *)base + offset);
 }
 
 static s8 RedBeaker_ReadS8(const void *base, int offset)
@@ -86,7 +88,7 @@ static void RedBeaker_EmitLine(u32 **primCursor, u32 *ot, u32 color)
 	CtrGpu_WritePackedXY(&line->x0, MFC2(12));
 	CtrGpu_WriteColorCode(&line->r1, color);
 	CtrGpu_WritePackedXY(&line->x1, MFC2(13));
-	CtrGpu_LinkPacket24(ot, &line->tag, line, 0x04000000);
+	CtrGpu_LinkPacketFullOTTag(ot, &line->tag, line, 0x04000000);
 	*primCursor = (u32 *)(line + 1);
 }
 
@@ -96,7 +98,7 @@ static void RedBeaker_EmitDrawMode(u32 **primCursor, u32 *ot, u32 drawMode)
 
 	packet->drawMode = drawMode;
 	packet->terminator = 0;
-	CtrGpu_LinkPacket24(ot, &packet->tag, packet, 0x02000000);
+	CtrGpu_LinkPacketFullOTTag(ot, &packet->tag, packet, 0x02000000);
 	*primCursor = (u32 *)(packet + 1);
 }
 
@@ -168,14 +170,19 @@ static void RedBeaker_RenderPass(u32 **primCursor, u32 *ot, u32 color, u32 drawM
 struct RedBeakerRainScratch
 {
 	u32 centerXY;
-	u8 pad_04[0x14];
+	u32 otBase;
+	u32 firstRain;
+	u8 pad_0c[0x0c];
 	u32 colorTop;
 	u32 colorBottom;
 };
 
 CTR_STATIC_ASSERT(offsetof(struct RedBeakerRainScratch, centerXY) == 0x00);
+CTR_STATIC_ASSERT(offsetof(struct RedBeakerRainScratch, otBase) == 0x04);
+CTR_STATIC_ASSERT(offsetof(struct RedBeakerRainScratch, firstRain) == 0x08);
 CTR_STATIC_ASSERT(offsetof(struct RedBeakerRainScratch, colorTop) == 0x18);
 CTR_STATIC_ASSERT(offsetof(struct RedBeakerRainScratch, colorBottom) == 0x1C);
+CTR_STATIC_ASSERT(sizeof(struct RedBeakerRainScratch) == 0x20);
 
 void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct JitPool *rain, u8 numPlyr, int gameMode1)
 {
@@ -183,8 +190,10 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 	struct RainLocal *firstRain = (struct RainLocal *)rain->taken.first;
 	struct RedBeakerRainScratch *scratch = CTR_SCRATCHPAD_PTR(struct RedBeakerRainScratch, 0x30);
 
-	// NOTE(aalhendi): PSX-backfeed blocker: retail saves/restores callee registers in scratchpad 0x00-0x2c and stores 32-bit pointer cursors at 0x34/0x38.
-	// Native C keeps pointer cursors as host-width locals; restore those exact scratchpad pointer stores before PSX backfeed.
+	// NOTE(aalhendi): Native uses its host ABI instead of scratchpad register
+	// saves, but retains the observed 32-bit pointer words. Retail's empty-list
+	// branch delay slot writes firstRain even when the pointer is NULL.
+	scratch->firstRain = (u32)firstRain;
 	if (firstRain == NULL)
 	{
 		primMem->cursor = prim;
@@ -214,6 +223,7 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 
 		screenBounds = RedBeaker_ReadWord(pb, 0x20);
 		otBase = pb->ptrOT;
+		scratch->otBase = (u32)otBase;
 		playerOffset = playerIndex * sizeof(struct InstDrawPerPlayer);
 
 		for (rainLocal = firstRain; rainLocal != NULL; rainLocal = rainLocal->next)
@@ -246,7 +256,9 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 			if (gameMode1 == 0)
 			{
 				CTR_WriteU32LE(&rainLocal->scroll.x, nextScrollXY);
-				rainLocal->scroll.z = (s16)nextScrollZ;
+				// NOTE(aalhendi): Retail SW also writes the upper half into the
+				// scroll padding word; a narrowed SH leaves stale native bytes.
+				CTR_WriteU32LE(&rainLocal->scroll.z, (u32)nextScrollZ);
 			}
 
 			instBase = (char *)rainLocal->cloudInst + playerOffset;
@@ -299,3 +311,7 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 
 	primMem->cursor = prim;
 }
+
+#else
+#include "RedBeaker_Retail.inc"
+#endif
