@@ -492,7 +492,7 @@
 80034b48 MainFrame_TogglePauseAudio
 80034bbc MainFrame_ResetDB
 80034d54 MainFrame_GameLogic
-// unknown 80035684 // VisMem related
+80035684 MainFrame_VisMemAddDriverPVS
 800357b8 MainFrame_VisMemFullFrame
 80035d30 MainFrame_InitVideoSTR
 80035d70 MainFrame_HaveAllPads
@@ -1067,11 +1067,12 @@
 8006c6c8 Unknown_8006c6c8
 8006c6f0 ApplyMatrixLV_stub
 8006c778 Unknown_8006c778
+8006c928 RenderBucket_InstSetupLightColor
+8006c948 RenderBucket_InstSetupColor
+8006c974 RenderBucket_InstSetupZeroColor
+8006c984 RenderBucket_InstSetupFadeColor
 
-// remaining code here is not yet mapped; some of it is rain-related
-
-8006c9c4 Draw_KartBodyReflection
-8006c984 Draw_KartGhost
+8006c9c4 RenderBucket_DrawFunc_Reflection
 
 // called in Polar Intro (polar flickers without it),
 // also called in normal races sometimes (definitely in demo mode)
@@ -1125,8 +1126,8 @@
 80070720 RenderBucket_QueueLevInstances
 8007084c RenderBucket_QueueNonLevInstances
 80070950 RenderBucket_QueueDraw
-80071524 Unknown_80071524
-80071590 Unknown_80071590
+80071524 RenderBucket_ExpandProjectedBounds
+80071590 RenderBucket_CopyDispatchTables
 
 800715e8 ThTick_RunBucket
 80071694 ThTick_FastRET
@@ -1368,7 +1369,7 @@
 // unknown 8007b6f0 ------
 // unknown 8007b970 ------
 // unknown 8007bc38 ------
-8007c044 __builtin_delete
+8007c044 CD_ResetController
 8007c118 LOAD_InitCDvol
 8007c208 CD_init // PSYQ libcd internal; debug string "CD_init:"; not gameplay LOAD_InitCD
 // unknown 8007c650 ------ called by lib func

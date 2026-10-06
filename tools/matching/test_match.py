@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import io
 import struct
 import sys
@@ -55,6 +56,20 @@ class ResidentDefinitionTests(unittest.TestCase):
     def test_c_definition_takes_precedence_over_conditional_assembly(self) -> None:
         source = 'void target(void) {}\n__asm__("target:\\n");'
         self.assertEqual(ctr_resident.definition_count(source, "target"), 1)
+
+    def test_conditional_signatures_share_one_body(self) -> None:
+        source = """
+#ifdef CTR_NATIVE
+static unsigned int *target(void *context)
+#else
+void target(void)
+#endif
+{
+}
+"""
+        self.assertEqual(ctr_resident.definition_count(source, "target"), 1)
+        self.assertEqual(ctr_resident.definition_count(source + source, "target"), 2)
+        self.assertEqual(ctr_resident.definition_count("void target(void);\n", "target"), 0)
 
 
 class SharedSectionsTests(unittest.TestCase):
@@ -236,12 +251,159 @@ class ToolchainTests(unittest.TestCase):
             ]
         )
 
+    def test_source_flags_reach_only_the_selected_compiler_input(self) -> None:
+        config = {"name": "sdk", "kind": "resident", "sources": ["core.c", "wrapper.c"],
+                  "compiler_flags": ["-O2", "-G0"], "small_data_limit": 0,
+                  "source_flags": {"wrapper.c": ["-fno-delayed-branch"]}}
+        tools = SimpleNamespace(default_aspsx_version="2.77")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (mock.patch.object(ctr_match, "ROOT", root),
+                  mock.patch.object(ctr_match, "compile_c") as compile_c,
+                  mock.patch.object(ctr_match, "normalize_compiler_directives"),
+                  mock.patch.object(ctr_match, "assemble_compiler_output"),
+                  mock.patch.object(ctr_match, "dependency_inputs", return_value=[])):
+                for name in config["sources"]:
+                    ctr_match.build_object(tools, config, root / name, root / "objects" / name)
+                self.assertEqual([call.args[3] for call in compile_c.call_args_list], [
+                    ["-O2", "-G0", "-ffunction-sections"],
+                    ["-O2", "-G0", "-fno-delayed-branch", "-ffunction-sections"],
+                ])
+                for overrides in ({"missing.c": []}, {"wrapper.c": "-O0"},
+                                  {"./wrapper.c": []}, {"wrapper.c": [0]},
+                                  None, [], "", 0):
+                    invalid = {**config, "source_flags": overrides}
+                    compile_c.reset_mock()
+                    with self.subTest(overrides=overrides), self.assertRaises(ctr_match.MatchError):
+                        ctr_match.build_object(tools, invalid, root / "core.c", root / "invalid")
+                    compile_c.assert_not_called()
+                with self.assertRaises(ctr_match.MatchError):
+                    ctr_match.source_paths({**config, "kind": "probe"})
+                with self.assertRaises(ctr_match.MatchError):
+                    ctr_match.source_paths({**config, "sources": ["entry.s"],
+                                            "source_flags": {"entry.s": ["-O0"]}})
+
 
 class ResidentNamespaceTests(unittest.TestCase):
-    def test_owned_mapping_is_resident_only(self) -> None:
+    def test_resident_ownership_options_reject_other_target_kinds(self) -> None:
         for kind in ("artifact", "data", "probe"):
-            with self.subTest(kind=kind), self.assertRaises(ctr_match.MatchError):
-                ctr_match.configured_targets({"targets": [{"name": "sample", "kind": kind, "owned_symbols": {}}]})
+            for option in ("owned_symbols", "code_intervals"):
+                with self.subTest(kind=kind, option=option), self.assertRaises(ctr_match.MatchError):
+                    ctr_match.configured_targets({"targets": [{"name": "sample", "kind": kind, option: {}}]})
+
+    def test_code_intervals_exclude_gaps_and_validate_before_selection(self) -> None:
+        symbols = [ctr_resident.Symbol("Test_First", 0x1000), ctr_resident.Symbol("Other_Gap", 0x1004),
+                   ctr_resident.Symbol("Test_Second", 0x2000), ctr_resident.Symbol("Test_End", 0x2004)]
+        intervals = [{"start_symbol": "Test_First", "end_symbol": "Other_Gap"},
+                     {"start_symbol": "Test_Second", "end_symbol": "Test_End"}]
+        config = {"name": "sample", "symbol_prefix": "Test_", "source": "source.c",
+                  "linked_block": {}, "code_intervals": intervals}
+        self.assertEqual([(symbol.name, size) for symbol, size in ctr_resident.namespace_symbol_ranges(config, symbols)],
+                         [("Test_First", 4), ("Test_Second", 4)])
+        malformed = [None, {}, [], [None], [{}], [intervals[0], intervals[0]], list(reversed(intervals)),
+                     [{"start_symbol": "Missing", "end_symbol": "Other_Gap"}],
+                     [{"start_symbol": "Test_Second", "end_symbol": "Test_First"}],
+                     [{"start_symbol": "Test_First", "end_symbol": "Test_End"}],
+                     [{"start_symbol": "Test_First", "end_symbol": "Test_End"}, intervals[1]]]
+        for value in malformed:
+            with self.subTest(intervals=value), self.assertRaises(ctr_match.MatchError):
+                ctr_resident.namespace_symbol_ranges({**config, "code_intervals": value}, symbols)
+        for value in ({**config, "start_symbol": "Test_First"}, {**config, "end_symbol": "Test_End"},
+                      {key: value for key, value in config.items() if key != "linked_block"}):
+            with self.subTest(config=value), self.assertRaises(ctr_match.MatchError):
+                ctr_resident.namespace_intervals(value, symbols)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.c").write_text("void Test_First(void) {}\n")
+            (root / "symbols.txt").write_text("00001000 Test_First\n00001004 Other_Gap\n00002000 Test_Second\n00002004 Test_End\n")
+            with mock.patch.object(ctr_match, "ROOT", root), self.assertRaises(ctr_match.MatchError):
+                ctr_resident.build_resident({"artifacts": [{"id": "exe", "kind": "ps-x-exe"}]}, SimpleNamespace(),
+                                           {**config, "artifact": "exe", "symbol_file": "symbols.txt"}, root,
+                                           requested=["Test_First"])
+
+    def test_code_interval_bytes_need_real_code_and_function_placement(self) -> None:
+        intervals = [(".resident_block_0", ctr_resident.Symbol("Test_First", 0x1000), ctr_resident.Symbol("Gap", 0x1004)),
+                     (".resident_block_1", ctr_resident.Symbol("Test_Second", 0x2000), ctr_resident.Symbol("End", 0x2004))]
+        functions = [ctr_resident.FunctionRange("Test_First", 0x1000, 4, "source.c"),
+                     ctr_resident.FunctionRange("Test_Second", 0x2000, 4, "source.c")]
+        toolchain = SimpleNamespace(binutils={"objdump": Path("objdump")})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            elf = root / "block.elf"
+            elf.write_bytes(b"unit-test-tool-fixture")
+            for case in ("valid", "wrong-placement", "different-bytes", "ABS", "missing-code", "extra-allocated"):
+                address = 0x2004 if case == "wrong-placement" else 0x2000
+                flags = "CONTENTS, ALLOC, LOAD, READONLY, DATA" if case == "missing-code" else "CONTENTS, ALLOC, LOAD, READONLY, CODE"
+                headers = (" 0 .resident_block_0 00000004 00001000 00001000 00000100 2**2\n"
+                           "                  CONTENTS, ALLOC, LOAD, READONLY, CODE\n"
+                           f" 1 .resident_block_1 00000004 {address:08x} {address:08x} 00000200 2**2\n"
+                           f"                  {flags}\n")
+                if case == "extra-allocated":
+                    headers += " 2 .extra 00000004 00003000 00003000 00000300 2**2\n                  CONTENTS, ALLOC, LOAD, DATA\n"
+                section = "*ABS*" if case == "ABS" else ".resident_block_1"
+                table = ("00001000 g F .resident_block_0 00000004 Test_First\n"
+                         f"{address:08x} g F {section} 00000004 Test_Second\n")
+                def dump(argv):
+                    return headers if "-h" in argv else table if "-t" in argv else ""
+                def extract(_tools, _elf, name, destination):
+                    destination.write_bytes(b"BAD!" if case == "different-bytes" and name.endswith("_1") else b"GOOD")
+                with (self.subTest(case=case), mock.patch.object(ctr_match, "ROOT", root),
+                      mock.patch.object(ctr_resident, "BUILD_ROOT", root / "build"),
+                      mock.patch.object(ctr_match, "command_output", side_effect=dump),
+                      mock.patch.object(ctr_match, "extract_binary_section", side_effect=extract),
+                      mock.patch.object(ctr_match, "reference_bytes", return_value=b"GOOD")):
+                    if case in ("ABS", "missing-code", "extra-allocated"):
+                        with self.assertRaises(ctr_match.MatchError):
+                            ctr_resident.compare_linked_intervals({}, toolchain,
+                                {"name": "sample", "artifact": "exe", "linked_block": {}}, root, functions, elf, intervals)
+                    else:
+                        result = ctr_resident.compare_linked_intervals({}, toolchain,
+                            {"name": "sample", "artifact": "exe", "linked_block": {}}, root, functions, elf, intervals)
+                        self.assertEqual(result["code"]["expected_size"], 8)
+                        self.assertEqual(all(item["exact"] for item in result["functions"]), case == "valid")
+                        self.assertEqual(result["code_placed"], case != "wrong-placement")
+                        self.assertEqual(result["code"]["exact"], case == "valid")
+
+    def test_partial_intervals_keep_all_owned_sources_and_reject_invalid_unselected_input(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "first.c").write_text("void Test_First(void) {}\n")
+            (root / "second.c").write_text("void Actual_Second(void) {}\n")
+            (root / "symbols.txt").write_text("00001000 Test_First\n00001004 Gap\n00002000 Test_Second\n00002004 End\n")
+            config = {"name": "sample", "artifact": "exe", "symbol_file": "symbols.txt", "symbol_prefix": "Test_",
+                      "sources": ["first.c", "second.c"], "owned_symbols": {"Test_Second": "Actual_Second"}, "linked_block": {},
+                      "code_intervals": [{"start_symbol": "Test_First", "end_symbol": "Gap"},
+                                         {"start_symbol": "Test_Second", "end_symbol": "End"}]}
+            for invalid in (False, True):
+                def compile_source(_config, _tools, source):
+                    return {"compiled": True, "object_path": source.with_suffix(".o")}
+                def inventory(_tool, obj):
+                    name = "Test_First" if obj.stem == "first" else "Actual_Second"
+                    entries = {name: {"count": 1, "size": 4, "section": "." + name}}
+                    if invalid and obj.stem == "second":
+                        entries["Extra"] = {"count": 1, "size": 4, "section": ".Actual_Second"}
+                    return entries
+                bodies = [{"name": name, "address": f"0x{address:08x}", "exact": True, "matching_bytes": 4,
+                           "expected_size": 4, "matching_words": 1, "total_words": 1}
+                          for name, address in (("Test_First", 0x1000), ("Test_Second", 0x2000))]
+                block = {"exact": True, "code": {"matching_bytes": 8, "expected_size": 8},
+                         "rodata_address": None, "placement_exact": True, "functions": bodies}
+                with (self.subTest(invalid=invalid), mock.patch.object(ctr_match, "ROOT", root),
+                      mock.patch.object(ctr_resident, "BUILD_ROOT", root / "build"),
+                      mock.patch.object(ctr_resident, "compile_source", side_effect=compile_source) as compile,
+                      mock.patch.object(ctr_resident, "object_functions", side_effect=inventory),
+                      mock.patch.object(ctr_resident, "link_function") as isolated,
+                      mock.patch.object(ctr_resident, "link_contiguous_block", return_value=block) as shared,
+                      mock.patch.object(ctr_match, "build_evidence", return_value={}), redirect_stdout(io.StringIO())):
+                    result = ctr_resident.build_resident({"artifacts": [{"id": "exe", "kind": "ps-x-exe"}]},
+                        SimpleNamespace(binutils={"objdump": Path("objdump")}), config, root, requested=["Test_First"])
+                self.assertEqual(compile.call_count, 2)
+                isolated.assert_not_called()
+                self.assertEqual(shared.call_count, int(not invalid))
+                self.assertFalse(result["complete"])
+                self.assertFalse(result["exact"])
+                self.assertEqual(result["exact_function_count"], int(not invalid))
+                self.assertEqual([body["name"] for body in result["functions"]], ["Test_First"])
 
     def test_owned_discovery_preserves_canonical_identity_and_optional_result_shape(self) -> None:
         symbols = [ctr_resident.Symbol("Test_First", 0x1000),
@@ -659,6 +821,267 @@ class CheckTests(unittest.TestCase):
             self.assertEqual(args.target, "vehicle")
 
 
+class JointResidentTests(unittest.TestCase):
+    @staticmethod
+    def elf32(sections):
+        """Small executable fixture; section types/SHF bits are real ELF bytes."""
+        actual = bytearray(52)
+        names = b"\0" + b"\0".join(name.encode() for name, *_ in sections) + b"\0.shstrtab\0"
+        headers = [bytes(40)]
+        for name, address, contents, kind, flags in sections:
+            headers.append(struct.pack("<10I", names.index(name.encode()), kind, flags, address,
+                                       len(actual), len(contents), 0, 0, 1, 0))
+            actual.extend(contents)
+        headers.append(struct.pack("<10I", names.index(b".shstrtab"), 3, 0, 0, len(actual), len(names), 0, 0, 1, 0))
+        actual.extend(names)
+        section_offset = len(actual)
+        actual.extend(b"".join(headers))
+        struct.pack_into("<16sHHIIIIIHHHHHH", actual, 0, b"\x7fELF\x01\x01\x01" + bytes(9),
+                         2, 8, 1, 0, 0, section_offset, 0, 52, 0, 0, 40, len(headers), len(headers) - 1)
+        return bytes(actual)
+
+    def fixture(self, root):
+        functions = [ctr_resident.FunctionRange(name, 0x1000 + index * 16, 16, "source.c")
+                     for index, name in enumerate(("Test_First", "Test_Second", "Test_Third"))]
+        (root / "source.c").write_text("\n".join(f"void {f.name}(void) {{}}" for f in functions))
+        (root / "symbols.txt").write_text("\n".join(f"{f.address:08x} {f.name}" for f in functions) + "\n00001030 End\n")
+        (root / "joint.ld").write_text("reviewed joint linker layout")
+        config = {"name": "joint", "kind": "resident", "artifact": "exe", "source": "source.c",
+                  "symbol_file": "symbols.txt", "symbol_prefix": "Test_", "compiler_flags": [],
+                  "linker_script": "joint.ld", "linked_block": {},
+                  "code_intervals": [{"start_symbol": f.name, "end_symbol": functions[index + 1].name if index < 2 else "End"}
+                                     for index, f in enumerate(functions)],
+                  "data_ranges": [{"output_section": ".data.state", "symbol": name, "symbol_address": address, "offset": 0, "size": size}
+                                  for name, address, size in (("state", "0x3000", 4), ("mode", "0x3004", 1))]}
+        manifest = {"target": "test", "targets": [config],
+                    "artifacts": [{"id": "exe", "kind": "ps-x-exe", "load_address": "0x1000"}],
+                    "toolchain": {"compiler": {"directory": "gcc", "sha256": {}},
+                                  "maspsx": {"directory": "maspsx", "sha256": {}, "aspsx_version": "2.77"},
+                                  "binutils": {"prefix": "mips-", "sha256": {}}}}
+        toolchain = SimpleNamespace(binutils={"ld": Path("ld"), "objdump": Path("objdump")},
+                                    compiler_banner="test", compiler_hashes={}, default_aspsx_version="2.77",
+                                    maspsx_commit="pinned", maspsx_hashes={}, assembler_banner="test", binutils_hashes={},
+                                    config_hash=ctr_match.sha256_json(manifest["toolchain"]))
+        code = [(f".resident_block_{index}", f.address, word * 4, 1, 6)
+                for index, (f, word) in enumerate(zip(functions, (b"CODE", b"NEXT", b"LAST")))]
+        final_table = "".join(f"{f.address:08x} g F .resident_block_{index} 00000010 {f.name}\n" for index, f in enumerate(functions))
+        final_table += "00003000 g O .data.state 00000004 state\n00003004 g O .data.state 00000001 mode\n"
+        input_table = "".join(f"00000000 g F .{f.name} 00000010 {f.name}\n" for f in functions)
+        input_table += "00000000 g O .data.state_owner 00000004 state\n00000000 g O .data.mode_owner 00000001 mode\n"
+        fixture = SimpleNamespace(config=config, manifest=manifest, tools=toolchain, functions=functions,
+                                  sections=code + [(".data.state", 0x3000, b"DATAx", 1, 3)],
+                                  table=final_table, input_tables={root / "source.o": input_table},
+                                  bfd_override={}, extracted=[])
+
+        def dump(argv):
+            if "-t" in argv:
+                return fixture.input_tables[Path(argv[-1])] if argv[-1].endswith(".o") else fixture.table
+            if "-h" in argv:
+                return "".join(f" {index} {name} {len(contents):08x} {address:08x} {address:08x} 00000034 2**0\n"
+                               + "                  " + fixture.bfd_override.get(name, ", ".join(
+                                   (["CONTENTS", "LOAD"] if kind != 8 else [])
+                                   + (["ALLOC"] if flags & 2 else []) + (["READONLY"] if not flags & 1 else [])
+                                   + (["CODE"] if flags & 4 else ["DATA"]))) + "\n"
+                               for index, (name, address, contents, kind, flags) in enumerate(fixture.sections))
+            return ""
+
+        def link(argv):
+            Path(argv[argv.index("-o") + 1]).write_bytes(self.elf32(fixture.sections))
+
+        def extract(_tools, elf, name, destination):
+            fixture.extracted.append(elf)
+            actual = elf.read_bytes()
+            index = next(index + 1 for index, section in enumerate(fixture.sections) if section[0] == name)
+            header = struct.unpack_from("<10I", actual, struct.unpack_from("<I", actual, 32)[0] + index * 40)
+            destination.write_bytes(actual[header[4]:header[4] + header[5]])
+
+        def reference(_manifest, _references, interval):
+            address, size = ctr_match.parse_int(interval["address"]), interval["size"]
+            for _name, start, contents, _kind, _flags in code + [(".data.state", 0x3000, b"DATAx", 1, 3)]:
+                if start <= address < start + len(contents):
+                    return contents[address - start:address - start + size]
+            raise AssertionError("unexpected oracle span")
+
+        fixture.dump, fixture.link, fixture.extract, fixture.reference = dump, link, extract, reference
+        return fixture
+
+    def test_joint_link_rejects_false_owners_sections_and_aliases(self) -> None:
+        cases = ("valid", "different-data", "width", "NOTYPE", "FUNC", "LOCAL", "WEAK", "hidden", "protected",
+                 "ABS", "UND", "duplicate", "input-duplicate", "alias", "extra-ALLOC", "readonly", "NOBITS",
+                 "executable-data", "section-padding", "owner-gap", "offset", "link-alias", "REL", "RELA", "duplicate-section")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for case in cases:
+                f = self.fixture(root)
+                object_files = [root / "source.o"]
+                if case in ("width", "NOTYPE", "FUNC", "LOCAL", "WEAK", "hidden", "protected", "ABS", "UND"):
+                    row = "00003000 g O .data.state 00000004 state"
+                    replacement = {"width": row.replace("00000004", "00000008"), "NOTYPE": row.replace(" g O ", " g "),
+                                   "FUNC": row.replace(" g O ", " g F "), "LOCAL": row.replace(" g O ", " l O "),
+                                   "WEAK": row.replace(" g O ", " w O "), "hidden": row.replace(" state", " .hidden state"),
+                                   "protected": row.replace(" state", " .protected state"),
+                                   "ABS": row.replace(".data.state", "*ABS*"), "UND": row.replace(".data.state", "*UND*")}[case]
+                    f.table = f.table.replace(row, replacement)
+                elif case == "duplicate":
+                    f.table += "00003000 l O .data.state 00000004 state\n"
+                elif case == "input-duplicate":
+                    second_provider = root / "second-provider.o"
+                    f.input_tables[second_provider] = "00000000 g O .data.other_state 00000004 state\n"
+                    object_files.append(second_provider)
+                elif case == "alias":
+                    f.table += "00003000 g O .data.state 00000004 alias\n"
+                elif case == "extra-ALLOC":
+                    f.sections.append((".extra", 0x4000, b"more", 8, 3))
+                elif case in ("readonly", "NOBITS", "executable-data", "section-padding", "different-data"):
+                    contents = b"FAILx" if case == "different-data" else b"DATAx\0" if case == "section-padding" else b"DATAx"
+                    f.sections[-1] = (".data.state", 0x3000, contents, 8 if case == "NOBITS" else 1,
+                                      2 if case == "readonly" else 7 if case == "executable-data" else 3)
+                    f.bfd_override[".data.state"] = "CONTENTS, ALLOC, LOAD, DATA"
+                elif case == "owner-gap":
+                    f.config["data_ranges"][1]["symbol_address"] = "0x3005"
+                    f.table = f.table.replace("00003004", "00003005")
+                    f.sections[-1] = (".data.state", 0x3000, b"DATA\0x", 1, 3)
+                elif case == "offset":
+                    f.config["data_ranges"][0]["offset"] = 1
+                elif case == "link-alias":
+                    f.config["link_symbols"] = {"state": "0x3000"}
+                elif case in ("REL", "RELA"):
+                    f.sections.append((".rel.state", 0, bytes(8), 9 if case == "REL" else 4, 0))
+                elif case == "duplicate-section":
+                    f.sections.append(f.sections[-1])
+                with (self.subTest(case=case), mock.patch.object(ctr_match, "ROOT", root),
+                      mock.patch.object(ctr_resident, "BUILD_ROOT", root / "build"),
+                      mock.patch.object(ctr_match, "command_output", side_effect=f.dump),
+                      mock.patch.object(ctr_match, "run_checked", side_effect=f.link) as link,
+                      mock.patch.object(ctr_match, "extract_binary_section", side_effect=f.extract),
+                      mock.patch.object(ctr_match, "reference_bytes", side_effect=f.reference)):
+                    if case not in ("valid", "different-data"):
+                        with self.assertRaises(ctr_match.MatchError):
+                            ctr_resident.link_contiguous_block(f.manifest, f.tools, f.config, root, f.functions, object_files)
+                        if case == "link-alias":
+                            link.assert_not_called()
+                        continue
+                    block = ctr_resident.link_contiguous_block(f.manifest, f.tools, f.config, root, f.functions, object_files)
+                    link.assert_called_once()
+                    self.assertEqual(link.call_args.args[0][2], str(root / "joint.ld"))
+                    self.assertEqual(set(f.extracted), {root / block["elf"]})
+                    self.assertEqual((block["code"]["expected_size"], len(block["functions"]), block["data"]["expected_size"]), (48, 3, 5))
+                    self.assertEqual(block["exact"], case == "valid")
+                    self.assertTrue(all(item["exact"] for item in block["functions"]))
+
+    def test_joint_input_owners_distinguish_definitions_from_undefined_consumers(self) -> None:
+        cases = ("valid", "two-providers", "only-UND", "missing", "ABS", "COMMON", "NOTYPE", "FUNC",
+                 "LOCAL", "WEAK", "hidden", "protected", "width")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            provider, consumer = root / "provider.o", root / "consumer.o"
+            definition = "00000000 g O .data.state_owner 00000004 state\n"
+            imports = "00000000         *UND* 00000000 state\n00000000         *UND* 00000000 mode\n"
+            for case in cases:
+                for consumer_first in (False, True):
+                    f = self.fixture(root)
+                    provider_table = f.input_tables.pop(root / "source.o")
+                    consumer_table = imports
+                    if case == "two-providers":
+                        consumer_table = consumer_table.replace("00000000         *UND* 00000000 state\n", definition)
+                    elif case == "only-UND":
+                        provider_table = provider_table.replace(definition, "00000000         *UND* 00000000 state\n")
+                    elif case == "missing":
+                        provider_table = provider_table.replace(definition, "")
+                        consumer_table = consumer_table.replace("00000000         *UND* 00000000 state\n", "")
+                    elif case != "valid":
+                        replacement = {"ABS": definition.replace(".data.state_owner", "*ABS*"),
+                                       "COMMON": definition.replace(".data.state_owner", "*COM*"),
+                                       "NOTYPE": definition.replace(" g O ", " g "),
+                                       "FUNC": definition.replace(" g O ", " g F "),
+                                       "LOCAL": definition.replace(" g O ", " l O "),
+                                       "WEAK": definition.replace(" g O ", " w O "),
+                                       "hidden": definition.replace(" state", " .hidden state"),
+                                       "protected": definition.replace(" state", " .protected state"),
+                                       "width": definition.replace("00000004", "00000008")}[case]
+                        provider_table = provider_table.replace(definition, replacement)
+                    f.input_tables = {provider: provider_table, consumer: consumer_table}
+                    object_files = [consumer, provider] if consumer_first else [provider, consumer]
+                    with (self.subTest(case=case, consumer_first=consumer_first), mock.patch.object(ctr_match, "ROOT", root),
+                          mock.patch.object(ctr_resident, "BUILD_ROOT", root / "build"),
+                          mock.patch.object(ctr_match, "command_output", side_effect=f.dump),
+                          mock.patch.object(ctr_match, "run_checked", side_effect=f.link) as link,
+                          mock.patch.object(ctr_match, "extract_binary_section", side_effect=f.extract),
+                          mock.patch.object(ctr_match, "reference_bytes", side_effect=f.reference)):
+                        if case != "valid":
+                            with self.assertRaises(ctr_match.MatchError):
+                                ctr_resident.link_contiguous_block(f.manifest, f.tools, f.config, root, f.functions, object_files)
+                            link.assert_not_called()
+                            continue
+                        block = ctr_resident.link_contiguous_block(f.manifest, f.tools, f.config, root, f.functions, object_files)
+                        link.assert_called_once()
+                        self.assertEqual(link.call_args.args[0][-2:], [str(path) for path in object_files])
+                        self.assertTrue(block["exact"])
+                        self.assertEqual(block["data"]["expected_size"], 5)
+
+    def test_joint_currentness_binds_complete_owners_candidates_script_and_elf(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            f = self.fixture(root)
+            with (mock.patch.object(ctr_match, "ROOT", root), mock.patch.object(ctr_resident, "BUILD_ROOT", root / "build"),
+                  mock.patch.object(ctr_match, "SYMBOL_FILE", root / "symbols.txt"),
+                  mock.patch.object(ctr_match, "command_output", side_effect=f.dump),
+                  mock.patch.object(ctr_match, "run_checked", side_effect=f.link) as link,
+                  mock.patch.object(ctr_match, "extract_binary_section", side_effect=f.extract),
+                  mock.patch.object(ctr_match, "reference_bytes", side_effect=f.reference),
+                  mock.patch.object(ctr_resident, "compile_source", return_value={"compiled": True, "object_path": root / "source.o", "dependencies": ["source.c"]}),
+                  mock.patch.object(ctr_resident, "link_function") as isolated, redirect_stdout(io.StringIO())):
+                result = ctr_resident.build_resident(f.manifest, f.tools, f.config, root)
+                link.assert_called_once()
+                isolated.assert_not_called()
+                self.assertEqual((result["function_count"], result["interval_size"]), (3, 48))
+                self.assertTrue(result["exact"])
+                self.assertTrue(ctr_match.result_is_current(f.manifest, f.config, result))
+                block = result["linked_block"]
+                paths = [root / item["candidate"] for item in block["data_ranges"]] + [root / block["elf"], root / "joint.ld"]
+                for path in paths:
+                    with self.subTest(path=path):
+                        original = path.read_bytes()
+                        path.write_bytes(original + b"changed")
+                        self.assertFalse(ctr_match.result_is_current(f.manifest, f.config, result))
+                        path.unlink()
+                        self.assertFalse(ctr_match.result_is_current(f.manifest, f.config, result))
+                        path.write_bytes(original)
+                for case in ("missing", "partial", "reordered", "descriptor", "width", "type", "binding", "visibility", "count", "flags", "section-size", "summary", "error-block"):
+                    changed = copy.deepcopy(result)
+                    data = changed["linked_block"]["data_ranges"]
+                    if case == "missing":
+                        del changed["linked_block"]["data_ranges"]
+                    elif case == "partial":
+                        data.pop()
+                    elif case == "reordered":
+                        data.reverse()
+                    elif case == "descriptor":
+                        data[0]["data_range"]["offset"] = 1
+                    elif case == "width":
+                        data[0]["owner"]["size"] = 8
+                    elif case in ("type", "binding", "visibility", "count"):
+                        data[0]["owner"][case] = {"type": "NOTYPE", "binding": "LOCAL", "visibility": "HIDDEN", "count": 2}[case]
+                    elif case == "flags":
+                        data[0]["section"]["elf_flags"] = 2
+                    elif case == "section-size":
+                        data[0]["section"]["size"] = 6
+                    elif case == "summary":
+                        changed["linked_block"]["data"]["expected_size"] = 6
+                    else:
+                        changed["linked_block"] = {"exact": False, "error": "forged error without joint evidence"}
+                        changed.update({"exact": False, "selected_exact": False, "exact_function_count": 0})
+                    with self.subTest(case=case):
+                        self.assertFalse(ctr_match.result_is_current(f.manifest, f.config, changed))
+                changed_config = copy.deepcopy(f.config)
+                changed_config["data_ranges"][0]["size"] = 3
+                self.assertFalse(ctr_match.result_is_current(f.manifest, changed_config, result))
+                with mock.patch.object(ctr_match, "run_checked", side_effect=ctr_match.MatchError("joint link failed")):
+                    negative = ctr_resident.build_resident(f.manifest, f.tools, f.config, root)
+                self.assertFalse(negative["exact"])
+                self.assertTrue(ctr_match.result_is_current(f.manifest, f.config, negative))
+
+
 class InitializedDataBuildTests(unittest.TestCase):
     def test_disjoint_data_sections_share_one_build_and_leave_gaps_unowned(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -822,6 +1245,46 @@ class InitializedDataBuildTests(unittest.TestCase):
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_code_interval_currentness_binds_every_span_and_the_shared_elf(self) -> None:
+        config = {"name": "test", "kind": "resident", "artifact": "exe", "source": "source.c",
+                  "symbol_file": "symbols.txt", "compiler_flags": [], "linked_block": {},
+                  "code_intervals": [{"start_symbol": "Test_First", "end_symbol": "Gap"},
+                                     {"start_symbol": "Test_Second", "end_symbol": "End"}]}
+        manifest = {"artifacts": [{"id": "exe"}], "toolchain": {"maspsx": {"aspsx_version": "2.77"}}}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.c").write_text("void Test_First(void) {}\nvoid Test_Second(void) {}\n")
+            (root / "symbols.txt").write_text("00001000 Test_First\n00001004 Gap\n00002000 Test_Second\n00002004 End\n")
+            for name in ("candidate.bin", "first.bin", "second.bin", "block.elf"):
+                (root / name).write_bytes(b"GOOD")
+            intervals = [{**specification, "section": f".resident_block_{index}", "address": f"0x{address:08x}",
+                          "size": 4, "candidate": candidate, "candidate_sha256": ctr_match.sha256_bytes(b"GOOD")}
+                         for index, (specification, address, candidate) in enumerate(zip(config["code_intervals"],
+                                                                                       (0x1000, 0x2000), ("first.bin", "second.bin")))]
+            with (mock.patch.object(ctr_match, "ROOT", root), mock.patch.object(ctr_match, "tool_inputs", return_value={}),
+                  mock.patch.object(ctr_match, "SYMBOL_FILE", root / "symbols.txt"),
+                  mock.patch.object(ctr_match, "pipeline_hash", return_value="pipeline")):
+                result = {"schema_version": 2, "name": "test", "config_sha256": ctr_match.sha256_json(config),
+                          "reference_config_sha256": ctr_match.sha256_json(manifest["artifacts"][0]), "pipeline_sha256": "pipeline",
+                          "toolchain_config_sha256": ctr_match.sha256_json(manifest["toolchain"]),
+                          "compiler_flags": ctr_match.effective_flags(config), "aspsx_version": "2.77",
+                          "build_input_sha256": ctr_match.input_hashes(["source.c", "symbols.txt"]),
+                          "functions": [{"name": "Test_First", "candidate": "candidate.bin", "candidate_sha256": ctr_match.sha256_bytes(b"GOOD")}],
+                          "selected_function_count": 1, "function_count": 2, "complete": False,
+                          "linked_block": {"elf": "block.elf", "elf_sha256": ctr_match.sha256_bytes(b"GOOD"), "code_intervals": intervals}}
+                self.assertTrue(ctr_match.result_is_current(manifest, config, result))
+                for name in ("first.bin", "second.bin", "block.elf"):
+                    (root / name).write_bytes(b"BAD!")
+                    self.assertFalse(ctr_match.result_is_current(manifest, config, result))
+                    (root / name).write_bytes(b"GOOD")
+                    (root / name).unlink()
+                    self.assertFalse(ctr_match.result_is_current(manifest, config, result))
+                    (root / name).write_bytes(b"GOOD")
+                for replacement in (None, intervals[:1], [{**intervals[0], "section": "*ABS*"}, intervals[1]],
+                                    [{**intervals[0], "address": "0x00001004"}, intervals[1]]):
+                    changed = {**result, "linked_block": {**result["linked_block"], "code_intervals": replacement}}
+                    self.assertFalse(ctr_match.result_is_current(manifest, config, changed))
+
     def test_resident_currentness_binds_optional_owned_name_including_errors(self) -> None:
         config = {"name": "test", "kind": "resident", "artifact": "exe", "source": "source.c",
                   "symbol_file": "symbols.txt", "compiler_flags": [],
@@ -915,6 +1378,41 @@ class EvidenceTests(unittest.TestCase):
                     path.write_text(content)
                 del result["build_input_sha256"]["source.c"]
                 self.assertFalse(ctr_match.result_is_current(manifest, config, result))
+
+    def test_mixed_input_evidence_binds_each_resolved_recipe(self) -> None:
+        config = {"name": "sdk", "kind": "resident", "artifact": "exe",
+                  "sources": ["core.c", "wrapper.c", "entry.s"], "symbol_file": "symbols.txt",
+                  "compiler_flags": ["-O2", "-G0"],
+                  "source_flags": {"wrapper.c": ["-fno-delayed-branch"]}}
+        manifest = {"target": "test", "artifacts": [{"id": "exe"}], "toolchain": {
+            "compiler": {"directory": "gcc", "sha256": {}},
+            "maspsx": {"directory": "maspsx", "sha256": {}, "aspsx_version": "2.77"},
+            "binutils": {"prefix": "mips-", "sha256": {}},
+        }}
+        tools = SimpleNamespace(compiler_banner="test", compiler_hashes={}, default_aspsx_version="2.77",
+                                maspsx_commit="pinned", maspsx_hashes={}, assembler_banner="test",
+                                binutils_hashes={}, config_hash=ctr_match.sha256_json(manifest["toolchain"]))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in (*config["sources"], "symbols.txt"):
+                (root / name).write_text("input")
+            (root / "candidate.bin").write_bytes(b"code")
+            with (mock.patch.object(ctr_match, "ROOT", root),
+                  mock.patch.object(ctr_match, "SYMBOL_FILE", root / "symbols.txt")):
+                result = {**ctr_match.build_evidence(manifest, tools, config, config["sources"]),
+                          "functions": [{"name": "CdReset", "candidate": "candidate.bin",
+                                         "candidate_sha256": ctr_match.sha256_file(root / "candidate.bin")}],
+                          "selected_function_count": 1, "function_count": 1, "complete": True}
+                self.assertEqual(result["source_compiler_flags"], {
+                    "core.c": ["-O2", "-G0", "-ffunction-sections"],
+                    "wrapper.c": ["-O2", "-G0", "-fno-delayed-branch", "-ffunction-sections"],
+                })
+                self.assertTrue(ctr_match.result_is_current(manifest, config, result))
+                changed = copy.deepcopy(result)
+                changed["source_compiler_flags"]["wrapper.c"].remove("-fno-delayed-branch")
+                self.assertFalse(ctr_match.result_is_current(manifest, config, changed))
+                del changed["source_compiler_flags"]
+                self.assertFalse(ctr_match.result_is_current(manifest, config, changed))
 
     def test_partial_resident_result_is_reported_as_partial(self) -> None:
         config = {"name": "vehicle", "kind": "resident"}

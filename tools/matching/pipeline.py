@@ -105,6 +105,8 @@ def configured_targets(
             raise MatchError(f"unknown build kind for {name!r}: {target['kind']!r}")
         if "owned_symbols" in target and target["kind"] != "resident":
             raise MatchError("owned_symbols is only supported for resident targets")
+        if "code_intervals" in target and target["kind"] != "resident":
+            raise MatchError("code_intervals is only supported for resident targets")
         names.add(name)
     return [target for target in targets if kind is None or target["kind"] == kind]
 
@@ -633,18 +635,27 @@ def linked_symbols(
     symbols: dict[str, dict[str, Any]] = {}
     for line in output.splitlines():
         parts = line.split()
+        visibility = "DEFAULT"
+        if len(parts) >= 3 and parts[-2] in (".hidden", ".protected", ".internal"):
+            visibility = parts.pop(-2)[1:].upper()
         if (
             len(parts) >= 3
             and re.fullmatch(r"[0-9a-fA-F]{8}", parts[0])
             and re.fullmatch(r"[0-9a-fA-F]{8}", parts[-2])
         ):
             address = int(parts[0], 16)
+            flags = parts[1:-3]
+            name = parts[-1]
             symbols[parts[-1]] = {
                 "address": address,
                 "offset": address - load_address,
                 "size": int(parts[-2], 16),
                 "section": parts[-3],
-                "kind": "code" if "F" in parts[1:-3] else "data",
+                "kind": "code" if "F" in flags else "data",
+                "type": "FUNC" if "F" in flags else "OBJECT" if "O" in flags else "NOTYPE",
+                "binding": "WEAK" if "w" in flags or "v" in flags else "GLOBAL" if "g" in flags else "LOCAL",
+                "visibility": visibility,
+                "count": symbols.get(name, {}).get("count", 0) + 1,
             }
     return symbols
 
@@ -810,14 +821,39 @@ def source_paths(config: dict[str, Any]) -> list[str]:
         sources = [config["source"]] if "source" in config else []
     if not sources:
         raise MatchError(f"target {config['name']!r} has no production sources")
+    overrides = config.get("source_flags", {})
+    if not isinstance(overrides, dict):
+        raise MatchError("source_flags must map C source paths to flag lists")
+    if overrides and config["kind"] == "probe":
+        raise MatchError("source_flags apply to complete C inputs, not extracted probes")
+    for path, flags in overrides.items():
+        if path not in sources or Path(path).suffix.lower() != ".c":
+            raise MatchError(f"source_flags entry {path!r} is not a declared C input")
+        if path != str(repository_path(path).relative_to(ROOT)):
+            raise MatchError(f"source_flags path {path!r} must be repository-relative and canonical")
+        if not isinstance(flags, list) or not all(isinstance(flag, str) for flag in flags):
+            raise MatchError(f"source_flags entry {path!r} must be a flag list")
     return list(sources)
 
 
-def effective_flags(config: dict[str, Any]) -> list[str]:
+def effective_flags(config: dict[str, Any], source: str | None = None) -> list[str]:
     flags = list(config["compiler_flags"])
+    if "source_flags" in config:
+        source_paths(config)
+        flags.extend(config["source_flags"].get(source, []))
     if config["kind"] == "resident" and "-ffunction-sections" not in flags:
         flags.append("-ffunction-sections")
     return flags
+
+
+def source_compiler_flags(config: dict[str, Any]) -> dict[str, list[str]] | None:
+    if "source_flags" not in config:
+        return None
+    sources = source_paths(config)
+    if not config["source_flags"]:
+        return None
+    return {source: effective_flags(config, source) for source in sources
+            if Path(source).suffix.lower() == ".c"}
 
 
 def declared_inputs(config: dict[str, Any]) -> set[str]:
@@ -864,7 +900,7 @@ def build_evidence(
     artifact = artifact_by_id(manifest, config.get("artifact", config.get("region")))
     inputs = input_hashes(declared_inputs(config) | set(dependencies))
     inputs.update(tool_inputs(manifest))
-    return {
+    evidence = {
         "schema_version": 2,
         "target": manifest["target"],
         "name": config["name"],
@@ -889,6 +925,10 @@ def build_evidence(
         "binutils_sha256": toolchain.binutils_hashes,
         "toolchain_config_sha256": toolchain.config_hash,
     }
+    source_flags = source_compiler_flags(config)
+    if source_flags is not None:
+        evidence["source_compiler_flags"] = source_flags
+    return evidence
 
 
 def result_path(manifest: dict[str, Any], config: dict[str, Any]) -> Path:
@@ -914,6 +954,7 @@ def result_is_current(
         required = declared_inputs(config) | set(tool_inputs(manifest))
         if not required.issubset(inputs):
             return False
+        source_flags = source_compiler_flags(config)
         if (
             result["schema_version"] != 2
             or result["name"] != config["name"]
@@ -922,6 +963,7 @@ def result_is_current(
             or result["pipeline_sha256"] != pipeline_hash()
             or result["toolchain_config_sha256"] != sha256_json(manifest["toolchain"])
             or result["compiler_flags"] != effective_flags(config)
+            or result.get("source_compiler_flags") != source_flags
             or (
                 config["kind"] == "data"
                 and (
@@ -961,6 +1003,73 @@ def result_is_current(
             )
         ):
             return False
+        if "code_intervals" in config:
+            block = result.get("linked_block")
+            if not isinstance(block, dict):
+                return False
+            if "data_ranges" in config and block.get("error") and (
+                result.get("exact") or result.get("selected_exact") or result.get("exact_function_count")
+                or any(item.get("exact") for item in candidates)
+            ):
+                return False
+            if not block.get("error"):
+                symbols = load_symbol_file(repository_path(config["symbol_file"]))
+                intervals = block["code_intervals"]
+                if len(intervals) != len(config["code_intervals"]):
+                    return False
+                for index, (specification, interval) in enumerate(
+                    zip(config["code_intervals"], intervals)
+                ):
+                    start = symbols[specification["start_symbol"]]
+                    end = symbols[specification["end_symbol"]]
+                    if (
+                        interval["start_symbol"] != specification["start_symbol"]
+                        or interval["end_symbol"] != specification["end_symbol"]
+                        or interval["section"] != f".resident_block_{index}"
+                        or interval["address"] != f"0x{start:08x}"
+                        or interval["size"] != end - start
+                        or sha256_file(repository_path(interval["candidate"]))
+                        != interval["candidate_sha256"]
+                    ):
+                        return False
+                if sha256_file(repository_path(block["elf"])) != block["elf_sha256"]:
+                    return False
+                if "data_ranges" in config:
+                    ranges = block["data_ranges"]
+                    if [item["data_range"] for item in ranges] != data_ranges(config):
+                        return False
+                    sections = {}
+                    symbols = {}
+                    for item in ranges:
+                        specification = item["data_range"]
+                        section = item["section"]
+                        name = specification["output_section"]
+                        size = parse_int(specification["size"])
+                        if (item.get("error") or item["name"] != specification["symbol"]
+                                or item["kind"] != "data" or section["name"] != name
+                                or item["address"] != f"0x{parse_int(specification['symbol_address']):08x}"
+                                or item["size"] != size or item["expected_size"] != size
+                                or item["candidate_size"] != size
+                                or sha256_file(repository_path(item["candidate"])) != item["candidate_sha256"]
+                                or (name in sections and sections[name] != section)):
+                            return False
+                        sections[name] = section
+                        symbols[item["name"]] = item["owner"]
+                    verify_initialized_owners(data_ranges(config), sections, symbols)
+                    if block["data"] != {
+                        "matching_bytes": sum(item["matching_bytes"] for item in ranges),
+                        "expected_size": sum(item["expected_size"] for item in ranges),
+                        "exact": all(item["exact"] for item in ranges),
+                    }:
+                        return False
+                    for item in candidates:
+                        owner = item["owner"]
+                        if (owner["type"] != "FUNC" or owner["binding"] != "GLOBAL"
+                                or owner["visibility"] != "DEFAULT" or owner["count"] != 1
+                                or owner["address"] != parse_int(item["address"])
+                                or owner["size"] != item["size"]
+                                or owner["section"] not in {span["section"] for span in intervals}):
+                            return False
         return all(
             item.get("error")
             or (
@@ -1021,7 +1130,7 @@ def build_object(
             toolchain,
             source,
             assembly,
-            effective_flags(config),
+            effective_flags(config, str(source.relative_to(ROOT))),
             includes,
             [repository_path(path) for path in config.get("forced_includes", [])],
             dependency_file,
@@ -1049,7 +1158,9 @@ def build_object(
     return object_file, dependency_inputs(dependency_file)
 
 
-def allocated_sections(toolchain: Toolchain, linked: Path) -> dict[str, dict[str, Any]]:
+def allocated_sections(
+    toolchain: Toolchain, linked: Path, *, elf_metadata: bool = False,
+) -> dict[str, dict[str, Any]]:
     """Keep initialized bytes distinct from allocated-only storage such as BSS."""
     headers = command_output([str(toolchain.binutils["objdump"]), "-h", str(linked)])
     sections = {}
@@ -1058,7 +1169,48 @@ def allocated_sections(toolchain: Toolchain, linked: Path) -> dict[str, dict[str
         size, address = int(size_hex, 16), int(address_hex, 16)
         attributes = {flag.strip() for flag in flags.split(",")}
         if size and "ALLOC" in attributes:
+            if elf_metadata and name in sections:
+                raise MatchError("joint ELF has duplicate allocated section names")
             sections[name] = {"size": size, "address": address, "initialized": "CONTENTS" in attributes}
+            if elf_metadata:
+                sections[name]["flags"] = sorted(attributes)
+    if elf_metadata:
+        # objdump's BFD flags do not expose literal ELF section types/SHF bits.
+        # Read only the bounded ELF32/MIPS section table for this joint audit.
+        actual = linked.read_bytes()
+        if (len(actual) < 52 or actual[:6] != b"\x7fELF\x01\x01"
+                or struct.unpack_from("<HH", actual, 16) != (2, 8)):
+            raise MatchError("joint output is not an executable little-endian MIPS ELF32")
+        offset = struct.unpack_from("<I", actual, 32)[0]
+        width, count, names_index = struct.unpack_from("<HHH", actual, 46)
+        if width != 40 or not count or names_index >= count or offset + width * count > len(actual):
+            raise MatchError("joint ELF section table is incomplete")
+        headers = [struct.unpack_from("<10I", actual, offset + index * width) for index in range(count)]
+        names_header = headers[names_index]
+        names = actual[names_header[4]:names_header[4] + names_header[5]]
+        if len(names) != names_header[5]:
+            raise MatchError("joint ELF section names are incomplete")
+        allocated = set()
+        for header in headers:
+            name_end = names.find(b"\0", header[0])
+            if name_end < 0:
+                raise MatchError("joint ELF section name is invalid")
+            name = names[header[0]:name_end].decode("ascii", errors="replace")
+            if header[1] in (4, 9) and header[5]:
+                raise MatchError("joint ELF retains relocations")
+            if not header[5] or not header[2] & 2:
+                continue
+            if name in allocated:
+                raise MatchError("joint ELF has duplicate allocated section names")
+            allocated.add(name)
+            entry = sections.get(name)
+            if entry is None or (entry["address"], entry["size"]) != (header[3], header[5]):
+                raise MatchError("joint ELF allocated section metadata disagrees with objdump")
+            entry.update({"elf_type": header[1], "elf_flags": header[2]})
+            if header[1] == 1 and header[4] + header[5] > len(actual):
+                raise MatchError("joint ELF initialized section is incomplete")
+        if allocated != set(sections):
+            raise MatchError("joint ELF allocated section metadata disagrees with objdump")
     return sections
 
 
@@ -1124,22 +1276,54 @@ def reject_overlapping_ranges(ranges: Iterable[dict[str, Any]], description: str
         raise MatchError(f"{description} overlap")
 
 
-def compare_initialized_data(
-    manifest: dict[str, Any], toolchain: Toolchain, build: dict[str, Any],
-    references: Path, linked: Path, dependencies: Iterable[str],
-) -> dict[str, Any]:
-    """Verify owned section views without turning intervening gaps into output."""
+def verify_initialized_owners(
+    intervals: list[dict[str, Any]], sections: dict[str, dict[str, Any]],
+    symbols: dict[str, dict[str, Any]],
+) -> None:
+    """Joint resident ranges own whole real objects and complete mutable sections."""
+    names = {interval["symbol"] for interval in intervals}
+    if len(names) != len(intervals):
+        raise MatchError("joint initialized owners are duplicated")
+    declared = {interval["output_section"] for interval in intervals}
+    for interval in intervals:
+        name = interval["symbol"]
+        owner = symbols.get(name, {})
+        if (parse_int(interval["offset"]) != 0 or parse_int(interval["size"]) <= 0
+                or owner.get("type") != "OBJECT" or owner.get("binding") != "GLOBAL"
+                or owner.get("visibility") != "DEFAULT" or owner.get("count") != 1
+                or owner.get("section") != interval["output_section"]
+                or owner.get("address") != parse_int(interval["symbol_address"])
+                or owner.get("size") != parse_int(interval["size"])):
+            raise MatchError(f"joint initialized owner {name!r} is not one complete GLOBAL DEFAULT OBJECT")
+    for name in declared:
+        section = sections[name]
+        if (section.get("elf_type") != 1 or section.get("elf_flags") != 3
+                or not section.get("initialized")
+                or not {"CONTENTS", "ALLOC", "LOAD", "DATA"}.issubset(section.get("flags", []))
+                or {"READONLY", "CODE"}.intersection(section.get("flags", []))):
+            raise MatchError(f"joint initialized section {name!r} is not mutable AW PROGBITS")
+        group = sorted((symbols[item["symbol"]] for item in intervals if item["output_section"] == name),
+                       key=lambda owner: owner["address"])
+        cursor = section["address"]
+        for owner in group:
+            if owner["address"] != cursor:
+                raise MatchError("joint initialized owners overlap or leave a gap")
+            cursor += owner["size"]
+        if cursor != section["address"] + section["size"]:
+            raise MatchError("joint initialized owners do not cover their complete section")
+    if {name for name, owner in symbols.items() if owner["section"] in declared and owner["type"] == "OBJECT"} != names:
+        raise MatchError("joint initialized section contains an undeclared object or alias")
+
+
+def compare_initialized_ranges(
+    manifest: dict[str, Any], toolchain: Toolchain, build: dict[str, Any], references: Path,
+    linked: Path, sections: dict[str, dict[str, Any]], symbols: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Compare bounded emitted views in an already linked ELF."""
     intervals = data_ranges(build)
     output = linked.parent
     artifact = artifact_by_id(manifest, build["artifact"])
     load_address = parse_int(artifact["load_address"])
-    symbols = linked_symbols(toolchain.binutils["objdump"], linked, load_address)
-    sections = allocated_sections(toolchain, linked)
-    declared = {interval["output_section"] for interval in intervals}
-    if declared != set(sections) or any(not section["initialized"] for section in sections.values()):
-        raise MatchError("data target has a missing, unowned or uninitialized allocated section")
-    reject_overlapping_ranges(sections.values(), "allocated data sections")
-
     emitted = {}
     ranges = []
     for index, interval in enumerate(intervals):
@@ -1172,6 +1356,22 @@ def compare_initialized_data(
             "first_mismatch_location": mismatch_location(artifact, file_offset + mismatch[0]) if mismatch else None,
         })
     reject_overlapping_ranges(ranges, "initialized data ranges")
+    return ranges
+
+
+def compare_initialized_data(
+    manifest: dict[str, Any], toolchain: Toolchain, build: dict[str, Any],
+    references: Path, linked: Path, dependencies: Iterable[str],
+) -> dict[str, Any]:
+    """Verify owned section views without turning intervening gaps into output."""
+    artifact = artifact_by_id(manifest, build["artifact"])
+    symbols = linked_symbols(toolchain.binutils["objdump"], linked, parse_int(artifact["load_address"]))
+    sections = allocated_sections(toolchain, linked)
+    declared = {interval["output_section"] for interval in data_ranges(build)}
+    if declared != set(sections) or any(not section["initialized"] for section in sections.values()):
+        raise MatchError("data target has a missing, unowned or uninitialized allocated section")
+    reject_overlapping_ranges(sections.values(), "allocated data sections")
+    ranges = compare_initialized_ranges(manifest, toolchain, build, references, linked, sections, symbols)
     size = sum(item["expected_size"] for item in ranges)
     matching = sum(item["matching_bytes"] for item in ranges)
     result = {
@@ -1182,7 +1382,7 @@ def compare_initialized_data(
         "exact": all(item["exact"] for item in ranges),
         "first_mismatch_location": next((item["first_mismatch_location"] for item in ranges if not item["exact"]), None),
     }
-    (output / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+    (linked.parent / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
 
 

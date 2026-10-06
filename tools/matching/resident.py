@@ -58,43 +58,71 @@ def symbol_by_name(symbols: Iterable[Symbol], name: str) -> Symbol:
     raise ctr_match.MatchError(f"symbol map has no symbol named {name!r}")
 
 
+def namespace_intervals(
+    config: dict[str, Any], symbols: list[Symbol]
+) -> list[tuple[Symbol, Symbol]]:
+    specifications = config.get("code_intervals", [config])
+    if "code_intervals" in config and (
+        "start_symbol" in config
+        or "end_symbol" in config
+        or not isinstance(config.get("linked_block"), dict)
+    ):
+        raise ctr_match.MatchError(
+            "code_intervals requires linked_block and replaces singleton boundaries"
+        )
+    if not isinstance(specifications, list) or not specifications:
+        raise ctr_match.MatchError("code_intervals must be a nonempty ordered list")
+    intervals = []
+    for specification in specifications:
+        if not isinstance(specification, dict) or any(
+            not isinstance(specification.get(key), str)
+            for key in ("start_symbol", "end_symbol")
+        ):
+            raise ctr_match.MatchError(
+                "each code interval needs start_symbol and end_symbol"
+            )
+        start = symbol_by_name(symbols, specification["start_symbol"])
+        end = symbol_by_name(symbols, specification["end_symbol"])
+        if start.address >= end.address:
+            raise ctr_match.MatchError(
+                f"namespace {config['name']!r} has an empty or reversed interval"
+            )
+        if intervals and start.address < intervals[-1][1].address:
+            raise ctr_match.MatchError("code intervals must be ordered and nonoverlapping")
+        intervals.append((start, end))
+    return intervals
+
+
 def namespace_symbol_ranges(
     config: dict[str, Any], symbols: list[Symbol]
 ) -> list[tuple[Symbol, int]]:
-    start = symbol_by_name(symbols, config["start_symbol"])
-    end = symbol_by_name(symbols, config["end_symbol"])
-    if start.address >= end.address:
-        raise ctr_match.MatchError(
-            f"namespace {config['name']!r} has an empty or reversed interval"
+    ranges = []
+    for start, end in namespace_intervals(config, symbols):
+        interval = [
+            symbol for symbol in symbols
+            if start.address <= symbol.address < end.address
+        ]
+        if any(
+            left.address >= right.address for left, right in zip(interval, interval[1:])
+        ):
+            raise ctr_match.MatchError(
+                f"namespace {config['name']!r} has aliased or unordered symbols"
+            )
+        wrong_prefix = [
+            symbol.name for symbol in interval
+            if not symbol.name.startswith(config["symbol_prefix"])
+        ]
+        if wrong_prefix:
+            raise ctr_match.MatchError(
+                f"namespace {config['name']!r} contains symbols outside prefix "
+                f"{config['symbol_prefix']!r}: {', '.join(wrong_prefix)}"
+            )
+        next_addresses = [symbol.address for symbol in interval[1:]] + [end.address]
+        ranges.extend(
+            (symbol, address - symbol.address)
+            for symbol, address in zip(interval, next_addresses)
         )
-
-    interval = [
-        symbol for symbol in symbols if start.address <= symbol.address < end.address
-    ]
-    if not interval:
-        raise ctr_match.MatchError(f"namespace {config['name']!r} has no symbols")
-    if any(
-        left.address >= right.address for left, right in zip(interval, interval[1:])
-    ):
-        raise ctr_match.MatchError(
-            f"namespace {config['name']!r} has aliased or unordered symbols"
-        )
-    wrong_prefix = [
-        symbol.name
-        for symbol in interval
-        if not symbol.name.startswith(config["symbol_prefix"])
-    ]
-    if wrong_prefix:
-        raise ctr_match.MatchError(
-            f"namespace {config['name']!r} contains symbols outside prefix "
-            f"{config['symbol_prefix']!r}: {', '.join(wrong_prefix)}"
-        )
-
-    next_addresses = [symbol.address for symbol in interval[1:]] + [end.address]
-    return [
-        (symbol, next_address - symbol.address)
-        for symbol, next_address in zip(interval, next_addresses)
-    ]
+    return ranges
 
 
 def namespace_sources(config: dict[str, Any]) -> list[Path]:
@@ -105,7 +133,7 @@ def definition_count(text: str, symbol: str) -> int:
     pattern = re.compile(
         rf"(?m)^[ \t]*(?:(?:[A-Za-z_][A-Za-z0-9_]*)[ \t]+)+"
         rf"(?:\*[ \t]*)*{re.escape(symbol)}[ \t]*\([^;{{}}]*\)"
-        rf"[ \t\r\n]*\{{"
+        rf"(?:[ \t\r\n]|^[ \t]*#[ \t]*endif\b[^\n]*(?:\n|$))*\{{"
     )
     c_count = len(pattern.findall(text))
     if c_count:
@@ -423,6 +451,153 @@ def link_function(
     }
 
 
+def compare_linked_intervals(
+    manifest: dict[str, Any],
+    toolchain: ctr_match.Toolchain,
+    config: dict[str, Any],
+    references: Path,
+    functions: list[FunctionRange],
+    linked_object: Path,
+    intervals: list[tuple[str, Symbol, Symbol]],
+) -> dict[str, Any]:
+    """Measure function bodies in their real cross-interval link context."""
+    output = linked_object.parent
+    joint = "data_ranges" in config
+    if joint:
+        sections = ctr_match.allocated_sections(toolchain, linked_object, elf_metadata=True)
+    else:
+        headers = ctr_match.command_output(
+            [str(toolchain.binutils["objdump"]), "-h", str(linked_object)]
+        )
+        sections = {
+            name: {
+                "size": int(size, 16),
+                "address": int(address, 16),
+                "flags": {flag.strip() for flag in flags.split(",")},
+            }
+            for name, size, address, flags in re.findall(
+                r"(?m)^\s*\d+\s+(\S+)\s+([0-9a-fA-F]+)\s+"
+                r"([0-9a-fA-F]+)[^\n]*\n[ \t]+([^\n]+)",
+                headers,
+            )
+        }
+    allowed = {section for section, _, _ in intervals}
+    if joint:
+        allowed.update(interval["output_section"] for interval in ctr_match.data_ranges(config))
+    if "rodata_address" in config["linked_block"]:
+        allowed.add(".rodata")
+    if any(
+        section not in allowed and entry["size"] and "ALLOC" in entry["flags"]
+        for section, entry in sections.items()
+    ):
+        raise ctr_match.MatchError("linked intervals contain an undeclared allocated section")
+    owners = ctr_match.linked_symbols(toolchain.binutils["objdump"], linked_object, 0) if joint else {}
+    symbols = owners if joint else object_functions(toolchain.binutils["objdump"], linked_object)
+    if joint:
+        if set(sections) != allowed:
+            raise ctr_match.MatchError("joint intervals have a missing allocated section")
+        ctr_match.reject_overlapping_ranges(sections.values(), "joint allocated sections")
+        ctr_match.verify_initialized_owners(ctr_match.data_ranges(config), sections, owners)
+    spans = []
+    results = []
+    for index, (section, start, end) in enumerate(intervals):
+        entry = sections.get(section)
+        if entry is None or not {"CONTENTS", "ALLOC", "LOAD", "CODE"}.issubset(
+            entry["flags"]
+        ):
+            raise ctr_match.MatchError(f"expected allocated CODE section {section!r}")
+        if joint and (entry["elf_type"] != 1 or entry["elf_flags"] != 6):
+            raise ctr_match.MatchError(f"joint CODE section {section!r} is not AX PROGBITS")
+        group = [
+            function for function in functions
+            if start.address <= function.address < end.address
+        ]
+        owned = [owned_function(function, symbols, section) for function in group]
+        if joint and any(owners[function.emitted_name]["binding"] != "GLOBAL"
+                         or owners[function.emitted_name]["visibility"] != "DEFAULT"
+                         or owners[function.emitted_name]["type"] != "FUNC"
+                         or owners[function.emitted_name]["count"] != 1 for function in group):
+            raise ctr_match.MatchError("joint CODE requires one GLOBAL DEFAULT FUNC for every body")
+        placed = (
+            entry["address"] == start.address
+            and entry["size"] == end.address - start.address
+        )
+        directory = output / f"interval-{index}"
+        directory.mkdir(parents=True, exist_ok=True)
+        code = directory / "code.bin"
+        ctr_match.extract_binary_section(toolchain, linked_object, section, code)
+        actual = code.read_bytes()
+        expected = directory / "retail-code.bin"
+        expected.write_bytes(
+            ctr_match.reference_bytes(
+                manifest, references,
+                {"region": config["artifact"], "address": start.address,
+                 "size": end.address - start.address},
+            )
+        )
+        comparison = ctr_match.compare_binary_files(
+            toolchain, expected, code, start.address, directory,
+            "retail/resident-interval", "candidate/resident-interval",
+        )
+        for function, symbol in zip(group, owned):
+            function_placed = (
+                symbol["address"] == function.address and symbol["size"] == function.size
+            )
+            placed &= function_placed
+            offset = symbol["address"] - entry["address"]
+            if offset < 0 or offset + symbol["size"] > len(actual):
+                raise ctr_match.MatchError(
+                    f"owned function {function.emitted_name!r} is outside its CODE interval"
+                )
+            destination = BUILD_ROOT / config["name"] / "functions" / function.name
+            destination.mkdir(parents=True, exist_ok=True)
+            candidate = destination / "candidate.bin"
+            candidate.write_bytes(actual[offset:offset + symbol["size"]])
+            reference = destination / "retail.bin"
+            reference.write_bytes(reference_slice(manifest, references, config, function))
+            body = ctr_match.compare_binary_files(
+                toolchain, reference, candidate, function.address, destination,
+                "retail/function", "candidate/function",
+            )
+            results.append({
+                **function.result_fields(), "address": f"0x{function.address:08x}",
+                **body, "placement_exact": function_placed,
+                "exact": body["exact"] and function_placed,
+                "candidate": str(candidate.relative_to(ctr_match.ROOT)),
+                **({"owner": owners[function.emitted_name]} if joint else {}),
+            })
+        spans.append({
+            "section": section, "start_symbol": start.name, "end_symbol": end.name,
+            "address": f"0x{start.address:08x}", "size": end.address - start.address,
+            "placement_exact": placed, **comparison,
+            "exact": comparison["exact"] and placed,
+            "candidate": str(code.relative_to(ctr_match.ROOT)),
+        })
+    data = []
+    if joint:
+        data = ctr_match.compare_initialized_ranges(
+            manifest, toolchain, config, references, linked_object, sections, owners,
+        )
+        for item in data:
+            item["owner"] = owners[item["name"]]
+    return {
+        "elf": str(linked_object.relative_to(ctr_match.ROOT)),
+        "elf_sha256": ctr_match.sha256_file(linked_object),
+        "code_intervals": spans, "functions": results,
+        "code_placed": all(span["placement_exact"] for span in spans),
+        "code": {
+            "matching_bytes": sum(span["matching_bytes"] for span in spans),
+            "expected_size": sum(span["size"] for span in spans),
+            "exact": all(span["exact"] for span in spans),
+        },
+        **({"data_ranges": data, "data": {
+            "matching_bytes": sum(item["matching_bytes"] for item in data),
+            "expected_size": sum(item["expected_size"] for item in data),
+            "exact": all(item["exact"] for item in data),
+        }} if joint else {}),
+    }
+
+
 def link_contiguous_block(
     manifest: dict[str, Any],
     toolchain: ctr_match.Toolchain,
@@ -431,13 +606,16 @@ def link_contiguous_block(
     functions: list[FunctionRange],
     object_files: list[Path],
 ) -> dict[str, Any]:
-    """Check the actual function order and optional initialized data in one link."""
+    """Check actual function placement and optional initialized data in one link."""
     output = BUILD_ROOT / config["name"] / "linked_block"
     output.mkdir(parents=True, exist_ok=True)
     linked_object = output / "block.elf"
     linker_script = output / "block.ld"
     symbol_script = output / "symbols.ld"
     block = config["linked_block"]
+    joint = "data_ranges" in config
+    if joint and ("linker_script" not in config or "code_intervals" not in config):
+        raise ctr_match.MatchError("joint initialized owners require linker_script and code_intervals")
     start = functions[0].address
     size = sum(function.size for function in functions)
     if ("rodata_address" in block) != ("rodata_size" in block):
@@ -446,20 +624,58 @@ def link_contiguous_block(
     rodata_address = ctr_match.parse_int(block["rodata_address"]) if has_rodata else None
     rodata_size = ctr_match.parse_int(block["rodata_size"]) if has_rodata else 0
     reject_owned_aliases(config, functions)
-    sections = " ".join(f"*(.{function.emitted_name})" for function in functions)
+    if joint:
+        ranges = ctr_match.data_ranges(config)
+        selected = {interval["symbol"] for interval in ranges}
+        if selected.intersection(config.get("link_symbols", {})):
+            raise ctr_match.MatchError("link_symbols replaces a joint initialized owner")
+        inputs = {}
+        for object_file in object_files:
+            for name, owner in ctr_match.linked_symbols(toolchain.binutils["objdump"], object_file, 0).items():
+                if name in selected and owner["section"] != "*UND*":
+                    count = inputs.get(name, {}).get("count", 0) + owner["count"]
+                    inputs[name] = {**owner, "count": count}
+        for interval in ranges:
+            owner = inputs.get(interval["symbol"], {})
+            if (owner.get("type") != "OBJECT" or owner.get("binding") != "GLOBAL"
+                    or owner.get("visibility") != "DEFAULT" or owner.get("count") != 1
+                    or owner.get("size") != ctr_match.parse_int(interval["size"])
+                    or not owner.get("section", "").startswith(".")):
+                raise ctr_match.MatchError("joint initialized owner is not a real input OBJECT definition")
+    intervals = []
+    if "code_intervals" in config:
+        intervals = [
+            (f".resident_block_{index}", first, last)
+            for index, (first, last) in enumerate(namespace_intervals(
+                config, parse_symbols(ctr_match.repository_path(config["symbol_file"]))
+            ))
+        ]
+        code_script = ""
+        for section, first, last in intervals:
+            sections = " ".join(
+                f"*(.{function.emitted_name})" for function in functions
+                if first.address <= function.address < last.address
+            )
+            code_script += f"  {section} 0x{first.address:08x} : SUBALIGN(4) {{ {sections} }}\n"
+    else:
+        sections = " ".join(f"*(.{function.emitted_name})" for function in functions)
+        code_script = f"  .resident_block 0x{start:08x} : SUBALIGN(4) {{ {sections} }}\n"
     rodata_script = (
         f"  .rodata 0x{rodata_address:08x} : SUBALIGN(4) "
         "{ *(.rodata*) *(.rdata*) }\n"
         if rodata_address is not None
         else ""
     )
-    linker_script.write_text(
-        "SECTIONS {\n"
-        f"  .resident_block 0x{start:08x} : SUBALIGN(4) {{ {sections} }}\n"
-        f"{rodata_script}"
-        "  /DISCARD/ : { *(*) }\n"
-        "}\n"
-    )
+    if "linker_script" in config:
+        linker_script = ctr_match.repository_path(config["linker_script"])
+    else:
+        linker_script.write_text(
+            "SECTIONS {\n"
+            f"{code_script}"
+            f"{rodata_script}"
+            "  /DISCARD/ : { *(*) }\n"
+            "}\n"
+        )
     ctr_match.write_symbol_script(
         ctr_match.repository_path(config["symbol_file"]), symbol_script
     )
@@ -478,22 +694,28 @@ def link_contiguous_block(
         [*command, "-o", str(linked_object), *(str(path) for path in object_files)]
     )
 
-    symbols = object_functions(
-        toolchain.binutils["objdump"], linked_object
-    )
-    owned = [owned_function(function, symbols, ".resident_block") for function in functions]
-    code_section = ctr_match.linked_section(
-        toolchain.binutils["objdump"], linked_object, ".resident_block"
-    )
+    interval_result = None
+    if intervals:
+        interval_result = compare_linked_intervals(
+            manifest, toolchain, config, references, functions, linked_object, intervals
+        )
+        code_placed = interval_result["code_placed"]
+    else:
+        symbols = object_functions(toolchain.binutils["objdump"], linked_object)
+        owned = [
+            owned_function(function, symbols, ".resident_block") for function in functions
+        ]
+        code_section = ctr_match.linked_section(
+            toolchain.binutils["objdump"], linked_object, ".resident_block"
+        )
+        code_placed = code_section == {"address": start, "size": size} and all(
+            symbol["address"] == function.address and symbol["size"] == function.size
+            for function, symbol in zip(functions, owned)
+        )
     rodata_section = (
         ctr_match.linked_section(toolchain.binutils["objdump"], linked_object, ".rodata")
         if has_rodata
         else None
-    )
-    code_placed = code_section == {"address": start, "size": size} and all(
-        symbol["address"] == function.address
-        and symbol["size"] == function.size
-        for function, symbol in zip(functions, owned)
     )
     rodata_placed = (
         rodata_section == {"address": rodata_address, "size": rodata_size}
@@ -501,25 +723,21 @@ def link_contiguous_block(
         else None
     )
 
-    code = output / "code.bin"
-    ctr_match.extract_binary_section(toolchain, linked_object, ".resident_block", code)
-    expected_code = output / "retail-code.bin"
-    expected_code.write_bytes(
-        ctr_match.reference_bytes(
-            manifest,
-            references,
-            {"region": config["artifact"], "address": start, "size": size},
+    if interval_result is not None:
+        code_comparison = interval_result["code"]
+    else:
+        code = output / "code.bin"
+        ctr_match.extract_binary_section(toolchain, linked_object, ".resident_block", code)
+        expected_code = output / "retail-code.bin"
+        expected_code.write_bytes(
+            ctr_match.reference_bytes(
+                manifest, references, {"region": config["artifact"], "address": start, "size": size},
+            )
         )
-    )
-    code_comparison = ctr_match.compare_binary_files(
-        toolchain,
-        expected_code,
-        code,
-        start,
-        output,
-        "retail/resident-block",
-        "candidate/resident-block",
-    )
+        code_comparison = ctr_match.compare_binary_files(
+            toolchain, expected_code, code, start, output,
+            "retail/resident-block", "candidate/resident-block",
+        )
     if has_rodata:
         rodata = output / "rodata.bin"
         ctr_match.extract_binary_section(toolchain, linked_object, ".rodata", rodata)
@@ -534,6 +752,10 @@ def link_contiguous_block(
     rodata_exact = actual_rodata == expected_rodata if has_rodata else None
     placement_exact = code_placed and (not has_rodata or rodata_placed)
     return {
+        **({key: interval_result[key]
+            for key in ("elf", "elf_sha256", "code_intervals", "functions")}
+           if interval_result is not None else {}),
+        **({key: interval_result[key] for key in ("data_ranges", "data")} if joint else {}),
         "address": f"0x{start:08x}",
         "size": size,
         "code_placement_exact": code_placed,
@@ -552,7 +774,7 @@ def link_contiguous_block(
         ),
         "exact": placement_exact and code_comparison["exact"] and (
             not has_rodata or rodata_exact
-        ),
+        ) and (not joint or interval_result["data"]["exact"]),
     }
 
 
@@ -609,6 +831,7 @@ def build_resident(
     symbols = parse_symbols(ctr_match.repository_path(config["symbol_file"]))
     inventory = discover_function_ranges(config, symbols)
     functions = selected_functions(inventory, requested)
+    multiple_intervals = "code_intervals" in config
     interval_size = sum(function.size for function in inventory)
     print(
         f"resident {config['name']}: {len(inventory)} functions, "
@@ -617,7 +840,7 @@ def build_resident(
 
     sources = {
         function.source: ctr_match.repository_path(function.source)
-        for function in functions
+        for function in (inventory if multiple_intervals else functions)
     }
     source_results: dict[str, dict[str, Any]] = {}
     for source_name, source in sources.items():
@@ -630,9 +853,11 @@ def build_resident(
             print(f"OK      {source_name}")
 
     function_results: list[dict[str, Any]] = []
-    for function in functions:
+    owned_inputs_valid = True
+    for function in (inventory if multiple_intervals else functions):
         source_result = source_results[function.source]
         if error := source_result.get("error"):
+            owned_inputs_valid = False
             function_results.append(
                 error_result(
                     function,
@@ -654,11 +879,17 @@ def build_resident(
             ) != 1:
                 raise ctr_match.MatchError(f"multiple functions share owned section {section!r}")
         except ctr_match.MatchError as exc:
+            owned_inputs_valid = False
             function_results.append(
                 error_result(
                     function,
                     str(exc),
                 )
+            )
+            continue
+        if multiple_intervals:
+            function_results.append(
+                error_result(function, "linked CODE intervals unavailable")
             )
             continue
         expected = reference_slice(manifest, references, config, function)
@@ -698,11 +929,14 @@ def build_resident(
                 f"{result['matching_words']}/{result['total_words']} words"
             )
 
-    exact_count = sum(function["exact"] for function in function_results)
     complete = len(functions) == len(inventory)
     block_result = None
-    if complete and "linked_block" in config:
+    if (complete or multiple_intervals) and "linked_block" in config:
         try:
+            if multiple_intervals and not owned_inputs_valid:
+                raise ctr_match.MatchError(
+                    "linked intervals contain an invalid owned input"
+                )
             object_files = []
             for source in namespace_sources(config):
                 source_name = str(source.relative_to(ctr_match.ROOT))
@@ -720,6 +954,8 @@ def build_resident(
                 inventory,
                 object_files,
             )
+            if multiple_intervals:
+                function_results = block_result.pop("functions")
         except ctr_match.MatchError as exc:
             block_result = {"exact": False, "error": str(exc)}
         status = "MATCH" if block_result["exact"] else "DIFF"
@@ -736,7 +972,22 @@ def build_resident(
                 f"{status:<7} linked block: "
                 f"{code['matching_bytes']}/{code['expected_size']} code bytes, "
                 f"rodata {rodata}, placement {placement}"
+                + (f", initialized data {block_result['data']['matching_bytes']}/{block_result['data']['expected_size']} bytes"
+                   if "data" in block_result else "")
             )
+    if multiple_intervals:
+        selected_names = {function.name for function in functions}
+        function_results = [
+            result for result in function_results if result["name"] in selected_names
+        ]
+        for result in function_results:
+            status = "MATCH" if result["exact"] else "DIFF"
+            print(
+                f"{status:<7} {result['name']} {result['address']}: "
+                f"{result['matching_bytes']}/{result['expected_size']} bytes, "
+                f"{result['matching_words']}/{result['total_words']} words"
+            )
+    exact_count = sum(function["exact"] for function in function_results)
     selected_exact = exact_count == len(functions) and (
         block_result is None or block_result["exact"]
     )
