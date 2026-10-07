@@ -199,49 +199,7 @@ CheckHighAndPack:
 	}
 }
 
-struct LngFile
-{
-	int numStrings;
-	int offsetToPtrArr;
-	char strings[1];
-};
-
-// param_1 - Pointer to "cd position of bigfile"
-// param_2 - language index - 0 ja, 1 en, 2 en2, 3 fr, 4 de, 5 it, 6 es, 7 ne
-void LOAD_LangFile(int bigfilePtr, int lang)
-{
-	struct LngFile *lngFile;
-	u32 size;
-
-	int i;
-	int numStrings;
-	char **strArray;
-
-
-	if (sdata->lngFile == 0)
-	{
-		sdata->lngFile = MEMPACK_AllocMem(sdata->langBufferSize, NULL /* "lang buffer" */);
-	}
-
-	lngFile = sdata->lngFile;
-
-	lngFile = LOAD_ReadFile_ex((struct BigHeader *)bigfilePtr, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
-	if (lngFile == NULL)
-	{
-		return;
-	}
-
-	numStrings = lngFile->numStrings;
-	strArray = (char **)((u32)lngFile + lngFile->offsetToPtrArr);
-
-	sdata->numLngStrings = numStrings;
-	sdata->lngStrings = strArray;
-
-	for (i = 0; i < numStrings; i++)
-	{
-		strArray[i] = (char *)((u32)strArray[i] + (u32)lngFile);
-	}
-}
+#include "LOAD_LangFile.c"
 
 // NOTE(aalhendi): Variable-stride group bases come last to preserve retail's return scheduling.
 int LOAD_GetBigfileIndex(u32 levelID, int lod, int fileIndexInGroup)
