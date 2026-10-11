@@ -3,10 +3,19 @@
 
 set -euo pipefail
 
-VERSION="${1:-beta-7_1}"
+# Resolve the version the way the build does: an explicit argument wins,
+# otherwise the nearest release tag. Tag names carry a "v" that is not part of
+# the version itself.
+if [[ $# -ge 1 ]]; then
+    VERSION="$1"
+else
+    VERSION="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo "0.0.0-dev")"
+fi
+VERSION="${VERSION#v}"
+
 BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
-PACKAGE_NAME="ctr-native-${VERSION}-linux-x86"
+PACKAGE_NAME="ctr_native_expanded-${VERSION}-linux-x86"
 PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
 BINARY_PATH="${BUILD_DIR}/ctr_native_expanded"
 

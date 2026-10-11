@@ -1,0 +1,10 @@
+# Filled in by `git archive`, which is how GitHub builds the source archives
+# attached to a release. cmake/CtrNativeVersion.cmake reads this so a tarball
+# reports the tag it was cut from. In a clone the line stays an unexpanded
+# $Format:$ placeholder and is ignored.
+#
+# %(describe:tags) is the widest form that git actually expands here; the
+# match= option silently fails to expand on older git, which would leave the
+# tarball with no version at all. CtrNativeVersion.cmake checks that the result
+# really is a release tag before trusting it.
+node: $Format:%(describe:tags)$

@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.20)
 project(CTR-Native-Expanded C)
 include(CheckCCompilerFlag)
 
-set(CTR_NATIVE_EXPANDED_VERSION "0.1.0-beta.7.1")
-
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
         "CTR Native Expanded currently requires a 32-bit target. "
@@ -22,28 +20,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
 
-execute_process(
-    COMMAND git rev-parse --short=12 HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE CTR_NATIVE_EXPANDED_GIT_HASH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
-if(NOT CTR_NATIVE_EXPANDED_GIT_HASH)
-    set(CTR_NATIVE_EXPANDED_GIT_HASH "unknown")
-endif()
-
-execute_process(
-    COMMAND git diff --quiet --exit-code
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    RESULT_VARIABLE CTR_NATIVE_EXPANDED_GIT_DIRTY
-    ERROR_QUIET
-)
-if(CTR_NATIVE_EXPANDED_GIT_DIRTY EQUAL 0)
-    set(CTR_NATIVE_EXPANDED_BUILD_ID "${CTR_NATIVE_EXPANDED_GIT_HASH}")
-else()
-    set(CTR_NATIVE_EXPANDED_BUILD_ID "${CTR_NATIVE_EXPANDED_GIT_HASH}-dirty")
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeVersion.cmake")
+message(STATUS "CTR Native Expanded ${CTR_NATIVE_EXPANDED_VERSION} (version source: ${CTR_NATIVE_EXPANDED_VERSION_SOURCE})")
 
 function(ctr_native_add_label_warning_if_supported target warning flag_check)
     set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")

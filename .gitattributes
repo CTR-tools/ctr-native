@@ -1,0 +1,2 @@
+# Expand the version placeholder when `git archive` builds a source archive.
+.git_archival.txt export-subst
