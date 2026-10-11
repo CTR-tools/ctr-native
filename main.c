@@ -92,12 +92,12 @@
 #endif
 #endif
 
-#ifndef CTR_NATIVE_VERSION
-#define CTR_NATIVE_VERSION "0.0.0-dev"
+#ifndef CTR_NATIVE_EXPANDED_VERSION
+#define CTR_NATIVE_EXPANDED_VERSION "0.0.0-dev"
 #endif
 
-#ifndef CTR_NATIVE_BUILD_ID
-#define CTR_NATIVE_BUILD_ID "unknown"
+#ifndef CTR_NATIVE_EXPANDED_BUILD_ID
+#define CTR_NATIVE_EXPANDED_BUILD_ID "unknown"
 #endif
 
 static int NativeConsole_ShouldPauseOnError(void)
@@ -122,7 +122,7 @@ static s32 NativeConsole_Return(const u32 result)
 	{
 		fflush(stdout);
 		fflush(stderr);
-		fprintf(stderr, "\n[CTR Native] Press Enter to close this window...");
+		fprintf(stderr, "\n[CTR Native Expanded] Press Enter to close this window...");
 		fflush(stderr);
 
 		while (getchar() != '\n' && !feof(stdin))
@@ -146,33 +146,33 @@ int main(int argc, char *argv[])
 	{
 		if (NativeArg_IsVersion(argv[argIndex]))
 		{
-			printf("CTR Native %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
+			printf("CTR Native Expanded %s (%s)\n", CTR_NATIVE_EXPANDED_VERSION, CTR_NATIVE_EXPANDED_BUILD_ID);
 			return 0;
 		}
 	}
 
-	printf("[CTR Native] Starting...\n");
+	printf("[CTR Native Expanded] Starting...\n");
 	fflush(stdout);
 
 	const char *sdlBasePath = SDL_GetBasePath();
-	printf("[CTR Native] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
+	printf("[CTR Native Expanded] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 	fflush(stdout);
 
 	if (!NativeAssets_Init(sdlBasePath))
 	{
-		fprintf(stderr, "[CTR Native] Failed to initialize asset paths.\n");
+		fprintf(stderr, "[CTR Native Expanded] Failed to initialize asset paths.\n");
 		return NativeConsole_Return(1);
 	}
 
-	printf("[CTR Native] Version: %s (%s)\n", CTR_NATIVE_VERSION, CTR_NATIVE_BUILD_ID);
-	printf("[CTR Native] Built with: " CC "\n");
-	printf("[CTR Native] Base: %s\n", NativeAssets_GetBaseDir());
-	printf("[CTR Native] Assets: %s\n", NativeAssets_GetAssetDir());
+	printf("[CTR Native Expanded] Version: %s (%s)\n", CTR_NATIVE_EXPANDED_VERSION, CTR_NATIVE_EXPANDED_BUILD_ID);
+	printf("[CTR Native Expanded] Built with: " CC "\n");
+	printf("[CTR Native Expanded] Base: %s\n", NativeAssets_GetBaseDir());
+	printf("[CTR Native Expanded] Assets: %s\n", NativeAssets_GetAssetDir());
 	fflush(stdout);
 
 	if (chdir(NativeAssets_GetBaseDir()) != 0)
 	{
-		fprintf(stderr, "[CTR Native] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
+		fprintf(stderr, "[CTR Native Expanded] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
 		return NativeConsole_Return(1);
 	}
 
@@ -192,10 +192,10 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef USE_16BY9
-	printf("[CTR Native] Widescreen\n");
+	printf("[CTR Native Expanded] Widescreen\n");
 	Platform_Init("Crash Team Racing", 1280, 720);
 #else
-	printf("[CTR Native] 4:3\n");
+	printf("[CTR Native Expanded] 4:3\n");
 	Platform_Init("Crash Team Racing", 800, 600);
 #endif
 

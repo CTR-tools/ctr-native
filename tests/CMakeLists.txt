@@ -5,8 +5,8 @@
 set(CTR_TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/tests")
 set(CTR_TEST_SUITES "")
 
-add_test(NAME ctr_native_version COMMAND $<TARGET_FILE:ctr_native> --version)
-set_tests_properties(ctr_native_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native ")
+add_test(NAME ctr_native_expanded_version COMMAND $<TARGET_FILE:ctr_native> --version)
+set_tests_properties(ctr_native_expanded_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native Expanded ")
 
 # Declares one suite. NAME is both the target and the CTest name. SOURCES are
 # the files it compiles.
@@ -31,7 +31,7 @@ function(ctr_add_test_suite NAME)
 
     ctr_native_apply_common_options(${NAME})
 
-    if(CTR_NATIVE_MSVC_FRONTEND)
+    if(CTR_NATIVE_EXPANDED_MSVC_FRONTEND)
         # main.c sets this for the game tree because it compiles the same platform
         # sources; a suite does too.
         target_compile_definitions(${NAME} PRIVATE _CRT_SECURE_NO_WARNINGS)

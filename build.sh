@@ -1,5 +1,5 @@
 #!/bin/bash
-# CTR Native Build Script (Linux)
+# CTR Native Expanded Build Script (Linux)
 # Requires gcc-multilib and X11/GL/ALSA dev packages
 
 set -e

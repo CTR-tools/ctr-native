@@ -2821,7 +2821,7 @@ void NativeAudio_StepVBlank(void)
 #ifdef CTR_INTERNAL
 	if (shouldReportStats)
 	{
-		printf("[CTR Native] Audio output stats: underrunFrames=%d overflowFrames=%d queuedFrames=%d callbackMaxRequestFrames=%d\n", underrunFrames,
+		printf("[CTR Native Expanded] Audio output stats: underrunFrames=%d overflowFrames=%d queuedFrames=%d callbackMaxRequestFrames=%d\n", underrunFrames,
 		       overflowFrames, queuedFrames, s_audio.output.callbackMaxRequestFrames);
 	}
 #endif
@@ -2858,7 +2858,7 @@ internal int NativeAudio_OpenDevice(void)
 	s_audio.output.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &want, NativeAudio_StreamCallback, NULL);
 	if (s_audio.output.stream == NULL)
 	{
-		fprintf(stderr, "[CTR Native] SDL audio unavailable: %s\n", SDL_GetError());
+		fprintf(stderr, "[CTR Native Expanded] SDL audio unavailable: %s\n", SDL_GetError());
 		return 0;
 	}
 
@@ -2869,7 +2869,7 @@ internal int NativeAudio_OpenDevice(void)
 	}
 	if (!SDL_GetAudioStreamFormat(s_audio.output.stream, &srcSpec, &dstSpec))
 	{
-		fprintf(stderr, "[CTR Native] SDL audio stream format unavailable: %s\n", SDL_GetError());
+		fprintf(stderr, "[CTR Native Expanded] SDL audio stream format unavailable: %s\n", SDL_GetError());
 		SDL_DestroyAudioStream(s_audio.output.stream);
 		s_audio.output.stream = NULL;
 		s_audio.output.device = 0;
@@ -2878,7 +2878,7 @@ internal int NativeAudio_OpenDevice(void)
 
 	if ((srcSpec.freq != want.freq) || (srcSpec.format != want.format) || (srcSpec.channels != want.channels))
 	{
-		fprintf(stderr, "[CTR Native] SDL audio rejected fixed PCM contract: got %d Hz format 0x%x channels %d\n", srcSpec.freq, srcSpec.format,
+		fprintf(stderr, "[CTR Native Expanded] SDL audio rejected fixed PCM contract: got %d Hz format 0x%x channels %d\n", srcSpec.freq, srcSpec.format,
 		        srcSpec.channels);
 		SDL_DestroyAudioStream(s_audio.output.stream);
 		s_audio.output.stream = NULL;
@@ -2886,12 +2886,12 @@ internal int NativeAudio_OpenDevice(void)
 		return 0;
 	}
 
-	printf("[CTR Native] SDL audio stream opened: driver=%s src=%d Hz/%d ch dst=%d Hz/%d ch device=%d Hz/%d ch sampleFrames=%d\n", SDL_GetCurrentAudioDriver(),
+	printf("[CTR Native Expanded] SDL audio stream opened: driver=%s src=%d Hz/%d ch dst=%d Hz/%d ch device=%d Hz/%d ch sampleFrames=%d\n", SDL_GetCurrentAudioDriver(),
 	       srcSpec.freq, srcSpec.channels, dstSpec.freq, dstSpec.channels, deviceSpec.freq, deviceSpec.channels, deviceSampleFrames);
 	NativeAudio_ClearOutputQueueNoLock();
 	if (!SDL_ResumeAudioStreamDevice(s_audio.output.stream))
 	{
-		fprintf(stderr, "[CTR Native] SDL audio stream resume failed: %s\n", SDL_GetError());
+		fprintf(stderr, "[CTR Native Expanded] SDL audio stream resume failed: %s\n", SDL_GetError());
 		SDL_DestroyAudioStream(s_audio.output.stream);
 		s_audio.output.stream = NULL;
 		s_audio.output.device = 0;

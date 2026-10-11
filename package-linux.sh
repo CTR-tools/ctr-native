@@ -24,7 +24,7 @@ cp LICENSE "${PACKAGE_DIR}/"
 cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/"
 
 cat >"${PACKAGE_DIR}/README.txt" <<EOF
-CTR Native Linux x86 ${VERSION} build
+CTR Native Expanded Linux x86 ${VERSION} build
 
 Game assets are not included.
 

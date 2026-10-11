@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-:: CTR Native MSVC Build Script (Windows x86)
+:: CTR Native Expanded MSVC Build Script (Windows x86)
 :: Requires Visual Studio 2022 or Build Tools with the Desktop C++ workload.
 
 where cmake >nul 2>&1
