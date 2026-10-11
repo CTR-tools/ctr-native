@@ -29,7 +29,8 @@ when the task needs that subsystem; combine skills for cross-cutting work:
 | INI options and in-game config menu | `.agents/skills/runtime-configuration/SKILL.md` |
 | HUD and menus | `.agents/skills/hud-and-ui/SKILL.md` |
 | Disc/extracted assets, CD, audio, input, memory cards | `.agents/skills/assets-and-io/SKILL.md` |
-| Builds, tests, quick states, bug replays, performance | `.agents/skills/debugging-and-validation/SKILL.md` |
+| Builds, quick states, bug replays, performance | `.agents/skills/debugging-and-validation/SKILL.md` |
+| Add or change focused tests, run them | `.agents/skills/testing/SKILL.md` |
 
 Treat the skills as task-specific maps into the source, not as substitutes for
 reading the implementation. The current PS1-shaped rendering and memory paths
