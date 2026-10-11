@@ -91,6 +91,13 @@ jobs:
           }
           Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\mingw32\bin"
 
+      # SDL is compiled from vendored source and dominates a cold build, so
+      # its build tree is cached and reused. The action carries the key it
+      # needs and the reason the restored files have to be touched; see
+      # .github/actions/cache-sdl/action.yml.
+      - name: Restore the SDL build cache
+        uses: ./.github/actions/cache-sdl
+
       - name: Build
         shell: cmd
         run: .\build.bat
