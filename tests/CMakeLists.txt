@@ -5,7 +5,7 @@
 set(CTR_TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/tests")
 set(CTR_TEST_SUITES "")
 
-add_test(NAME ctr_native_expanded_version COMMAND $<TARGET_FILE:ctr_native> --version)
+add_test(NAME ctr_native_expanded_version COMMAND $<TARGET_FILE:ctr_native_expanded> --version)
 set_tests_properties(ctr_native_expanded_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native Expanded ")
 
 # Declares one suite. NAME is both the target and the CTest name. SOURCES are

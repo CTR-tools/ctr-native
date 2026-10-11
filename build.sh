@@ -15,4 +15,4 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT
 cmake --build build -j"$(nproc)"
 
 echo ""
-echo "Build succeeded: build/ctr_native"
+echo "Build succeeded: build/ctr_native_expanded"

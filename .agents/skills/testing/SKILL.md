@@ -31,7 +31,7 @@ is skipped by `-R "test_"`.
 
 `global_variable` is `static` (`include/macros.h`), so a platform module's state
 is file-static and no other translation unit can name it. `main.c` gets all the
-sources into one unit; a suite cannot link against `ctr_native.exe` at all.
+sources into one unit; a suite cannot link against `ctr_native_expanded.exe` at all.
 
 A suite that needs that state includes the module's own sources into its own
 translation unit, in the same order `main.c` uses:

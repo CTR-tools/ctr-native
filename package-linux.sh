@@ -8,7 +8,7 @@ BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
 PACKAGE_NAME="ctr-native-${VERSION}-linux-x86"
 PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
-BINARY_PATH="${BUILD_DIR}/ctr_native"
+BINARY_PATH="${BUILD_DIR}/ctr_native_expanded"
 
 if [[ ! -x "${BINARY_PATH}" ]]; then
     echo "ERROR: missing executable: ${BINARY_PATH}" >&2
@@ -36,7 +36,7 @@ assets/
 
 - Run:
 
-./ctr_native
+./ctr_native_expanded
 
 The disc image must be the common single-track raw PSX BIN layout:
 MODE2/2352 sectors, with the data track starting at byte 0.
@@ -73,10 +73,10 @@ If the game does not launch, run it from a terminal and include:
 - distro/version
 - GPU/driver
 - terminal output
-- output of: ldd ./ctr_native
+- output of: ldd ./ctr_native_expanded
 EOF
 
-chmod +x "${PACKAGE_DIR}/ctr_native"
+chmod +x "${PACKAGE_DIR}/ctr_native_expanded"
 
 (
     cd "${DIST_DIR}"

@@ -720,7 +720,7 @@ internal void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 	fprintf(file, "memcard_seed_path=%s\n", s_reportMemcardSeedPath != NULL ? s_reportMemcardSeedPath : "");
 	fprintf(file, "memcard_recording_path=%s\n", s_reportMemcardRecordingPath != NULL ? s_reportMemcardRecordingPath : "");
 	fprintf(file, "log_path=%s\n", Platform_LogGetPath());
-	fprintf(file, "playback_command=build/ctr_native --replay \"%s\"\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
+	fprintf(file, "playback_command=build/ctr_native_expanded --replay \"%s\"\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
 	fclose(file);
 }
 
