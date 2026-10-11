@@ -17,6 +17,9 @@
 /memcards/
 *.log
 
+Temporary/
+CTestCostData.txt
+
 # Compiler outputs.
 *.exe
 *.o

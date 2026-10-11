@@ -1,25 +1,18 @@
 // Unit tests for platform/native_controls.c.
 //
-// The module is a .c in the unity build, so the test includes it directly and
-// drives the device table by hand. That keeps the tests focused on the logic that
-// is easy to get wrong: assignment order, the anti-softlock rule, hotplug
-// recovery, and controls.ini round-tripping.
+// The module is a .c in the unity build, so this suite pulls it in directly
+// and drives the device table by hand. That keeps the tests focused on the
+// logic that is easy to get wrong: assignment order, the anti-softlock rule,
+// hotplug recovery, and controls.ini round-tripping.
 //
-// Build and run from the repository root:
-//   gcc -std=c17 -I. -Iinclude -Iexternals/SDL/include
-//       tools/controls/test_native_controls.c
-//       build/externals/SDL/libSDL3.a
-//       -o build/test_native_controls
-//       -lm -lkernel32 -luser32 -lgdi32 -lwinmm -limm32 -lole32 -loleaut32
-//       -lversion -luuid -ladvapi32 -lsetupapi -lshell32
-//   ./build/test_native_controls
-//
-// The directory it is started in does not matter: controls.ini is read and written in a
-// scratch directory that is removed again on the way out.
+// Run it through CTest (`ctest -R controls`), from the Run menu in CLion, or
+// build the `test_native_controls` target and run the binary directly. The
+// directory it is started in does not matter: controls.ini is read and written
+// in a scratch directory that is removed again on the way out.
 
-// SDL must come before macros.h: the project defines `internal` as `static`, which
-// would otherwise rewrite SDL's `SDL_DisplayModeData.internal` field. The unity
-// build gets this ordering for free because main.c includes SDL first.
+// SDL must come before macros.h: the project defines `internal` as `static`,
+// which would otherwise rewrite SDL's `SDL_DisplayModeData.internal` field. The
+// unity build gets this ordering for free because main.c includes SDL first.
 #include <SDL3/SDL.h>
 
 #include <macros.h>
@@ -29,17 +22,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-// The pad-bus replay mirrors the game's pad structures.
+// The pad-bus replay below mirrors the game's pad structures.
 #include <namespace_Gamepad.h>
 #include <psx/libpad.h>
 
-// Only these two platform services are external to the module; the path helpers it
-// uses are header-only.
+#include <platform/native_path.h>
+
+#include <shared/ctr_test.h>
+#include <shared/ctr_test_scratch.h>
+
+// Doubles for the platform services the modules below call but do not own. The
+// path helpers they reach for are header-only.
 //
-// Every path the module builds runs through NativeAssets_GetBaseDir, so this is where
-// controls.ini lands. Left at "." it would land wherever the binary was started, which is
-// normally the repository root, and a real controls.ini there would be overwritten by
-// whatever the last test wrote. TestUseScratchDir points it somewhere disposable instead.
+// Every path the module builds runs through NativeAssets_GetBaseDir, so this is
+// where the suite's controls.ini lands. Left at "." it would land wherever the
+// binary was started, which is normally the repository root, and a real
+// controls.ini there would be overwritten by whatever the last run wrote.
+// CtrTestScratch_Open points it somewhere disposable instead.
 static char s_testBaseDir[512] = ".";
 
 const char *NativeAssets_GetBaseDir(void)
@@ -60,37 +59,36 @@ void Platform_LogWarn(const char *fmt, ...)
 	(void)fmt;
 }
 
-// native_config.c for g_config, which native_input.c reads for the omni-controller
-// hack. native_controls.c comes first: the input layer reads the assignment from it.
+// The module under test, and the two it needs beside it. These three only see
+// each other when compiled together: their state lives in file-statics
+// (`global_variable` is `static`, see include/macros.h), which is why the game
+// pulls them into main.c in a fixed order. A suite cannot link against
+// ctr_native.exe at all, so it reproduces that unit here instead. main.c and
+// this suite compile the same sources, into different executables.
+//
+// Order matters: native_input.c reads the assignment from native_controls.c,
+// which reads its defaults from native_config.c.
 #include <platform/native_config.c>
 #include <platform/native_controls.c>
 #include <platform/native_input.c>
 
-// Real storage, not pointers into SetupDevices' locals.
-static char s_testDeviceKeys[NATIVE_CONTROLS_MAX_DEVICES][64];
+// The scratch directory the base directory is redirected into, so no run can
+// write over a real controls.ini.
+#define TEST_SCRATCH_SUITE "controls-tests"
+
+// Real storage, not pointers into SetupDevices' locals. The key is sized from
+// the field it is written into, so a key that does not fit is a build warning
+// rather than a silent truncation in a preference under test.
+static char s_testDeviceKeys[NATIVE_CONTROLS_MAX_DEVICES][sizeof(s_playerPref[0].deviceKey)];
 static char s_testDeviceNames[NATIVE_CONTROLS_MAX_DEVICES][32];
 
 #define TEST_KEYBOARD_NAME "Keyboard"
-
-static int s_failures;
-static int s_checks;
 
 static const char *TestPadName(int index)
 {
 	static const char *names[4] = {"Pad A", "Pad B", "Pad C", "Pad D"};
 
 	return (index >= 0 && index < 4) ? names[index] : "?";
-}
-
-static void Check(bool condition, const char *what)
-{
-	s_checks++;
-
-	if (!condition)
-	{
-		s_failures++;
-		printf("  FAIL: %s\n", what);
-	}
 }
 
 // expectedName of NULL means the player must have no device.
@@ -100,72 +98,25 @@ static void CheckDevice(int player, const char *expectedName, const char *what)
 
 	if (expectedName == NULL)
 	{
-		Check(device == NATIVE_CONTROLS_NO_DEVICE, what);
+		CTR_TEST_CHECK(device == NATIVE_CONTROLS_NO_DEVICE, what);
 		return;
 	}
 
 	if (device == NATIVE_CONTROLS_NO_DEVICE)
 	{
-		Check(false, what);
+		CTR_TEST_CHECK(false, what);
 		return;
 	}
 
-	Check(NativeControls_StrEqual(NativeControls_GetDeviceName(device), expectedName), what);
+	CTR_TEST_CHECK(NativeControls_StrEqual(NativeControls_GetDeviceName(device), expectedName), what);
 }
 
 // Mirrors how the module itself builds its path, so the tests exercise the same
 // resolution the game uses.
 static void TestFilePath(char *dst, size_t dstSize)
 {
-	NativePath_Join(dst, dstSize, NativeStr8_FromCString(s_testBaseDir),
+	NativePath_Join(dst, dstSize, NativeStr8_FromCString(NativeAssets_GetBaseDir()),
 	                NativeStr8_FromCString(NATIVE_CONTROLS_FILE_NAME));
-}
-
-// Removes the scratch directory and everything in it. Built from the pref path rather
-// than from s_testBaseDir, so this also works before the base directory is pointed at it.
-static void TestRemoveScratchDir(void)
-{
-	char *path = SDL_GetPrefPath("ctr-native", "controls-tests");
-
-	if (path == NULL)
-	{
-		return;
-	}
-
-	// SDL_RemovePath only removes an empty directory, so the file goes first. The pref
-	// path already ends in a separator.
-	char file[sizeof(s_testBaseDir)];
-	snprintf(file, sizeof(file), "%s%s", path, NATIVE_CONTROLS_FILE_NAME);
-	SDL_RemovePath(file);
-	SDL_RemovePath(path);
-	SDL_free(path);
-}
-
-// Redirects s_testBaseDir into a scratch directory under the SDL pref path. Refuses to
-// run rather than falling back to the working directory, because that fallback is exactly
-// the file it exists to protect.
-static void TestUseScratchDir(void)
-{
-	char *path = SDL_GetPrefPath("ctr-native", "controls-tests");
-
-	if ((path == NULL) || (strlen(path) >= sizeof(s_testBaseDir)))
-	{
-		printf("could not resolve a scratch directory path\n");
-		exit(1);
-	}
-
-	// SDL_CreateDirectory fails on a directory that is already there, which a run killed
-	// part way through would leave behind, so clear it out first.
-	TestRemoveScratchDir();
-
-	if (!SDL_CreateDirectory(path))
-	{
-		printf("could not create a scratch directory at %s\n", path);
-		exit(1);
-	}
-
-	snprintf(s_testBaseDir, sizeof(s_testBaseDir), "%s", path);
-	SDL_free(path);
 }
 
 static void ResetModule(void)
@@ -249,7 +200,7 @@ static void SetPref(int player, int kind, const char *deviceKey)
 // first refresh enumerates and leaves player 1 holding something.
 static void TestFirstRefreshAlwaysEnumeratesTheKeyboard(void)
 {
-	printf("refresh: the first refresh always enumerates and keeps a keyboard\n");
+	CTR_TEST_SECTION("refresh: the first refresh always enumerates and keeps a keyboard");
 
 	ResetModule();
 	s_refreshed = false;
@@ -257,18 +208,18 @@ static void TestFirstRefreshAlwaysEnumeratesTheKeyboard(void)
 	NativeControls_Refresh();
 
 	const int keyboardDevice = NativeControls_FindKeyboardDevice();
-	Check(keyboardDevice != NATIVE_CONTROLS_NO_DEVICE, "the keyboard is always enumerated");
-	Check(s_refreshed, "the refresh is recorded as done");
+	CTR_TEST_CHECK(keyboardDevice != NATIVE_CONTROLS_NO_DEVICE, "the keyboard is always enumerated");
+	CTR_TEST_CHECK(s_refreshed, "the refresh is recorded as done");
 
 	// Regression: the keyboard entry used to leave its name unset, so the menu drew an
 	// empty value for the player holding it. Asserted directly, because with a pad
 	// attached player 1 does not hold the keyboard and the name would go unchecked.
-	Check(strlen(NativeControls_GetDeviceName(keyboardDevice)) != 0, "the keyboard has a name to display");
-	Check(NativeControls_StrEqual(NativeControls_GetDeviceName(keyboardDevice), TEST_KEYBOARD_NAME),
+	CTR_TEST_CHECK(strlen(NativeControls_GetDeviceName(keyboardDevice)) != 0, "the keyboard has a name to display");
+	CTR_TEST_CHECK(NativeControls_StrEqual(NativeControls_GetDeviceName(keyboardDevice), TEST_KEYBOARD_NAME),
 	      "the keyboard is named Keyboard");
 
 	// Player 1 must never be left without a device, whatever the host has plugged in.
-	Check(NativeControls_GetPlayerDevice(0) != NATIVE_CONTROLS_NO_DEVICE, "player 1 holds a device");
+	CTR_TEST_CHECK(NativeControls_GetPlayerDevice(0) != NATIVE_CONTROLS_NO_DEVICE, "player 1 holds a device");
 
 	// The keyboard is the last fallback, so it only lands on player 1 when nothing
 	// else is available.
@@ -280,7 +231,7 @@ static void TestFirstRefreshAlwaysEnumeratesTheKeyboard(void)
 	// A second refresh with nothing changing must not disturb the assignment.
 	const int generationBefore = (int)NativeControls_GetGeneration();
 	NativeControls_Refresh();
-	Check((int)NativeControls_GetGeneration() == generationBefore, "an unchanged refresh bumps no generation");
+	CTR_TEST_CHECK((int)NativeControls_GetGeneration() == generationBefore, "an unchanged refresh bumps no generation");
 	CheckDevice(0, (NativeControls_GetDeviceKind(NativeControls_GetPlayerDevice(0)) == NATIVE_CONTROLS_DEVICE_GAMEPAD)
 	                       ? NativeControls_GetDeviceName(NativeControls_GetPlayerDevice(0))
 	                       : TEST_KEYBOARD_NAME,
@@ -289,7 +240,7 @@ static void TestFirstRefreshAlwaysEnumeratesTheKeyboard(void)
 
 static void TestDisabledPlayerCanComeBack(void)
 {
-	printf("assignment: a disabled player can be given a device again\n");
+	CTR_TEST_SECTION("assignment: a disabled player can be given a device again");
 	ResetModule();
 
 	int pads[4];
@@ -308,7 +259,7 @@ static void TestDisabledPlayerCanComeBack(void)
 	CheckDevice(2, TEST_KEYBOARD_NAME, "the keyboard moved to P3");
 
 	int available[NATIVE_CONTROLS_MAX_DEVICES];
-	Check(NativeControls_GetAvailableDevices(1, available, NATIVE_CONTROLS_MAX_DEVICES) == 0,
+	CTR_TEST_CHECK(NativeControls_GetAvailableDevices(1, available, NATIVE_CONTROLS_MAX_DEVICES) == 0,
 	      "P2 has no device available to pick, only the way out of disabled");
 
 	// Returning to automatic is what gets the keyboard back off P3.
@@ -326,7 +277,7 @@ static void DeclareDevicesForBus(int gamepadCount, int *gamepadDevice, int *keyb
 // pending state is visible, and the timeout puts the original value back.
 static void TestCaptureTimeoutRestoresTheBinding(void)
 {
-	printf("capture: timing out restores the previous binding\n");
+	CTR_TEST_SECTION("capture: timing out restores the previous binding");
 	ResetModule();
 
 	int pads[4];
@@ -337,11 +288,11 @@ static void TestCaptureTimeoutRestoresTheBinding(void)
 	const int binding = NATIVE_CONTROLS_BIND_CIRCLE;
 	const s32 original = NativeControls_GetBinding(device, binding);
 
-	Check(original == SDL_SCANCODE_V, "the circle binding starts at its default");
+	CTR_TEST_CHECK(original == SDL_SCANCODE_V, "the circle binding starts at its default");
 
 	NativeControls_BeginCapture(device, binding);
-	Check(NativeControls_IsCapturing(), "a capture is pending");
-	Check(NativeControls_GetBinding(device, binding) == NATIVE_CONTROLS_BINDING_NONE,
+	CTR_TEST_CHECK(NativeControls_IsCapturing(), "a capture is pending");
+	CTR_TEST_CHECK(NativeControls_GetBinding(device, binding) == NATIVE_CONTROLS_BINDING_NONE,
 	      "the binding reads unbound while pending, so the old value is not in effect");
 
 	// Poll without any input. The device table is unchanged, so the capture cannot be
@@ -360,15 +311,15 @@ static void TestCaptureTimeoutRestoresTheBinding(void)
 		}
 	}
 
-	Check(timedOut > 0, "the capture times out rather than waiting forever");
-	Check(!NativeControls_IsCapturing(), "no capture is pending after the timeout");
-	Check(NativeControls_GetBinding(device, binding) == original, "the previous binding is restored");
-	Check(result == 2, "the timeout is reported distinctly from a captured value");
+	CTR_TEST_CHECK(timedOut > 0, "the capture times out rather than waiting forever");
+	CTR_TEST_CHECK(!NativeControls_IsCapturing(), "no capture is pending after the timeout");
+	CTR_TEST_CHECK(NativeControls_GetBinding(device, binding) == original, "the previous binding is restored");
+	CTR_TEST_CHECK(result == 2, "the timeout is reported distinctly from a captured value");
 }
 
 static void TestCancelRestoresTheBinding(void)
 {
-	printf("capture: cancelling restores the previous binding\n");
+	CTR_TEST_SECTION("capture: cancelling restores the previous binding");
 	ResetModule();
 
 	int pads[4];
@@ -381,8 +332,8 @@ static void TestCancelRestoresTheBinding(void)
 	NativeControls_BeginCapture(keyboard, binding);
 	NativeControls_CancelCapture();
 
-	Check(!NativeControls_IsCapturing(), "no capture is pending after cancelling");
-	Check(NativeControls_GetBinding(keyboard, binding) == original, "the previous binding is restored");
+	CTR_TEST_CHECK(!NativeControls_IsCapturing(), "no capture is pending after cancelling");
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == original, "the previous binding is restored");
 }
 
 // A capture that committed must not have its new value stomped by a later cancel or
@@ -390,7 +341,7 @@ static void TestCancelRestoresTheBinding(void)
 // binding still holds the placeholder.
 static void TestCommittedCaptureSurvivesACancel(void)
 {
-	printf("capture: a committed value is not reverted by a later cancel\n");
+	CTR_TEST_SECTION("capture: a committed value is not reverted by a later cancel");
 	ResetModule();
 
 	int pads[4];
@@ -402,7 +353,7 @@ static void TestCommittedCaptureSurvivesACancel(void)
 	// Commit directly the way a landed press does, then let the normal end-of-capture
 	// cleanup run.
 	s32 *bindings = NativeControls_BindingsOfDevice(keyboard);
-	Check(bindings != NULL, "the keyboard has a bindings table");
+	CTR_TEST_CHECK(bindings != NULL, "the keyboard has a bindings table");
 
 	if (bindings != NULL)
 	{
@@ -411,7 +362,7 @@ static void TestCommittedCaptureSurvivesACancel(void)
 
 	NativeControls_CancelCapture();
 
-	Check(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_Q,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_Q,
 	      "the committed value survives");
 }
 
@@ -419,7 +370,7 @@ static void TestCommittedCaptureSurvivesACancel(void)
 // can show it, but only survives if Cross confirms it on the same device.
 static void TestChosenKeyWaitsForConfirmation(void)
 {
-	printf("capture: a chosen key is not committed until Cross confirms\n");
+	CTR_TEST_SECTION("capture: a chosen key is not committed until Cross confirms");
 	ResetModule();
 
 	int pads[4];
@@ -430,9 +381,9 @@ static void TestChosenKeyWaitsForConfirmation(void)
 	const s32 original = NativeControls_GetBinding(keyboard, binding);
 
 	NativeControls_BeginCapture(keyboard, binding);
-	Check(NativeControls_GetBinding(keyboard, binding) == NATIVE_CONTROLS_BINDING_NONE,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == NATIVE_CONTROLS_BINDING_NONE,
 	      "the binding is blanked while listening");
-	Check(!NativeControls_IsConfirming(), "not confirming before a key is chosen");
+	CTR_TEST_CHECK(!NativeControls_IsConfirming(), "not confirming before a key is chosen");
 
 	// Stand in for a key press landing, which the host would otherwise supply.
 	s_capturePendingValue = SDL_SCANCODE_Q;
@@ -444,12 +395,12 @@ static void TestChosenKeyWaitsForConfirmation(void)
 	}
 	s_capturePhase = NATIVE_CONTROLS_CAPTURE_CONFIRM_WAIT_RELEASE;
 
-	Check(NativeControls_IsConfirming(), "the capture is waiting for confirmation");
-	Check(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q, "the proposal is visible");
+	CTR_TEST_CHECK(NativeControls_IsConfirming(), "the capture is waiting for confirmation");
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q, "the proposal is visible");
 
 	// Abandoning it puts the original back.
 	NativeControls_CancelCapture();
-	Check(NativeControls_GetBinding(keyboard, binding) == original,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == original,
 	      "an unconfirmed proposal is reverted on cancel");
 }
 
@@ -457,7 +408,7 @@ static void TestChosenKeyWaitsForConfirmation(void)
 // previous value rather than leaving the proposal in place.
 static void TestUnconfirmedProposalIsRevertedOnTimeout(void)
 {
-	printf("capture: an unconfirmed proposal reverts when the window expires\n");
+	CTR_TEST_SECTION("capture: an unconfirmed proposal reverts when the window expires");
 	ResetModule();
 
 	int pads[4];
@@ -489,15 +440,15 @@ static void TestUnconfirmedProposalIsRevertedOnTimeout(void)
 		}
 	}
 
-	Check(result == 2, "the unconfirmed capture times out");
-	Check(NativeControls_GetBinding(keyboard, binding) == original, "the original binding is restored");
+	CTR_TEST_CHECK(result == 2, "the unconfirmed capture times out");
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == original, "the original binding is restored");
 }
 
 // Confirming reads whatever control Cross is bound to, not a physical Cross, so that
 // rebinding Cross itself cannot leave the device without a way to confirm.
 static void TestConfirmUsesTheCurrentCrossBinding(void)
 {
-	printf("capture: confirming uses the device's current Cross binding\n");
+	CTR_TEST_SECTION("capture: confirming uses the device's current Cross binding");
 	ResetModule();
 
 	int pads[4];
@@ -505,16 +456,16 @@ static void TestConfirmUsesTheCurrentCrossBinding(void)
 	DeclareDevicesForBus(1, pads, &keyboard);
 
 	// The keyboard has no active keys under test, so no Cross binding reports held.
-	Check(!NativeControls_IsCrossHeld(keyboard), "Cross is not held with no key down");
+	CTR_TEST_CHECK(!NativeControls_IsCrossHeld(keyboard), "Cross is not held with no key down");
 
 	// An unbound Cross can never be pressed, so an unreachable proposal cannot be
 	// confirmed and the capture reverts instead of locking the device out.
 	NativeControls_SetBinding(keyboard, NATIVE_CONTROLS_BIND_CROSS, NATIVE_CONTROLS_BINDING_NONE);
-	Check(!NativeControls_IsCrossHeld(keyboard), "an unbound Cross never reports held");
+	CTR_TEST_CHECK(!NativeControls_IsCrossHeld(keyboard), "an unbound Cross never reports held");
 
 	// A gamepad handle is a marker here and must never be dereferenced, so only the
 	// null-handle path is safe to exercise.
-	Check(!NativeControls_IsCrossHeld(NATIVE_CONTROLS_NO_DEVICE),
+	CTR_TEST_CHECK(!NativeControls_IsCrossHeld(NATIVE_CONTROLS_NO_DEVICE),
 	      "an invalid device never reports Cross held");
 }
 
@@ -522,7 +473,7 @@ static void TestConfirmUsesTheCurrentCrossBinding(void)
 // while the file kept the new value, so the change vanished on the next save.
 static void TestLeavingAfterACommitKeepsTheBinding(void)
 {
-	printf("capture: leaving after a commit does not roll the binding back\n");
+	CTR_TEST_SECTION("capture: leaving after a commit does not roll the binding back");
 	ResetModule();
 
 	int pads[4];
@@ -545,17 +496,17 @@ static void TestLeavingAfterACommitKeepsTheBinding(void)
 
 	// Stand in for the confirming Cross press landing on a device with no keys down.
 	s_capturePhase = NATIVE_CONTROLS_CAPTURE_CONFIRM;
-	Check(NativeControls_CommitCapture() == 1, "the commit reports success");
+	CTR_TEST_CHECK(NativeControls_CommitCapture() == 1, "the commit reports success");
 
-	Check(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q, "the commit took effect");
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q, "the commit took effect");
 
 	// This is the back press in MM_ConfigMenu, which runs after a confirmed rebind.
 	NativeControls_CancelCapture();
-	Check(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) == SDL_SCANCODE_Q,
 	      "the committed binding survives a later cancel");
-	Check(NativeControls_GetBinding(keyboard, binding) != original,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, binding) != original,
 	      "the pre-capture value did not come back");
-	Check(!NativeControls_IsCapturing(), "the capture is fully ended");
+	CTR_TEST_CHECK(!NativeControls_IsCapturing(), "the capture is fully ended");
 
 	// The user-visible symptom: any later save must still write the new value out.
 	NativeControls_Save();
@@ -566,7 +517,7 @@ static void TestLeavingAfterACommitKeepsTheBinding(void)
 	int reloadedKeyboard;
 	SetupDevices(1, reloadedPads, &reloadedKeyboard);
 
-	Check(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_Q,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_Q,
 	      "the committed binding is still on disk after the cancel and a later save");
 }
 
@@ -574,10 +525,10 @@ static void TestLeavingAfterACommitKeepsTheBinding(void)
 // and short enough that an abandoned rebind clears itself.
 static void TestCaptureTimeoutWindowIsReasonable(void)
 {
-	printf("capture: the timeout window is usable but bounded\n");
+	CTR_TEST_SECTION("capture: the timeout window is usable but bounded");
 
-	Check(NATIVE_CONTROLS_CAPTURE_TIMEOUT_FRAMES >= 120, "at least two seconds at 60Hz");
-	Check(NATIVE_CONTROLS_CAPTURE_TIMEOUT_FRAMES <= 600, "no more than ten seconds at 60Hz");
+	CTR_TEST_CHECK(NATIVE_CONTROLS_CAPTURE_TIMEOUT_FRAMES >= 120, "at least two seconds at 60Hz");
+	CTR_TEST_CHECK(NATIVE_CONTROLS_CAPTURE_TIMEOUT_FRAMES <= 600, "no more than ten seconds at 60Hz");
 }
 
 // === Pad bus layout ===
@@ -736,23 +687,23 @@ static int RunBusLayout(int gamepadCount, int *connectedPerPlayer)
 
 static void TestBusIsAlwaysMultitap(void)
 {
-	printf("pad bus: always multitap, so player index matches pad slot\n");
+	CTR_TEST_SECTION("pad bus: always multitap, so player index matches pad slot");
 	ResetModule();
 
 	int perPlayer[4];
 	int ports = RunBusLayout(1, perPlayer);
 
-	Check(ports == 4, "the game walks four pads on port 0");
-	Check(perPlayer[0] == 1, "player 1 is connected on the pad");
-	Check(perPlayer[1] == 1, "player 2 is connected on the keyboard");
-	Check(perPlayer[2] == 0, "player 3 has no device");
+	CTR_TEST_CHECK(ports == 4, "the game walks four pads on port 0");
+	CTR_TEST_CHECK(perPlayer[0] == 1, "player 1 is connected on the pad");
+	CTR_TEST_CHECK(perPlayer[1] == 1, "player 2 is connected on the keyboard");
+	CTR_TEST_CHECK(perPlayer[2] == 0, "player 3 has no device");
 }
 
 // Regression: a conditional multitap layout used to put a keyboard on player 2 in the wrong
 // pad slot, so the game read player 2 as disconnected.
 static void TestKeyboardOnPlayerTwoIsVisibleToTheGame(void)
 {
-	printf("pad bus: keyboard on player 2 does not displace player 2\n");
+	CTR_TEST_SECTION("pad bus: keyboard on player 2 does not displace player 2");
 	ResetModule();
 
 	int perPlayer[4];
@@ -764,29 +715,29 @@ static void TestKeyboardOnPlayerTwoIsVisibleToTheGame(void)
 		connected += perPlayer[p];
 	}
 
-	Check(connected == 2, "exactly two players are connected");
-	Check(perPlayer[1] == 1, "player 2 reads its own device, not an empty slot");
+	CTR_TEST_CHECK(connected == 2, "exactly two players are connected");
+	CTR_TEST_CHECK(perPlayer[1] == 1, "player 2 reads its own device, not an empty slot");
 }
 
 static void TestAllFourPlayersAreReachable(void)
 {
-	printf("pad bus: four players are reachable\n");
+	CTR_TEST_SECTION("pad bus: four players are reachable");
 	ResetModule();
 
 	int perPlayer[4];
 	RunBusLayout(3, perPlayer);
 
-	Check(perPlayer[0] == 1, "player 1 has a pad");
-	Check(perPlayer[1] == 1, "player 2 has a pad");
-	Check(perPlayer[2] == 1, "player 3 has a pad");
-	Check(perPlayer[3] == 1, "player 4 has the keyboard");
+	CTR_TEST_CHECK(perPlayer[0] == 1, "player 1 has a pad");
+	CTR_TEST_CHECK(perPlayer[1] == 1, "player 2 has a pad");
+	CTR_TEST_CHECK(perPlayer[2] == 1, "player 3 has a pad");
+	CTR_TEST_CHECK(perPlayer[3] == 1, "player 4 has the keyboard");
 }
 
 // Regression: a device change from the menu updated the assignment table but never published
 // it, so the pad slots kept serving the old device and the change appeared to do nothing.
 static void TestChangingAPlayerDeviceReachesThePadBus(void)
 {
-	printf("assignment: a menu device change reaches the pad bus\n");
+	CTR_TEST_SECTION("assignment: a menu device change reaches the pad bus");
 	ResetModule();
 
 	int pads[4];
@@ -804,8 +755,8 @@ static void TestChangingAPlayerDeviceReachesThePadBus(void)
 
 	// Move P1 onto the keyboard, which pushes the pad to P2.
 	const u32 before = NativeControls_GetGeneration();
-	Check(NativeControls_SetPlayerPref(0, NATIVE_CONTROLS_PREF_PINNED, keyboard) == 1, "the change is accepted");
-	Check(NativeControls_GetGeneration() != before, "a device change bumps the generation");
+	CTR_TEST_CHECK(NativeControls_SetPlayerPref(0, NATIVE_CONTROLS_PREF_PINNED, keyboard) == 1, "the change is accepted");
+	CTR_TEST_CHECK(NativeControls_GetGeneration() != before, "a device change bumps the generation");
 
 	// The input layer keys off exactly this counter.
 	NativeInput_SyncDevices();
@@ -831,14 +782,14 @@ static void TestChangingAPlayerDeviceReachesThePadBus(void)
 	int perPlayer[4];
 	GamePadBusView(port0, perPlayer);
 
-	Check(s_controllers[0].device == keyboard, "pad slot 0 now follows the keyboard");
-	Check(perPlayer[0] == 1, "player 1 still reads a connected device after the change");
+	CTR_TEST_CHECK(s_controllers[0].device == keyboard, "pad slot 0 now follows the keyboard");
+	CTR_TEST_CHECK(perPlayer[0] == 1, "player 1 still reads a connected device after the change");
 	CheckDevice(1, "Bus Pad", "the pad moved to P2");
 }
 
 static void TestDisablingAPlayerReachesThePadBus(void)
 {
-	printf("assignment: disabling a player reaches the pad bus\n");
+	CTR_TEST_SECTION("assignment: disabling a player reaches the pad bus");
 	ResetModule();
 
 	int pads[4];
@@ -849,12 +800,12 @@ static void TestDisablingAPlayerReachesThePadBus(void)
 	NativeControls_SetPlayerPref(1, NATIVE_CONTROLS_PREF_DISABLED, NATIVE_CONTROLS_NO_DEVICE);
 	NativeInput_SyncDevices();
 
-	Check(s_controllers[1].device == NATIVE_CONTROLS_NO_DEVICE, "pad slot 1 was released");
+	CTR_TEST_CHECK(s_controllers[1].device == NATIVE_CONTROLS_NO_DEVICE, "pad slot 1 was released");
 }
 
 static void TestDisabledPlayerLeavesAHole(void)
 {
-	printf("pad bus: a disabled player reports disconnected without shifting others\n");
+	CTR_TEST_SECTION("pad bus: a disabled player reports disconnected without shifting others");
 	ResetModule();
 
 	int pads[4];
@@ -891,9 +842,9 @@ static void TestDisabledPlayerLeavesAHole(void)
 	NativeInput_WritePadBus();
 	int ports = GamePadBusView(port0, perPlayer);
 
-	Check(ports == 4, "the bus stays in multitap with a hole in it");
-	Check(perPlayer[0] == 1, "player 1 keeps the pad");
-	Check(perPlayer[1] == 0, "the disabled player reports disconnected");
+	CTR_TEST_CHECK(ports == 4, "the bus stays in multitap with a hole in it");
+	CTR_TEST_CHECK(perPlayer[0] == 1, "player 1 keeps the pad");
+	CTR_TEST_CHECK(perPlayer[1] == 0, "the disabled player reports disconnected");
 }
 
 // Stand-in for SDL's keyboard array, so the real NativeInput_ReadKeyboard path runs
@@ -949,7 +900,7 @@ static int GameReadsAnalogAxes(u8 controllerData)
 // it so there is nothing to misbind.
 static void TestTheKeyboardReportsAPadLikeAnyOtherDevice(void)
 {
-	printf("analog: the keyboard reports a pad like any other device\n");
+	CTR_TEST_SECTION("analog: the keyboard reports a pad like any other device");
 	ResetModule();
 	ResetBusState();
 
@@ -974,17 +925,17 @@ static void TestTheKeyboardReportsAPadLikeAnyOtherDevice(void)
 	NativeInput_SyncDevices();
 	Platform_InputUpdate();
 
-	Check(PadBusConnected(port0, 0), "the keyboard is connected");
-	Check(PadBusControllerData(port0, 0) == NATIVE_INPUT_PAD_ANALOG, "the keyboard is reported as an analog pad");
-	Check(GameReadsAnalogAxes(PadBusControllerData(port0, 0)), "the game reads the packet as a pad with axes");
+	CTR_TEST_CHECK(PadBusConnected(port0, 0), "the keyboard is connected");
+	CTR_TEST_CHECK(PadBusControllerData(port0, 0) == NATIVE_INPUT_PAD_ANALOG, "the keyboard is reported as an analog pad");
+	CTR_TEST_CHECK(GameReadsAnalogAxes(PadBusControllerData(port0, 0)), "the game reads the packet as a pad with axes");
 
 	// Nothing is bound to the axes, so they must read as centre rather than as a
 	// deflection the game would steer with.
 	const struct ControllerPacket *packet = (const struct ControllerPacket *)&((struct TestPadSlot *)port0)->controllers[0];
-	Check(packet->payload.analog.leftX == 0x80, "the left X axis reads as centre");
-	Check(packet->payload.analog.leftY == 0x80, "the left Y axis reads as centre");
-	Check(packet->payload.analog.rightX == 0x80, "the right X axis reads as centre");
-	Check(packet->payload.analog.rightY == 0x80, "the right Y axis reads as centre");
+	CTR_TEST_CHECK(packet->payload.analog.leftX == 0x80, "the left X axis reads as centre");
+	CTR_TEST_CHECK(packet->payload.analog.leftY == 0x80, "the left Y axis reads as centre");
+	CTR_TEST_CHECK(packet->payload.analog.rightX == 0x80, "the right X axis reads as centre");
+	CTR_TEST_CHECK(packet->payload.analog.rightY == 0x80, "the right Y axis reads as centre");
 
 	s_inputInitialized = 0;
 	s_keyboardState = NULL;
@@ -997,47 +948,47 @@ static void TestTheKeyboardReportsAPadLikeAnyOtherDevice(void)
 // Trimming without stretching back would quietly cap steering.
 static void TestDeadzoneTrimsCentreAndKeepsFullTravel(void)
 {
-	printf("deadzone: trims the centre and still reaches full travel\n");
+	CTR_TEST_SECTION("deadzone: trims the centre and still reaches full travel");
 
-	Check(NativeInput_ApplyDeadzone(0, 0) == 0, "a centred stick is centred at 0%");
-	Check(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 0) == SDL_JOYSTICK_AXIS_MAX,
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(0, 0) == 0, "a centred stick is centred at 0%");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 0) == SDL_JOYSTICK_AXIS_MAX,
 	      "a full-deflection stick is untouched at 0%");
-	Check(NativeInput_ApplyDeadzone(-SDL_JOYSTICK_AXIS_MAX - 1, 0) == -SDL_JOYSTICK_AXIS_MAX - 1,
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(-SDL_JOYSTICK_AXIS_MAX - 1, 0) == -SDL_JOYSTICK_AXIS_MAX - 1,
 	      "the negative end is untouched at 0%");
 
 	// A stick resting slightly off centre reads as centred.
-	Check(NativeInput_ApplyDeadzone(500, 10) == 0, "a small positive drift is trimmed away");
-	Check(NativeInput_ApplyDeadzone(-500, 10) == 0, "a small negative drift is trimmed away");
-	Check(NativeInput_ApplyDeadzone(0, 10) == 0, "a centred stick stays centred");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(500, 10) == 0, "a small positive drift is trimmed away");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(-500, 10) == 0, "a small negative drift is trimmed away");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(0, 10) == 0, "a centred stick stays centred");
 
 	// Just past the deadzone the axis has to have moved, not still read as the raw value.
-	Check(NativeInput_ApplyDeadzone(7000, 10) < 7000, "travel just past the deadzone is pulled toward centre");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(7000, 10) < 7000, "travel just past the deadzone is pulled toward centre");
 
 	// Pushed all the way, either way, the packet byte must still reach its extreme, or
 	// trimming the centre would quietly cost full throttle. Checked on the byte because
 	// that is what the game reads, and it is the level the guarantee has to hold at.
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 25)) == 0xff,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 25)) == 0xff,
 	      "full positive travel still reaches the end");
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, 25)) == 0x00,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, 25)) == 0x00,
 	      "full negative travel still reaches the end");
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, NATIVE_CONTROLS_DEADZONE_MAX)) == 0xff,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, NATIVE_CONTROLS_DEADZONE_MAX)) == 0xff,
 	      "the widest allowed deadzone still reaches the positive end");
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NATIVE_CONTROLS_DEADZONE_MAX)) == 0x00,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NATIVE_CONTROLS_DEADZONE_MAX)) == 0x00,
 	      "the widest allowed deadzone still reaches the negative end");
 
 	// Just past the deadzone the axis has to move the right way, not back toward centre.
-	Check(NativeInput_ApplyDeadzone(9000, 25) > 0, "pushing right past the deadzone reads positive");
-	Check(NativeInput_ApplyDeadzone(-9000, 25) < 0, "pushing left past the deadzone reads negative");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(9000, 25) > 0, "pushing right past the deadzone reads positive");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(-9000, 25) < 0, "pushing left past the deadzone reads negative");
 
 	// A deadzone wide enough to cover the whole range must trim everything and stop there.
 	// The negative end of an SDL axis is one unit past the positive one, so it is the only
 	// value that reaches the rescale with nothing left to stretch, which is what turned the
 	// denominator into a division by zero.
-	Check(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, 100) == 0, "a full-width deadzone trims the far negative end");
-	Check(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 100) == 0, "a full-width deadzone trims the far positive end");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, 100) == 0, "a full-width deadzone trims the far negative end");
+	CTR_TEST_CHECK(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, 100) == 0, "a full-width deadzone trims the far positive end");
 
 	// The widest the menu allows still leaves travel, so nothing is trimmed away for good.
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NATIVE_CONTROLS_DEADZONE_MAX)) == 0x00,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NATIVE_CONTROLS_DEADZONE_MAX)) == 0x00,
 	      "the widest allowed deadzone still reports the far negative end");
 
 	// Nothing at or above the top of the range may divide by zero, whatever it is asked for.
@@ -1047,14 +998,14 @@ static void TestDeadzoneTrimsCentreAndKeepsFullTravel(void)
 		NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MAX, percent);
 	}
 
-	Check(NATIVE_CONTROLS_DEADZONE_MAX < 100, "the maximum leaves some travel at each end");
+	CTR_TEST_CHECK(NATIVE_CONTROLS_DEADZONE_MAX < 100, "the maximum leaves some travel at each end");
 
 	// Monotonic: more stick must never report less, or the steering would reverse.
 	s32 previous = 0;
 	for (s32 axis = 0; axis <= SDL_JOYSTICK_AXIS_MAX; axis += 512)
 	{
 		const s32 applied = NativeInput_ApplyDeadzone(axis, 20);
-		Check(applied >= previous, "the trimmed axis never moves backwards");
+		CTR_TEST_CHECK(applied >= previous, "the trimmed axis never moves backwards");
 		previous = applied;
 	}
 }
@@ -1063,7 +1014,7 @@ static void TestDeadzoneTrimsCentreAndKeepsFullTravel(void)
 // keep trimming input it no longer shows a figure for.
 static void TestRestoreDefaultsClearsTheDeadzone(void)
 {
-	printf("deadzone: restoring defaults clears it\n");
+	CTR_TEST_SECTION("deadzone: restoring defaults clears it");
 	ResetModule();
 
 	int pads[4];
@@ -1071,17 +1022,17 @@ static void TestRestoreDefaultsClearsTheDeadzone(void)
 	SetupDevices(1, pads, &keyboard);
 
 	NativeControls_SetDeadzone(pads[0], 30);
-	Check(NativeControls_GetDeadzone(pads[0]) == 30, "the deadzone takes");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == 30, "the deadzone takes");
 
 	NativeControls_RestoreDeviceDefaults(pads[0]);
-	Check(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_DEFAULT, "the default is back");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_DEFAULT, "the default is back");
 }
 
 // The value is clamped at both ends however it arrives, so a hand-edited file cannot
 // produce a deadzone that trims the entire range.
 static void TestDeadzoneIsClamped(void)
 {
-	printf("deadzone: values are clamped to the allowed range\n");
+	CTR_TEST_SECTION("deadzone: values are clamped to the allowed range");
 	ResetModule();
 
 	int pads[4];
@@ -1089,12 +1040,12 @@ static void TestDeadzoneIsClamped(void)
 	SetupDevices(1, pads, &keyboard);
 
 	NativeControls_SetDeadzone(pads[0], 5000);
-	Check(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MAX, "too high clamps to the maximum");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MAX, "too high clamps to the maximum");
 
 	NativeControls_SetDeadzone(pads[0], -5000);
-	Check(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MIN, "too low clamps to the minimum");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MIN, "too low clamps to the minimum");
 
-	Check(NativeControls_GetDeadzone(NATIVE_CONTROLS_NO_DEVICE) == NATIVE_CONTROLS_DEADZONE_DEFAULT,
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(NATIVE_CONTROLS_NO_DEVICE) == NATIVE_CONTROLS_DEADZONE_DEFAULT,
 	      "no device reads the default");
 }
 
@@ -1102,7 +1053,7 @@ static void TestDeadzoneIsClamped(void)
 // and must come back for the same device and no other.
 static void TestDeadzoneRoundTripsPerDevice(void)
 {
-	printf("deadzone: saved per device and read back\n");
+	CTR_TEST_SECTION("deadzone: saved per device and read back");
 	ResetModule();
 
 	int pads[4];
@@ -1112,7 +1063,7 @@ static void TestDeadzoneRoundTripsPerDevice(void)
 
 	NativeControls_SetDeadzone(pads[0], 15);
 	NativeControls_SetDeadzone(pads[1], 40);
-	Check(NativeControls_GetDeadzone(pads[0]) == 15, "the first pad keeps its own figure");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == 15, "the first pad keeps its own figure");
 
 	// The menu's flush is what reaches the file.
 	NativeControls_Save();
@@ -1124,9 +1075,9 @@ static void TestDeadzoneRoundTripsPerDevice(void)
 	int reloadedKeyboard;
 	SetupDevices(2, reloadedPads, &reloadedKeyboard);
 
-	Check(NativeControls_GetDeadzone(reloadedPads[0]) == 15, "the first pad's figure survived");
-	Check(NativeControls_GetDeadzone(reloadedPads[1]) == 40, "the second pad's figure survived");
-	Check(NativeControls_GetDeadzone(reloadedKeyboard) == NATIVE_CONTROLS_DEADZONE_DEFAULT,
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(reloadedPads[0]) == 15, "the first pad's figure survived");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(reloadedPads[1]) == 40, "the second pad's figure survived");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(reloadedKeyboard) == NATIVE_CONTROLS_DEADZONE_DEFAULT,
 	      "the keyboard has no figure of its own");
 }
 
@@ -1134,7 +1085,7 @@ static void TestDeadzoneRoundTripsPerDevice(void)
 // input layer is handed is always one it can actually rescale.
 static void TestAHandEditedDeadzoneCannotExceedTheMaximum(void)
 {
-	printf("deadzone: a hand-edited figure past the maximum is clamped\n");
+	CTR_TEST_SECTION("deadzone: a hand-edited figure past the maximum is clamped");
 
 	char path[512];
 	TestFilePath(path, sizeof(path));
@@ -1151,17 +1102,17 @@ static void TestAHandEditedDeadzoneCannotExceedTheMaximum(void)
 	int keyboard;
 	SetupDevices(1, pads, &keyboard);
 
-	Check(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MAX, "it clamps to the maximum");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == NATIVE_CONTROLS_DEADZONE_MAX, "it clamps to the maximum");
 
 	// And the clamped value is one the input layer can actually rescale.
-	Check(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NativeControls_GetDeadzone(pads[0]))) == 0x00,
+	CTR_TEST_CHECK(NativeInput_AxisToByte(NativeInput_ApplyDeadzone(SDL_JOYSTICK_AXIS_MIN, NativeControls_GetDeadzone(pads[0]))) == 0x00,
 	      "the clamped value keeps the far negative end rather than dividing by zero");
 }
 
 // An unreadable figure must leave the default rather than trim input nobody asked to trim.
 static void TestAnUnreadableDeadzoneKeepsTheDefault(void)
 {
-	printf("deadzone: an unreadable figure keeps the default\n");
+	CTR_TEST_SECTION("deadzone: an unreadable figure keeps the default");
 
 	char path[512];
 	TestFilePath(path, sizeof(path));
@@ -1179,22 +1130,22 @@ static void TestAnUnreadableDeadzoneKeepsTheDefault(void)
 	int keyboard;
 	SetupDevices(1, pads, &keyboard);
 
-	Check(NativeControls_GetDeadzone(pads[0]) == 25, "a good figure later in the file still applies");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == 25, "a good figure later in the file still applies");
 }
 
 // A pad with no figure at all must read as the console's behaviour rather than something
 // the profile table happened to be zeroed to by accident.
 static void TestDeadzoneDefaultsToNone(void)
 {
-	printf("deadzone: an unconfigured pad trims nothing\n");
+	CTR_TEST_SECTION("deadzone: an unconfigured pad trims nothing");
 	ResetModule();
 
 	int pads[4];
 	int keyboard;
 	SetupDevices(1, pads, &keyboard);
 
-	Check(NativeControls_GetDeadzone(pads[0]) == 0, "the default trims nothing");
-	Check(NATIVE_CONTROLS_DEADZONE_DEFAULT == 0, "the default is the console's behaviour");
+	CTR_TEST_CHECK(NativeControls_GetDeadzone(pads[0]) == 0, "the default trims nothing");
+	CTR_TEST_CHECK(NATIVE_CONTROLS_DEADZONE_DEFAULT == 0, "the default is the console's behaviour");
 }
 
 // The snapshot version in effect while the digital/analog toggle still existed. Its layout
@@ -1205,15 +1156,15 @@ static void TestDeadzoneDefaultsToNone(void)
 
 static void TestAnOlderInputSnapshotIsRefused(void)
 {
-	printf("state: an input snapshot from before the toggle is refused\n");
+	CTR_TEST_SECTION("state: an input snapshot from before the toggle is refused");
 	ResetBusState();
 
-	Check(NATIVE_INPUT_STATE_VERSION != TEST_INPUT_STATE_VERSION_WITH_TOGGLE,
+	CTR_TEST_CHECK(NATIVE_INPUT_STATE_VERSION != TEST_INPUT_STATE_VERSION_WITH_TOGGLE,
 	      "the version was bumped past the layout that had the toggle fields");
 
 	const int size = Platform_InputGetStateSize();
 	u8 *buffer = calloc(1, (size_t)size);
-	Check(buffer != NULL, "the snapshot buffer is allocated");
+	CTR_TEST_CHECK(buffer != NULL, "the snapshot buffer is allocated");
 
 	if (buffer == NULL)
 	{
@@ -1229,14 +1180,14 @@ static void TestAnOlderInputSnapshotIsRefused(void)
 	s_padSlotData[0] = port0;
 	s_padSlotData[1] = port1;
 
-	Check(Platform_InputCaptureState(buffer, size) == 1, "a snapshot is captured");
+	CTR_TEST_CHECK(Platform_InputCaptureState(buffer, size) == 1, "a snapshot is captured");
 
 	struct NativeInputStateSnapshot *snapshot = (struct NativeInputStateSnapshot *)buffer;
-	Check(snapshot->version == NATIVE_INPUT_STATE_VERSION, "the capture carries the current version");
+	CTR_TEST_CHECK(snapshot->version == NATIVE_INPUT_STATE_VERSION, "the capture carries the current version");
 
 	// Stands in for a snapshot read from a checkpoint written by that older build.
 	snapshot->version = TEST_INPUT_STATE_VERSION_WITH_TOGGLE;
-	Check(Platform_InputRestoreState(buffer, size) == 0, "an older snapshot is refused");
+	CTR_TEST_CHECK(Platform_InputRestoreState(buffer, size) == 0, "an older snapshot is refused");
 
 	free(buffer);
 }
@@ -1246,7 +1197,7 @@ static void TestAnOlderInputSnapshotIsRefused(void)
 // made the game announce the player as unplugged.
 static void TestAltKeepsTheKeyboardPadConnected(void)
 {
-	printf("keyboard: Alt suppresses buttons without dropping the pad\n");
+	CTR_TEST_SECTION("keyboard: Alt suppresses buttons without dropping the pad");
 	ResetBusState();
 
 	int pads[4];
@@ -1268,25 +1219,25 @@ static void TestAltKeepsTheKeyboardPadConnected(void)
 	s_inputInitialized = 1;
 	NativeInput_SyncDevices();
 
-	Check(NativeControls_GetDeviceKind(s_controllers[0].device) == NATIVE_CONTROLS_DEVICE_KEYBOARD,
+	CTR_TEST_CHECK(NativeControls_GetDeviceKind(s_controllers[0].device) == NATIVE_CONTROLS_DEVICE_KEYBOARD,
 		"pad slot 0 follows the keyboard");
 
 	const u16 crossMask = s_bindingButtonMask[NATIVE_CONTROLS_BIND_CROSS];
 
 	Platform_InputUpdate();
-	Check(PadBusConnected(port0, 0), "an idle keyboard is connected");
-	Check(PadBusButtons(port0, 0) == 0xffff, "an idle keyboard reads no buttons");
+	CTR_TEST_CHECK(PadBusConnected(port0, 0), "an idle keyboard is connected");
+	CTR_TEST_CHECK(PadBusButtons(port0, 0) == 0xffff, "an idle keyboard reads no buttons");
 
 	// A key on its own reaches the game.
 	s_testKeyboardState[SDL_SCANCODE_C] = true;
 	Platform_InputUpdate();
-	Check(PadBusButtonDown(port0, 0, crossMask) == 1, "a keyboard cross press reaches the pad");
+	CTR_TEST_CHECK(PadBusButtonDown(port0, 0, crossMask) == 1, "a keyboard cross press reaches the pad");
 
 	// Alt belongs to the window manager: the button goes away, the pad does not.
 	s_testKeyboardState[SDL_SCANCODE_LALT] = true;
 	Platform_InputUpdate();
-	Check(PadBusButtonDown(port0, 0, crossMask) == 0, "Alt suppresses the keyboard's buttons");
-	Check(PadBusConnected(port0, 0), "the pad stays connected while Alt is held");
+	CTR_TEST_CHECK(PadBusButtonDown(port0, 0, crossMask) == 0, "Alt suppresses the keyboard's buttons");
+	CTR_TEST_CHECK(PadBusConnected(port0, 0), "the pad stays connected while Alt is held");
 
 	s_inputInitialized = 0;
 	s_keyboardState = NULL;
@@ -1294,7 +1245,7 @@ static void TestAltKeepsTheKeyboardPadConnected(void)
 
 static void TestAutoAssignmentPutsFirstGamepadOnPlayerOne(void)
 {
-	printf("auto assignment: first gamepad on player 1\n");
+	CTR_TEST_SECTION("auto assignment: first gamepad on player 1");
 	ResetModule();
 
 	int pads[4];
@@ -1311,7 +1262,7 @@ static void TestAutoAssignmentPutsFirstGamepadOnPlayerOne(void)
 
 static void TestKeyboardIsTheLastFallback(void)
 {
-	printf("auto assignment: keyboard is the last fallback\n");
+	CTR_TEST_SECTION("auto assignment: keyboard is the last fallback");
 	ResetModule();
 
 	int pads[4];
@@ -1327,7 +1278,7 @@ static void TestKeyboardIsTheLastFallback(void)
 
 static void TestDisabledPlayerIsSkipped(void)
 {
-	printf("auto assignment: disabled players are skipped\n");
+	CTR_TEST_SECTION("auto assignment: disabled players are skipped");
 	ResetModule();
 
 	int pads[4];
@@ -1345,7 +1296,7 @@ static void TestDisabledPlayerIsSkipped(void)
 
 static void TestPinnedPreferencesWinOverAuto(void)
 {
-	printf("pinned preferences: honoured and ordered by player\n");
+	CTR_TEST_SECTION("pinned preferences: honoured and ordered by player");
 	ResetModule();
 
 	int pads[4];
@@ -1362,7 +1313,7 @@ static void TestPinnedPreferencesWinOverAuto(void)
 
 static void TestConflictingPinsResolveToLowerPlayer(void)
 {
-	printf("pinned preferences: a conflict resolves to the lower player\n");
+	CTR_TEST_SECTION("pinned preferences: a conflict resolves to the lower player");
 	ResetModule();
 
 	int pads[4];
@@ -1379,7 +1330,7 @@ static void TestConflictingPinsResolveToLowerPlayer(void)
 
 static void TestSoftlockGuardMovesKeyboardToPlayerOne(void)
 {
-	printf("softlock: the keyboard moves to player 1\n");
+	CTR_TEST_SECTION("softlock: the keyboard moves to player 1");
 	ResetModule();
 
 	int pads[4];
@@ -1392,12 +1343,12 @@ static void TestSoftlockGuardMovesKeyboardToPlayerOne(void)
 
 	CheckDevice(0, TEST_KEYBOARD_NAME, "P1 takes the keyboard");
 	CheckDevice(1, NULL, "P2 lost the keyboard");
-	Check(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_AUTO, "P2's pin was dropped so it cannot be stolen back");
+	CTR_TEST_CHECK(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_AUTO, "P2's pin was dropped so it cannot be stolen back");
 }
 
 static void TestHotplugGivesKeyboardToPlayerOne(void)
 {
-	printf("softlock: player 1's pad is unplugged mid-session\n");
+	CTR_TEST_SECTION("softlock: player 1's pad is unplugged mid-session");
 	ResetModule();
 
 	int pads[4];
@@ -1420,7 +1371,7 @@ static void TestHotplugGivesKeyboardToPlayerOne(void)
 
 static void TestReplugRestoresPinnedDevice(void)
 {
-	printf("hotplug: a pinned device is reclaimed when it returns\n");
+	CTR_TEST_SECTION("hotplug: a pinned device is reclaimed when it returns");
 	ResetModule();
 
 	int pads[4];
@@ -1443,7 +1394,7 @@ static void TestReplugRestoresPinnedDevice(void)
 
 static void TestAvailableDevicesHidesOtherPlayersDevices(void)
 {
-	printf("device picker: another player's device is not offered\n");
+	CTR_TEST_SECTION("device picker: another player's device is not offered");
 	ResetModule();
 
 	int pads[4];
@@ -1454,25 +1405,25 @@ static void TestAvailableDevicesHidesOtherPlayersDevices(void)
 
 	int available[NATIVE_CONTROLS_MAX_DEVICES];
 	int count = NativeControls_GetAvailableDevices(0, available, NATIVE_CONTROLS_MAX_DEVICES);
-	Check(count == 1, "P1 sees only its own device");
-	Check((count == 1) && (available[0] == pads[0]), "P1 sees its own device");
+	CTR_TEST_CHECK(count == 1, "P1 sees only its own device");
+	CTR_TEST_CHECK((count == 1) && (available[0] == pads[0]), "P1 sees its own device");
 
 	// P4 owns nothing, but auto-assignment is greedy and always claims every device,
 // so it is offered nothing rather than another player's pad.
 	count = NativeControls_GetAvailableDevices(3, available, NATIVE_CONTROLS_MAX_DEVICES);
-	Check(count == 0, "P4 is offered nothing while every device is taken");
+	CTR_TEST_CHECK(count == 0, "P4 is offered nothing while every device is taken");
 
 	// Unplug P1's pad: P1 drops to the keyboard, P2 loses its device, and the pad is
 	// gone entirely. Still nothing free for P4.
 	SetupDevices(0, pads, &keyboard);
 	NativeControls_ResolveAssignment();
 	count = NativeControls_GetAvailableDevices(3, available, NATIVE_CONTROLS_MAX_DEVICES);
-	Check(count == 0, "P4 is still offered nothing once only the keyboard remains");
+	CTR_TEST_CHECK(count == 0, "P4 is still offered nothing once only the keyboard remains");
 }
 
 static void TestPlayerOneCannotBeDisabled(void)
 {
-	printf("player 1 cannot be disabled\n");
+	CTR_TEST_SECTION("player 1 cannot be disabled");
 	ResetModule();
 
 	int pads[4];
@@ -1480,14 +1431,14 @@ static void TestPlayerOneCannotBeDisabled(void)
 	SetupDevices(1, pads, &keyboard);
 	NativeControls_ResolveAssignment();
 
-	Check(NativeControls_SetPlayerPref(0, NATIVE_CONTROLS_PREF_DISABLED, NATIVE_CONTROLS_NO_DEVICE) == 0,
+	CTR_TEST_CHECK(NativeControls_SetPlayerPref(0, NATIVE_CONTROLS_PREF_DISABLED, NATIVE_CONTROLS_NO_DEVICE) == 0,
 	      "the request is refused");
 	CheckDevice(0, TestPadName(0), "P1 keeps its device");
 }
 
 static void TestIniRoundTrip(void)
 {
-	printf("controls.ini: write then read back\n");
+	CTR_TEST_SECTION("controls.ini: write then read back");
 	ResetModule();
 
 	int pads[4];
@@ -1511,17 +1462,17 @@ static void TestIniRoundTrip(void)
 	int reloadedKeyboard;
 	SetupDevices(1, reloadedPads, &reloadedKeyboard);
 
-	Check(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_SPACE,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_SPACE,
 	      "keyboard cross came back");
-	Check(NativeControls_GetBinding(reloadedPads[0], NATIVE_CONTROLS_BIND_L2) == SDL_GAMEPAD_BUTTON_DPAD_UP,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedPads[0], NATIVE_CONTROLS_BIND_L2) == SDL_GAMEPAD_BUTTON_DPAD_UP,
 	      "gamepad L2 came back as a button");
-	Check(NativeControls_GetBinding(reloadedPads[0], NATIVE_CONTROLS_BIND_AXIS_LEFT_Y) ==
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedPads[0], NATIVE_CONTROLS_BIND_AXIS_LEFT_Y) ==
 	          (SDL_GAMEPAD_AXIS_RIGHTY | NATIVE_CONTROLS_BINDING_FLAG_AXIS),
 	      "gamepad axis came back with its axis flag");
 
 	NativeControls_ResolveAssignment();
-	Check(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_PINNED, "P2's pin survived the round trip");
-	Check(strcmp(s_playerPref[1].deviceKey, "test-guid-0") == 0, "P2's pin names the same device");
+	CTR_TEST_CHECK(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_PINNED, "P2's pin survived the round trip");
+	CTR_TEST_CHECK(strcmp(s_playerPref[1].deviceKey, "test-guid-0") == 0, "P2's pin names the same device");
 }
 
 // SDL names a printable key by the character it types. The retail font repurposes four
@@ -1530,7 +1481,7 @@ static void TestIniRoundTrip(void)
 // name; only the label shown on screen is spelled out.
 static void TestDisplayTextAvoidsTheFontCollisions(void)
 {
-	printf("labels: keys the font cannot show are spelled out\n");
+	CTR_TEST_SECTION("labels: keys the font cannot show are spelled out");
 	ResetModule();
 
 	int pads[4];
@@ -1539,9 +1490,9 @@ static void TestDisplayTextAvoidsTheFontCollisions(void)
 
 	// These are the default keyboard bindings that used to render badly: L3 is "[",
 	// which DecalFont draws as the square button.
-	Check(NativeControls_StrEqual(SDL_GetScancodeName(SDL_SCANCODE_LEFTBRACKET), "["),
+	CTR_TEST_CHECK(NativeControls_StrEqual(SDL_GetScancodeName(SDL_SCANCODE_LEFTBRACKET), "["),
 	      "SDL still names the left bracket key with the raw character");
-	Check(NativeControls_StrEqual(NativeControls_ScancodeName(SDL_SCANCODE_LEFTBRACKET), "Left Bracket"),
+	CTR_TEST_CHECK(NativeControls_StrEqual(NativeControls_ScancodeName(SDL_SCANCODE_LEFTBRACKET), "Left Bracket"),
 	      "the display name spells the left bracket out");
 
 	const SDL_Scancode spellouts[] = {
@@ -1565,25 +1516,25 @@ static void TestDisplayTextAvoidsTheFontCollisions(void)
 			}
 		}
 
-		Check(clean, "no display name contains a character the font cannot show");
+		CTR_TEST_CHECK(clean, "no display name contains a character the font cannot show");
 	}
 
 	// A binding on the keyboard reaches the label through the same path.
 	char label[64];
 	NativeControls_SetBinding(keyboard, NATIVE_CONTROLS_BIND_L3, SDL_SCANCODE_LEFTBRACKET);
 	NativeControls_GetBindingLabel(keyboard, NATIVE_CONTROLS_BIND_L3, label, sizeof(label));
-	Check(NativeControls_StrEqual(label, "Left Bracket"), "the L3 row shows a name, not a square icon");
+	CTR_TEST_CHECK(NativeControls_StrEqual(label, "Left Bracket"), "the L3 row shows a name, not a square icon");
 
 	// The file must keep the character, or the value would not survive a reload.
 	char value[64];
 	NativeControls_BindingToText(NATIVE_CONTROLS_DEVICE_KEYBOARD, SDL_SCANCODE_LEFTBRACKET, value, sizeof(value),
 	                             NATIVE_CONTROLS_NAME_FILE);
-	Check(NativeControls_StrEqual(value, "["), "the file still stores the raw scancode name");
+	CTR_TEST_CHECK(NativeControls_StrEqual(value, "["), "the file still stores the raw scancode name");
 }
 
 static void TestIniDefaultsAreRestored(void)
 {
-	printf("controls.ini: unedited defaults come back unchanged\n");
+	CTR_TEST_SECTION("controls.ini: unedited defaults come back unchanged");
 	ResetModule();
 
 	int pads[4];
@@ -1599,17 +1550,17 @@ static void TestIniDefaultsAreRestored(void)
 	int reloadedKeyboard;
 	SetupDevices(0, reloadedPads, &reloadedKeyboard);
 
-	Check(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C,
 	      "keyboard cross is back to the default");
-	Check(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_L2) == SDL_SCANCODE_LCTRL,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_L2) == SDL_SCANCODE_LCTRL,
 	      "keyboard L2 is back to the default");
-	Check(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_AXIS_LEFT_X) == NATIVE_CONTROLS_BINDING_NONE,
+	CTR_TEST_CHECK(NativeControls_GetBinding(reloadedKeyboard, NATIVE_CONTROLS_BIND_AXIS_LEFT_X) == NATIVE_CONTROLS_BINDING_NONE,
 	      "keyboard axes stay unbound");
 }
 
 static void TestRestoreDeviceDefaults(void)
 {
-	printf("restore defaults: resets one device only\n");
+	CTR_TEST_SECTION("restore defaults: resets one device only");
 	ResetModule();
 
 	int pads[4];
@@ -1622,14 +1573,14 @@ static void TestRestoreDeviceDefaults(void)
 
 	NativeControls_RestoreDeviceDefaults(keyboard);
 
-	Check(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C, "keyboard was reset");
-	Check(NativeControls_GetBinding(pads[0], NATIVE_CONTROLS_BIND_CROSS) == SDL_GAMEPAD_BUTTON_DPAD_DOWN,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C, "keyboard was reset");
+	CTR_TEST_CHECK(NativeControls_GetBinding(pads[0], NATIVE_CONTROLS_BIND_CROSS) == SDL_GAMEPAD_BUTTON_DPAD_DOWN,
 	      "the gamepad was left alone");
 }
 
 static void TestUnknownNamesKeepDefaults(void)
 {
-	printf("controls.ini: an unreadable value keeps its default\n");
+	CTR_TEST_SECTION("controls.ini: an unreadable value keeps its default");
 
 	char path[512];
 	TestFilePath(path, sizeof(path));
@@ -1649,21 +1600,21 @@ static void TestUnknownNamesKeepDefaults(void)
 	int keyboard;
 	SetupDevices(1, pads, &keyboard);
 
-	Check(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CROSS) == SDL_SCANCODE_C,
 	      "a bad key name falls back to the default");
-	Check(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_V,
+	CTR_TEST_CHECK(NativeControls_GetBinding(keyboard, NATIVE_CONTROLS_BIND_CIRCLE) == SDL_SCANCODE_V,
 	      "a good key name in the same file still applies");
 
 	// An axis inversion marker from an older file is now just an unrecognised name, so
 	// it falls back like any other rather than quietly doing nothing.
-	Check(NativeControls_GetBinding(pads[0], NATIVE_CONTROLS_BIND_L2) ==
+	CTR_TEST_CHECK(NativeControls_GetBinding(pads[0], NATIVE_CONTROLS_BIND_L2) ==
 	          (SDL_GAMEPAD_AXIS_LEFT_TRIGGER | NATIVE_CONTROLS_BINDING_FLAG_AXIS),
 	      "an axis inversion marker no longer names a control, so the default stands");
 }
 
 static void TestFileRefusesToDisablePlayerOne(void)
 {
-	printf("controls.ini: player1 = disabled is refused\n");
+	CTR_TEST_SECTION("controls.ini: player1 = disabled is refused");
 
 	char path[512];
 	TestFilePath(path, sizeof(path));
@@ -1677,8 +1628,8 @@ static void TestFileRefusesToDisablePlayerOne(void)
 	ResetModule();
 	NativeControls_Load();
 
-	Check(s_playerPref[0].kind == NATIVE_CONTROLS_PREF_AUTO, "player1 was left on auto");
-	Check(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_DISABLED, "player2 was disabled as asked");
+	CTR_TEST_CHECK(s_playerPref[0].kind == NATIVE_CONTROLS_PREF_AUTO, "player1 was left on auto");
+	CTR_TEST_CHECK(s_playerPref[1].kind == NATIVE_CONTROLS_PREF_DISABLED, "player2 was disabled as asked");
 }
 
 int main(void)
@@ -1689,9 +1640,9 @@ int main(void)
 
 	// Before anything can write the file, and regardless of the directory this was
 	// started in.
-	TestUseScratchDir();
+	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
-	printf("native_controls tests\n");
+	CTR_TEST_SECTION("native_controls tests");
 
 	TestCaptureTimeoutRestoresTheBinding();
 	TestCancelRestoresTheBinding();
@@ -1736,10 +1687,8 @@ int main(void)
 	TestUnknownNamesKeepDefaults();
 	TestFileRefusesToDisablePlayerOne();
 
-	printf("\n%d checks, %d failures\n", s_checks, s_failures);
+	const int result = CtrTest_Summary();
 
-	const int result = (s_failures == 0) ? 0 : 1;
-
-	TestRemoveScratchDir();
+	CtrTestScratch_Remove(TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 	return result;
 }

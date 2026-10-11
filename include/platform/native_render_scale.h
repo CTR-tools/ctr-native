@@ -37,8 +37,8 @@
 //                 it directly, skipping the 15-bit PSX downsample for the
 //                 presented image only.
 //
-// The helpers below are pinned by tools/test-render-scale.c (standalone:
-// gcc -Wall -Wextra tools/test-render-scale.c && ./a.out).
+// The helpers below are pinned by tests/test-render-scale.c, which is built as
+// the test_render_scale target and registered with CTest.
 
 #define NATIVE_RENDER_SCALE_MODE_NATIVE   0
 #define NATIVE_RENDER_SCALE_MODE_ORIGINAL 1

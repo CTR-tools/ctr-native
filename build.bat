@@ -48,11 +48,5 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-ctest --test-dir build --output-on-failure
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: Smoke test failed
-    exit /b 1
-)
-
 echo.
 echo Build succeeded: build\ctr_native.exe

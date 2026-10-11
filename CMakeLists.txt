@@ -59,6 +59,41 @@ function(ctr_native_add_label_warning_if_supported target warning flag_check)
     endif()
 endfunction()
 
+# The warning set every first-party target is held to, so a test and the code it
+# covers report the same diagnostics.
+function(ctr_native_apply_common_options target)
+    if(CTR_NATIVE_MSVC_FRONTEND)
+        target_compile_options(${target} PRIVATE
+            /W4
+            /bigobj
+            /arch:SSE2
+            /wd4152
+            /wd4244
+            /wd4245
+            /wd4310
+            /wd5287
+        )
+    else()
+        target_compile_options(${target} PRIVATE
+            -msse
+            -Wenum-conversion
+            -Wenum-compare
+            -Wswitch-enum
+            -Wformat
+            -Wparentheses
+            $<$<CONFIG:Release>:-O2>
+            $<$<CONFIG:Release>:-g>
+        )
+
+        if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+            target_compile_options(${target} PRIVATE -Wall -Wextra -Wstrict-aliasing=2)
+            ctr_native_add_label_warning_if_supported(${target} -Wfree-labels CTR_HAS_WFREE_LABELS)
+        elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
+            ctr_native_add_label_warning_if_supported(${target} -Wc23-extensions CTR_HAS_WC23_EXTENSIONS)
+        endif()
+    endif()
+endfunction()
+
 # SDL3
 set(SDL_SHARED OFF CACHE BOOL "" FORCE)
 set(SDL_STATIC ON CACHE BOOL "" FORCE)
@@ -112,36 +147,8 @@ target_compile_definitions(ctr_native PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
     CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
 )
-if(CTR_NATIVE_MSVC_FRONTEND)
-    target_compile_options(ctr_native PRIVATE
-        /W4 #TODO(aalhendi): fix warnings
-        /bigobj
-        /arch:SSE2
-        /wd4152
-        /wd4244
-        /wd4245
-        /wd4310
-        /wd5287
-    )
-else()
-    target_compile_options(ctr_native PRIVATE
-        -msse
-        -Wenum-conversion
-        -Wenum-compare
-        -Wswitch-enum
-        -Wformat
-        -Wparentheses
-        $<$<CONFIG:Release>:-O2>
-        $<$<CONFIG:Release>:-g>
-    )
-
-    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(ctr_native PRIVATE -Wall -Wextra -Wstrict-aliasing=2)
-        ctr_native_add_label_warning_if_supported(ctr_native -Wfree-labels CTR_HAS_WFREE_LABELS)
-    elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        ctr_native_add_label_warning_if_supported(ctr_native -Wc23-extensions CTR_HAS_WC23_EXTENSIONS)
-    endif()
-endif()
+#TODO(aalhendi): fix warnings
+ctr_native_apply_common_options(ctr_native)
 target_link_libraries(ctr_native SDL3::SDL3)
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native PRIVATE -static-libgcc)
@@ -152,6 +159,5 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    add_test(NAME ctr_native_version COMMAND $<TARGET_FILE:ctr_native> --version)
-    set_tests_properties(ctr_native_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native ")
+    add_subdirectory(tests)
 endif()
