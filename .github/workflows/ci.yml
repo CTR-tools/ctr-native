@@ -67,6 +67,16 @@ jobs:
           # The warning is therefore expected, not a signal about this build.
           msystem: MINGW32
           suppress-deprecation-warnings: msystem-mingw32
+          # Reuse the MSYS2 that ships in the runner image instead of
+          # downloading and extracting a fresh base on every run. The action
+          # looks for it at C:\msys64 and fails outright rather than falling
+          # back to a download, so this gives up newer MSYS2 point releases and
+          # accepts a hard failure if a future image ever drops MSYS2.
+          #
+          # Only the base install is skipped. The action still caches the
+          # downloaded packages under var/cache/pacman/pkg, and still unpacks
+          # them, which is where the remaining setup time goes.
+          release: false
           update: true
           # One whitespace-separated list, installed through pacman. This is the
           # same package set build.bat prints when a tool is missing.
