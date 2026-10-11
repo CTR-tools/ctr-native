@@ -1,0 +1,172 @@
+# Build and test gate for Windows.
+#
+# Covers the unconditional work: compile the game with build.bat, confirm the
+# binary reports the version CMake resolved for it, and run every suite
+# registered with CTest. Packaging and release artifacts are left to a later
+# workflow.
+
+name: CI
+
+on:
+  push:
+    # TEMPORARY, until the follow-up PR that merges this: every branch fires so
+    # the workflow can be exercised before it reaches the default branch. GitHub
+    # runs a push-event workflow from the pushed commit, whereas a
+    # pull_request workflow only runs once this file exists on the default
+    # branch, so this is the only way to test it ahead of merging.
+    #
+    # Narrow back to the protected default branch in that PR:
+    #   branches: [master]
+    #
+    # The wildcard has to be spelled out. Removing the branches key entirely
+    # leaves only tags, and GitHub then declines to run for branch pushes too.
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-build-and-test:
+    name: Windows build and tests
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      # setup-msys2 documents this as a known problem with actions/checkout:
+      # checkout can leave CRLF in the working tree, which the tools MSYS2
+      # brings along then disagree with about what has changed. `input` keeps
+      # the files exactly as committed, so CtrNativeVersion.cmake does not
+      # resolve a phantom -dirty.
+      - name: Keep the checkout free of line-ending conversion
+        run: git config --global core.autocrlf input
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          # cmake/CtrNativeVersion.cmake derives the version with
+          # `git describe --tags`, so the tags have to come along with the
+          # history. A shallow clone resolves nothing and quietly falls back to
+          # 0.0.0-dev, which is exactly the kind of wrong version a build gate
+          # exists to catch.
+          fetch-depth: 0
+
+      - name: Set up the MSYS2 MinGW32 toolchain
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          # The 32-bit environment this build requires. Upstream has deprecated
+          # MINGW32 and MINGW64 in favour of 64-bit ones, which this project
+          # cannot use: CMakeLists.txt rejects any target that is not 32-bit.
+          # The warning is therefore expected, not a signal about this build.
+          msystem: MINGW32
+          suppress-deprecation-warnings: msystem-mingw32
+          update: true
+          # One whitespace-separated list, installed through pacman. This is the
+          # same package set build.bat prints when a tool is missing.
+          install: >-
+            git
+            mingw-w64-i686-gcc
+            mingw-w64-i686-cmake
+            mingw-w64-i686-make
+
+      - name: Put the MinGW32 toolchain on PATH
+        shell: pwsh
+        run: |
+          # The action puts only its own msys2.cmd shim on PATH, not the
+          # toolchain, so build.bat would stop at its first `where` check. This
+          # is the directory README step 3 asks a developer to put on their
+          # system PATH, which is the environment build.bat is written for.
+          $msys2 = '${{ steps.msys2.outputs.msys2-location }}'
+          if ([string]::IsNullOrWhiteSpace($msys2)) {
+            # The action's default install location, in case a v2 release old
+            # enough to lack the output ever resolves.
+            $msys2 = 'C:\msys64'
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\mingw32\bin"
+
+      - name: Build
+        shell: cmd
+        run: .\build.bat
+
+      - name: Verify the binary reports the resolved version
+        # Worth running on a tag build above all: there `git describe` sits on
+        # the tag itself, so the expected version carries no +N.g<hash> distance
+        # metadata and the binary has to report the bare release number. That is
+        # the check standing between a bad resolve and a shipped release.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'build\ctr_native_expanded.exe'
+          if (-not (Test-Path -LiteralPath $exe)) {
+            throw "build.bat reported success but $exe is missing."
+          }
+
+          $reported = (& $exe --version) | Out-String
+          if ($LASTEXITCODE -ne 0) {
+            throw "ctr_native_expanded.exe --version exited with $LASTEXITCODE."
+          }
+          $reported = $reported.Trim()
+          Write-Host "Binary reports: $reported"
+
+          # Ask the project's own cmake/CtrNativeVersion.cmake what the version
+          # ought to be, instead of repeating its tag parsing here. A second
+          # copy of those rules in this workflow would be free to drift away
+          # from the ones the build actually follows.
+          $probe = Join-Path $env:RUNNER_TEMP 'ctr_expected_version.cmake'
+          @'
+          include("${CMAKE_SOURCE_DIR}/cmake/CtrNativeVersion.cmake")
+          message(STATUS "EXPECTED_VERSION=${CTR_NATIVE_EXPANDED_VERSION}")
+          message(STATUS "EXPECTED_BUILD_ID=${CTR_NATIVE_EXPANDED_BUILD_ID}")
+          '@ | Set-Content -LiteralPath $probe -Encoding ascii
+
+          # `cmake -P` runs with the working directory as CMAKE_SOURCE_DIR, which
+          # is where CtrNativeVersion.cmake looks for .git_archival.txt and runs
+          # git, so the probe has to run from the checkout root.
+          Push-Location $env:GITHUB_WORKSPACE
+          $resolved = (& cmake -P $probe) | Out-String
+          $cmakeExit = $LASTEXITCODE
+          Pop-Location
+
+          if ($cmakeExit -ne 0) {
+            throw "Could not resolve the expected version from CMake."
+          }
+          Write-Host "CMake resolved: $($resolved.Trim())"
+
+          if ($resolved -notmatch '(?s)EXPECTED_VERSION=(?<version>\S+).*EXPECTED_BUILD_ID=(?<buildId>\S+)') {
+            throw "Could not read the expected version out of:`n$resolved"
+          }
+          $expectedVersion = $Matches.version
+          $expectedBuildId = $Matches.buildId
+
+          # Matching a wrong version against a wrong expectation is still a
+          # pass, so the fallback is rejected outright. This checkout fetches
+          # tags, which means 0.0.0-dev here means version resolution broke.
+          if ($expectedVersion -eq '0.0.0-dev') {
+            throw "The version resolved to the 0.0.0-dev fallback, so no release tag was reachable. Check that actions/checkout used fetch-depth 0 and actually fetched tags."
+          }
+
+          $expected = "CTR Native Expanded $expectedVersion ($expectedBuildId)"
+          if ($reported -ne $expected) {
+            throw "The binary does not report the version CMake resolved for it.`n  expected: $expected`n  reported: $reported"
+          }
+
+          Write-Host "Version matches: $expected"
+
+      - name: Test
+        shell: pwsh
+        run: |
+          # ctest reports on stdout and signals failure through its exit code,
+          # so the exit code is what this step turns on.
+          $ErrorActionPreference = 'Continue'
+          ctest --test-dir build --output-on-failure
+          if ($LASTEXITCODE -ne 0) {
+            throw "ctest reported failures."
+          }
