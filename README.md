@@ -16,6 +16,7 @@ A native PC port of Crash Team Racing (PS1, 1999) with extra additions. It build
 ctr_native/
   main.c              Entrypoint and native platform boundary
   platform/           Native-owned audio, input, memcard, CD, and PSX facade glue
+  tests/              One executable per focused test suite, all run by CTest
   build-msvc.bat      Windows build (MSVC x86)
   build.bat           Windows build (MinGW i686)
   build.sh            Linux build
@@ -84,6 +85,23 @@ Output:
 - MSVC: `build-msvc-x86/Release/ctr_native.exe`
 - MinGW: `build/ctr_native.exe`
 - Linux: `build/ctr_native`
+
+## Testing
+
+Focused tests live in `tests/`, one executable per suite, and every suite is registered with CTest.
+
+`build.bat`, `build-msvc.bat` and `build.sh` compile the game and the suites, and run no tests. Building leaves the suites current against the same sources, so running them afterward is just CTest:
+
+```
+build.bat                                              # game + suites, runs nothing
+ctest --test-dir build --output-on-failure             # run everything
+ctest --test-dir build --output-on-failure -R "test_"  # suites only
+```
+
+To rebuild only the suites, without the game: `cmake --build build --target tests`. Nothing pulls the game in, and nothing pulls the suites out of an ordinary build.
+Test binaries land in `build/tests/`.
+A suite is a plain executable that returns 0 when nothing failed, so CTest, IDes and the command line agree on what a pass is. Shared plumbing - the check counter, the failure report and the summary - is in `tests/shared/ctr_test.h`; `tests/shared/ctr_test_scratch.h` hands a suite a disposable directory when it needs to write files.
+Because the game is a unity build (see below), the state a module keeps is file-static, so a suite cannot link against `ctr_native.exe` at all. A suite that needs that state includes the module's own sources into its own translation unit, in the same order `main.c` uses. The game and its tests therefore compile the same sources rather than drifting apart.
 
 ### Clean build
 

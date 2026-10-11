@@ -23,11 +23,5 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-ctest --preset windows-msvc-x86-release
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: Smoke test failed
-    exit /b 1
-)
-
 echo.
 echo Build succeeded: build-msvc-x86\Release\ctr_native.exe

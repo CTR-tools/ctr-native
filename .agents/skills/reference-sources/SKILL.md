@@ -24,7 +24,7 @@ Use these as starting points; check activity, branch, release, and version befor
 
 ## How to consult them
 
-1. **Current project behavior first:** search `game/`, `platform/`, `include/`, `docs/`, `README.md`, and `tools/`. Similar features, adjacent modes, native adapters, and focused tests are usually the most directly applicable references. Follow call sites and consumers, not just symbol names.
+1. **Current project behavior first:** search `game/`, `platform/`, `include/`, `docs/`, `README.md`, and `tests/`. Similar features, adjacent modes, native adapters, and focused tests are usually the most directly applicable references. Follow call sites and consumers, not just symbol names.
 2. **Repository history and metadata:** inspect `git log` and blame for provenance and implementation context. The retail matching pipeline, its metadata, and its vendored Linux toolchains are not part of this fork; `upstream` (`CTR-tools/ctr-native`) still carries them if that evidence is needed. Treat inferred names as evidence to verify.
 3. **Choose the external reference by question:** use the table above for prior-art candidates; prefer source, relevant issue/PR discussions, and release notes for implementation facts. Record an exact URL and revision or release when a reference informs a design.
 4. **Compare assumptions:** distinguish observed behavior, documented intent, and a design idea. Check game mode, player count, data/layout version, target platform, memory ownership, coordinate space, configuration defaults, and whether the source assumes PS1 hardware or another renderer.
