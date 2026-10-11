@@ -29,10 +29,10 @@ struct NativeCDOpenFile
 	struct NativeDiscImageFile discFile;
 };
 
-global_variable s32 s_cdDebugLevel;
+global_variable s32 CD_debug;
 global_variable s32 s_cdLastCom;
-global_variable CdlCB s_cdReadyCallback;
-global_variable CdlCB s_cdSyncCallback;
+global_variable CdlCB CD_cbready;
+global_variable CdlCB CD_cbsync;
 global_variable u32 s_cdSectorData[NATIVE_CD_SECTOR_WORDS];
 global_variable CdlCB s_nativeCdReadCallback;
 global_variable struct NativeCDOpenFile s_nativeCdFiles[NATIVE_CD_MAX_OPEN_FILES];
@@ -257,10 +257,10 @@ int NativeCD_Init(void)
 		}
 	}
 
-	s_cdDebugLevel = 0;
+	CD_debug = 0;
 	s_cdLastCom = 0;
-	s_cdReadyCallback = NULL;
-	s_cdSyncCallback = NULL;
+	CD_cbready = NULL;
+	CD_cbsync = NULL;
 	s_nativeCdReadCallback = NULL;
 	memset(s_nativeCdFiles, 0, sizeof(s_nativeCdFiles));
 	s_nativeCdFileCount = 0;
@@ -279,30 +279,11 @@ int CdInit(void)
 	return 1;
 }
 
-int CdSetDebug(int level)
-{
-	s32 old = s_cdDebugLevel;
-	s_cdDebugLevel = level;
-	return old;
-}
+#include "../game/PSX/PSX_SDK_CDState.c"
 
 int CdLastCom(void)
 {
 	return s_cdLastCom;
-}
-
-CdlCB CdReadyCallback(CdlCB func)
-{
-	CdlCB old = s_cdReadyCallback;
-	s_cdReadyCallback = func;
-	return old;
-}
-
-CdlCB CdSyncCallback(CdlCB func)
-{
-	CdlCB old = s_cdSyncCallback;
-	s_cdSyncCallback = func;
-	return old;
 }
 
 int CdGetSector(void *madr, int size)

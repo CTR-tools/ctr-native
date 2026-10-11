@@ -159,6 +159,12 @@
 #include "MEMPACK.c"
 
 #include "MixRNG/PSX_BIOS_Rand.c"
+#if !defined(CTR_NATIVE)
+#include "PSX/PSX_BIOS_CallGates.c"
+#include "PSX/PSX_SDK_Leaves.c"
+#include "PSX/PSX_SDK_CDCore.c"
+#include "PSX/PSX_SDK_CDState.c"
+#endif
 #include "MixRNG/RngDeadCoed.c"
 #include "MixRNG/MixRNG.c"
 

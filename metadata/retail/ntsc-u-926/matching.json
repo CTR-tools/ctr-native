@@ -3919,6 +3919,22 @@
       "linked_block": {}
     },
     {
+      "name": "load-init-cdvol",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "LOAD_InitCDvol",
+      "end_symbol": "CD_init",
+      "symbol_prefix": "LOAD_",
+      "source": "game/LOAD/LOAD_File.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "ui-vs-quip-assign",
       "kind": "resident",
       "artifact": "exe",
@@ -4028,6 +4044,271 @@
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "psx-bios-call-gates",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "source": "game/PSX/PSX_BIOS_CallGates.c",
+      "code_intervals": [
+        {
+          "start_symbol": "memset",
+          "end_symbol": "strcmp"
+        },
+        {
+          "start_symbol": "strcmp",
+          "end_symbol": "SetTransMatrix"
+        },
+        {
+          "start_symbol": "strncpy",
+          "end_symbol": "SpuSetTransferMode"
+        },
+        {
+          "start_symbol": "strcpy",
+          "end_symbol": "SpuSetReverbModeParam"
+        },
+        {
+          "start_symbol": "LoadExec",
+          "end_symbol": "SetGeomScreen"
+        },
+        {
+          "start_symbol": "memcpy",
+          "end_symbol": "strlen"
+        },
+        {
+          "start_symbol": "strlen",
+          "end_symbol": "SetVideoMode"
+        },
+        {
+          "start_symbol": "_96_init",
+          "end_symbol": "SetDefDrawEnv"
+        },
+        {
+          "start_symbol": "_card_info",
+          "end_symbol": "erase"
+        },
+        {
+          "start_symbol": "erase",
+          "end_symbol": "lseek"
+        },
+        {
+          "start_symbol": "lseek",
+          "end_symbol": "close"
+        },
+        {
+          "start_symbol": "close",
+          "end_symbol": "InitCARD"
+        },
+        {
+          "start_symbol": "write",
+          "end_symbol": "EnableEvent"
+        },
+        {
+          "start_symbol": "EnableEvent",
+          "end_symbol": "_bu_init"
+        },
+        {
+          "start_symbol": "_bu_init",
+          "end_symbol": "nextfile"
+        },
+        {
+          "start_symbol": "nextfile",
+          "end_symbol": "_card_clear"
+        },
+        {
+          "start_symbol": "format",
+          "end_symbol": "OpenEvent"
+        },
+        {
+          "start_symbol": "OpenEvent",
+          "end_symbol": "read"
+        },
+        {
+          "start_symbol": "read",
+          "end_symbol": "TestEvent"
+        },
+        {
+          "start_symbol": "TestEvent",
+          "end_symbol": "open"
+        },
+        {
+          "start_symbol": "open",
+          "end_symbol": "firstfile"
+        },
+        {
+          "start_symbol": "CloseEvent",
+          "end_symbol": "_card_load"
+        },
+        {
+          "start_symbol": "_card_load",
+          "end_symbol": "sprintf"
+        },
+        {
+          "start_symbol": "strcat",
+          "end_symbol": "rand"
+        },
+        {
+          "start_symbol": "printf",
+          "end_symbol": "DeliverEvent"
+        },
+        {
+          "start_symbol": "DeliverEvent",
+          "end_symbol": "_SpuCallback"
+        },
+        {
+          "start_symbol": "ChangeClearPAD",
+          "end_symbol": "ChangeClearRCnt"
+        },
+        {
+          "start_symbol": "SysDeqIntRP",
+          "end_symbol": "SysEnqIntRP"
+        },
+        {
+          "start_symbol": "SysEnqIntRP",
+          "end_symbol": "_SpuIsInAllocateArea_"
+        },
+        {
+          "start_symbol": "setjmp",
+          "end_symbol": "HookEntryInt"
+        },
+        {
+          "start_symbol": "HookEntryInt",
+          "end_symbol": "startIntrDMA"
+        },
+        {
+          "start_symbol": "ReturnFromException",
+          "end_symbol": "ResetEntryInt"
+        },
+        {
+          "start_symbol": "ResetEntryInt",
+          "end_symbol": "_patch_gte"
+        },
+        {
+          "start_symbol": "StartCARD2",
+          "end_symbol": "StopCARD2"
+        },
+        {
+          "start_symbol": "StopCARD2",
+          "end_symbol": "_ExitCard"
+        },
+        {
+          "start_symbol": "_new_card",
+          "end_symbol": "_card_write"
+        },
+        {
+          "start_symbol": "_card_write",
+          "end_symbol": "firstfile2"
+        },
+        {
+          "start_symbol": "firstfile2",
+          "end_symbol": "memchr"
+        },
+        {
+          "start_symbol": "memchr",
+          "end_symbol": "init_ring_status"
+        },
+        {
+          "start_symbol": "bzero",
+          "end_symbol": "WaitEvent"
+        },
+        {
+          "start_symbol": "WaitEvent",
+          "end_symbol": "FlushCache"
+        },
+        {
+          "start_symbol": "FlushCache",
+          "end_symbol": "data"
+        }
+      ],
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "psx-sdk-leaves",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "source": "game/PSX/PSX_SDK_Leaves.c",
+      "code_intervals": [
+        {
+          "start_symbol": "ExitCriticalSection",
+          "end_symbol": "SpuSetCommonMasterVolume"
+        },
+        {
+          "start_symbol": "EnterCriticalSection",
+          "end_symbol": "strncmp"
+        },
+        {
+          "start_symbol": "SetGeomScreen",
+          "end_symbol": "SetGeomOffset"
+        },
+        {
+          "start_symbol": "PadSetCmd",
+          "end_symbol": "_padSendAtLoadInfo"
+        }
+      ],
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "psx-sdk-cd-core",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_CDCore.c",
+        "game/PSX/PSX_SDK_CDState.c",
+        "game/PSX/PSX_SDK_CdReset.c"
+      ],
+      "source_flags": {
+        "game/PSX/PSX_SDK_CdReset.c": ["-fno-delayed-branch"]
+      },
+      "code_intervals": [{"start_symbol": "CdStatus", "end_symbol": "CdMode"}, {"start_symbol": "CdMode", "end_symbol": "CdLastCom"}, {"start_symbol": "CdLastCom", "end_symbol": "CdLastPos"}, {"start_symbol": "CdLastPos", "end_symbol": "CdReset"}, {"start_symbol": "CdReset", "end_symbol": "CdSetDebug"}, {"start_symbol": "CdSetDebug", "end_symbol": "CdReady"}, {"start_symbol": "CdSyncCallback", "end_symbol": "CdReadyCallback"}, {"start_symbol": "CdReadyCallback", "end_symbol": "CdControl"}, {"start_symbol": "CdIntToPos", "end_symbol": "CdPosToInt"}, {"start_symbol": "CdPosToInt", "end_symbol": "CdInit"}],
+      "linker_script": "tools/matching/psx-cd-core.ld",
+      "data_ranges": [
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_cbsync", "symbol_address": "0x8008c41c", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_cbready", "symbol_address": "0x8008c420", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_debug", "symbol_address": "0x8008c424", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_status", "symbol_address": "0x8008c428", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_status1", "symbol_address": "0x8008c42c", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_nopen", "symbol_address": "0x8008c430", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_pos", "symbol_address": "0x8008c434", "offset": 0, "size": 4},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_mode", "symbol_address": "0x8008c438", "offset": 0, "size": 1},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_com", "symbol_address": "0x8008c439", "offset": 0, "size": 1},
+        {"output_section": ".data.sdk_cd_core", "symbol": "CD_unresolved8008c43a", "symbol_address": "0x8008c43a", "offset": 0, "size": 2},
+        {"output_section": ".data.psxCdReg0", "symbol": "psxCdReg0", "symbol_address": "0x8008c6e0", "offset": 0, "size": 4},
+        {"output_section": ".data.psxCdReg2", "symbol": "psxCdReg2", "symbol_address": "0x8008c6e8", "offset": 0, "size": 4},
+        {"output_section": ".data.psxCdReg3", "symbol": "psxCdReg3", "symbol_address": "0x8008c6ec", "offset": 0, "size": 4},
+        {"output_section": ".data.CD_resetWordReg", "symbol": "CD_resetWordReg", "symbol_address": "0x8008c6f0", "offset": 0, "size": 4},
+        {"output_section": ".data.CD_controllerState", "symbol": "CD_controllerState", "symbol_address": "0x8008c6f8", "offset": 0, "size": 3}
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float"],
+      "small_data_limit": 0,
       "aspsx_version": "2.77",
       "linked_block": {}
     },

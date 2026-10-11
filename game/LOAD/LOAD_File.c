@@ -31,23 +31,34 @@ void LOAD_StringToUpper(char *path)
 int LOAD_InitCDvol(void)
 {
 #ifndef CTR_NATIVE
-	if ((SPU_CURRENT_VOL_L == 0) && (SPU_CURRENT_VOL_R == 0))
+	volatile CdlATV volume;
+	volatile u16 *spu;
+
+	spu = psxSpuRegs;
+	if ((spu[0x1b8 / 2] == 0) && (spu[0x1ba / 2] == 0))
 	{
-		SPU_MASTER_VOL_L = 0x3fff;
-		SPU_MASTER_VOL_R = 0x3fff;
+		spu[0x180 / 2] = 0x3fff;
+		spu[0x182 / 2] = 0x3fff;
 	}
 
-	SPU_CD_VOL_L = 0x3fff;
-	SPU_CD_VOL_R = 0x3fff;
-	SPU_CTRL = 0xc001;
+	spu = psxSpuRegs;
+	spu[0x1b0 / 2] = 0x3fff;
+	spu[0x1b2 / 2] = 0x3fff;
+	spu[0x1aa / 2] = 0xc001;
 
-	CD_REG(0) = 2;
-	CD_REG(2) = 0x80;
-	CD_REG(3) = 0;
-	CD_REG(0) = 3;
-	CD_REG(1) = 0x80;
-	CD_REG(2) = 0;
-	CD_REG(3) = 0x20;
+	// NOTE(aalhendi): Keep the attenuator's byte stores and reads explicit;
+	// volatile chained assignments add rereads with the retail compiler.
+	volume.val2 = 0x80;
+	volume.val0 = 0x80;
+	volume.val3 = 0;
+	volume.val1 = 0;
+	*psxCdReg0 = 2;
+	*psxCdReg2 = volume.val0;
+	*psxCdReg3 = volume.val1;
+	*psxCdReg0 = 3;
+	*psxCdReg1 = volume.val2;
+	*psxCdReg2 = volume.val3;
+	*psxCdReg3 = 0x20;
 #else
 	// NOTE(aalhendi): Retail CdInit calls this hook to reset SPU volume
 	// state before howl_InitGlobals re-applies game defaults. Native has
