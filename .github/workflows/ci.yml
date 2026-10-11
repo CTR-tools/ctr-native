@@ -101,64 +101,7 @@ jobs:
         # metadata and the binary has to report the bare release number. That is
         # the check standing between a bad resolve and a shipped release.
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          $exe = Join-Path $env:GITHUB_WORKSPACE 'build\ctr_native_expanded.exe'
-          if (-not (Test-Path -LiteralPath $exe)) {
-            throw "build.bat reported success but $exe is missing."
-          }
-
-          $reported = (& $exe --version) | Out-String
-          if ($LASTEXITCODE -ne 0) {
-            throw "ctr_native_expanded.exe --version exited with $LASTEXITCODE."
-          }
-          $reported = $reported.Trim()
-          Write-Host "Binary reports: $reported"
-
-          # Ask the project's own cmake/CtrNativeVersion.cmake what the version
-          # ought to be, instead of repeating its tag parsing here. A second
-          # copy of those rules in this workflow would be free to drift away
-          # from the ones the build actually follows.
-          $probe = Join-Path $env:RUNNER_TEMP 'ctr_expected_version.cmake'
-          @'
-          include("${CMAKE_SOURCE_DIR}/cmake/CtrNativeVersion.cmake")
-          message(STATUS "EXPECTED_VERSION=${CTR_NATIVE_EXPANDED_VERSION}")
-          message(STATUS "EXPECTED_BUILD_ID=${CTR_NATIVE_EXPANDED_BUILD_ID}")
-          '@ | Set-Content -LiteralPath $probe -Encoding ascii
-
-          # `cmake -P` runs with the working directory as CMAKE_SOURCE_DIR, which
-          # is where CtrNativeVersion.cmake looks for .git_archival.txt and runs
-          # git, so the probe has to run from the checkout root.
-          Push-Location $env:GITHUB_WORKSPACE
-          $resolved = (& cmake -P $probe) | Out-String
-          $cmakeExit = $LASTEXITCODE
-          Pop-Location
-
-          if ($cmakeExit -ne 0) {
-            throw "Could not resolve the expected version from CMake."
-          }
-          Write-Host "CMake resolved: $($resolved.Trim())"
-
-          if ($resolved -notmatch '(?s)EXPECTED_VERSION=(?<version>\S+).*EXPECTED_BUILD_ID=(?<buildId>\S+)') {
-            throw "Could not read the expected version out of:`n$resolved"
-          }
-          $expectedVersion = $Matches.version
-          $expectedBuildId = $Matches.buildId
-
-          # Matching a wrong version against a wrong expectation is still a
-          # pass, so the fallback is rejected outright. This checkout fetches
-          # tags, which means 0.0.0-dev here means version resolution broke.
-          if ($expectedVersion -eq '0.0.0-dev') {
-            throw "The version resolved to the 0.0.0-dev fallback, so no release tag was reachable. Check that actions/checkout used fetch-depth 0 and actually fetched tags."
-          }
-
-          $expected = "CTR Native Expanded $expectedVersion ($expectedBuildId)"
-          if ($reported -ne $expected) {
-            throw "The binary does not report the version CMake resolved for it.`n  expected: $expected`n  reported: $reported"
-          }
-
-          Write-Host "Version matches: $expected"
+        run: ./scripts/verify_version.ps1
 
       - name: Test
         shell: pwsh
