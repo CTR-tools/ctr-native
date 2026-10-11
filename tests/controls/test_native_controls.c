@@ -63,7 +63,7 @@ void Platform_LogWarn(const char *fmt, ...)
 // each other when compiled together: their state lives in file-statics
 // (`global_variable` is `static`, see include/macros.h), which is why the game
 // pulls them into main.c in a fixed order. A suite cannot link against
-// ctr_native.exe at all, so it reproduces that unit here instead. main.c and
+// ctr_native_expanded.exe at all, so it reproduces that unit here instead. main.c and
 // this suite compile the same sources, into different executables.
 //
 // Order matters: native_input.c reads the assignment from native_controls.c,

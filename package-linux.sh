@@ -3,12 +3,21 @@
 
 set -euo pipefail
 
-VERSION="${1:-beta-7_1}"
+# Resolve the version the way the build does: an explicit argument wins,
+# otherwise the nearest release tag. Tag names carry a "v" that is not part of
+# the version itself.
+if [[ $# -ge 1 ]]; then
+    VERSION="$1"
+else
+    VERSION="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || echo "0.0.0-dev")"
+fi
+VERSION="${VERSION#v}"
+
 BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
-PACKAGE_NAME="ctr-native-${VERSION}-linux-x86"
+PACKAGE_NAME="ctr_native_expanded-${VERSION}-linux-x86"
 PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
-BINARY_PATH="${BUILD_DIR}/ctr_native"
+BINARY_PATH="${BUILD_DIR}/ctr_native_expanded"
 
 if [[ ! -x "${BINARY_PATH}" ]]; then
     echo "ERROR: missing executable: ${BINARY_PATH}" >&2
@@ -24,7 +33,7 @@ cp LICENSE "${PACKAGE_DIR}/"
 cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/"
 
 cat >"${PACKAGE_DIR}/README.txt" <<EOF
-CTR Native Linux x86 ${VERSION} build
+CTR Native Expanded Linux x86 ${VERSION} build
 
 Game assets are not included.
 
@@ -36,7 +45,7 @@ assets/
 
 - Run:
 
-./ctr_native
+./ctr_native_expanded
 
 The disc image must be the common single-track raw PSX BIN layout:
 MODE2/2352 sectors, with the data track starting at byte 0.
@@ -73,10 +82,10 @@ If the game does not launch, run it from a terminal and include:
 - distro/version
 - GPU/driver
 - terminal output
-- output of: ldd ./ctr_native
+- output of: ldd ./ctr_native_expanded
 EOF
 
-chmod +x "${PACKAGE_DIR}/ctr_native"
+chmod +x "${PACKAGE_DIR}/ctr_native_expanded"
 
 (
     cd "${DIST_DIR}"

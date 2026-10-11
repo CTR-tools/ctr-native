@@ -1,6 +1,6 @@
 ---
 name: debugging-and-validation
-description: Validate focused CTR Native changes with builds, replays, quick states, and internal performance tools. For adding or changing tests, see the `testing` skill.
+description: Validate focused CTR Native Expanded changes with builds, replays, quick states, and internal performance tools. For adding or changing tests, see the `testing` skill.
 ---
 
 # Debugging and validation

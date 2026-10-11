@@ -13,7 +13,7 @@ A native PC port of Crash Team Racing (PS1, 1999) with extra additions. It build
 ## Directory Layout
 
 ```
-ctr_native/
+ctr_native_expanded/
   main.c              Entrypoint and native platform boundary
   platform/           Native-owned audio, input, memcard, CD, and PSX facade glue
   tests/              One executable per focused test suite, all run by CTest
@@ -82,9 +82,9 @@ First build compiles SDL3 from source. This is cached as a static library in the
 
 Output:
 
-- MSVC: `build-msvc-x86/Release/ctr_native.exe`
-- MinGW: `build/ctr_native.exe`
-- Linux: `build/ctr_native`
+- MSVC: `build-msvc-x86/Release/ctr_native_expanded.exe`
+- MinGW: `build/ctr_native_expanded.exe`
+- Linux: `build/ctr_native_expanded`
 
 ## Testing
 
@@ -101,7 +101,7 @@ ctest --test-dir build --output-on-failure -R "test_"  # suites only
 To rebuild only the suites, without the game: `cmake --build build --target tests`. Nothing pulls the game in, and nothing pulls the suites out of an ordinary build.
 Test binaries land in `build/tests/`.
 A suite is a plain executable that returns 0 when nothing failed, so CTest, IDes and the command line agree on what a pass is. Shared plumbing - the check counter, the failure report and the summary - is in `tests/shared/ctr_test.h`; `tests/shared/ctr_test_scratch.h` hands a suite a disposable directory when it needs to write files.
-Because the game is a unity build (see below), the state a module keeps is file-static, so a suite cannot link against `ctr_native.exe` at all. A suite that needs that state includes the module's own sources into its own translation unit, in the same order `main.c` uses. The game and its tests therefore compile the same sources rather than drifting apart.
+Because the game is a unity build (see below), the state a module keeps is file-static, so a suite cannot link against `ctr_native_expanded.exe` at all. A suite that needs that state includes the module's own sources into its own translation unit, in the same order `main.c` uses. The game and its tests therefore compile the same sources rather than drifting apart.
 
 ### Clean build
 
@@ -123,8 +123,8 @@ rm -rf build/        # Linux: delete cached libraries
 If you downloaded a release build, you only need two things for normal play:
 
 1. The game executable:
-   - `ctr_native.exe` on Windows
-   - `ctr_native` on Linux
+   - `ctr_native_expanded.exe` on Windows
+   - `ctr_native_expanded` on Linux
 2. Your own NTSC-U retail CTR disc image, named (put in directory called `assets`):
    - `assets/ctr-u.bin`
 
@@ -132,12 +132,12 @@ Example:
 
 ```
 CTR-Native/
-  ctr_native.exe
+  ctr_native_expanded.exe
   assets/
     ctr-u.bin
 ```
 
-Then run `ctr_native.exe`.
+Then run `ctr_native_expanded.exe`.
 
 The disc image must be the common single-track raw PSX BIN layout: MODE2/2352 sectors, with the data track starting at byte 0. A cooked 2048-byte `.iso` does not preserve the XA/STR sector data needed for audio and video playback.
 
@@ -146,7 +146,7 @@ For development builds run from `build/`, put the same `assets/ctr-u.bin` next t
 ```
 ctr-native/
   build/
-    ctr_native.exe
+    ctr_native_expanded.exe
   assets/
     ctr-u.bin
 ```
@@ -161,7 +161,7 @@ Extracted-asset override structure:
 
 ```
 CTR-Native/
-  ctr_native.exe
+  ctr_native_expanded.exe
   assets/
     BIGFILE.BIG
     SOUNDS/KART.HWL

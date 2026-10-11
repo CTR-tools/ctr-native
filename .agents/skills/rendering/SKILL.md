@@ -1,6 +1,6 @@
 ---
 name: rendering
-description: Work on CTR Native's game render submission, OpenGL renderer, render scaling, VRAM feedback, presentation, and split-screen geometry.
+description: Work on CTR Native Expanded's game render submission, OpenGL renderer, render scaling, VRAM feedback, presentation, and split-screen geometry.
 ---
 
 # Rendering pipeline

@@ -480,7 +480,7 @@ int Platform_InputInit(void)
 
 	if (SDL_InitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC) == 0)
 	{
-		fprintf(stderr, "[CTR Native] Failed to initialise SDL input subsystem: %s\n", SDL_GetError());
+		fprintf(stderr, "[CTR Native Expanded] Failed to initialise SDL input subsystem: %s\n", SDL_GetError());
 		return 0;
 	}
 
@@ -584,7 +584,7 @@ void Platform_InputLogAssignment(void)
 		int device = NativeControls_GetPlayerDevice(player);
 		const char *name = (device == NATIVE_CONTROLS_NO_DEVICE) ? "disabled" : NativeControls_GetDeviceName(device);
 
-		Platform_LogWarn("[CTR Native] Player %d device: %s\n", player + 1, name);
+		Platform_LogWarn("[CTR Native Expanded] Player %d device: %s\n", player + 1, name);
 	}
 }
 

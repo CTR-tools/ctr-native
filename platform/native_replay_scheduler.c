@@ -277,7 +277,7 @@ internal void NativeReplayScheduler_InitHeader(struct NativeReplayFileHeader *he
 	header->checkpointSize = (u32)NativeCheckpoint_GetSize();
 	header->nativeStateSize = (u32)NativeState_GetSize();
 	header->checkpointPolicy = (u32)s_checkpointPolicy;
-	NativeReplayScheduler_CopyFixedString(header->buildId, sizeof(header->buildId), CTR_NATIVE_BUILD_ID);
+	NativeReplayScheduler_CopyFixedString(header->buildId, sizeof(header->buildId), CTR_NATIVE_EXPANDED_BUILD_ID);
 	NativeReplayScheduler_CopyFixedString(header->platformId, sizeof(header->platformId), NativeReplayScheduler_PlatformID());
 	header->identityChecksum = NativeReplayScheduler_IdentityChecksum(header);
 }
@@ -701,7 +701,7 @@ internal void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 	fprintf(file, "manual_start=%d\n", s_reportManualStart != 0);
 	fprintf(file, "start_hotkey=F9\n");
 	fprintf(file, "stop_hotkey=F10\n");
-	fprintf(file, "ctr_native_version=%s\n", CTR_NATIVE_VERSION);
+	fprintf(file, "ctr_native_expanded_version=%s\n", CTR_NATIVE_EXPANDED_VERSION);
 	fprintf(file, "build_id=%s\n", s_header.buildId);
 	fprintf(file, "platform=%s\n", s_header.platformId);
 	fprintf(file, "replay_version=%u\n", (unsigned int)s_header.version);
@@ -720,7 +720,7 @@ internal void NativeReplayScheduler_WriteReportMetadata(s32 finalMetadata)
 	fprintf(file, "memcard_seed_path=%s\n", s_reportMemcardSeedPath != NULL ? s_reportMemcardSeedPath : "");
 	fprintf(file, "memcard_recording_path=%s\n", s_reportMemcardRecordingPath != NULL ? s_reportMemcardRecordingPath : "");
 	fprintf(file, "log_path=%s\n", Platform_LogGetPath());
-	fprintf(file, "playback_command=build/ctr_native --replay \"%s\"\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
+	fprintf(file, "playback_command=build/ctr_native_expanded --replay \"%s\"\n", s_reportReplayPath != NULL ? s_reportReplayPath : "");
 	fclose(file);
 }
 

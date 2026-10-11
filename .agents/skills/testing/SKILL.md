@@ -18,7 +18,7 @@ ctest --test-dir build --output-on-failure -R "test_"  # suites only
 cmake --build build --target tests                     # rebuild suites, not the game
 ```
 
-`ctr_native_version` runs the game executable, so it needs an ordinary build and
+`ctr_native_expanded_version` runs the game executable, so it needs an ordinary build and
 is skipped by `-R "test_"`.
 
 ## Writing a suite
@@ -31,7 +31,7 @@ is skipped by `-R "test_"`.
 
 `global_variable` is `static` (`include/macros.h`), so a platform module's state
 is file-static and no other translation unit can name it. `main.c` gets all the
-sources into one unit; a suite cannot link against `ctr_native.exe` at all.
+sources into one unit; a suite cannot link against `ctr_native_expanded.exe` at all.
 
 A suite that needs that state includes the module's own sources into its own
 translation unit, in the same order `main.c` uses:
@@ -52,7 +52,7 @@ the link fails. `tests/controls/test_native_controls.c` is the worked example.
 - Never let a suite read or write the working directory. The build tree holds `config.ini` and `controls.ini`; a suite that writes one will overwrite a real file. Point `NativeAssets_GetBaseDir` at `CtrTestScratch_Open` instead.
 - A suite may reach into module internals, but only as a last resort. Reaching for `s_playerPref` or `s_capturePhase` is acceptable when there is no public accessor; note why in the comment, because that coupling is what forces the include chain.
 - Keep the suite on the same warning set as the game. `ctr_native_apply_common_options` exists for exactly this, and it has already earned its place: `-Wformat-truncation` caught test storage over-allocated against a narrower field, where a too-long key would have been silently truncated inside the code under test.
-- A suite must not depend on the game executable, the disc image, game assets or a window. Only `ctr_native_version` may run the game.
+- A suite must not depend on the game executable, the disc image, game assets or a window. Only `ctr_native_expanded_version` may run the game.
 - Assert on the module's behaviour, not on the game's integration. Helpers can be pinned off-line; renderer, HUD and mode integration need `docs/REPLAYS.md` or a visual check (see the `debugging-and-validation` skill).
 - Keep tests atomic and readable.
 
