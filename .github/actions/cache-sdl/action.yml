@@ -1,0 +1,35 @@
+# Restores the SDL build tree and keeps it reusable across runs.
+#
+# This is a composite action rather than steps in the workflow because the key
+# has to be computed before the cache can be restored and the restored files have
+# to be touched afterward, and GitHub gives a step either `uses` or `run`, never
+# both. The two phases themselves live in scripts/sdl_cache.ps1, which is where
+# the reasoning behind the key and the touch is documented.
+
+name: Cache the SDL build
+description: Restores the SDL build tree and marks it current so make reuses it.
+
+runs:
+  using: composite
+
+  steps:
+    - name: Compute the cache key
+      id: key
+      shell: pwsh
+      run: ./scripts/sdl_cache.ps1 -Mode ComputeKey
+
+    - name: Restore the build tree
+      uses: actions/cache@v4
+      with:
+        # SDL's build tree only. Caching build/ wholesale would also restore the
+        # game's objects, which could then sit there looking current after a
+        # change to a compile flag that make has no way to notice.
+        path: build/externals/SDL
+        # Deliberately no restore-keys. A prefix match can restore objects built
+        # from different SDL sources, and the step below would then present them
+        # as current.
+        key: sdl-${{ runner.os }}-v${{ steps.key.outputs.version }}-${{ steps.key.outputs.hash }}
+
+    - name: Mark the restored objects current
+      shell: pwsh
+      run: ./scripts/sdl_cache.ps1 -Mode MarkCurrent
