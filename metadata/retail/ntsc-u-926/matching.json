@@ -4761,7 +4761,19 @@
       "source_flags": {
         "game/PSX/PSX_SDK_CdReset.c": ["-fno-delayed-branch"]
       },
-      "code_intervals": [{"start_symbol": "CdStatus", "end_symbol": "CdMode"}, {"start_symbol": "CdMode", "end_symbol": "CdLastCom"}, {"start_symbol": "CdLastCom", "end_symbol": "CdLastPos"}, {"start_symbol": "CdLastPos", "end_symbol": "CdReset"}, {"start_symbol": "CdReset", "end_symbol": "CdSetDebug"}, {"start_symbol": "CdSetDebug", "end_symbol": "CdReady"}, {"start_symbol": "CdSyncCallback", "end_symbol": "CdReadyCallback"}, {"start_symbol": "CdReadyCallback", "end_symbol": "CdControl"}, {"start_symbol": "CdIntToPos", "end_symbol": "CdPosToInt"}, {"start_symbol": "CdPosToInt", "end_symbol": "CdInit"}],
+      "code_intervals": [
+        {"start_symbol": "CdStatus", "end_symbol": "CdMode"},
+        {"start_symbol": "CdMode", "end_symbol": "CdLastCom"},
+        {"start_symbol": "CdLastCom", "end_symbol": "CdLastPos"},
+        {"start_symbol": "CdLastPos", "end_symbol": "CdReset"},
+        {"start_symbol": "CdReset", "end_symbol": "CdSetDebug"},
+        {"start_symbol": "CdSetDebug", "end_symbol": "CdReady"},
+        {"start_symbol": "CdSyncCallback", "end_symbol": "CdReadyCallback"},
+        {"start_symbol": "CdReadyCallback", "end_symbol": "CdControl"},
+        {"start_symbol": "CdIntToPos", "end_symbol": "CdPosToInt"},
+        {"start_symbol": "CdPosToInt", "end_symbol": "CdInit"},
+        {"start_symbol": "CD_ResetController", "end_symbol": "LOAD_InitCDvol"}
+      ],
       "linker_script": "tools/matching/psx-cd-core.ld",
       "data_ranges": [
         {"output_section": ".data.sdk_cd_core", "symbol": "CD_cbsync", "symbol_address": "0x8008c41c", "offset": 0, "size": 4},
