@@ -27,6 +27,31 @@ static void CtrTest_Fail(const char *what)
 		} \
 	} while (0)
 
+// A value comparison reports what it got as well as what it wanted. A failing
+// CTR_TEST_CHECK prints only its label, which leaves the reader guessing which
+// of two similarly-worded assertions fired and whether the answer was high or
+// low.
+//
+// inline because a suite that never compares values must still compile clean:
+// a plain static function here would draw -Wunused-function from every suite
+// that does not use it.
+static inline void CtrTest_FailEq(int actual, int expected, const char *what)
+{
+	ctrTestFailures++;
+	printf("  FAIL: %s (expected %d, got %d)\n", what, expected, actual);
+}
+
+// Each side is evaluated once, so an expression with a side effect is safe here.
+#define CTR_TEST_CHECK_EQ(actual, expected, what) \
+	do \
+	{ \
+		ctrTestChecks++; \
+		if ((actual) != (expected)) \
+		{ \
+			CtrTest_FailEq((int)(actual), (int)(expected), (what)); \
+		} \
+	} while (0)
+
 #define CTR_TEST_SECTION(title) printf("%s\n", (title))
 
 // Prints the run's totals and returns the process exit code.

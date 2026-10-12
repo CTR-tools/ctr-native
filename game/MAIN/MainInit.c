@@ -1,5 +1,8 @@
 #include <common.h>
 
+// MainInit_Drivers spawns one driver per racer counted here.
+#include <race_field.h>
+
 #if defined(CTR_INTERNAL)
 #include <platform/native_checkpoint.h>
 #endif
@@ -398,55 +401,16 @@ void MainInit_Drivers(struct GameTracker *gGT)
 	}
 
 	// spawn all AIs
-	if ((
-	        // exclude cutscene, relic, Time Trial,
-	        // Adventure Hub, Main Menu, Battle
-	        ((gameMode & 0x2c122020) == 0) &&
+	// Only a race that LOAD filled the whole grid for can run eight racers,
+	// which is what the extended multiplayer option does in Arcade and in
+	// Adventure. Every other race keeps the retail lineup, so filling the extra
+	// slots would spawn racers on character IDs nobody assigned.
+	numDrivers = RaceField_RacerCount(gameMode, gGT->cup.cupID, numPlyrCurrGame, g_config.extendedMultiplayer);
 
-		// The extended multiplayer option fills every available grid slot with AIs.
-		(numPlyrCurrGame < 3 || LOAD_UsesExtendedMultiplayerGrid())) &&
-	    // in Arcade or Adventure
-	    (gameMode & (ARCADE_MODE | ADVENTURE_MODE)) != 0)
+	for (int i = numPlyrCurrGame; i < numDrivers; i++)
 	{
-		// If you're in Boss Mode
-		// 0x80000000
-		if (gameMode < 0)
-		{
-			numDrivers = numPlyrCurrGame + 1;
-		}
-
-		// Purple Gem Cup
-		else if (
-
-		    // If you are in Adventure cup
-		    ((gameMode & ADVENTURE_CUP) != 0) &&
-
-		    // purple gem cup
-		    (gGT->cup.cupID == CUP_ID_PURPLE_GEM))
-		{
-			numDrivers = numPlyrCurrGame + 4;
-		}
-
-		// Only a race that LOAD filled the whole grid for can run eight racers,
-		// which is what the extended multiplayer option does in Arcade and in
-		// Adventure. Every other race keeps the retail lineup, so filling the
-		// extra slots would spawn racers on character IDs nobody assigned.
-		else if (numPlyrCurrGame == 1 || LOAD_UsesExtendedMultiplayerGrid())
-		{
-			numDrivers = 8;
-		}
-
-		else // if (numPlyrCurrGame == 2)
-		{
-			numDrivers = 6;
-		}
-
-		// Spawn AIs
-		for (int i = numPlyrCurrGame; i < numDrivers; i++)
-		{
-			// spawn an AI at this character index
-			BOTS_Driver_Init(i);
-		}
+		// spawn an AI at this character index
+		BOTS_Driver_Init(i);
 	}
 
 	// If number of AIs is not zero
