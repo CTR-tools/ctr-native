@@ -1,5 +1,9 @@
 #include <common.h>
 
+// The warp pad lays out a starting grid before the race has loaded, so it asks
+// the same rule the level will count its racers with.
+#include <race_field.h>
+
 // NOTE(aalhendi): WarpPad level IDs come from "warppad#NN" instance names
 // and use retail adventure numbering, not the native LevelID enum.
 enum AdventureWarpPadID
@@ -16,7 +20,7 @@ enum
 {
 	AH_WP_GEM_CUP_COUNT = 5,
 	AH_WP_BATTLE_TRACK_ID_SPAN = 7,
-	AH_WP_RACER_SLOT_COUNT = 8,
+	AH_WP_RACER_SLOT_COUNT = RACE_FIELD_FULL_GRID_RACERS,
 	AH_WP_SPEED_CHAMPION_GRID_SLOT = 0,
 	AH_WP_FIRST_BOT_GRID_SLOT = 1,
 	AH_WP_REWARD_INSTANCE_COUNT = 3,
@@ -192,6 +196,19 @@ static inline s16 AH_WarpPad_Champion(s32 levelID)
 	                                 offsetof(struct MetaDataLEV, characterID_Champion));
 }
 
+// Slide Col + Turbo Track, which open a relic race rather than a normal round.
+static b32 AH_WarpPad_IsRelicOnlyTrack(s32 destination)
+{
+	return (u16)(destination - AH_WP_ID_SLIDE_COLISEUM) < 2;
+}
+
+// The battle maps, which open a crystal challenge.
+static b32 AH_WarpPad_IsBattleTrack(s32 destination)
+{
+	return (u16)(destination - AH_WP_ID_FIRST_BATTLE_TRACK) < 2 || destination == AH_WP_ID_SKULL_ROCK ||
+	       destination == AH_WP_ID_ROCKY_ROAD;
+}
+
 void AH_WarpPad_ThTick(struct Thread *t)
 {
 	struct Driver *driver;
@@ -221,6 +238,11 @@ void AH_WarpPad_ThTick(struct Thread *t)
 
 	s32 champID;
 	s32 champGridSlot;
+
+	s32 destination;
+	s32 destinationCupID;
+	int destinationMode;
+	s32 racerCount;
 
 	// The human drivers always take the grid slots at the back, so the bots are
 	// the ones that share the front of the grid.
@@ -475,8 +497,31 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	// Track speed champion.
 	champID = AH_WarpPad_Champion(warppadObj->levelID);
 
+	// The grid must be as long as the field this pad warps to, or the humans at the
+	// back land on slots no racer reaches. The hub runs with Adventure-arena
+	// flags, so the round is described by the pad's destination instead.
+	destination = warppadObj->levelID;
 	firstBotSlot = sdata->advMultiplayer.numPlayers;
-	botCount = AH_WP_RACER_SLOT_COUNT - firstBotSlot;
+
+	destinationMode = ADVENTURE_MODE;
+	destinationCupID = LOAD_CUP_ID_NONE;
+
+	if (destination >= AH_WP_ID_FIRST_GEM_CUP)
+	{
+		destinationCupID = destination - AH_WP_ID_FIRST_GEM_CUP;
+		destinationMode |= ADVENTURE_CUP;
+	}
+	else if (AH_WarpPad_IsRelicOnlyTrack(destination))
+	{
+		destinationMode |= RELIC_RACE;
+	}
+	else if (AH_WarpPad_IsBattleTrack(destination))
+	{
+		destinationMode |= CRYSTAL_CHALLENGE;
+	}
+
+	racerCount = RaceField_RacerCount(destinationMode, destinationCupID, firstBotSlot, g_config.extendedMultiplayer);
+	botCount = racerCount - firstBotSlot;
 
 	// If Speed Champion is on the track (Crash-Pura)
 	// and is not the same characterID as this driver
@@ -484,7 +529,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	{
 		champGridSlot = 0;
 		// set everyone to spawn in order, starting after the human drivers
-		for (i = firstBotSlot; i < AH_WP_RACER_SLOT_COUNT; i++)
+		for (i = firstBotSlot; i < racerCount; i++)
 		{
 			if (AH_WarpPad_Champion(warppadObj->levelID) == GAME_CHARACTER_IDS[i])
 			{
@@ -494,9 +539,9 @@ void AH_WarpPad_ThTick(struct Thread *t)
 				AH_KART_SPAWN_ORDER[i] = AH_WP_SPEED_CHAMPION_GRID_SLOT;
 			}
 
-			else if (i == AH_WP_RACER_SLOT_COUNT - 1)
+			else if (i == racerCount - 1)
 			{
-				AH_KART_SPAWN_ORDER[AH_WP_RACER_SLOT_COUNT - 1] = champGridSlot;
+				AH_KART_SPAWN_ORDER[racerCount - 1] = champGridSlot;
 			}
 
 			else
@@ -509,12 +554,10 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	// Speed Champion is invalid
 	else
 	{
-		i = firstBotSlot;
-		do
+		for (i = firstBotSlot; i < racerCount; i++)
 		{
 			randKartSpawn[i] = i;
-			i++;
-		} while (i < AH_WP_RACER_SLOT_COUNT);
+		}
 
 		for (i = 0; i < botCount; i++)
 		{
@@ -523,7 +566,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 			rng2 = (rng1 & 0xfff) % (botCount - i) + firstBotSlot;
 			AH_KART_SPAWN_ORDER[(s32)randKartSpawn[rng2]] = (u8)i;
 
-			while (rng2 < AH_WP_RACER_SLOT_COUNT - 1)
+			while (rng2 < racerCount - 1)
 			{
 				randKartSpawn[rng2] = randKartSpawn[rng2 + 1];
 				rng2++;
@@ -534,7 +577,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 	// spawn the human drivers in the back, P1 last
 	for (i = 0; i < firstBotSlot; i++)
 	{
-		AH_KART_SPAWN_ORDER[i] = AH_WP_RACER_SLOT_COUNT - 1 - i;
+		AH_KART_SPAWN_ORDER[i] = racerCount - 1 - i;
 	}
 
 	// if flag is on-screen, loading has already been finalized
@@ -545,7 +588,6 @@ void AH_WarpPad_ThTick(struct Thread *t)
 
 
 	{
-		s32 destination = warppadObj->levelID;
 		if (destination >= AH_WP_ID_FIRST_GEM_CUP)
 		{
 			s16 cupID = warppadObj->levelID - AH_WP_ID_FIRST_GEM_CUP;
@@ -582,7 +624,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		}
 
 		// Slide Col or Turbo Track
-		if (((u16)(warppadObj->levelID - AH_WP_ID_SLIDE_COLISEUM)) < 2)
+		if (AH_WarpPad_IsRelicOnlyTrack(warppadObj->levelID))
 		{
 			warppadObj->boolEnteredWarppad = 1;
 			warppadObj->framesWarping++;
@@ -599,7 +641,7 @@ void AH_WarpPad_ThTick(struct Thread *t)
 		}
 
 		// Battle Tracks
-		if ((((u16)(warppadObj->levelID - AH_WP_ID_FIRST_BATTLE_TRACK)) < 2) || (destination == AH_WP_ID_SKULL_ROCK) || (destination == AH_WP_ID_ROCKY_ROAD))
+		if (AH_WarpPad_IsBattleTrack(destination))
 		{
 			warppadObj->boolEnteredWarppad = 1;
 			warppadObj->framesWarping++;
@@ -1034,8 +1076,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 	}
 
 	// battle maps
-	else if ((((u16)(warppadObj->levelID - AH_WP_ID_FIRST_BATTLE_TRACK)) < 2) || (warppadObj->levelID == AH_WP_ID_SKULL_ROCK) ||
-	         (warppadObj->levelID == AH_WP_ID_ROCKY_ROAD))
+	else if (AH_WarpPad_IsBattleTrack(warppadObj->levelID))
 	{
 		unlockItem_modelID = STATIC_KEY;
 		unlockItem_numOwned = GAME_TRACKER->currAdvProfile.numKeys;
@@ -1465,8 +1506,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 			warppadObj->slots.inst[WPIS_OPEN_PRIZE1]->scale.z = AH_WP_RELIC_PRIZE_SCALE;
 		}
 	}
-	else if ((u16)(warppadObj->levelID - AH_WP_ID_FIRST_BATTLE_TRACK) < 2 || warppadObj->levelID == AH_WP_ID_SKULL_ROCK ||
-	         warppadObj->levelID == AH_WP_ID_ROCKY_ROAD)
+	else if (AH_WarpPad_IsBattleTrack(warppadObj->levelID))
 	{
 		s16 battleOffsets[7];
 		memcpy(battleOffsets, AH_WARP_BATTLE_OFFSETS, sizeof(battleOffsets));

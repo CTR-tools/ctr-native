@@ -1,5 +1,9 @@
 #include <common.h>
 
+// The AI roster and the extended-multiplayer grid follow the shared race-field
+// rules, so the loader and the driver spawner cannot disagree on the field size.
+#include <race_field.h>
+
 #if defined(CTR_INTERNAL)
 #include <platform/native_checkpoint.h>
 #include <platform/native_config.h>
@@ -82,31 +86,6 @@ static b32 LOAD_IsAdventureCoopBossRace(void)
 	       LOAD_AdventureBossDriverSlot() > LOAD_ADVENTURE_BOSS_DRIVER_SLOT_SOLO;
 }
 
-// The Purple Gem Cup always fields its four bosses, whoever is driving.
-static b32 LOAD_IsPurpleGemCupRace(void)
-{
-	struct GameTracker *gGT = sdata->gGT;
-
-	return (gGT->gameMode1 & ADVENTURE_CUP) != 0 && gGT->cup.cupID == CUP_ID_PURPLE_GEM;
-}
-
-// Modes that pick their own AI lineup write the racers past the players
-// themselves, so the extended multiplayer option must leave those slots alone.
-static b32 LOAD_HasManagedAIRoster(void)
-{
-	u32 gameMode = sdata->gGT->gameMode1;
-
-	// CRYSTAL_CHALLENGE is the last entry: MainInit_Drivers never spawns AIs for
-	// it, so filling or randomizing its grid would only queue racers nobody uses.
-	if ((gameMode & (GAME_CUTSCENE | ADVENTURE_ARENA | MAIN_MENU | BATTLE_MODE | RELIC_RACE | TIME_TRIAL |
-	                 ADVENTURE_BOSS | CRYSTAL_CHALLENGE)) != 0)
-	{
-		return true;
-	}
-
-	return LOAD_IsPurpleGemCupRace();
-}
-
 // The extended multiplayer option fills every grid slot with a racer, in Arcade
 // and in Adventure alike. MainInit_Drivers spawns one driver per racer the roster
 // names, so this is the single definition of what the option means for the
@@ -114,17 +93,9 @@ static b32 LOAD_HasManagedAIRoster(void)
 // agree on it, or the extra slots spawn drivers on IDs nobody assigned.
 b32 LOAD_UsesExtendedMultiplayerGrid(void)
 {
-	if (!g_config.extendedMultiplayer)
-	{
-		return false;
-	}
+	struct GameTracker *gGT = sdata->gGT;
 
-	if ((sdata->gGT->gameMode1 & (ARCADE_MODE | ADVENTURE_MODE)) == 0)
-	{
-		return false;
-	}
-
-	return !LOAD_HasManagedAIRoster();
+	return RaceField_UsesExtendedGrid(gGT->gameMode1, gGT->cup.cupID, g_config.extendedMultiplayer);
 }
 
 static b32 LOAD_IsRandomBotRace(void)
@@ -141,7 +112,7 @@ static b32 LOAD_IsRandomBotRace(void)
 		return false;
 	}
 
-	return !LOAD_HasManagedAIRoster();
+	return !RaceField_HasManagedAIRoster(gameMode, sdata->gGT->cup.cupID);
 }
 
 // Retail ran the Purple Gem Cup solo and wrote the bosses to driver slots 1-4.
@@ -168,16 +139,14 @@ static b32 LOAD_IsCharacterUsedByPlayer(s16 characterID)
 	return false;
 }
 
+// The same count MainInit_Drivers spawns drivers from. Random selection has to
+// fill exactly those slots: choosing more racers than the field holds leaves the
+// extra character IDs unreferenced, and choosing fewer leaves grid slots empty.
 static int LOAD_GetRandomBotCount(void)
 {
-	int playerCount = sdata->gGT->numPlyrCurrGame;
+	struct GameTracker *gGT = sdata->gGT;
 
-	if (playerCount == 1 || LOAD_UsesExtendedMultiplayerGrid())
-	{
-		return LOAD_CHARACTER_ID_COUNT - playerCount;
-	}
-
-	return 6 - playerCount;
+	return RaceField_BotCount(gGT->gameMode1, gGT->cup.cupID, gGT->numPlyrCurrGame, g_config.extendedMultiplayer);
 }
 
 static b32 LOAD_ShouldPreserveRandomBotRoster(void)
@@ -483,7 +452,7 @@ int LOAD_DriverMPK(struct BigHeader *bigfile, int levelLOD, void (*callback)(str
 		goto QueueLastPack;
 	}
 
-	if (LOAD_IsPurpleGemCupRace())
+	if (RaceField_IsPurpleGemCupRace(gameMode1, gGT->cup.cupID))
 	{
 		// The cup packs its four bosses into the AI driver slots, so this has to be
 		// decided before the split-screen branches below, because those hand those
