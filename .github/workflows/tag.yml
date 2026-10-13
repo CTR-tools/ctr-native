@@ -38,6 +38,7 @@ jobs:
           fetch-depth: 0
       - name: Validate and cut the tag
         env:
+          GH_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
           INPUT_VERSION: ${{ inputs.version }}
           # The head of the dispatched ref, which cut-tag.sh refuses unless that
