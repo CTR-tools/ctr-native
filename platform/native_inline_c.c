@@ -5,6 +5,7 @@
  */
 
 #include <macros.h>
+#include <platform/native_pgxp.h>
 #include <psx/gtereg.h>
 #include <psx/inline_c.h>
 #include <psx/libgte.h>
@@ -43,6 +44,13 @@ u32 MFC2(s32 reg)
 		break;
 	}
 
+	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	{
+		// Culling helpers re-read the register they just projected; remember the
+		// vertex so a later MTC2 of the same value can recover it.
+		NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+	}
+
 	return gteRegs.CP2D.p[reg].d;
 }
 
@@ -79,11 +87,23 @@ s32 MFC2_S(s32 reg)
 		break;
 	}
 
+	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+	}
+
 	return gteRegs.CP2D.p[reg].sd;
 }
 
 void MTC2(u32 value, s32 reg)
 {
+	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	{
+		// Game code saves and restores SXY registers around helper calls, or
+		// reloads them from a stored vertex to continue a strip.
+		NativePgxp_GteWriteSXY(reg, value);
+	}
+
 	switch (reg)
 	{
 	case 15:
@@ -111,6 +131,11 @@ void MTC2(u32 value, s32 reg)
 
 void MTC2_S(s32 value, s32 reg)
 {
+	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_GteWriteSXY(reg, (u32)value);
+	}
+
 	switch (reg)
 	{
 	case 15:

@@ -5,6 +5,7 @@
  */
 
 #include <macros.h>
+#include <platform/native_pgxp.h>
 #include <psx/gtereg.h>
 #include <psx/libgte.h>
 
@@ -299,11 +300,66 @@ internal int Lm_H(s64 value, int sf)
 	return value_12;
 }
 
+// NOTE: Repeats the RTPS/RTPT projection without the truncations the hardware
+// applies (MAC >> 12, IR clamp to integers, UNR division, SX/SY >> 16) so the
+// GPU can place the vertex at its sub-pixel position. Divide overflow keeps its
+// retail result so the polygon shape matches what the game culled and sorted.
+// Screen saturation does not: SXY still clamps for the game, but the precise
+// vertex keeps its real position and depth.
+#define NATIVE_PGXP_SCREEN_GUARD 16384.0
+internal void GTE_PgxpRotTransPers(double viewX, double viewY, double viewZ, u32 hOverSz3, int lm)
+{
+	const double irScale = m_sf ? (1.0 / 4096.0) : 1.0;
+	const double irMin = lm ? 0.0 : -32768.0;
+	const double depth = viewZ / 4096.0;
+	double ir1 = viewX * irScale;
+	double ir2 = viewY * irScale;
+	double hOverDepth;
+	float w = (float)depth;
+
+	ir1 = ir1 < irMin ? irMin : (ir1 > 32767.0 ? 32767.0 : ir1);
+	ir2 = ir2 < irMin ? irMin : (ir2 > 32767.0 ? 32767.0 : ir2);
+
+	if ((hOverSz3 >= 0x1ffff) || !(depth > 0.0))
+	{
+		hOverDepth = (double)hOverSz3 / 65536.0;
+		w = 0.0f;
+	}
+	else
+	{
+		hOverDepth = (double)(u16)C2_H / depth;
+	}
+
+	double screenX = (double)C2_OFX / 65536.0 + ir1 * hOverDepth;
+	double screenY = (double)C2_OFY / 65536.0 + ir2 * hOverDepth;
+
+	// Hardware draws a saturated vertex at the clamped SX/SY, which bends the
+	// polygon. Near the camera that hits most large track polygons (CTR's near
+	// plane magnifies about 4x), and clamping them here would also force the
+	// whole polygon affine. The host rasteriser clips, so keep the unclamped
+	// position and its depth. Only a vertex without usable depth, or one too far
+	// out for float precision, keeps the retail clamp.
+	const b32 unprojected = !(w > 0.0f);
+	const b32 outsideGuard = (screenX < -NATIVE_PGXP_SCREEN_GUARD) || (screenX > NATIVE_PGXP_SCREEN_GUARD) || (screenY < -NATIVE_PGXP_SCREEN_GUARD) ||
+	                         (screenY > NATIVE_PGXP_SCREEN_GUARD);
+	if ((unprojected || outsideGuard) && ((screenX < -1024.0) || (screenX > 1023.0) || (screenY < -1024.0) || (screenY > 1023.0)))
+	{
+		screenX = screenX < -1024.0 ? -1024.0 : (screenX > 1023.0 ? 1023.0 : screenX);
+		screenY = screenY < -1024.0 ? -1024.0 : (screenY > 1023.0 ? 1023.0 : screenY);
+		w = 0.0f;
+	}
+
+	NativePgxp_GteProject((float)screenX, (float)screenY, w, (u32)C2_SXY2);
+}
+
 internal int GTE_RotTransPers(int idx, int lm)
 {
-	C2_MAC1 = A1(/*int44*/ (s64)((s64)C2_TRX << 12) + (C2_R11 * VX(idx)) + (C2_R12 * VY(idx)) + (C2_R13 * VZ(idx)));
-	C2_MAC2 = A2(/*int44*/ (s64)((s64)C2_TRY << 12) + (C2_R21 * VX(idx)) + (C2_R22 * VY(idx)) + (C2_R23 * VZ(idx)));
-	C2_MAC3 = A3(/*int44*/ (s64)((s64)C2_TRZ << 12) + (C2_R31 * VX(idx)) + (C2_R32 * VY(idx)) + (C2_R33 * VZ(idx)));
+	const s64 viewX = (s64)((s64)C2_TRX << 12) + (C2_R11 * VX(idx)) + (C2_R12 * VY(idx)) + (C2_R13 * VZ(idx));
+	const s64 viewY = (s64)((s64)C2_TRY << 12) + (C2_R21 * VX(idx)) + (C2_R22 * VY(idx)) + (C2_R23 * VZ(idx));
+	const s64 viewZ = (s64)((s64)C2_TRZ << 12) + (C2_R31 * VX(idx)) + (C2_R32 * VY(idx)) + (C2_R33 * VZ(idx));
+	C2_MAC1 = A1(viewX);
+	C2_MAC2 = A2(viewY);
+	C2_MAC3 = A3(viewZ);
 	C2_IR1 = Lm_B1(C2_MAC1, lm);
 	C2_IR2 = Lm_B2(C2_MAC2, lm);
 	C2_IR3 = Lm_B3_sf(m_mac3, m_sf, lm);
@@ -316,6 +372,10 @@ internal int GTE_RotTransPers(int idx, int lm)
 	C2_SXY1 = C2_SXY2;
 	C2_SX2 = Lm_G1(F((s64)C2_OFX + ((s64)C2_IR1 * h_over_sz3)) >> 16);
 	C2_SY2 = Lm_G2(F((s64)C2_OFY + ((s64)C2_IR2 * h_over_sz3)) >> 16);
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		GTE_PgxpRotTransPers(viewX, viewY, viewZ, (u32)h_over_sz3, lm);
+	}
 
 	return h_over_sz3;
 }
@@ -344,9 +404,17 @@ int GTE_operator(int op)
 		return 1;
 
 	case 0x06:
-		C2_MAC0 = (int)(F((s64)(C2_SX0 * C2_SY1) + (C2_SX1 * C2_SY2) + (C2_SX2 * C2_SY0) - (C2_SX0 * C2_SY2) - (C2_SX1 * C2_SY0) - (C2_SX2 * C2_SY1)));
+	{
+		s64 nclip = (s64)(C2_SX0 * C2_SY1) + (C2_SX1 * C2_SY2) + (C2_SX2 * C2_SY0) -
+		            (C2_SX0 * C2_SY2) - (C2_SX1 * C2_SY0) - (C2_SX2 * C2_SY1);
+		if (NATIVE_PGXP_GEOMETRY_ACTIVE())
+		{
+			NativePgxp_GteNclip(C2_SXY0, C2_SXY1, C2_SXY2, &nclip);
+		}
+		C2_MAC0 = (int)(F(nclip));
 		C2_FLAG = 0;
 		return 1;
+	}
 
 	case 0x0c:
 

@@ -1,6 +1,8 @@
 #ifndef CTR_GTE_H
 #define CTR_GTE_H
 
+#include <platform/native_pgxp.h>
+
 #include <ctr_math.h>
 #include <psx/inline_c.h>
 #include <psx/libgte.h>
@@ -116,19 +118,33 @@ static inline void CTR_GteLoadLVL(const s32 *v)
 	MTC2((u32)v[2], 11);
 }
 
+// Writing an SXY register into memory is where a projected vertex stops being a
+// register and becomes a packet word, so that is where its precise position is
+// bound to the address (see native_pgxp.h).
+static inline void CTR_GteStoreSXYReg(void *xy, int reg)
+{
+	const u32 sxy = MFC2(reg);
+
+	CTR_GteStoreU32(xy, sxy);
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_StoreGteSXY(xy, reg, sxy);
+	}
+}
+
 static inline void CTR_GteStoreSXY(void *xy)
 {
-	CTR_GteStoreU32(xy, MFC2(14));
+	CTR_GteStoreSXYReg(xy, 14);
 }
 
 static inline void CTR_GteStoreSXY0(void *xy)
 {
-	CTR_GteStoreU32(xy, MFC2(12));
+	CTR_GteStoreSXYReg(xy, 12);
 }
 
 static inline void CTR_GteStoreSXY1(void *xy)
 {
-	CTR_GteStoreU32(xy, MFC2(13));
+	CTR_GteStoreSXYReg(xy, 13);
 }
 
 static inline void CTR_GteStoreSXY2(void *xy)
@@ -138,9 +154,9 @@ static inline void CTR_GteStoreSXY2(void *xy)
 
 static inline void CTR_GteStoreSXY3(void *xy0, void *xy1, void *xy2)
 {
-	CTR_GteStoreU32(xy0, MFC2(12));
-	CTR_GteStoreU32(xy1, MFC2(13));
-	CTR_GteStoreU32(xy2, MFC2(14));
+	CTR_GteStoreSXYReg(xy0, 12);
+	CTR_GteStoreSXYReg(xy1, 13);
+	CTR_GteStoreSXYReg(xy2, 14);
 }
 
 static inline s32 CTR_GteReadMAC1(void)

@@ -37,8 +37,10 @@ typedef struct
 	// Sub-pixel screen position, in the drawing space the GTE projected into.
 	float x;
 	float y;
-	// View-space depth in world units. <= 0 when the projection had no usable
-	// depth, which keeps the polygon on retail affine texture mapping.
+	// Perspective divisor, in the same units as the GTE's IR3 (MAC3 >> 12). Only
+	// its ratio across a polygon matters, since the GPU divides it back out.
+	// <= 0 when the projection had no usable depth, which keeps the polygon on
+	// retail affine texture mapping.
 	float w;
 	// Retail packed SXY (x low, y high) this vertex was truncated to. Every
 	// lookup compares it, so a stale shadow can never apply precision to a
