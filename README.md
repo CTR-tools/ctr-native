@@ -275,6 +275,7 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 | `smooth_scaling`           | `true` / `false` | `true`  | Use linear filtering when presenting scaled output                      |
 | `texture_filtering`        | `true` / `false` | `false` | Enable bilinear filtering for PSX textures                              |
 | `pgxp`                     | `Off`, `Geometry`, `Perspective` | `Off` | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
+| `pgxp_integer_nclip`       | `true` / `false` | `false` | Keep retail integer polygon winding while PGXP geometry is on             |
 
 ### Developer Hacks
 

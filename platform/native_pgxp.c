@@ -179,6 +179,140 @@ internal void NativePgxp_RememberRecent(const NativePgxpVertex *vertex)
 	s_pgxpRecentGeneration[index] = s_pgxpGeneration;
 }
 
+// Exact positions for vertices the game builds itself, keyed by the address of
+// the s16 xyz triplet they live in. Direct-mapped: the scratchpad slots are
+// reused constantly, so a collision only costs that vertex its precision until
+// the next frame rewrites the slot.
+#define NATIVE_PGXP_POSITION_BITS  13
+#define NATIVE_PGXP_POSITION_COUNT (1u << NATIVE_PGXP_POSITION_BITS)
+
+typedef struct
+{
+	const void *key;
+	s16 vector[3];
+	float precise[3];
+	u32 generation;
+} NativePgxpPositionSlot;
+
+typedef struct
+{
+	s16 vector[3];
+	b32 valid;
+	float precise[3];
+} NativePgxpInput;
+
+global_variable NativePgxpPositionSlot s_pgxpPositions[NATIVE_PGXP_POSITION_COUNT];
+global_variable NativePgxpInput s_pgxpInputs[3];
+
+internal NativePgxpPositionSlot *NativePgxp_PositionSlot(const void *key)
+{
+	const u32 hash = (u32)((uintptr_t)key >> 1) * 2654435761u;
+
+	return &s_pgxpPositions[hash >> (32 - NATIVE_PGXP_POSITION_BITS)];
+}
+
+void NativePgxp_SetPosition(const void *key, const s16 *vector, const float *precise)
+{
+	NativePgxpPositionSlot *slot = NativePgxp_PositionSlot(key);
+
+	slot->key = key;
+	slot->vector[0] = vector[0];
+	slot->vector[1] = vector[1];
+	slot->vector[2] = vector[2];
+	slot->precise[0] = precise[0];
+	slot->precise[1] = precise[1];
+	slot->precise[2] = precise[2];
+	slot->generation = s_pgxpGeneration;
+}
+
+void NativePgxp_ClearPosition(const void *key)
+{
+	NativePgxpPositionSlot *slot = NativePgxp_PositionSlot(key);
+
+	if (slot->key == key)
+	{
+		slot->generation = 0;
+	}
+}
+
+int NativePgxp_GetPosition(const void *key, const s16 *vector, float *out)
+{
+	const NativePgxpPositionSlot *slot = NativePgxp_PositionSlot(key);
+
+	if ((slot->key == key) && (slot->generation == s_pgxpGeneration) && (slot->vector[0] == vector[0]) && (slot->vector[1] == vector[1]) &&
+	    (slot->vector[2] == vector[2]))
+	{
+		out[0] = slot->precise[0];
+		out[1] = slot->precise[1];
+		out[2] = slot->precise[2];
+		return 1;
+	}
+
+	out[0] = (float)vector[0];
+	out[1] = (float)vector[1];
+	out[2] = (float)vector[2];
+	return 0;
+}
+
+void NativePgxp_CopyPosition(const void *dstKey, const void *srcKey, const s16 *vector)
+{
+	float precise[3];
+
+	if (dstKey == srcKey)
+	{
+		return;
+	}
+
+	if (NativePgxp_GetPosition(srcKey, vector, precise))
+	{
+		NativePgxp_SetPosition(dstKey, vector, precise);
+	}
+	else
+	{
+		NativePgxp_ClearPosition(dstKey);
+	}
+}
+
+void NativePgxp_GteSetInput(int slot, const s16 *vector, const float *precise)
+{
+	if ((slot < 0) || (slot >= 3))
+	{
+		return;
+	}
+
+	NativePgxpInput *input = &s_pgxpInputs[slot];
+
+	input->vector[0] = vector[0];
+	input->vector[1] = vector[1];
+	input->vector[2] = vector[2];
+	input->precise[0] = precise[0];
+	input->precise[1] = precise[1];
+	input->precise[2] = precise[2];
+	input->valid = 1;
+}
+
+int NativePgxp_GteGetInput(int slot, s16 vx, s16 vy, s16 vz, double *out)
+{
+	if ((slot < 0) || (slot >= 3))
+	{
+		return 0;
+	}
+
+	const NativePgxpInput *input = &s_pgxpInputs[slot];
+
+	// The integers are the check: any MTC2 that overwrote the register, and so
+	// dropped its exact value, makes these disagree.
+	if (!input->valid || (input->vector[0] != vx) || (input->vector[1] != vy) || (input->vector[2] != vz))
+	{
+		return 0;
+	}
+
+	out[0] = input->precise[0];
+	out[1] = input->precise[1];
+	out[2] = input->precise[2];
+	return 1;
+}
+
 internal NativePgxpRegister *NativePgxp_FifoRegister(int reg)
 {
 	// SXYP (15) reads back as SXY2.
@@ -190,6 +324,14 @@ internal const NativePgxpVertex *NativePgxp_FifoMatch(int reg, u32 value)
 	const NativePgxpRegister *fifoReg = NativePgxp_FifoRegister(reg);
 
 	return (fifoReg->valid && (fifoReg->vertex.value == value)) ? &fifoReg->vertex : NULL;
+}
+
+void NativePgxp_GteInvalidateInput(int reg)
+{
+	if ((reg >= 0) && (reg <= 5))
+	{
+		s_pgxpInputs[reg >> 1].valid = 0;
+	}
 }
 
 void NativePgxp_GteProject(float x, float y, float w, u32 value)
@@ -265,6 +407,11 @@ void NativePgxp_GteLoadSXY(int reg, const void *src, u32 value)
 
 int NativePgxp_GteNclip(u32 sxy0, u32 sxy1, u32 sxy2, s64 *out)
 {
+	if (g_config.pgxpIntegerNclip)
+	{
+		return 0;
+	}
+
 	const NativePgxpVertex *v0 = NativePgxp_FifoMatch(12, sxy0);
 	const NativePgxpVertex *v1 = NativePgxp_FifoMatch(13, sxy1);
 	const NativePgxpVertex *v2 = NativePgxp_FifoMatch(14, sxy2);
@@ -360,4 +507,5 @@ void NativePgxp_EndFrame(void)
 	}
 	s_pgxpWorldPhase = 0;
 	memset(s_pgxpFifo, 0, sizeof(s_pgxpFifo));
+	memset(s_pgxpInputs, 0, sizeof(s_pgxpInputs));
 }

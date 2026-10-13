@@ -85,6 +85,7 @@ NativeConfig g_config = {
   .smoothScaling = true,
   .textureFiltering = false,
   .pgxpMode = PGXP_MODE_OFF,
+  .pgxpIntegerNclip = false,
   .saveAnywhere = false,
   .maskMode = MASK_MODE_NORMAL,
   .maskProtectsFromDamage = true,
@@ -455,6 +456,13 @@ const ConfigEntry g_configEntries[] = {
         .valuePtr = &g_config.pgxpMode,
         .enumValues = kPgxpModeValues,
         .numEnumValues = NUM_PGXP_MODES
+    },
+    {
+        .section = "Graphics",
+        .key = "pgxp_integer_nclip",
+        .label = "Integer Winding",
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.pgxpIntegerNclip
     },
     {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,

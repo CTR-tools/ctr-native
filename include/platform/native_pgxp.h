@@ -57,6 +57,26 @@ enum
 
 void NativePgxp_SetPrimRegion(int index, const void *start, size_t size);
 
+// CPU-side precision (like DuckStation's "PGXP CPU"): the vertices CTR builds
+// itself rather than reading from the level. Retail builds subdivision
+// midpoints, LOD fades and near-plane clip vertices from truncated integers, so
+// they sit slightly off the edges they split; at sub-pixel projection that
+// opens a visible crack against neighbours drawn without the split.
+//
+// An exact position is keyed by the address of an s16 xyz triplet and only
+// trusted while that triplet still holds the integers it was stored with.
+void NativePgxp_SetPosition(const void *key, const s16 *vector, const float *precise);
+void NativePgxp_ClearPosition(const void *key);
+// Returns 1 with the exact position, or 0 with `vector` converted to float.
+int NativePgxp_GetPosition(const void *key, const s16 *vector, float *out);
+void NativePgxp_CopyPosition(const void *dstKey, const void *srcKey, const s16 *vector);
+
+// GTE input vectors V0..V2. Loading a vector register drops its exact value, so
+// set this after the MTC2s that load the vertex. RTPS/RTPT use it while the
+// integers still match.
+void NativePgxp_GteSetInput(int slot, const s16 *vector, const float *precise);
+int NativePgxp_GteGetInput(int slot, s16 vx, s16 vy, s16 vz, double *out);
+
 // GTE side: mirror of the SXY0..SXY2 FIFO.
 void NativePgxp_GteProject(float x, float y, float w, u32 value);
 void NativePgxp_GteWriteSXY(int reg, u32 value);
@@ -75,6 +95,10 @@ void NativePgxp_BindWrittenXY(const void *dst, u32 value);
 // HUD and menu drawing never goes through the GTE, so it must not bind its own
 // screen coordinates to a world vertex that happens to share the same integer.
 void NativePgxp_SetWorldPhase(int active);
+
+// Loading a vector register drops its exact value, so set the precise input after
+// the MTC2s that load the vertex.
+void NativePgxp_GteInvalidateInput(int reg);
 
 // GPU side.
 int NativePgxp_Lookup(const void *addr, u32 value, NativePgxpVertex *out);

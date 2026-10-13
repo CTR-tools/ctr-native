@@ -44,11 +44,19 @@ u32 MFC2(s32 reg)
 		break;
 	}
 
-	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	if (NATIVE_PGXP_ACTIVE())
 	{
-		// Culling helpers re-read the register they just projected; remember the
-		// vertex so a later MTC2 of the same value can recover it.
-		NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+		if ((reg >= 0) && (reg <= 5))
+		{
+			// Loading a vector register drops whatever exact value it held.
+			NativePgxp_GteInvalidateInput(reg);
+		}
+		else if ((reg >= 12) && (reg <= 15))
+		{
+			// Culling helpers re-read the register they just projected; remember
+			// the vertex so a later MTC2 of the same value can recover it.
+			NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+		}
 	}
 
 	return gteRegs.CP2D.p[reg].d;
@@ -87,9 +95,16 @@ s32 MFC2_S(s32 reg)
 		break;
 	}
 
-	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	if (NATIVE_PGXP_ACTIVE())
 	{
-		NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+		if ((reg >= 0) && (reg <= 5))
+		{
+			NativePgxp_GteInvalidateInput(reg);
+		}
+		else if ((reg >= 12) && (reg <= 15))
+		{
+			NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+		}
 	}
 
 	return gteRegs.CP2D.p[reg].sd;

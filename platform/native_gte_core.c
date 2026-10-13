@@ -374,7 +374,21 @@ internal int GTE_RotTransPers(int idx, int lm)
 	C2_SY2 = Lm_G2(F((s64)C2_OFY + ((s64)C2_IR2 * h_over_sz3)) >> 16);
 	if (NATIVE_PGXP_ACTIVE())
 	{
-		GTE_PgxpRotTransPers(viewX, viewY, viewZ, (u32)h_over_sz3, lm);
+		// A CPU-built vertex (subdivision midpoint, LOD fade, near-plane clip)
+		// has an exact position the game never stored. Rebuild the view-space
+		// point from it so the projection starts sub-pixel instead of at the
+		// truncated integer the GTE was handed.
+		double input[3];
+		if (NativePgxp_GteGetInput(idx, (s16)VX(idx), (s16)VY(idx), (s16)VZ(idx), input))
+		{
+			GTE_PgxpRotTransPers((double)C2_TRX * 4096.0 + C2_R11 * input[0] + C2_R12 * input[1] + C2_R13 * input[2],
+			                     (double)C2_TRY * 4096.0 + C2_R21 * input[0] + C2_R22 * input[1] + C2_R23 * input[2],
+			                     (double)C2_TRZ * 4096.0 + C2_R31 * input[0] + C2_R32 * input[1] + C2_R33 * input[2], (u32)h_over_sz3, lm);
+		}
+		else
+		{
+			GTE_PgxpRotTransPers(viewX, viewY, viewZ, (u32)h_over_sz3, lm);
+		}
 	}
 
 	return h_over_sz3;

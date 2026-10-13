@@ -36,6 +36,7 @@ typedef struct {
     bool smoothScaling;         // true = linear filtering for direct presentation
     bool textureFiltering;      // true = bilinear PSX texture sampling
     int pgxpMode;               // PGXP_MODE_OFF (default), GEOMETRY, or PERSPECTIVE
+    bool pgxpIntegerNclip;      // true = keep retail integer NCLIP while PGXP geometry is on
     bool saveAnywhere;          // false = off (default), true = save anywhere in adventure mode by pressing select or from the pause menu
     int missileSpeedMultiplier; // percent, 20%..500%, 100 = 1.0x (default)
     int bombSpeedMultiplier;    // percent, 20%..300%, 100 = 1.0x (default)
