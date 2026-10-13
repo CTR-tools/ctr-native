@@ -1,0 +1,46 @@
+# Cuts a tag from master.
+
+name: Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to cut, with or without the leading v, e.g. 1.2.0"
+        required: true
+        type: string
+      dry_run:
+        description: "Validate and report without cutting the tag"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  cut-tag:
+    name: Cut the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: cut-tag
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      # Reading CI's runs to decide whether this commit may be tagged.
+      actions: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          # The tag is looked up by name, so tags have to be here.
+          fetch-depth: 0
+      - name: Validate and cut the tag
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_VERSION: ${{ inputs.version }}
+          # The head of the dispatched ref, which cut-tag.sh refuses unless that
+          # ref is master.
+          SHA: ${{ github.sha }}
+        run: ./scripts/release/cut-tag.sh

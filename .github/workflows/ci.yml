@@ -1,9 +1,11 @@
-# Build and test gate for Windows.
+# Build and test gate for Windows, and the publishing half of a release.
 #
 # Covers the unconditional work: compile the game with build.bat, confirm the
 # binary reports the version CMake resolved for it, and run every suite
-# registered with CTest. Packaging and release artifacts are left to a later
-# workflow.
+# registered with CTest.
+#
+# On a tag, one job more: the archive is packaged and attached to a draft
+# release.
 
 name: CI
 
@@ -119,3 +121,48 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "ctest reported failures."
           }
+
+      # Tag builds only
+      - name: Upload the verified build
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-i686-build
+          path: build/ctr_native_expanded.exe
+
+  release:
+    name: Package and publish the draft release
+    needs: windows-build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag
+        id: resolve
+        env:
+          INPUT_TAG: ${{ github.ref_name }}
+        run: ./scripts/release/resolve-tag.sh
+
+      - name: Download the verified build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-i686-build
+          path: build
+
+      - name: Package the release
+        shell: pwsh
+        run: ./scripts/package-windows.ps1 -Version '${{ steps.resolve.outputs.tag }}'
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: ./scripts/release/publish-release.sh

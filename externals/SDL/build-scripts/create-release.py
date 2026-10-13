@@ -24,21 +24,21 @@ def main():
     default_remote = determine_remote()
 
     parser = argparse.ArgumentParser(allow_abbrev=False)
-    parser.add_argument("--ref", required=True, help=f"Name of branch or tag containing release.yml")
+    parser.add_argument("--ref", required=True, help=f"Name of branch or tag containing tag.yml")
     parser.add_argument("--remote", "-R", default=default_remote, help=f"Remote repo (default={default_remote})")
-    parser.add_argument("--commit", help=f"Input 'commit' of release.yml (default is the hash of the ref)")
+    parser.add_argument("--commit", help=f"Input 'commit' of tag.yml (default is the hash of the ref)")
     args = parser.parse_args()
 
     if args.commit is None:
         args.commit = subprocess.check_output(["git", "rev-parse", args.ref], cwd=ROOT, text=True).strip()
 
 
-    print(f"Running release.yml workflow:")
+    print(f"Running tag.yml workflow:")
     print(f"  remote = {args.remote}")
     print(f"     ref = {args.ref}")
     print(f"  commit = {args.commit}")
 
-    subprocess.check_call(["gh", "-R", args.remote, "workflow", "run", "release.yml", "--ref", args.ref, "-f", f"commit={args.commit}"], cwd=ROOT)
+    subprocess.check_call(["gh", "-R", args.remote, "workflow", "run", "tag.yml", "--ref", args.ref, "-f", f"commit={args.commit}"], cwd=ROOT)
 
 
 if __name__ == "__main__":
