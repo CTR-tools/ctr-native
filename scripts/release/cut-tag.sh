@@ -5,6 +5,7 @@
 #   DRY_RUN        true to validate and report without pushing
 #   INPUT_VERSION  the version to cut, with or without the leading v
 #   SHA            the head of master, which is the commit being tagged
+#   GH_TOKEN       token with actions: read, for the gh calls below
 
 set -euo pipefail
 
