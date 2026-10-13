@@ -48,6 +48,7 @@
 #include "platform/native_gpu_links.c"
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
+#include "platform/native_pgxp.c"
 #include "platform/native_glad.c"
 #include "platform/native_input.c"
 #include "platform/native_inline_c.c"

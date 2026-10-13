@@ -40,6 +40,13 @@ static const ConfigEnumValue kRenderScaleValues[] = {
 };
 #define NUM_RENDER_SCALES (sizeof(kRenderScaleValues) / sizeof(kRenderScaleValues[0]))
 
+static const ConfigEnumValue kPgxpModeValues[] = {
+    {"Off", PGXP_MODE_OFF},
+    {"Geometry", PGXP_MODE_GEOMETRY},
+    {"Perspective", PGXP_MODE_PERSPECTIVE},
+};
+#define NUM_PGXP_MODES (sizeof(kPgxpModeValues) / sizeof(kPgxpModeValues[0]))
+
 NativeConfig g_config = {
   .skipIntro = false,
   .showReservesMeter = false,
@@ -77,6 +84,7 @@ NativeConfig g_config = {
   .renderScale = 0,
   .smoothScaling = true,
   .textureFiltering = false,
+  .pgxpMode = PGXP_MODE_OFF,
   .saveAnywhere = false,
   .maskMode = MASK_MODE_NORMAL,
   .maskProtectsFromDamage = true,
@@ -438,6 +446,15 @@ const ConfigEntry g_configEntries[] = {
         .label = "Texture Filtering",
         .type = CFG_BOOL,
         .valuePtr = &g_config.textureFiltering
+    },
+    {
+        .section = "Graphics",
+        .key = "pgxp",
+        .label = "Sub-Pixel Precision",
+        .type = CFG_ENUM,
+        .valuePtr = &g_config.pgxpMode,
+        .enumValues = kPgxpModeValues,
+        .numEnumValues = NUM_PGXP_MODES
     },
     {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,

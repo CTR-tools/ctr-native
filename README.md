@@ -274,6 +274,7 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 | `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native` | Internal render resolution; Native follows the presentation viewport |
 | `smooth_scaling`           | `true` / `false` | `true`  | Use linear filtering when presenting scaled output                      |
 | `texture_filtering`        | `true` / `false` | `false` | Enable bilinear filtering for PSX textures                              |
+| `pgxp`                     | `Off`, `Geometry`, `Perspective` | `Off` | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
 
 ### Developer Hacks
 
