@@ -22,15 +22,23 @@
 
 typedef struct
 {
-	s16 x, y, page, clut;
+	// Sub-pixel when PGXP recovered the GTE vertex, otherwise retail integers.
+	float x, y;
+	// Perspective divisor for PGXP polygons; 0 keeps retail affine mapping.
+	float w;
+	// Texture page and CLUT are per-polygon constants. Moving them out of the
+	// position attribute keeps them out of the interpolated varyings, so scaling
+	// clip w cannot perturb the texture lookup.
+	s16 page, clut;
 
 	u8 u, v, bright, dither;
 	u8 r, g, b, a;
 
 	s8 tcx, tcy, _p0, _p1;
+	u16 _pad;
 } GrVertex;
 
-CTR_STATIC_ASSERT(sizeof(GrVertex) == 20);
+CTR_STATIC_ASSERT(sizeof(GrVertex) == 32);
 
 typedef enum
 {
@@ -38,6 +46,7 @@ typedef enum
 	a_texcoord,
 	a_color,
 	a_extra,
+	a_page_clut,
 } ShaderAttrib;
 
 typedef enum
