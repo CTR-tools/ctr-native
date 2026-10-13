@@ -982,8 +982,10 @@ static void DrawLevelOvr1P_CopySourceVertex(struct DrawLevelOvr1PScratchVertex *
 
 static void DrawLevelOvr1P_CopyProjectedScreenDepth(struct DrawLevelOvr1PScratchVertex *dst, const struct DrawLevelOvr1PScratchVertex *src)
 {
-	dst->posScreen[0] = src->posScreen[0];
-	dst->posScreen[1] = src->posScreen[1];
+	// Subdivision copies an already-projected vertex to a new scratch slot, so
+	// the precise position has to follow it or the copy loses precision.
+	CtrGpu_CopyPackedXY(&dst->posScreen[0], &src->posScreen[0],
+	                   (u16)src->posScreen[0] | ((u32)(u16)src->posScreen[1] << 16));
 	dst->depth = src->depth;
 	dst->clipNear = src->clipNear;
 	dst->clipHalfNear = src->clipHalfNear;

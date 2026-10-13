@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_pgxp.h>
 
 #if defined(CTR_INTERNAL)
 #include <platform/native_perf.h>
@@ -64,6 +65,11 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	MenuHighlight();
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_SETUP);
 
+	// Everything from here to the HUD is world geometry and effects. The flag
+	// keeps HUD and menu quads from binding a world vertex that happens to share
+	// their integer SXY (see native_pgxp.h).
+	NativePgxp_SetWorldPhase(1);
+
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 	RenderAllWeather(gGT);
 	RenderAllConfetti(gGT);
@@ -78,9 +84,13 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	}
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 
+	NativePgxp_SetWorldPhase(0);
+
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_HUD);
 	RenderAllHUD(gGT);
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_HUD);
+
+	NativePgxp_SetWorldPhase(1);
 
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 	RenderAllBeakerRain(gGT);
@@ -136,7 +146,10 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 
 		if (((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && (gGT->numPlyrCurrGame > 1))
 		{
+			// A HUD element, despite sitting between two world passes.
+			NativePgxp_SetWorldPhase(0);
 			UI_RenderFrame_Wumpa3D_2P3P4P(gGT);
+			NativePgxp_SetWorldPhase(1);
 		}
 
 		if (((gGT->renderFlags & RENDER_FLAG_MULTIPLAYER_DECALS) != 0) && (gGT->numPlyrCurrGame > 1) && !sdata->highDetailSplitScreenLevel)
@@ -185,6 +198,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 		}
 		MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_POST_LEVEL);
 	}
+
+	NativePgxp_SetWorldPhase(0);
 
 	// If in main menu, or in adventure arena,
 	// or in End-Of-Race menu
