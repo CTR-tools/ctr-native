@@ -374,21 +374,23 @@ internal int GTE_RotTransPers(int idx, int lm)
 	C2_SY2 = Lm_G2(F((s64)C2_OFY + ((s64)C2_IR2 * h_over_sz3)) >> 16);
 	if (NATIVE_PGXP_ACTIVE())
 	{
-		// A CPU-built vertex (subdivision midpoint, LOD fade, near-plane clip)
-		// has an exact position the game never stored. Rebuild the view-space
-		// point from it so the projection starts sub-pixel instead of at the
-		// truncated integer the GTE was handed.
+		// Rebuild the view-space point through the unrounded matrix, so the
+		// projection starts sub-pixel instead of at the truncated integer the
+		// GTE was handed. Retail rounds every matrix element to Q12, and both
+		// sides of a shared edge have to go through the same one or the edge
+		// splits.
 		double input[3];
-		if (NativePgxp_GteGetInput(idx, (s16)VX(idx), (s16)VY(idx), (s16)VZ(idx), input))
-		{
-			GTE_PgxpRotTransPers((double)C2_TRX * 4096.0 + C2_R11 * input[0] + C2_R12 * input[1] + C2_R13 * input[2],
-			                     (double)C2_TRY * 4096.0 + C2_R21 * input[0] + C2_R22 * input[1] + C2_R23 * input[2],
-			                     (double)C2_TRZ * 4096.0 + C2_R31 * input[0] + C2_R32 * input[1] + C2_R33 * input[2], (u32)h_over_sz3, lm);
-		}
-		else
-		{
-			GTE_PgxpRotTransPers(viewX, viewY, viewZ, (u32)h_over_sz3, lm);
-		}
+		double result[3];
+		const double rotation[9] = {C2_R11, C2_R12, C2_R13, C2_R21, C2_R22, C2_R23, C2_R31, C2_R32, C2_R33};
+		const double translation[3] = {C2_TRX, C2_TRY, C2_TRZ};
+
+		input[0] = (double)VX(idx);
+		input[1] = (double)VY(idx);
+		input[2] = (double)VZ(idx);
+		NativePgxp_GteGetInput(idx, (s16)VX(idx), (s16)VY(idx), (s16)VZ(idx), input);
+		NativePgxp_Transform(0, 0, rotation, translation, input, result);
+
+		GTE_PgxpRotTransPers(result[0], result[1], result[2], (u32)h_over_sz3, lm);
 	}
 
 	return h_over_sz3;
@@ -499,6 +501,29 @@ int GTE_operator(int op)
 		C2_IR1 = Lm_B1(C2_MAC1, lm);
 		C2_IR2 = Lm_B2(C2_MAC2, lm);
 		C2_IR3 = Lm_B3(C2_MAC3, lm);
+
+		// MVMVA counterpart: the clip record transforms through LLV0BK and keeps
+		// only the saturated IR vector, so the exact product is kept here for it
+		// to read back.
+		if (NATIVE_PGXP_ACTIVE() && cv != 2 && mx < 3 && v < 3)
+		{
+			double input[3] = {(double)VX(v), (double)VY(v), (double)VZ(v)};
+			double result[3];
+			const double rotation[9] = {C2_R11, C2_R12, C2_R13, C2_R21, C2_R22, C2_R23, C2_R31, C2_R32, C2_R33};
+			const double translation[3] = {C2_TRX, C2_TRY, C2_TRZ};
+
+			NativePgxp_GteGetInput(v, (s16)VX(v), (s16)VY(v), (s16)VZ(v), input);
+			NativePgxp_Transform(mx, cv, rotation, translation, input, result);
+
+			const double scale = m_sf ? 1.0 / 4096.0 : 1.0;
+			const double minIr = lm ? 0.0 : -32768.0;
+			for (int axis = 0; axis < 3; axis++)
+			{
+				const double ir = result[axis] * scale;
+				result[axis] = ir < minIr ? minIr : (ir > 32767.0 ? 32767.0 : ir);
+			}
+			NativePgxp_GteSetMvmvaResult(result, C2_IR1, C2_IR2, C2_IR3);
+		}
 		return 1;
 
 	case 0x13:

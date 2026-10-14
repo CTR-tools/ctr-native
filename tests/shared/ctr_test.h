@@ -55,7 +55,9 @@ static inline void CtrTest_FailEq(int actual, int expected, const char *what)
 
 // The floating-point counterpart, for geometry. Reports what it got the same
 // way CHECK_EQ does, so a failing suite names the quantity that moved.
-static void CtrTest_FailEqNear(double actual, double expected, const char *what)
+// inline for the same reason CtrTest_FailEq is: a suite that never compares
+// floating-point values must still compile clean.
+static inline void CtrTest_FailEqNear(double actual, double expected, const char *what)
 {
 	ctrTestFailures++;
 	printf("  FAIL: %s (expected %f, got %f)\n", what, expected, actual);

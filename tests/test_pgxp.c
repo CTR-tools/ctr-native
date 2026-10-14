@@ -25,9 +25,20 @@
 
 #include <psx/libgpu.h>
 
-// native_pgxp.c only reads the mode and the winding escape hatch, so a default
-// instance is enough; the real one is defined in native_config.c.
+// native_pgxp.c only reads the mode, so a default instance is enough; the real
+// one is defined in native_config.c.
 NativeConfig g_config;
+
+// The debug counter reports through the log, which the game owns; it is not
+// exercised by the cases below.
+void Platform_Log(const char *fmt, ...)
+{
+	(void)fmt;
+}
+
+void Platform_LogFlush(void)
+{
+}
 
 #include "platform/native_pgxp.c"
 
@@ -41,7 +52,6 @@ static u32 PackSxy(int x, int y)
 static void Reset(void)
 {
 	g_config.pgxpMode = PGXP_MODE_OFF;
-	g_config.pgxpIntegerNclip = false;
 	NativePgxp_EndFrame();
 	NativePgxp_SetPrimRegion(0, NULL, 0);
 	NativePgxp_SetPrimRegion(1, NULL, 0);
@@ -543,41 +553,6 @@ static void TestNclipAgreement(void)
 	Reset();
 }
 
-static void TestNclipEscapeHatch(void)
-{
-	CTR_TEST_SECTION("winding: pgxp_integer_nclip forces retail winding while geometry stays precise");
-
-	// A sliver is where precise and retail genuinely disagree, which is why
-	// Turbocharged carries the escape hatch. It must keep the integer result
-	// without disturbing the position machinery.
-	const u32 sxy0 = PackSxy(100, 200);
-	const u32 sxy1 = PackSxy(101, 200);
-	const u32 sxy2 = PackSxy(100, 201);
-	const s64 retail = RetailNclip(100, 200, 101, 200, 100, 201);
-	s64 precise = 0;
-	s64 forced = 0;
-
-	Reset();
-	g_config.pgxpMode = PGXP_MODE_GEOMETRY;
-	NativePgxp_GteProject(100.99f, 200.4f, 500.0f, sxy0);
-	NativePgxp_GteProject(101.01f, 200.6f, 500.0f, sxy1);
-	NativePgxp_GteProject(100.5f, 201.5f, 500.0f, sxy2);
-
-	CTR_TEST_CHECK(NativePgxp_GteNclip(sxy0, sxy1, sxy2, &precise) == 1, "precise winding is available by default");
-	CTR_TEST_CHECK_EQ(precise, retail, "this sliver happens to agree");
-
-	g_config.pgxpIntegerNclip = true;
-	CTR_TEST_CHECK(NativePgxp_GteNclip(sxy0, sxy1, sxy2, &forced) == 0, "the escape hatch declines to answer");
-	CTR_TEST_CHECK_EQ(forced, 0, "the escape hatch leaves the caller's value alone");
-
-	// The escape hatch is about winding only; positions must still be precise.
-	const NativePgxpVertex *v = NativePgxp_FifoMatch(14, sxy2);
-	CTR_TEST_CHECK(v != NULL, "positions survive the escape hatch");
-	CTR_TEST_CHECK_NEAR(v != NULL ? v->x : 0.0, 100.5, "the FIFO still holds the precise vertex");
-
-	Reset();
-}
-
 static void TestNclipUnknownVertices(void)
 {
 	CTR_TEST_SECTION("winding: an unresolved corner falls back to retail rather than guessing");
@@ -636,7 +611,6 @@ int main(void)
 	TestPositionGeneration();
 	TestGteInput();
 	TestNclipAgreement();
-	TestNclipEscapeHatch();
 	TestNclipUnknownVertices();
 	TestVertexLayout();
 

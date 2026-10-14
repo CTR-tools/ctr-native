@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_pgxp.h>
 
 
 void PushBuffer_Init(struct PushBuffer *pb, int id, int total)
@@ -392,6 +393,58 @@ void PushBuffer_SetMatrixVP(struct PushBuffer *pb)
 	// when crash is sleeping on the grassy hill
 
 	gte_SetLightMatrix(&scratch->cameraMatrix);
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		// Mirror of the retail matrix setup above, in double and without the Q12
+		// rounding ConvertRotToMatrix and the view-projection scaling apply. The
+		// GTE transforms every level vertex through these matrices, so keeping
+		// the unrounded values is what lets a sub-pixel position and a retail
+		// integer describe the same edge.
+		float pos[3], rot[3];
+		NativePgxp_GetPosition(&pb->pos, &pb->pos.x, pos);
+		NativePgxp_GetPosition(&pb->rot, &pb->rot.x, rot);
+		double camera[9];
+		NativePgxp_CameraRotation(rot, camera);
+		double view[9], translation[3];
+		const double cameraPos[3] = {pos[0], pos[1], pos[2]};
+
+		for (int row = 0; row < 3; row++)
+		{
+			translation[row] = 0.0;
+			for (int col = 0; col < 3; col++)
+			{
+				view[row * 3 + col] = camera[col * 3 + row] * 4096.0;
+				translation[row] -= camera[col * 3 + row] * pos[col];
+			}
+		}
+		for (int i = 0; i < 9; i++)
+		{
+			camera[i] *= 4096.0;
+		}
+		NativePgxp_SetTransform(&pb->matrix_Camera, &pb->matrix_Camera.m[0][0], pb->matrix_Camera.t, camera, cameraPos);
+		NativePgxp_SetTransform(&pb->matrix_CameraTranspose, &pb->matrix_CameraTranspose.m[0][0], pb->matrix_CameraTranspose.t, view,
+		                        translation);
+
+		// The retail code above scales the same axes; mirror those factors.
+		for (int col = 0; col < 3; col++)
+		{
+			view[3 + col] *= (double)r360 / r600;
+		}
+		translation[1] *= (double)r360 / r600;
+		if (g_config.aspectRatio != 0)
+		{
+			const int ws = Widescreen_GetFactor() * 0x800 / 1000;
+#define r800 0x800
+			for (int col = 0; col < 3; col++)
+			{
+				view[col] *= (double)ws / r800;
+			}
+			translation[0] *= (double)ws / r800;
+#undef r800
+		}
+		NativePgxp_SetTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, view, translation);
+	}
 
 	return;
 }

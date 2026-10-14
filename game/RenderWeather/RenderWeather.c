@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_pgxp.h>
 
 #define RENDER_WEATHER_XY_MASK   0xfffeffffu
 #define RENDER_WEATHER_WRAP_MASK 0x07fe07ffu
@@ -162,6 +163,7 @@ void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBu
 	CTC2(RenderWeather_ReadWord(&pb->matrix_ViewProj, 0x04), 1);
 	CTC2(RenderWeather_ReadWord(&pb->matrix_ViewProj, 0x08), 2);
 	CTC2(RenderWeather_ReadWord(&pb->matrix_ViewProj, 0x0c), 3);
+	NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 0);
 	CTC2(RenderWeather_ReadWord(&pb->matrix_ViewProj, 0x10), 4);
 
 	trig = RenderWeather_TrigAngleSinCos(pb->rot.y);

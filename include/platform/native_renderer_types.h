@@ -18,7 +18,11 @@
 #define VRAM_HEIGHT            (512)
 
 
-#define MAX_VERTEX_BUFFER_SIZE (1u << 16)
+// Max detail subdivides all level geometry, and one 1P frame can pass 64K
+// vertices; split screen multiplies that. Exceeding this truncates the frame's
+// vertex list (see NativeRenderer_UpdateVertexBuffer), which drops geometry
+// rather than misplacing it.
+#define MAX_VERTEX_BUFFER_SIZE (1u << 19)
 
 typedef struct
 {

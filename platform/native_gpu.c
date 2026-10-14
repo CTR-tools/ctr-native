@@ -306,6 +306,7 @@ internal void NativeGpu_ApplyPgxp(GrVertex *vertex, VERTTYPE *const *points, int
 {
 	float depth[4];
 	b32 perspective = NATIVE_PGXP_TEXTURES_ACTIVE();
+	int recovered = 0;
 
 	for (int i = 0; i < count; i++)
 	{
@@ -320,6 +321,7 @@ internal void NativeGpu_ApplyPgxp(GrVertex *vertex, VERTTYPE *const *points, int
 			vertex[i].y = precise.y + ofsY;
 			depth[i] = precise.w;
 			perspective &= (precise.w > 0.0f);
+			recovered++;
 		}
 		else
 		{
@@ -334,6 +336,8 @@ internal void NativeGpu_ApplyPgxp(GrVertex *vertex, VERTTYPE *const *points, int
 			vertex[i].w = depth[i];
 		}
 	}
+
+	NativePgxp_DebugCountPolygon(count, recovered, perspective);
 }
 
 void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2)

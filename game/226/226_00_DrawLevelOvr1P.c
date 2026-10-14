@@ -1390,6 +1390,12 @@ static int DrawLevelOvr1P_NclipProjected(const struct DrawLevelOvr1PScratchVerte
 	MTC2(sxy0, 12);
 	MTC2(sxy1, 13);
 	MTC2(sxy2, 14);
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_GteLoadSXY(12, &vertex0->posScreen[0], sxy0);
+		NativePgxp_GteLoadSXY(13, &vertex1->posScreen[0], sxy1);
+		NativePgxp_GteLoadSXY(14, &vertex2->posScreen[0], sxy2);
+	}
 	gte_nclip();
 	gte_stopz(&nclip);
 
@@ -1399,6 +1405,17 @@ static int DrawLevelOvr1P_NclipProjected(const struct DrawLevelOvr1PScratchVerte
 static u32 DrawLevelOvr1P_PackProjectedSxy(const struct DrawLevelOvr1PScratchVertex *projected)
 {
 	return (u16)projected->posScreen[0] | ((u32)(u16)projected->posScreen[1] << 16);
+}
+
+// Packing a projected vertex into a packet is a copy from one buffer to another,
+// so it has to carry the precise vertex across by address. CtrGpu_WritePackedXY
+// binds by value through the recent-vertex ring instead, which a subdivided quad
+// grid evicts long before the packet is written: those vertices then fall back
+// to retail while their neighbours stay sub-pixel, and the seam between the two
+// opens as a thin gap (see native_pgxp.h).
+static void DrawLevelOvr1P_WriteProjectedXY(VERTTYPE *xy, const struct DrawLevelOvr1PScratchVertex *projected)
+{
+	CtrGpu_CopyPackedXY(xy, &projected->posScreen[0], DrawLevelOvr1P_PackProjectedSxy(projected));
 }
 
 static int DrawLevelOvr1P_IsProjectedPolyOffscreenPacked(const struct DrawLevelOvr1PScratchVertex *projected, const int *indices, int count)
@@ -2158,13 +2175,13 @@ static void DrawLevelOvr1P_WriteProjectedGT3(POLY_GT3 *poly, const struct DrawLe
                                              u32 uv1, u32 uv2)
 {
 	CtrGpu_WriteColorCode(&poly->r0, DrawLevelOvr1P_GetProjectedColorCode(&projected[indices[0]], code));
-	CtrGpu_WritePackedXY(&poly->x0, DrawLevelOvr1P_PackProjectedSxy(&projected[indices[0]]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x0, &projected[indices[0]]);
 	CtrGpu_WritePackedUVWord(&poly->u0, uv0);
 	CtrGpu_WriteColorCode(&poly->r1, DrawLevelOvr1P_GetProjectedColorCode(&projected[indices[1]], 0));
-	CtrGpu_WritePackedXY(&poly->x1, DrawLevelOvr1P_PackProjectedSxy(&projected[indices[1]]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x1, &projected[indices[1]]);
 	CtrGpu_WritePackedUVWord(&poly->u1, uv1);
 	CtrGpu_WriteColorCode(&poly->r2, DrawLevelOvr1P_GetProjectedColorCode(&projected[indices[2]], 0));
-	CtrGpu_WritePackedXY(&poly->x2, DrawLevelOvr1P_PackProjectedSxy(&projected[indices[2]]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x2, &projected[indices[2]]);
 	CtrGpu_WritePackedUVWord(&poly->u2, uv2);
 }
 
@@ -2173,7 +2190,7 @@ static void DrawLevelOvr1P_WriteProjectedGT4(POLY_GT4 *poly, const struct DrawLe
 {
 	DrawLevelOvr1P_WriteProjectedGT3((POLY_GT3 *)poly, projected, indices, code, uv0, uv1, uv2);
 	CtrGpu_WriteColorCode(&poly->r3, DrawLevelOvr1P_GetProjectedColorCode(&projected[indices[3]], 0));
-	CtrGpu_WritePackedXY(&poly->x3, DrawLevelOvr1P_PackProjectedSxy(&projected[indices[3]]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x3, &projected[indices[3]]);
 	CtrGpu_WritePackedUVWord(&poly->u3, uv2 >> 16);
 }
 
@@ -2364,6 +2381,26 @@ static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvr1PScra
 		midpoint[2] = (s16)MFC2_S(27);
 	}
 
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		// Exact counterpart of the edge midpoint and the GPL12 fade above, so the
+		// faded midpoint still lands on the edge between the two endpoints.
+		float midPrecise[3];
+		float a[3];
+		float b[3];
+
+		NativePgxp_GetPosition(&mid->pos[0], &mid->pos[0], midPrecise);
+		NativePgxp_GetPosition(&endpointA->pos[0], &endpointA->pos[0], a);
+		NativePgxp_GetPosition(&endpointB->pos[0], &endpointB->pos[0], b);
+		for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
+		{
+			const float edgeMid = (a[axisIndex] + b[axisIndex]) * 0.5f;
+			midPrecise[axisIndex] =
+			    (factor < 0x1000) ? midPrecise[axisIndex] + (edgeMid - midPrecise[axisIndex]) * ((float)factor / 4096.0f) : edgeMid;
+		}
+		NativePgxp_SetPosition(&mid->pos[0], midpoint, midPrecise);
+	}
+
 	mid->pos[0] = midpoint[0];
 	mid->pos[1] = midpoint[1];
 	mid->pos[2] = midpoint[2];
@@ -2372,6 +2409,7 @@ static void Ovr226_800a1408_AdjustFullDynamicMidVertex(struct DrawLevelOvr1PScra
 	u32 depth;
 	MTC2(DrawLevelOvr1P_ReadWord(&mid->pos[0], 0), 0);
 	MTC2((u32)(s32)mid->pos[2], 1);
+	DrawLevelOvr1P_PgxpLoadV0(&mid->pos[0]);
 	gte_rtps();
 	CTR_GteStoreSXY(&mid->posScreen[0]);
 	gte_stsz(&depth);
@@ -2449,6 +2487,10 @@ static void DrawLevelOvr1P_CopyClipRecordVertex(struct DrawLevelOvr1PClipRecordV
 	CTR_COPY_VEC3(dst->pos, src->pos);
 	dst->flags = src->flags;
 	DrawLevelOvr1P_CopyColorWord(dst->color_hi, src->color_hi);
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_CopyPosition(&dst->pos[0], &src->pos[0], &src->pos[0]);
+	}
 
 	// NOTE(aalhendi): Retail 0x800a4f78/0x800a3680 OR scratch byte 0x13 into
 	// the record color/code word; the 0x800aa790 consumer uses it for near masks.
@@ -2653,13 +2695,13 @@ static u32 DrawLevelOvr1P_StoreClipRecordUvScratch(const struct DrawLevelOvr1PSc
 static void DrawLevelOvr1P_WriteClipRecordGT3(POLY_GT3 *poly, const struct DrawLevelOvr1PScratchVertex *emit, u32 code, u32 uv0, u32 uv1, u32 uv2)
 {
 	CtrGpu_WriteColorCode(&poly->r0, DrawLevelOvr1P_GetClipRecordColorCode(&emit[0], code));
-	CtrGpu_WritePackedXY(&poly->x0, DrawLevelOvr1P_PackProjectedSxy(&emit[0]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x0, &emit[0]);
 	CtrGpu_WritePackedUVWord(&poly->u0, uv0);
 	CtrGpu_WriteColorCode(&poly->r1, DrawLevelOvr1P_GetClipRecordColorCode(&emit[1], 0));
-	CtrGpu_WritePackedXY(&poly->x1, DrawLevelOvr1P_PackProjectedSxy(&emit[1]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x1, &emit[1]);
 	CtrGpu_WritePackedUVWord(&poly->u1, uv1);
 	CtrGpu_WriteColorCode(&poly->r2, DrawLevelOvr1P_GetClipRecordColorCode(&emit[2], 0));
-	CtrGpu_WritePackedXY(&poly->x2, DrawLevelOvr1P_PackProjectedSxy(&emit[2]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x2, &emit[2]);
 	CtrGpu_WritePackedUVWord(&poly->u2, uv2);
 }
 
@@ -2667,7 +2709,7 @@ static void DrawLevelOvr1P_WriteClipRecordGT4(POLY_GT4 *poly, const struct DrawL
 {
 	DrawLevelOvr1P_WriteClipRecordGT3((POLY_GT3 *)poly, emit, code, uv0, uv1, uv2);
 	CtrGpu_WriteColorCode(&poly->r3, DrawLevelOvr1P_GetClipRecordColorCode(&emit[3], 0));
-	CtrGpu_WritePackedXY(&poly->x3, DrawLevelOvr1P_PackProjectedSxy(&emit[3]));
+	DrawLevelOvr1P_WriteProjectedXY(&poly->x3, &emit[3]);
 	CtrGpu_WritePackedUVWord(&poly->u3, DrawLevelOvr1P_GetClipRecordSignedUvWord(&emit[3]));
 }
 
@@ -2870,6 +2912,33 @@ static void Ovr226_800aaad0_PrepareClipRecordDepthScratch(struct DrawLevelOvr1PS
 	projected->posScreen[1] = DrawLevelOvr1P_ShiftLeft1S16Wrap(projected->pos[1]);
 	projected->depth = (u16)DrawLevelOvr1P_ShiftLeft1S16Wrap(projected->pos[2]);
 	DrawLevelOvr1P_SetClipRecordSourceDelta(projected, (s16)((s32)projected->pos[2] - threshold));
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		// The doubled-space source needs an exact position too, or a re-projected
+		// near-plane corner cannot meet the unclipped polygons beside it. The
+		// doubling wraps, so only take this path where it did not.
+		const s16 doubled[3] = {projected->posScreen[0], projected->posScreen[1], (s16)projected->depth};
+		float view[3];
+		int wrapped = 0;
+
+		for (s32 axisIndex = 0; axisIndex < 3; axisIndex++)
+		{
+			wrapped |= (s32)doubled[axisIndex] != (s32)projected->pos[axisIndex] * 2;
+		}
+
+		if (!wrapped && NativePgxp_GetPosition(&projected->pos[0], &projected->pos[0], view))
+		{
+			view[0] *= 2.0f;
+			view[1] *= 2.0f;
+			view[2] *= 2.0f;
+			NativePgxp_SetPosition(&projected->posScreen[0], doubled, view);
+		}
+		else
+		{
+			NativePgxp_ClearPosition(&projected->posScreen[0]);
+		}
+	}
 }
 
 static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvr1PScratchVertex *projected, const struct DrawLevelOvr1PClipRecordVertex *src)
@@ -2879,8 +2948,13 @@ static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvr1PScra
 	CTR_COPY_VEC3(projected->pos, src->pos);
 	projected->flags = src->flags;
 	DrawLevelOvr1P_CopyColorWord(projected->color_hi, src->color_hi);
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_CopyPosition(&projected->pos[0], &src->pos[0], &src->pos[0]);
+	}
 
 	CTR_GteLoadS16TripletV0(&projected->pos[0]);
+	DrawLevelOvr1P_PgxpLoadV0(&projected->pos[0]);
 	// NOTE(aalhendi): Retail 0x800aa86c/0x800aa8b0/0x800aa8e8/0x800aaee4
 	// uses LLV0BK for this source-vector transform.
 	gte_llv0bk_b();
@@ -2889,6 +2963,22 @@ static void Ovr226_800aa858_ProjectClipRecordRawVertex(struct DrawLevelOvr1PScra
 	projected->pos[0] = ir[0];
 	projected->pos[1] = ir[1];
 	projected->pos[2] = ir[2];
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		// Exact view-space position, so re-projected corners of a clipped polygon
+		// still meet the unclipped polygons around it.
+		float view[3];
+
+		if (NativePgxp_GteGetMvmvaResult(ir, view))
+		{
+			NativePgxp_SetPosition(&projected->pos[0], ir, view);
+		}
+		else
+		{
+			NativePgxp_ClearPosition(&projected->pos[0]);
+		}
+	}
 }
 
 static void DrawLevelOvr1P_PrepareClipRecordDepthScratchRange(struct DrawLevelOvr1PScratchVertex *projected, int count)
@@ -3301,6 +3391,9 @@ static int Ovr226_800aa790_TerminalPreamble(struct PushBuffer *pb, const u8 *cur
 	{
 		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, controlWordIndex * 4), 8 + controlWordIndex);
 	}
+
+	NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 1);
+	NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 5);
 
 	CTC2((u32)(s32)pb->rect.w << 15, 24);
 	CTC2((u32)(s32)pb->rect.h << 15, 25);
@@ -9773,6 +9866,9 @@ static void Ovr226_800a0d34_SetEntryGteAndCameraScratch(struct PushBuffer *pb)
 	{
 		CTC2(DrawLevelOvr1P_ReadWord(&pb->matrix_ViewProj, (u32)(controlWordIndex * 4)), controlWordIndex);
 	}
+
+	NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 0);
+	NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 4);
 
 	for (s32 centerIndex = 0; centerIndex < 3; centerIndex++)
 	{

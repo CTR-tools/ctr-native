@@ -178,6 +178,10 @@ void MTC2_S(s32 value, s32 reg)
 
 void CTC2(u32 value, s32 reg)
 {
+	// A control-register write can land in any matrix bank, so the transform
+	// shadows it might have overwritten are retired here.
+	NativePgxp_InvalidateTransform(reg);
+
 	switch (reg)
 	{
 	case 4:
@@ -204,6 +208,8 @@ void CTC2(u32 value, s32 reg)
 
 void CTC2_S(s32 value, s32 reg)
 {
+	NativePgxp_InvalidateTransform(reg);
+
 	switch (reg)
 	{
 	case 4:

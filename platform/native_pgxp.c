@@ -1,8 +1,11 @@
 #include <macros.h>
 #include <platform/native_pgxp.h>
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "platform/native_log.h"
 
 // Recently read or stored GTE results, for CPU code that copies SXY words around
 // by value before writing them into a packet.
@@ -203,6 +206,183 @@ typedef struct
 
 global_variable NativePgxpPositionSlot s_pgxpPositions[NATIVE_PGXP_POSITION_COUNT];
 global_variable NativePgxpInput s_pgxpInputs[3];
+global_variable NativePgxpInput s_pgxpMvmvaResult;
+
+// Transform shadows. Address plus a full integer snapshot keep a stale
+// scratch/stack matrix from applying to another one; register writes retire the
+// banks they could have landed in.
+#define NATIVE_PGXP_TRANSFORM_COUNT 4096
+
+typedef struct
+{
+	const void *key;
+	s16 rotation[9];
+	s32 translation[3];
+	double preciseRotation[9]; // Q12 units, without rounding
+	double preciseTranslation[3];
+	u32 generation;
+} NativePgxpTransform;
+
+static NativePgxpTransform s_pgxpTransforms[NATIVE_PGXP_TRANSFORM_COUNT];
+static NativePgxpTransform s_pgxpTransformBanks[3];
+static b32 s_pgxpRotationValid[3];
+static b32 s_pgxpTranslationValid[3];
+
+static NativePgxpTransform *NativePgxp_TransformSlot(const void *key)
+{
+	return &s_pgxpTransforms[((u32)((uintptr_t)key >> 2) * 2654435761u) >> 20];
+}
+
+void NativePgxp_SetTransform(const void *key, const s16 *rotation, const s32 *translation, const double *preciseRotation,
+                             const double *preciseTranslation)
+{
+	NativePgxpTransform *slot = NativePgxp_TransformSlot(key);
+
+	slot->key = key;
+	memcpy(slot->rotation, rotation, sizeof(slot->rotation));
+	memcpy(slot->translation, translation, sizeof(slot->translation));
+	memcpy(slot->preciseRotation, preciseRotation, sizeof(slot->preciseRotation));
+	memcpy(slot->preciseTranslation, preciseTranslation, sizeof(slot->preciseTranslation));
+	slot->generation = s_pgxpGeneration;
+}
+
+void NativePgxp_GetTransform(const void *key, const s16 *rotation, const s32 *translation, double *preciseRotation, double *preciseTranslation)
+{
+	const NativePgxpTransform *slot = NativePgxp_TransformSlot(key);
+	const b32 valid = slot->key == key && slot->generation == s_pgxpGeneration;
+	const b32 rotationValid = valid && memcmp(slot->rotation, rotation, sizeof(slot->rotation)) == 0;
+	const b32 translationValid = valid && memcmp(slot->translation, translation, sizeof(slot->translation)) == 0;
+
+	for (int i = 0; i < 9; i++)
+	{
+		preciseRotation[i] = rotationValid ? slot->preciseRotation[i] : rotation[i];
+	}
+	for (int i = 0; i < 3; i++)
+	{
+		preciseTranslation[i] = translationValid ? slot->preciseTranslation[i] : translation[i];
+	}
+}
+
+void NativePgxp_LoadTransform(const void *key, const s16 *rotation, const s32 *translation, int bank)
+{
+	const NativePgxpTransform *slot = NativePgxp_TransformSlot(key);
+	const int index = bank & 3;
+
+	if (index >= 3)
+	{
+		return;
+	}
+
+	const b32 valid = slot->key == key && slot->generation == s_pgxpGeneration;
+	// Bank 0..2 loads rotation; bank 4..6 loads translation only.
+	if (bank < 4)
+	{
+		s_pgxpRotationValid[index] = valid && memcmp(slot->rotation, rotation, sizeof(slot->rotation)) == 0;
+		if (s_pgxpRotationValid[index])
+		{
+			memcpy(s_pgxpTransformBanks[index].preciseRotation, slot->preciseRotation, sizeof(slot->preciseRotation));
+		}
+	}
+	else
+	{
+		s_pgxpTranslationValid[index] = valid && memcmp(slot->translation, translation, sizeof(slot->translation)) == 0;
+		if (s_pgxpTranslationValid[index])
+		{
+			memcpy(s_pgxpTransformBanks[index].preciseTranslation, slot->preciseTranslation, sizeof(slot->preciseTranslation));
+		}
+	}
+}
+
+void NativePgxp_InvalidateTransform(int reg)
+{
+	for (int i = 0; i < 3; i++)
+	{
+		if (reg >= i * 8 && reg < i * 8 + 5)
+		{
+			s_pgxpRotationValid[i] = 0;
+		}
+		if (reg >= i * 8 + 5 && reg < i * 8 + 8)
+		{
+			s_pgxpTranslationValid[i] = 0;
+		}
+	}
+}
+
+void NativePgxp_Transform(int mx, int cv, const double *rotation, const double *translation, const double *input, double *result)
+{
+	for (int row = 0; row < 3; row++)
+	{
+		// Fall back to the retail matrix whenever the game has overwritten the
+		// bank since the shadow was taken.
+		const double *r = (mx < 3 && s_pgxpRotationValid[mx]) ? &s_pgxpTransformBanks[mx].preciseRotation[row * 3] : &rotation[row * 3];
+		const double t = (cv < 3 && s_pgxpTranslationValid[cv]) ? s_pgxpTransformBanks[cv].preciseTranslation[row] : translation[row];
+
+		result[row] = r[0] * input[0] + r[1] * input[1] + r[2] * input[2] + t * 4096.0;
+	}
+}
+
+void NativePgxp_CameraRotation(const float *angles, double *rotation)
+{
+	const double radians = 6.28318530717958647692 / 4096.0;
+	const double sx = sin(angles[0] * radians), cx = cos(angles[0] * radians);
+	const double sy = sin(angles[1] * radians), cy = cos(angles[1] * radians);
+	const double sz = sin(angles[2] * radians), cz = cos(angles[2] * radians);
+	// ConvertRotToMatrix composes Ry * Rx * Rz.
+	const double camera[9] = {cy * cz + sy * sx * sz, -cy * sz + sy * sx * cz, sy * cx, cx * sz, cx * cz, -sx,
+	                          -sy * cz + cy * sx * sz, sy * sz + cy * sx * cz, cy * cx};
+
+	memcpy(rotation, camera, sizeof(camera));
+}
+
+void NativePgxp_ModelViewTranslation(const double *view, const s32 *position, const s16 *camera, const float *preciseCamera, double *translation)
+{
+	double relative[3];
+
+	for (int col = 0; col < 3; col++)
+	{
+		// QueueDraw writes the integer camera-relative position to IR1..IR3,
+		// which sign-extend only the low 16 bits, so the integer input has to be
+		// wrapped before the camera's residual is added back.
+		relative[col] = (s16)((u32)position[col] - (u32)(s32)camera[col]);
+		relative[col] -= (double)preciseCamera[col] - camera[col];
+	}
+
+	for (int row = 0; row < 3; row++)
+	{
+		translation[row] = 0.0;
+		for (int col = 0; col < 3; col++)
+		{
+			translation[row] += view[row * 3 + col] * relative[col] / 4096.0;
+		}
+		// The view-position MVMVA saturates IR before the near/DRAW_HUGE scaling.
+		translation[row] = translation[row] < -32768.0 ? -32768.0 : (translation[row] > 32767.0 ? 32767.0 : translation[row]);
+	}
+}
+
+void NativePgxp_GteSetMvmvaResult(const double *precise, s16 ir1, s16 ir2, s16 ir3)
+{
+	s_pgxpMvmvaResult.vector[0] = ir1;
+	s_pgxpMvmvaResult.vector[1] = ir2;
+	s_pgxpMvmvaResult.vector[2] = ir3;
+	s_pgxpMvmvaResult.precise[0] = (float)precise[0];
+	s_pgxpMvmvaResult.precise[1] = (float)precise[1];
+	s_pgxpMvmvaResult.precise[2] = (float)precise[2];
+	s_pgxpMvmvaResult.valid = 1;
+}
+
+int NativePgxp_GteGetMvmvaResult(const s16 *ir, float *out)
+{
+	if (!s_pgxpMvmvaResult.valid || (s_pgxpMvmvaResult.vector[0] != ir[0]) || (s_pgxpMvmvaResult.vector[1] != ir[1]) ||
+	    (s_pgxpMvmvaResult.vector[2] != ir[2]))
+	{
+		return 0;
+	}
+
+	out[0] = s_pgxpMvmvaResult.precise[0];
+	out[1] = s_pgxpMvmvaResult.precise[1];
+	out[2] = s_pgxpMvmvaResult.precise[2];
+	return 1;
+}
 
 internal NativePgxpPositionSlot *NativePgxp_PositionSlot(const void *key)
 {
@@ -407,11 +587,6 @@ void NativePgxp_GteLoadSXY(int reg, const void *src, u32 value)
 
 int NativePgxp_GteNclip(u32 sxy0, u32 sxy1, u32 sxy2, s64 *out)
 {
-	if (g_config.pgxpIntegerNclip)
-	{
-		return 0;
-	}
-
 	const NativePgxpVertex *v0 = NativePgxp_FifoMatch(12, sxy0);
 	const NativePgxpVertex *v1 = NativePgxp_FifoMatch(13, sxy1);
 	const NativePgxpVertex *v2 = NativePgxp_FifoMatch(14, sxy2);
@@ -498,8 +673,87 @@ int NativePgxp_Lookup(const void *addr, u32 value, NativePgxpVertex *out)
 	return 1;
 }
 
+#if defined(CTR_INTERNAL)
+enum
+{
+	NATIVE_PGXP_DEBUG_PERSPECTIVE,
+	NATIVE_PGXP_DEBUG_SUBPIXEL,
+	NATIVE_PGXP_DEBUG_PARTIAL,
+	NATIVE_PGXP_DEBUG_RETAIL,
+	NATIVE_PGXP_DEBUG_COUNT,
+};
+
+#define NATIVE_PGXP_DEBUG_INTERVAL 300
+
+global_variable int s_pgxpDebug = -1;
+global_variable u32 s_pgxpDebugFrames;
+global_variable u32 s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_COUNT];
+
+void NativePgxp_DebugCountPolygon(int vertexCount, int recoveredCount, int perspective)
+{
+	if (s_pgxpDebug <= 0)
+	{
+		return;
+	}
+
+	if (perspective)
+	{
+		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PERSPECTIVE]++;
+	}
+	else if (recoveredCount == vertexCount)
+	{
+		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_SUBPIXEL]++;
+	}
+	else if (recoveredCount > 0)
+	{
+		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PARTIAL]++;
+	}
+	else
+	{
+		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_RETAIL]++;
+	}
+}
+
+internal void NativePgxp_DebugEndFrame(void)
+{
+	if (s_pgxpDebug < 0)
+	{
+		const char *env = getenv("CTR_PGXP_DEBUG");
+		s_pgxpDebug = (env != NULL) && (env[0] != '\0') && (env[0] != '0');
+	}
+
+	if ((s_pgxpDebug <= 0) || (++s_pgxpDebugFrames < NATIVE_PGXP_DEBUG_INTERVAL))
+	{
+		return;
+	}
+
+	Platform_Log("[CTR PGXP] polygons/frame: perspective %u, sub-pixel affine %u, partial %u, retail %u\n",
+	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PERSPECTIVE] / s_pgxpDebugFrames,
+	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_SUBPIXEL] / s_pgxpDebugFrames,
+	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PARTIAL] / s_pgxpDebugFrames, s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_RETAIL] / s_pgxpDebugFrames);
+	// Unlike stdout, the host log is a buffered stream, so it has to be flushed to
+	// be readable from a run that never shuts down cleanly.
+	Platform_LogFlush();
+	s_pgxpDebugFrames = 0;
+	for (int i = 0; i < NATIVE_PGXP_DEBUG_COUNT; i++)
+	{
+		s_pgxpDebugPolygons[i] = 0;
+	}
+}
+#else
+void NativePgxp_DebugCountPolygon(int vertexCount, int recoveredCount, int perspective)
+{
+	(void)vertexCount;
+	(void)recoveredCount;
+	(void)perspective;
+}
+#endif
+
 void NativePgxp_EndFrame(void)
 {
+#if defined(CTR_INTERNAL)
+	NativePgxp_DebugEndFrame();
+#endif
 	s_pgxpGeneration++;
 	if (s_pgxpGeneration == 0)
 	{
@@ -508,4 +762,7 @@ void NativePgxp_EndFrame(void)
 	s_pgxpWorldPhase = 0;
 	memset(s_pgxpFifo, 0, sizeof(s_pgxpFifo));
 	memset(s_pgxpInputs, 0, sizeof(s_pgxpInputs));
+	s_pgxpMvmvaResult.valid = 0;
+	memset(s_pgxpRotationValid, 0, sizeof(s_pgxpRotationValid));
+	memset(s_pgxpTranslationValid, 0, sizeof(s_pgxpTranslationValid));
 }
