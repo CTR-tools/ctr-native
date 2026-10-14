@@ -560,8 +560,7 @@ void CAM_ProcessTransition(SVec3 *currPos, SVec3 *currRot, SVec3 *startPos, SVec
 	s32 deltaRot;
 
 	// The camera feeds every view transform, so its exact position and angles have
-	// to survive the transition: an angular error displaces geometry in proportion
-	// to its distance, which is what opens seams out in the middle distance.
+	// to survive the transition rather than being rounded once at each end.
 	if (NATIVE_PGXP_ACTIVE())
 	{
 		float start[3], end[3], startAngle[3], endAngle[3];

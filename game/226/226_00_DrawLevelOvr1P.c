@@ -1410,9 +1410,8 @@ static u32 DrawLevelOvr1P_PackProjectedSxy(const struct DrawLevelOvr1PScratchVer
 // Packing a projected vertex into a packet is a copy from one buffer to another,
 // so it has to carry the precise vertex across by address. CtrGpu_WritePackedXY
 // binds by value through the recent-vertex ring instead, which a subdivided quad
-// grid evicts long before the packet is written: those vertices then fall back
-// to retail while their neighbours stay sub-pixel, and the seam between the two
-// opens as a thin gap (see native_pgxp.h).
+// grid evicts before the packet is written, so those vertices fall back to retail
+// while their neighbours stay sub-pixel (see native_pgxp.h).
 static void DrawLevelOvr1P_WriteProjectedXY(VERTTYPE *xy, const struct DrawLevelOvr1PScratchVertex *projected)
 {
 	CtrGpu_CopyPackedXY(xy, &projected->posScreen[0], DrawLevelOvr1P_PackProjectedSxy(projected));
