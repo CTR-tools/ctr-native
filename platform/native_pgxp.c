@@ -246,10 +246,8 @@ void NativePgxp_SetTransform(const void *key, const s16 *rotation, const s32 *tr
 	slot->generation = s_pgxpGeneration;
 }
 
-// The one rule that decides whether a recorded transform is still trustworthy:
-// the slot must hold this key, must not belong to a retired frame, and must
-// still carry the integers it was recorded with. Both accessors below go through
-// here, so a new condition cannot be added to one and forgotten in the other.
+// Stated once for both accessors below, so a new condition cannot be added to one
+// and forgotten in the other.
 static const NativePgxpTransform *NativePgxp_TrustedTransform(const void *key, const s16 *rotation, const s32 *translation, b32 *rotationValid,
                                                               b32 *translationValid)
 {

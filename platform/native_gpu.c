@@ -297,11 +297,9 @@ void MakeLineArray(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1)
 }
 
 // NOTE: Swaps the retail integer corners for the precise GTE vertices the packet
-// words were built from (see native_pgxp.h). Lookups are keyed by the packet
-// address of each x field and checked against the integer stored there, so a
-// polygon the game built any other way keeps retail geometry. Perspective is
-// only applied when every corner has a usable depth, since one missing vertex
-// would otherwise warp the whole polygon.
+// words were built from (see native_pgxp.h). Perspective is only applied when
+// every corner has a usable depth, since one missing vertex would otherwise warp
+// the whole polygon.
 internal void NativeGpu_ApplyPgxp(GrVertex *vertex, VERTTYPE *const *points, int count, float ofsX, float ofsY)
 {
 	float depth[4];

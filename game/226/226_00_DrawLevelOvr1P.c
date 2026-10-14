@@ -968,12 +968,8 @@ static void DrawLevelOvr1P_CopyColorWord(u8 *dst, const u8 *src)
 	DrawLevelOvr1P_WritePackedWord(dst, DrawLevelOvr1P_ReadPackedWord(src));
 }
 
-// NOTE: PGXP CPU-side precision (see native_pgxp.h). Retail builds subdivision
-// midpoints, LOD fades and near-plane clip vertices from truncated integers, so
-// they sit slightly off the edges they split. With sub-pixel projection that
-// shows up as cracks against neighbours drawn without the split, so native
-// carries the exact positions alongside the retail integers and feeds them to
-// the GTE when those vertices are projected.
+// PGXP CPU-side precision for the vertices retail builds itself: subdivision
+// midpoints, LOD fades and near-plane clip vertices (see native_pgxp.h).
 
 // Must run before the retail code overwrites dstMid->pos with the truncated
 // average. The recorded value is only trusted while the triplet still holds the
@@ -3039,9 +3035,8 @@ static void Ovr226_800aab00_InterpolateClipRecordVertex(struct DrawLevelOvr1PScr
 
 	if (NATIVE_PGXP_ACTIVE())
 	{
-		// Retail interpolates in the doubled space of 0x800aaad0, so the exact
-		// positions have to be interpolated the same way or the clipped vertex
-		// lands on a different edge than the polygon it continues.
+		// Interpolate the exact positions in that same doubled space, or the
+		// clipped vertex lands on a different edge than the polygon it continues.
 		const s16 insideDoubled[3] = {inside->posScreen[0], inside->posScreen[1], (s16)inside->depth};
 		const s16 outsideDoubled[3] = {outside->posScreen[0], outside->posScreen[1], (s16)outside->depth};
 		float in[3];

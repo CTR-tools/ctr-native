@@ -65,9 +65,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	MenuHighlight();
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_SETUP);
 
-	// Everything from here to the HUD is world geometry and effects. The flag
-	// keeps HUD and menu quads from binding a world vertex that happens to share
-	// their integer SXY (see native_pgxp.h).
+	// Everything from here to the HUD is world geometry and effects (see
+	// native_pgxp.h).
 	NativePgxp_SetWorldPhase(1);
 
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);

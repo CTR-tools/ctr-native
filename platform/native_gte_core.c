@@ -375,10 +375,9 @@ internal int GTE_RotTransPers(int idx, int lm)
 	if (NATIVE_PGXP_ACTIVE())
 	{
 		// Rebuild the view-space point through the unrounded matrix, so the
-		// projection starts sub-pixel instead of at the truncated integer the
-		// GTE was handed. Retail rounds every matrix element to Q12, and both
-		// sides of a shared edge have to go through the same one or the edge
-		// splits.
+		// projection starts sub-pixel instead of at the truncated integer.
+		// See NativePgxp_SetTransform for why both sides of an edge have to go
+		// through the same matrix.
 		double input[3];
 		double result[3];
 		const double rotation[9] = {C2_R11, C2_R12, C2_R13, C2_R21, C2_R22, C2_R23, C2_R31, C2_R32, C2_R33};

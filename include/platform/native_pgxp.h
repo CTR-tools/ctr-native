@@ -71,9 +71,7 @@ void NativePgxp_ClearPosition(const void *key);
 int NativePgxp_GetPosition(const void *key, const s16 *vector, float *out);
 void NativePgxp_CopyPosition(const void *dstKey, const void *srcKey, const s16 *vector);
 
-// GTE input vectors V0..V2. Loading a vector register drops its exact value, so
-// set this after the MTC2s that load the vertex. RTPS/RTPT use it while the
-// integers still match.
+// GTE input vectors V0..V2. Set after the MTC2s that load the vertex.
 void NativePgxp_GteSetInput(int slot, const s16 *vector, const float *precise);
 int NativePgxp_GteGetInput(int slot, s16 vx, s16 vy, s16 vz, double *out);
 

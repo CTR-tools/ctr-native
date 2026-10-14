@@ -68,9 +68,7 @@ static inline void CtrGpu_WritePackedXY(VERTTYPE *x, u32 xy)
 {
 	CtrGpu_StorePackedXY(x, xy);
 	// World effects write MFC2 results straight into packets; pair them with the
-	// precise GTE vertex they came from (see native_pgxp.h). Outside the world
-	// phase this clears the shadow instead, so HUD and menu quads never inherit
-	// a world vertex that happens to share the same integer SXY.
+	// precise GTE vertex they came from (see native_pgxp.h).
 	NativePgxp_BindWrittenXY(x, xy);
 }
 

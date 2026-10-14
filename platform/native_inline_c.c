@@ -41,8 +41,7 @@ static void NativeGte_PgxpOnWrite(u32 value, s32 reg)
 	}
 	else if ((reg >= 12) && (reg <= 15))
 	{
-		// Game code saves and restores SXY registers around helper calls, or
-		// reloads them from a stored vertex to continue a strip.
+		// Recovered by value; see NativePgxp_GteWriteSXY.
 		NativePgxp_GteWriteSXY(reg, value);
 	}
 }
