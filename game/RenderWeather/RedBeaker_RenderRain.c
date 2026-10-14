@@ -208,7 +208,7 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x08), 2);
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x0c), 3);
 		NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 0);
-	CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x10), 4);
+		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x10), 4);
 
 		CTC2((u32)(s32)pb->rect.w << 15, 24);
 		CTC2((u32)(s32)pb->rect.h << 15, 25);
