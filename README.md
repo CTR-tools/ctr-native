@@ -332,5 +332,6 @@ until I'm satisfied: the output is never accepted blindly.
 - [PsyCross](https://github.com/OpenDriver2/PsyCross) — original PS1 compatibility code from which parts of CTR Native's owned platform layer and PsyQ facade headers are derived
 - [SDL3](https://github.com/libsdl-org/SDL) — cross-platform multimedia
 - [ctr-native-ap](https://github.com/dowlle/ctr-native-ap) by dowlle — render-scale, scaling-filter, and texture-filtering options
+- [Crash Team Racing: Turbocharged](https://github.com/CameronRedmore/Crash-Team-Racing-Turbocharged) by CameronRedmore — the `pgxp` sub-pixel vertex precision option, ported from their implementation and adapted to this fork's renderer and primitive-memory layout
 - [OxideFix](https://github.com/CTR-tools/CTR-ModSDK/tree/main/mods/Modules/OxideFix) from CTR-ModSDK — Nitros Oxide character-select implementation and menu model
 - Crash Team Racing is a trademark of Sony Computer Entertainment / Naughty Dog
