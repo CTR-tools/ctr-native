@@ -673,87 +673,8 @@ int NativePgxp_Lookup(const void *addr, u32 value, NativePgxpVertex *out)
 	return 1;
 }
 
-#if defined(CTR_INTERNAL)
-enum
-{
-	NATIVE_PGXP_DEBUG_PERSPECTIVE,
-	NATIVE_PGXP_DEBUG_SUBPIXEL,
-	NATIVE_PGXP_DEBUG_PARTIAL,
-	NATIVE_PGXP_DEBUG_RETAIL,
-	NATIVE_PGXP_DEBUG_COUNT,
-};
-
-#define NATIVE_PGXP_DEBUG_INTERVAL 300
-
-global_variable int s_pgxpDebug = -1;
-global_variable u32 s_pgxpDebugFrames;
-global_variable u32 s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_COUNT];
-
-void NativePgxp_DebugCountPolygon(int vertexCount, int recoveredCount, int perspective)
-{
-	if (s_pgxpDebug <= 0)
-	{
-		return;
-	}
-
-	if (perspective)
-	{
-		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PERSPECTIVE]++;
-	}
-	else if (recoveredCount == vertexCount)
-	{
-		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_SUBPIXEL]++;
-	}
-	else if (recoveredCount > 0)
-	{
-		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PARTIAL]++;
-	}
-	else
-	{
-		s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_RETAIL]++;
-	}
-}
-
-internal void NativePgxp_DebugEndFrame(void)
-{
-	if (s_pgxpDebug < 0)
-	{
-		const char *env = getenv("CTR_PGXP_DEBUG");
-		s_pgxpDebug = (env != NULL) && (env[0] != '\0') && (env[0] != '0');
-	}
-
-	if ((s_pgxpDebug <= 0) || (++s_pgxpDebugFrames < NATIVE_PGXP_DEBUG_INTERVAL))
-	{
-		return;
-	}
-
-	Platform_Log("[CTR PGXP] polygons/frame: perspective %u, sub-pixel affine %u, partial %u, retail %u\n",
-	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PERSPECTIVE] / s_pgxpDebugFrames,
-	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_SUBPIXEL] / s_pgxpDebugFrames,
-	             s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_PARTIAL] / s_pgxpDebugFrames, s_pgxpDebugPolygons[NATIVE_PGXP_DEBUG_RETAIL] / s_pgxpDebugFrames);
-	// Unlike stdout, the host log is a buffered stream, so it has to be flushed to
-	// be readable from a run that never shuts down cleanly.
-	Platform_LogFlush();
-	s_pgxpDebugFrames = 0;
-	for (int i = 0; i < NATIVE_PGXP_DEBUG_COUNT; i++)
-	{
-		s_pgxpDebugPolygons[i] = 0;
-	}
-}
-#else
-void NativePgxp_DebugCountPolygon(int vertexCount, int recoveredCount, int perspective)
-{
-	(void)vertexCount;
-	(void)recoveredCount;
-	(void)perspective;
-}
-#endif
-
 void NativePgxp_EndFrame(void)
 {
-#if defined(CTR_INTERNAL)
-	NativePgxp_DebugEndFrame();
-#endif
 	s_pgxpGeneration++;
 	if (s_pgxpGeneration == 0)
 	{

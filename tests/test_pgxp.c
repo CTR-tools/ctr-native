@@ -29,17 +29,6 @@
 // one is defined in native_config.c.
 NativeConfig g_config;
 
-// The debug counter reports through the log, which the game owns; it is not
-// exercised by the cases below.
-void Platform_Log(const char *fmt, ...)
-{
-	(void)fmt;
-}
-
-void Platform_LogFlush(void)
-{
-}
-
 #include "platform/native_pgxp.c"
 
 static u32 PackSxy(int x, int y)

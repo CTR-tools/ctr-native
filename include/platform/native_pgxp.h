@@ -134,12 +134,6 @@ void NativePgxp_GteInvalidateInput(int reg);
 // GPU side.
 int NativePgxp_Lookup(const void *addr, u32 value, NativePgxpVertex *out);
 
-// Diagnostic, enabled with CTR_PGXP_DEBUG=1. Reports how polygons split between
-// fully recovered and partially recovered, because a partially recovered polygon
-// mixes sub-pixel corners with retail ones and opens a seam against whichever
-// neighbour recovered differently.
-void NativePgxp_DebugCountPolygon(int vertexCount, int recoveredCount, int perspective);
-
 void NativePgxp_EndFrame(void);
 
 #endif
