@@ -246,12 +246,33 @@ void NativePgxp_SetTransform(const void *key, const s16 *rotation, const s32 *tr
 	slot->generation = s_pgxpGeneration;
 }
 
-void NativePgxp_GetTransform(const void *key, const s16 *rotation, const s32 *translation, double *preciseRotation, double *preciseTranslation)
+// The one rule that decides whether a recorded transform is still trustworthy:
+// the slot must hold this key, must not belong to a retired frame, and must
+// still carry the integers it was recorded with. Both accessors below go through
+// here, so a new condition cannot be added to one and forgotten in the other.
+static const NativePgxpTransform *NativePgxp_TrustedTransform(const void *key, const s16 *rotation, const s32 *translation, b32 *rotationValid,
+                                                              b32 *translationValid)
 {
 	const NativePgxpTransform *slot = NativePgxp_TransformSlot(key);
-	const b32 valid = slot->key == key && slot->generation == s_pgxpGeneration;
-	const b32 rotationValid = valid && memcmp(slot->rotation, rotation, sizeof(slot->rotation)) == 0;
-	const b32 translationValid = valid && memcmp(slot->translation, translation, sizeof(slot->translation)) == 0;
+
+	*rotationValid = 0;
+	*translationValid = 0;
+
+	if ((slot->key != key) || (slot->generation != s_pgxpGeneration))
+	{
+		return NULL;
+	}
+
+	*rotationValid = memcmp(slot->rotation, rotation, sizeof(slot->rotation)) == 0;
+	*translationValid = memcmp(slot->translation, translation, sizeof(slot->translation)) == 0;
+	return slot;
+}
+
+void NativePgxp_GetTransform(const void *key, const s16 *rotation, const s32 *translation, double *preciseRotation, double *preciseTranslation)
+{
+	b32 rotationValid;
+	b32 translationValid;
+	const NativePgxpTransform *slot = NativePgxp_TrustedTransform(key, rotation, translation, &rotationValid, &translationValid);
 
 	for (int i = 0; i < 9; i++)
 	{
@@ -265,19 +286,22 @@ void NativePgxp_GetTransform(const void *key, const s16 *rotation, const s32 *tr
 
 void NativePgxp_LoadTransform(const void *key, const s16 *rotation, const s32 *translation, int bank)
 {
-	const NativePgxpTransform *slot = NativePgxp_TransformSlot(key);
 	const int index = bank & 3;
+	b32 rotationValid;
+	b32 translationValid;
+	const NativePgxpTransform *slot;
 
 	if (index >= 3)
 	{
 		return;
 	}
 
-	const b32 valid = slot->key == key && slot->generation == s_pgxpGeneration;
+	slot = NativePgxp_TrustedTransform(key, rotation, translation, &rotationValid, &translationValid);
+
 	// Bank 0..2 loads rotation; bank 4..6 loads translation only.
 	if (bank < 4)
 	{
-		s_pgxpRotationValid[index] = valid && memcmp(slot->rotation, rotation, sizeof(slot->rotation)) == 0;
+		s_pgxpRotationValid[index] = slot != NULL && rotationValid;
 		if (s_pgxpRotationValid[index])
 		{
 			memcpy(s_pgxpTransformBanks[index].preciseRotation, slot->preciseRotation, sizeof(slot->preciseRotation));
@@ -285,7 +309,7 @@ void NativePgxp_LoadTransform(const void *key, const s16 *rotation, const s32 *t
 	}
 	else
 	{
-		s_pgxpTranslationValid[index] = valid && memcmp(slot->translation, translation, sizeof(slot->translation)) == 0;
+		s_pgxpTranslationValid[index] = slot != NULL && translationValid;
 		if (s_pgxpTranslationValid[index])
 		{
 			memcpy(s_pgxpTransformBanks[index].preciseTranslation, slot->preciseTranslation, sizeof(slot->preciseTranslation));

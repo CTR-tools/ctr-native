@@ -12,6 +12,41 @@
 
 extern u32 gte_leadingzerocount(u32 lzcs);
 
+// MFC2, MFC2_S, MTC2 and MTC2_S each need one PGXP hook, and the hook differs
+// only by direction, so it lives here rather than being repeated four times.
+static void NativeGte_PgxpOnRead(s32 reg)
+{
+	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
+	{
+		// Culling helpers re-read the register they just projected; remember the
+		// vertex so a later MTC2 of the same value can recover it.
+		NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
+	}
+}
+
+static void NativeGte_PgxpOnWrite(u32 value, s32 reg)
+{
+	if (!NATIVE_PGXP_ACTIVE())
+	{
+		return;
+	}
+
+	// A write is what drops the register's exact value, so that is where it has
+	// to be retired. Invalidating on the read instead would clear an exact input
+	// that a projection is about to consume, and would leave a stale one in place
+	// after the overwrite it was meant to guard against.
+	if (reg <= 5)
+	{
+		NativePgxp_GteInvalidateInput(reg);
+	}
+	else if ((reg >= 12) && (reg <= 15))
+	{
+		// Game code saves and restores SXY registers around helper calls, or
+		// reloads them from a stored vertex to continue a strip.
+		NativePgxp_GteWriteSXY(reg, value);
+	}
+}
+
 u32 MFC2(s32 reg)
 {
 	switch (reg)
@@ -44,20 +79,7 @@ u32 MFC2(s32 reg)
 		break;
 	}
 
-	if (NATIVE_PGXP_ACTIVE())
-	{
-		if ((reg >= 0) && (reg <= 5))
-		{
-			// Loading a vector register drops whatever exact value it held.
-			NativePgxp_GteInvalidateInput(reg);
-		}
-		else if ((reg >= 12) && (reg <= 15))
-		{
-			// Culling helpers re-read the register they just projected; remember
-			// the vertex so a later MTC2 of the same value can recover it.
-			NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
-		}
-	}
+	NativeGte_PgxpOnRead(reg);
 
 	return gteRegs.CP2D.p[reg].d;
 }
@@ -95,29 +117,14 @@ s32 MFC2_S(s32 reg)
 		break;
 	}
 
-	if (NATIVE_PGXP_ACTIVE())
-	{
-		if ((reg >= 0) && (reg <= 5))
-		{
-			NativePgxp_GteInvalidateInput(reg);
-		}
-		else if ((reg >= 12) && (reg <= 15))
-		{
-			NativePgxp_GteReadSXY(reg, gteRegs.CP2D.p[reg].d);
-		}
-	}
+	NativeGte_PgxpOnRead(reg);
 
 	return gteRegs.CP2D.p[reg].sd;
 }
 
 void MTC2(u32 value, s32 reg)
 {
-	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
-	{
-		// Game code saves and restores SXY registers around helper calls, or
-		// reloads them from a stored vertex to continue a strip.
-		NativePgxp_GteWriteSXY(reg, value);
-	}
+	NativeGte_PgxpOnWrite(value, reg);
 
 	switch (reg)
 	{
@@ -146,10 +153,7 @@ void MTC2(u32 value, s32 reg)
 
 void MTC2_S(s32 value, s32 reg)
 {
-	if (((reg >= 12) && (reg <= 15)) && NATIVE_PGXP_ACTIVE())
-	{
-		NativePgxp_GteWriteSXY(reg, (u32)value);
-	}
+	NativeGte_PgxpOnWrite((u32)value, reg);
 
 	switch (reg)
 	{
