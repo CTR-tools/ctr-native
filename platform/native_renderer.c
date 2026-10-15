@@ -904,11 +904,21 @@ GLint u_disableDitherLoc;
 	    "		fragColor.a = (psxDrawMaskSet != 0 || (psxTextureOutputStp != 0 && sampledStp >= 0.5)) ? 1.0 : 0.0;\n"                                     \
 	    "	}\n"
 
+// NOTE: A PGXP polygon carries a real W, which the vertex shader scales into clip
+// w. That makes the rasteriser interpolate every default varying in perspective,
+// which is right for texture coordinates and wrong for everything else:
+//  - v_color is noperspective, so Gouraud shading stays screen-space like the PS1
+//    rasteriser rather than brightening or darkening across a polygon.
+//  - v_ditherCoord is noperspective too, because the ordered dither pattern is
+//    indexed by screen pixel and must not slide with perspective.
+//  - v_page_clut is flat: it is a per-polygon constant, so interpolation error
+//    could only ever be wrong.
+// Only v_texcoord takes the perspective divide. PGXP Off leaves w at 0, the
+// multiply is skipped, and every varying interpolates exactly as before.
 global_variable const char *gpu_shader_common = "	varying vec4 v_texcoord;\n"
-                                                "	varying vec4 v_color;\n"
-                                                "	varying vec4 v_page_clut;\n"
-                                                "	varying vec2 v_ditherCoord;\n"
-                                                "	varying float v_z;\n";
+                                                "	noperspective varying vec4 v_color;\n"
+                                                "	noperspective varying vec2 v_ditherCoord;\n"
+                                                "	flat varying vec4 v_page_clut;\n";
 
 const char *gte_shader_4 = GPU_FRAGMENT_SAMPLE_SHADER(4);
 const char *gte_shader_8 = GPU_FRAGMENT_SAMPLE_SHADER(8);
@@ -923,10 +933,18 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
                                  "		fragColor.a = float(psxDrawMaskSet);\n"
                                  "	}\n";
 
-#define GTE_PERSPECTIVE_CORRECTION "	gl_Position = Projection * vec4(a_position.xy, 0.0, 1.0);\n"
+// NOTE: a_position.z is the PGXP perspective divisor (0 = affine). Scaling the
+// whole clip position by it leaves the screen position unchanged after the
+// divide but makes the rasteriser interpolate varyings in perspective, which is
+// the perspective-correct texture mapping the option asks for. Affine polygons
+// keep w at 0 and multiply by 1, so this is a no-op with PGXP Off.
+#define GTE_PERSPECTIVE_CORRECTION                                                                          \
+	"	gl_Position = Projection * vec4(a_position.xy, 0.0, 1.0);\n"                                         \
+	"	gl_Position *= (a_position.z > 0.0) ? a_position.z : 1.0;\n"
 
 #define GTE_VERTEX_SHADER                                                                                          \
-	"	attribute vec4 a_position;\n"                                                                                \
+	"	attribute vec4 a_position; // x, y, PGXP w, unused\n"                                                       \
+	"	attribute vec2 a_page_clut;\n"                                                                               \
 	"	attribute vec4 a_texcoord; // uv, color multiplier, dither\n"                                                \
 	"	attribute vec4 a_color;\n"                                                                                   \
 	"	attribute vec4 a_extra; // texcoord.xy ofs, unused.xy\n"                                                     \
@@ -938,12 +956,12 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
 	"		v_texcoord.xy += a_extra.xy * 0.5;\n"                                                                       \
 	"		v_color = a_color;\n"                                                                                       \
 	"		v_color.xyz *= a_texcoord.z;\n"                                                                             \
-	"		v_page_clut.x = fract(a_position.z / 16.0) * 1024.0;\n"                                                     \
-	"		v_page_clut.y = floor(a_position.z / 16.0) * 256.0;\n"                                                      \
-	"		v_page_clut.z = fract(a_position.w / 64.0);\n"                                                              \
-	"		v_page_clut.w = floor(a_position.w / 64.0) / 512.0;\n"                                                      \
+	"		v_page_clut.x = fract(a_page_clut.x / 16.0) * 1024.0;\n"                                                   \
+	"		v_page_clut.y = floor(a_page_clut.x / 16.0) * 256.0;\n"                                                    \
+	"		v_page_clut.z = fract(a_page_clut.y / 64.0);\n"                                                            \
+	"		v_page_clut.w = floor(a_page_clut.y / 64.0) / 512.0;\n"                                                    \
 	"		v_page_clut.xy += c_UVFudge;\n"                                                                             \
-	"		v_page_clut.zw += c_UVFudge;\n" GTE_PERSPECTIVE_CORRECTION "		v_z = (gl_Position.z - 40.0) * 0.005;\n" \
+	"		v_page_clut.zw += c_UVFudge;\n" GTE_PERSPECTIVE_CORRECTION \
 	"	}\n"
 
 internal int NativeRenderer_Shader_CheckShaderStatus(GLuint shader)
@@ -992,6 +1010,7 @@ internal int NativeRenderer_Shader_CheckProgramStatus(GLuint program)
 
 internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxShader)
 {
+	// noperspective has no GLSL ES spelling; this is desktop GLSL 140 only.
 	const char *GLSL_HEADER_VERT = "	#version 140\n"
 	                               "	precision lowp  int;\n"
 	                               "	precision highp float;\n"
@@ -1066,6 +1085,8 @@ internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxSh
 	glBindAttribLocation(program, a_texcoord, "a_texcoord");
 	glBindAttribLocation(program, a_color, "a_color");
 	glBindAttribLocation(program, a_extra, "a_extra");
+	if (isPsxShader)
+		glBindAttribLocation(program, a_page_clut, "a_page_clut");
 
 	glLinkProgram(program);
 	if (NativeRenderer_Shader_CheckProgramStatus(program) == 0)
@@ -1314,8 +1335,10 @@ int NativeRenderer_InitialisePSX(void)
 			glEnableVertexAttribArray(a_texcoord);
 			glEnableVertexAttribArray(a_color);
 			glEnableVertexAttribArray(a_extra);
+			glEnableVertexAttribArray(a_page_clut);
 
-			glVertexAttribPointer(a_position, 4, GL_SHORT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->x);
+			glVertexAttribPointer(a_position, 4, GL_FLOAT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->x);
+			glVertexAttribPointer(a_page_clut, 2, GL_SHORT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->page);
 			glVertexAttribPointer(a_texcoord, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->u);
 			glVertexAttribPointer(a_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GrVertex), &((GrVertex *)NULL)->r);
 			glVertexAttribPointer(a_extra, 4, GL_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->tcx);

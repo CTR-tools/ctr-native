@@ -11,6 +11,7 @@
 #include <platform/native_renderer.h>
 #include <platform/native_gpu.h>
 #include <platform/native_perf.h>
+#include <platform/native_pgxp.h>
 #include <gpu.h>
 #include <platform.h>
 
@@ -291,6 +292,8 @@ void DrawOTag(void *p)
 		ParsePrimitivesLinkedList((uint32_t *)p, 0);
 		DrawAllSplits();
 	} while (g_dbg_emulatorPaused);
+	// The OT is consumed, so every precise vertex bound to it is now stale.
+	NativePgxp_EndFrame();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_DRAW_OTAG);
 }
 

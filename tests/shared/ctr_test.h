@@ -3,6 +3,7 @@
 
 // Shared harness for the suites under tests/.
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -49,6 +50,28 @@ static inline void CtrTest_FailEq(int actual, int expected, const char *what)
 		if ((actual) != (expected)) \
 		{ \
 			CtrTest_FailEq((int)(actual), (int)(expected), (what)); \
+		} \
+	} while (0)
+
+// The floating-point counterpart, for geometry. Reports what it got the same
+// way CHECK_EQ does, so a failing suite names the quantity that moved.
+// inline for the same reason CtrTest_FailEq is: a suite that never compares
+// floating-point values must still compile clean.
+static inline void CtrTest_FailEqNear(double actual, double expected, const char *what)
+{
+	ctrTestFailures++;
+	printf("  FAIL: %s (expected %f, got %f)\n", what, expected, actual);
+}
+
+#define CTR_TEST_CHECK_NEAR(actual, expected, what) \
+	do \
+	{ \
+		ctrTestChecks++; \
+		const double ctrTestActual = (actual); \
+		const double ctrTestExpected = (expected); \
+		if (!(fabs(ctrTestActual - ctrTestExpected) < 0.000001)) \
+		{ \
+			CtrTest_FailEqNear(ctrTestActual, ctrTestExpected, (what)); \
 		} \
 	} while (0)
 

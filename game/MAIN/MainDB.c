@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_pgxp.h>
 
 int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 {
@@ -51,6 +52,15 @@ void MainDB_PrimMem(struct PrimMem *primMem, u32 size)
 	pvVar1 = (void *)((int)pvVar1 + alignedSize);
 	primMem->end = pvVar1;
 	primMem->guardEnd = (void *)((int)pvVar1 - 0x100);
+}
+
+// Registers a primitive memory allocation with the PGXP shadow tables so a
+// precise vertex bound to a packet address in it can be found without hashing.
+// MEMPACK hands the address back per level load, so a moved region reallocates
+// its own table and leaves the other one alone.
+void MainDB_BindPrimMemRegion(int index, const void *start, size_t size)
+{
+	NativePgxp_SetPrimRegion(index, start, size);
 }
 
 void MainDB_OTMem(struct OTMem *otMem, u32 size)

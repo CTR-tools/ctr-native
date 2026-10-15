@@ -369,6 +369,7 @@ void LOAD_NextQueuedFile(void);
 
 void MainDB_OTMem(struct OTMem *otMem, u32 size);
 void MainDB_PrimMem(struct PrimMem *primMem, u32 size);
+void MainDB_BindPrimMemRegion(int index, const void *start, size_t size);
 
 void MainDrawCb_Vsync(void);
 void MainDrawCb_DrawSync(void);

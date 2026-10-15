@@ -2,6 +2,7 @@
 #define CTR_NATIVE_GPU_H
 
 #include <platform/native_gpu_links.h>
+#include <platform/native_pgxp.h>
 
 // PS1 primitive tags store the next OT link as 24 bits. Native routes this
 // through a GPU link-token bridge so the packet layout stays retail-shaped.
@@ -54,10 +55,29 @@ static inline void CtrGpu_WriteColorCode(u8 *r, u32 colorCode)
 	r[3] = (u8)(colorCode >> 24);
 }
 
-static inline void CtrGpu_WritePackedXY(VERTTYPE *x, u32 xy)
+// Storing a packed SXY word with no precision attached. Use
+// CtrGpu_WritePackedXY for game code that projects through the GTE, and
+// CtrGpu_CopyPackedXY when the value is read back out of another buffer.
+static inline void CtrGpu_StorePackedXY(VERTTYPE *x, u32 xy)
 {
 	x[0] = (VERTTYPE)xy;
 	x[1] = (VERTTYPE)(xy >> 16);
+}
+
+static inline void CtrGpu_WritePackedXY(VERTTYPE *x, u32 xy)
+{
+	CtrGpu_StorePackedXY(x, xy);
+	// World effects write MFC2 results straight into packets; pair them with the
+	// precise GTE vertex they came from (see native_pgxp.h).
+	NativePgxp_BindWrittenXY(x, xy);
+}
+
+// Writes a packed SXY word read from `src`, carrying over the precise vertex that
+// was recorded when the GTE stored it there.
+static inline void CtrGpu_CopyPackedXY(VERTTYPE *x, const void *src, u32 xy)
+{
+	CtrGpu_StorePackedXY(x, xy);
+	NativePgxp_CopyXY(x, src, xy);
 }
 
 static inline void CtrGpu_WritePackedUV(u8 *u, u16 uv)

@@ -296,6 +296,44 @@ void MakeLineArray(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1)
 	} // TODO diagonal line alignment
 }
 
+// NOTE: Swaps the retail integer corners for the precise GTE vertices the packet
+// words were built from (see native_pgxp.h). Perspective is only applied when
+// every corner has a usable depth, since one missing vertex would otherwise warp
+// the whole polygon.
+internal void NativeGpu_ApplyPgxp(GrVertex *vertex, VERTTYPE *const *points, int count, float ofsX, float ofsY)
+{
+	float depth[4];
+	b32 perspective = NATIVE_PGXP_TEXTURES_ACTIVE();
+
+	for (int i = 0; i < count; i++)
+	{
+		NativePgxpVertex precise;
+		const u32 sxy = (u16)points[i][0] | ((u32)(u16)points[i][1] << 16);
+
+		if (NativePgxp_Lookup(points[i], sxy, &precise))
+		{
+			// Keep precise shared corners even on a partially matched polygon, so
+			// two adjacent polygons still meet exactly where they met before.
+			vertex[i].x = precise.x + ofsX;
+			vertex[i].y = precise.y + ofsY;
+			depth[i] = precise.w;
+			perspective &= (precise.w > 0.0f);
+		}
+		else
+		{
+			perspective = 0;
+		}
+	}
+
+	if (perspective)
+	{
+		for (int i = 0; i < count; i++)
+		{
+			vertex[i].w = depth[i];
+		}
+	}
+}
+
 void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2)
 {
 	assert(p0);
@@ -315,6 +353,12 @@ void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *
 
 	vertex[2].x = p2[0] + ofsX;
 	vertex[2].y = p2[1] + ofsY;
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		VERTTYPE *const points[3] = {p0, p1, p2};
+		NativeGpu_ApplyPgxp(vertex, points, 3, ofsX, ofsY);
+	}
 }
 
 void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, VERTTYPE *p3)
@@ -340,6 +384,12 @@ void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, 
 
 	vertex[3].x = p3[0] + ofsX;
 	vertex[3].y = p3[1] + ofsY;
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		VERTTYPE *const points[4] = {p0, p1, p2, p3};
+		NativeGpu_ApplyPgxp(vertex, points, 4, ofsX, ofsY);
+	}
 }
 
 void MakeVertexRect(GrVertex *vertex, VERTTYPE *p0, s16 w, s16 h)
@@ -959,7 +1009,7 @@ void DrawAllSplits()
 
 			NATIVE_GPU_LOG("%s\n", "==========================================");
 			NATIVE_GPU_LOG("POLYGON: %d\n", g_dbg_polygonSelected);
-			NATIVE_GPU_LOG("X: %d Y: %d\n", vert->x, vert->y);
+			NATIVE_GPU_LOG("X: %.2f Y: %.2f\n", (double)vert->x, (double)vert->y);
 			NATIVE_GPU_LOG("U: %d V: %d\n", vert->u, vert->v);
 			NATIVE_GPU_LOG("TP: %d CLT: %d\n", vert->page, vert->clut);
 

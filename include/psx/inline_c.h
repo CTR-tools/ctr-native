@@ -8,6 +8,17 @@
 #define INLINE_C_H
 
 #include <macros.h>
+#include <psx/libgte.h>
+#include <platform/native_pgxp.h>
+
+// Matrix loads hand the source MATRIX to PGXP through its own fields, so callers
+// need no s16/s32 pointer casts that would break strict aliasing.
+static inline void NativeGte_PgxpLoadMatrix(const void *key, int bank)
+{
+	const MATRIX *m = (const MATRIX *)key;
+
+	NativePgxp_LoadTransform(key, &m->m[0][0], m->t, bank);
+}
 
 /* Psy-X simulates the GTE through host calls. */
 
@@ -256,6 +267,7 @@ extern int doCOP2(int op);
 		CTC2(CTR_ReadU32LE((char *)(r0) + 8), 2);  \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 12), 3); \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 16), 4); \
+		NativeGte_PgxpLoadMatrix((r0), 0);        \
 	}
 
 // load ctc2 5-7
@@ -272,6 +284,7 @@ extern int doCOP2(int op);
 		CTC2(CTR_ReadU32LE((char *)(r0) + 20), 5); \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 24), 6); \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 28), 7); \
+		NativeGte_PgxpLoadMatrix((r0), 4);        \
 	}
 
 // ctc2 8-12
@@ -282,6 +295,7 @@ extern int doCOP2(int op);
 		CTC2(CTR_ReadU32LE((char *)(r0) + 8), 10);  \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 12), 11); \
 		CTC2(CTR_ReadU32LE((char *)(r0) + 16), 12); \
+		NativeGte_PgxpLoadMatrix((r0), 1);          \
 	}
 
 // mtc2 9,10,11

@@ -242,6 +242,11 @@ void MainInit_PrimMem(struct GameTracker *gGT)
 
 	MainDB_PrimMem(&gGT->db[0].primMem, size);
 	MainDB_PrimMem(&gGT->db[1].primMem, size);
+
+	// Both allocations move on every level load, so the PGXP shadow tables only
+	// stay valid if they are re-registered here rather than once at startup.
+	MainDB_BindPrimMemRegion(0, gGT->db[0].primMem.start, size);
+	MainDB_BindPrimMemRegion(1, gGT->db[1].primMem.start, size);
 }
 
 void MainInit_JitPoolsReset(struct GameTracker *gGT)

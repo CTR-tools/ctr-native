@@ -35,6 +35,7 @@ typedef struct {
     int renderScale;            // 1 = original, 2/3/4 = fixed multiples, 0 = native window
     bool smoothScaling;         // true = linear filtering for direct presentation
     bool textureFiltering;      // true = bilinear PSX texture sampling
+    int pgxpMode;               // PGXP_MODE_OFF (default), GEOMETRY, or PERSPECTIVE
     bool saveAnywhere;          // false = off (default), true = save anywhere in adventure mode by pressing select or from the pause menu
     int missileSpeedMultiplier; // percent, 20%..500%, 100 = 1.0x (default)
     int bombSpeedMultiplier;    // percent, 20%..300%, 100 = 1.0x (default)
@@ -70,6 +71,19 @@ enum
     BOT_SELECTION_PREDETERMINED = 0,
     BOT_SELECTION_RANDOM_UNLOCKED = 1,
     BOT_SELECTION_RANDOM_ALL = 2,
+};
+
+// Sub-pixel vertex precision, implemented in platform/native_pgxp.c. The PS1
+// GTE truncates every RTPS/RTPT projection to an integer SXY before the CPU
+// stores it into a GPU packet; keeping the fractional position and view depth
+// next to that integer removes the polygon wobble as the camera moves.
+enum
+{
+    PGXP_MODE_OFF = 0,
+    // Sub-pixel vertex positions, retail affine texture mapping.
+    PGXP_MODE_GEOMETRY = 1,
+    // Sub-pixel vertex positions and perspective-correct texture mapping.
+    PGXP_MODE_PERSPECTIVE = 2,
 };
 
 typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION } ConfigType;

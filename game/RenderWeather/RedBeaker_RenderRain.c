@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_pgxp.h>
 
 #define RED_BEAKER_CENTER_XY 0x02000080u
 #define RED_BEAKER_XY_MASK   0xfffeffffu
@@ -206,6 +207,7 @@ void RedBeaker_RenderRain(struct PushBuffer *pb, struct PrimMem *primMem, struct
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x04), 1);
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x08), 2);
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x0c), 3);
+		NativePgxp_LoadTransform(&pb->matrix_ViewProj, &pb->matrix_ViewProj.m[0][0], pb->matrix_ViewProj.t, 0);
 		CTC2(RedBeaker_ReadWord(&pb->matrix_ViewProj, 0x10), 4);
 
 		CTC2((u32)(s32)pb->rect.w << 15, 24);

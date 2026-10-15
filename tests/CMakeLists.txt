@@ -65,6 +65,13 @@ ctr_add_test_suite(test_race_field
     SOURCES test_race_field.c
 )
 
+# test_pgxp.c #includes platform/native_pgxp.c so it reaches the module's
+# file-static shadow tables; the repository root on the include path resolves it,
+# and it is deliberately absent from SOURCES so it is not compiled twice.
+ctr_add_test_suite(test_pgxp
+    SOURCES test_pgxp.c
+)
+
 ctr_add_test_suite(test_native_controls
     SOURCES controls/test_native_controls.c
     LIBRARIES SDL3::SDL3

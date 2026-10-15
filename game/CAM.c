@@ -1,4 +1,6 @@
 #include <common.h>
+#include <math.h>
+#include <platform/native_pgxp.h>
 
 
 enum
@@ -553,7 +555,26 @@ static s32 CAM_MulLo(s32 a, s32 b)
 
 void CAM_ProcessTransition(SVec3 *currPos, SVec3 *currRot, SVec3 *startPos, SVec3 *startRot, SVec3 *endPos, SVec3 *endRot, s32 frame)
 {
+	float precisePos[3];
+	float preciseRot[3];
 	s32 deltaRot;
+
+	// The camera feeds every view transform, so its exact position and angles have
+	// to survive the transition rather than being rounded once at each end.
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		float start[3], end[3], startAngle[3], endAngle[3];
+		NativePgxp_GetPosition(startPos, &startPos->x, start);
+		NativePgxp_GetPosition(endPos, &endPos->x, end);
+		NativePgxp_GetPosition(startRot, &startRot->x, startAngle);
+		NativePgxp_GetPosition(endRot, &endRot->x, endAngle);
+		for (int i = 0; i < 3; i++)
+		{
+			precisePos[i] = start[i] + (end[i] - start[i]) * ((float)frame / 4096.0f);
+			const float delta = fmodf(endAngle[i] - startAngle[i] + 6144.0f, 4096.0f) - 2048.0f;
+			preciseRot[i] = startAngle[i] + delta * ((float)frame / 4096.0f);
+		}
+	}
 
 	currPos->x = startPos->x + (s16)(CAM_MulLo((s32)endPos->x - (s32)startPos->x, frame) >> 0xc);
 	currPos->y = startPos->y + (s16)(CAM_MulLo((s32)endPos->y - (s32)startPos->y, frame) >> 0xc);
@@ -578,6 +599,12 @@ void CAM_ProcessTransition(SVec3 *currPos, SVec3 *currRot, SVec3 *startPos, SVec
 		deltaRot -= 0x1000;
 	}
 	currRot->z = (startRot->z + (s16)(CAM_MulLo(deltaRot, frame) >> 0xc)) & 0xfff;
+
+	if (NATIVE_PGXP_ACTIVE())
+	{
+		NativePgxp_SetPosition(currPos, &currPos->x, precisePos);
+		NativePgxp_SetPosition(currRot, &currRot->x, preciseRot);
+	}
 }
 
 
