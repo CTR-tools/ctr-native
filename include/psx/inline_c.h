@@ -239,16 +239,6 @@ extern int doCOP2(int op);
 		CTC2(r2 << 4, 23);          \
 	}
 
-// load ctc2 8-11
-#define gte_SetLightMatrix(r0)                      \
-	{                                               \
-		CTC2(CTR_ReadU32LE((char *)(r0)), 8);       \
-		CTC2(CTR_ReadU32LE((char *)(r0) + 4), 9);   \
-		CTC2(CTR_ReadU32LE((char *)(r0) + 8), 10);  \
-		CTC2(CTR_ReadU32LE((char *)(r0) + 12), 11); \
-		CTC2(CTR_ReadU32LE((char *)(r0) + 16), 12); \
-	}
-
 // load ctc2 16-20
 #define gte_SetColorMatrix(r0)                      \
 	{                                               \
