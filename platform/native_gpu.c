@@ -1028,6 +1028,13 @@ void DrawAllSplits()
 		DrawSplit(&s_gpu.splits[i]);
 	}
 
+	// Sampled before the counters are rewound: this frame has now submitted
+	// everything it was going to. Both arrays here are fixed size and silently
+	// drop work when exhausted, so their peaks are what say whether they are
+	// large enough (see platform/native_memtrack.h).
+	NativeMemTrack_Observe(NATIVE_MEMTRACK_FRAME_VERTICES, (u32)s_gpu.vertexIndex, MAX_VERTEX_BUFFER_SIZE);
+	NativeMemTrack_Observe(NATIVE_MEMTRACK_DRAW_SPLITS, (u32)(s_gpu.splitIndex + 1), MAX_DRAW_SPLITS);
+
 	ClearSplits();
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_DRAW_ALL_SPLITS);
 }

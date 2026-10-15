@@ -77,5 +77,14 @@ ctr_add_test_suite(test_native_controls
     LIBRARIES SDL3::SDL3
 )
 
+# test_memtrack.c #includes platform/native_memtrack.c so it can read the
+# peaks, which are file-static and gated behind CTR_DIAGNOSTICS. It therefore
+# needs the same definition the game build has, or the module compiles to
+# nothing and the suite would pass without checking anything.
+ctr_add_test_suite(test_memtrack
+    SOURCES test_memtrack.c
+)
+target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
+
 # Builds the suites without the game, for when only they are in need.
 add_custom_target(tests DEPENDS ${CTR_TEST_SUITES})

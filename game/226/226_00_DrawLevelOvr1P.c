@@ -7594,6 +7594,7 @@ static void DrawLevelOvr1P_TerminateRenderedListCursor(void)
 	if (renderedList != NULL)
 	{
 		*renderedList = NULL;
+		NativeMemTrack_ObserveRenderedQuadblocks(renderedList);
 	}
 }
 

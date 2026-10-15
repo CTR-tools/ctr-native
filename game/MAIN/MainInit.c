@@ -240,6 +240,10 @@ void MainInit_PrimMem(struct GameTracker *gGT)
 		return;
 	}
 
+	// A level that ran with a different band reported its peaks against the
+	// previous arena, so start the new one from zero.
+	NativeMemTrack_ResetPeaks();
+
 	MainDB_PrimMem(&gGT->db[0].primMem, size);
 	MainDB_PrimMem(&gGT->db[1].primMem, size);
 

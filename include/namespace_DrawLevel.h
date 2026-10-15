@@ -6,6 +6,20 @@ enum DrawLevelOvr1PRenderListConstant
 	DRAW_LEVEL_OVR1P_RENDER_LIST_SLOT_COUNT = 5,
 };
 
+// Which emitter draws a leaf's quads. Declared here rather than in
+// RenderLists.c because it is a property of the render list, not of the walk
+// that fills it: the level overlay names it too, and the memory diagnostics
+// count leaves by it.
+enum RenderListsSlot1P2P
+{
+	RENDER_LIST_SLOT_4X4 = 0,
+	RENDER_LIST_SLOT_DYNAMIC_SUBDIV = 1,
+	RENDER_LIST_SLOT_4X2 = 2,
+	RENDER_LIST_SLOT_4X1 = 3,
+	RENDER_LIST_SLOT_WATER = 4,
+	RENDER_LIST_SLOT_FULL_DYNAMIC = 5,
+};
+
 struct DrawLevelOvr1PRenderListSlot
 {
 	struct QuadBlock **ptrQuadBlocksRendered;
