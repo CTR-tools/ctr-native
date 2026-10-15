@@ -34,7 +34,7 @@ enum
 CTR_STATIC_ASSERT(RACE_FIELD_NO_BOT_MODES == 0x2c122020);
 
 // The eight-racer grid is the full retail roster.
-CTR_STATIC_ASSERT(RACE_FIELD_FULL_GRID_RACERS == LOAD_CHARACTER_ID_COUNT);
+CTR_STATIC_ASSERT((int) RACE_FIELD_FULL_GRID_RACERS == (int) LOAD_CHARACTER_ID_COUNT);
 
 // The Purple Gem Cup always fields its four bosses, whoever is driving.
 static inline b32 RaceField_IsPurpleGemCupRace(int gameMode1, s32 cupID)
