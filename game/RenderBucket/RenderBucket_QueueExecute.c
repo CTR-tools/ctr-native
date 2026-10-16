@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 
 
 struct RenderBucketEntry
@@ -1118,7 +1119,7 @@ static int RenderBucket_AcceptProjectedBounds(const struct RenderBucketBounds *b
 		return 0;
 	}
 
-	int gsh = g_config.increaseDrawDistance ? (geomScreenHalf >> 2) : geomScreenHalf;
+	int gsh = NativeDrawDistance_GeomScreenHalf(geomScreenHalf, g_config.increaseDrawDistance);
 	if (RenderBucket_MipsSub(bounds->maxZ, gsh) < 0)
 	{
 		return 0;
@@ -1280,8 +1281,8 @@ static struct ModelHeader *RenderBucket_SelectModelHeader(struct Instance *inst,
 	projectedDistance = (int)(u32)((s64)(pb->rect.w >> 1) * viewDepth) / pb->distanceToScreen_PREV;
 	// NOTE(aalhendi): maxDrawDistance LOD scaling must skip screenspace instances
 	// (e.g. instBigNum) whose viewDepth is a digit selector, not a 3D camera distance.
-	if (g_config.increaseDrawDistance && (inst->flags & SCREENSPACE_INSTANCE) == 0)
-		projectedDistance = (projectedDistance * 100) / 400;
+	projectedDistance = NativeDrawDistance_ProjectedLodDistance(
+	    projectedDistance, g_config.increaseDrawDistance && (inst->flags & SCREENSPACE_INSTANCE) == 0);
 	mh = inst->model->headers;
 	headersRemaining = inst->model->numHeaders;
 	lodIndex = 0;

@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 #include <platform/native_pgxp.h>
 
 
@@ -637,7 +638,7 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 
 	struct FrustumCornerOUT *fcOUT = &spf->fc[3];
 
-	int farClip = g_config.increaseDrawDistance ? 0x200 : 0x100;
+	int farClip = NativeDrawDistance_FarClip(g_config.increaseDrawDistance);
 
 	for (int i = 0; i < 4; i++)
 	{
@@ -662,7 +663,6 @@ void PushBuffer_UpdateFrustum(struct PushBuffer *pb)
 		fcOUT->pos.y = ty + cameraPosY;
 		fcOUT->pos.z = tz + cameraPosZ;
 
-		// far clip: pos + dir*100
 		spf->clippedFarPos.x = posX;
 		spf->clippedFarPos.y = posY;
 		spf->clippedFarPos.z = posZ;

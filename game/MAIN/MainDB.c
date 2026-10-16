@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 #include <platform/native_pgxp.h>
 
 int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
@@ -39,7 +40,7 @@ int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 		break;
 	}
 
-	return retailSize * MAINDB_ARENA_SCALE;
+	return retailSize * NATIVE_DRAW_DISTANCE_SCALE;
 }
 
 int MainDB_GetOTMemSize(u32 gameMode1, int numPlyrCurrGame)
@@ -67,7 +68,7 @@ int MainDB_GetOTMemSize(u32 gameMode1, int numPlyrCurrGame)
 		retailSize = 0x3000;
 	}
 
-	return retailSize * MAINDB_ARENA_SCALE;
+	return retailSize * NATIVE_DRAW_DISTANCE_SCALE;
 }
 
 void MainDB_PrimMem(struct PrimMem *primMem, u32 size)

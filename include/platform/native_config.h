@@ -27,7 +27,7 @@ typedef struct {
     bool unlockNitrosOxide;     // false = off, true = Nitros Oxide is selectable
     bool unlockAllGates;        // false = off, true = all adventure mode wood doors open without keys
     bool unlockAllPortals;      // false = off, true = all warp pads and boss garages unlocked
-    bool increaseDrawDistance;  // false = off (default), true = render 3x farther
+    bool increaseDrawDistance;  // false = off (default), true = render NATIVE_DRAW_DISTANCE_SCALE x farther (platform/native_draw_distance.h)
     bool disableSplitScreenLod; // false = off (default), true = use full-detail split-screen assets and effects
     bool fullscreen;            // false = windowed, true = borderless fullscreen
     int aspectRatio;            // 0 = 4:3 (default), 1 = 16:9, 2 = 16:10, 3 = 21:10

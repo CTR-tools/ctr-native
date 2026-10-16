@@ -86,6 +86,11 @@ ctr_add_test_suite(test_memtrack
 )
 target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
 
+# Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_draw_distance
+    SOURCES test_draw_distance.c
+)
+
 # Compiles game/MAIN/MainDB.c into its own translation unit so the arena budget is
 # checked against the real size tables, and platform/native_memory.c for the real
 # mempack backing size.

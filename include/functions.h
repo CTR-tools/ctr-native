@@ -367,14 +367,6 @@ void LOAD_LangFile(int bigfilePtr, int lang);
 
 void LOAD_NextQueuedFile(void);
 
-// Retail sized the per-frame arenas (primitive memory, ordering table, clip
-// records) for retail's draw distance. Every one of them is filled by a cursor
-// walk that stops silently at its end, so the extra polygons that
-// increase_draw_distance and pgxp route through the level renderer come out of
-// the same budget. One factor scales all three: they are consumed together and
-// must not drift apart. See tests/test_level_memory_budget.c.
-#define MAINDB_ARENA_SCALE 4
-
 void MainDB_OTMem(struct OTMem *otMem, u32 size);
 void MainDB_PrimMem(struct PrimMem *primMem, u32 size);
 void MainDB_BindPrimMemRegion(int index, const void *start, size_t size);

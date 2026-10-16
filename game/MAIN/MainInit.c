@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 
 // MainInit_Drivers spawns one driver per racer counted here.
 #include <race_field.h>
@@ -236,7 +237,7 @@ static int MainInit_GetRetailPrimMemSize(struct GameTracker *gGT)
 // table and the clip records.
 static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 {
-	return MainInit_GetRetailPrimMemSize(gGT) * MAINDB_ARENA_SCALE;
+	return MainInit_GetRetailPrimMemSize(gGT) * NATIVE_DRAW_DISTANCE_SCALE;
 }
 
 void MainInit_PrimMem(struct GameTracker *gGT)

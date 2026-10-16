@@ -1,5 +1,5 @@
 // Pins that every per-level arena still fits inside the mempack it is carved out
-// of, and that one shared factor scales all of them.
+// of, and that all of them scale by the one draw-distance factor.
 //
 // The suite compiles game/MAIN/MainDB.c into its own translation unit so it uses
 // the real size tables rather than a copy: a copy would drift, and the drift is
@@ -55,7 +55,7 @@ void NativePgxp_SetPrimRegion(int index, const void *start, size_t size)
 // MEMPACK_AllocMem, so if they do not fit, the game traps rather than degrades.
 static int MempackUsedByLevel(u32 gameMode1, int numPlyrCurrGame, u32 levelID)
 {
-	const int primMem = TEST_PRIM_MEM_RETAIL_MAX * MAINDB_ARENA_SCALE;
+	const int primMem = TEST_PRIM_MEM_RETAIL_MAX * NATIVE_DRAW_DISTANCE_SCALE;
 	const int swapChain = ((numPlyrCurrGame << 12) | 0x18);
 
 	return (2 * primMem) + (2 * MainDB_GetOTMemSize(gameMode1, numPlyrCurrGame)) + (2 * swapChain) + MainDB_GetClipSize(levelID, numPlyrCurrGame);
@@ -127,10 +127,10 @@ static void TestEveryArenaIsScaledFromRetail(void)
 	// The bug this pins: the primitive arena grew by a bare literal while the
 	// ordering tables went through the shared factor, so the two drifted apart
 	// with nothing to notice.
-	CTR_TEST_CHECK_EQ(MainDB_GetOTMemSize(0, 1) / 0x2000, MAINDB_ARENA_SCALE, "the 1P ordering table uses the shared factor");
-	CTR_TEST_CHECK_EQ(MainDB_GetOTMemSize(BATTLE_MODE, 4) / 0x8000, MAINDB_ARENA_SCALE, "the battle ordering table uses the same factor");
-	CTR_TEST_CHECK_EQ(MainDB_GetClipSize(PAPU_PYRAMID, 1) / 3000, MAINDB_ARENA_SCALE, "the clip buffer uses the same factor as the arenas");
-	CTR_TEST_CHECK_EQ(MainDB_GetClipSize(MAIN_MENU_LEVEL, 1) / 16, MAINDB_ARENA_SCALE, "the menu's clip buffer is scaled like the rest");
+	CTR_TEST_CHECK_EQ(MainDB_GetOTMemSize(0, 1) / 0x2000, NATIVE_DRAW_DISTANCE_SCALE, "the 1P ordering table uses the shared factor");
+	CTR_TEST_CHECK_EQ(MainDB_GetOTMemSize(BATTLE_MODE, 4) / 0x8000, NATIVE_DRAW_DISTANCE_SCALE, "the battle ordering table uses the same factor");
+	CTR_TEST_CHECK_EQ(MainDB_GetClipSize(PAPU_PYRAMID, 1) / 3000, NATIVE_DRAW_DISTANCE_SCALE, "the clip buffer uses the same factor as the arenas");
+	CTR_TEST_CHECK_EQ(MainDB_GetClipSize(MAIN_MENU_LEVEL, 1) / 16, NATIVE_DRAW_DISTANCE_SCALE, "the menu's clip buffer is scaled like the rest");
 }
 
 static void TestTheScaleDoesNotOverflow(void)
@@ -140,7 +140,7 @@ static void TestTheScaleDoesNotOverflow(void)
 	// MainDB_PrimMem takes a u32 and the mempack counts in s32, so a factor large
 	// enough to push the largest arena past 2 GiB would silently wrap rather than
 	// fail to allocate.
-	const int largest = TEST_PRIM_MEM_RETAIL_MAX * MAINDB_ARENA_SCALE;
+	const int largest = TEST_PRIM_MEM_RETAIL_MAX * NATIVE_DRAW_DISTANCE_SCALE;
 
 	CTR_TEST_CHECK(largest > 0, "the scaled primitive arena is positive");
 	CTR_TEST_CHECK(largest < 0x40000000, "the scaled primitive arena stays under 1 GiB");

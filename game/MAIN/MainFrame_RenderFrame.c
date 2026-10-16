@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 #include <platform/native_pgxp.h>
 
 #if defined(CTR_INTERNAL)
@@ -886,14 +887,7 @@ static void RenderAllLevelGeometry_Init1PLodScratch(struct GameTracker *gGT)
 		s32 distToScreen = pushBuffer->distanceToScreen_PREV;
 
 		scratch->depthScale = RenderAllLevelGeometry_ScaleDistanceShift8(distToScreen, 0x2080);
-		scratch->bspLodDistanceThreshold = CTR_MipsMulLo(distToScreen, 0x1a);
-		// NOTE: increase_draw_distance keeps the higher-poly path going past
-		// retail's cutoff. Its arenas are scaled to match (MAINDB_ARENA_SCALE);
-		// dropping this instead just turns the option off.
-		if (g_config.increaseDrawDistance)
-		{
-			scratch->bspLodDistanceThreshold *= 4;
-		}
+		scratch->bspLodDistanceThreshold = NativeDrawDistance_BspLodThreshold(CTR_MipsMulLo(distToScreen, 0x1a), g_config.increaseDrawDistance);
 		scratch->textureLodDepthThreshold0 = CTR_MipsMulLo(distToScreen, 0x18);
 		scratch->textureLodDepthThreshold1 = CTR_MipsMulLo(distToScreen, 0xc);
 		scratch->topLevelNearDepthThreshold = CTR_MipsMulLo(distToScreen, 7);
