@@ -86,5 +86,12 @@ ctr_add_test_suite(test_memtrack
 )
 target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
 
+# Compiles game/MAIN/MainDB.c into its own translation unit so the arena budget is
+# checked against the real size tables, and platform/native_memory.c for the real
+# mempack backing size.
+ctr_add_test_suite(test_level_memory_budget
+    SOURCES test_level_memory_budget.c
+)
+
 # Builds the suites without the game, for when only they are in need.
 add_custom_target(tests DEPENDS ${CTR_TEST_SUITES})

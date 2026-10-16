@@ -3446,6 +3446,13 @@ static int DrawLevelOvr1P_ConsumeClipRecords(struct PushBuffer *pb, struct PrimM
 	u8 *end = DrawLevelOvr1P_GetClipRecordCursor();
 	u8 *bufferEnd = DrawLevelOvr1P_GetClipRecordEnd();
 
+	// The writers drop a record rather than overrun, so a buffer that filled shows
+	// up here as a peak at capacity and missing geometry, not as an error.
+	if (start != NULL && bufferEnd != NULL && end != NULL && cursor >= start && end >= cursor && end <= bufferEnd)
+	{
+		NativeMemTrack_Observe(NATIVE_MEMTRACK_CLIP_RECORDS, (u32)(end - start), (u32)(bufferEnd - start));
+	}
+
 	if (start == NULL || end == NULL || bufferEnd == NULL)
 	{
 		return 1;

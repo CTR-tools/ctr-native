@@ -22,6 +22,10 @@ enum NativeMemTrackBuffer
 	NATIVE_MEMTRACK_RENDERED_QUADBLOCKS,
 	NATIVE_MEMTRACK_FRAME_VERTICES,
 	NATIVE_MEMTRACK_DRAW_SPLITS,
+	// The clip-record arena. Written by a cursor walk that stops silently when it
+	// fills, so a level that needs more than it was given loses its near-clipped
+	// geometry with nothing in the log to say so until this reports the peak.
+	NATIVE_MEMTRACK_CLIP_RECORDS,
 	NATIVE_MEMTRACK_BUFFER_COUNT,
 };
 

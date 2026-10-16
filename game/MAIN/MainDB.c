@@ -3,6 +3,8 @@
 
 int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 {
+	int retailSize;
+
 	if (sdata->highDetailSplitScreenLevel && (numPlyrCurrGame > 1))
 	{
 		// High-detail LEVs can emit the 1P clipped geometry for every viewport.
@@ -12,29 +14,60 @@ int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)
 	switch (levelID)
 	{
 	case ADVENTURE_GARAGE:
-		return 24000;
+		retailSize = 24000;
+		break;
 
 	case MAIN_MENU_LEVEL:
-		return 16;
+		retailSize = 16;
+		break;
 
 	case SEWER_SPEEDWAY:
-		return 6000;
+		retailSize = 6000;
+		break;
 
 	case MYSTERY_CAVES:
-		return 2500;
+		retailSize = 2500;
+		break;
 
 	case PAPU_PYRAMID:
 	case POLAR_PASS:
-		if (numPlyrCurrGame < 3)
-		{
-			return 3000;
-		}
-
-		return 2500;
+		retailSize = (numPlyrCurrGame < 3) ? 3000 : 2500;
+		break;
 
 	default:
-		return 3000;
+		retailSize = 3000;
+		break;
 	}
+
+	return retailSize * MAINDB_ARENA_SCALE;
+}
+
+int MainDB_GetOTMemSize(u32 gameMode1, int numPlyrCurrGame)
+{
+	int retailSize;
+
+	if ((gameMode1 & MAIN_MENU) != 0)
+	{
+		retailSize = 0x1800;
+	}
+	else if ((gameMode1 & ADVENTURE_ARENA) != 0)
+	{
+		retailSize = 0x2c00;
+	}
+	else if ((gameMode1 & BATTLE_MODE) != 0)
+	{
+		retailSize = 0x8000;
+	}
+	else if (numPlyrCurrGame < 3)
+	{
+		retailSize = 0x2000;
+	}
+	else
+	{
+		retailSize = 0x3000;
+	}
+
+	return retailSize * MAINDB_ARENA_SCALE;
 }
 
 void MainDB_PrimMem(struct PrimMem *primMem, u32 size)

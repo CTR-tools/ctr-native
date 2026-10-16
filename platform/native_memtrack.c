@@ -78,14 +78,15 @@ static void NativeMemTrack_Report(void)
 	int used = snprintf(report, sizeof(report), "--- memtrack ---\n");
 
 	NativeMemTrack_Append(report, sizeof(report), &used,
-	                      "memory  prim0 %u/%u  prim1 %u/%u  ot0 %u/%u  ot1 %u/%u  quads %u/%u  verts %u/%u  splits %u/%u\n",
+	                      "memory  prim0 %u/%u  prim1 %u/%u  ot0 %u/%u  ot1 %u/%u  quads %u/%u  verts %u/%u  splits %u/%u  clip %u/%u\n",
 	                      s_peaks[NATIVE_MEMTRACK_PRIM_MEM_0], s_capacities[NATIVE_MEMTRACK_PRIM_MEM_0],
 	                      s_peaks[NATIVE_MEMTRACK_PRIM_MEM_1], s_capacities[NATIVE_MEMTRACK_PRIM_MEM_1],
 	                      s_peaks[NATIVE_MEMTRACK_OT_MEM_0], s_capacities[NATIVE_MEMTRACK_OT_MEM_0],
 	                      s_peaks[NATIVE_MEMTRACK_OT_MEM_1], s_capacities[NATIVE_MEMTRACK_OT_MEM_1],
 	                      s_peaks[NATIVE_MEMTRACK_RENDERED_QUADBLOCKS], s_capacities[NATIVE_MEMTRACK_RENDERED_QUADBLOCKS],
 	                      s_peaks[NATIVE_MEMTRACK_FRAME_VERTICES], s_capacities[NATIVE_MEMTRACK_FRAME_VERTICES],
-	                      s_peaks[NATIVE_MEMTRACK_DRAW_SPLITS], s_capacities[NATIVE_MEMTRACK_DRAW_SPLITS]);
+	                      s_peaks[NATIVE_MEMTRACK_DRAW_SPLITS], s_capacities[NATIVE_MEMTRACK_DRAW_SPLITS],
+	                      s_peaks[NATIVE_MEMTRACK_CLIP_RECORDS], s_capacities[NATIVE_MEMTRACK_CLIP_RECORDS]);
 
 	NativeMemTrack_Append(report, sizeof(report), &used, "slots   4x4 %u  subdiv %u  4x2 %u  4x1 %u  water %u  fulldyn %u\n",
 	                      s_slots.peaks[RENDER_LIST_SLOT_4X4], s_slots.peaks[RENDER_LIST_SLOT_DYNAMIC_SUBDIV],

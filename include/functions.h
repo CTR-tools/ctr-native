@@ -367,6 +367,14 @@ void LOAD_LangFile(int bigfilePtr, int lang);
 
 void LOAD_NextQueuedFile(void);
 
+// Retail sized the per-frame arenas (primitive memory, ordering table, clip
+// records) for retail's draw distance. Every one of them is filled by a cursor
+// walk that stops silently at its end, so the extra polygons that
+// increase_draw_distance and pgxp route through the level renderer come out of
+// the same budget. One factor scales all three: they are consumed together and
+// must not drift apart. See tests/test_level_memory_budget.c.
+#define MAINDB_ARENA_SCALE 4
+
 void MainDB_OTMem(struct OTMem *otMem, u32 size);
 void MainDB_PrimMem(struct PrimMem *primMem, u32 size);
 void MainDB_BindPrimMemRegion(int index, const void *start, size_t size);
@@ -1248,6 +1256,7 @@ void CAM_LookAtPosition(struct CameraScratchWork *scratchWork, Vec3 *positions, 
 void CAM_FollowDriver_Spin360(struct CameraDC *cDC, struct CameraScratchWork *scratchWork, struct Driver *d, SVec3 *desiredPos, SVec3 *desiredRot);
 void CAM_FollowDriver_AngleAxis(struct CameraDC *cDC, struct Driver *d, struct CameraAngleAxisScratch *scratchWork, SVec3 *pushBufferPos, SVec3 *pushBufferRot);
 int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame);
+int MainDB_GetOTMemSize(u32 gameMode1, int numPlyrCurrGame);
 void DrawLevelOvr1P_DrawMultiViewport(void *LevRenderList, struct PushBuffer *pb, struct BSP *bspList, struct PrimMem *primMem,
                                       const int *const *visFaceLists, int numViewports, const struct TextureLayout *waterEnvMap);
 void MainFreeze_ConfigDrawArrows(s16 offsetX, s16 offsetY, char *str);
