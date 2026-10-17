@@ -98,7 +98,8 @@ NativeConfig g_config = {
   .developerHacksEnabled = false,
   .omniController = false,
   .oneLapRaces = false,
-  .towPlayer2 = false
+  .towPlayer2 = false,
+  .quickRace = false
 };
 
 const ConfigEntry g_configEntries[] = {
@@ -483,6 +484,13 @@ const ConfigEntry g_configEntries[] = {
         .label = "Tow Player 2",
         .type = CFG_BOOL,
         .valuePtr = &g_config.towPlayer2,
+    },
+    {
+        .section = CONFIG_SECTION_DEVELOPER_HACKS,
+        .key = "quick_race",
+        .label = "Quick Race With R3",
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.quickRace,
     },
 };
 

@@ -837,6 +837,8 @@ void MM_Title_Init(void);
 void MM_Title_CameraReset(void);
 void MM_Title_KillThread(void);
 void MM_ParseCheatCodes(void);
+void MM_QuickRace_RequestStart(struct RectMenu *mainMenu);
+void MM_QuickRace_SetupRace(void);
 void MM_MenuProc_Main(struct RectMenu *mainMenu);
 void MM_ToggleRows_PlayerCount(void);
 void MM_MenuProc_1p2p(struct RectMenu *menu);

@@ -28,19 +28,6 @@ enum MainFrameTowConstants
 // and a round can be repeated without pressing Select again.
 static b32 s_towEngaged = 0;
 
-static b32 MainFrame_Tow_SelectTapped(struct GamepadSystem *gGamepads)
-{
-	for (int i = 0; i < gGamepads->numGamepadsConnected; i++)
-	{
-		if ((gGamepads->gamepad[i].buttonsTapped & BTN_SELECT) != 0)
-		{
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
 // Parks the towed kart one kart-length behind the lead kart, facing the same way and
 // at the same pace. This runs after the vehicle stages, so the position written here
 // is the one the cameras, the lap and rank update, and the next frame's physics all
@@ -92,7 +79,7 @@ void MainFrame_Tow_Update(struct GameTracker *gGT, struct GamepadSystem *gGamepa
 		return;
 	}
 
-	if (MainFrame_Tow_SelectTapped(gGamepads))
+	if ((gGamepads->anyoneTapped & BTN_SELECT) != 0)
 	{
 		s_towEngaged = !s_towEngaged;
 	}

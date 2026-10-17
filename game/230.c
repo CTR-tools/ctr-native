@@ -240,6 +240,7 @@
 #include "230/MM_ConfigMenu.c"
 #include "230/MM_ControlsConfig.c"
 #include "230/MM_MenuFlow.c"
+#include "230/MM_QuickRace.c"
 #include "230/MM_Title.c"
 #include "230/MM_CheatCodes.c"
 #include "230/MM_OxideModel.c"

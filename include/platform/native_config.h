@@ -55,6 +55,7 @@ typedef struct {
     bool omniController; // false = off (default), true = mirror port 1 input to all controller slots
     bool oneLapRaces; // false = off (default), true = force every race to a single lap, whatever the mode or menu allows
     bool towPlayer2; // false = off (default), true = hold the Adventure co-op partner kart behind the lead racer; select toggles the tow
+    bool quickRace; // false = off (default), true = R3 in the main menu starts a 1P arcade race in Crash Cove as Crash
 } NativeConfig;
 
 enum
