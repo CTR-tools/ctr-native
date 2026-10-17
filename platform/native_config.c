@@ -100,7 +100,8 @@ NativeConfig g_config = {
   .oneLapRaces = false,
   .towPlayer2 = false,
   .quickRace = false,
-  .skipStartCountdown = false
+  .skipStartCountdown = false,
+  .endRaceWithL3 = false
 };
 
 const ConfigEntry g_configEntries[] = {
@@ -499,6 +500,13 @@ const ConfigEntry g_configEntries[] = {
         .label = "Skip Start Countdown",
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipStartCountdown,
+    },
+    {
+        .section = CONFIG_SECTION_DEVELOPER_HACKS,
+        .key = "end_race_with_l3",
+        .label = "End Race With L3",
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.endRaceWithL3,
     },
 };
 

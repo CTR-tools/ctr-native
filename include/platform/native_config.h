@@ -57,6 +57,7 @@ typedef struct {
     bool towPlayer2; // false = off (default), true = hold the Adventure co-op partner kart behind the lead racer; select toggles the tow
     bool quickRace; // false = off (default), true = R3 in the main menu starts a 1P arcade race in Crash Cove as Crash
     bool skipStartCountdown; // false = off (default), true = skip the traffic light countdown and the start-line fly-in
+    bool endRaceWithL3; // false = off (default), true = L3 in-race ends the race on the placings the field is standing on
 } NativeConfig;
 
 enum
