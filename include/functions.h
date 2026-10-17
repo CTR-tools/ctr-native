@@ -434,6 +434,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu);
 void MainFreeze_IfPressStart(void);
 
 void MainGameStart_Initialize(struct GameTracker *gGT, b32 boolStopAudio);
+void MainGameStart_SkipCountdown(struct GameTracker *gGT);
 
 void MainInit_VisMem(struct GameTracker *gGT);
 void MainInit_RainBuffer(struct GameTracker *gGT);

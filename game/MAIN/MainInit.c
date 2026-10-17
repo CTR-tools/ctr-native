@@ -585,6 +585,11 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 	{
 		MainGameStart_Initialize(gGT, 1);
 
+		if (g_config.skipStartCountdown)
+		{
+			MainGameStart_SkipCountdown(gGT);
+		}
+
 		if (gGT->boolDemoMode != 0)
 		{
 			for (i = 0; i < gGT->numPlyrCurrGame; i++)

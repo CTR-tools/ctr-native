@@ -47,3 +47,33 @@ void MainGameStart_Initialize(struct GameTracker *gGT, b32 boolStopAudio)
 
 	VehBirth_TeleportAll(gGT, VEH_BIRTH_SPAWN_INIT_RACE_STATE);
 }
+
+// Development aid hack, enabled by the "Skip Start Countdown" option. Rewinds the
+// countdown and fly-in that MainGameStart_Initialize just armed to where they
+// would be had they run to completion, so the grid goes the instant the level
+// appears.
+void MainGameStart_SkipCountdown(struct GameTracker *gGT)
+{
+	// START_OF_RACE is what MainGameStart_Initialize sets to arm the countdown and
+	// the fly-in.
+	if ((gGT->gameMode1 & START_OF_RACE) == 0)
+	{
+		return;
+	}
+
+	gGT->trafficLightsTimer = 0;
+
+	// The running countdown is also the only thing that zeroes the race clock:
+	// MainFrame clears elapsedEventTime every frame while the lights are up, and
+	// nothing resets it at load. Skipping the countdown therefore has to zero it
+	// here, or the next race starts on the previous race's time.
+	gGT->elapsedEventTime = 0;
+
+	// Ending transitionFrame puts the start-line fly-in on the finished path it
+	// reaches naturally, which clears START_OF_RACE and turns on the race HUD on the
+	// next camera frame.
+	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
+	{
+		gGT->cameraDC[i].transitionFrame = 0;
+	}
+}

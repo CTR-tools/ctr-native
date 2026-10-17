@@ -99,7 +99,8 @@ NativeConfig g_config = {
   .omniController = false,
   .oneLapRaces = false,
   .towPlayer2 = false,
-  .quickRace = false
+  .quickRace = false,
+  .skipStartCountdown = false
 };
 
 const ConfigEntry g_configEntries[] = {
@@ -491,6 +492,13 @@ const ConfigEntry g_configEntries[] = {
         .label = "Quick Race With R3",
         .type = CFG_BOOL,
         .valuePtr = &g_config.quickRace,
+    },
+    {
+        .section = CONFIG_SECTION_DEVELOPER_HACKS,
+        .key = "skip_start_countdown",
+        .label = "Skip Start Countdown",
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.skipStartCountdown,
     },
 };
 
