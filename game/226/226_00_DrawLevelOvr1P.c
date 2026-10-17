@@ -3446,6 +3446,12 @@ static int DrawLevelOvr1P_ConsumeClipRecords(struct PushBuffer *pb, struct PrimM
 	u8 *end = DrawLevelOvr1P_GetClipRecordCursor();
 	u8 *bufferEnd = DrawLevelOvr1P_GetClipRecordEnd();
 
+	// Taken before the cursor is rewound below, so it is the frame's whole peak.
+	if (start != NULL && bufferEnd != NULL && end != NULL && cursor >= start && end >= cursor && end <= bufferEnd)
+	{
+		NativeMemTrack_Observe(NATIVE_MEMTRACK_CLIP_RECORDS, (u32)(end - start), (u32)(bufferEnd - start));
+	}
+
 	if (start == NULL || end == NULL || bufferEnd == NULL)
 	{
 		return 1;
@@ -7594,6 +7600,7 @@ static void DrawLevelOvr1P_TerminateRenderedListCursor(void)
 	if (renderedList != NULL)
 	{
 		*renderedList = NULL;
+		NativeMemTrack_ObserveRenderedQuadblocks(renderedList);
 	}
 }
 

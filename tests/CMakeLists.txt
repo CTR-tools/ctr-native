@@ -77,5 +77,26 @@ ctr_add_test_suite(test_native_controls
     LIBRARIES SDL3::SDL3
 )
 
+# test_memtrack.c #includes platform/native_memtrack.c so it can read the
+# peaks, which are file-static and gated behind CTR_DIAGNOSTICS. It therefore
+# needs the same definition the game build has, or the module compiles to
+# nothing and the suite would pass without checking anything.
+ctr_add_test_suite(test_memtrack
+    SOURCES test_memtrack.c
+)
+target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
+
+# Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_draw_distance
+    SOURCES test_draw_distance.c
+)
+
+# Compiles game/MAIN/MainDB.c into its own translation unit so the arena budget is
+# checked against the real size tables, and platform/native_memory.c for the real
+# mempack backing size.
+ctr_add_test_suite(test_level_memory_budget
+    SOURCES test_level_memory_budget.c
+)
+
 # Builds the suites without the game, for when only they are in need.
 add_custom_target(tests DEPENDS ${CTR_TEST_SUITES})

@@ -59,6 +59,8 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	// this was a random place for ND to put it
 	LOAD_Hub_Main(sdata->ptrBigfile1);
 
+	NativeMemTrack_SampleArenas(gGT);
+
 	gGT->swapchainIndex = 1 - gGT->swapchainIndex;
 
 	gGT->backBuffer = &gGT->db[gGT->swapchainIndex];

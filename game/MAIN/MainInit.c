@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_draw_distance.h>
 
 // MainInit_Drivers spawns one driver per racer counted here.
 #include <race_field.h>
@@ -162,7 +163,7 @@ void MainInit_RainBuffer(struct GameTracker *gGT)
 	}
 }
 
-static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
+static int MainInit_GetRetailPrimMemSize(struct GameTracker *gGT)
 {
 	int levelID;
 
@@ -231,6 +232,14 @@ static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 	}
 }
 
+// The level renderer stops mid-walk when primMem runs out, so a draw distance
+// beyond retail's needs more than retail's arena. Same factor as the ordering
+// table and the clip records.
+static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
+{
+	return MainInit_GetRetailPrimMemSize(gGT) * NATIVE_DRAW_DISTANCE_SCALE;
+}
+
 void MainInit_PrimMem(struct GameTracker *gGT)
 {
 	int size = MainInit_GetPrimMemSize(gGT);
@@ -239,6 +248,10 @@ void MainInit_PrimMem(struct GameTracker *gGT)
 	{
 		return;
 	}
+
+	// A level that ran with a different band reported its peaks against the
+	// previous arena, so start the new one from zero.
+	NativeMemTrack_ResetPeaks();
 
 	MainDB_PrimMem(&gGT->db[0].primMem, size);
 	MainDB_PrimMem(&gGT->db[1].primMem, size);
@@ -263,38 +276,7 @@ void MainInit_JitPoolsReset(struct GameTracker *gGT)
 
 void MainInit_OTMem(struct GameTracker *gGT)
 {
-	int size;
-	u32 gameMode = gGT->gameMode1;
-
-	if ((gameMode & MAIN_MENU) != 0)
-	{
-		size = 0x1800;
-		goto EndFunc;
-	}
-
-	if ((gameMode & ADVENTURE_ARENA) != 0)
-	{
-		size = 0x2c00;
-		goto EndFunc;
-	}
-
-	if ((gameMode & BATTLE_MODE) != 0)
-	{
-		size = 0x8000;
-		goto EndFunc;
-	}
-
-	// 1P/2P mode
-	if (gGT->numPlyrCurrGame < 3)
-	{
-		size = 0x2000;
-		goto EndFunc;
-	}
-
-	// 3P/4P mode
-	size = 0x3000;
-
-EndFunc:
+	int size = MainDB_GetOTMemSize(gGT->gameMode1, gGT->numPlyrCurrGame);
 
 	MainDB_OTMem(&gGT->db[0].otMem, size);
 	MainDB_OTMem(&gGT->db[1].otMem, size);

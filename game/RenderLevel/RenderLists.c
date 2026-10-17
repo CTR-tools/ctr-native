@@ -1,15 +1,5 @@
 #include <common.h>
 
-enum RenderListsSlot1P2P
-{
-	RENDER_LIST_SLOT_4X4 = 0,
-	RENDER_LIST_SLOT_DYNAMIC_SUBDIV = 1,
-	RENDER_LIST_SLOT_4X2 = 2,
-	RENDER_LIST_SLOT_4X1 = 3,
-	RENDER_LIST_SLOT_WATER = 4,
-	RENDER_LIST_SLOT_FULL_DYNAMIC = 5,
-};
-
 enum RenderListsScratchOffset
 {
 	RENDER_LISTS_CORNER_JUMP_TABLE_OFFSET = 0x84,
@@ -124,37 +114,44 @@ static int RenderLists_ProjectDistance(struct PushBuffer *pb, const struct Bound
 
 static int RenderLists_Select1P2PSlot(const struct BSP *bsp, struct PushBuffer *pb, int lodDistanceThreshold)
 {
+	int slotIndex;
+
 	if ((bsp->flag & BSP_LEAF_FLAG_WATER) != 0)
 	{
-		return RENDER_LIST_SLOT_WATER;
+		slotIndex = RENDER_LIST_SLOT_WATER;
 	}
-
-	if ((bsp->flag & BSP_RENDER_LEAF_FLAG_DYNAMIC_SUBDIV) != 0)
+	else if ((bsp->flag & BSP_RENDER_LEAF_FLAG_DYNAMIC_SUBDIV) != 0)
 	{
-		return RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
+		slotIndex = RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
 	}
-
-	if (RenderLists_ProjectDistance(pb, &bsp->box) > lodDistanceThreshold)
+	else if (RenderLists_ProjectDistance(pb, &bsp->box) > lodDistanceThreshold)
 	{
-		return RENDER_LIST_SLOT_FULL_DYNAMIC;
+		// NOTE: This is not a detail cutoff. It selects the emitter the leaf was
+		// authored for: past it the leaf draws through the full-dynamic path
+		// rather than the subdivided grids, which read grid data the
+		// full-dynamic quads do not carry.
+		slotIndex = RENDER_LIST_SLOT_FULL_DYNAMIC;
 	}
-
-	if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X4) != 0)
+	else if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X4) != 0)
 	{
-		return RENDER_LIST_SLOT_4X4;
+		slotIndex = RENDER_LIST_SLOT_4X4;
 	}
-
-	if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X1) != 0)
+	else if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X1) != 0)
 	{
-		return RENDER_LIST_SLOT_4X1;
+		slotIndex = RENDER_LIST_SLOT_4X1;
 	}
-
-	if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X2) != 0)
+	else if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X2) != 0)
 	{
-		return RENDER_LIST_SLOT_4X2;
+		slotIndex = RENDER_LIST_SLOT_4X2;
+	}
+	else
+	{
+		slotIndex = RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
 	}
 
-	return RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
+	NativeMemTrack_CountLeafSlot(slotIndex);
+
+	return slotIndex;
 }
 
 static struct VisMemBspListNode **RenderLists_Get1P2PHead(void *LevRenderList, int slotIndex)
@@ -211,17 +208,21 @@ static void RenderLists_PushChild(struct BSP *bspRoot, const int *visLeafList, s
 
 	if (!RenderLists_IsVisible(visLeafList, childID))
 	{
+		NativeMemTrack_CountLeafReject(NATIVE_MEMTRACK_LEAF_REJECTED_VISIBILITY);
 		return;
 	}
 
 	child = &bspRoot[((u16)childID) & BSP_CHILD_ID_INDEX_MASK];
 	if (!RenderLists_BoxOverlapsPushBuffer(&child->box, &pb->bbox))
 	{
+		NativeMemTrack_CountLeafReject(NATIVE_MEMTRACK_LEAF_REJECTED_BOX);
 		return;
 	}
 
+	// Running out of stack drops the subtree under this node, not just the node.
 	if (*stack >= stackEnd)
 	{
+		NativeMemTrack_CountLeafReject(NATIVE_MEMTRACK_LEAF_REJECTED_STACK);
 		return;
 	}
 
@@ -273,6 +274,7 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 
 			if (!RenderLists_BoxPassesFrustum(pb, &record.box))
 			{
+				NativeMemTrack_CountLeafReject(NATIVE_MEMTRACK_LEAF_REJECTED_FRUSTUM);
 				continue;
 			}
 
@@ -328,6 +330,7 @@ static int RenderLists_Walk3P4P(struct BSP *bspRoot, const int *visLeafList, str
 
 			if (!RenderLists_BoxPassesFrustum(pb, &record.box))
 			{
+				NativeMemTrack_CountLeafReject(NATIVE_MEMTRACK_LEAF_REJECTED_FRUSTUM);
 				continue;
 			}
 

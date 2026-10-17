@@ -125,6 +125,15 @@ target_compile_definitions(ctr_native_expanded PRIVATE
     CTR_NATIVE_EXPANDED_VERSION=\"${CTR_NATIVE_EXPANDED_VERSION}\"
     CTR_NATIVE_EXPANDED_BUILD_ID=\"${CTR_NATIVE_EXPANDED_BUILD_ID}\"
 )
+
+# Memory and BSP-leaf telemetry. Off unless asked for: it samples per frame and
+# writes to the log, which is wanted while measuring a configuration and not
+# wanted in a build that only has to run. Enable with
+# -DCTR_DIAGNOSTICS=ON.
+option(CTR_DIAGNOSTICS "Compile the memory and BSP-leaf diagnostics" OFF)
+if(CTR_DIAGNOSTICS)
+    target_compile_definitions(ctr_native_expanded PRIVATE CTR_DIAGNOSTICS)
+endif()
 #TODO(aalhendi): fix warnings
 ctr_native_apply_common_options(ctr_native_expanded)
 target_link_libraries(ctr_native_expanded SDL3::SDL3)
