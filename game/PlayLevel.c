@@ -79,6 +79,29 @@ static bool PlayLevel_ShouldEndWhenOthersArrived(struct GameTracker *gGT)
 	return sdata->numPlayersFinishedRace >= (totalRacerCount - 1);
 }
 
+// Development aid hack, enabled by the "End Race With L3" option. A race otherwise
+// takes a whole route to run, which makes reaching the podium, the results and the
+// reward flow slow to check. The placings handed over are the ones the field is
+// currently standing on, so this ends the race rather than winning it.
+static bool PlayLevel_ShouldEndRaceOnL3(struct GameTracker *gGT)
+{
+	if (!g_config.endRaceWithL3)
+	{
+		return false;
+	}
+
+	// Menus, the adventure hub and cutscenes are not races to end, a pause menu
+	// belongs to the race it interrupted, and an attract demo race has to run its
+	// own length.
+	if ((gGT->gameMode1 & (MAIN_MENU | ADVENTURE_ARENA | GAME_CUTSCENE | PAUSE_ALL)) != 0 ||
+	    (gGT->boolDemoMode != 0))
+	{
+		return false;
+	}
+
+	return (GAMEPADS->anyoneTapped & BTN_L3) != 0;
+}
+
 // Confetti celebrates the result of the round, so it only belongs to racers that
 // actually won it. Retail gives it to whoever crosses the line first, which in
 // Adventure co-op happens before the pair knows the outcome, so the co-op pair is
@@ -520,6 +543,14 @@ void PlayLevel_UpdateLapStats(void)
 	{
 		shouldEndRace = true;
 		endedByOthersArrived = true;
+	}
+
+	// Developer hack: L3 ends the race on request. endedByOthersArrived stays clear
+	// here, so a racer still out on track is not blasted, which per the block below
+	// belongs to a retail VS ending only.
+	else if (PlayLevel_ShouldEndRaceOnL3(gGT))
+	{
+		shouldEndRace = true;
 	}
 
 	if (shouldEndRace)

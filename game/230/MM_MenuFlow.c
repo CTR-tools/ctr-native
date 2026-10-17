@@ -73,6 +73,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 	}
 
 	MM_ParseCheatCodes();
+	MM_QuickRace_RequestStart(mainMenu);
 	MM_ToggleRows_Difficulty();
 	MM_ToggleRows_PlayerCount();
 

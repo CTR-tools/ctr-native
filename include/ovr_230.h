@@ -40,6 +40,7 @@ enum
 	MM_EXIT_ROUTE_HIGH_SCORE = 3,
 	MM_EXIT_ROUTE_DEMO = 4,
 	MM_EXIT_ROUTE_SCRAPBOOK = 5,
+	MM_EXIT_ROUTE_QUICK_RACE = 6,
 };
 typedef s32 MainMenuExitRoute;
 

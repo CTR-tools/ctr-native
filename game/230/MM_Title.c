@@ -210,6 +210,16 @@ HANDLE_EXITING:
 		}
 		goto LAB_800abfc0;
 
+	// developer hack: straight into a 1P arcade race as Crash in Crash Cove
+	case MM_EXIT_ROUTE_QUICK_RACE:
+
+		MM_Title_CameraReset();
+		MM_Title_KillThread();
+
+		cutsceneLev = CRASH_COVE;
+		MM_QuickRace_SetupRace();
+		goto LAB_800abfc0;
+
 	// scrapbook
 	case MM_EXIT_ROUTE_SCRAPBOOK:
 
