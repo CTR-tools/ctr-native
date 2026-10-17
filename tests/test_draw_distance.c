@@ -31,6 +31,8 @@ int main(void)
 	               "the off model LOD depth is retail's projection untouched");
 	CTR_TEST_CHECK(NativeDrawDistance_BspLodThreshold(TEST_DRAW_DISTANCE_VALUE, false) == TEST_DRAW_DISTANCE_VALUE,
 	               "the off BSP LOD cutoff is retail's cutoff untouched");
+	CTR_TEST_CHECK(NativeDrawDistance_TextureLodThreshold(TEST_DRAW_DISTANCE_VALUE, false) == TEST_DRAW_DISTANCE_VALUE,
+	               "the off texture LOD depth is retail's depth untouched");
 
 	CTR_TEST_SECTION("the option on moves every threshold by the one factor");
 	// The bug this pins: the four numbers had drifted apart (a 2x frustum clip, a
@@ -50,6 +52,9 @@ int main(void)
 	CTR_TEST_CHECK(NativeDrawDistance_BspLodThreshold(TEST_DRAW_DISTANCE_VALUE, true) / TEST_DRAW_DISTANCE_VALUE ==
 	                   NATIVE_DRAW_DISTANCE_SCALE,
 	               "the BSP LOD cutoff is scaled by the shared factor");
+	CTR_TEST_CHECK(NativeDrawDistance_TextureLodThreshold(TEST_DRAW_DISTANCE_VALUE, true) / TEST_DRAW_DISTANCE_VALUE ==
+	                   NATIVE_DRAW_DISTANCE_SCALE,
+	               "the texture LOD depth is scaled by the shared factor");
 
 	return CtrTest_Summary();
 }

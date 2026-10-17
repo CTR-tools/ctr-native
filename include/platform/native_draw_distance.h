@@ -49,4 +49,9 @@ static inline int NativeDrawDistance_BspLodThreshold(int retailThreshold, bool e
 	return extended ? retailThreshold * NATIVE_DRAW_DISTANCE_SCALE : retailThreshold;
 }
 
+static inline int NativeDrawDistance_TextureLodThreshold(int retailThreshold, bool extended)
+{
+	return extended ? retailThreshold * NATIVE_DRAW_DISTANCE_SCALE : retailThreshold;
+}
+
 #endif
