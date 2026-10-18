@@ -277,6 +277,7 @@ void NativeRenderer_Shutdown(void)
 
 	NativeRenderer_DestroyRenderTarget(&s_mainRenderTarget);
 	NativeRenderer_DestroyRenderTarget(&s_offscreenRenderTarget);
+	NativeAntialiasing_Shutdown();
 	glDeleteFramebuffers(1, &s_glVramFramebuffer);
 
 	NativeRenderer_DestroyTexture(s_vram.texture);
@@ -1291,6 +1292,7 @@ int NativeRenderer_InitialisePSX(void)
 	// to presentation.
 	NativeRenderer_InitRenderTarget(&s_mainRenderTarget);
 	NativeRenderer_InitRenderTarget(&s_offscreenRenderTarget);
+	NativeAntialiasing_Init();
 
 	// gen VRAM texture (single, persistent - mirrors PS1's single 1MB VRAM)
 	{
@@ -2195,6 +2197,7 @@ int NativeRenderer_RestoreVRAMState(const void *src, int srcSize)
 	s_mainRenderTarget.height = 0;
 	s_offscreenRenderTarget.width = 0;
 	s_offscreenRenderTarget.height = 0;
+	NativeAntialiasing_InvalidateTarget();
 	s_previousOffscreen = zeroRect;
 	s_previousOffscreenState = 0;
 	s_previousShader = (ShaderID)-1;
@@ -2244,11 +2247,13 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	NativeRenderer_EnableDepth(0);
 	NativeRenderer_SetBlendMode(BM_NONE);
 
-	NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
-	glBindVertexArray(0);
-
-	s_previousShader = (ShaderID)-1;
-	s_lastBoundTexture = (TextureID)-1;
+	if (!NativeAntialiasing_PresentVRAMRect(displayX, displayY, displayW, displayH))
+	{
+		NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
+		glBindVertexArray(0);
+		s_previousShader = (ShaderID)-1;
+		s_lastBoundTexture = (TextureID)-1;
+	}
 }
 
 void NativeRenderer_PresentMainRenderTarget(void)
@@ -2264,17 +2269,23 @@ void NativeRenderer_PresentMainRenderTarget(void)
 	// Both the main target and the default framebuffer are bottom-left-origin
 	// GL surfaces holding the frame in the same orientation (the projection put
 	// the game's top row at NDC +1 in the target), so the blit needs no flip.
-	// The filter maps the scaled raster onto the letterboxed viewport: smooth
-	// (linear) by default, sharp (nearest) when the player turned Smooth
-	// Scaling off. The presentation bars were already cleared in BeginScene.
-	// Scissor must be off or it would clip the blit.
+	// The presentation bars were already cleared in BeginScene, and scissor
+	// must be off or it would clip the blit.
 	NativeRenderer_SetScissorState(0);
+	if (NativeAntialiasing_PresentMainTarget())
+	{
+		return;
+	}
+
+	// Smooth (linear) by default, sharp (nearest) when the player turned Smooth
+	// Scaling off.
+	const GLenum filter = g_config.smoothScaling ? GL_LINEAR : GL_NEAREST;
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glBlitFramebuffer(0, 0, s_mainRenderTarget.width, s_mainRenderTarget.height,
 	                  s_presentViewport.x, s_presentViewport.y,
 	                  s_presentViewport.x + s_presentViewport.w, s_presentViewport.y + s_presentViewport.h,
-	                  GL_COLOR_BUFFER_BIT, g_config.smoothScaling ? GL_LINEAR : GL_NEAREST);
+	                  GL_COLOR_BUFFER_BIT, filter);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

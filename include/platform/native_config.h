@@ -34,6 +34,7 @@ typedef struct {
     bool dithering;             // true = dithering enabled (default), false = disabled
     int renderScale;            // 1 = original, 2/3/4 = fixed multiples, 0 = native window
     bool smoothScaling;         // true = linear filtering for direct presentation
+    bool fxaa;                  // false = off (default), true = FXAA edge antialiasing on the presented frame
     bool textureFiltering;      // true = bilinear PSX texture sampling
     int pgxpMode;               // PGXP_MODE_OFF (default), GEOMETRY, or PERSPECTIVE
     bool saveAnywhere;          // false = off (default), true = save anywhere in adventure mode by pressing select or from the pause menu

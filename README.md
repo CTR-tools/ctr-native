@@ -264,17 +264,18 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 
 ### Graphics
 
-| Key                        | Values  | Default | Description                                                             |
-|----------------------------|---------|---------|-------------------------------------------------------------------------|
-| `increase_draw_distance`   | `true` / `false` | `false` | Renders farther objects and uses higher poly models at higher distances |
-| `disable_split_screen_lod` | `true` / `false` | `false` | Use full-detail tracks, models, and effects in split-screen               |
-| `fullscreen`               | `true` / `false` | `false` | Borderless fullscreen on startup                                        |
-| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9` | `4:3`   | Display aspect ratio                                                    |
-| `dithering`                | `true` / `false` | `true`  | Enable color dithering                                                  |
-| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native` | Internal render resolution; Native follows the presentation viewport |
-| `smooth_scaling`           | `true` / `false` | `true`  | Use linear filtering when presenting scaled output                      |
-| `texture_filtering`        | `true` / `false` | `false` | Enable bilinear filtering for PSX textures                              |
-| `pgxp`                     | `Off`, `Geometry`, `Perspective` | `Off` | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
+| Key                        | Values                                 | Default   | Description                                                                                             |
+|----------------------------|----------------------------------------|-----------|---------------------------------------------------------------------------------------------------------|
+| `increase_draw_distance`   | `true` / `false`                       | `false`   | Renders farther objects and uses higher poly models at higher distances                                 |
+| `disable_split_screen_lod` | `true` / `false`                       | `false`   | Use full-detail tracks, models, and effects in split-screen                                             |
+| `fullscreen`               | `true` / `false`                       | `false`   | Borderless fullscreen on startup                                                                        |
+| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9`         | `4:3`     | Display aspect ratio                                                                                    |
+| `dithering`                | `true` / `false`                       | `true`    | Enable color dithering                                                                                  |
+| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native`  | Internal render resolution; Native follows the presentation viewport                                    |
+| `smooth_scaling`           | `true` / `false`                       | `true`    | Use linear filtering when presenting scaled output                                                      |
+| `fxaa`                     | `true` / `false`                       | `false`   | Antialias the edges of the presented frame with FXAA                                                    |
+| `texture_filtering`        | `true` / `false`                       | `false`   | Enable bilinear filtering for PSX textures                                                              |
+| `pgxp`                     | `Off`, `Geometry`, `Perspective`       | `Off`     | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
 
 ### Developer Hacks
 

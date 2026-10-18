@@ -83,6 +83,7 @@ NativeConfig g_config = {
   .dithering = true,
   .renderScale = 0,
   .smoothScaling = true,
+  .fxaa = false,
   .textureFiltering = false,
   .pgxpMode = PGXP_MODE_OFF,
   .saveAnywhere = false,
@@ -442,6 +443,13 @@ const ConfigEntry g_configEntries[] = {
         .label = "Smooth Scaling",
         .type = CFG_BOOL,
         .valuePtr = &g_config.smoothScaling
+    },
+    {
+        .section = "Graphics",
+        .key = "fxaa",
+        .label = "FXAA Antialiasing",
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.fxaa
     },
     {
         .section = "Graphics",
