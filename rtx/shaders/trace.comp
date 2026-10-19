@@ -33,6 +33,10 @@ vec3 shadeSecondary(vec3 o, vec3 d, float tmax, inout uint rng)
 		return skyRadiance(d);
 	}
 	Surface s = surfaceAt(inst, prim, bary, d);
+	if (F.extra.z == 0u)
+	{
+		return s.albedo * s.ps1Light; // hybrid: what the PS1 draws there
+	}
 	vec3 amb = (F.ambient.w > 0.5) ? F.ambient.rgb : 0.5 * (F.skyZenith.rgb + F.skyHorizon.rgb);
 	// light beyond this bounce approximated by a fraction of the ambient
 	return s.albedo * (lightSample(s.pos, s.normal, s.geoNormal, rng) + 0.35 * amb);
@@ -83,7 +87,8 @@ void main()
 				                              cos(ls.pos.z * 0.013 + time * 1.3) + cos(ls.pos.x * 0.005 + time * 0.9)));
 				vec3 r = reflect(dir, n);
 				r = (dot(r, ls.geoNormal) < 0.0) ? reflect(r, ls.geoNormal) : r;
-				vec3 refl = linearToSrgb(shoulder(shadeSecondary(ls.pos + ls.geoNormal * rayEps(ls.pos), r, 1e8, rng) * exposure));
+				vec3 reflLin = shadeSecondary(ls.pos + ls.geoNormal * rayEps(ls.pos), r, 1e8, rng) * exposure;
+				vec3 refl = linearToSrgb((F.extra.z == 0u) ? clamp(reflLin, 0.0, 1.0) : shoulder(reflLin));
 				float cosI = clamp(-dot(dir, n), 0.0, 1.0);
 				float fresnel = 0.04 + 0.96 * pow(1.0 - cosI, 5.0);
 				col = mix(col, refl, 0.45 + 0.5 * fresnel);
@@ -105,20 +110,40 @@ void main()
 
 	Surface sf = surfaceAt(inst, prim, bary, dir);
 	vec3 p = sf.pos, n = sf.normal, ng = sf.geoNormal;
-	float eps = rayEps(p);
+	float eps = surfaceEps(p, sf.dynamic);
+	vec3 pl = p + ng * (eps - rayEps(p)); // models: rays start a bit further out
+	vec3 lighting;
 
-	vec3 direct = lightSample(p, n, ng, rng);
-
-	// one diffuse bounce (cosine-weighted: radiance estimate is the irradiance / pi)
-	vec3 bd = cosineSample(n, rng);
-	if (dot(bd, ng) <= 0.0)
+	if (F.extra.z == 0u)
 	{
-		bd = reflect(bd, ng);
+		// hybrid: the track's own (PS1 vertex colour) lighting, darkened where a
+		// model blocks the sun (karts, items, scenery), plus light from what glows
+		vec3 base = sf.ps1Light;
+		if (F.ambient.w < 0.5)
+		{
+			vec3 l = coneSample(F.sunDir.xyz, F.sunDir.w, rng);
+			if ((dot(ng, l) > 0.0) && occludedMask(pl + ng * rayEps(p), l, 1e7, 0x2u))
+			{
+				base *= 0.45;
+			}
+		}
+		lighting = base + lightSample(pl, n, ng, rng);
 	}
-	float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e8;
-	// (indoors a bounce that gets past the AO radius sees the ambient: skyRadiance)
-	vec3 indirect = shadeSecondary(p + ng * eps, bd, aoRadius, rng);
-	vec3 lighting = direct + indirect;
+	else
+	{
+		vec3 direct = lightSample(pl, n, ng, rng);
+
+		// one diffuse bounce (cosine-weighted: radiance estimate is the irradiance / pi)
+		vec3 bd = cosineSample(n, rng);
+		if (dot(bd, ng) <= 0.0)
+		{
+			bd = reflect(bd, ng);
+		}
+		float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e8;
+		// (indoors a bounce that gets past the AO radius sees the ambient: skyRadiance)
+		vec3 indirect = shadeSecondary(p + ng * eps, bd, aoRadius, rng);
+		lighting = direct + indirect;
+	}
 
 	// temporal accumulation
 	float viewZ = dot(F.camR[2].xyz, p) + F.camT.z;
@@ -138,7 +163,7 @@ void main()
 				if ((g.w > 0.0) && (abs(g.w - pv.z) < 0.03 * pv.z) && (dot(g.xyz, n) > 0.8))
 				{
 					vec4 h = histPrev[pidx];
-					float maxCount = (inst == INST_DYN) ? 6.0 : F.groundColor.w;
+					float maxCount = (inst == INST_DYN) ? 4.0 : F.groundColor.w;
 					float count = min(h.a + 1.0, maxCount);
 					hist = vec4(mix(h.rgb, lighting, 1.0 / count), count);
 				}

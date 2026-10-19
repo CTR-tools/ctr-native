@@ -147,7 +147,8 @@ static struct
 	int haveLevel;
 	Buf levelVerts, levelTris, levelIdx, lights, lightsStage, levelNormals;
 	Accel levelBlas;
-	uint32_t numLights; // static: lights file + glowing level surfaces
+	uint32_t numLights; // static: lights file lamps, then glowing level surfaces
+	uint32_t numLamps;  // lamps from the lights file (full relight only)
 
 	// per frame
 	Buf frame, texSlots, texSlotsStage, dynTris, dynTrisStage, dynPos, dynPosStage, dynNormals, dynNormalsStage, vram, vramStage, tlasInstances, scratch, lum;
@@ -164,6 +165,7 @@ static struct
 	float prevR[9], prevT[3], prevH, prevCamPos[3];
 	int havePrev;
 	uint32_t lastGameFrame;
+	uint32_t lastLightMode;
 	float autoExposure;
 } R;
 
@@ -778,7 +780,8 @@ static void addLevelEmitters(const struct RtxLevelVert *verts, const struct RtxL
 			col[1] += ((rgba >> 8) & 255) / 128.0f / 3.0f * tex[1] / count;
 			col[2] += ((rgba >> 16) & 255) / 128.0f / 3.0f * tex[2] / count;
 		}
-		if (luma3(col) < 0.25f) // dim translucent sheets are not light sources
+		float mx = fmaxf(col[0], fmaxf(col[1], col[2])), mn = fminf(col[0], fminf(col[1], col[2]));
+		if ((luma3(col) < 0.25f) || (mx - mn < 0.3f * mx)) // dim sheets and white foam/sparkle are not light sources
 		{
 			continue;
 		}
@@ -877,6 +880,7 @@ static void loadLevel(void)
 	cmdSubmitWait();
 
 	loadLighting(R.hdr->lightsKey);
+	R.numLamps = R.light.numLights;
 	addLevelEmitters(verts, tris, nt);
 	R.numLights = R.light.numLights;
 	// static lights, then room for this frame's emitters (RTX_MAX_DYN_LIGHTS)
@@ -1057,7 +1061,8 @@ static void renderFrame(void)
 		F->camPos[r] = camPos[r];
 		F->camT[r] = H->camT[r];
 	}
-	int reset = !R.havePrev || (H->frame != R.lastGameFrame + 1) || H->resetHistory;
+	int reset = !R.havePrev || (H->frame != R.lastGameFrame + 1) || H->resetHistory || (H->lightMode != R.lastLightMode);
+	R.lastLightMode = H->lightMode;
 	if (R.havePrev)
 	{
 		float dx = camPos[0] - R.prevCamPos[0], dy = camPos[1] - R.prevCamPos[1], dz = camPos[2] - R.prevCamPos[2];
@@ -1117,7 +1122,8 @@ static void renderFrame(void)
 			exposure = 1.0f / luma3(open);
 		}
 	}
-	F->sunColor[3] = exposure;
+	int hybrid = (H->lightMode == 0);
+	F->sunColor[3] = hybrid ? 1.0f : exposure; // hybrid: the PS1 colours as they are
 	F->skyZenith[3] = 0.35f;   // level vertex colour kept as tint
 	F->skyHorizon[3] = 2.0f;   // ray epsilon (level units)
 	F->groundColor[3] = 32.0f; // max accumulated frames
@@ -1130,6 +1136,8 @@ static void renderFrame(void)
 	F->params[1] = (float)R.frameIndex / 30.0f; // seconds, water ripples
 	uint32_t ndl = H->numDynLights > RTX_MAX_DYN_LIGHTS ? RTX_MAX_DYN_LIGHTS : H->numDynLights;
 	F->extra[0] = ndl;
+	F->extra[1] = R.numLamps;
+	F->extra[2] = H->lightMode;
 
 	// ---- uploads
 	memcpy(R.texSlotsStage.map, R.shm + RTX_OFF_TEX_SLOTS, H->numTexSlots * sizeof(struct RtxTexSlot));
@@ -1162,7 +1170,7 @@ static void renderFrame(void)
 		VkAccelerationStructureInstanceKHR *I = &inst[numInst++];
 		I->transform.matrix[0][0] = I->transform.matrix[1][1] = I->transform.matrix[2][2] = 1.0f;
 		I->instanceCustomIndex = (uint32_t)k;
-		I->mask = 0xff;
+		I->mask = (k == 0) ? 0x1 : 0x2;
 		I->accelerationStructureReference = (k == 0) ? R.levelBlas.addr : R.dynBlas.addr;
 	}
 
@@ -1261,7 +1269,7 @@ static void liftLights(void)
 	cmdBegin();
 	VkAccelerationStructureInstanceKHR inst = {0};
 	inst.transform.matrix[0][0] = inst.transform.matrix[1][1] = inst.transform.matrix[2][2] = 1.0f;
-	inst.mask = 0xff;
+	inst.mask = 0x1;
 	inst.accelerationStructureReference = R.levelBlas.addr;
 	memcpy(R.tlasInstances.map, &inst, sizeof(inst));
 	VkAccelerationStructureGeometryKHR g = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR, .geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR};

@@ -24,7 +24,7 @@ layout(set = 0, binding = 1, std430) readonly buffer FrameBuf
 	vec4 ambient;     // rgb (indoor), w indoor flag
 	uvec4 counts;     // numStaticLights, numLevelTris, numDynTris, resetHistory
 	vec4 params;      // aoRadius, time (seconds), unused, unused
-	uvec4 extra;      // numDynLights (stored after the static lights), unused...
+	uvec4 extra;      // numDynLights (after the static lights), numLamps (first static lights), lightMode (0 hybrid, 1 full), unused
 } F;
 
 layout(set = 0, binding = 2, std430) readonly buffer LevelVerts { uint levelVerts[]; };   // 4 words per vertex
@@ -183,6 +183,16 @@ TriData fetchTriangle(uint inst, uint prim, vec2 bary)
 	if ((d.flags & TRI_TEXTURED) != 0u)
 	{
 		vec2 t = uv[0] * w.x + uv[1] * w.y + uv[2] * w.z;
+		if ((inst == INST_LEVEL) && ((d.flags & TRI_WATER) != 0u))
+		{
+			// water: the level's env map, tiled over the surface and drifting
+			uint s0 = texSlots[(levelTris[prim * 3u + 1u] >> 16) * 3u], s1 = texSlots[(levelTris[prim * 3u + 1u] >> 16) * 3u + 1u];
+			vec2 tl = vec2(float(byteAt(s0, 0u)), float(byteAt(s0, 1u)));
+			vec2 br = vec2(float(byteAt(s1, 2u)), float(byteAt(s1, 3u)));
+			vec3 pos = d.p0 * w.x + d.p1 * w.y + d.p2 * w.z;
+			vec2 f = fract(pos.xz / 768.0 + vec2(0.021, 0.013) * F.params.y);
+			t = mix(tl, br, f);
+		}
 		d.texel = psxTexel(tpage, clut, int(floor(t.x)), int(floor(t.y)));
 	}
 	else
@@ -234,10 +244,10 @@ float traceClosest(vec3 o, vec3 d, float tmax, bool includeSemi, out uint inst, 
 	return rayQueryGetIntersectionTEXT(rq, true);
 }
 
-bool occluded(vec3 o, vec3 d, float tmax)
+bool occludedMask(vec3 o, vec3 d, float tmax, uint mask)
 {
 	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, o, 0.0, d, tmax);
+	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsTerminateOnFirstHitEXT, mask, o, 0.0, d, tmax);
 	while (rayQueryProceedEXT(rq))
 	{
 		if (rayQueryGetIntersectionTypeEXT(rq, false) == gl_RayQueryCandidateIntersectionTriangleEXT)
@@ -253,6 +263,8 @@ bool occluded(vec3 o, vec3 d, float tmax)
 	return rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
 }
 
+bool occluded(vec3 o, vec3 d, float tmax) { return occludedMask(o, d, tmax, 0xffu); }
+
 struct Surface
 {
 	vec3 pos;
@@ -260,8 +272,10 @@ struct Surface
 	vec3 normal;    // smooth shading normal, same side
 	vec3 albedo;    // linear
 	vec3 ps1Color;  // texel x vertex colour as the PS1 draws it (display space, 0..2)
+	vec3 ps1Light;  // linear vertex-colour light (hybrid): albedo x ps1Light = the PS1 colour
 	uint flags;
 	uint blend;
+	bool dynamic;
 };
 
 vec3 srgbToLinear(vec3 c) { return pow(max(c, vec3(0.0)), vec3(2.2)); }
@@ -289,6 +303,17 @@ Surface surfaceAt(uint inst, uint prim, vec2 bary, vec3 rayDir)
 	s.ps1Color = textured ? d.texel.rgb * d.vcol : clamp(d.vcol * 0.5, 0.0, 1.0);
 	s.flags = d.flags;
 	s.blend = d.blend;
+	s.dynamic = (inst == INST_DYN);
+	if (F.extra.z == 0u)
+	{
+		// hybrid: albedo is the bare texel, the PS1 vertex colour is the light
+		s.albedo = textured ? min(srgbToLinear(d.texel.rgb), vec3(0.95)) : vec3(0.95);
+		s.ps1Light = srgbToLinear(textured ? d.vcol : clamp(d.vcol * 0.5, 0.0, 1.0)) / (textured ? 1.0 : 0.95);
+	}
+	else
+	{
+		s.ps1Light = vec3(0.0);
+	}
 	return s;
 }
 
@@ -339,6 +364,12 @@ vec3 skyRadiance(vec3 d)
 float rayEps(vec3 p)
 {
 	return F.skyHorizon.w + 1e-4 * length(p - F.camPos.xyz);
+}
+
+// low-poly models self-shadow along their facets: push their rays further out
+float surfaceEps(vec3 p, bool dynamic)
+{
+	return rayEps(p) * (dynamic ? 3.0 : 1.0);
 }
 
 // one shadowed sample from lights[first, first+count): 8 candidates picked by
@@ -392,6 +423,15 @@ vec3 lightSample(vec3 p, vec3 n, vec3 ng, inout uint rng)
 {
 	vec3 result = vec3(0.0);
 	float eps = rayEps(p);
+	if (F.extra.z == 0u)
+	{
+		// hybrid: the track's own lighting is the base; add what glows (level
+		// emitters after the lamps, then this frame's flames and particles)
+		uint first = F.extra.y, numEmit = F.counts.x - F.extra.y, numDyn = F.extra.x;
+		result += sampleLightSet(first, numEmit, p, n, ng, eps, rng) * float(numEmit);
+		result += sampleLightSet(F.counts.x, numDyn, p, n, ng, eps, rng) * float(numDyn);
+		return result;
+	}
 
 	if (F.ambient.w < 0.5)
 	{

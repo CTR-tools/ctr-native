@@ -55,6 +55,10 @@ void main()
 		{
 			color = linearToSrgb(shoulder(hist[idx].rgb * exposure * 0.5));
 		}
+		else if (F.extra.z == 0u)
+		{
+			color = linearToSrgb(clamp(a.rgb * light * exposure, 0.0, 1.0)); // hybrid: PS1 colours, PS1 clamp
+		}
 		else
 		{
 			color = linearToSrgb(shoulder(a.rgb * light * exposure));

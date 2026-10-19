@@ -39,6 +39,14 @@ struct RtxRange
 	u16 tag;
 	u16 serial;
 	u8 allowSemi; // wheels: semi-transparent code, but colour-keyed sprites
+	u8 mode;      // RtxInstMode
+};
+
+enum RtxInstMode
+{
+	RTX_INST_CAPTURE, // solid model: ray traced geometry
+	RTX_INST_GLOW,    // transparent glowing model (turbo flames, fire jets): GL draws it, it lights the scene
+	RTX_INST_GL,      // ghosts and other transparent models: GL only
 };
 
 // something glowing (additive blend) seen this frame; clustered into point lights
@@ -82,6 +90,8 @@ static struct
 	u16 serial;
 	float instScale; // true view / GTE view of the current instance
 	int allowSemi;
+	int instMode;
+	int lightMode;
 	int camForCapture;
 	int skyPhase;
 	int numDyn;
@@ -92,7 +102,9 @@ static struct
 	void *levelPtr;
 	void *meshPtr;
 	int levelID;
-	u32 texSrc[RTX_MAX_TEXSRC]; // raw ptr_texture_mid values, one per slot
+	// one per slot: ptr_texture_mid value (IconGroup4, | 1 = AnimTex), or a plain
+	// TextureLayout | 2 (the water env map)
+	u32 texSrc[RTX_MAX_TEXSRC];
 	int numTexSlots;
 	int levelValid;
 
@@ -158,7 +170,7 @@ void Rtx_Init(void)
 	}
 	s_rtx.rendererPid = pid;
 	s_rtx.enabled = 1;
-	printf("[RTX] renderer %s started (pid %d), F7 toggles ray tracing, F6 cycles debug views\n", exe, (int)pid);
+	printf("[RTX] renderer %s started (pid %d): F7 ray tracing on/off, F5 hybrid/full lighting, F6 debug views\n", exe, (int)pid);
 }
 
 void Rtx_Shutdown(void)
@@ -179,6 +191,11 @@ void Rtx_HandleKey(int scancode)
 	{
 		s_rtx.enabled ^= 1;
 		printf("[RTX] ray tracing %s\n", s_rtx.enabled ? "on" : "off");
+	}
+	else if (scancode == SDL_SCANCODE_F5)
+	{
+		s_rtx.lightMode ^= 1;
+		printf("[RTX] lighting: %s\n", s_rtx.lightMode ? "full relight" : "hybrid (track's own lighting + ray traced extras)");
 	}
 	else if (scancode == SDL_SCANCODE_F6)
 	{
@@ -229,7 +246,7 @@ void Rtx_BeginTag(int tag, struct PrimMem *primMem)
 }
 
 static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi);
-static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial);
+static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial, int anyBlend);
 static void Rtx_MarkCaptured(u32 packet);
 
 void Rtx_EndTag(struct PrimMem *primMem)
@@ -258,7 +275,9 @@ void Rtx_EndTag(struct PrimMem *primMem)
 	r->tag = (u16)tag;
 	r->serial = (tag == RTX_TAG_INSTANCE) ? s_rtx.serial : 0;
 	r->allowSemi = (u8)s_rtx.allowSemi;
+	r->mode = (u8)s_rtx.instMode;
 	s_rtx.allowSemi = 0;
+	s_rtx.instMode = RTX_INST_CAPTURE;
 
 	// model packets are allocated back to back: decode them now, so the ray
 	// traced image can be rendered before the GL overlay pass draws over it
@@ -272,13 +291,20 @@ void Rtx_EndTag(struct PrimMem *primMem)
 			{
 				break;
 			}
-			if (Rtx_CapturePacket(p + 1, len, r->serial, r->allowSemi))
+			if (r->mode == RTX_INST_GLOW)
+			{
+				Rtx_EmitterPacket(p + 1, len, r->serial, 1);
+			}
+			else if (r->mode == RTX_INST_GL)
+			{
+			}
+			else if (Rtx_CapturePacket(p + 1, len, r->serial, r->allowSemi))
 			{
 				Rtx_MarkCaptured((u32)p);
 			}
 			else
 			{
-				Rtx_EmitterPacket(p + 1, len, r->serial);
+				Rtx_EmitterPacket(p + 1, len, r->serial, 0);
 			}
 			p += 1 + len;
 		}
@@ -374,6 +400,19 @@ void Rtx_BeginInstance(struct PrimMem *primMem, struct Instance *inst, struct Pu
 		Rtx_BeginTag(RTX_TAG_NONE, primMem); // HUD models, other players' views: GL
 		return;
 	}
+	// transparent models stay GL-drawn (as on PS1); glowing ones also light the scene
+	if ((inst->flags & GHOST_DRAW_TRANSPARENT) == GHOST_DRAW_TRANSPARENT)
+	{
+		s_rtx.instMode = RTX_INST_GL;
+	}
+	else if (inst->flags & (DRAW_TRANSPARENT | DEPTH_FADE))
+	{
+		s_rtx.instMode = RTX_INST_GLOW;
+	}
+	else
+	{
+		s_rtx.instMode = RTX_INST_CAPTURE;
+	}
 
 	const MATRIX *m = &pb->matrix_ViewProj;
 	float rel[3] = {(float)(inst->matrix.t[0] - pb->pos.x), (float)(inst->matrix.t[1] - pb->pos.y), (float)(inst->matrix.t[2] - pb->pos.z)};
@@ -398,6 +437,7 @@ void Rtx_BeginScaled(struct PrimMem *primMem, struct PushBuffer *pb, float viewS
 	}
 	s_rtx.instScale = viewScale;
 	s_rtx.allowSemi = 1;
+	s_rtx.instMode = RTX_INST_CAPTURE;
 	Rtx_CaptureCamera(pb);
 	Rtx_BeginTag(RTX_TAG_INSTANCE, primMem);
 }
@@ -507,6 +547,12 @@ static void Rtx_RefreshTexSlots(void)
 	{
 		u32 ptr = s_rtx.texSrc[i];
 		const struct IconGroup4 *group;
+		const struct TextureLayout *t;
+		if (ptr & 2)
+		{
+			t = (const struct TextureLayout *)(ptr & ~3u);
+			goto haveLayout;
+		}
 		if (ptr & 1)
 		{
 			group = *(const struct IconGroup4 **)(ptr - 1); // AnimTex: active frame
@@ -519,7 +565,8 @@ static void Rtx_RefreshTexSlots(void)
 		{
 			continue;
 		}
-		const struct TextureLayout *t = &group->near;
+		t = &group->near;
+	haveLayout:;
 		struct RtxTexSlot *s = &slots[i];
 		s->uv[0][0] = t->u0;
 		s->uv[0][1] = t->v0;
@@ -576,13 +623,20 @@ static void Rtx_UploadLevel(struct Level *level)
 		}
 	}
 
-	s_rtx.numTexSlots = 0;
+	s_rtx.numTexSlots = 0; // also resets Rtx_TexSlotFor's lookup
+	int waterSlot = (level->ptr_tex_waterEnvMap != NULL) ? Rtx_TexSlotFor((u32)level->ptr_tex_waterEnvMap | 2) : -1;
+	int skippedInvisible = 0;
+
 	for (int q = 0; q < numQuads; q++)
 	{
 		const struct QuadBlock *block = &mesh->ptrQuadBlockArray[q];
-		// untextured blocks are collision-only (invisible walls, triggers)
-		if (!block->ptr_texture_mid[0] && !block->ptr_texture_mid[1] && !block->ptr_texture_mid[2] && !block->ptr_texture_mid[3])
+		// invisible walls and triggers: quadFlags 0x8000 (ctr-tools "invisible";
+		// such blocks also have no draw order), or no texture and not water (water
+		// is drawn with the level's env map instead of its own textures)
+		int untextured = !block->ptr_texture_mid[0] && !block->ptr_texture_mid[1] && !block->ptr_texture_mid[2] && !block->ptr_texture_mid[3];
+		if ((*(const u16 *)&block->quadFlags & 0x8000) || (untextured && !isWater[q]))
 		{
+			skippedInvisible++;
 			continue;
 		}
 		u32 drawOrderLow = block->draw_order_low;
@@ -599,7 +653,7 @@ static void Rtx_UploadLevel(struct Level *level)
 				slotVert[s] = block->index[sRtxGridFace[f][k & 3]];
 			}
 
-			int texSlot = Rtx_TexSlotFor((u32)block->ptr_texture_mid[f]);
+			int texSlot = isWater[q] && (waterSlot >= 0) ? waterSlot : Rtx_TexSlotFor((u32)block->ptr_texture_mid[f]);
 			static const int triSlots[2][3] = {{0, 1, 2}, {1, 3, 2}};
 			for (int t = 0; t < 2; t++)
 			{
@@ -649,7 +703,8 @@ static void Rtx_UploadLevel(struct Level *level)
 	s_rtx.meshPtr = mesh;
 	s_rtx.levelID = gGT->levelID;
 	s_rtx.levelValid = 1;
-	printf("[RTX] level %d (%s): %d verts, %d tris, %d texture slots\n", gGT->levelID, RTX_HDR->lightsKey, numVerts, numTris, s_rtx.numTexSlots);
+	printf("[RTX] level %d (%s): %d verts, %d tris, %d texture slots, %d invisible quads skipped\n", gGT->levelID, RTX_HDR->lightsKey, numVerts,
+	       numTris, s_rtx.numTexSlots, skippedInvisible);
 }
 
 void Rtx_OnLevelCamera(struct PushBuffer *pb)
@@ -659,7 +714,7 @@ void Rtx_OnLevelCamera(struct PushBuffer *pb)
 
 	// gameplay only: menus and cutscenes keep the PS1 look
 	if ((RTX_HDR == NULL) || (level == NULL) || (level->ptr_mesh_info == NULL) || (gGT->numPlyrCurrGame != 1) ||
-	    ((gGT->gameMode1 & (MAIN_MENU | GAME_CUTSCENE)) != 0) || (gGT->levelID >= GEM_STONE_VALLEY))
+	    ((gGT->gameMode1 & (MAIN_MENU | GAME_CUTSCENE | END_OF_RACE)) != 0) || (gGT->levelID >= GEM_STONE_VALLEY) || (sdata->pause_state != 0))
 	{
 		return;
 	}
@@ -936,7 +991,7 @@ static void Rtx_AddEmitter(const float *pos, const float *color, float weight, f
 }
 
 // additive-blended polygons of a model packet (turbo flames, fire, glows)
-static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial)
+static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial, int anyBlend)
 {
 	int i = 0;
 	int abr = 0; // draw mode blend (DR_MODE / E1) for untextured polygons
@@ -1003,7 +1058,7 @@ static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial)
 			}
 		}
 		int blend = textured ? ((tpage >> 5) & 3) : abr;
-		if (semi && (blend == 1) && found)
+		if ((anyBlend || (semi && (blend == 1))) && found)
 		{
 			float tex[3] = {1, 1, 1};
 			if (!textured || Rtx_AverageTexels(tpage, clut, uv, n, tex))
@@ -1023,7 +1078,7 @@ static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial)
 					float d = sqrtf(dx * dx + dy * dy + dz * dz);
 					radius = d > radius ? d : radius;
 				}
-				Rtx_AddEmitter(centre, c, 1.0f + radius / 32.0f, radius);
+				Rtx_AddEmitter(centre, c, 0.5f + radius * radius / 1500.0f, radius); // bigger flame, more light
 			}
 		}
 		i += size;
@@ -1037,9 +1092,10 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 		return;
 	}
 	const struct TextureLayout *t = &icon->texLayout;
-	if ((((color >> 24) & 2) == 0) || (((t->tpage >> 5) & 3) != 1))
+	int additive = ((t->tpage >> 5) & 3) == 1;
+	if (((color >> 24) & 2) == 0)
 	{
-		return; // only additive (glowing) sprites
+		return; // opaque sprites don't glow
 	}
 	Rtx_CaptureCamera(pb);
 	u8 uv[4][2] = {{t->u0, t->v0}, {t->u1, t->v1}, {t->u2, t->v2}, {t->u3, t->v3}};
@@ -1051,6 +1107,14 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 	float view[3] = {viewX4 * 0.25f, viewY4 * 0.25f, viewZ4 * 0.25f}, pos[3];
 	Rtx_ViewToWorld(view, pos);
 	float c[3] = {(u8)color / 128.0f * tex[0], (u8)(color >> 8) / 128.0f * tex[1], (u8)(color >> 16) / 128.0f * tex[2]};
+	if (!additive)
+	{
+		float mx = fmaxf(c[0], fmaxf(c[1], c[2])), mn = fminf(c[0], fminf(c[1], c[2]));
+		if ((mx < 0.35f) || ((mx - mn) < 0.35f * mx))
+		{
+			return; // dim or grey (smoke, dust)
+		}
+	}
 	Rtx_AddEmitter(pos, c, 1.0f, 40.0f);
 }
 
@@ -1114,15 +1178,15 @@ static void Rtx_BuildDynLights(void)
 		const struct RtxEmitter *k = &clusters[c];
 		struct RtxPointLight *l = &RTX_HDR->dynLights[c];
 		// colour = average colour of what glows; more glowing stuff = brighter
-		float strength = 1.6f * sqrtf(k->weight);
-		strength = strength > 6.0f ? 6.0f : strength;
+		float strength = 2.0f * sqrtf(k->weight);
+		strength = strength > 14.0f ? 14.0f : strength;
 		for (int j = 0; j < 3; j++)
 		{
 			l->pos[j] = k->pos[j] / k->weight;
 			l->color[j] = k->color[j] / k->weight * strength;
 		}
 		l->height = 0.0f;
-		l->falloff = 250.0f + 3.0f * k->radius;
+		l->falloff = 300.0f + 4.0f * k->radius;
 		l->size = 20.0f + 0.5f * k->radius;
 	}
 	RTX_HDR->numDynLights = (u32)n;
@@ -1203,6 +1267,7 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 	RTX_HDR->dispW = 512.0f;
 	RTX_HDR->dispH = 216.0f;
 	RTX_HDR->debugView = (u32)s_rtx.debugView;
+	RTX_HDR->lightMode = (u32)s_rtx.lightMode;
 	RTX_HDR->frame++;
 
 	__sync_synchronize();

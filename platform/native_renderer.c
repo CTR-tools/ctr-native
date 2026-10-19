@@ -141,6 +141,7 @@ global_variable GLuint s_packShader = 0;
 global_variable GLint s_packFlipYLoc = -1;
 global_variable GLuint s_presentVramShader = 0;
 global_variable GLint s_presentVramSourceRectLoc = -1;
+global_variable GLint s_presentVramOpaqueLoc = -1;
 global_variable GLuint s_vramQuadVAO = 0;
 global_variable GLuint s_vramQuadVBO = 0;
 
@@ -158,7 +159,7 @@ internal void NativeRenderer_InitRenderTarget(struct NativeRenderTarget *target)
 internal void NativeRenderer_DestroyRenderTarget(struct NativeRenderTarget *target);
 internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height);
 internal void NativeRenderer_BindMainRenderTarget(void);
-internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height);
+internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height, int opaque);
 internal void NativeRenderer_RtxPresent(int displayX, int displayY, int displayW, int displayH); // MultiTrack
 global_variable int s_rtxComposite;
 internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget *target, int x, int y);
@@ -253,6 +254,9 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
+	// MultiTrack: opaque window. With an alpha channel, Wayland compositors blend the
+	// game over the desktop by the PS1 mask bit (blown-out menus, smeared backgrounds)
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
 
 	if (!NativeRenderer_InitialiseGLContext(windowName, fullscreen))
 	{
@@ -564,9 +568,10 @@ internal void NativeRenderer_BindMainRenderTarget(void)
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 }
 
-internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
+internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height, int opaque)
 {
 	glUseProgram(s_presentVramShader);
+	glUniform1i(s_presentVramOpaqueLoc, opaque);
 	glUniform4f(s_presentVramSourceRectLoc, (float)x, (float)y, (float)width, (float)height);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, s_vram.texture);
@@ -587,7 +592,7 @@ internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget 
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glViewport(0, 0, target->width, target->height);
-	NativeRenderer_DrawVRAMRegion(x, y, target->width, target->height);
+	NativeRenderer_DrawVRAMRegion(x, y, target->width, target->height, 0);
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_STENCIL_TEST);
 
@@ -1106,13 +1111,15 @@ global_variable const char *ctr_present_vram_shader = "#ifdef VERTEX\n"
                                                       "#ifdef FRAGMENT\n"
                                                       "varying vec2 v_uv;\n"
                                                       "uniform sampler2D s_texture;\n"
+                                                      "uniform int opaque;\n"
                                                       "void main() {\n"
                                                       "\tivec2 packedBytes = ivec2(texture2D(s_texture, v_uv).rg * 255.0 + 0.5);\n"
                                                       "\tint pixel = packedBytes.r | (packedBytes.g << 8);\n"
                                                       "\tivec3 color5 = ivec3(pixel & 31, (pixel >> 5) & 31, (pixel >> 10) & 31);\n"
                                                       "\tivec3 color8 = (color5 << 3) | (color5 >> 2);\n"
                                                       "\tfloat stp = float((pixel >> 15) & 1);\n"
-                                                      "\tfragColor = vec4(vec3(color8) / 255.0, stp);\n"
+                                                      "\t// the window must be opaque: Wayland compositors blend by alpha\n"
+                                                      "\tfragColor = vec4(vec3(color8) / 255.0, opaque != 0 ? 1.0 : stp);\n"
                                                       "}\n"
                                                       "#endif\n";
 
@@ -1129,6 +1136,7 @@ internal void NativeRenderer_InitVRAMPipelines(void)
 
 	s_presentVramShader = NativeRenderer_Shader_Compile(ctr_present_vram_shader, false);
 	s_presentVramSourceRectLoc = glGetUniformLocation(s_presentVramShader, "sourceRect");
+	s_presentVramOpaqueLoc = glGetUniformLocation(s_presentVramShader, "opaque");
 
 	glGenVertexArrays(1, &s_vramQuadVAO);
 	glGenBuffers(1, &s_vramQuadVBO);
@@ -2128,7 +2136,7 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	}
 	else
 	{
-		NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
+		NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH, 1);
 	}
 	glBindVertexArray(0);
 
@@ -2145,33 +2153,59 @@ void NativeRenderer_PresentVRAMDisplay(void)
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 }
 
-// MultiTrack debug: CTR_SHOT=<file.ppm> CTR_SHOT_FRAME=<n> writes the n-th
-// presented frame and exits (scripts/shot_native.py)
+// MultiTrack debug: CTR_SHOT=<prefix> CTR_SHOT_FRAME=<n>[,<n>...] writes the
+// n-th presented frames as <prefix>-<n>.ppm and exits after the last one
+// (scripts/shot_native.py)
 internal void NativeRenderer_DebugShot(void)
 {
 	static int s_frame;
-	static const char *s_path;
-	static int s_target = -1;
+	static const char *s_prefix;
+	static int s_targets[32];
+	static int s_numTargets = -1;
+	static int s_next;
 
-	if (s_target < 0)
+	if (s_numTargets < 0)
 	{
-		s_path = SDL_getenv("CTR_SHOT");
-		const char *frame = SDL_getenv("CTR_SHOT_FRAME");
-		s_target = (s_path != NULL) ? ((frame != NULL) ? SDL_atoi(frame) : 600) : 0x7fffffff;
+		s_numTargets = 0;
+		s_prefix = SDL_getenv("CTR_SHOT");
+		const char *frames = SDL_getenv("CTR_SHOT_FRAME");
+		if (s_prefix != NULL)
+		{
+			const char *c = frames ? frames : "600";
+			while (*c && s_numTargets < 32)
+			{
+				s_targets[s_numTargets++] = SDL_atoi(c);
+				while (*c && *c != ',')
+				{
+					c++;
+				}
+				if (*c == ',')
+				{
+					c++;
+				}
+			}
+		}
 	}
 
-	if (++s_frame != s_target)
+	s_frame++;
+	if ((s_next >= s_numTargets) || (s_frame != s_targets[s_next]))
 	{
 		return;
 	}
 
 	int w = g_windowWidth, h = g_windowHeight;
 	u8 *pixels = (u8 *)SDL_malloc((size_t)w * h * 3);
+	GLint prevRead = 0;
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevRead);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 	glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevRead);
 
-	FILE *f = fopen(s_path, "wb");
+	char path[1024];
+	snprintf(path, sizeof(path), "%s-%d.ppm", s_prefix, s_frame);
+	FILE *f = fopen(path, "wb");
 	if (f != NULL)
 	{
 		fprintf(f, "P6\n%d %d\n255\n", w, h);
@@ -2182,9 +2216,12 @@ internal void NativeRenderer_DebugShot(void)
 		fclose(f);
 	}
 	SDL_free(pixels);
-	printf("[MultiTrack] shot %s (%dx%d, frame %d)\n", s_path, w, h, s_frame);
+	printf("[MultiTrack] shot %s (%dx%d)\n", path, w, h);
 	fflush(stdout);
-	_Exit(0);
+	if (++s_next >= s_numTargets)
+	{
+		_Exit(0);
+	}
 }
 
 void NativeRenderer_SwapWindow(void)

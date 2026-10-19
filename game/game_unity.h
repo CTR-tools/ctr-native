@@ -3,6 +3,7 @@
 
 #include <common.h>
 #include <platform/native_rtx.h> // MultiTrack
+#include <multitrack.h>            // MultiTrack
 
 #include "226/R226.c"
 #include "227/R227.c"
@@ -106,7 +107,6 @@
 #include "LOAD/LOAD_ModelPtrs.c"
 #include "LOAD/LOAD_File.c"
 #include "LOAD/LOAD_Howl.c"
-#include <multitrack.h> // MultiTrack
 #include "MultiTrack/MultiTrack.c"
 #include "LOAD/LOAD_Assets.c"
 #include "LOAD/LOAD_Queue.c"

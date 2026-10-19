@@ -19,7 +19,7 @@
 
 #define RTX_SHM_NAME "/ctr_rtx"
 #define RTX_MAGIC    0x58545243u // 'CRTX'
-#define RTX_VERSION  2u
+#define RTX_VERSION  3u
 
 #define RTX_MAX_LEVEL_VERTS 65536u
 #define RTX_MAX_LEVEL_TRIS  (1u << 19)
@@ -37,6 +37,7 @@ enum RtxTriFlags
 	RTX_TRI_DOUBLE_SIDED = 2, // level quads with the double-sided bit
 	RTX_TRI_WATER = 4,        // reflective
 	RTX_TRI_EMISSIVE = 8,     // unlit (vertex colour x texel shown as is)
+	// water samples its texture slot (the level's water env map) by world position
 	// level triangles are semi-transparent when their texture's blend bits are
 	// not 3 (overlay 226 draws those with code 0x3e), water always
 };
@@ -145,7 +146,8 @@ struct RtxHeader
 	uint32_t resetHistory;
 	float renderMs;        // renderer: last frame GPU+copy time
 	uint32_t numDynLights; // emitters seen this frame: flames, turbos, glowing particles
-	uint32_t pad[12];
+	uint32_t lightMode;    // 0 hybrid: the track's own PS1 lighting + traced extras, 1 full relight (F5)
+	uint32_t pad[11];
 
 	struct RtxPointLight dynLights[RTX_MAX_DYN_LIGHTS];
 };

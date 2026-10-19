@@ -9718,6 +9718,13 @@ static int Ovr226_800a0e10_DispatchBucketTable(struct DrawLevelOvr1PRenderList *
 		u32 setupAddress = R226.bucketSetupAddresses[bucketIndex];
 		u32 handlerAddress = R226.bucketHandlerAddresses[bucketIndex];
 
+		// MultiTrack (PS1_TrackROM highLOD.s): custom tracks draw their far bucket
+		// with the high-LOD handler; their low-LOD data is often unusable
+		if ((bucketIndex == OVR226_BUCKET_COUNT - 1) && (MT_ActiveEntry() != NULL))
+		{
+			handlerAddress = DRAW_LEVEL_OVR_RETAIL_LABEL_DYNAMIC_LIST_BUCKET_ENTRY;
+		}
+
 		DrawLevelOvr1P_Scratch()->currentBucketOffset = (u32)renderListOffset;
 
 		if (bucketValue == NULL)
