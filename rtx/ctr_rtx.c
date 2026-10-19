@@ -131,6 +131,9 @@ static struct
 	VkCommandPool pool;
 	VkCommandBuffer cmd;
 	VkFence fence;
+	VkQueryPool timestamps; // around the trace pass: drives samples per pixel
+	float timestampPeriodNs;
+	int haveTimestamps;
 
 	VkDescriptorSetLayout setLayout;
 	VkPipelineLayout pipeLayout;
@@ -167,6 +170,11 @@ static struct
 	uint32_t lastGameFrame;
 	uint32_t lastLightMode;
 	float autoExposure;
+
+	// samples per pixel, adapted so the trace pass fills its time budget
+	uint32_t spp;
+	float traceMsPerSpp;
+	float budgetMs;
 } R;
 
 // ---- small helpers -----------------------------------------------------------
@@ -373,6 +381,18 @@ static void initVulkan(void)
 	CHECK(vkAllocateCommandBuffers(R.dev, &cai, &R.cmd));
 	VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
 	CHECK(vkCreateFence(R.dev, &fci, NULL, &R.fence));
+
+	R.haveTimestamps = (qp[R.queueFamily].timestampValidBits > 0) && (props.limits.timestampPeriod > 0.0f);
+	R.timestampPeriodNs = props.limits.timestampPeriod;
+	if (R.haveTimestamps)
+	{
+		VkQueryPoolCreateInfo qci2 = {VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO, .queryType = VK_QUERY_TYPE_TIMESTAMP, .queryCount = 2};
+		CHECK(vkCreateQueryPool(R.dev, &qci2, NULL, &R.timestamps));
+	}
+	const char *budget = getenv("CTR_RTX_BUDGET_MS");
+	R.budgetMs = budget ? (float)atof(budget) : 14.0f;
+	R.spp = 2;
+	logf_("trace budget %.1f ms per frame (CTR_RTX_BUDGET_MS)", R.budgetMs);
 }
 
 static char s_exeDir[1024];
@@ -1138,6 +1158,7 @@ static void renderFrame(void)
 	F->extra[0] = ndl;
 	F->extra[1] = R.numLamps;
 	F->extra[2] = H->lightMode;
+	F->extra[3] = R.spp;
 
 	// ---- uploads
 	memcpy(R.texSlotsStage.map, R.shm + RTX_OFF_TEX_SLOTS, H->numTexSlots * sizeof(struct RtxTexSlot));
@@ -1224,9 +1245,18 @@ static void renderFrame(void)
 
 	uint32_t gx = (R.outW + 7) / 8, gy = (R.outH + 7) / 8;
 	VkDescriptorSet *sets = R.sets[R.parity];
+	if (R.haveTimestamps)
+	{
+		vkCmdResetQueryPool(R.cmd, R.timestamps, 0, 2);
+		vkCmdWriteTimestamp(R.cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, R.timestamps, 0);
+	}
 	vkCmdBindPipeline(R.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, R.pipeTrace);
 	vkCmdBindDescriptorSets(R.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, R.pipeLayout, 0, 1, &sets[PASS_TRACE], 0, NULL);
 	vkCmdDispatch(R.cmd, gx, gy, 1);
+	if (R.haveTimestamps)
+	{
+		vkCmdWriteTimestamp(R.cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, R.timestamps, 1);
+	}
 
 	vkCmdBindPipeline(R.cmd, VK_PIPELINE_BIND_POINT_COMPUTE, R.pipeAtrous);
 	static const int steps[NUM_ATROUS] = {1, 2, 4, 8, 16};
@@ -1248,6 +1278,31 @@ static void renderFrame(void)
 	cmdSubmitWait();
 
 	memcpy(R.shm + RTX_OFF_IMAGE, R.readback.map, (size_t)R.outW * R.outH * 4);
+
+	// next frame's samples per pixel: as many as fit the budget (1..64)
+	if (R.haveTimestamps)
+	{
+		uint64_t ts[2];
+		if (vkGetQueryPoolResults(R.dev, R.timestamps, 0, 2, sizeof(ts), ts, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS)
+		{
+			float ms = (float)(ts[1] - ts[0]) * R.timestampPeriodNs / 1e6f;
+			float per = ms / (float)R.spp;
+			R.traceMsPerSpp = (R.traceMsPerSpp > 0.0f) ? 0.8f * R.traceMsPerSpp + 0.2f * per : per;
+			float want = R.budgetMs / R.traceMsPerSpp;
+			uint32_t next = (uint32_t)fmaxf(1.0f, fminf(64.0f, floorf(want)));
+			// change gradually: no visible pumping
+			if (next > R.spp * 2)
+			{
+				next = R.spp * 2;
+			}
+			if (next < R.spp / 2)
+			{
+				next = R.spp / 2 > 0 ? R.spp / 2 : 1;
+			}
+			R.spp = next;
+			R.hdr->traceSpp = R.spp;
+		}
+	}
 
 	memcpy(R.prevR, H->camR, sizeof(R.prevR));
 	memcpy(R.prevT, H->camT, sizeof(R.prevT));

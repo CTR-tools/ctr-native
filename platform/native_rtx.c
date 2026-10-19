@@ -195,7 +195,7 @@ void Rtx_HandleKey(int scancode)
 	else if (scancode == SDL_SCANCODE_F5)
 	{
 		s_rtx.lightMode ^= 1;
-		printf("[RTX] lighting: %s\n", s_rtx.lightMode ? "full relight" : "hybrid (track's own lighting + ray traced extras)");
+		printf("[RTX] lighting: %s\n", s_rtx.lightMode ? "hybrid (track's own lighting + ray traced extras)" : "full relight");
 	}
 	else if (scancode == SDL_SCANCODE_F6)
 	{
@@ -1092,11 +1092,9 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 		return;
 	}
 	const struct TextureLayout *t = &icon->texLayout;
+	// fire, sparks, glows: additive sprites, or bright coloured ones (the colour
+	// word carries no reliable semi-transparency bit here); grey smoke is skipped
 	int additive = ((t->tpage >> 5) & 3) == 1;
-	if (((color >> 24) & 2) == 0)
-	{
-		return; // opaque sprites don't glow
-	}
 	Rtx_CaptureCamera(pb);
 	u8 uv[4][2] = {{t->u0, t->v0}, {t->u1, t->v1}, {t->u2, t->v2}, {t->u3, t->v3}};
 	float tex[3];
@@ -1110,7 +1108,7 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 	if (!additive)
 	{
 		float mx = fmaxf(c[0], fmaxf(c[1], c[2])), mn = fminf(c[0], fminf(c[1], c[2]));
-		if ((mx < 0.35f) || ((mx - mn) < 0.35f * mx))
+		if ((mx < 0.3f) || ((mx - mn) < 0.35f * mx))
 		{
 			return; // dim or grey (smoke, dust)
 		}
@@ -1252,8 +1250,8 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 		float cam[3];
 		const float zero[3] = {0, 0, 0};
 		Rtx_ViewToWorld(zero, cam);
-		printf("[RTX] frame %u: %d dyn tris, %d emitters -> %u lights, %d ranges, cam %.0f %.0f %.0f, renderer %.2f ms\n", RTX_HDR->frame, s_rtx.numDyn, s_rtx.numEmitters, RTX_HDR->numDynLights, s_rtx.numRanges, cam[0], cam[1],
-		       cam[2], RTX_HDR->renderMs);
+		printf("[RTX] frame %u: %d dyn tris, %d emitters -> %u lights, %d ranges, cam %.0f %.0f %.0f, renderer %.2f ms, %u spp\n", RTX_HDR->frame, s_rtx.numDyn, s_rtx.numEmitters, RTX_HDR->numDynLights, s_rtx.numRanges, cam[0], cam[1],
+		       cam[2], RTX_HDR->renderMs, RTX_HDR->traceSpp);
 		for (int i = 0; i < s_rtx.numDyn && i < 3; i++)
 		{
 			struct RtxDynTri *d = &Rtx_DynTris()[i];
@@ -1267,7 +1265,7 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 	RTX_HDR->dispW = 512.0f;
 	RTX_HDR->dispH = 216.0f;
 	RTX_HDR->debugView = (u32)s_rtx.debugView;
-	RTX_HDR->lightMode = (u32)s_rtx.lightMode;
+	RTX_HDR->lightMode = s_rtx.lightMode ? 0u : 1u; // default full relight, F5 hybrid
 	RTX_HDR->frame++;
 
 	__sync_synchronize();

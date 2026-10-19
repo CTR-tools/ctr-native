@@ -372,7 +372,7 @@ float surfaceEps(vec3 p, bool dynamic)
 	return rayEps(p) * (dynamic ? 3.0 : 1.0);
 }
 
-// one shadowed sample from lights[first, first+count): 8 candidates picked by
+// one shadowed sample from lights[first, first+count): 16 candidates picked by
 // their unshadowed contribution (resampled importance sampling), one shadow ray
 vec3 sampleLightSet(uint first, uint count, vec3 p, vec3 n, vec3 ng, float eps, inout uint rng)
 {
@@ -380,7 +380,7 @@ vec3 sampleLightSet(uint first, uint count, vec3 p, vec3 n, vec3 ng, float eps, 
 	{
 		return vec3(0.0);
 	}
-	const int M = 8;
+	const int M = 16;
 	float wsum = 0.0, chosenW = 0.0;
 	uint chosen = first;
 	for (int i = 0; i < M; i++)

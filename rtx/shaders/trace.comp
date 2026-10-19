@@ -112,38 +112,44 @@ void main()
 	vec3 p = sf.pos, n = sf.normal, ng = sf.geoNormal;
 	float eps = surfaceEps(p, sf.dynamic);
 	vec3 pl = p + ng * (eps - rayEps(p)); // models: rays start a bit further out
-	vec3 lighting;
-
-	if (F.extra.z == 0u)
+	// several light/bounce samples per pixel per frame: as many as the renderer's
+	// time budget allows (ctr_rtx.c adapts F.extra.w from GPU timestamps)
+	uint spp = max(F.extra.w, 1u);
+	vec3 lighting = vec3(0.0);
+	for (uint si = 0u; si < spp; si++)
 	{
-		// hybrid: the track's own (PS1 vertex colour) lighting, darkened where a
-		// model blocks the sun (karts, items, scenery), plus light from what glows
-		vec3 base = sf.ps1Light;
-		if (F.ambient.w < 0.5)
+		if (F.extra.z == 0u)
 		{
-			vec3 l = coneSample(F.sunDir.xyz, F.sunDir.w, rng);
-			if ((dot(ng, l) > 0.0) && occludedMask(pl + ng * rayEps(p), l, 1e7, 0x2u))
+			// hybrid: the track's own (PS1 vertex colour) lighting, darkened where a
+			// model blocks the sun (karts, items, scenery), plus light from what glows
+			vec3 base = sf.ps1Light;
+			if (F.ambient.w < 0.5)
 			{
-				base *= 0.45;
+				vec3 l = coneSample(F.sunDir.xyz, F.sunDir.w, rng);
+				if ((dot(ng, l) > 0.0) && occludedMask(pl + ng * rayEps(p), l, 1e7, 0x2u))
+				{
+					base *= 0.45;
+				}
 			}
+			lighting += base + lightSample(pl, n, ng, rng);
 		}
-		lighting = base + lightSample(pl, n, ng, rng);
-	}
-	else
-	{
-		vec3 direct = lightSample(pl, n, ng, rng);
-
-		// one diffuse bounce (cosine-weighted: radiance estimate is the irradiance / pi)
-		vec3 bd = cosineSample(n, rng);
-		if (dot(bd, ng) <= 0.0)
+		else
 		{
-			bd = reflect(bd, ng);
+			vec3 direct = lightSample(pl, n, ng, rng);
+
+			// one diffuse bounce (cosine-weighted: radiance estimate is the irradiance / pi)
+			vec3 bd = cosineSample(n, rng);
+			if (dot(bd, ng) <= 0.0)
+			{
+				bd = reflect(bd, ng);
+			}
+			float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e8;
+			// (indoors a bounce that gets past the AO radius sees the ambient: skyRadiance)
+			vec3 indirect = shadeSecondary(p + ng * eps, bd, aoRadius, rng);
+			lighting += direct + indirect;
 		}
-		float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e8;
-		// (indoors a bounce that gets past the AO radius sees the ambient: skyRadiance)
-		vec3 indirect = shadeSecondary(p + ng * eps, bd, aoRadius, rng);
-		lighting = direct + indirect;
 	}
+	lighting /= float(spp);
 
 	// temporal accumulation
 	float viewZ = dot(F.camR[2].xyz, p) + F.camT.z;

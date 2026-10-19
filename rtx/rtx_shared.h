@@ -147,7 +147,8 @@ struct RtxHeader
 	float renderMs;        // renderer: last frame GPU+copy time
 	uint32_t numDynLights; // emitters seen this frame: flames, turbos, glowing particles
 	uint32_t lightMode;    // 0 hybrid: the track's own PS1 lighting + traced extras, 1 full relight (F5)
-	uint32_t pad[11];
+	uint32_t traceSpp;     // renderer: samples per pixel it is currently using
+	uint32_t pad[10];
 
 	struct RtxPointLight dynLights[RTX_MAX_DYN_LIGHTS];
 };
