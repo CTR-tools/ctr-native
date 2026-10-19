@@ -509,7 +509,7 @@ static u32 DrawLevelOvr1P_GetProjectedOtSlotWord(const struct DrawLevelOvr1PScra
 static int DrawLevelOvr1P_TryConvertNativeMempackPointerToPsxWord(u32 hostWord, u32 *psxWord)
 {
 	const u32 psxRamBase = 0x80000000u;
-	const u32 psxRamSize = 0x200000u;
+	const u32 psxRamSize = 0x800000u; // MultiTrack: 8MB mempack backing (retail 0x200000)
 	u32 hostPtr = (u32)hostWord;
 	const struct Mempack *pack = DrawLevelOvr1P_FindMempackContaining(hostPtr);
 	if (pack == NULL || pack->endOfMemory == NULL)
@@ -7991,7 +7991,7 @@ static int Ovr226_800a0f78_EmitFullDynamicQuadBlock(struct PushBuffer *pb, struc
 static void Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(const int *visFaceList, const struct QuadBlock *block)
 {
 	u32 blockID = (u16)block->blockID;
-	const u32 *word = (const u32 *)((const u8 *)visFaceList + ((blockID >> 3) & 0x1fc));
+	const u32 *word = (const u32 *)((const u8 *)visFaceList + ((blockID >> 3) & 0xfffc)); // MultiTrack: retail masks 0x1fc (4096 quadblocks)
 
 	DrawLevelOvr1P_Scratch()->visibilityWordPtr32 = (u32)(u32)word;
 	DrawLevelOvr1P_Scratch()->visibilityBitIndex = blockID & 0x1f;

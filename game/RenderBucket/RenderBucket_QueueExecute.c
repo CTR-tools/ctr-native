@@ -5235,6 +5235,8 @@ void RenderBucket_Execute(void *param_1, struct PrimMem *param_2)
 			continue;
 		}
 
+		Rtx_BeginInstance(param_2, ctx.inst, ctx.pb, ctx.idpp->mvp.t); // MultiTrack: capture for ray tracing
 		RenderBucket_DispatchDrawFunc(&ctx);
+		Rtx_EndTag(param_2);
 	}
 }

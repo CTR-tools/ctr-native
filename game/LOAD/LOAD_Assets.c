@@ -204,6 +204,14 @@ CheckHighAndPack:
 // NOTE(aalhendi): Variable-stride group bases come last to preserve retail's return scheduling.
 int LOAD_GetBigfileIndex(u32 levelID, int lod, int fileIndexInGroup)
 {
+	// MultiTrack: custom track picked in the track list; never leak it into
+	// adventure or cups, which reuse the host slot
+	if ((levelID < NITRO_COURT + LOAD_BATTLE_TRACK_COUNT) && (MT_STATE->magic == MT_MAGIC) && (MT_STATE->redirectLevel == (int)levelID) &&
+	    ((sdata->gGT->gameMode1 & (ADVENTURE_MODE | ADVENTURE_ARENA)) == 0) && ((sdata->gGT->gameMode2 & CUP_ANY_KIND) == 0))
+	{
+		return MT_STATE->redirectBase + GAME_LEVEL_BIG_LOD_INDEX[lod - 1] + fileIndexInGroup;
+	}
+
 	if (levelID < NITRO_COURT)
 	{
 		return BI_ARCADETRACKS + levelID * LOAD_TRACK_FILES_PER_LOD_GROUP + GAME_LEVEL_BIG_LOD_INDEX[lod - 1] + fileIndexInGroup;

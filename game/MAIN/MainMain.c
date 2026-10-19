@@ -606,7 +606,7 @@ void StateZero()
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 
-	gGT->levelID = NAUGHTY_DOG_CRATE;
+	gGT->levelID = MT_BootLevel(NAUGHTY_DOG_CRATE); // MultiTrack: CTR_BOOT_LEVEL / CTR_BOOT_TRACK
 	memcpy(gGT->levelName, sdata->s_ndi, sizeof(sdata->s_ndi));
 	// gGT->levelID = OXIDE_TRUE_ENDING;
 

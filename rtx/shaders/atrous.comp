@@ -1,0 +1,65 @@
+#version 460
+// Edge-aware a-trous wavelet filter on the accumulated lighting (one pass per
+// step size 1, 2, 4). Fewer accumulated samples -> wider luminance tolerance.
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 8, std430) readonly buffer AlbedoBuf { vec4 albedoIn[]; };
+layout(set = 0, binding = 9, std430) readonly buffer GeoCur { vec4 geo[]; };
+layout(set = 0, binding = 13, std430) readonly buffer Src { vec4 src[]; };
+layout(set = 0, binding = 14, std430) writeonly buffer Dst { vec4 dst[]; };
+
+layout(push_constant) uniform Push { int step; } pc;
+
+
+void main()
+{
+	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+	int w = int(F.size.x), h = int(F.size.y);
+	if ((px.x >= w) || (px.y >= h))
+	{
+		return;
+	}
+	int idx = px.y * w + px.x;
+	vec4 g = geo[idx];
+	vec4 c = src[idx];
+	if (g.w <= 0.0)
+	{
+		dst[idx] = c;
+		return;
+	}
+
+	const float kernel[3] = float[3](3.0 / 8.0, 1.0 / 4.0, 1.0 / 16.0);
+	float lc = luma(c.rgb);
+	float sigmaL = 0.15 + 2.0 / sqrt(max(c.a, 1.0));
+	float objC = albedoIn[idx].a;
+	vec3 sum = vec3(0.0);
+	float wsum = 0.0;
+	for (int dy = -2; dy <= 2; dy++)
+	{
+		for (int dx = -2; dx <= 2; dx++)
+		{
+			ivec2 q = px + ivec2(dx, dy) * pc.step;
+			if ((q.x < 0) || (q.y < 0) || (q.x >= w) || (q.y >= h))
+			{
+				continue;
+			}
+			int qi = q.y * w + q.x;
+			vec4 gq = geo[qi];
+			if ((gq.w <= 0.0) || (albedoIn[qi].a != objC))
+			{
+				continue;
+			}
+			vec4 cq = src[qi];
+			float wz = exp(-abs(g.w - gq.w) / (0.01 * g.w * float(pc.step) + 1e-3));
+			float wn = pow(max(dot(g.xyz, gq.xyz), 0.0), 64.0);
+			float wl = exp(-abs(lc - luma(cq.rgb)) / sigmaL);
+			float k = kernel[abs(dx)] * kernel[abs(dy)] * wz * wn * wl;
+			sum += cq.rgb * k;
+			wsum += k;
+		}
+	}
+	dst[idx] = vec4(sum / max(wsum, 1e-6), c.a);
+}

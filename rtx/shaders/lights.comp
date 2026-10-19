@@ -1,0 +1,24 @@
+#version 460
+// Once per level: lift each indoor light from its floor base by its height,
+// but keep it at 60% of the distance to the ceiling (as tools/rt_bake does).
+
+#include "common.glsl"
+
+layout(local_size_x = 64) in;
+
+void main()
+{
+	uint i = gl_GlobalInvocationID.x;
+	if (i >= F.counts.x)
+	{
+		return;
+	}
+	vec4 l0 = lights[i * 3u];
+	vec3 base = l0.xyz;
+	float height = l0.w;
+	uint inst, prim;
+	vec2 bary;
+	float t = traceClosest(base + vec3(0.0, 4.0, 0.0), vec3(0.0, 1.0, 0.0), 1e7, false, inst, prim, bary);
+	float h = (t > 0.0) ? min(height, 0.6 * (t + 4.0)) : height;
+	lights[i * 3u] = vec4(base + vec3(0.0, h, 0.0), 0.0);
+}

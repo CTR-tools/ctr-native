@@ -1,0 +1,152 @@
+#version 460
+// Per pixel: primary hit (through at most one semi-transparent/water layer),
+// direct light with shadow rays, one diffuse bounce, then temporal
+// accumulation of the demodulated lighting (albedo divided out) with
+// reprojection into last frame. The layer (water with reflections, glass,
+// glows) is stored separately and blended on top in final.comp.
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 8, std430) writeonly buffer AlbedoBuf { vec4 albedoOut[]; }; // rgb albedo, a: 0 miss, 1 level, 2 dynamic
+layout(set = 0, binding = 9, std430) writeonly buffer GeoCur { vec4 geoCur[]; };       // normal, view z
+layout(set = 0, binding = 10, std430) readonly buffer GeoPrev { vec4 geoPrev[]; };
+layout(set = 0, binding = 11, std430) readonly buffer HistPrev { vec4 histPrev[]; };  // rgb lighting, a sample count
+layout(set = 0, binding = 12, std430) writeonly buffer HistCur { vec4 histCur[]; };
+layout(set = 0, binding = 19, std430) writeonly buffer LayerBuf { vec4 layerOut[]; }; // rgb (display), a = blend + alpha (0 = none)
+
+vec3 shoulder(vec3 x)
+{
+	vec3 over = max(x - 0.8, 0.0);
+	return min(x, vec3(0.8)) + over / (1.0 + over / 0.8);
+}
+
+// radiance leaving a surface hit by a secondary ray (bounce or reflection)
+vec3 shadeSecondary(vec3 o, vec3 d, float tmax, inout uint rng)
+{
+	uint inst, prim;
+	vec2 bary;
+	float t = traceClosest(o, d, tmax, false, inst, prim, bary);
+	if (t < 0.0)
+	{
+		return skyRadiance(d);
+	}
+	Surface s = surfaceAt(inst, prim, bary, d);
+	vec3 amb = (F.ambient.w > 0.5) ? F.ambient.rgb : 0.5 * (F.skyZenith.rgb + F.skyHorizon.rgb);
+	// light beyond this bounce approximated by a fraction of the ambient
+	return s.albedo * (lightSample(s.pos, s.normal, s.geoNormal, rng) + 0.35 * amb);
+}
+
+void main()
+{
+	uvec2 px = gl_GlobalInvocationID.xy;
+	uint outW = F.size.x, outH = F.size.y;
+	if ((px.x >= outW) || (px.y >= outH))
+	{
+		return;
+	}
+	uint idx = px.y * outW + px.x;
+	uint rng = (px.x * 1973u + px.y * 9277u + F.size.z * 26699u) | 1u;
+	pcg(rng);
+
+	// camera ray: output pixel -> PS1 display coords -> GTE view space -> world
+	vec2 jitter = vec2(rnd(rng), rnd(rng));
+	float H = F.proj.x;
+	vec2 disp = vec2(F.proj2.y, F.proj2.z);
+	vec2 s = (vec2(px) + jitter) / vec2(outW, outH) * disp;
+	vec2 c = s - vec2(F.proj.y, F.proj.z) - 0.5 * vec2(F.proj.w, F.proj2.x);
+	vec3 viewDir = vec3(c / H, 1.0);
+	vec3 dir = normalize(vec3(dot(F.rInv[0].xyz, viewDir), dot(F.rInv[1].xyz, viewDir), dot(F.rInv[2].xyz, viewDir)));
+	vec3 origin = F.camPos.xyz;
+	float exposure = F.sunColor.w;
+
+	uint inst, prim;
+	vec2 bary;
+	float t = traceClosest(origin, dir, 1e8, true, inst, prim, bary);
+
+	// semi-transparent layer in front: water, glass, glows
+	vec4 layer = vec4(0.0);
+	if (t >= 0.0)
+	{
+		Surface ls = surfaceAt(inst, prim, bary, dir);
+		if (ls.blend != 3u)
+		{
+			vec3 col = ls.ps1Color;
+			float alpha = 0.5;
+			if ((ls.flags & TRI_WATER) != 0u)
+			{
+				// rippled mirror: reflection mixed in by Fresnel
+				float time = F.params.y;
+				vec3 n = ls.geoNormal;
+				n = normalize(n + 0.04 * vec3(sin(ls.pos.x * 0.011 + time * 1.7) + sin(ls.pos.z * 0.007 - time * 1.1), 0.0,
+				                              cos(ls.pos.z * 0.013 + time * 1.3) + cos(ls.pos.x * 0.005 + time * 0.9)));
+				vec3 r = reflect(dir, n);
+				r = (dot(r, ls.geoNormal) < 0.0) ? reflect(r, ls.geoNormal) : r;
+				vec3 refl = linearToSrgb(shoulder(shadeSecondary(ls.pos + ls.geoNormal * rayEps(ls.pos), r, 1e8, rng) * exposure));
+				float cosI = clamp(-dot(dir, n), 0.0, 1.0);
+				float fresnel = 0.04 + 0.96 * pow(1.0 - cosI, 5.0);
+				col = mix(col, refl, 0.45 + 0.5 * fresnel);
+				alpha = clamp(0.55 + 0.4 * fresnel, 0.0, 0.95);
+			}
+			layer = vec4(col, float(ls.blend) + alpha);
+			t = traceClosest(ls.pos + dir * rayEps(ls.pos), dir, 1e8, false, inst, prim, bary);
+		}
+	}
+	layerOut[idx] = layer;
+
+	if (t < 0.0)
+	{
+		albedoOut[idx] = vec4(0.0);
+		geoCur[idx] = vec4(0.0, 0.0, 0.0, -1.0);
+		histCur[idx] = vec4(0.0);
+		return;
+	}
+
+	Surface sf = surfaceAt(inst, prim, bary, dir);
+	vec3 p = sf.pos, n = sf.normal, ng = sf.geoNormal;
+	float eps = rayEps(p);
+
+	vec3 direct = lightSample(p, n, ng, rng);
+
+	// one diffuse bounce (cosine-weighted: radiance estimate is the irradiance / pi)
+	vec3 bd = cosineSample(n, rng);
+	if (dot(bd, ng) <= 0.0)
+	{
+		bd = reflect(bd, ng);
+	}
+	float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e8;
+	// (indoors a bounce that gets past the AO radius sees the ambient: skyRadiance)
+	vec3 indirect = shadeSecondary(p + ng * eps, bd, aoRadius, rng);
+	vec3 lighting = direct + indirect;
+
+	// temporal accumulation
+	float viewZ = dot(F.camR[2].xyz, p) + F.camT.z;
+	vec4 hist = vec4(lighting, 1.0);
+	if (F.counts.w == 0u)
+	{
+		vec3 pv = vec3(dot(F.prevR[0].xyz, p), dot(F.prevR[1].xyz, p), dot(F.prevR[2].xyz, p)) + F.prevT.xyz;
+		if (pv.z > 1.0)
+		{
+			vec2 ps = vec2(F.proj.y, F.proj.z) + 0.5 * vec2(F.proj.w, F.proj2.x) + pv.xy * (F.proj2.w / pv.z);
+			vec2 pp = ps / disp * vec2(outW, outH);
+			ivec2 ip = ivec2(floor(pp));
+			if ((ip.x >= 0) && (ip.y >= 0) && (ip.x < int(outW)) && (ip.y < int(outH)))
+			{
+				uint pidx = uint(ip.y) * outW + uint(ip.x);
+				vec4 g = geoPrev[pidx];
+				if ((g.w > 0.0) && (abs(g.w - pv.z) < 0.03 * pv.z) && (dot(g.xyz, n) > 0.8))
+				{
+					vec4 h = histPrev[pidx];
+					float maxCount = (inst == INST_DYN) ? 6.0 : F.groundColor.w;
+					float count = min(h.a + 1.0, maxCount);
+					hist = vec4(mix(h.rgb, lighting, 1.0 / count), count);
+				}
+			}
+		}
+	}
+
+	histCur[idx] = hist;
+	geoCur[idx] = vec4(n, viewZ);
+	albedoOut[idx] = vec4(sf.albedo, (inst == INST_LEVEL) ? 1.0 : 2.0);
+}

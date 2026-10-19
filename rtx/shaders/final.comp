@@ -1,0 +1,98 @@
+#version 460
+// albedo x filtered lighting -> exposure, soft shoulder, sRGB, then the
+// semi-transparent layer (water, glass, glows) blended the PS1 way -> RGBA8
+// (rows top-down). Alpha 0 where nothing was hit: the GL sky layer shows.
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 8, std430) readonly buffer AlbedoBuf { vec4 albedoIn[]; };
+layout(set = 0, binding = 9, std430) readonly buffer GeoCur { vec4 geo[]; };
+layout(set = 0, binding = 12, std430) readonly buffer HistCur { vec4 hist[]; };
+layout(set = 0, binding = 13, std430) readonly buffer Filtered { vec4 filtered[]; };
+layout(set = 0, binding = 15, std430) writeonly buffer Out { uint outPixels[]; };
+layout(set = 0, binding = 19, std430) readonly buffer LayerBuf { vec4 layerIn[]; };
+
+vec3 shoulder(vec3 x)
+{
+	// identity up to 0.8, then rolls off towards ~1.6
+	vec3 over = max(x - 0.8, 0.0);
+	return min(x, vec3(0.8)) + over / (1.0 + over / 0.8);
+}
+
+void main()
+{
+	uvec2 px = gl_GlobalInvocationID.xy;
+	if ((px.x >= F.size.x) || (px.y >= F.size.y))
+	{
+		return;
+	}
+	uint idx = px.y * F.size.x + px.x;
+	vec4 a = albedoIn[idx];
+	vec4 layer = layerIn[idx];
+	uint view = F.size.w;
+	float exposure = F.sunColor.w;
+
+	vec3 color = vec3(0.0);
+	float alpha = 0.0;
+	if (a.a != 0.0)
+	{
+		vec3 light = filtered[idx].rgb;
+		if (view == 1u)
+		{
+			color = linearToSrgb(a.rgb);
+		}
+		else if (view == 2u)
+		{
+			color = geo[idx].xyz * 0.5 + 0.5;
+		}
+		else if (view == 3u)
+		{
+			color = linearToSrgb(shoulder(light * exposure * 0.5));
+		}
+		else if (view == 4u)
+		{
+			color = linearToSrgb(shoulder(hist[idx].rgb * exposure * 0.5));
+		}
+		else
+		{
+			color = linearToSrgb(shoulder(a.rgb * light * exposure));
+		}
+		alpha = 1.0;
+	}
+
+	if ((layer.a > 0.0) && (view == 0u))
+	{
+		uint blend = uint(floor(layer.a));
+		float k = fract(layer.a);
+		if (alpha > 0.0)
+		{
+			if (blend == 0u)
+			{
+				color = mix(color, layer.rgb, k);
+			}
+			else if (blend == 1u)
+			{
+				color += layer.rgb;
+			}
+			else if (blend == 2u)
+			{
+				color -= layer.rgb;
+			}
+			else
+			{
+				color += 0.25 * layer.rgb;
+			}
+		}
+		else
+		{
+			// over the GL sky: approximate with alpha
+			color = layer.rgb;
+			alpha = (blend == 0u) ? k : clamp(luma(layer.rgb), 0.0, 1.0);
+		}
+	}
+
+	uvec3 c8 = uvec3(clamp(color, 0.0, 1.0) * 255.0 + 0.5);
+	outPixels[idx] = c8.r | (c8.g << 8) | (c8.b << 16) | (uint(clamp(alpha, 0.0, 1.0) * 255.0 + 0.5) << 24);
+}

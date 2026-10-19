@@ -18,6 +18,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	struct Level *lev = gGT->level1;
 	struct mesh_info *ptr_mesh_info = 0;
 
+	Rtx_FrameBegin(); // MultiTrack: ray tracing capture
+
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_SETUP);
 	DrawUnpluggedMsg(gGT, gGamepads);
 	DrawFinalLap(gGT);
@@ -69,7 +71,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	RenderAllConfetti(gGT);
 	if (((gGT->renderFlags & RENDER_FLAG_STARS) != 0) && (gGT->stars.numStars != 0))
 	{
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		RenderStars(&gGT->pushBuffer[0], &gGT->backBuffer->primMem, &gGT->stars, gGT->numPlyrCurrGame);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 	}
 
 	if (((gGT->renderFlags & RENDER_FLAG_MULTIPLAYER_DECALS) != 0) && (gGT->numPlyrCurrGame > 1))
@@ -113,7 +117,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 	RenderAllTires(gGT);
 
+	Rtx_BeginTag(RTX_TAG_SHADOW, &gGT->backBuffer->primMem); // MultiTrack: blob shadows, replaced by traced ones
 	RenderAllShadows(gGT);
+	Rtx_EndTag(&gGT->backBuffer->primMem);
 
 	RenderAllHeatParticles(gGT);
 
@@ -939,10 +945,16 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		                                           gGT->visMem1->bspList[0], numPlyrCurrGame);
 
 		// 226-229
+		Rtx_OnLevelCamera(pushBuffer); // MultiTrack
+		Rtx_BeginTag(RTX_TAG_LEVEL, &gGT->backBuffer->primMem);
 		DrawLevelOvr1P(&gGT->LevRenderLists[0], pushBuffer, (struct BSP *)ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[0],
 		               level1->ptr_tex_waterEnvMap); // waterEnvMap?
 
+		Rtx_EndTag(&gGT->backBuffer->primMem);
+
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		DrawSky_Full(level1->ptr_skybox, pushBuffer, &gGT->backBuffer->primMem);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 
 		// skybox gradient
 		if ((level1->configFlags & 1) != 0)
@@ -1034,7 +1046,9 @@ SkyboxGlow:
 	for (i = 0; i < numPlyrCurrGame; i++)
 	{
 		pushBuffer = &gGT->pushBuffer[i];
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		CAM_SkyboxGlow(&level1->glowGradient[0], pushBuffer, &gGT->backBuffer->primMem, &pushBuffer->ptrOT[0x3ff]);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 	}
 
 	return;

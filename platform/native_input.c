@@ -789,6 +789,17 @@ void Platform_InputUpdate(void)
 	SDL_PumpEvents();
 	u16 keyboardButtons = NativeInput_KeyboardSuppressed() ? 0xffff : NativeInput_ReadKeyboard();
 
+	// MultiTrack test harness (scripts/shot_native.py): CTR_AUTODRIVE=1 holds accelerate
+	static int s_autoDrive = -1;
+	if (s_autoDrive < 0)
+	{
+		s_autoDrive = SDL_getenv("CTR_AUTODRIVE") != NULL;
+	}
+	if (s_autoDrive)
+	{
+		keyboardButtons &= (u16)~0x4000;
+	}
+
 	for (s32 slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 	{
 		NativeInput_ResetSnapshot(slot);

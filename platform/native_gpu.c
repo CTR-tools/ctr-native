@@ -1126,6 +1126,25 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 				u8 *currentPacket = basePacket;
 				u8 *endPacket = basePacket + (tagLength + P_LEN) * sizeof(u32);
 				int primLength = 0;
+
+				// MultiTrack: ray traced frame. Level and captured model packets are
+				// traced instead; everything drawn before the first non-sky packet is
+				// the sky layer
+				if (Rtx_FrameActive())
+				{
+					const int rtxClass = Rtx_ClassifyPacket((u32 *)basePacket, tagLength);
+					const int code = getcode(basePacket);
+					if (rtxClass == RTX_PACKET_SKIP)
+					{
+						currentPacket = endPacket;
+					}
+					else if ((rtxClass != RTX_PACKET_SKY) && Rtx_SkyPhase() && (code >= 0x20) && (code < 0x80))
+					{
+						DrawAllSplits();
+						Rtx_EndSkyPhase();
+					}
+				}
+
 				if (currentPacket < endPacket)
 				{
 					primLength = ParsePrimitive((P_TAG *)currentPacket);

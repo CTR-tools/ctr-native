@@ -169,6 +169,11 @@ internal void Platform_TakeScreenshot(void)
 
 internal void Platform_HandleKey(int key, char down)
 {
+	if (down)
+	{
+		Rtx_HandleKey(key); // MultiTrack: F7 ray tracing, F6 debug view
+	}
+
 	if (down == 0)
 	{
 		SubmitName_UseKeyboard(0);
@@ -371,6 +376,12 @@ void Platform_EndScene(void)
 
 	// NOTE(aalhendi): Keep the displayed VRAM region current for screen-copy
 	// effects without forcing a CPU readback.
+	// MultiTrack: ray traced 3D layer
+	if (Rtx_FrameActive() && Rtx_SkyPhase())
+	{
+		Rtx_EndSkyPhase(); // nothing drawn over the sky this frame
+	}
+
 	NativeRenderer_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 	NativeRenderer_EndGpuFrame();

@@ -452,7 +452,8 @@ void MM_TrackSelect_Init(void)
 // NOTE(aalhendi): GCC 2.8.1 is sensitive to the lifetimes in this menu. The
 // CTR_NATIVE branches state the same operations without relying on PSX pages
 // or MIPS register contents.
-void MM_TrackSelect_MenuProc(struct RectMenu *menu)
+// MultiTrack: retail menu, replaced by game/MultiTrack/MT_TrackSelect.c
+void MM_TrackSelect_MenuProc_Retail(struct RectMenu *menu)
 {
 	struct RectMenu *menuLocal;
 	struct MainMenu_LevelRow *selectMenu;

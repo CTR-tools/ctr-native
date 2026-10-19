@@ -58,6 +58,7 @@
 #include "platform/native_memcard.c"
 #include "platform/native_memcard_adapter.c"
 #include "platform/native_perf.c"
+#include "platform/native_rtx.c" // MultiTrack
 #include "platform/native_platform.c"
 #include "platform/native_replay_scheduler.c"
 #include "platform/native_renderer.c"
@@ -202,6 +203,10 @@ int main(int argc, char *argv[])
 
 	Platform_InitScratchpad();
 	Platform_RepairResidentPointers(0);
+
+	// MultiTrack: start the 64-bit ray tracer
+	Rtx_Init();
+	atexit(Rtx_Shutdown);
 
 #if defined(CTR_INTERNAL)
 	if (NativeReplayScheduler_ConfigureFromArgs(argc, argv) != 0)

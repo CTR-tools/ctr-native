@@ -2,6 +2,7 @@
 #define GAME_UNITY_H
 
 #include <common.h>
+#include <platform/native_rtx.h> // MultiTrack
 
 #include "226/R226.c"
 #include "227/R227.c"
@@ -105,6 +106,8 @@
 #include "LOAD/LOAD_ModelPtrs.c"
 #include "LOAD/LOAD_File.c"
 #include "LOAD/LOAD_Howl.c"
+#include <multitrack.h> // MultiTrack
+#include "MultiTrack/MultiTrack.c"
 #include "LOAD/LOAD_Assets.c"
 #include "LOAD/LOAD_Queue.c"
 #include "LOAD/LOAD_Hub.c"
@@ -262,6 +265,7 @@
 #include "PlayLevel.c"
 
 #include "230.c"
+#include "MultiTrack/MT_TrackSelect.c" // MultiTrack: replaces MM_TrackSelect_MenuProc
 
 #include "231/R231.c"
 #include "231/D231.c"
