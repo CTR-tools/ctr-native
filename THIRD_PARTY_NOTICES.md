@@ -56,6 +56,15 @@ CTR Native vendors a small PSn00bSDK header subset for PS1/Psy-Q-compatible
 types, constants, and inline helpers used by the shared source. CTR Native does
 not vendor or link `libpsn00b` into the native PC executable.
 
+`CTR_GteMoveMACToTranslation()` in `include/ctr_gte_transfer.h` is adapted from
+PSn00bSDK's `gte_mvlvtr` macro in `include/psn00bsdk/include/inline_c.h`,
+with a native implementation using CTR Native's existing GTE interface.
+The adapted header is distributed under MPL 2.0 and retains the upstream
+copyright notices:
+
+- (C) 2019 Lameguy64
+- (C) 2021-2022 Soapy (tweaked by spicyjpeg)
+
 This notice applies to PSn00bSDK core files only. `mkpsxiso` and `dumpsxiso`
 are separate GPLv2-or-later tools and are not distributed as part of CTR Native.
 

@@ -22,7 +22,12 @@
 #define GAME_LOAD_QUEUE_READY        (sdata->queueReady)
 #define GAME_LOAD_VRAM_FINISHED      (sdata->frameFinishedVRAM)
 #define GAME_LOAD_FILE_LABEL         (sdata->s_FILE)
+#define GAME_LANGUAGE_FILE           (sdata->lngFile)
+#define GAME_LANGUAGE_BUFFER_SIZE    (sdata->langBufferSize)
+#define GAME_LANGUAGE_STRING_COUNT   (sdata->numLngStrings)
 #define GAME_LANGUAGE_STRINGS        (sdata->lngStrings)
+#define GAME_POSITION_SUFFIX_INDICES (data.stringIndexSuffix)
+#define GAME_BATTLE_SCORE_COLORS     (data.battleScoreColor)
 #define GAME_CHARACTER_METADATA      (data.MetaDataCharacters)
 #define GAME_CHARACTER_IDS           (data.characterIDs)
 #define GAME_2P_AI_SETS              (data.characterIDs_2P_AIs)
@@ -112,6 +117,10 @@
 #define GAME_LAP_CENTISECOND_UNITS (sdata->LapTimes.centisecondUnits)
 #define GAME_LAP_SECOND_TENS       (sdata->LapTimes.secondTens)
 #define GAME_LAP_SECOND_UNITS      (sdata->LapTimes.secondUnits)
+#endif
+
+#ifndef GAME_WUMPA_HUD_VIEWPORTS
+#define GAME_WUMPA_HUD_VIEWPORTS (sdata->multiplayerWumpaHudData)
 #endif
 
 #ifndef GAME_MUSIC_PLAYING_INITIAL

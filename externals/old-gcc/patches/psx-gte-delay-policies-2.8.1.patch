@@ -1,0 +1,891 @@
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -138,6 +138,12 @@
+ extern char *mips_cpu_string;		/* for -mcpu=<xxx> */
+ extern char *mips_isa_string;		/* for -mips{1,2,3,4} */
+ extern char *mips_abi_string;		/* for -misa={32,n32,64} */
++extern char *mips_psx_normal_ram_lhu_delay_string;
++extern char *mips_psx_local_bgez_string;
++extern int mips_psx_normal_ram_lhu_delay;
++extern int mips_psx_local_bgez;
++#define TARGET_PSX_NORMAL_RAM_LHU_DELAY mips_psx_normal_ram_lhu_delay
++#define TARGET_PSX_LOCAL_BGEZ mips_psx_local_bgez
+ extern int mips_split_addresses;	/* perform high/lo_sum support */
+ extern int dslots_load_total;		/* total # load related delay slots */
+ extern int dslots_load_filled;		/* # filled load delay slots */
+@@ -167,6 +173,16 @@
+ extern int		function_arg_partial_nregs ();
+ extern int		function_arg_pass_by_reference ();
+ extern void		function_epilogue ();
++extern int		mips_sxy2_delay_p ();
++extern int              mips_adjacent_volatile_lhu_delay_p ();
++
++/* Per-compilation target opt-in, not a game mode or a generic volatile
++   optimization.  The enabling option accepts normal aligned mapped RAM only;
++   BD/EPC exception context and IRQ observation are deliberately out of scope.  */
++#define ADJACENT_VOLATILE_DELAY_ENABLED_P TARGET_PSX_NORMAL_RAM_LHU_DELAY
++#define ADJACENT_VOLATILE_DELAY_P(BRANCH, SLOT) \
++  (TARGET_PSX_NORMAL_RAM_LHU_DELAY \
++   && mips_adjacent_volatile_lhu_delay_p ((BRANCH), (SLOT)))
+ extern void		function_prologue ();
+ extern void		gen_conditional_branch ();
+ extern void		gen_conditional_move ();
+@@ -201,6 +217,7 @@
+ extern int		reg_or_0_operand ();
+ extern int		simple_epilogue_p ();
+ extern int		simple_memory_operand ();
++extern int		mips_vxy0_memory_operand ();
+ extern int		small_int ();
+ extern void		trace();
+ extern int		uns_arith_operand ();
+@@ -500,6 +517,8 @@
+ #define TARGET_OPTIONS							\
+ {									\
+   SUBTARGET_TARGET_OPTIONS						\
++  { "psx-normal-ram-lhu-delay=", &mips_psx_normal_ram_lhu_delay_string }, \
++  { "psx-local-bgez=", &mips_psx_local_bgez_string },		\
+   { "cpu=",	&mips_cpu_string	},				\
+   { "ips",	&mips_isa_string	}				\
+ }
+@@ -1384,7 +1403,11 @@
+    address reg ($31) was stored.  This is needed for C++ exception
+    handling.  */
+ 
+-#define FIRST_PSEUDO_REGISTER 76
++/* Nonallocatable hard-register models for PSX GTE data registers.  */
++#define GTE_SXY2_REGNUM 76
++#define GTE_VXY0_REGNUM 77
++
++#define FIRST_PSEUDO_REGISTER 78
+ 
+ /* 1 for registers that have pervasive standard uses
+    and are not available for the register allocator.
+@@ -1397,7 +1420,7 @@
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1,			\
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
+   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
+-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1					\
++  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1				\
+ }
+ 
+ 
+@@ -1414,7 +1437,7 @@
+   0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1,			\
+   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,			\
+   1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,			\
+-  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1					\
++  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1				\
+ }
+ 
+ 
+@@ -1601,6 +1624,8 @@
+   HILO_REG,			/* hilo register pair for 64 bit mode mult */
+   MD_REGS,			/* multiply/divide registers (hi/lo) */
+   ST_REGS,			/* status registers (fp status) */
++  GTE_SXY2_REGS,			/* actual GTE SXY2, never allocatable */
++  GTE_VXY0_REGS,			/* actual GTE VXY0, never allocatable */
+   ALL_REGS,			/* all registers */
+   LIM_REG_CLASSES		/* max value + 1 */
+ };
+@@ -1623,6 +1648,8 @@
+   "HILO_REG",								\
+   "MD_REGS",								\
+   "ST_REGS",								\
++  "GTE_SXY2_REGS",							\
++  "GTE_VXY0_REGS",							\
+   "ALL_REGS"								\
+ }
+ 
+@@ -1647,7 +1674,9 @@
+   { 0x00000000, 0x00000000, 0x00000004 },	/* hilo register */	\
+   { 0x00000000, 0x00000000, 0x00000003 },	/* mul/div registers */	\
+   { 0x00000000, 0x00000000, 0x000007f8 },	/* status registers */	\
+-  { 0xffffffff, 0xffffffff, 0x000007ff }	/* all registers */	\
++  { 0x00000000, 0x00000000, 0x00001000 },	/* GTE SXY2 */		\
++  { 0x00000000, 0x00000000, 0x00002000 },	/* GTE VXY0 */		\
++  { 0xffffffff, 0xffffffff, 0x000037ff }	/* all registers */	\
+ }
+ 
+ 
+@@ -3198,6 +3227,7 @@
+       && (FROM) == GR_REGS) ? 6						\
+    : (FROM) == ST_REGS && (TO) == GR_REGS ? 4				\
+    : (FROM) == FP_REGS && (TO) == ST_REGS ? 8				\
++   : (FROM) == GTE_SXY2_REGS && (TO) == GR_REGS ? 4			\
+    : 12)
+ 
+ /* ??? Fix this to be right for the R8000.  */
+@@ -3402,6 +3432,8 @@
+   &mips_reg_names[73][0],						\
+   &mips_reg_names[74][0],						\
+   &mips_reg_names[75][0],						\
++  &mips_reg_names[76][0],						\
++  &mips_reg_names[77][0],						\
+ }
+ 
+ /* print-rtl.c can't use REGISTER_NAMES, since it depends on mips.c.
+@@ -3417,7 +3449,7 @@
+   "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22", "$f23",	\
+   "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",	\
+   "hi",   "lo",   "accum","$fcc0","$fcc1","$fcc2","$fcc3","$fcc4",	\
+-  "$fcc5","$fcc6","$fcc7","$rap"					\
++  "$fcc5","$fcc6","$fcc7","$rap", "sxy2", "vxy0"				\
+ }
+ 
+ /* If defined, a C initializer for an array of structures
+@@ -3496,7 +3528,9 @@
+   { "fp",	30 + GP_REG_FIRST },					\
+   { "ra",	31 + GP_REG_FIRST },					\
+   { "$sp",	29 + GP_REG_FIRST },					\
+-  { "$fp",	30 + GP_REG_FIRST }					\
++  { "$fp",	30 + GP_REG_FIRST },					\
++  { "gte_sxy2",	GTE_SXY2_REGNUM },					\
++  { "gte_vxy0",	GTE_VXY0_REGNUM }					\
+ }
+ 
+ /* Define results of standard character escape sequences.  */
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -205,6 +205,13 @@
+ char *mips_isa_string;		/* for -mips{1,2,3,4} */
+ char *mips_abi_string;		/* for -mabi={o32,32,n32,n64,64,eabi} */
+ 
++/* Default-off PSX target policies, selected per compilation rather than at
++   compiler build time.  Keep these out of the exhausted target_flags mask.  */
++char *mips_psx_normal_ram_lhu_delay_string;
++char *mips_psx_local_bgez_string;
++int mips_psx_normal_ram_lhu_delay;
++int mips_psx_local_bgez;
++
+ /* If TRUE, we split addresses into their high and low parts in the RTL.  */
+ int mips_split_addresses;
+ 
+@@ -259,7 +266,7 @@
+  "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22", "$f23",
+  "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",
+  "hi",   "lo",   "accum","$fcc0","$fcc1","$fcc2","$fcc3","$fcc4",
+- "$fcc5","$fcc6","$fcc7","$rap"
++ "$fcc5","$fcc6","$fcc7","$rap", "sxy2", "vxy0"
+ };
+ 
+ /* Mips software names for the registers, used to overwrite the
+@@ -276,7 +283,7 @@
+   "$f16", "$f17", "$f18", "$f19", "$f20", "$f21", "$f22", "$f23",
+   "$f24", "$f25", "$f26", "$f27", "$f28", "$f29", "$f30", "$f31",
+   "hi",   "lo",   "accum","$fcc0","$fcc1","$fcc2","$fcc3","$fcc4",
+-  "$fcc5","$fcc6","$fcc7","$rap"
++  "$fcc5","$fcc6","$fcc7","$rap", "sxy2", "vxy0"
+ };
+ 
+ /* Map hard register number to register class */
+@@ -300,7 +307,8 @@
+   FP_REGS,	FP_REGS,	FP_REGS,	FP_REGS,
+   HI_REG,	LO_REG,		HILO_REG,	ST_REGS,
+   ST_REGS,	ST_REGS,	ST_REGS,	ST_REGS,
+-  ST_REGS,	ST_REGS,	ST_REGS,	GR_REGS
++  ST_REGS,	ST_REGS,	ST_REGS,	GR_REGS,
++  GTE_SXY2_REGS, GTE_VXY0_REGS
+ };
+ 
+ /* Map register constraint character to register class.  */
+@@ -649,6 +657,32 @@
+   return FALSE;
+ }
+ 
++/* A volatile SI load from one CPU base and a literal signed displacement.
++   Unlike simple_memory_operand, this never accepts a symbolic/LO_SUM form.
++   Pseudos are allowed only before reload completes; the final gap check
++   consequently sees an actual CPU base register and one emitted word.  */
++int
++mips_vxy0_memory_operand (op, mode)
++     rtx op;
++     enum machine_mode mode;
++{
++  rtx addr;
++  if (mode != SImode || GET_CODE (op) != MEM || GET_MODE (op) != SImode
++      || !MEM_VOLATILE_P (op))
++    return 0;
++  addr = XEXP (op, 0);
++  if (GET_CODE (addr) == PLUS)
++    {
++      if (GET_CODE (XEXP (addr, 1)) != CONST_INT
++          || !SMALL_INT (XEXP (addr, 1)))
++        return 0;
++      addr = XEXP (addr, 0);
++    }
++  return (GET_CODE (addr) == REG && GET_MODE (addr) == Pmode
++          && (GP_REG_P (REGNO (addr))
++              || (!reload_completed && REGNO (addr) >= FIRST_PSEUDO_REGISTER)));
++}
++
+ /* Return true if the code of this rtx pattern is EQ or NE.  */
+ 
+ int
+@@ -1223,6 +1257,9 @@
+ 
+ 		  else if (regno1 == FPSW_REGNUM && mips_isa < 4)
+ 		    ret = "cfc1\t%0,$31";
++
++		  else if (regno1 == GTE_SXY2_REGNUM && mode == SImode)
++		    ret = "mfc2\t%0,$14";
+ 		}
+ 	    }
+ 
+@@ -3388,6 +3425,21 @@
+ #endif /* SIGINFO */
+ 
+ 
++/* Parse a default-off target policy without consuming a target_flags bit.  */
++
++static int
++mips_psx_policy_option (name, value)
++     char *name;
++     char *value;
++{
++  if (value == (char *) 0 || !strcmp (value, "off"))
++    return 0;
++  if (!strcmp (value, "on"))
++    return 1;
++  error ("bad value (%s) for -m%s= switch (expected on or off)", value, name);
++  return 0;
++}
++
+ /* Set up the threshold for data to go into the small data area, instead
+    of the normal data area, and detect any conflicts in the switches.  */
+ 
+@@ -3398,6 +3450,12 @@
+   register int regno;
+   register enum machine_mode mode;
+ 
++  mips_psx_normal_ram_lhu_delay
++    = mips_psx_policy_option ("psx-normal-ram-lhu-delay",
++                              mips_psx_normal_ram_lhu_delay_string);
++  mips_psx_local_bgez
++    = mips_psx_policy_option ("psx-local-bgez", mips_psx_local_bgez_string);
++
+   mips_section_threshold = (g_switch_set) ? g_switch_value : MIPS_DEFAULT_GVALUE;
+ 
+   if (mips_section_threshold <= 0)
+@@ -3754,6 +3812,7 @@
+   mips_print_operand_punct['^'] = TRUE;
+ 
+   mips_char_to_class['d'] = GR_REGS;
++  mips_char_to_class['q'] = GTE_SXY2_REGS;
+   mips_char_to_class['f'] = ((TARGET_HARD_FLOAT) ? FP_REGS : NO_REGS);
+   mips_char_to_class['h'] = HI_REG;
+   mips_char_to_class['l'] = LO_REG;
+@@ -3815,6 +3874,9 @@
+ 			|| (TARGET_DEBUG_H_MODE && class == MODE_INT))
+ 		    && (! TARGET_SINGLE_FLOAT || size <= 4));
+ 
++	  else if (regno == GTE_SXY2_REGNUM || regno == GTE_VXY0_REGNUM)
++	    temp = (mode == SImode);
++
+ 	  else if (MD_REG_P (regno))
+ 	    temp = (class == MODE_INT
+ 		    && (size <= UNITS_PER_WORD
+@@ -4509,6 +4571,350 @@
+ /* ??? There is no real need for this function, because it never actually
+    emits a NOP anymore.  */
+ 
++/* PSX GTE SXY2 transfer and delay-slot certificates for normal execution.
++   These model data hazards, not interrupt or exception-context equivalence.  */
++static rtx
++mips_sxy2_slot_dest (insn)
++     rtx insn;
++{
++  rtx pat;
++  if (!insn || GET_CODE (insn) != INSN)
++    return 0;
++  pat = PATTERN (insn);
++  return (GET_CODE (pat) == SET && GET_CODE (SET_SRC (pat)) == REG
++          && REGNO (SET_SRC (pat)) == GTE_SXY2_REGNUM) ? SET_DEST (pat) : 0;
++}
++
++static int
++mips_sxy2_slot_branch_p (branch, slot)
++     rtx branch, slot;
++{
++  rtx dest = mips_sxy2_slot_dest (slot);
++  rtx pat, src, cond, target;
++  int regno;
++  if (!dest || INSN_DELETED_P (slot)
++      || GET_CODE (dest) != REG || GET_MODE (dest) != SImode
++      || GET_MODE (SET_SRC (PATTERN (slot))) != SImode)
++    return 0;
++  regno = REGNO (dest);
++  if (!GP_REG_P (regno) || regno < 2 || regno >= 26
++      || fixed_regs[regno] || global_regs[regno]
++      || recog_memoized (slot) < 0 || get_attr_type (slot) != TYPE_XFER
++      || get_attr_length (slot) != 1 || GET_CODE (branch) != JUMP_INSN
++      || INSN_DELETED_P (branch)
++      || INSN_ANNULLED_BRANCH_P (branch) || recog_memoized (branch) < 0
++      || get_attr_type (branch) != TYPE_BRANCH || get_attr_length (branch) != 1)
++    return 0;
++  pat = PATTERN (branch);
++  if (GET_CODE (pat) != SET || SET_DEST (pat) != pc_rtx
++      || GET_CODE (SET_SRC (pat)) != IF_THEN_ELSE || !JUMP_LABEL (branch))
++    return 0;
++  src = SET_SRC (pat);
++  cond = XEXP (src, 0);
++  target = XEXP (src, 1) == pc_rtx ? XEXP (src, 2) : XEXP (src, 1);
++  return ((GET_CODE (cond) == EQ || GET_CODE (cond) == NE)
++          && GET_MODE (cond) == SImode && GET_CODE (XEXP (cond, 0)) == REG
++          && GET_MODE (XEXP (cond, 0)) == SImode
++          && GP_REG_P (REGNO (XEXP (cond, 0)))
++          && XEXP (cond, 1) == const0_rtx
++          && (XEXP (src, 1) == pc_rtx || XEXP (src, 2) == pc_rtx)
++          && GET_CODE (target) == LABEL_REF
++          && XEXP (target, 0) == JUMP_LABEL (branch));
++}
++
++/* Literal one-word ALU/shift, bare return, or the named direct VXY0 load.
++   No other MEM or opaque ASM is a timing witness.
++   REG->REG is excluded: final_scan_insn can suppress a self move without
++   deleting its RTL.  Metadata and flow-only USE/CLOBBER never count.
++   reg_overlap_mentioned_p excludes write-only SET destinations, so a witness
++   must also pass reg_set_p to preserve the pending full-register value.  */
++static int
++mips_sxy2_gap_p (insn, dest)
++     rtx insn, dest;
++{
++  rtx pat, src, operand;
++  enum rtx_code code;
++  int i;
++  for (; insn; insn = NEXT_INSN (insn))
++    {
++      if (GET_CODE (insn) == NOTE || GET_CODE (insn) == CODE_LABEL)
++        continue;
++      if (GET_CODE (insn) == INSN
++          && (GET_CODE (PATTERN (insn)) == USE
++              || GET_CODE (PATTERN (insn)) == CLOBBER))
++        continue;
++      break;
++    }
++  if (!insn || (GET_CODE (insn) != INSN && GET_CODE (insn) != JUMP_INSN)
++      || INSN_DELETED_P (insn)
++      || GET_CODE (PATTERN (insn)) == SEQUENCE || recog_memoized (insn) < 0
++      || get_attr_length (insn) != 1 || reg_set_p (dest, insn))
++    return 0;
++  pat = PATTERN (insn);
++  if (GET_CODE (pat) == RETURN)
++    return REGNO (dest) != 31; /* The actual JR reads RA implicitly.  */
++  if (GET_CODE (insn) == INSN
++      && recog_memoized (insn) == CODE_FOR_psx_lwc2_vxy0
++      && GET_CODE (pat) == SET && GET_CODE (SET_DEST (pat)) == REG
++      && GET_MODE (SET_DEST (pat)) == SImode
++      && REGNO (SET_DEST (pat)) == GTE_VXY0_REGNUM
++      && get_attr_type (insn) == TYPE_LOAD
++      && mips_vxy0_memory_operand (SET_SRC (pat), SImode)
++      && !reg_overlap_mentioned_p (dest, SET_SRC (pat)))
++    return 1;
++  if (GET_CODE (insn) != INSN || GET_CODE (pat) != SET
++      || GET_CODE (SET_DEST (pat)) != REG || GET_MODE (SET_DEST (pat)) != SImode
++      || !GP_REG_P (REGNO (SET_DEST (pat))) || get_attr_type (insn) != TYPE_ARITH
++      || reg_overlap_mentioned_p (dest, pat))
++    return 0;
++  src = SET_SRC (pat);
++  code = GET_CODE (src);
++  if (code != AND && code != IOR && code != XOR && code != PLUS && code != MINUS
++      && code != ASHIFT && code != ASHIFTRT && code != LSHIFTRT)
++    return 0;
++  for (i = 0; i < 2; i++)
++    {
++      operand = XEXP (src, i);
++      if (GET_CODE (operand) != CONST_INT
++          && (GET_CODE (operand) != REG || GET_MODE (operand) != SImode
++              || !GP_REG_P (REGNO (operand))))
++        return 0;
++    }
++  return 1;
++}
++
++/* Admit only a real main-chain branch's owned, unlabelled fallthrough head.
++   Stock eager DBR retains all opposite-path liveness/resource/trap tests.  */
++int
++mips_sxy2_delay_p (branch, slot)
++     rtx branch, slot;
++{
++  rtx next, prev;
++  if (!mips_sxy2_slot_branch_p (branch, slot))
++    return 0;
++  prev = PREV_INSN (branch);
++  if (branch != get_insns () && (!prev || NEXT_INSN (prev) != branch))
++    return 0;
++  for (next = NEXT_INSN (branch); next; next = NEXT_INSN (next))
++    if (GET_CODE (next) != NOTE
++        && !(GET_CODE (next) == INSN
++             && (GET_CODE (PATTERN (next)) == USE
++                 || GET_CODE (PATTERN (next)) == CLOBBER)))
++      break;
++  return (next == slot
++          && mips_sxy2_gap_p (NEXT_INSN (slot), SET_DEST (PATTERN (slot)))
++          && mips_sxy2_gap_p (JUMP_LABEL (branch), SET_DEST (PATTERN (slot))));
++}
++
++/* Explicit normal-RAM target policy, disabled by default.
++   Unlike SXY2, this load moves forward across a branch and is volatile.
++   Never clear its MEM flag or use this certificate for forward speculation.  */
++static int
++mips_cpu_lhu_gpr_p (x, mode)
++     rtx x;
++     enum machine_mode mode;
++{
++  int n;
++  if (GET_CODE (x) != REG || GET_MODE (x) != mode)
++    return 0;
++  n = REGNO (x);
++  return (GP_REG_P (n) && n >= 2 && n < 26
++          && !fixed_regs[n] && !global_regs[n]);
++}
++
++/* Address bases are read, not allocated outputs.  A globally bound CPU base
++   register is an input and remains permitted.  */
++static int
++mips_cpu_lhu_base_p (x)
++     rtx x;
++{
++  return (GET_CODE (x) == REG && GET_MODE (x) == SImode
++          && GP_REG_P (REGNO (x)) && REGNO (x) >= 2 && REGNO (x) < 26);
++}
++
++static int
++mips_cpu_lhu_address_p (mem, mode)
++     rtx mem;
++     enum machine_mode mode;
++{
++  rtx addr, offset;
++  HOST_WIDE_INT displacement;
++  if (GET_CODE (mem) != MEM || GET_MODE (mem) != mode)
++    return 0;
++  addr = XEXP (mem, 0);
++  if (GET_CODE (addr) != PLUS || GET_MODE (addr) != SImode
++      || !mips_cpu_lhu_base_p (XEXP (addr, 0)))
++    return 0;
++  offset = XEXP (addr, 1);
++  if (GET_CODE (offset) != CONST_INT)
++    return 0;
++  displacement = INTVAL (offset);
++  return (displacement >= -32768 && displacement <= 32767
++          && displacement % GET_MODE_SIZE (mode) == 0);
++}
++
++/* Recognize REG:HI <- MEM/v:HI, not ZERO_EXTEND:SI.
++   movhi_internal2 emits unsigned LHU; all ambiguous/wide forms fail closed.  */
++static rtx
++mips_cpu_lhu_slot_dest (insn)
++     rtx insn;
++{
++  rtx pat, dest, mem;
++  if (!insn || GET_CODE (insn) != INSN || INSN_DELETED_P (insn)
++      || recog_memoized (insn) != CODE_FOR_movhi_internal2
++      || get_attr_type (insn) != TYPE_LOAD || get_attr_length (insn) != 1)
++    return 0;
++  pat = PATTERN (insn);
++  if (GET_CODE (pat) != SET)
++    return 0;
++  dest = SET_DEST (pat);
++  mem = SET_SRC (pat);
++  if (!mips_cpu_lhu_gpr_p (dest, HImode)
++      || !mips_cpu_lhu_address_p (mem, HImode) || !MEM_VOLATILE_P (mem)
++      || RTX_UNCHANGING_P (mem)
++      || REGNO (dest) == REGNO (XEXP (XEXP (mem, 0), 0)))
++    return 0;
++  return dest;
++}
++
++static int
++mips_cpu_lhu_branch_p (branch, slot)
++     rtx branch, slot;
++{
++  rtx dest = mips_cpu_lhu_slot_dest (slot);
++  rtx pat, src, cond, target;
++  if (!dest || !branch || GET_CODE (branch) != JUMP_INSN
++      || INSN_DELETED_P (branch) || INSN_ANNULLED_BRANCH_P (branch)
++      || recog_memoized (branch) < 0 || get_attr_type (branch) != TYPE_BRANCH
++      || get_attr_length (branch) != 1 || !JUMP_LABEL (branch))
++    return 0;
++  pat = PATTERN (branch);
++  if (GET_CODE (pat) != SET || SET_DEST (pat) != pc_rtx
++      || GET_CODE (SET_SRC (pat)) != IF_THEN_ELSE)
++    return 0;
++  src = SET_SRC (pat);
++  cond = XEXP (src, 0);
++  if ((GET_CODE (cond) != EQ && GET_CODE (cond) != NE)
++      || GET_MODE (cond) != SImode
++      || !mips_cpu_lhu_gpr_p (XEXP (cond, 0), SImode)
++      || XEXP (cond, 1) != const0_rtx
++      || REGNO (XEXP (cond, 0)) == REGNO (dest)
++      || (XEXP (src, 1) != pc_rtx && XEXP (src, 2) != pc_rtx))
++    return 0;
++  target = XEXP (src, 1) == pc_rtx ? XEXP (src, 2) : XEXP (src, 1);
++  return (GET_CODE (target) == LABEL_REF
++          && XEXP (target, 0) == JUMP_LABEL (branch));
++}
++
++/* A physical full-GPR read/write hazard test, even though the destination is HI.
++   Read overlap alone does not see a write-only SET destination in this GCC.
++   Reuse only the existing literal ALU/RETURN witness, never its GTE load.  */
++static int
++mips_cpu_lhu_gap_p (insn, dest)
++     rtx insn, dest;
++{
++  rtx pat, mem;
++  rtx full = gen_rtx (REG, SImode, REGNO (dest));
++  while (insn && (GET_CODE (insn) == NOTE || GET_CODE (insn) == CODE_LABEL))
++    insn = NEXT_INSN (insn);
++  if (!insn || (GET_CODE (insn) != INSN && GET_CODE (insn) != JUMP_INSN)
++      || INSN_DELETED_P (insn) || GET_CODE (PATTERN (insn)) == SEQUENCE
++      || recog_memoized (insn) < 0 || get_attr_length (insn) != 1
++      || reg_overlap_mentioned_p (full, PATTERN (insn))
++      || reg_set_p (full, insn))
++    return 0;
++  if (get_attr_type (insn) != TYPE_LOAD)
++    return mips_sxy2_gap_p (insn, full);
++  pat = PATTERN (insn);
++  if (GET_CODE (insn) != INSN || recog_memoized (insn) != CODE_FOR_movsi_internal2
++      || GET_CODE (pat) != SET
++      || !mips_cpu_lhu_gpr_p (SET_DEST (pat), SImode))
++    return 0;
++  mem = SET_SRC (pat);
++  return (mips_cpu_lhu_address_p (mem, SImode) && !MEM_VOLATILE_P (mem));
++}
++
++int
++mips_adjacent_volatile_lhu_delay_p (branch, slot)
++     rtx branch, slot;
++{
++  rtx prev, dest;
++  if (!TARGET_PSX_NORMAL_RAM_LHU_DELAY || mips_isa != 1 || TARGET_64BIT
++      || TARGET_BIG_ENDIAN || !reload_completed
++      || !mips_cpu_lhu_branch_p (branch, slot))
++    return 0;
++  prev = PREV_INSN (branch);
++  if (branch != get_insns () && (!prev || NEXT_INSN (prev) != branch))
++    return 0;
++  while (prev && GET_CODE (prev) == NOTE)
++    prev = PREV_INSN (prev);
++  if (prev != slot)
++    return 0;
++  dest = mips_cpu_lhu_slot_dest (slot);
++  return (mips_cpu_lhu_gap_p (NEXT_INSN (branch), dest)
++          && mips_cpu_lhu_gap_p (JUMP_LABEL (branch), dest));
++}
++
++/* Installed/final validation is not initial-adjacency eligibility.  */
++static void
++mips_validate_cpu_lhu_slots ()
++{
++  rtx insn, seq, branch, slot, dest;
++  int i;
++  if (!TARGET_PSX_NORMAL_RAM_LHU_DELAY)
++    return;
++  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
++    if (GET_CODE (insn) == INSN && GET_CODE (PATTERN (insn)) == SEQUENCE)
++      {
++        seq = PATTERN (insn);
++        for (i = 1; i < XVECLEN (seq, 0); i++)
++          {
++            slot = XVECEXP (seq, 0, i);
++            if (!volatile_refs_p (PATTERN (slot)))
++              continue;
++            branch = XVECEXP (seq, 0, 0);
++            dest = mips_cpu_lhu_slot_dest (slot);
++            if (INSN_DELETED_P (insn) || XVECLEN (seq, 0) != 2 || i != 1
++                || !dest || !mips_cpu_lhu_branch_p (branch, slot)
++                || !mips_cpu_lhu_gap_p (NEXT_INSN (insn), dest)
++                || !mips_cpu_lhu_gap_p (JUMP_LABEL (branch), dest))
++              {
++                debug_rtx (insn);
++                fatal ("PSX normal-RAM LHU delay-slot invariant failed");
++              }
++          }
++      }
++}
++
++/* This target epilogue hook runs after final(), not merely after DBR.
++   Reject any broken final invariant; never rewrite or repair emitted code.  */
++static void
++mips_validate_sxy2_slots ()
++{
++  rtx insn, seq, branch, slot;
++  int i;
++  for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
++    if (GET_CODE (insn) == INSN && GET_CODE (PATTERN (insn)) == SEQUENCE)
++      {
++        seq = PATTERN (insn);
++        for (i = 1; i < XVECLEN (seq, 0); i++)
++          {
++            slot = XVECEXP (seq, 0, i);
++            if (!mips_sxy2_slot_dest (slot))
++              continue;
++            branch = XVECEXP (seq, 0, 0);
++            if (INSN_DELETED_P (insn) || XVECLEN (seq, 0) != 2 || i != 1
++                || !mips_sxy2_slot_branch_p (branch, slot)
++                || !mips_sxy2_gap_p (NEXT_INSN (insn), SET_DEST (PATTERN (slot)))
++                || !mips_sxy2_gap_p (JUMP_LABEL (branch), SET_DEST (PATTERN (slot))))
++              {
++                debug_rtx (insn);
++                fatal ("PSX GTE SXY2 delay-slot invariant failed");
++              }
++          }
++      }
++}
++
+ void
+ final_prescan_insn (insn, opvec, noperands)
+      rtx insn;
+@@ -5530,6 +5936,9 @@
+ {
+   char *fnname;
+ 
++  mips_validate_sxy2_slots ();
++  mips_validate_cpu_lhu_slots ();
++
+ #ifndef FUNCTION_NAME_ALREADY_DECLARED
+   /* Get the function name the same way that toplev.c does before calling
+      assemble_start_function.  This is needed so that the name used here
+@@ -5941,6 +6350,25 @@
+ 	return NO_REGS;
+       return GR_REGS;
+     }
++
++  /* Only the named volatile MEM -> actual VXY0 interface is supported.  */
++  if (class == GTE_VXY0_REGS)
++    {
++      if (in_p && mode == SImode && mips_vxy0_memory_operand (x, mode))
++        return NO_REGS;
++      fatal ("unsupported PSX GTE VXY0 reload");
++    }
++  if (regno == GTE_VXY0_REGNUM)
++    fatal ("unsupported PSX GTE VXY0 copy");
++
++  /* The PSX GTE SXY2 read reaches other register classes only through a
++     real GPR transfer.  Direct writes through the C view are unsupported.  */
++  if (regno == GTE_SXY2_REGNUM)
++    {
++      if (in_p && class == GR_REGS && mode == SImode)
++	return NO_REGS;
++      return GR_REGS;
++    }
+ 
+   /* Copying from HI or LO to anywhere other than a general register
+      requires a general register.  */
+--- a/config/mips/mips.md
++++ b/config/mips/mips.md
+@@ -117,7 +117,9 @@
+ ;; .........................
+ 
+ (define_delay (eq_attr "type" "branch")
+-  [(and (eq_attr "dslot" "no") (eq_attr "length" "1"))
++  [(ior (and (eq_attr "dslot" "no") (eq_attr "length" "1"))
++        (ior (ne (symbol_ref "mips_sxy2_delay_p (delay_insn, insn)") (const_int 0))
++             (ne (symbol_ref "mips_adjacent_volatile_lhu_delay_p (delay_insn, insn)") (const_int 0))))
+    (nil)
+    (and (eq_attr "branch_likely" "yes") (and (eq_attr "dslot" "no") (eq_attr "length" "1")))])
+ 
+@@ -3564,6 +3566,18 @@
+   ""
+   "
+ {
++  if (GET_CODE (operands[1]) == REG
++      && REGNO (operands[1]) == GTE_VXY0_REGNUM)
++    fatal (\"PSX GTE VXY0 reads require a hardware operand\");
++  if (GET_CODE (operands[0]) == REG
++      && REGNO (operands[0]) == GTE_VXY0_REGNUM)
++    {
++      if (!mips_vxy0_memory_operand (operands[1], SImode))
++        fatal (\"PSX GTE VXY0 requires a volatile base-displacement SI load\");
++      emit_insn (gen_psx_lwc2_vxy0 (operands[1]));
++      DONE;
++    }
++
+   if (mips_split_addresses && mips_check_split (operands[1], SImode))
+     {
+       enum machine_mode mode = GET_MODE (operands[0]);
+@@ -3618,32 +3632,43 @@
+     }
+ }")
+ 
++;; The destination is actual GTE data0; it is not CPU zero or a fake output.
++;; This is still a load with dslot=yes, never a new branch-slot filler.
++(define_insn "psx_lwc2_vxy0"
++  [(set (reg:SI 77)
++        (match_operand:SI 0 "mips_vxy0_memory_operand" "R"))]
++  ""
++  "lwc2\\t$0,%0"
++  [(set_attr "type" "load")
++   (set_attr "mode" "SI")
++   (set_attr "length" "1")])
++
+ ;; The difference between these two is whether or not ints are allowed
+ ;; in FP registers (off by default, use -mdebugh to enable).
+ 
+ (define_insn "movsi_internal1"
+-  [(set (match_operand:SI 0 "nonimmediate_operand" "=d,d,d,d,d,d,R,m,*d,*f*z,*f,*f,*f,*R,*m,*x,*x,*d,*d")
+-	(match_operand:SI 1 "move_operand" "d,S,IKL,Mnis,R,m,dJ,dJ,*f*z,*d,*f,*R,*m,*f,*f,J,*d,*x,*a"))]
++  [(set (match_operand:SI 0 "nonimmediate_operand" "=d,d,d,d,d,d,R,m,*d,*f*z,*f,*f,*f,*R,*m,*x,*x,*d,*d,*d")
++	(match_operand:SI 1 "move_operand" "d,S,IKL,Mnis,R,m,dJ,dJ,*f*z,*d,*f,*R,*m,*f,*f,J,*d,*x,*a,*q"))]
+   "TARGET_DEBUG_H_MODE
+    && (register_operand (operands[0], SImode)
+        || register_operand (operands[1], SImode)
+        || (GET_CODE (operands[1]) == CONST_INT && INTVAL (operands[1]) == 0))"
+   "* return mips_move_1word (operands, insn, FALSE);"
+-  [(set_attr "type"	"move,load,arith,arith,load,load,store,store,xfer,xfer,move,load,load,store,store,hilo,hilo,hilo,hilo")
++  [(set_attr "type"	"move,load,arith,arith,load,load,store,store,xfer,xfer,move,load,load,store,store,hilo,hilo,hilo,hilo,xfer")
+    (set_attr "mode"	"SI")
+-   (set_attr "length"	"1,2,1,2,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1")])
++   (set_attr "length"	"1,2,1,2,1,2,1,2,1,1,1,1,2,1,2,1,1,1,1,1")])
+ 
+ (define_insn "movsi_internal2"
+-  [(set (match_operand:SI 0 "nonimmediate_operand" "=d,d,d,d,d,d,R,m,*d,*z,*x,*d,*x,*d")
+-	(match_operand:SI 1 "move_operand" "d,S,IKL,Mnis,R,m,dJ,dJ,*z,*d,J,*x,*d,*a"))]
++  [(set (match_operand:SI 0 "nonimmediate_operand" "=d,d,d,d,d,d,R,m,*d,*z,*x,*d,*x,*d,*d")
++	(match_operand:SI 1 "move_operand" "d,S,IKL,Mnis,R,m,dJ,dJ,*z,*d,J,*x,*d,*a,*q"))]
+   "!TARGET_DEBUG_H_MODE
+    && (register_operand (operands[0], SImode)
+        || register_operand (operands[1], SImode)
+        || (GET_CODE (operands[1]) == CONST_INT && INTVAL (operands[1]) == 0))"
+   "* return mips_move_1word (operands, insn, FALSE);"
+-  [(set_attr "type"	"move,load,arith,arith,load,load,store,store,xfer,xfer,hilo,hilo,hilo,hilo")
++  [(set_attr "type"	"move,load,arith,arith,load,load,store,store,xfer,xfer,hilo,hilo,hilo,hilo,xfer")
+    (set_attr "mode"	"SI")
+-   (set_attr "length"	"1,2,1,2,1,2,1,2,1,1,1,1,1,1")])
++   (set_attr "length"	"1,2,1,2,1,2,1,2,1,1,1,1,1,1,1")])
+ 
+ ;; Reload HILO_REGNUM in SI mode.  This needs a scratch register in
+ ;; order to set the sign bit correctly in the HI register.
+@@ -6209,6 +6234,12 @@
+ {
+   if (GET_CODE (operands[0]) == REG)
+     return \"%*j\\t%0\";
++  /* Default-off PSX local-branch policy.  The assembler and linker must
++     reject targets outside the signed PC-relative branch range; this is
++     not a long-jump or branch-relaxation mechanism.  */
++  else if (TARGET_PSX_LOCAL_BGEZ
++           && mips_abi == ABI_32 && GET_CODE (operands[0]) == CODE_LABEL)
++    return \"%*bgez\\t$0,%l0\";
+   /* ??? I don't know why this is necessary.  This works around an
+      assembler problem that appears when a label is defined, then referenced
+      in a switch table, then used in a `j' instruction.  */
+--- a/reorg.c
++++ b/reorg.c
+@@ -1538,6 +1538,28 @@
+   return comparison_dominates_p (code, other_code);
+ }
+ 
++#ifdef ADJACENT_VOLATILE_DELAY_P
++/* Volatile slots admitted by the target may not be copied, threaded or
++   retargeted.  This is deliberately conservative, not target re-eligibility
++   against the old JUMP_LABEL.  */
++static int
++volatile_delay_sequence_p (insn)
++     rtx insn;
++{
++  rtx pat;
++  int i;
++  if (!ADJACENT_VOLATILE_DELAY_ENABLED_P
++      || !insn || GET_CODE (insn) != INSN
++      || GET_CODE (PATTERN (insn)) != SEQUENCE)
++    return 0;
++  pat = PATTERN (insn);
++  for (i = 1; i < XVECLEN (pat, 0); i++)
++    if (volatile_refs_p (PATTERN (XVECEXP (pat, 0, i))))
++      return 1;
++  return 0;
++}
++#endif
++
+ /* Return non-zero if redirecting JUMP to NEWLABEL does not invalidate
+    any insns already in the delay slot of JUMP.  */
+ 
+@@ -1548,6 +1570,11 @@
+   int flags, slots, i;
+   rtx pat = PATTERN (seq);
+ 
++#ifdef ADJACENT_VOLATILE_DELAY_P
++  if (volatile_delay_sequence_p (seq))
++    return 0;
++#endif
++
+   /* Make sure all the delay slots of this jump would still
+      be valid after threading the jump.  If they are still
+      valid, then return non-zero.  */
+@@ -1583,6 +1610,13 @@
+   int flags, i;
+   rtx li;
+ 
++#ifdef ADJACENT_VOLATILE_DELAY_P
++  if (ADJACENT_VOLATILE_DELAY_ENABLED_P)
++    for (li = delay_list; li; li = XEXP (li, 1))
++      if (volatile_refs_p (PATTERN (XEXP (li, 0))))
++        return 0;
++#endif
++
+   /* Make sure all the insns in DELAY_LIST would still be
+      valid after threading the jump.  If they are still
+      valid, then return non-zero.  */
+@@ -2306,6 +2340,16 @@
+ {
+   int b = find_basic_block (jump);
+ 
++#ifdef ADJACENT_VOLATILE_DELAY_P
++  {
++    rtx prev = PREV_INSN (jump);
++    rtx owner = prev ? NEXT_INSN (prev) : get_insns ();
++    if (volatile_delay_sequence_p (owner)
++        && XVECEXP (PATTERN (owner), 0, 0) == jump)
++      return 0;
++  }
++#endif
++
+   if (b != -1)
+     bb_ticks[b]++;
+ 
+@@ -3083,6 +3127,7 @@
+ 	  for (trial = prev_nonnote_insn (insn); ! stop_search_p (trial, 1);
+ 	       trial = next_trial)
+ 	    {
++              int references_conflict;
+ 	      next_trial = prev_nonnote_insn (trial);
+ 
+ 	      /* This must be an INSN or CALL_INSN.  */
+@@ -3094,7 +3139,23 @@
+ 
+ 	      /* Check for resource conflict first, to avoid unnecessary 
+ 		 splitting.  */
+-	      if (! insn_references_resource_p (trial, &set, 1)
++              references_conflict = insn_references_resource_p (trial, &set, 1);
++#ifdef ADJACENT_VOLATILE_DELAY_P
++              if (references_conflict && slots_filled == 0 && slots_to_fill == 1
++                  && delay_list == 0 && trial == prev_nonnote_insn (insn)
++                  && !set.volatil && !needed.volatil
++                  && ADJACENT_VOLATILE_DELAY_P (insn, trial))
++                {
++                  struct resources trial_refs;
++                  CLEAR_RESOURCE (&trial_refs);
++                  mark_referenced_resources (trial, &trial_refs, 1);
++                  /* Acknowledge only the certified read's volatility in this
++                     comparison copy.  Keep real RTL and all other resources.  */
++                  trial_refs.volatil = 0;
++                  references_conflict = resource_conflicts_p (&trial_refs, &set);
++                }
++#endif
++              if (!references_conflict
+ 		  && ! insn_sets_resource_p (trial, &set, 1)
+ 		  && ! insn_sets_resource_p (trial, &needed, 1)
+ #ifdef HAVE_cc0
+@@ -4080,6 +4141,13 @@
+       pat = PATTERN (insn);
+       delay_insn = XVECEXP (pat, 0, 0);
+ 
++#ifdef ADJACENT_VOLATILE_DELAY_P
++      /* Do not let redundant-target threading, inversion or deletion bypass
++         the prospective-target guards for this volatile access.  */
++      if (volatile_delay_sequence_p (insn))
++        continue;
++#endif
++
+       /* See if the first insn in the delay slot is redundant with some
+ 	 previous insn.  Remove it from the delay slot if so; then set up
+ 	 to reprocess this insn.  */

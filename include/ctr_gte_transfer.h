@@ -1,7 +1,44 @@
+/*
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * Includes GTE code adapted from PSn00bSDK's inline_c.h.
+ * (C) 2019 Lameguy64
+ * (C) 2021-2022 Soapy (tweaked by spicyjpeg)
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
 #ifndef CTR_GTE_TRANSFER_H
 #define CTR_GTE_TRANSFER_H
 
 #include <ctr_gte.h>
+
+// NOTE(aalhendi): Compose five packed words through the current GTE ROT matrix
+// and leave the product loaded. Retail's kernel consumes and returns t3-t7;
+// native keeps its callable C implementation behind the same pointer API.
+#ifdef CTR_NATIVE
+#define CTR_GteComposeRotationWords(r0, r1, r2, r3, r4) Unknown_8006c49c(r0, r1, r2, r3, r4)
+#else
+static inline void CTR_GteComposeRotationWords(u32 *r0, u32 *r1, u32 *r2, u32 *r3, u32 *r4)
+{
+	register u32 t3 CTR_PSX_REGISTER("$11") = *r0;
+	register u32 t4 CTR_PSX_REGISTER("$12") = *r1;
+	register u32 t5 CTR_PSX_REGISTER("$13") = *r2;
+	register u32 t6 CTR_PSX_REGISTER("$14") = *r3;
+	register u32 t7 CTR_PSX_REGISTER("$15") = *r4;
+	__asm__ volatile(".set\tnoreorder\n\tjal Unknown_8006c49c\n\tnop\n\t.set\treorder"
+	                 : "+r"(t3), "+r"(t4), "+r"(t5), "+r"(t6), "+r"(t7)
+	                 :
+	                 : "$3", "$8", "$9", "$31", "memory");
+	*r0 = t3;
+	*r1 = t4;
+	*r2 = t5;
+	*r3 = t6;
+	*r4 = t7;
+}
+#endif
 
 // NOTE(aalhendi): Word-aligned data-register input with a literal reg; caller owns the load delay.
 #ifdef CTR_NATIVE
@@ -67,8 +104,48 @@ static inline void CTR_GteLoadDotProduct(const SVec3 *row, const SVec3 *vector)
 #endif
 }
 
+// Adapted from PSn00bSDK's gte_mvlvtr; see THIRD_PARTY_NOTICES.md.
+// NOTE(aalhendi): Preserve full MAC words; three reads fill the CPU load delays before TR writes.
+static inline void CTR_GteMoveMACToTranslation(void)
+{
+#ifdef CTR_NATIVE
+	s32 mac1 = MFC2_S(25);
+	s32 mac2 = MFC2_S(26);
+	s32 mac3 = MFC2_S(27);
+
+	gte_ldtr(mac1, mac2, mac3);
+#else
+	__asm__ volatile("mfc2 $12,$25\n\t"
+	                 "mfc2 $13,$26\n\t"
+	                 "mfc2 $14,$27\n\t"
+	                 "ctc2 $12,$5\n\t"
+	                 "ctc2 $13,$6\n\t"
+	                 "ctc2 $14,$7"
+	                 :
+	                 :
+	                 : "$12", "$13", "$14");
+#endif
+}
+
 // NOTE(aalhendi): These transfers retain the PsyQ instruction schedule;
 // native builds use the equivalent GTE interface.
+static inline void CTR_GteSetTransVector(const VECTOR *translation)
+{
+#ifdef CTR_NATIVE
+	gte_SetTransVector(translation);
+#else
+	__asm__ volatile("lw $12,0(%0)\n\t"
+	                 "lw $13,4(%0)\n\t"
+	                 "lw $14,8(%0)\n\t"
+	                 "ctc2 $12,$5\n\t"
+	                 "ctc2 $13,$6\n\t"
+	                 "ctc2 $14,$7"
+	                 :
+	                 : "r"(translation)
+	                 : "$12", "$13", "$14", "memory");
+#endif
+}
+
 static inline void CTR_GteSetRotMatrix(const MATRIX *matrix)
 {
 #ifdef CTR_NATIVE

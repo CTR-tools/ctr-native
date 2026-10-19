@@ -1,7 +1,7 @@
 #ifndef MACROS_H
 #define MACROS_H
 
-#include <ctr_compiler.h>
+#include <ctr_types.h>
 
 #if defined(CTR_NATIVE)
 #include <stdbool.h>
@@ -24,23 +24,6 @@ typedef unsigned int size_t;
 #else
 #define CTR_STATIC_ASSERT(expr) extern char CTR_JOIN(ctr_static_assert_, __LINE__)[(expr) ? 1 : -1]
 #endif
-
-typedef unsigned long long u64;
-typedef signed long long s64;
-typedef unsigned int u32;
-typedef signed int s32;
-typedef unsigned short u16;
-typedef signed short s16;
-typedef unsigned char u8;
-typedef signed char s8;
-typedef s8 b8;
-typedef s16 b16;
-typedef s32 b32;
-typedef float f32;
-typedef double f64;
-typedef u16 CtrPackedU16 CTR_MAY_ALIAS;
-typedef s16 CtrPackedS16 CTR_MAY_ALIAS;
-typedef u32 CtrPackedU32 CTR_MAY_ALIAS;
 
 CTR_STATIC_ASSERT(sizeof(u8) == 1);
 CTR_STATIC_ASSERT(sizeof(s8) == 1);

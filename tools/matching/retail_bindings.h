@@ -42,7 +42,12 @@
 #define GAME_TRAFFIC_LIGHT_PREVIOUS_TIMER                    ctr_trafficLightPreviousTimer
 #define GAME_LOADING_STAGE                                   ctr_loadingStage
 #define GAME_LOAD_IN_PROGRESS                                ctr_loadInProgress
+#define GAME_LANGUAGE_FILE                                   ctr_languageFile
+#define GAME_LANGUAGE_BUFFER_SIZE                            ctr_languageBufferSize
+#define GAME_LANGUAGE_STRING_COUNT                           ctr_languageStringCount
 #define GAME_LANGUAGE_STRINGS                                ctr_languageStrings
+#define GAME_POSITION_SUFFIX_INDICES                         ctr_positionSuffixIndices
+#define GAME_BATTLE_SCORE_COLORS                             ctr_battleScoreColors
 #define GAME_CHARACTER_METADATA                              ctr_characterMetadata
 #define GAME_CHARACTER_IDS                                   ctr_characterIDs
 #define GAME_HUD_LAYOUTS                                     ctr_hudLayouts
@@ -51,6 +56,7 @@
 #define GAME_LAP_CENTISECOND_UNITS                           ctr_lapCentisecondUnits
 #define GAME_LAP_SECOND_TENS                                 ctr_lapSecondTens
 #define GAME_LAP_SECOND_UNITS                                ctr_lapSecondUnits
+#define GAME_WUMPA_HUD_VIEWPORTS                             ctr_wumpaHudViewports
 #define GAME_BATTLE_CAMERA_HEIGHTS                           ctr_battleCameraHeights
 #define GAME_SPIN360_DRIVER_HEIGHTS                          ctr_spin360DriverHeights
 #define GAME_CAMERA_THREAD_NAME                              ctr_cameraThreadName
@@ -136,6 +142,14 @@
 
 #include <common.h>
 
+// NOTE(aalhendi): Bind SDK pointer storage, not MMIO pointees. Declare these
+// before hwregs.h; GCC 2.8.1 keeps the first declaration's assembler name.
+extern volatile u8 *psxCdReg0 asm("data+48448");
+extern volatile u8 *psxCdReg1 asm("data+48452");
+extern volatile u8 *psxCdReg2 asm("data+48456");
+extern volatile u8 *psxCdReg3 asm("data+48460");
+extern volatile u16 *psxSpuRegs asm("data+48468");
+
 // NOTE(aalhendi): These declarations name existing resident storage. Native
 // accesses the same fields through the canonical sData and Data aggregates.
 extern struct GameTracker *ctr_gameTrackerPtr asm(RETAIL_GAME_TRACKER_ASM_NAME);
@@ -149,7 +163,19 @@ extern char ctr_loadFileLabel[] asm("sdata_static+320");
 extern struct ScratchpadStruct ctr_collisionWork asm("sdata_static+2992");
 extern LoadStage ctr_loadingStage asm("sdata_static+396");
 extern s32 ctr_loadInProgress asm("312($28)");
+extern void *ctr_languageFile asm("2284($28)");
+// NOTE(aalhendi): +0 avoids classifying the full sData aggregate as a four-byte small-data object.
+extern s32 ctr_languageBufferSize asm("sdata_static+0");
+extern s32 ctr_languageStringCount asm("sdata_static+420");
 extern char **ctr_languageStrings asm(RETAIL_LANGUAGE_STRINGS_ASM_NAME);
+extern s16 ctr_positionSuffixIndices[8] asm("data+23196");
+extern s16 ctr_battleScoreColors[4][4] asm("data+23212");
+// NOTE(aalhendi): Unspecified format extents retain absolute resident addresses.
+extern char ctr_sdata_s_intDividing[] asm("sdata_static+1448");
+extern char ctr_sdata_s_printDividing[] asm("sdata_static+1456");
+extern char ctr_sdata_s_longInt[] asm("sdata_static+1460");
+// NOTE(aalhendi): Keep the four-byte quantity buffer absolute under G8.
+extern char ctr_sdata_s_spacebar[] asm("sdata_static+1464");
 extern struct MetaDataCHAR ctr_characterMetadata[16] asm(RETAIL_CHARACTER_METADATA_ASM_NAME);
 extern s16 ctr_characterIDs[8] asm(RETAIL_CHARACTER_IDS_ASM_NAME);
 // NOTE(aalhendi): The owned HUD-layout pointer table is indexed by player count minus one.
@@ -159,6 +185,7 @@ extern s32 ctr_lapCentisecondTens[14] asm("sdata_static+56524");
 extern s32 ctr_lapCentisecondUnits[14] asm("sdata_static+56580");
 extern s32 ctr_lapSecondTens[14] asm("sdata_static+56636");
 extern s32 ctr_lapSecondUnits[14] asm("sdata_static+56692");
+extern RECT ctr_wumpaHudViewports[2] asm("sdata_static+1512");
 extern s32 ctr_battleCameraHeights[5] asm("data+1588");
 extern s32 ctr_spin360DriverHeights[5] asm("data+1608");
 // NOTE(aalhendi): An unspecified extent preserves retail absolute addressing;

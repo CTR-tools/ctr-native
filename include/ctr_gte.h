@@ -167,23 +167,48 @@ static inline s32 CTR_GteReadMAC1(void)
 #else
 // NOTE(aalhendi): Preserve retail's paired loads and scratch-register
 // clobbers when transferring the five lighting-matrix words to the GTE.
-#define CTR_GteLoadLightMatrix(matrix)                               \
-	({                                                               \
-		const MATRIX *ctrLightMatrix = (matrix);                     \
-		__asm__ volatile("lw $12,0(%0)\n\t"                          \
-		                 "lw $13,4(%0)\n\t"                          \
-		                 "ctc2 $12,$8\n\t"                           \
-		                 "ctc2 $13,$9\n\t"                           \
-		                 "lw $12,8(%0)\n\t"                          \
-		                 "lw $13,12(%0)\n\t"                         \
-		                 "lw $14,16(%0)\n\t"                         \
-		                 "ctc2 $12,$10\n\t"                          \
-		                 "ctc2 $13,$11\n\t"                          \
-		                 "ctc2 $14,$12"                              \
-		                 :                                           \
-		                 : "r"(ctrLightMatrix), "m"(*ctrLightMatrix) \
-		                 : "$12", "$13", "$14");                     \
+// The memory clobber covers the hidden loads without exposing a second
+// matrix-address operand to the old compiler's register allocator.
+#define CTR_GteLoadLightMatrix(matrix)                     \
+	({                                                     \
+		const MATRIX *ctrLightMatrix = (matrix);           \
+		__asm__ volatile("lw $12,0(%0)\n\t"                \
+		                 "lw $13,4(%0)\n\t"                \
+		                 "ctc2 $12,$8\n\t"                 \
+		                 "ctc2 $13,$9\n\t"                 \
+		                 "lw $12,8(%0)\n\t"                \
+		                 "lw $13,12(%0)\n\t"               \
+		                 "lw $14,16(%0)\n\t"               \
+		                 "ctc2 $12,$10\n\t"                \
+		                 "ctc2 $13,$11\n\t"                \
+		                 "ctc2 $14,$12"                    \
+		                 :                                 \
+		                 : "r"(ctrLightMatrix)             \
+		                 : "$12", "$13", "$14", "memory"); \
 	})
+#endif
+
+// NOTE(aalhendi): PSX stores full MAC components directly to memory, without
+// a CPU-register transfer or IR clamping. The helpers name hardware MAC1..3.
+#ifdef CTR_NATIVE
+static inline void CTR_GteStoreMAC1(s32 *out)
+{
+	*out = (s32)MFC2(25);
+}
+
+static inline void CTR_GteStoreMAC2(s32 *out)
+{
+	*out = (s32)MFC2(26);
+}
+
+static inline void CTR_GteStoreMAC3(s32 *out)
+{
+	*out = (s32)MFC2(27);
+}
+#else
+#define CTR_GteStoreMAC1(out) __asm__ volatile("swc2 $25,0(%0)" : : "r"(out) : "memory")
+#define CTR_GteStoreMAC2(out) __asm__ volatile("swc2 $26,0(%0)" : : "r"(out) : "memory")
+#define CTR_GteStoreMAC3(out) __asm__ volatile("swc2 $27,0(%0)" : : "r"(out) : "memory")
 #endif
 
 static inline void CTR_GteStoreMAC(s32 *out)

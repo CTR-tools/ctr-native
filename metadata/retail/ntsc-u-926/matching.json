@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "1a48ec5ac87a146a074a9d66d7a67734a4d1ad56553d02d91e8b71c7fecc2d52",
+        "cc1": "2258e9e4c4feefd7478ca2f665e9792dd2e4998ba6b3987a8bfe2690644f2529",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -22,7 +22,7 @@
       "entrypoint": "maspsx.py",
       "sha256": {
         "maspsx.py": "d170463b0c519a825db97d3f30ffbe0228e4cf642de2dc64fb30f90f118c2b0c",
-        "maspsx/__init__.py": "2cbdbc27537bf9f53413e29c558a869b39f671be4a72429618dca39b07e377fa"
+        "maspsx/__init__.py": "fb5eccb7d6570a5ffc23de4e289a3f88199f30d46c0677aee4acda37f81d0c4e"
       },
       "aspsx_version": "2.77"
     },

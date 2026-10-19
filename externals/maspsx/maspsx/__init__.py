@@ -142,6 +142,68 @@ def line_loads_from_reg(line: str, r_source: str) -> bool:
     return False
 
 
+def cop2_read_dependency(line: str, destination: str):
+    """Transfer-only CPU dependency: True/False, or None for an opaque op."""
+    names = (
+        "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+        "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+        "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+        "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra",
+    )
+    aliases = dict(zip(names, range(32)))
+    aliases["s8"] = 30
+
+    def register(token):
+        token = token.removeprefix("$")
+        if token.isdecimal():
+            value = int(token)
+            return value if 0 <= value < 32 else None
+        return aliases.get(token)
+
+    destination_id = register(destination)
+    if destination_id is None:
+        raise ValueError(f"Unknown COP2 CPU destination: {destination}")
+    if destination_id == 0:
+        return False
+    line = strip_comments(line).split(";", 1)[0].strip()
+    if not line:
+        return None
+    op, *rest = line.split(None, 1)
+    args = [part.strip() for part in rest[0].split(",")] if rest else []
+    if op in ("j", "jal") and len(args) == 1 and re.fullmatch(r"\$L(b|e)?\d+", args[0]):
+        return False
+    if op in ("nop", "li", "lui", "mflo", "mfhi", "mfc2", "cfc2", "cop2"):
+        return False
+    if op in ("lwc2", "swc2"):
+        sources = args[1:]
+    elif op in ("mtc2", "ctc2", "mtc0", "mtlo", "mthi"):
+        sources = args[:1]
+    elif op in load_mnemonics:
+        sources = args[1:] + (args[:1] if op in ("lwl", "lwr") else [])
+    elif op in ("sb", "sh", "sw", "swl", "swr", "mult", "multu"):
+        sources = args
+    elif op in ("beq", "bne"):
+        sources = args[:2]
+    elif op in ("div", "divu", "rem", "remu"):
+        sources = args[1:] if len(args) == 3 else args
+    elif op in (
+        "add", "addu", "addi", "addiu", "sub", "subu", "and", "andi",
+        "or", "ori", "xor", "xori", "nor", "slt", "sltu", "slti", "sltiu",
+        "sll", "srl", "sra", "sllv", "srlv", "srav", "move", "neg", "negu", "not",
+    ):
+        sources = args[1:]
+    elif op in ("j", "jr", "bgez", "bgtz", "blez", "bltz", "beqz", "bnez"):
+        sources = args[:1]
+    elif op in ("jal", "jalr"):
+        sources = args[-1:]
+    else:
+        return None
+    registers = [register(token) for arg in sources for token in re.findall(r"\$[A-Za-z0-9]+", arg)]
+    if any(value is None for value in registers):
+        return None
+    return destination_id in registers
+
+
 def is_number(value: str) -> bool:
     if re.match(r"^-?\d+$", value) or re.match(r"^-?0x[A-Fa-f0-9]+$", value):
         return True
@@ -378,6 +440,7 @@ def load_immediate_double(line: str):
 
 class MaspsxProcessor:
     is_reorder = True
+    cop2_is_reorder = True
     skip_instructions = 0
     file_num = 1
     line_index = 0
@@ -521,6 +584,7 @@ class MaspsxProcessor:
 
     def process_lines(self):
         self.is_reorder = True
+        self.cop2_is_reorder = True
         self.skip_instructions = 0
         self.file_num = 1
 
@@ -640,11 +704,13 @@ class MaspsxProcessor:
         return False
 
     def _handle_nop_before_next_instruction(
-        self, next_instruction: str, r_dest: str
+        self, next_instruction: str, r_dest: str, requires_gap=None
     ) -> List[str]:
         res: List[str] = []
 
-        if line_loads_from_reg(next_instruction, r_dest):
+        if requires_gap is None:
+            requires_gap = line_loads_from_reg(next_instruction, r_dest)
+        if requires_gap:
             nop_required = False
 
             if not uses_at(next_instruction):
@@ -833,6 +899,10 @@ class MaspsxProcessor:
             return []
 
         if line.startswith("."):
+            # Keep upstream branch/NOP parsing and register aliases unchanged.
+            # COP2 transfers also recognize space-delimited ordering directives.
+            if directive := re.fullmatch(r"\.set\s+(noreorder|reorder)", strip_comments(line)):
+                self.cop2_is_reorder = directive[1] == "reorder"
             if (
                 line.startswith(".def\t")
                 or line.startswith(".begin\t")
@@ -890,7 +960,30 @@ class MaspsxProcessor:
 
         op, *rest = line.split()
 
-        if op in load_mnemonics:
+        if op in ("mfc2", "cfc2"):
+            # Only source reorder regions; explicit noreorder remains literal.
+            if ";" in strip_comments(line):
+                raise ValueError("COP2 reads must be separate instructions, not leading semicolon macros")
+            res.append(line)
+            if self.cop2_is_reorder:
+                r_dest = strip_comments(line).split(None, 1)[1].split(",", 1)[0].strip()
+                next_instruction = ""
+                for following in self.lines[self.line_index + 1:]:
+                    if strip_comments(following) and is_instruction(
+                        following, ignore_nop=True, ignore_set=True, ignore_label=True
+                    ):
+                        next_instruction = following
+                        break
+                dependency = cop2_read_dependency(next_instruction, r_dest)
+                if dependency is None:
+                    res.append("nop # Unrecognized CPU dependency after COP2 read")
+                elif dependency:
+                    mnemonic, operands = strip_comments(next_instruction).split(";", 1)[0].split(None, 1)
+                    res.extend(self._handle_nop_before_next_instruction(
+                        mnemonic + "\t" + operands, r_dest, requires_gap=True
+                    ))
+
+        elif op in load_mnemonics:
             r_source, r_dest, operand, is_addend, needs_expanding = parse_load_or_store(
                 " ".join(rest)
             )
