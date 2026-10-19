@@ -103,8 +103,10 @@ struct NativeRenderTarget
 	TextureID texture;
 	GLuint framebuffer;
 	GLuint stencilBuffer;
-	s32 width;
+	s32 width; // pixels
 	s32 height;
+	s32 psxWidth; // PS1 area it covers (MultiTrack: the main target renders at window size)
+	s32 psxHeight;
 };
 
 global_variable struct NativeRenderTarget s_mainRenderTarget;
@@ -157,10 +159,22 @@ internal void NativeRenderer_ClearPresentationBars(void);
 internal void NativeRenderer_SetWireframe(int enable);
 internal void NativeRenderer_InitRenderTarget(struct NativeRenderTarget *target);
 internal void NativeRenderer_DestroyRenderTarget(struct NativeRenderTarget *target);
-internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height);
+internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height, int psxWidth, int psxHeight);
 internal void NativeRenderer_BindMainRenderTarget(void);
+// MultiTrack: draw at the window's resolution instead of the PS1's (CTR_RES=psx turns it off)
+internal int NativeRenderer_WindowResolution(void)
+{
+	static int s_mode = -1;
+	if (s_mode < 0)
+	{
+		const char *res = SDL_getenv("CTR_RES");
+		s_mode = !((res != NULL) && (SDL_strcmp(res, "psx") == 0));
+	}
+	return s_mode;
+}
 internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height, int opaque);
 internal void NativeRenderer_RtxPresent(int displayX, int displayY, int displayW, int displayH); // MultiTrack
+internal void NativeRenderer_PresentMainTarget(void);
 global_variable int s_rtxComposite;
 internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget *target, int x, int y);
 #if defined(CTR_INTERNAL)
@@ -525,7 +539,7 @@ internal void NativeRenderer_DestroyRenderTarget(struct NativeRenderTarget *targ
 	target->texture = (TextureID)-1;
 }
 
-internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height)
+internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height, int psxWidth, int psxHeight)
 {
 	if (width < 1)
 	{
@@ -535,6 +549,8 @@ internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *targe
 	{
 		height = 1;
 	}
+	target->psxWidth = psxWidth;
+	target->psxHeight = psxHeight;
 
 	if ((target->width == width) && (target->height == height))
 	{
@@ -564,7 +580,14 @@ internal void NativeRenderer_BindMainRenderTarget(void)
 		height = activeDrawEnv.clip.h;
 	}
 
-	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, width, height);
+	// MultiTrack: render at the window's resolution (CTR_RES=psx: the PS1's own)
+	int pixelW = width, pixelH = height;
+	if (NativeRenderer_WindowResolution() && (s_presentViewport.w > 0) && (s_presentViewport.h > 0))
+	{
+		pixelW = s_presentViewport.w;
+		pixelH = s_presentViewport.h;
+	}
+	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, pixelW, pixelH, width, height);
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 }
 
@@ -592,7 +615,7 @@ internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget 
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glViewport(0, 0, target->width, target->height);
-	NativeRenderer_DrawVRAMRegion(x, y, target->width, target->height, 0);
+	NativeRenderer_DrawVRAMRegion(x, y, target->psxWidth, target->psxHeight, 0);
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_STENCIL_TEST);
 
@@ -1335,12 +1358,12 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 		clipRectX += 0.5f;
 	}
 
-	// Normal game draws target the PSX-sized main framebuffer. Host-window
-	// coordinates are introduced only by the final presentation pass.
+	// Normal game draws target the main framebuffer, which covers the display
+	// area (MultiTrack: at window resolution, so scale to its pixels)
 	const float viewportX = 0.0f;
 	const float viewportY = 0.0f;
-	const float viewportW = (float)displayEnv->disp.w;
-	const float viewportH = (float)displayEnv->disp.h;
+	const float viewportW = (float)(s_previousOffscreenState ? displayEnv->disp.w : s_mainRenderTarget.width);
+	const float viewportH = (float)(s_previousOffscreenState ? displayEnv->disp.h : s_mainRenderTarget.height);
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -1717,7 +1740,17 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	glGetIntegerv(GL_SCISSOR_BOX, previousScissorBox);
 
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(scissorX, scissorY, scissorW, scissorH);
+	if (!s_previousOffscreenState && (s_mainRenderTarget.psxWidth > 0) && (s_mainRenderTarget.psxHeight > 0))
+	{
+		// MultiTrack: the main target is window-sized
+		const float sx = (float)s_mainRenderTarget.width / (float)s_mainRenderTarget.psxWidth;
+		const float sy = (float)s_mainRenderTarget.height / (float)s_mainRenderTarget.psxHeight;
+		glScissor((int)(scissorX * sx), (int)(scissorY * sy), (int)ceilf(scissorW * sx), (int)ceilf(scissorH * sy));
+	}
+	else
+	{
+		glScissor(scissorX, scissorY, scissorW, scissorH);
+	}
 	glClearColor(NativeRenderer_PSXColorComponentFloat(r), NativeRenderer_PSXColorComponentFloat(g), NativeRenderer_PSXColorComponentFloat(b), 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1905,7 +1938,7 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, int enable)
 		}
 
 		s_previousOffscreenState = 1;
-		NativeRenderer_EnsureRenderTarget(&s_offscreenRenderTarget, offscreenRect->w, offscreenRect->h);
+		NativeRenderer_EnsureRenderTarget(&s_offscreenRenderTarget, offscreenRect->w, offscreenRect->h, offscreenRect->w, offscreenRect->h);
 		s_previousOffscreen = *offscreenRect;
 		NativeRenderer_LoadRenderTargetFromVRAM(&s_offscreenRenderTarget, offscreenRect->x, offscreenRect->y);
 	}
@@ -2130,7 +2163,14 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	NativeRenderer_EnableDepth(0);
 	NativeRenderer_SetBlendMode(BM_NONE);
 
-	if (s_rtxComposite) // MultiTrack: ray traced frame
+	if (NativeRenderer_WindowResolution() && (displayW == s_mainRenderTarget.psxWidth) && (displayH == s_mainRenderTarget.psxHeight) &&
+	    (s_mainRenderTarget.width > 0))
+	{
+		// MultiTrack: the main target is the window-sized frame (ray traced image already blitted in)
+		NativeRenderer_PresentMainTarget();
+		s_rtxComposite = 0;
+	}
+	else if (s_rtxComposite) // MultiTrack: ray traced frame
 	{
 		NativeRenderer_RtxPresent(displayX, displayY, displayW, displayH);
 	}
@@ -2503,6 +2543,10 @@ internal void NativeRenderer_RtxCopyMainTarget(GLuint *tex, int *curW, int *curH
 // everything drawn so far (sky, stars, glow) -> sky layer
 void NativeRenderer_RtxSkySnapshot(void)
 {
+	if (NativeRenderer_WindowResolution())
+	{
+		return; // window-sized main target: the image is blitted over the sky in place
+	}
 	NativeRenderer_RtxCopyMainTarget(&s_rtxSkyTex, &s_rtxSkyW, &s_rtxSkyH);
 }
 
@@ -2561,7 +2605,10 @@ void NativeRenderer_RtxSetImage(const u8 *rgba, int w, int h)
 	glBindTexture(GL_TEXTURE_2D, s_rtxImageTex);
 	NativeRenderer_DrawTriangles(0, 2);
 
-	NativeRenderer_RtxCopyMainTarget(&s_rtxBgTex, &s_rtxBgW, &s_rtxBgH);
+	if (!NativeRenderer_WindowResolution())
+	{
+		NativeRenderer_RtxCopyMainTarget(&s_rtxBgTex, &s_rtxBgW, &s_rtxBgH);
+	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prevDraw);
 	glViewport(vp[0], vp[1], vp[2], vp[3]);
@@ -2606,4 +2653,41 @@ internal void NativeRenderer_RtxPresent(int displayX, int displayY, int displayW
 	s_previousShader = (ShaderID)-1;
 	s_lastBoundTexture = (TextureID)-1;
 	s_rtxComposite = 0;
+}
+
+// ---- MultiTrack: window-resolution present ----------------------------------
+
+global_variable const char *ctr_present_target_shader = "#ifdef VERTEX\n"
+                                                        "attribute vec2 a_position;\n"
+                                                        "varying vec2 v_uv;\n"
+                                                        "void main() {\n"
+                                                        "	v_uv = a_position * 0.5 + 0.5;\n"
+                                                        "	gl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                                        "}\n"
+                                                        "#endif\n"
+                                                        "#ifdef FRAGMENT\n"
+                                                        "varying vec2 v_uv;\n"
+                                                        "uniform sampler2D s_src;\n"
+                                                        "void main() {\n"
+                                                        "	fragColor = vec4(texture2D(s_src, v_uv).rgb, 1.0);\n"
+                                                        "}\n"
+                                                        "#endif\n";
+
+global_variable GLuint s_presentTargetShader;
+
+internal void NativeRenderer_PresentMainTarget(void)
+{
+	if (s_presentTargetShader == 0)
+	{
+		s_presentTargetShader = NativeRenderer_Shader_Compile(ctr_present_target_shader, false);
+		glUseProgram(s_presentTargetShader);
+		glUniform1i(glGetUniformLocation(s_presentTargetShader, "s_src"), 0);
+	}
+	glUseProgram(s_presentTargetShader);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_mainRenderTarget.texture);
+	glBindVertexArray(s_vramQuadVAO);
+	NativeRenderer_DrawTriangles(0, 2);
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
 }
