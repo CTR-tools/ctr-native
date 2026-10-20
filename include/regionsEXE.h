@@ -4150,22 +4150,22 @@ CTR_STATIC_ASSERT(offsetof(struct Scrub, impactAngle) == 0xC);
 CTR_STATIC_ASSERT(sizeof(struct MetaDataLEV) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct MetaDataMODEL) == 0xC);
 
-#define OFFSETOF_SDATA(ELEMENT) ((u32)0x8008cf6c + OFFSETOF(struct sData, ELEMENT))
-#define OFFSETOF_DATA(ELEMENT)  ((u32)0x800809a0 + OFFSETOF(struct Data, ELEMENT))
+#define OFFSETOF_SDATA(ELEMENT)           ((u32)0x8008cf6c + OFFSETOF(struct sData, ELEMENT))
+#define OFFSETOF_DATA(ELEMENT)            ((u32)0x800809a0 + OFFSETOF(struct Data, ELEMENT))
 
 // NOTE(aalhendi): The retail memcard assembly uses $gp-relative operands.
 // Keep their displacements tied to the shared layouts, including the icon's
 // data-relative address, so a layout edit cannot silently change their meaning.
-#define CTR_MEMCARD_GP_STAGE             1176
-#define CTR_MEMCARD_GP_BUFFER            1180
-#define CTR_MEMCARD_GP_RETRIES           1188
-#define CTR_MEMCARD_GP_FILE_SIZE         2364
-#define CTR_MEMCARD_GP_FREE_BYTES        2368
-#define CTR_MEMCARD_GP_CHECKSUM_INDEX    2372
-#define CTR_MEMCARD_GP_SLOT              2380
-#define CTR_MEMCARD_GP_STATUS_FLAGS      2400
-#define CTR_MEMCARD_GP_CHECKSUM_STATUS   2404
-#define CTR_MEMCARD_GP_ICON_SIZE         2412
+#define CTR_MEMCARD_GP_STAGE              1176
+#define CTR_MEMCARD_GP_BUFFER             1180
+#define CTR_MEMCARD_GP_RETRIES            1188
+#define CTR_MEMCARD_GP_FILE_SIZE          2364
+#define CTR_MEMCARD_GP_FREE_BYTES         2368
+#define CTR_MEMCARD_GP_CHECKSUM_INDEX     2372
+#define CTR_MEMCARD_GP_SLOT               2380
+#define CTR_MEMCARD_GP_STATUS_FLAGS       2400
+#define CTR_MEMCARD_GP_CHECKSUM_STATUS    2404
+#define CTR_MEMCARD_GP_ICON_SIZE          2412
 #define CTR_MEMCARD_ICON_HAND_DATA_OFFSET 0x4e00
 
 CTR_STATIC_ASSERT(offsetof(struct sData, memcard_stage) == CTR_MEMCARD_GP_STAGE);

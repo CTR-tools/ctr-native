@@ -1,203 +1,133 @@
 #include <common.h>
 
-// NOTE(aalhendi): Retail reads the card stage before its stack prologue and
-// passes an absolute card-path address to open(). GCC 2.8.1 instead moves
-// the load after the prologue and forms a gp-relative pointer.
-__asm__(".section .MEMCARD_Load,\"ax\",@progbits\n"
-        ".align 2\n"
-        ".ent\tMEMCARD_Load\n"
-        ".set\tnoreorder\n"
-        ".globl MEMCARD_Load\n"
-        "MEMCARD_Load:\n"
-        "lw $v0,1176($gp)\n"
-        "addiu $sp,$sp,-24\n"
-        "bnez $v0,.LMemcardLoadTimeout\n"
-        "sw $ra,16($sp)\n"
-        "jal MEMCARD_NewTask\n"
-        "nop\n"
-        "beqz $v0,.LMemcardLoadOpen\n"
-        "lui $a0,0x800a\n"
-        ".LMemcardLoadTimeout:\n"
-        "j .LMemcardLoadDone\n"
-        "addiu $v0,$zero,1\n"
-        ".LMemcardLoadOpen:\n"
-        "addiu $a0,$a0,-28508\n"
-        "jal open\n"
-        "ori $a1,$zero,0x8001\n"
-        "sw $v0,1184($gp)\n"
-        "addiu $v1,$zero,-1\n"
-        "bne $v0,$v1,.LMemcardLoadFlags\n"
-        "nop\n"
-        "jal MEMCARD_CloseFile\n"
-        "nop\n"
-        "j .LMemcardLoadDone\n"
-        "addiu $v0,$zero,6\n"
-        ".LMemcardLoadFlags:\n"
-        "lw $v0,40($sp)\n"
-        "nop\n"
-        "andi $v0,$v0,2\n"
-        "beqz $v0,.LMemcardLoadClear\n"
-        "addiu $v1,$zero,-9\n"
-        "lw $v0,2400($gp)\n"
-        "j .LMemcardLoadStoreStatus\n"
-        "ori $v0,$v0,8\n"
-        ".LMemcardLoadClear:\n"
-        "lw $v0,2400($gp)\n"
-        "nop\n"
-        "and $v0,$v0,$v1\n"
-        ".LMemcardLoadStoreStatus:\n"
-        "sw $v0,2400($gp)\n"
-        "addiu $v0,$zero,3\n"
-        "sw $v0,1176($gp)\n"
-        "move $a0,$zero\n"
-        "jal MEMCARD_ReadFile\n"
-        "addiu $a1,$zero,128\n"
-        ".LMemcardLoadDone:\n"
-        "lw $ra,16($sp)\n"
-        "nop\n"
-        "jr $ra\n"
-        "addiu $sp,$sp,24\n"
-        ".end MEMCARD_Load\n"
-        ".set\treorder\n"
-        ".text\n");
+#ifndef MEMCARD_TRANSFER_STAGE
+#define MEMCARD_TRANSFER_STAGE sdata->memcard_stage
+#endif
+#ifndef MEMCARD_TRANSFER_FD
+#define MEMCARD_TRANSFER_FD sdata->memcard_fd
+#endif
+#ifndef MEMCARD_TRANSFER_STATUS
+#define MEMCARD_TRANSFER_STATUS sdata->memcardStatusFlags
+#endif
+#ifndef MEMCARD_TRANSFER_ICON_SIZE
+#define MEMCARD_TRANSFER_ICON_SIZE sdata->memcardIconSize
+#endif
+#ifndef MEMCARD_TRANSFER_PATH
+#define MEMCARD_TRANSFER_PATH sdata->s_memcardFileCurr
+#endif
+#ifndef MEMCARD_TRANSFER_ICON_HAND
+#define MEMCARD_TRANSFER_ICON_HAND data.memcardIcon_PsyqHand
+#endif
 
-// NOTE(aalhendi): Retail chooses backup-copy size, writes the icon header,
-// copies the title, then opens the save file in two phases. GCC 2.8.1 changes
-// the register lifetimes, icon loops, and absolute card-path construction.
-__asm__(".section .MEMCARD_Save,\"ax\",@progbits\n"
-        ".align 2\n"
-        ".ent\tMEMCARD_Save\n"
-        ".set\tnoreorder\n"
-        ".globl MEMCARD_Save\n"
-        "MEMCARD_Save:\n"
-        "addiu $sp,$sp,-40\n"
-        "sw $s1,20($sp)\n"
-        "lw $s1,56($sp)\n"
-        "lw $v0,1176($gp)\n"
-        "sw $s2,24($sp)\n"
-        "move $s2,$a2\n"
-        "sw $s3,28($sp)\n"
-        "move $s3,$a3\n"
-        "sw $ra,32($sp)\n"
-        "bnez $v0,.LMemcardSaveTimeout\n"
-        "sw $s0,16($sp)\n"
-        "addiu $v0,$zero,256\n"
-        "sw $v0,2412($gp)\n"
-        "move $a2,$s3\n"
-        "jal MEMCARD_NewTask\n"
-        "move $a3,$s1\n"
-        "beqz $v0,.LMemcardSaveStart\n"
-        "lui $v0,0x8008\n"
-        ".LMemcardSaveTimeout:\n"
-        "j .LMemcardSaveDone\n"
-        "addiu $v0,$zero,1\n"
-        ".LMemcardSaveStart:\n"
-        "addiu $s0,$v0,22432\n"
-        "lw $v0,60($sp)\n"
-        "nop\n"
-        "andi $v0,$v0,1\n"
-        "bnez $v0,.LMemcardSaveSingleCopy\n"
-        "sll $v0,$s1,1\n"
-        "lw $v1,2412($gp)\n"
-        "nop\n"
-        "addu $v0,$v1,$v0\n"
-        "addiu $v0,$v0,8191\n"
-        "sra $v0,$v0,13\n"
-        "slti $v0,$v0,2\n"
-        "bnez $v0,.LMemcardSaveSingleCopy\n"
-        "addu $v0,$v1,$s1\n"
-        "addiu $v0,$v0,8191\n"
-        "lw $v1,2400($gp)\n"
-        "sra $v0,$v0,13\n"
-        "sb $v0,3($s0)\n"
-        "ori $v1,$v1,4\n"
-        "sw $v1,2400($gp)\n"
-        "j .LMemcardSaveIconInit\n"
-        "move $a0,$zero\n"
-        ".LMemcardSaveSingleCopy:\n"
-        "lw $v0,2400($gp)\n"
-        "addiu $v1,$zero,-5\n"
-        "and $v0,$v0,$v1\n"
-        "sw $v0,2400($gp)\n"
-        "lw $v0,2412($gp)\n"
-        "sll $v1,$s1,1\n"
-        "addu $v0,$v0,$v1\n"
-        "addiu $v0,$v0,8191\n"
-        "sra $v0,$v0,13\n"
-        "sb $v0,3($s0)\n"
-        "move $a0,$zero\n"
-        ".LMemcardSaveIconInit:\n"
-        "addiu $a2,$zero,129\n"
-        "addiu $a1,$zero,64\n"
-        ".LMemcardSaveIconLoop:\n"
-        "addu $v0,$s0,$a0\n"
-        "addu $v1,$a0,$s0\n"
-        "addiu $a0,$a0,2\n"
-        "sb $a2,4($v0)\n"
-        "slti $v0,$a0,64\n"
-        "bnez $v0,.LMemcardSaveIconLoop\n"
-        "sb $a1,5($v1)\n"
-        "lbu $v0,0($s2)\n"
-        "nop\n"
-        "beqz $v0,.LMemcardSaveAfterTitle\n"
-        "move $a0,$zero\n"
-        "move $a2,$s2\n"
-        ".LMemcardSaveTitleLoop:\n"
-        "slti $v0,$a0,64\n"
-        "beqz $v0,.LMemcardSaveAfterTitle\n"
-        "addu $v1,$s0,$a0\n"
-        "lbu $v0,0($a2)\n"
-        "addiu $a2,$a2,1\n"
-        "sb $v0,4($v1)\n"
-        "lbu $v0,0($a2)\n"
-        "nop\n"
-        "bnez $v0,.LMemcardSaveTitleLoop\n"
-        "addiu $a0,$a0,1\n"
-        ".LMemcardSaveAfterTitle:\n"
-        "move $a0,$s3\n"
-        "jal MEMCARD_ChecksumSave\n"
-        "move $a1,$s1\n"
-        "lui $v0,0x800a\n"
-        "addiu $s1,$v0,-28508\n"
-        "lbu $a1,3($s0)\n"
-        "move $a0,$s1\n"
-        "sll $a1,$a1,16\n"
-        "jal open\n"
-        "ori $a1,$a1,0x200\n"
-        "addiu $s0,$zero,-1\n"
-        "sw $v0,1184($gp)\n"
-        "beq $v0,$s0,.LMemcardSaveWriteOpen\n"
-        "move $a0,$s1\n"
-        "jal close\n"
-        "move $a0,$v0\n"
-        "sw $s0,1184($gp)\n"
-        "move $a0,$s1\n"
-        ".LMemcardSaveWriteOpen:\n"
-        "jal open\n"
-        "ori $a1,$zero,0x8002\n"
-        "sw $v0,1184($gp)\n"
-        "beq $v0,$s0,.LMemcardSaveOpenFailed\n"
-        "move $a0,$zero\n"
-        "lui $a1,0x8008\n"
-        "lw $a2,2412($gp)\n"
-        "addiu $v0,$zero,9\n"
-        "sw $v0,1176($gp)\n"
-        "jal MEMCARD_WriteFile\n"
-        "addiu $a1,$a1,22432\n"
-        "j .LMemcardSaveDone\n"
-        "nop\n"
-        ".LMemcardSaveOpenFailed:\n"
-        "jal MEMCARD_CloseFile\n"
-        "nop\n"
-        "addiu $v0,$zero,4\n"
-        ".LMemcardSaveDone:\n"
-        "lw $ra,32($sp)\n"
-        "lw $s3,28($sp)\n"
-        "lw $s2,24($sp)\n"
-        "lw $s1,20($sp)\n"
-        "lw $s0,16($sp)\n"
-        "jr $ra\n"
-        "addiu $sp,$sp,40\n"
-        ".end MEMCARD_Save\n"
-        ".set\treorder\n"
-        ".text\n");
+// NOTE(aalhendi): PSX open bits from the existing SDK sys/fcntl.h.
+enum MEMCARD_TRANSFER_SDK_FLAGS
+{
+	MEMCARD_TRANSFER_SDK_READ = 0x1,
+	MEMCARD_TRANSFER_SDK_WRITE = 0x2,
+	MEMCARD_TRANSFER_SDK_CREATE = 0x200,
+	MEMCARD_TRANSFER_SDK_ASYNC = 0x8000,
+};
+
+s32 MEMCARD_Load(int slotIdx, char *name, u8 *ptrMemcard, int memcardFileSize, u32 loadFlags)
+{
+	if (MEMCARD_TRANSFER_STAGE != MC_STAGE_IDLE || MEMCARD_NewTask(slotIdx, name, ptrMemcard, memcardFileSize) != 0)
+		return MC_RETURN_TIMEOUT;
+
+	MEMCARD_TRANSFER_FD = open(MEMCARD_TRANSFER_PATH, MEMCARD_TRANSFER_SDK_ASYNC | MEMCARD_TRANSFER_SDK_READ);
+	if (MEMCARD_TRANSFER_FD == -1)
+	{
+		MEMCARD_CloseFile();
+		return MC_RETURN_NODATA;
+	}
+
+	if (loadFlags & MEMCARD_LOAD_SYNC_CHECKSUM)
+		sdata->memcardStatusFlags |= MEMCARD_STATUS_SYNC_CHECKSUM;
+	else
+		sdata->memcardStatusFlags &= ~MEMCARD_STATUS_SYNC_CHECKSUM;
+	MEMCARD_TRANSFER_STAGE = MC_STAGE_LOAD_PART0_START;
+	return MEMCARD_ReadFile(0, 128);
+}
+
+s32 MEMCARD_Save(int slotIdx, char *name, char *title, u8 *ptrMemcard, int memcardFileSize, u32 saveFlags)
+{
+	u8 *icon;
+	// NOTE(aalhendi): Retail reuses s1 for the path after the file-size checksum call.
+	register int fileSize CTR_PSX_REGISTER("$17") = memcardFileSize;
+	register char *cardPath CTR_PSX_REGISTER("$17");
+	int invalidFd;
+	char *text = title;
+	u8 *payload = ptrMemcard;
+	char *cursor;
+	// NOTE(aalhendi): Retail carries the byte offset in a0 and the first icon address in v0.
+	register int i CTR_PSX_REGISTER("$4");
+	register u8 *evenByte CTR_PSX_REGISTER("$2");
+	u8 *oddByte;
+	u8 writeResult;
+	int result;
+	u32 pathPage;
+
+	if (MEMCARD_TRANSFER_STAGE != MC_STAGE_IDLE)
+		return MC_RETURN_TIMEOUT;
+
+	MEMCARD_TRANSFER_ICON_SIZE = 0x100;
+	if (MEMCARD_NewTask(slotIdx, name, payload, fileSize) != 0)
+		return MC_RETURN_TIMEOUT;
+
+	icon = (u8 *)MEMCARD_TRANSFER_ICON_HAND;
+	if ((saveFlags & MEMCARD_SAVE_FORCE_BACKUP_COPY) == 0 && ((MEMCARD_TRANSFER_ICON_SIZE + (fileSize << 1) + 0x1fff) >> 13) >= 2)
+	{
+		icon[3] = (MEMCARD_TRANSFER_ICON_SIZE + fileSize + 0x1fff) >> 13;
+		MEMCARD_TRANSFER_STATUS |= MEMCARD_STATUS_NO_BACKUP_COPY;
+	}
+	else
+	{
+		MEMCARD_TRANSFER_STATUS &= ~MEMCARD_STATUS_NO_BACKUP_COPY;
+		icon[3] = (MEMCARD_TRANSFER_ICON_SIZE + (fileSize << 1) + 0x1fff) >> 13;
+	}
+
+	for (i = 0; i < 64; i += 2)
+	{
+		evenByte = icon + i;
+		// NOTE(aalhendi): Keep the second address as offset + icon, matching retail operand order.
+		CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(oddByte, icon, i);
+		evenByte[4] = 0x81;
+		oddByte[5] = 0x40;
+	}
+
+	// Retail reads the next title byte before testing the 64-byte copy limit again.
+	i = 0;
+	if (*text != 0)
+	{
+		cursor = text;
+		for (; *cursor != 0; i++)
+		{
+			if (i >= 64)
+				break;
+			oddByte = icon + i;
+			oddByte[4] = *cursor++;
+		}
+	}
+
+	MEMCARD_ChecksumSave(payload, fileSize);
+	// NOTE(aalhendi): Form the canonical path through v0 before binding it to s1.
+	CTR_PSX_LOAD_SYMBOL_PAGE(pathPage, "sdata_static+49464");
+	CTR_PSX_ADD_SYMBOL_LOW(cardPath, pathPage, "sdata_static+49464", MEMCARD_TRANSFER_PATH);
+	MEMCARD_TRANSFER_FD = open(cardPath, ((u32)icon[3] << 16) | MEMCARD_TRANSFER_SDK_CREATE);
+	invalidFd = -1;
+	if (MEMCARD_TRANSFER_FD != invalidFd)
+	{
+		close(MEMCARD_TRANSFER_FD);
+		MEMCARD_TRANSFER_FD = invalidFd;
+	}
+	MEMCARD_TRANSFER_FD = open(cardPath, (MEMCARD_TRANSFER_SDK_ASYNC | MEMCARD_TRANSFER_SDK_WRITE));
+	if (MEMCARD_TRANSFER_FD == invalidFd)
+	{
+		MEMCARD_CloseFile();
+		return MC_RETURN_FULL;
+	}
+	MEMCARD_TRANSFER_STAGE = MC_STAGE_SAVE_PART0_START;
+	writeResult = MEMCARD_WriteFile(0, (u8 *)MEMCARD_TRANSFER_ICON_HAND, MEMCARD_TRANSFER_ICON_SIZE);
+	// NOTE(aalhendi): Retail forwards the complete return register from the u8 helper.
+	CTR_PSX_CAPTURE_REGISTER(result, writeResult);
+	return result;
+}
