@@ -32,14 +32,19 @@ ctr_native/
 
 ### Windows
 
-The recommended native Windows toolchain is MSVC x86:
+#### The recommended native Windows toolchain is MSVC x86:
 
-1. Install Visual Studio 2022 or Visual Studio Build Tools 2022.
-2. Select the **Desktop development with C++** workload and a current Windows SDK.
-3. Ensure CMake 3.20 or newer is on `PATH` (standalone or the Visual Studio C++ CMake tools component).
+1. Ensure you have an up to date "MSVC Build Tools", "Windows SDK" and "CMake" installed.  
+   ```shell
+   # Install OR Update VisualStudio Components
+   winget install --id Microsoft.VisualStudio.BuildTools --force --custom "--focusedUi --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.28000"
+
+   # Install CMake into PATH
+   winget install --id Kitware.CMake --installer-type zip
+   ```
 4. Run `build-msvc.bat`, or select the `windows-msvc-x86` CMake preset in CLion.
 
-The existing MinGW i686 build remains supported:
+#### The existing MinGW i686 build remains supported:
 
 1. Install [MSYS2](https://www.msys2.org/).
 2. In an MSYS2 terminal:
