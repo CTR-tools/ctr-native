@@ -256,6 +256,35 @@ void LineSwapSourceVerts(VERTTYPE **p0, VERTTYPE **p1, u8 **c0, u8 **c1)
 	}
 }
 
+// MultiTrack: view z of each vertex of a ray traced frame's overlay (0 = not
+// depth tested); corners without their own projection take the packet's
+internal void NativeGpu_RtxDepth(GrVertex *vertex, int n, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, VERTTYPE *p3)
+{
+	VERTTYPE *p[4] = {p0, p1, p2, p3};
+	float known = 0.0f;
+	for (int i = 0; i < 4; i++)
+	{
+		u32 xy = 0;
+		if (p[i] != NULL)
+		{
+			memcpy(&xy, p[i], sizeof(xy));
+		}
+		float z = (p[i] != NULL) ? Rtx_VertexDepth(xy) : 0.0f;
+		if (i < n)
+		{
+			vertex[i].viewZ = z;
+		}
+		known = (z > known) ? z : known;
+	}
+	for (int i = 0; i < n; i++)
+	{
+		if (vertex[i].viewZ <= 0.0f)
+		{
+			vertex[i].viewZ = known;
+		}
+	}
+}
+
 void MakeLineArray(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1)
 {
 	const VERTTYPE dx = p1[0] - p0[0];
@@ -294,6 +323,8 @@ void MakeLineArray(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1)
 		vertex[3].x = vertex[0].x + 1;
 		vertex[3].y = vertex[0].y;
 	} // TODO diagonal line alignment
+
+	NativeGpu_RtxDepth(vertex, 4, p0, p1, p1, p0);
 }
 
 void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2)
@@ -315,6 +346,8 @@ void MakeVertexTriangle(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *
 
 	vertex[2].x = p2[0] + ofsX;
 	vertex[2].y = p2[1] + ofsY;
+
+	NativeGpu_RtxDepth(vertex, 3, p0, p1, p2, NULL);
 }
 
 void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, VERTTYPE *p3)
@@ -340,6 +373,8 @@ void MakeVertexQuad(GrVertex *vertex, VERTTYPE *p0, VERTTYPE *p1, VERTTYPE *p2, 
 
 	vertex[3].x = p3[0] + ofsX;
 	vertex[3].y = p3[1] + ofsY;
+
+	NativeGpu_RtxDepth(vertex, 4, p0, p1, p2, p3);
 }
 
 void MakeVertexRect(GrVertex *vertex, VERTTYPE *p0, s16 w, s16 h)
@@ -362,6 +397,8 @@ void MakeVertexRect(GrVertex *vertex, VERTTYPE *p0, s16 w, s16 h)
 
 	vertex[3].x = vertex[0].x + w;
 	vertex[3].y = vertex[0].y;
+
+	NativeGpu_RtxDepth(vertex, 4, p0, NULL, NULL, NULL);
 }
 
 void MakeTexcoordQuad(GrVertex *vertex, u8 *uv0, u8 *uv1, u8 *uv2, u8 *uv3, s16 page, s16 clut, u8 dither)
@@ -1110,6 +1147,10 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 		while (true)
 		{
 			const int tagLength = getlen(basePacket);
+			if (Rtx_FrameActive())
+			{
+				Rtx_TrackPacket((u32 *)basePacket); // MultiTrack: OT bucket, for the overlay depth test
+			}
 			if (tagLength > 0)
 			{
 				if (tagLength > 32)
@@ -1145,7 +1186,14 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 					}
 				}
 
-				if (currentPacket < endPacket)
+				// MultiTrack: commands of a partly ray traced packet are skipped
+				const int rtxPartial = (currentPacket < endPacket) && Rtx_FrameActive();
+				int rtxSkip = rtxPartial ? Rtx_SkipCommand((u32 *)basePacket, (u32 *)basePacket + P_LEN) : 0;
+				if (rtxSkip > 0)
+				{
+					currentPacket += (rtxSkip + P_LEN) * sizeof(u32);
+				}
+				else if (currentPacket < endPacket)
 				{
 					primLength = ParsePrimitive((P_TAG *)currentPacket);
 					currentPacket += (primLength + P_LEN) * sizeof(u32);
@@ -1153,6 +1201,12 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 
 				while (currentPacket < endPacket)
 				{
+					rtxSkip = rtxPartial ? Rtx_SkipCommand((u32 *)basePacket, (u32 *)currentPacket) : 0;
+					if (rtxSkip > 0)
+					{
+						currentPacket += rtxSkip * sizeof(u32);
+						continue;
+					}
 					primLength = ParseTaglessPrimitive((u32 *)currentPacket);
 					currentPacket += primLength * sizeof(u32);
 				}

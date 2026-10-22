@@ -1,0 +1,51 @@
+#version 460
+// Bloom: final.comp leaves what glows (emissive surfaces, glow layers, light
+// over white) in linear colour; step 0 blurs it horizontally, step 1 vertically
+// and adds it onto the display colour (before taa.comp).
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 13, std430) readonly buffer Src { vec4 src[]; };
+layout(set = 0, binding = 14, std430) writeonly buffer Dst { vec4 dst[]; };
+layout(set = 0, binding = 36, std430) buffer Disp { vec4 disp[]; };
+
+layout(push_constant) uniform Push { int step; } pc;
+
+void main()
+{
+	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+	int w = int(F.size.x), h = int(F.size.y);
+	if ((px.x >= w) || (px.y >= h))
+	{
+		return;
+	}
+	// every pixel within 2.5 sigma (skipping pixels makes blocky rings)
+	float sigma = max(float(h) / 100.0, 2.0);
+	int taps = min(int(ceil(sigma * 2.5)), 48);
+	ivec2 axis = (pc.step == 0) ? ivec2(1, 0) : ivec2(0, 1);
+	vec3 sum = vec3(0.0);
+	float wsum = 0.0;
+	for (int i = -taps; i <= taps; i++)
+	{
+		float x = float(i);
+		ivec2 q = clamp(px + axis * i, ivec2(0), ivec2(w - 1, h - 1));
+		float k = exp(-0.5 * x * x / (sigma * sigma));
+		sum += min(src[q.y * w + q.x].rgb, vec3(2.0)) * k; // capped: single hot pixels don't flare
+		wsum += k;
+	}
+	sum /= wsum;
+	uint idx = uint(px.y * w + px.x);
+	if (pc.step == 0)
+	{
+		dst[idx] = vec4(sum, 0.0);
+		return;
+	}
+	vec4 c = disp[idx];
+	if (c.a == 0.0)
+	{
+		return; // the sky is composited under the image later: adding here would darken it
+	}
+	disp[idx] = vec4(clamp(linearToSrgb(srgbToLinear(c.rgb) + sum * 0.5), 0.0, 1.0), c.a);
+}

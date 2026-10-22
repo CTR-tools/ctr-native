@@ -1,0 +1,129 @@
+#version 460
+// Once per level, after the lights are placed: for every level vertex, how much
+// light each source would give it at unit strength, shadows included (sun: 8
+// cone rays; sky/ambient: 32 cosine rays; static lights in its grid cell: 2
+// rays each). ctr_rtx.c fits the sources' strengths to the vertex colours with
+// these (fitArt) and keeps what they can't explain as the art's tint.
+
+#include "common.glsl"
+
+layout(local_size_x = 64) in;
+
+// per vertex: sun, sky r g b, bounce r g b, unused, then BAKE_K (light index, contribution) pairs
+layout(set = 0, binding = 30, std430) writeonly buffer Bake { float bake[]; };
+
+const uint BAKE_K = 48u;
+
+void main()
+{
+	uint v = gl_GlobalInvocationID.x;
+	if (v >= F.counts.y)
+	{
+		return;
+	}
+	uint base = v * (8u + 2u * BAKE_K);
+	vec3 p = levelPos(v), n = levelNormals[v].xyz;
+	for (uint k = 0u; k < 8u + 2u * BAKE_K; k++)
+	{
+		bake[base + k] = 0.0;
+	}
+	if (dot(n, n) < 1e-12)
+	{
+		return;
+	}
+	n = normalize(n);
+	// the open side of the surface
+	bool front = occludedMask(p + n * 4.0, n, 300.0, 0x1u), back = occludedMask(p - n * 4.0, -n, 300.0, 0x1u);
+	if (front && !back)
+	{
+		n = -n;
+	}
+	uint rng = (v * 9781u + 6271u) | 1u;
+	pcg(rng);
+	vec3 o = p + n * 3.0;
+
+	float sun = 0.0;
+	if (F.ambient.w < 0.5)
+	{
+		for (int i = 0; i < 8; i++)
+		{
+			vec3 l = coneSample(F.sunDir.xyz, F.sunDir.w, rng);
+			float ndl = dot(n, l);
+			if ((ndl > 0.0) && !occludedMask(o, l, 1e7, 0x1u))
+			{
+				sun += ndl;
+			}
+		}
+		sun /= 8.0;
+	}
+	// sky / ambient where the hemisphere is open; where it isn't, light bounced
+	// off the surface it meets, as bright as the art paints that surface
+	vec3 sky = vec3(0.0), bounce = vec3(0.0);
+	float aoRadius = (F.ambient.w > 0.5) ? F.params.x : 1e7;
+	for (int i = 0; i < 32; i++)
+	{
+		vec3 d = cosineSample(n, rng);
+		uint inst, prim;
+		vec2 bary;
+		float t = traceClosest(o, d, aoRadius, false, inst, prim, bary);
+		if (t < 0.0)
+		{
+			sky += skyRadiance(d);
+		}
+		else
+		{
+			TriData h = fetchTriangle(inst, prim, bary);
+			vec3 c = ((h.flags & TRI_TEXTURED) != 0u) ? h.texel.rgb * h.vcol : clamp(h.vcol * 0.5, 0.0, 1.0);
+			bounce += srgbToLinear(c);
+		}
+	}
+	sky /= 32.0;
+	bounce /= 32.0;
+	bake[base] = sun;
+	bake[base + 1u] = sky.r;
+	bake[base + 2u] = sky.g;
+	bake[base + 3u] = sky.b;
+	bake[base + 4u] = bounce.r;
+	bake[base + 5u] = bounce.g;
+	bake[base + 6u] = bounce.b;
+
+	ivec3 c = ivec3(floor((p - F.gridMin.xyz) / F.gridMin.w));
+	if (any(lessThan(c, ivec3(0))) || any(greaterThanEqual(c, ivec3(F.gridDim.xyz))))
+	{
+		return;
+	}
+	uint cell = (uint(c.z) * F.gridDim.y + uint(c.y)) * F.gridDim.x + uint(c.x);
+	uint offset = lightGrid[cell * 2u], count = lightGrid[cell * 2u + 1u];
+	uint written = 0u;
+	for (uint i = 0u; (i < count) && (written < BAKE_K); i++)
+	{
+		uint j = lightGrid[offset + i];
+		vec4 l0 = lights[j * 3u], l1 = lights[j * 3u + 1u], l2 = lights[j * 3u + 2u];
+		vec3 toC = l0.xyz - p;
+		if (dot(toC, toC) > 25.0 * l1.w * l1.w)
+		{
+			continue;
+		}
+		float g = 0.0;
+		for (int s = 0; s < 2; s++)
+		{
+			float u = rnd(rng) * 2.0 - 1.0, phi = 6.28318530718 * rnd(rng);
+			vec3 target = l0.xyz + vec3(sqrt(1.0 - u * u) * cos(phi), u, sqrt(1.0 - u * u) * sin(phi)) * l2.x;
+			vec3 toL = target - o;
+			float dist = length(toL);
+			vec3 dir = toL / max(dist, 1e-3);
+			float ndl = dot(n, dir);
+			if ((ndl > 0.0) && !occludedMask(o, dir, dist - 2.0, 0x1u))
+			{
+				g += ndl * lightFalloff(dist * dist, l1.w);
+			}
+		}
+		g *= 0.5;
+		if (g > 1e-4)
+		{
+			bake[base + 8u + written * 2u] = uintBitsToFloat(j + 1u);
+			bake[base + 9u + written * 2u] = g;
+			written++;
+		}
+	}
+}

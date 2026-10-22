@@ -263,8 +263,11 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 #ifndef CTR_NATIVE
 	gGT->ptrRenderBucketInstance = MEMPACK_AllocMem(renderBucketSize, NULL);
 #else
-	// NOTE(aalhendi): Native reuses static RDATA scratch for existing PC memory headroom.
-	gGT->ptrRenderBucketInstance = (void *)((u32)&rdata.s_STATIC_GNORMALZ[0] + 148);
+	// MultiTrack: a buffer of its own, 4096 entries: with every level instance
+	// drawn (MainFrame_PcVisibility) the PS1's 0x800 bytes can overflow
+	static u32 s_renderBucket[0x2000];
+	gGT->ptrRenderBucketInstance = (void *)s_renderBucket;
+	(void)renderBucketSize;
 #endif
 
 	for (int i = 0; i < 3; i++)
@@ -554,6 +557,22 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 				BOTS_Driver_Convert(gGT->drivers[i]);
 			}
 		}
+#ifdef CTR_NATIVE
+		// MultiTrack test harness (scripts/shot_native.py): CTR_AUTODRIVE=2 lets the AI drive player 1
+		{
+			// (only where the AI has paths to follow: not hubs, menus, arenas without them)
+			const char *autoDrive = getenv("CTR_AUTODRIVE");
+			int haveNav = 0;
+			for (int p = 0; (p < 3) && (gGT->level1 != NULL) && (gGT->level1->LevNavTable != NULL); p++)
+			{
+				haveNav |= (gGT->level1->LevNavTable[p] != NULL) && (sdata->NavPath_ptrHeader[p] != NULL) && (sdata->NavPath_ptrHeader[p]->numPoints > 0);
+			}
+			if ((autoDrive != NULL) && (autoDrive[0] == '2') && (gGT->drivers[0] != NULL) && haveNav)
+			{
+				BOTS_Driver_Convert(gGT->drivers[0]);
+			}
+		}
+#endif
 	}
 
 	// execute all camera thread update functions

@@ -1696,7 +1696,9 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 				s32 flyInDone = 0;
 
 				// No camera + No ghosts (battle maps)
-				if (st1->count < 4)
+				// MultiTrack: or no fly-in path (custom tracks: the PS1 reads its RAM
+				// at 0, natively that faults)
+				if ((st1->count < 4) || (cameraPath == 0))
 				{
 					// startline fly-in is done
 					flyInDone = 1;

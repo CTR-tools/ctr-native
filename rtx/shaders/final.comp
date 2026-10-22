@@ -1,7 +1,9 @@
 #version 460
 // albedo x filtered lighting -> exposure, soft shoulder, sRGB, then the
-// semi-transparent layer (water, glass, glows) blended the PS1 way -> RGBA8
-// (rows top-down). Alpha 0 where nothing was hit: the GL sky layer shows.
+// semi-transparent layer (water, glass, glows) blended the PS1 way -> display
+// colour at the traced size (bloom.comp adds the glow, taa.comp resolves it
+// onto the output: RGBA8 rows top-down). Alpha 0 where nothing was hit: the GL
+// sky layer shows.
 
 #include "common.glsl"
 
@@ -11,8 +13,11 @@ layout(set = 0, binding = 8, std430) readonly buffer AlbedoBuf { vec4 albedoIn[]
 layout(set = 0, binding = 9, std430) readonly buffer GeoCur { vec4 geo[]; };
 layout(set = 0, binding = 12, std430) readonly buffer HistCur { vec4 hist[]; };
 layout(set = 0, binding = 13, std430) readonly buffer Filtered { vec4 filtered[]; };
-layout(set = 0, binding = 15, std430) writeonly buffer Out { uint outPixels[]; };
+layout(set = 0, binding = 14, std430) writeonly buffer Glow { vec4 glowOut[]; }; // linear, for bloom.comp
 layout(set = 0, binding = 19, std430) readonly buffer LayerBuf { vec4 layerIn[]; };
+layout(set = 0, binding = 36, std430) writeonly buffer Disp { vec4 dispOut[]; }; // display colour, alpha
+layout(set = 0, binding = 41, std430) readonly buffer Spec { vec4 specIn[]; };     // specular light (trace.comp)
+layout(set = 0, binding = 43, std430) readonly buffer Fog { vec4 fogIn[]; };       // air's light, a: 2 x frames + transmittance
 
 vec3 shoulder(vec3 x)
 {
@@ -36,6 +41,7 @@ void main()
 
 	vec3 color = vec3(0.0);
 	float alpha = 0.0;
+	vec3 glow = vec3(0.0);
 	if (a.a != 0.0)
 	{
 		vec3 light = filtered[idx].rgb;
@@ -55,13 +61,29 @@ void main()
 		{
 			color = linearToSrgb(shoulder(hist[idx].rgb * exposure * 0.5));
 		}
+		else if (view >= 6u)
+		{
+			color = vec3(light.r);
+		}
+		else if (view == 5u)
+		{
+			// texture layer coverage: red where the PS1's polygon wasn't found
+			color = (fract(a.a) > 0.1) ? vec3(1.0, 0.0, 0.0) : linearToSrgb(a.rgb);
+		}
 		else if (F.extra.z == 0u)
 		{
 			color = linearToSrgb(clamp(a.rgb * light * exposure, 0.0, 1.0)); // hybrid: PS1 colours, PS1 clamp
 		}
 		else
 		{
-			color = linearToSrgb(shoulder(a.rgb * light * exposure));
+			vec3 hdr = (a.rgb * light + specIn[idx].rgb) * exposure;
+			vec4 fog = fogIn[idx];
+			float T = fog.a - 2.0 * floor(fog.a / 2.0);
+			T = (fog.a >= 2.0) ? T : 1.0;
+			hdr = hdr * T + fog.rgb * exposure;
+			color = linearToSrgb(shoulder(hdr));
+			// glowing surfaces bloom; so does light far over white
+			glow = (a.a > 2.5) ? hdr * 0.5 : max(hdr - vec3(1.2), vec3(0.0)) * 0.5;
 		}
 		alpha = 1.0;
 	}
@@ -79,6 +101,7 @@ void main()
 			else if (blend == 1u)
 			{
 				color += layer.rgb;
+				glow += srgbToLinear(layer.rgb) * 0.4; // additive glows bloom
 			}
 			else if (blend == 2u)
 			{
@@ -97,6 +120,6 @@ void main()
 		}
 	}
 
-	uvec3 c8 = uvec3(clamp(color, 0.0, 1.0) * 255.0 + 0.5);
-	outPixels[idx] = c8.r | (c8.g << 8) | (c8.b << 16) | (uint(clamp(alpha, 0.0, 1.0) * 255.0 + 0.5) << 24);
+	glowOut[idx] = vec4((view == 0u) && (F.extra.z != 0u) ? glow : vec3(0.0), 0.0);
+	dispOut[idx] = vec4(clamp(color, 0.0, 1.0), clamp(alpha, 0.0, 1.0));
 }

@@ -655,6 +655,11 @@ void StateZero()
 		// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
 		// this loop spins. Native owns VBlank in VSync(), so pump it here.
 		VSync(0);
+		if (Platform_InputSkipPressed()) // MultiTrack: X / A skips the boot intro
+		{
+			CDSYS_XAPauseForce();
+			break;
+		}
 #endif
 		CDSYS_XAPauseAtEnd();
 	}

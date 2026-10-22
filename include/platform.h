@@ -26,6 +26,7 @@ int Platform_GetVBlankCount(void);
 void Platform_WaitUntilVBlank(int targetVBlank);
 void Platform_PollHostEvents(void);
 int Platform_PollInput(void);
+int Platform_InputSkipPressed(void); // MultiTrack: cross / gamepad A went down (boot intro skip)
 
 #if defined(CTR_NATIVE)
 int NikoGetEnterKey(void);

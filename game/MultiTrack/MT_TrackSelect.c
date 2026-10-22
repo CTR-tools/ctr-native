@@ -1,6 +1,6 @@
 // MultiTrack: scrolling list of stock + custom tracks, replacing the retail
 // track carousel (MM_TrackSelect_MenuProc_Retail). Port of
-// psx-modding-toolchain/games/CTR/mods/MultiTrack/src/track_select.c.
+// mod/src/track_select.c.
 
 #define MT_ROWS_VISIBLE 10
 #define MT_ROW_HEIGHT   0xE

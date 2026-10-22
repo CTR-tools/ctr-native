@@ -8,6 +8,7 @@
 #include "platform/native_input.h"
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
+#include "platform/native_overlay.h"
 #include "platform/native_renderer.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
@@ -169,9 +170,23 @@ internal void Platform_TakeScreenshot(void)
 
 internal void Platform_HandleKey(int key, char down)
 {
+	// MultiTrack: F12 debug overlay (keys 1-8 change the ray tracer's settings
+	// while it is open); F5 / F6 / F7 ray tracing, Shift+F5 / F6 / F7 the rest
+	const int shift = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+	if (Overlay_HandleKey(key, down, shift))
+	{
+		return;
+	}
 	if (down)
 	{
-		Rtx_HandleKey(key); // MultiTrack: F7 ray tracing, F6 debug view
+		if (key == SDL_SCANCODE_F12)
+		{
+			Overlay_Toggle();
+		}
+		else if (!shift)
+		{
+			Rtx_HandleKey(key); // MultiTrack: F7 ray tracing, F5 lighting, F6 debug view
+		}
 	}
 
 	if (down == 0)
@@ -214,10 +229,13 @@ internal void Platform_HandleKey(int key, char down)
 			NativeReplayScheduler_RequestStop();
 			break;
 		case SDL_SCANCODE_F7:
-			Platform_LogWarn("[CTR Native] saving VRAM.TGA\n");
-			NativeRenderer_SaveVRAM("VRAM.TGA", 0, 0, VRAM_WIDTH, VRAM_HEIGHT, 1);
+			if (shift) // MultiTrack: F7 alone is ray tracing on/off
+			{
+				Platform_LogWarn("[CTR Native] saving VRAM.TGA\n");
+				NativeRenderer_SaveVRAM("VRAM.TGA", 0, 0, VRAM_WIDTH, VRAM_HEIGHT, 1);
+			}
 			break;
-		case SDL_SCANCODE_F12:
+		case SDL_SCANCODE_PRINTSCREEN: // MultiTrack: F12 is the debug overlay
 			Platform_LogWarn("[CTR Native] Saving screenshot...\n");
 			Platform_TakeScreenshot();
 			break;
@@ -226,7 +244,10 @@ internal void Platform_HandleKey(int key, char down)
 			Platform_LogWarn("[CTR Native] filtering mode: %d\n", g_cfg_bilinearFiltering);
 			break;
 		case SDL_SCANCODE_F5:
-			NativeSaveState_RequestSave();
+			if (shift) // MultiTrack: F5 alone is the ray tracer's lighting mode
+			{
+				NativeSaveState_RequestSave();
+			}
 			break;
 		case SDL_SCANCODE_F8:
 			NativeSaveState_RequestLoad();
@@ -504,7 +525,7 @@ void Platform_PollHostEvents(void)
 				break;
 			}
 
-			if ((key == SDL_SCANCODE_F6) && (down == 0))
+			if ((key == SDL_SCANCODE_F6) && (down == 0) && ((SDL_GetModState() & SDL_KMOD_SHIFT) != 0)) // MultiTrack: F6 alone is the ray tracer's debug view
 			{
 #ifdef CTR_INTERNAL
 				int player = Platform_InputCycleGamepadController();

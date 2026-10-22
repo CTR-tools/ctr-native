@@ -1,0 +1,34 @@
+#version 460
+// Radiance cache resolve, every frame after the trace pass: this frame's sums
+// blend into each cell's value; cells nobody wrote for ~30 s are freed.
+
+#include "common.glsl"
+
+layout(local_size_x = 256) in;
+
+void main()
+{
+	uint i = gl_GlobalInvocationID.x;
+	if ((i >= F.extra2.y) || (cacheKeys[i * 2u] == 0u))
+	{
+		return;
+	}
+	uint n = cacheAccum[i * 4u + 3u];
+	if (n > 0u)
+	{
+		vec3 mean = vec3(float(cacheAccum[i * 4u]), float(cacheAccum[i * 4u + 1u]), float(cacheAccum[i * 4u + 2u])) / (256.0 * float(n));
+		vec4 old = cacheVal[i];
+		float frames = min(old.w + 1.0, 24.0);
+		cacheVal[i] = vec4(mix(old.rgb, mean, 1.0 / frames), frames);
+		cacheKeys[i * 2u + 1u] = F.size.z;
+		cacheAccum[i * 4u] = 0u;
+		cacheAccum[i * 4u + 1u] = 0u;
+		cacheAccum[i * 4u + 2u] = 0u;
+		cacheAccum[i * 4u + 3u] = 0u;
+	}
+	else if (F.size.z - cacheKeys[i * 2u + 1u] > 900u)
+	{
+		cacheKeys[i * 2u] = 0u;
+		cacheVal[i] = vec4(0.0);
+	}
+}

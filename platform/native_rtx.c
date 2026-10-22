@@ -14,21 +14,40 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/futex.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 extern char **environ;
 // not declared under -std=c99 without _POSIX_C_SOURCE (unity build includes headers first)
 int ftruncate(int fd, off_t length);
 int kill(pid_t pid, int sig);
+long syscall(long number, ...);
+
+// sleep while *addr == val (at most ns), wake the renderer's sleeper (rtx_shared.h)
+static void Rtx_FutexWait(volatile u32 *addr, u32 val, long ns)
+{
+	struct
+	{
+		long sec, nsec; // (the kernel's timespec of this 32-bit futex call)
+	} ts = {0, ns};
+	syscall(SYS_futex, (u32 *)addr, FUTEX_WAIT, val, &ts, NULL, 0);
+}
+
+static void Rtx_FutexWake(volatile u32 *addr)
+{
+	syscall(SYS_futex, (u32 *)addr, FUTEX_WAKE, 0x7fffffff, NULL, NULL, 0);
+}
 
 const u16 *NativeRenderer_RtxVRAM(void);
 
 int g_rtxCapture;
 
-#define RTX_MAX_RANGES  8192
-#define RTX_CAP_BITS    16
+#define RTX_MAX_RANGES  16384
+#define RTX_CAP_BITS    18
+#define RTX_LEVEL_SERIAL 0xffff // projections of the level (instances count 1..0xfffe)
 #define RTX_CAP_SIZE    (1 << RTX_CAP_BITS)
 #define RTX_MAX_TEXSRC  RTX_MAX_TEX_SLOTS
 #define RTX_MAX_EMITTERS 1024
@@ -40,6 +59,7 @@ struct RtxRange
 	u16 serial;
 	u8 allowSemi; // wheels: semi-transparent code, but colour-keyed sprites
 	u8 mode;      // RtxInstMode
+	float z;      // RTX_TAG_DEPTH: view z of the whole range
 };
 
 enum RtxInstMode
@@ -75,6 +95,10 @@ static struct
 	pid_t rendererPid;
 	int enabled;   // F7
 	int debugView; // F6
+	struct RtxSettings settings; // F12 overlay keys 1-8, CTR_RTX_* env
+	// last request (pipelined: its image is the one shown next)
+	int prevPipelined, prevW, prevH;
+	u32 prevGen;
 
 	// per frame
 	u32 gen;
@@ -97,6 +121,36 @@ static struct
 	int numDyn;
 	struct RtxEmitter emitters[RTX_MAX_EMITTERS];
 	int numEmitters;
+	// glows that stay put (torches, braziers, statue fire) are remembered where
+	// they were seen: the game only draws them while they are on screen, but
+	// their light reaches past it (Rtx_BuildDynLights)
+	struct RtxRememberedLight
+	{
+		float pos[3], color[3]; // smoothed, as RtxPointLight
+		float anchor[3];        // where it was first seen
+		float falloff, size;
+		u32 lastGen;  // game frame last seen
+		u32 levelGen; // level it belongs to
+		u16 seen;     // frames seen in the same place
+		u8 moving;    // moved since first seen (kart flames): never remembered
+		u8 matched;   // seen this frame
+	} remembered[128];
+	int worldCapture; // record GTE projections outside tags (skidmarks, effects) for the overlay depth test
+	int numLevelCap;  // level polygons of this frame's OT walk (the renderer gets them next frame)
+	u16 capSerial;    // key of the projections being recorded: instance serial, 0 = world
+	u32 otBase;       // pushBuffer[0] ordering table (0x400 buckets) and the UI one, this frame
+	u32 uiOtStart, uiOtEnd;
+
+	// GL overlay depth: context of the packet being parsed
+	int ctxActive;
+	int ctxWorld;  // last OT entry walked was pushBuffer[0]'s
+	int ctxBucket; // its index
+	u16 ctxSerial;
+	float ctxZ;
+	// bucket -> view z, fitted from model packets (OT index ~ z / 64)
+	float zPerBucket;
+	double calZ, calB;
+	int calN;
 
 	// level
 	void *levelPtr;
@@ -110,10 +164,57 @@ static struct
 
 	struct RtxCapEntry cap[RTX_CAP_SIZE];
 
-	// packets captured into dynamic triangles this frame (GL skips them)
+	// packets captured into dynamic triangles this frame: word offsets (after the
+	// tag) of the polygon commands GL skips, RTX_MASK_ALL = the whole packet
 	u32 capturedKey[1 << 15];
 	u32 capturedGen[1 << 15];
+	u32 capturedMask[1 << 15];
+	u32 ctxMask; // of the packet being parsed
+
+	// smoke particles of this frame's OT walk as camera-facing quads (shadows, next frame)
+	struct RtxDynTri smoke[2048];
+	int numSmoke;
+	float partOfx, partOfy, partH; // the GTE projection particles are drawn with
+
+	// karts this frame: the dynamic triangles of each driver's body, so its
+	// wheels' range can move it onto the traced floor with them (Rtx_EndTag)
+	struct
+	{
+		const void *inst;
+		int start, end;
+	} kartBody[16];
+	int numKartBody;
+	const void *curKart;   // instance being captured is a driver's body
+	const void *curWheels; // wheel range being captured: of this driver instance
+	struct
+	{
+		const void *inst;
+		float dy;
+		u32 gen;
+	} kartLift[16]; // smoothed correction per driver
+	double statGapSum, statGapAbs;
+	int statGapN, statGapFar, statGapBody, statCapAnimated;
+
+	// textures that animate (boosters): tpage, clut, uv rectangle of every frame,
+	// to tell their polygons among the level as drawn (RTX_TRI_ANIMATED)
+	struct
+	{
+		u16 tpage, clut;
+		u8 u0, v0, u1, v1;
+	} animRect[1024];
+	int numAnimRect;
+
+	// capture statistics (CTR_RTX_DEBUG), model packets this frame
+	int statCaptured, statNoProj, statSemi, statInstances;
+	// emitter statistics (CTR_RTX_DEBUG): instances by mode, candidates by source / fate
+	// (summed over the 300 frames between reports)
+	int statInstMode[3], statEmitGlow, statEmitSemi, statEmitOpaque, statEmitParticle, statEmitGrey, statEmitDim, statEmitNoProj;
+	int statPartAdditive, statPartVivid, statPartWhite, statPartDull, statPartNoTex;
+	int statPolyNoTex, statPolyNotGlow, statEmitAdded, statEmitFull, statLights;
+	int statMemMoved, statMemGone, statMemOld;
 } s_rtx;
+
+#define RTX_MASK_ALL 0xffffffffu
 
 #define RTX_HDR (s_rtx.hdr)
 
@@ -121,6 +222,8 @@ static struct RtxLevelVert *Rtx_LevelVerts(void) { return (struct RtxLevelVert *
 static struct RtxLevelTri *Rtx_LevelTris(void) { return (struct RtxLevelTri *)(s_rtx.base + RTX_OFF_LEVEL_TRIS); }
 static struct RtxTexSlot *Rtx_TexSlots(void) { return (struct RtxTexSlot *)(s_rtx.base + RTX_OFF_TEX_SLOTS); }
 static struct RtxDynTri *Rtx_DynTris(void) { return (struct RtxDynTri *)(s_rtx.base + RTX_OFF_DYN_TRIS); }
+
+static void Rtx_InitSettings(void);
 
 void Rtx_Init(void)
 {
@@ -170,6 +273,11 @@ void Rtx_Init(void)
 	}
 	s_rtx.rendererPid = pid;
 	s_rtx.enabled = 1;
+	const char *view = SDL_getenv("CTR_RTX_VIEW"); // start in a debug view (as F6): 1 albedo, 2 normals, 3 direct, 4 indirect, 5 texture layer misses
+	s_rtx.debugView = view ? (atoi(view) % 8) : 0;
+	const char *mode = SDL_getenv("CTR_RTX_HYBRID"); // start in hybrid lighting (as F5)
+	s_rtx.lightMode = (mode && mode[0] == '1');
+	Rtx_InitSettings();
 	printf("[RTX] renderer %s started (pid %d): F7 ray tracing on/off, F5 hybrid/full lighting, F6 debug views\n", exe, (int)pid);
 }
 
@@ -182,6 +290,130 @@ void Rtx_Shutdown(void)
 	if (s_rtx.shmName[0])
 	{
 		shm_unlink(s_rtx.shmName);
+	}
+}
+
+static int Rtx_EnvInt(const char *name, int fallback)
+{
+	const char *v = SDL_getenv(name);
+	return v ? atoi(v) : fallback;
+}
+
+// renderer settings: defaults (the user's preferred set, native/preferred-defaults.png),
+// CTR_RTX_* env vars override (F12 overlay changes them live)
+static void Rtx_InitSettings(void)
+{
+	struct RtxSettings *S = &s_rtx.settings;
+	S->renderScale = (u32)Rtx_EnvInt("CTR_RTX_SCALE", 67);
+	S->renderScale = S->renderScale < 25 ? 25 : (S->renderScale > 100 ? 100 : S->renderScale);
+	S->quality = (u32)Rtx_EnvInt("CTR_RTX_QUALITY", 1) & 3u;
+	const char *budget = SDL_getenv("CTR_RTX_BUDGET_MS");
+	S->budgetMs = budget ? (float)atof(budget) : 28.0f;
+	S->taa = Rtx_EnvInt("CTR_RTX_TAA", 1) != 0;
+	S->texFilter = Rtx_EnvInt("CTR_RTX_TEXFILTER", 1) != 0;
+	S->specular = Rtx_EnvInt("CTR_RTX_SPEC", 1) != 0;
+	S->fog = Rtx_EnvInt("CTR_RTX_FOG", 0) != 0;
+	S->pipelined = Rtx_EnvInt("CTR_RTX_PIPELINE", 1) != 0;
+}
+
+static const char *s_rtxViewNames[] = {"final", "albedo", "normal", "direct", "indirect", "texture layer misses (red)", "sun x shadow", "sun, smooth normals"};
+static const char *s_rtxQualityNames[] = {"low (2 spp)", "medium (4 spp)", "high (8 spp)", "ultra (16 spp)"};
+
+const char *Rtx_KeyStatus(int scancode)
+{
+	if (s_rtx.hdr == NULL)
+	{
+		return "unavailable";
+	}
+	switch (scancode)
+	{
+	case SDL_SCANCODE_F5:
+		return s_rtx.lightMode ? "hybrid" : "full relight";
+	case SDL_SCANCODE_F6:
+		return s_rtxViewNames[s_rtx.debugView & 7];
+	case SDL_SCANCODE_F7:
+		return s_rtx.enabled ? (RTX_HDR->rendererReady ? "on" : "on (renderer not ready)") : "off";
+	}
+	return "";
+}
+
+// overlay: the renderer settings (keys 1-8) and its timings
+int Rtx_OverlayText(char *buf, int size)
+{
+	if (s_rtx.hdr == NULL)
+	{
+		return snprintf(buf, size, "ray tracing unavailable (renderer not started)\n");
+	}
+	const struct RtxSettings *S = &s_rtx.settings;
+	const float *ms = RTX_HDR->passMs;
+	return snprintf(buf, size,
+	                "-- ray tracing: keys 1-8 change, Shift+key back --\n"
+	                "1 render scale    %u%% (%ux%u -> %ux%u)\n"
+	                "2 quality         %s, now %u spp\n"
+	                "3 TAA             %s\n"
+	                "4 texture filter  %s\n"
+	                "5 specular        %s\n"
+	                "6 fog / shafts    %s\n"
+	                "7 pipelined       %s\n"
+	                "8 trace budget    %.0f ms\n"
+	                "-- renderer --\n"
+	                "GPU %5.2f ms  CPU %5.2f ms  frame %5.2f ms\n"
+	                " build %.2f  trace %.2f  cache %.2f\n"
+	                " a-trous %.2f  final %.2f  copy %.2f\n",
+	                S->renderScale, RTX_HDR->inW, RTX_HDR->inH, RTX_HDR->outW, RTX_HDR->outH, s_rtxQualityNames[S->quality & 3], RTX_HDR->traceSpp,
+	                S->taa ? "on" : "off", S->texFilter ? "bilinear" : "nearest (PS1)", S->specular ? "on" : "off", S->fog ? "on" : "off",
+	                S->pipelined ? "on (+1 frame latency)" : "off", S->budgetMs, ms[RTX_PASS_GPU], ms[RTX_PASS_CPU], RTX_HDR->renderMs,
+	                ms[RTX_PASS_BUILD], ms[RTX_PASS_TRACE], ms[RTX_PASS_CACHE], ms[RTX_PASS_ATROUS], ms[RTX_PASS_FINAL], ms[RTX_PASS_COPY]);
+}
+
+// overlay key 1-8: step that setting (back: the other way)
+void Rtx_OverlayKey(int digit, int back)
+{
+	struct RtxSettings *S = &s_rtx.settings;
+	int dir = back ? -1 : 1;
+	static const u32 scales[] = {50, 67, 75, 100};
+	static const float budgets[] = {8.0f, 10.0f, 14.0f, 18.0f, 22.0f, 28.0f};
+	switch (digit)
+	{
+	case 1:
+	{
+		int i = 0;
+		while ((i < 3) && (scales[i] < S->renderScale))
+		{
+			i++;
+		}
+		i = (scales[i] == S->renderScale) ? (i + dir + 4) % 4 : (back ? (i + 3) % 4 : i);
+		S->renderScale = scales[i];
+		break;
+	}
+	case 2:
+		S->quality = (S->quality + (u32)(dir + 4)) & 3u;
+		break;
+	case 3:
+		S->taa ^= 1;
+		break;
+	case 4:
+		S->texFilter ^= 1;
+		break;
+	case 5:
+		S->specular ^= 1;
+		break;
+	case 6:
+		S->fog ^= 1;
+		break;
+	case 7:
+		S->pipelined ^= 1;
+		break;
+	case 8:
+	{
+		int i = 0;
+		while ((i < 5) && (budgets[i] < S->budgetMs - 0.5f))
+		{
+			i++;
+		}
+		S->budgetMs = budgets[(i + dir + 6) % 6];
+		break;
+	}
 	}
 }
 
@@ -199,9 +431,8 @@ void Rtx_HandleKey(int scancode)
 	}
 	else if (scancode == SDL_SCANCODE_F6)
 	{
-		s_rtx.debugView = (s_rtx.debugView + 1) % 5;
-		static const char *names[] = {"final", "albedo", "normal", "direct", "indirect"};
-		printf("[RTX] debug view: %s\n", names[s_rtx.debugView]);
+		s_rtx.debugView = (s_rtx.debugView + 1) % 6;
+		printf("[RTX] debug view: %s\n", s_rtxViewNames[s_rtx.debugView]);
 	}
 }
 
@@ -220,9 +451,55 @@ void Rtx_FrameBegin(void)
 	s_rtx.tagDepth = 0;
 	s_rtx.skyPhase = 1;
 	s_rtx.numDyn = 0;
+	s_rtx.numKartBody = 0;
+	s_rtx.curKart = s_rtx.curWheels = NULL;
 	s_rtx.numEmitters = 0;
 	s_rtx.camForCapture = 0;
-	g_rtxCapture = 0;
+	if (s_rtx.calN >= 16)
+	{
+		float k = (float)(s_rtx.calZ / s_rtx.calB);
+		s_rtx.zPerBucket = k < 8.0f ? 8.0f : (k > 1024.0f ? 1024.0f : k);
+	}
+	else if (s_rtx.zPerBucket <= 0.0f)
+	{
+		s_rtx.zPerBucket = 64.0f;
+	}
+	s_rtx.calZ = s_rtx.calB = 0.0;
+	s_rtx.calN = 0;
+	s_rtx.worldCapture = (RTX_HDR != NULL) && s_rtx.enabled && RTX_HDR->rendererReady;
+	s_rtx.statCaptured = s_rtx.statNoProj = s_rtx.statSemi = s_rtx.statInstances = 0;
+	s_rtx.capSerial = 0;
+	s_rtx.instScale = 1.0f;
+	g_rtxCapture = s_rtx.worldCapture;
+}
+
+// which projections the GTE hook records, from the innermost open tag
+static void Rtx_UpdateCapture(void)
+{
+	int top = (s_rtx.tagDepth > 0) ? s_rtx.tagStack[s_rtx.tagDepth - 1] : -1;
+	if (top == RTX_TAG_INSTANCE)
+	{
+		s_rtx.capSerial = s_rtx.serial;
+		g_rtxCapture = 1;
+	}
+	else if (top < 0)
+	{
+		s_rtx.capSerial = 0;
+		s_rtx.instScale = 1.0f;
+		g_rtxCapture = s_rtx.worldCapture;
+	}
+	else if (top == RTX_TAG_LEVEL)
+	{
+		// the level as the PS1 draws it (LOD, hi-detail ground, animated textures):
+		// its polygons are decoded in the OT walk (Rtx_ClassifyPacket)
+		s_rtx.capSerial = RTX_LEVEL_SERIAL;
+		s_rtx.instScale = 1.0f;
+		g_rtxCapture = s_rtx.worldCapture;
+	}
+	else
+	{
+		g_rtxCapture = 0; // level, sky, shadows, HUD models
+	}
 }
 
 void Rtx_BeginTag(int tag, struct PrimMem *primMem)
@@ -237,17 +514,20 @@ void Rtx_BeginTag(int tag, struct PrimMem *primMem)
 	if (tag == RTX_TAG_INSTANCE)
 	{
 		s_rtx.serial++;
-		if (s_rtx.serial == 0)
+		if ((s_rtx.serial == 0) || (s_rtx.serial == RTX_LEVEL_SERIAL))
 		{
 			s_rtx.serial = 1;
 		}
-		g_rtxCapture = 1;
 	}
+	Rtx_UpdateCapture();
 }
 
-static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi);
+static u32 Rtx_CapturePacketTo(u32 *words, int numWords, u16 serial, int allowSemi, struct RtxDynTri *out, int *num, int max);
+static void Rtx_SeatKart(const void *inst, int wheelStart, int wheelEnd);
+#define Rtx_CapturePacket(words, numWords, serial, allowSemi) \
+	Rtx_CapturePacketTo(words, numWords, serial, allowSemi, Rtx_DynTris(), &s_rtx.numDyn, (int)RTX_MAX_DYN_TRIS)
 static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial, int anyBlend);
-static void Rtx_MarkCaptured(u32 packet);
+static void Rtx_MarkCaptured(u32 packet, u32 mask);
 
 void Rtx_EndTag(struct PrimMem *primMem)
 {
@@ -259,7 +539,7 @@ void Rtx_EndTag(struct PrimMem *primMem)
 	int tag = s_rtx.tagStack[s_rtx.tagDepth];
 	u32 start = s_rtx.tagStart[s_rtx.tagDepth];
 	u32 end = (u32)primMem->cursor;
-	g_rtxCapture = 0;
+	Rtx_UpdateCapture();
 
 	if ((end <= start) || (s_rtx.numRanges >= RTX_MAX_RANGES))
 	{
@@ -276,11 +556,15 @@ void Rtx_EndTag(struct PrimMem *primMem)
 	r->serial = (tag == RTX_TAG_INSTANCE) ? s_rtx.serial : 0;
 	r->allowSemi = (u8)s_rtx.allowSemi;
 	r->mode = (u8)s_rtx.instMode;
+	r->z = 0.0f;
 	s_rtx.allowSemi = 0;
 	s_rtx.instMode = RTX_INST_CAPTURE;
 
 	// model packets are allocated back to back: decode them now, so the ray
 	// traced image can be rendered before the GL overlay pass draws over it
+	int dynStart = s_rtx.numDyn;
+	const void *kart = s_rtx.curKart, *wheelsOf = s_rtx.curWheels;
+	s_rtx.curKart = s_rtx.curWheels = NULL;
 	if ((tag == RTX_TAG_INSTANCE) && s_rtx.enabled && RTX_HDR->rendererReady)
 	{
 		u32 *p = (u32 *)start;
@@ -298,15 +582,31 @@ void Rtx_EndTag(struct PrimMem *primMem)
 			else if (r->mode == RTX_INST_GL)
 			{
 			}
-			else if (Rtx_CapturePacket(p + 1, len, r->serial, r->allowSemi))
-			{
-				Rtx_MarkCaptured((u32)p);
-			}
 			else
 			{
-				Rtx_EmitterPacket(p + 1, len, r->serial, 0);
+				// opaque polygons are traced; the rest (glows, lamp cones) stays GL drawn and lights the scene
+				u32 mask = Rtx_CapturePacket(p + 1, len, r->serial, r->allowSemi);
+				if (mask != 0)
+				{
+					Rtx_MarkCaptured((u32)p, mask);
+				}
+				if (mask != RTX_MASK_ALL)
+				{
+					Rtx_EmitterPacket(p + 1, len, r->serial, 0);
+				}
 			}
 			p += 1 + len;
+		}
+		if ((kart != NULL) && (s_rtx.numKartBody < 16))
+		{
+			s_rtx.kartBody[s_rtx.numKartBody].inst = kart;
+			s_rtx.kartBody[s_rtx.numKartBody].start = dynStart;
+			s_rtx.kartBody[s_rtx.numKartBody].end = s_rtx.numDyn;
+			s_rtx.numKartBody++;
+		}
+		if (wheelsOf != NULL)
+		{
+			Rtx_SeatKart(wheelsOf, dynStart, s_rtx.numDyn);
 		}
 	}
 }
@@ -317,7 +617,7 @@ static u32 Rtx_PtrHash(u32 p)
 	return (h ^ (h >> 16)) & ((1 << 15) - 1);
 }
 
-static void Rtx_MarkCaptured(u32 packet)
+static void Rtx_MarkCaptured(u32 packet, u32 mask)
 {
 	u32 h = Rtx_PtrHash(packet);
 	for (int probe = 0; probe < 64; probe++)
@@ -327,12 +627,13 @@ static void Rtx_MarkCaptured(u32 packet)
 		{
 			s_rtx.capturedGen[i] = s_rtx.gen;
 			s_rtx.capturedKey[i] = packet;
+			s_rtx.capturedMask[i] = mask;
 			return;
 		}
 	}
 }
 
-static int Rtx_IsCaptured(u32 packet)
+static u32 Rtx_CapturedMask(u32 packet)
 {
 	u32 h = Rtx_PtrHash(packet);
 	for (int probe = 0; probe < 64; probe++)
@@ -344,10 +645,32 @@ static int Rtx_IsCaptured(u32 packet)
 		}
 		if (s_rtx.capturedKey[i] == packet)
 		{
-			return 1;
+			return s_rtx.capturedMask[i];
 		}
 	}
 	return 0;
+}
+
+static int Rtx_PolyWords(u32 cmd)
+{
+	u32 code = cmd >> 24;
+	int n = (code & 0x08) ? 4 : 3;
+	return 1 + n * (1 + ((code & 0x04) != 0)) + ((code & 0x10) ? n - 1 : 0);
+}
+
+// GL parse of a partly captured packet: words to skip at cmd (0 = draw it)
+int Rtx_SkipCommand(u32 *packet, u32 *cmd)
+{
+	if (s_rtx.ctxMask == 0)
+	{
+		return 0;
+	}
+	u32 offset = (u32)(cmd - (packet + 1));
+	if ((offset >= 32) || !(s_rtx.ctxMask & (1u << offset)))
+	{
+		return 0;
+	}
+	return Rtx_PolyWords(*cmd);
 }
 
 static void Rtx_Invert3(const float *m, float *out)
@@ -413,6 +736,7 @@ void Rtx_BeginInstance(struct PrimMem *primMem, struct Instance *inst, struct Pu
 	{
 		s_rtx.instMode = RTX_INST_CAPTURE;
 	}
+	s_rtx.statInstMode[s_rtx.instMode]++;
 
 	const MATRIX *m = &pb->matrix_ViewProj;
 	float rel[3] = {(float)(inst->matrix.t[0] - pb->pos.x), (float)(inst->matrix.t[1] - pb->pos.y), (float)(inst->matrix.t[2] - pb->pos.z)};
@@ -425,16 +749,19 @@ void Rtx_BeginInstance(struct PrimMem *primMem, struct Instance *inst, struct Pu
 	}
 	s_rtx.instScale = (dotTT > 1.0f && dotGT > 0.0f) ? dotTT / dotGT : 1.0f;
 	Rtx_CaptureCamera(pb);
+	s_rtx.statInstances++;
+	s_rtx.curKart = ((inst->thread != NULL) && ((inst->thread->modelIndex == DYNAMIC_PLAYER) || (inst->thread->modelIndex == DYNAMIC_ROBOT_CAR))) ? inst : NULL;
 	Rtx_BeginTag(RTX_TAG_INSTANCE, primMem);
 }
 
-void Rtx_BeginScaled(struct PrimMem *primMem, struct PushBuffer *pb, float viewScale)
+void Rtx_BeginScaled(struct PrimMem *primMem, struct PushBuffer *pb, float viewScale, const struct Instance *wheelsOf)
 {
 	if ((RTX_HDR == NULL) || (pb != &sdata->gGT->pushBuffer[0]))
 	{
 		Rtx_BeginTag(RTX_TAG_NONE, primMem);
 		return;
 	}
+	s_rtx.curWheels = wheelsOf;
 	s_rtx.instScale = viewScale;
 	s_rtx.allowSemi = 1;
 	s_rtx.instMode = RTX_INST_CAPTURE;
@@ -449,44 +776,98 @@ static u32 Rtx_CapHash(u32 sxy, u32 serial)
 	return h & (RTX_CAP_SIZE - 1);
 }
 
+// Screen XY -> view position of what was projected there. Several vertices of
+// one model can land on the same pixel (front and back of a character, a
+// distant seal): each is kept, and polygons pick the set that fits (Rtx_CapLookupAll).
+#define RTX_CAP_PROBES 32
+#define RTX_CAP_CANDIDATES 4
+
 void Rtx_OnProject(u32 sxy, s32 mac1, s32 mac2, s32 mac3, int sf)
 {
-	u32 h = Rtx_CapHash(sxy, s_rtx.serial);
+	u32 h = Rtx_CapHash(sxy, s_rtx.capSerial);
 	float scale = (sf ? 1.0f : (1.0f / 4096.0f)) * s_rtx.instScale;
+	float v[3] = {mac1 * scale, mac2 * scale, mac3 * scale};
 
-	for (int probe = 0; probe < 16; probe++)
-	{
-		struct RtxCapEntry *e = &s_rtx.cap[(h + probe) & (RTX_CAP_SIZE - 1)];
-		if ((e->gen != s_rtx.gen) || ((e->sxy == sxy) && (e->serial == s_rtx.serial)))
-		{
-			e->gen = s_rtx.gen;
-			e->sxy = sxy;
-			e->serial = s_rtx.serial;
-			e->v[0] = mac1 * scale;
-			e->v[1] = mac2 * scale;
-			e->v[2] = mac3 * scale;
-			return;
-		}
-	}
-}
-
-static const float *Rtx_CapLookup(u32 sxy, u32 serial)
-{
-	u32 h = Rtx_CapHash(sxy, serial);
-
-	for (int probe = 0; probe < 16; probe++)
+	for (int probe = 0; probe < RTX_CAP_PROBES; probe++)
 	{
 		struct RtxCapEntry *e = &s_rtx.cap[(h + probe) & (RTX_CAP_SIZE - 1)];
 		if (e->gen != s_rtx.gen)
 		{
-			return NULL;
+			e->gen = s_rtx.gen;
+			e->sxy = sxy;
+			e->serial = s_rtx.capSerial;
+			memcpy(e->v, v, sizeof(v));
+			return;
+		}
+		if ((e->sxy == sxy) && (e->serial == s_rtx.capSerial) && (fabsf(e->v[0] - v[0]) + fabsf(e->v[1] - v[1]) + fabsf(e->v[2] - v[2]) < 1.0f))
+		{
+			return; // the same vertex again
+		}
+	}
+}
+
+// every view position projected to sxy (up to RTX_CAP_CANDIDATES), oldest first
+static int Rtx_CapLookupAll(u32 sxy, u32 serial, const float **out)
+{
+	u32 h = Rtx_CapHash(sxy, serial);
+	int n = 0;
+
+	for (int probe = 0; (probe < RTX_CAP_PROBES) && (n < RTX_CAP_CANDIDATES); probe++)
+	{
+		struct RtxCapEntry *e = &s_rtx.cap[(h + probe) & (RTX_CAP_SIZE - 1)];
+		if (e->gen != s_rtx.gen)
+		{
+			break;
 		}
 		if ((e->sxy == sxy) && (e->serial == serial))
 		{
-			return e->v;
+			out[n++] = e->v;
 		}
 	}
-	return NULL;
+	return n;
+}
+
+static const float *Rtx_CapLookup(u32 sxy, u32 serial)
+{
+	const float *c[RTX_CAP_CANDIDATES];
+	return Rtx_CapLookupAll(sxy, serial, c) ? c[0] : NULL;
+}
+
+// a polygon's vertices among their candidates: the set closest together in depth
+// (a polygon's corners are neighbours on the model). 0 when a vertex wasn't projected
+static int Rtx_CapPolygon(const u32 *xy, int n, u32 serial, const float **out)
+{
+	const float *cand[4][RTX_CAP_CANDIDATES];
+	int count[4], combos = 1;
+	for (int v = 0; v < n; v++)
+	{
+		count[v] = Rtx_CapLookupAll(xy[v], serial, cand[v]);
+		if (count[v] == 0)
+		{
+			return 0;
+		}
+		combos *= count[v];
+	}
+	float best = 1e30f;
+	for (int c = 0; c < combos; c++)
+	{
+		int k = c;
+		const float *pick[4];
+		float zmin = 1e30f, zmax = -1e30f;
+		for (int v = 0; v < n; v++)
+		{
+			pick[v] = cand[v][k % count[v]];
+			k /= count[v];
+			zmin = fminf(zmin, pick[v][2]);
+			zmax = fmaxf(zmax, pick[v][2]);
+		}
+		if (zmax - zmin < best)
+		{
+			best = zmax - zmin;
+			memcpy(out, pick, sizeof(pick[0]) * n);
+		}
+	}
+	return 1;
 }
 
 // ---- level upload ----------------------------------------------------------
@@ -582,6 +963,389 @@ static void Rtx_RefreshTexSlots(void)
 	RTX_HDR->numTexSlots = (u32)s_rtx.numTexSlots;
 }
 
+// the level's sky colours by direction (8 azimuths x 8 elevations, top row up),
+// from its skybox mesh vertex colours, else its clear colours
+static void Rtx_UploadSky(struct Level *level)
+{
+	float sum[RTX_SKY_H][RTX_SKY_W][4];
+	memset(sum, 0, sizeof(sum));
+	const struct Skybox *sky = level->ptr_skybox;
+	int n = 0;
+	if ((sky != NULL) && (sky->ptrVertex != NULL) && (sky->numVertex > 0) && (sky->numVertex < 65536))
+	{
+		for (int i = 0; i < sky->numVertex; i++)
+		{
+			const struct ShortVertex *v = &sky->ptrVertex[i];
+			float x = v->Position.vx, y = v->Position.vy, z = v->Position.vz;
+			float len = sqrtf(x * x + y * y + z * z);
+			if (len < 1.0f)
+			{
+				continue;
+			}
+			// CTR world is Y up
+			float el = asinf(fmaxf(-1.0f, fminf(1.0f, y / len)));
+			int row = (int)((0.5f - el / 3.14159265f) * RTX_SKY_H);
+			int col = (int)((atan2f(z, x) / 6.2831853f + 0.5f) * RTX_SKY_W);
+			row = row < 0 ? 0 : (row >= (int)RTX_SKY_H ? (int)RTX_SKY_H - 1 : row);
+			col = col < 0 ? 0 : (col >= (int)RTX_SKY_W ? (int)RTX_SKY_W - 1 : col);
+			sum[row][col][0] += v->Color.r / 255.0f;
+			sum[row][col][1] += v->Color.g / 255.0f;
+			sum[row][col][2] += v->Color.b / 255.0f;
+			sum[row][col][3] += 1.0f;
+			n++;
+		}
+	}
+	if (n == 0)
+	{
+		// clear colours: 0 top half, 1 bottom half
+		for (int half = 0; half < 2; half++)
+		{
+			if (!level->clearColor[half].enable)
+			{
+				continue;
+			}
+			for (int row = half * RTX_SKY_H / 2; row < (half + 1) * (int)RTX_SKY_H / 2; row++)
+			{
+				for (int col = 0; col < (int)RTX_SKY_W; col++)
+				{
+					for (int k = 0; k < 3; k++)
+					{
+						sum[row][col][k] = (u8)level->clearColor[half].rgb[k] / 255.0f;
+					}
+					sum[row][col][3] = 1.0f;
+					n++;
+				}
+			}
+		}
+	}
+	RTX_HDR->skyValid = (n > 0);
+	if (n == 0)
+	{
+		return;
+	}
+	// empty cells: nearest filled cell (rows first, then around the row)
+	for (int row = 0; row < (int)RTX_SKY_H; row++)
+	{
+		for (int col = 0; col < (int)RTX_SKY_W; col++)
+		{
+			const float *src = NULL;
+			for (int d = 0; (d < (int)(RTX_SKY_H + RTX_SKY_W)) && (src == NULL); d++)
+			{
+				for (int dr = -d; (dr <= d) && (src == NULL); dr++)
+				{
+					int r = row + dr, c = (col + (d - abs(dr))) % (int)RTX_SKY_W;
+					if ((r >= 0) && (r < (int)RTX_SKY_H) && (sum[r][c][3] > 0.0f))
+					{
+						src = sum[r][c];
+					}
+				}
+			}
+			for (int k = 0; k < 3; k++)
+			{
+				RTX_HDR->sky[row][col][k] = src ? src[k] / src[3] : 0.0f;
+			}
+		}
+	}
+}
+
+// ---- the traced floor under the karts -----------------------------------------
+// The PS1 draws a kart over the floor it stands on (no depth buffer), so where
+// the physics puts it a little off the drawn floor nobody sees it. Traced, the
+// wheels sink into the floor in one place and float over it in the next: each
+// kart is set onto the traced level mesh by its wheels (Rtx_SeatKart). A 2D
+// grid of the level's floor-like triangles answers "how high is the floor here"
+
+#define RTX_FLOOR_CELL_MAX  (512 * 512)
+#define RTX_FLOOR_LIST_MAX  (1 << 21)
+static struct
+{
+	float minX, minZ, cell;
+	int dimX, dimZ;
+	u32 start[RTX_FLOOR_CELL_MAX + 1];
+	u32 list[RTX_FLOOR_LIST_MAX];
+	const struct RtxLevelVert *verts;
+	const struct RtxLevelTri *tris;
+} s_floor;
+
+static void Rtx_BuildFloorGrid(const struct RtxLevelVert *verts, int numVerts, const struct RtxLevelTri *tris, int numTris)
+{
+	s_floor.verts = verts;
+	s_floor.tris = tris;
+	s_floor.dimX = s_floor.dimZ = 0;
+	if (numVerts <= 0)
+	{
+		return;
+	}
+	float minX = 1e30f, minZ = 1e30f, maxX = -1e30f, maxZ = -1e30f;
+	for (int i = 0; i < numVerts; i++)
+	{
+		minX = fminf(minX, verts[i].pos[0]);
+		maxX = fmaxf(maxX, verts[i].pos[0]);
+		minZ = fminf(minZ, verts[i].pos[2]);
+		maxZ = fmaxf(maxZ, verts[i].pos[2]);
+	}
+	float cell = 256.0f;
+	while (((maxX - minX) / cell + 1.0f) * ((maxZ - minZ) / cell + 1.0f) > (float)RTX_FLOOR_CELL_MAX)
+	{
+		cell *= 2.0f;
+	}
+	s_floor.minX = minX;
+	s_floor.minZ = minZ;
+	s_floor.cell = cell;
+	s_floor.dimX = (int)((maxX - minX) / cell) + 1;
+	s_floor.dimZ = (int)((maxZ - minZ) / cell) + 1;
+	int cells = s_floor.dimX * s_floor.dimZ;
+	memset(s_floor.start, 0, sizeof(u32) * (size_t)(cells + 1));
+	// two passes: count per cell, then fill (floor-like triangles only)
+	for (int pass = 0; pass < 2; pass++)
+	{
+		for (int t = 0; t < numTris; t++)
+		{
+			const float *a = verts[tris[t].v[0]].pos, *b = verts[tris[t].v[1]].pos, *c = verts[tris[t].v[2]].pos;
+			float ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+			float nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+			if (fabsf(ny) < 0.35f * sqrtf(nx * nx + ny * ny + nz * nz))
+			{
+				continue; // walls
+			}
+			int x0 = (int)((fminf(a[0], fminf(b[0], c[0])) - minX) / cell), x1 = (int)((fmaxf(a[0], fmaxf(b[0], c[0])) - minX) / cell);
+			int z0 = (int)((fminf(a[2], fminf(b[2], c[2])) - minZ) / cell), z1 = (int)((fmaxf(a[2], fmaxf(b[2], c[2])) - minZ) / cell);
+			for (int z = z0; z <= z1; z++)
+			{
+				for (int x = x0; x <= x1; x++)
+				{
+					u32 k = (u32)(z * s_floor.dimX + x);
+					if (pass == 0)
+					{
+						s_floor.start[k + 1]++;
+					}
+					else if (s_floor.start[k] < RTX_FLOOR_LIST_MAX)
+					{
+						s_floor.list[s_floor.start[k]++] = (u32)t;
+					}
+				}
+			}
+		}
+		if (pass == 0)
+		{
+			for (int k = 0; k < cells; k++)
+			{
+				s_floor.start[k + 1] += s_floor.start[k];
+			}
+		}
+		else
+		{
+			// (filling advanced each start to the next cell's: shift back)
+			for (int k = cells; k > 0; k--)
+			{
+				s_floor.start[k] = s_floor.start[k - 1];
+			}
+			s_floor.start[0] = 0;
+		}
+	}
+}
+
+// height of the traced floor at (x, z) nearest to y within range; 0 = none
+static int Rtx_FloorHeight(float x, float y, float z, float range, float *h)
+{
+	if (s_floor.dimX <= 0)
+	{
+		return 0;
+	}
+	int cx = (int)((x - s_floor.minX) / s_floor.cell), cz = (int)((z - s_floor.minZ) / s_floor.cell);
+	if ((cx < 0) || (cz < 0) || (cx >= s_floor.dimX) || (cz >= s_floor.dimZ))
+	{
+		return 0;
+	}
+	u32 k = (u32)(cz * s_floor.dimX + cx);
+	int found = 0;
+	float best = range;
+	for (u32 i = s_floor.start[k]; (i < s_floor.start[k + 1]) && (i < RTX_FLOOR_LIST_MAX); i++)
+	{
+		const struct RtxLevelTri *t = &s_floor.tris[s_floor.list[i]];
+		const float *a = s_floor.verts[t->v[0]].pos, *b = s_floor.verts[t->v[1]].pos, *c = s_floor.verts[t->v[2]].pos;
+		// barycentrics in the xz plane
+		float d = (b[2] - c[2]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[2] - c[2]);
+		if (fabsf(d) < 1e-6f)
+		{
+			continue;
+		}
+		float wa = ((b[2] - c[2]) * (x - c[0]) + (c[0] - b[0]) * (z - c[2])) / d;
+		float wb = ((c[2] - a[2]) * (x - c[0]) + (a[0] - c[0]) * (z - c[2])) / d;
+		float wc = 1.0f - wa - wb;
+		if ((wa < -1e-3f) || (wb < -1e-3f) || (wc < -1e-3f))
+		{
+			continue;
+		}
+		float hy = wa * a[1] + wb * b[1] + wc * c[1];
+		if (fabsf(hy - y) < best)
+		{
+			best = fabsf(hy - y);
+			*h = hy;
+			found = 1;
+		}
+	}
+	return found;
+}
+
+// a kart's wheels were just captured (dynamic triangles [wheelStart, wheelEnd),
+// two per wheel quad): the lowest point of each wheel against the traced floor
+// under it; grounded, the kart (wheels and body) moves by their mean gap
+static void Rtx_SeatKart(const void *inst, int wheelStart, int wheelEnd)
+{
+	struct RtxDynTri *dyn = Rtx_DynTris();
+	float gapSum = 0.0f;
+	int n = 0, wheels = 0;
+	for (int t = wheelStart; t + 1 < wheelEnd; t += 2)
+	{
+		const float *low = dyn[t].p[0];
+		for (int q = t; q < t + 2; q++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				low = (dyn[q].p[c][1] < low[1]) ? dyn[q].p[c] : low;
+			}
+		}
+		float h;
+		wheels++;
+		if (Rtx_FloorHeight(low[0], low[1], low[2], 60.0f, &h))
+		{
+			gapSum += low[1] - h;
+			n++;
+		}
+	}
+	float target = 0.0f;
+	if (n >= 2)
+	{
+		float gap = gapSum / (float)n;
+		s_rtx.statGapN++;
+		s_rtx.statGapSum += gap;
+		s_rtx.statGapAbs += fabsf(gap);
+		target = (fabsf(gap) < 40.0f) ? -gap : 0.0f; // (off the ground: as it is)
+	}
+	s_rtx.statGapFar += (n < 2) && (wheels > 0);
+
+	// smoothed per kart (a step in the floor doesn't make it jump)
+	int slot = -1, oldest = 0;
+	for (int i = 0; i < 16; i++)
+	{
+		if (s_rtx.kartLift[i].inst == inst)
+		{
+			slot = i;
+			break;
+		}
+		oldest = (s_rtx.kartLift[i].gen < s_rtx.kartLift[oldest].gen) ? i : oldest;
+	}
+	if ((slot < 0) || (s_rtx.kartLift[slot].gen + 1u != s_rtx.gen))
+	{
+		slot = (slot < 0) ? oldest : slot;
+		s_rtx.kartLift[slot].inst = inst;
+		s_rtx.kartLift[slot].dy = target;
+	}
+	else
+	{
+		s_rtx.kartLift[slot].dy += (target - s_rtx.kartLift[slot].dy) * 0.5f;
+	}
+	s_rtx.kartLift[slot].gen = s_rtx.gen;
+	float dy = s_rtx.kartLift[slot].dy;
+	if (dy == 0.0f)
+	{
+		return;
+	}
+	for (int t = wheelStart; t < wheelEnd; t++)
+	{
+		dyn[t].p[0][1] += dy;
+		dyn[t].p[1][1] += dy;
+		dyn[t].p[2][1] += dy;
+	}
+	for (int b = 0; b < s_rtx.numKartBody; b++)
+	{
+		if (s_rtx.kartBody[b].inst != inst)
+		{
+			continue;
+		}
+		s_rtx.statGapBody++;
+		for (int t = s_rtx.kartBody[b].start; t < s_rtx.kartBody[b].end; t++)
+		{
+			dyn[t].p[0][1] += dy;
+			dyn[t].p[1][1] += dy;
+			dyn[t].p[2][1] += dy;
+		}
+	}
+}
+
+// every frame of every animated texture (boosters, lava, screens): their
+// polygons among the level as the PS1 drew it are told by tpage, clut and uvs
+static void Rtx_FindAnimatedTextures(void)
+{
+	s_rtx.numAnimRect = 0;
+	for (int i = 0; i < s_rtx.numTexSlots; i++)
+	{
+		u32 ptr = s_rtx.texSrc[i];
+		if ((ptr & 3) != 1)
+		{
+			continue;
+		}
+		const struct AnimTex *anim = (const struct AnimTex *)(ptr - 1);
+		struct IconGroup4 **frames = ANIMTEX_GETARRAY(anim);
+		for (int f = 0; (f < anim->numFrames) && (f < 64); f++)
+		{
+			const struct IconGroup4 *g = frames[f];
+			if (g == NULL)
+			{
+				continue;
+			}
+			const struct TextureLayout *lods[4] = {&g->far, &g->middle, &g->near, &g->mosaic};
+			for (int l = 0; (l < 4) && (s_rtx.numAnimRect < 1024); l++)
+			{
+				const struct TextureLayout *t = lods[l];
+				u8 us[4] = {t->u0, t->u1, t->u2, t->u3}, vs[4] = {t->v0, t->v1, t->v2, t->v3};
+				u8 u0 = 255, v0 = 255, u1 = 0, v1 = 0;
+				for (int k = 0; k < 4; k++)
+				{
+					u0 = (us[k] < u0) ? us[k] : u0;
+					u1 = (us[k] > u1) ? us[k] : u1;
+					v0 = (vs[k] < v0) ? vs[k] : v0;
+					v1 = (vs[k] > v1) ? vs[k] : v1;
+				}
+				if ((u1 <= u0) || (v1 <= v0))
+				{
+					continue;
+				}
+				s_rtx.animRect[s_rtx.numAnimRect].tpage = t->tpage;
+				s_rtx.animRect[s_rtx.numAnimRect].clut = t->clut;
+				s_rtx.animRect[s_rtx.numAnimRect].u0 = u0;
+				s_rtx.animRect[s_rtx.numAnimRect].v0 = v0;
+				s_rtx.animRect[s_rtx.numAnimRect].u1 = u1;
+				s_rtx.animRect[s_rtx.numAnimRect].v1 = v1;
+				s_rtx.numAnimRect++;
+			}
+		}
+	}
+}
+
+static int Rtx_IsAnimatedTexture(u16 tpage, u16 clut, const u8 (*uv)[2])
+{
+	int u0 = 255, v0 = 255, u1 = 0, v1 = 0;
+	for (int k = 0; k < 3; k++)
+	{
+		u0 = (uv[k][0] < u0) ? uv[k][0] : u0;
+		u1 = (uv[k][0] > u1) ? uv[k][0] : u1;
+		v0 = (uv[k][1] < v0) ? uv[k][1] : v0;
+		v1 = (uv[k][1] > v1) ? uv[k][1] : v1;
+	}
+	for (int i = 0; i < s_rtx.numAnimRect; i++)
+	{
+		// (blend bits aside: the PS1 may draw a page semi-transparent)
+		if ((s_rtx.animRect[i].clut == clut) && ((s_rtx.animRect[i].tpage & 0xff9f) == (tpage & 0xff9f)) && (u0 + 1 >= s_rtx.animRect[i].u0) &&
+		    (u1 <= s_rtx.animRect[i].u1 + 1) && (v0 + 1 >= s_rtx.animRect[i].v0) && (v1 <= s_rtx.animRect[i].v1 + 1))
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static void Rtx_UploadLevel(struct Level *level)
 {
 	struct mesh_info *mesh = level->ptr_mesh_info;
@@ -645,6 +1409,10 @@ static void Rtx_UploadLevel(struct Level *level)
 		{
 			u32 faceBits = (drawOrderLow >> (8 + f * 5)) & 0x1f;
 			u32 tableWord = R226.scratchInitTable[faceBits < OVR226_SCRATCH_INIT_WORD_COUNT ? faceBits : 0];
+			// as DrawLevelOvr1P_WriteProjectedUv: bit 23 mirrors the texture (uv 0<->1, 2<->3),
+			// bit 7 makes the face a triangle (no 4th vertex)
+			int mirror = (tableWord & 0x00800000u) != 0;
+			int triangle = (tableWord & 0x80u) != 0;
 			int slotVert[4];
 			for (int s = 0; s < 4; s++)
 			{
@@ -654,8 +1422,13 @@ static void Rtx_UploadLevel(struct Level *level)
 			}
 
 			int texSlot = isWater[q] && (waterSlot >= 0) ? waterSlot : Rtx_TexSlotFor((u32)block->ptr_texture_mid[f]);
+			int animated = !isWater[q] && (((u32)block->ptr_texture_mid[f] & 1) != 0);
+			int terrain = block->terrain_type;
+			int glossy = (terrain == TERRAIN_ICY_ROAD) || (terrain == TERRAIN_METAL);
+			int ice = (terrain == TERRAIN_ICE);
 			static const int triSlots[2][3] = {{0, 1, 2}, {1, 3, 2}};
-			for (int t = 0; t < 2; t++)
+			static const u8 mirrorCorner[4] = {1, 0, 3, 2};
+			for (int t = 0; t < (triangle ? 1 : 2); t++)
 			{
 				if (numTris >= (int)RTX_MAX_LEVEL_TRIS)
 				{
@@ -668,7 +1441,7 @@ static void Rtx_UploadLevel(struct Level *level)
 					int vi = slotVert[triSlots[t][c]];
 					ok &= (vi < numVerts);
 					tri->v[c] = (u16)vi;
-					tri->corner[c] = (u8)triSlots[t][c];
+					tri->corner[c] = mirror ? mirrorCorner[triSlots[t][c]] : (u8)triSlots[t][c];
 				}
 				if (!ok || (tri->v[0] == tri->v[1]) || (tri->v[1] == tri->v[2]) || (tri->v[0] == tri->v[2]))
 				{
@@ -676,11 +1449,15 @@ static void Rtx_UploadLevel(struct Level *level)
 				}
 				tri->texSlot = (u16)(texSlot < 0 ? 0xffff : texSlot);
 				tri->flags = (texSlot >= 0 ? RTX_TRI_TEXTURED : 0) | ((drawOrderLow & 0x80000000u) ? RTX_TRI_DOUBLE_SIDED : 0) |
-				             (isWater[q] ? RTX_TRI_WATER : 0);
+				             (isWater[q] ? RTX_TRI_WATER : 0) | (animated ? RTX_TRI_ANIMATED : 0) | (glossy ? RTX_TRI_GLOSSY : 0) |
+				             (ice ? RTX_TRI_ICE : 0);
 				numTris++;
 			}
 		}
 	}
+
+	Rtx_BuildFloorGrid(verts, numVerts, tris, numTris);
+	Rtx_FindAnimatedTextures();
 
 	struct GameTracker *gGT = sdata->gGT;
 	struct MTEntry *custom = MT_ActiveEntry();
@@ -697,6 +1474,7 @@ static void Rtx_UploadLevel(struct Level *level)
 		snprintf(RTX_HDR->lightsKey, sizeof(RTX_HDR->lightsKey), "stock-%d", gGT->levelID);
 	}
 	Rtx_RefreshTexSlots();
+	Rtx_UploadSky(level);
 	RTX_HDR->levelGen++;
 
 	s_rtx.levelPtr = level;
@@ -739,6 +1517,9 @@ void Rtx_OnLevelCamera(struct PushBuffer *pb)
 	RTX_HDR->vpY = pb->rect.y;
 	RTX_HDR->vpW = pb->rect.w;
 	RTX_HDR->vpH = pb->rect.h;
+	s_rtx.otBase = (u32)pb->ptrOT;
+	s_rtx.uiOtStart = (u32)gGT->pushBuffer_UI.ptrOT;
+	s_rtx.uiOtEnd = (u32)gGT->pushBuffer_UI.renderBucketOTRangeEnd;
 	s_rtx.cameraValid = 1;
 }
 
@@ -747,6 +1528,46 @@ void Rtx_OnLevelCamera(struct PushBuffer *pb)
 int Rtx_FrameActive(void)
 {
 	return (RTX_HDR != NULL) && s_rtx.enabled && RTX_HDR->rendererReady && s_rtx.cameraValid && s_rtx.levelValid;
+}
+
+// The level's LOD distances (texture detail, the far low-detail list) are tuned
+// for the PS1's 512 pixel wide screen: at the output resolution a texel covers
+// fewer pixels, so the same detail per pixel reaches out that much further.
+// The texture layer takes its texels from what the PS1 drew, so this is what
+// sharpens the distance (CTR_RTX_LOD_SCALE overrides, 1 = as the PS1)
+// the level's texture detail threshold this frame (view z; MainFrame_RenderFrame):
+// past it the PS1 draws its middle / far textures, the renderer takes the
+// level mesh's near ones there instead of the texture layer (no texture pop-in)
+void Rtx_SetTextureNearDepth(int depth)
+{
+	if (RTX_HDR != NULL)
+	{
+		RTX_HDR->texNearDepth = (float)depth;
+	}
+}
+
+int Rtx_LevelLodScale(int depth)
+{
+	if ((RTX_HDR == NULL) || !s_rtx.enabled || !RTX_HDR->rendererReady || !s_rtx.levelValid)
+	{
+		return depth;
+	}
+	static float scale;
+	if (scale == 0.0f)
+	{
+		const char *env = SDL_getenv("CTR_RTX_LOD_SCALE");
+		scale = env ? (float)atof(env) : -1.0f;
+	}
+	float k = scale;
+	if (k <= 0.0f)
+	{
+		int w, h;
+		NativeRenderer_RtxViewportSize(&w, &h);
+		k = (float)w / 512.0f;
+	}
+	k = fminf(fmaxf(k, 1.0f), 4.0f);
+	float d = (float)depth * k;
+	return (d > 2.0e9f) ? 2000000000 : (int)d;
 }
 
 static int Rtx_RangeCmp(const void *a, const void *b)
@@ -793,12 +1614,14 @@ static void Rtx_ViewToWorld(const float *v, float *out)
 }
 
 // Decodes the GPU polygon commands of one packet into world-space triangles.
-// Returns 1 when every command was captured (GL can skip the packet).
-static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi)
+// Returns which commands were captured (bits = word offsets, RTX_MASK_ALL when
+// GL can skip the whole packet); semi-transparent ones stay with GL.
+static u32 Rtx_CapturePacketTo(u32 *words, int numWords, u16 serial, int allowSemi, struct RtxDynTri *out, int *num, int max)
 {
-	int startDyn = s_rtx.numDyn;
 	int i = 0;
 	int polys = 0;
+	int left = 0; // commands GL still has to draw
+	u32 mask = 0;
 
 	while (i < numWords)
 	{
@@ -810,9 +1633,10 @@ static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi
 			i++;
 			continue;
 		}
-		if ((code < 0x20) || (code >= 0x40) || ((code & 2) && !(allowSemi && (code & 4))))
+		if ((code < 0x20) || (code >= 0x40))
 		{
-			goto fail; // lines, sprites, semi-transparent: leave to GL
+			left++;
+			break; // lines, sprites: GL draws the rest of the packet
 		}
 
 		int gouraud = (code & 0x10) != 0;
@@ -823,13 +1647,35 @@ static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi
 		int size = 1 + n * (1 + textured) + (gouraud ? n - 1 : 0);
 		if (i + size > numWords)
 		{
-			goto fail;
+			left++;
+			break;
 		}
+		if (((code & 2) && !(allowSemi && (code & 4))) || (i >= 32))
+		{
+			s_rtx.statSemi += (serial != RTX_LEVEL_SERIAL);
+			left++; // semi-transparent: GL (depth tested against the traced image)
+			i += size;
+			continue;
+		}
+		int startDyn = *num;
 
 		float pos[4][3];
 		u8 uv[4][2];
 		u8 col[4][4];
 		u16 clut = 0, tpage = 0;
+		u32 xys[4];
+		const float *views[4];
+		for (int v = 0, w2 = i + 1; v < n; v++)
+		{
+			w2 += (v == 0 || !gouraud) ? 0 : 1;
+			xys[v] = words[w2++];
+			w2 += textured;
+		}
+		if (!Rtx_CapPolygon(xys, n, serial, views))
+		{
+			s_rtx.statNoProj += (serial != RTX_LEVEL_SERIAL);
+			goto skip;
+		}
 		int w = i + 1;
 		for (int v = 0; v < n; v++)
 		{
@@ -839,13 +1685,8 @@ static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi
 			col[v][2] = raw ? 0x80 : (u8)(c >> 16);
 			col[v][3] = 0xff;
 
-			u32 xy = words[w++];
-			const float *view = Rtx_CapLookup(xy, serial);
-			if (view == NULL)
-			{
-				goto fail;
-			}
-			Rtx_ViewToWorld(view, pos[v]);
+			w++; // xy: views[v]
+			Rtx_ViewToWorld(views[v], pos[v]);
 
 			if (textured)
 			{
@@ -870,11 +1711,11 @@ static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi
 		static const int triIdx[2][3] = {{0, 1, 2}, {1, 3, 2}};
 		for (int t = 0; t < (quad ? 2 : 1); t++)
 		{
-			if (s_rtx.numDyn >= (int)RTX_MAX_DYN_TRIS)
+			if (*num >= max)
 			{
-				goto fail;
+				goto skip;
 			}
-			struct RtxDynTri *d = &Rtx_DynTris()[s_rtx.numDyn++];
+			struct RtxDynTri *d = &out[(*num)++];
 			for (int c = 0; c < 3; c++)
 			{
 				int v = triIdx[t][c];
@@ -885,17 +1726,27 @@ static int Rtx_CapturePacket(u32 *words, int numWords, u16 serial, int allowSemi
 			}
 			d->clut = clut;
 			d->tpage = tpage;
-			d->flags = textured ? RTX_TRI_TEXTURED : 0;
+			d->flags = (textured ? RTX_TRI_TEXTURED : 0) | ((code & 2) ? RTX_TRI_SEMI : 0);
+			d->flags |= (textured && (serial == RTX_LEVEL_SERIAL) && Rtx_IsAnimatedTexture(tpage, clut, d->uv)) ? RTX_TRI_ANIMATED : 0;
+			s_rtx.statCapAnimated += (d->flags & RTX_TRI_ANIMATED) != 0;
 			d->object = serial;
 		}
 		polys++;
+		s_rtx.statCaptured += (serial != RTX_LEVEL_SERIAL);
+		mask |= 1u << i;
+		i += size;
+		continue;
+
+	skip:
+		*num = startDyn; // not projected (or full): GL draws this one
+		left++;
 		i += size;
 	}
-	return polys > 0;
-
-fail:
-	s_rtx.numDyn = startDyn;
-	return 0;
+	if (polys == 0)
+	{
+		return 0;
+	}
+	return (left == 0) ? RTX_MASK_ALL : mask;
 }
 
 // ---- emitters: glowing (additive) things become point lights ---------------
@@ -973,13 +1824,22 @@ static int Rtx_AverageTexels(u16 tpage, u16 clut, const u8 (*uv)[2], int n, floa
 	return 1;
 }
 
-static void Rtx_AddEmitter(const float *pos, const float *color, float weight, float radius)
+static void Rtx_AddEmitter(const float *pos, const float *color, float weight, float radius, int glowModel)
 {
 	float lum = 0.299f * color[0] + 0.587f * color[1] + 0.114f * color[2];
-	if ((lum < 0.05f) || (s_rtx.numEmitters >= RTX_MAX_EMITTERS))
+	float mx = fmaxf(color[0], fmaxf(color[1], color[2])), mn = fminf(color[0], fminf(color[1], color[2]));
+	s_rtx.statEmitDim += (lum < 0.05f);
+	s_rtx.statEmitGrey += (lum >= 0.05f) && ((mx - mn < 0.35f * mx) && (weight >= 0.5f) && !glowModel);
+	// white / grey glows (exhaust puffs, sparkles, highlights) don't light the scene:
+	// lit from the kart itself they draw a bright outline around it (white smoke
+	// particles add themselves, weakly: Rtx_OnParticle). Glowing models (turbo
+	// flames burn white-hot) do: trace.comp keeps their light off models
+	s_rtx.statEmitFull += (s_rtx.numEmitters >= RTX_MAX_EMITTERS);
+	if ((lum < 0.05f) || ((mx - mn < 0.35f * mx) && (weight >= 0.5f) && !glowModel) || (s_rtx.numEmitters >= RTX_MAX_EMITTERS))
 	{
 		return;
 	}
+	s_rtx.statEmitAdded++;
 	struct RtxEmitter *e = &s_rtx.emitters[s_rtx.numEmitters++];
 	for (int i = 0; i < 3; i++)
 	{
@@ -1058,12 +1918,22 @@ static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial, int anyBlend
 			}
 		}
 		int blend = textured ? ((tpage >> 5) & 3) : abr;
-		if ((anyBlend || (semi && (blend == 1))) && found)
+		float tex[3] = {1, 1, 1};
+		s_rtx.statEmitNoProj += !found;
+		s_rtx.statEmitGlow += found && anyBlend;
+		s_rtx.statEmitSemi += found && !anyBlend && semi;
+		s_rtx.statEmitOpaque += found && !anyBlend && !semi;
+		int haveTex = found && (!textured || Rtx_AverageTexels(tpage, clut, uv, n, tex));
+		s_rtx.statPolyNoTex += found && !haveTex;
+		if (haveTex)
 		{
-			float tex[3] = {1, 1, 1};
-			if (!textured || Rtx_AverageTexels(tpage, clut, uv, n, tex))
+			float c[3] = {col[0] * tex[0], col[1] * tex[1], col[2] * tex[2]};
+			float mx = fmaxf(c[0], fmaxf(c[1], c[2])), mn = fminf(c[0], fminf(c[1], c[2]));
+			int vivid = (mx >= 0.5f) && ((mx - mn) >= 0.35f * mx); // bright and coloured
+			// additive polygons, and other see-through ones that are vivid (glows,
+			// flames); opaque paint never (karts, characters)
+			if (anyBlend || (semi && ((blend == 1) || vivid)))
 			{
-				float c[3] = {col[0] * tex[0], col[1] * tex[1], col[2] * tex[2]};
 				float centre[3] = {0, 0, 0}, radius = 0.0f;
 				for (int v = 0; v < n; v++)
 				{
@@ -1078,7 +1948,11 @@ static void Rtx_EmitterPacket(u32 *words, int numWords, u16 serial, int anyBlend
 					float d = sqrtf(dx * dx + dy * dy + dz * dz);
 					radius = d > radius ? d : radius;
 				}
-				Rtx_AddEmitter(centre, c, 0.5f + radius * radius / 1500.0f, radius); // bigger flame, more light
+				Rtx_AddEmitter(centre, c, 0.5f + radius * radius / 1500.0f, radius, anyBlend); // bigger flame, more light
+			}
+			else
+			{
+				s_rtx.statPolyNotGlow++;
 			}
 		}
 		i += size;
@@ -1092,6 +1966,7 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 		return;
 	}
 	const struct TextureLayout *t = &icon->texLayout;
+	s_rtx.statEmitParticle++;
 	// fire, sparks, glows: additive sprites, or bright coloured ones (the colour
 	// word carries no reliable semi-transparency bit here); grey smoke is skipped
 	int additive = ((t->tpage >> 5) & 3) == 1;
@@ -1100,20 +1975,197 @@ void Rtx_OnParticle(struct PushBuffer *pb, s32 viewX4, s32 viewY4, s32 viewZ4, u
 	float tex[3];
 	if (!Rtx_AverageTexels(t->tpage, t->clut, uv, 4, tex))
 	{
+		s_rtx.statPartNoTex++;
 		return;
 	}
+	s_rtx.statPartAdditive += additive;
 	float view[3] = {viewX4 * 0.25f, viewY4 * 0.25f, viewZ4 * 0.25f}, pos[3];
 	Rtx_ViewToWorld(view, pos);
 	float c[3] = {(u8)color / 128.0f * tex[0], (u8)(color >> 8) / 128.0f * tex[1], (u8)(color >> 16) / 128.0f * tex[2]};
 	if (!additive)
 	{
 		float mx = fmaxf(c[0], fmaxf(c[1], c[2])), mn = fminf(c[0], fminf(c[1], c[2]));
+		if ((mx >= 0.6f) && ((mx - mn) < 0.35f * mx))
+		{
+			s_rtx.statPartWhite++;
+			Rtx_AddEmitter(pos, c, 0.25f, 40.0f, 0); // white smoke: a faint glow
+			return;
+		}
 		if ((mx < 0.3f) || ((mx - mn) < 0.35f * mx))
 		{
+			s_rtx.statPartDull++;
 			return; // dim or grey (smoke, dust)
 		}
+		s_rtx.statPartVivid++;
 	}
-	Rtx_AddEmitter(pos, c, 1.0f, 40.0f);
+	Rtx_AddEmitter(pos, c, 1.0f, 40.0f, 0);
+}
+
+// This frame's lights against the remembered ones: a light seen in the same
+// place for a while is static (a torch, a brazier, a statue's fire) and lights
+// from memory from then on, also while the game doesn't draw it (off screen,
+// behind the camera) for up to 30 s, until it is on screen nearby and not seen
+// (gone out). Lights that move (karts' flames) are this frame's only. Writes
+// the strongest (by brightness at the camera) of both into out
+static int Rtx_RememberLights(const struct RtxPointLight *cur, int numCur, struct RtxPointLight *out, int maxOut)
+{
+	const int numMem = (int)(sizeof(s_rtx.remembered) / sizeof(s_rtx.remembered[0]));
+	// (a glow's centre jumps around from frame to frame: flicker, sparks; what
+	// tells a torch from a kart's flame is how far it gets from where it was
+	// first seen within its first second)
+	const float matchDist = 250.0f, staticMatchDist = 200.0f, moveDist = 300.0f;
+	const int staticFrames = 30;
+	const u32 forgetFrames = 900, levelGen = RTX_HDR->levelGen;
+	struct RtxRememberedLight *mem = s_rtx.remembered;
+	for (int m = 0; m < numMem; m++)
+	{
+		mem[m].matched = 0;
+		if (mem[m].levelGen != levelGen)
+		{
+			mem[m].seen = 0; // (another level's)
+			mem[m].lastGen = 0;
+		}
+	}
+
+	static u8 fromMem[RTX_MAX_DYN_LIGHTS * 4];
+	for (int c = 0; c < numCur; c++)
+	{
+		const struct RtxPointLight *l = &cur[c];
+		int best = -1;
+		float bestD2 = matchDist * matchDist;
+		for (int m = 0; m < numMem; m++)
+		{
+			if ((mem[m].seen == 0) || mem[m].matched)
+			{
+				continue;
+			}
+			float dx = mem[m].pos[0] - l->pos[0], dy = mem[m].pos[1] - l->pos[1], dz = mem[m].pos[2] - l->pos[2];
+			float d2 = dx * dx + dy * dy + dz * dz;
+			// (a static light only takes what is where it is: a kart's flame going
+			// past a torch is not the torch moving)
+			int isStatic = !mem[m].moving && (mem[m].seen >= staticFrames);
+			if ((d2 < bestD2) && (!isStatic || (d2 < staticMatchDist * staticMatchDist)))
+			{
+				bestD2 = d2;
+				best = m;
+			}
+		}
+		if (best < 0)
+		{
+			// a new one: a free slot, else the longest unseen
+			best = 0;
+			for (int m = 0; m < numMem; m++)
+			{
+				if (mem[m].seen == 0)
+				{
+					best = m;
+					break;
+				}
+				best = ((s_rtx.gen - mem[m].lastGen) > (s_rtx.gen - mem[best].lastGen)) ? m : best;
+			}
+			memset(&mem[best], 0, sizeof(mem[best]));
+			memcpy(mem[best].pos, l->pos, sizeof(l->pos));
+			memcpy(mem[best].anchor, l->pos, sizeof(l->pos));
+			memcpy(mem[best].color, l->color, sizeof(l->color));
+			mem[best].falloff = l->falloff;
+			mem[best].size = l->size;
+			mem[best].levelGen = levelGen;
+		}
+		struct RtxRememberedLight *r = &mem[best];
+		float ax = l->pos[0] - r->anchor[0], ay = l->pos[1] - r->anchor[1], az = l->pos[2] - r->anchor[2];
+		int moved = (r->seen < staticFrames) && (ax * ax + ay * ay + az * az > moveDist * moveDist);
+		s_rtx.statMemMoved += moved && !r->moving;
+		r->moving |= moved;
+		float k = r->moving ? 1.0f : 0.15f; // static: smoothed (the flames flicker, their light less)
+		for (int j = 0; j < 3; j++)
+		{
+			r->pos[j] += (l->pos[j] - r->pos[j]) * (r->moving ? 1.0f : ((r->seen < staticFrames) ? 0.5f : 0.05f));
+			r->color[j] += (l->color[j] - r->color[j]) * k;
+		}
+		r->falloff += (l->falloff - r->falloff) * k;
+		r->size += (l->size - r->size) * k;
+		r->seen = (r->seen < 60000) ? r->seen + 1 : r->seen;
+		r->lastGen = s_rtx.gen;
+		r->matched = 1;
+		fromMem[c] = !r->moving && (r->seen >= staticFrames);
+	}
+
+	// candidates: this frame's moving / new ones, every static remembered one
+	float cam[3];
+	const float zero[3] = {0, 0, 0};
+	Rtx_ViewToWorld(zero, cam);
+	static struct RtxPointLight cand[RTX_MAX_DYN_LIGHTS * 4 + 128];
+	static float score[RTX_MAX_DYN_LIGHTS * 4 + 128];
+	int numCand = 0;
+	for (int c = 0; c < numCur; c++)
+	{
+		if (!fromMem[c])
+		{
+			cand[numCand++] = cur[c];
+		}
+	}
+	const float *R = RTX_HDR->camR, *T = RTX_HDR->camT;
+	for (int m = 0; m < numMem; m++)
+	{
+		struct RtxRememberedLight *r = &mem[m];
+		if ((r->seen < staticFrames) || r->moving)
+		{
+			// not (yet) static: forget it soon after it's gone
+			r->seen = ((r->seen != 0) && (s_rtx.gen - r->lastGen > 30u)) ? 0 : r->seen;
+			continue;
+		}
+		if (!r->matched)
+		{
+			// unseen: gone out if it should be on screen nearby, forgotten after a while
+			float v[3];
+			for (int i = 0; i < 3; i++)
+			{
+				v[i] = R[i * 3] * r->pos[0] + R[i * 3 + 1] * r->pos[1] + R[i * 3 + 2] * r->pos[2] + T[i];
+			}
+			float sx = (v[2] > 1.0f) ? v[0] / v[2] * RTX_HDR->projH : 1e9f, sy = (v[2] > 1.0f) ? v[1] / v[2] * RTX_HDR->projH : 1e9f;
+			int onScreen = (v[2] > 100.0f) && (v[2] < 2500.0f) && (fabsf(sx) < 0.4f * RTX_HDR->vpW) && (fabsf(sy) < 0.4f * RTX_HDR->vpH);
+			if ((onScreen && (s_rtx.gen - r->lastGen > 4u)) || (s_rtx.gen - r->lastGen > forgetFrames))
+			{
+				s_rtx.statMemGone += onScreen;
+				s_rtx.statMemOld += !onScreen;
+				r->seen = 0;
+				continue;
+			}
+		}
+		struct RtxPointLight *l = &cand[numCand++];
+		memset(l, 0, sizeof(*l));
+		memcpy(l->pos, r->pos, sizeof(l->pos));
+		memcpy(l->color, r->color, sizeof(l->color));
+		l->falloff = r->falloff;
+		l->size = r->size;
+	}
+
+	// the strongest at the camera first
+	for (int c = 0; c < numCand; c++)
+	{
+		const struct RtxPointLight *l = &cand[c];
+		float dx = l->pos[0] - cam[0], dy = l->pos[1] - cam[1], dz = l->pos[2] - cam[2];
+		float reach = 3.0f * l->falloff;
+		score[c] = (l->color[0] + l->color[1] + l->color[2]) / (1.0f + (dx * dx + dy * dy + dz * dz) / (reach * reach));
+	}
+	int n = 0;
+	while ((n < maxOut) && (n < numCand))
+	{
+		int best = n;
+		for (int c = n + 1; c < numCand; c++)
+		{
+			best = (score[c] > score[best]) ? c : best;
+		}
+		struct RtxPointLight tl = cand[n];
+		float ts = score[n];
+		cand[n] = cand[best];
+		score[n] = score[best];
+		cand[best] = tl;
+		score[best] = ts;
+		out[n] = cand[n];
+		n++;
+	}
+	return n;
 }
 
 // greedy clustering of this frame's emitters into at most RTX_MAX_DYN_LIGHTS lights
@@ -1170,46 +2222,213 @@ static void Rtx_BuildDynLights(void)
 		}
 	}
 
-	int n = numClusters < (int)RTX_MAX_DYN_LIGHTS ? numClusters : (int)RTX_MAX_DYN_LIGHTS;
-	for (int c = 0; c < n; c++)
+	// this frame's lights: colour = average colour of what glows; more glowing
+	// stuff = brighter
+	static struct RtxPointLight cur[RTX_MAX_DYN_LIGHTS * 4];
+	int numCur = numClusters;
+	for (int c = 0; c < numCur; c++)
 	{
 		const struct RtxEmitter *k = &clusters[c];
-		struct RtxPointLight *l = &RTX_HDR->dynLights[c];
-		// colour = average colour of what glows; more glowing stuff = brighter
-		float strength = 2.0f * sqrtf(k->weight);
-		strength = strength > 14.0f ? 14.0f : strength;
+		struct RtxPointLight *l = &cur[c];
+		memset(l, 0, sizeof(*l));
+		float strength = 1.2f * sqrtf(k->weight);
+		strength = strength > 6.0f ? 6.0f : strength;
 		for (int j = 0; j < 3; j++)
 		{
 			l->pos[j] = k->pos[j] / k->weight;
 			l->color[j] = k->color[j] / k->weight * strength;
 		}
-		l->height = 0.0f;
 		l->falloff = 300.0f + 4.0f * k->radius;
-		l->size = 20.0f + 0.5f * k->radius;
+		l->size = 10.0f + 0.25f * k->radius;
 	}
+	int n = Rtx_RememberLights(cur, numCur, RTX_HDR->dynLights, (int)RTX_MAX_DYN_LIGHTS);
 	RTX_HDR->numDynLights = (u32)n;
+	s_rtx.statLights += n;
+}
+
+// ---- GL overlay depth -------------------------------------------------------
+// What GL still draws over the ray traced image (glowing and transparent models,
+// particles, skidmarks, sprites) gets a view z per vertex; the overlay shaders
+// drop fragments behind the traced surface (NativeRenderer_RtxSetImage).
+
+// every packet of the OT walk, OT entries included: which ordering table and
+// bucket the following packets hang off
+void Rtx_TrackPacket(u32 *packet)
+{
+	u32 a = (u32)packet;
+	if ((s_rtx.otBase != 0) && (a >= s_rtx.otBase) && (a < s_rtx.otBase + 0x400 * 4))
+	{
+		s_rtx.ctxWorld = 1;
+		s_rtx.ctxBucket = (int)((a - s_rtx.otBase) >> 2);
+	}
+	else if ((s_rtx.uiOtStart != 0) && (a >= s_rtx.uiOtStart) && (a <= s_rtx.uiOtEnd))
+	{
+		s_rtx.ctxWorld = 0; // HUD: always on top
+	}
+}
+
+static float Rtx_BucketZ(void)
+{
+	return s_rtx.ctxWorld ? s_rtx.zPerBucket * (s_rtx.ctxBucket + 0.5f) : 0.0f;
+}
+
+float Rtx_VertexDepth(u32 xy)
+{
+	if (!s_rtx.ctxActive || !Rtx_FrameActive())
+	{
+		return 0.0f;
+	}
+	if (s_rtx.ctxZ > 0.0f)
+	{
+		return s_rtx.ctxZ;
+	}
+	const float *v = Rtx_CapLookup(xy, s_rtx.ctxSerial);
+	if ((v != NULL) && (v[2] > 1.0f))
+	{
+		return v[2];
+	}
+	return Rtx_BucketZ();
+}
+
+// a smoke particle (POLY_FT4 sprite, not additive): its screen corners back at
+// its depth into world space, a camera-facing quad that shadows partly
+static void Rtx_CaptureSmoke(u32 *packet, int lengthWords, float z)
+{
+	u32 code = (lengthWords >= 9) ? (packet[1] >> 24) : 0;
+	if (((code & 0xfc) != 0x2c) || (s_rtx.partH <= 0.0f) || (z <= 1.0f) || (s_rtx.numSmoke + 2 > (int)(sizeof(s_rtx.smoke) / sizeof(s_rtx.smoke[0]))))
+	{
+		return;
+	}
+	u16 clut = (u16)(packet[3] >> 16), tpage = (u16)(packet[5] >> 16);
+	if (((tpage >> 5) & 3) == 1)
+	{
+		return; // additive: fire, sparks, glows (they light, they don't shade)
+	}
+	float pos[4][3];
+	u8 uv[4][2];
+	for (int v = 0; v < 4; v++)
+	{
+		u32 xy = packet[2 + v * 2], t = packet[3 + v * 2];
+		float view[3] = {((s16)(xy & 0xffff) - s_rtx.partOfx) * z / s_rtx.partH, ((s16)(xy >> 16) - s_rtx.partOfy) * z / s_rtx.partH, z};
+		Rtx_ViewToWorld(view, pos[v]);
+		uv[v][0] = (u8)t;
+		uv[v][1] = (u8)(t >> 8);
+	}
+	static const int triIdx[2][3] = {{0, 1, 2}, {1, 3, 2}};
+	for (int t = 0; t < 2; t++)
+	{
+		struct RtxDynTri *d = &s_rtx.smoke[s_rtx.numSmoke++];
+		for (int c = 0; c < 3; c++)
+		{
+			int v = triIdx[t][c];
+			memcpy(d->p[c], pos[v], sizeof(d->p[c]));
+			d->uv[c][0] = uv[v][0];
+			d->uv[c][1] = uv[v][1];
+			d->col[c][0] = (u8)packet[1];
+			d->col[c][1] = (u8)(packet[1] >> 8);
+			d->col[c][2] = (u8)(packet[1] >> 16);
+			d->col[c][3] = 0xff;
+		}
+		d->clut = clut;
+		d->tpage = tpage;
+		d->flags = RTX_TRI_TEXTURED | RTX_TRI_SMOKE;
+		d->object = 0xfffe;
+	}
 }
 
 int Rtx_ClassifyPacket(u32 *packet, int lengthWords)
 {
 	const struct RtxRange *r = Rtx_FindRange((u32)packet);
+	s_rtx.ctxSerial = 0;
+	s_rtx.ctxZ = 0.0f;
+	s_rtx.ctxActive = 0;
+	s_rtx.ctxMask = 0;
 	if (r == NULL)
 	{
+		s_rtx.ctxActive = s_rtx.ctxWorld; // world effects: projections recorded outside tags, else the OT bucket
 		return RTX_PACKET_DRAW;
 	}
 	switch (r->tag)
 	{
 	case RTX_TAG_LEVEL:
+		// the exact PS1 texturing of what is on screen: the renderer's primary
+		// rays take texels from these (next frame), lighting from the level mesh
+		if (s_rtx.cameraValid && (lengthWords > 0))
+		{
+			Rtx_CapturePacketTo(packet + 1, lengthWords, RTX_LEVEL_SERIAL, 1, (struct RtxDynTri *)(s_rtx.base + RTX_OFF_LEVEL_CAP), &s_rtx.numLevelCap,
+			                    (int)RTX_MAX_LEVEL_CAP);
+		}
+		return RTX_PACKET_SKIP;
 	case RTX_TAG_SHADOW:
 		return RTX_PACKET_SKIP;
 	case RTX_TAG_SKY:
 		return RTX_PACKET_SKY;
 	case RTX_TAG_INSTANCE:
-		(void)lengthWords;
-		return Rtx_IsCaptured((u32)packet) ? RTX_PACKET_SKIP : RTX_PACKET_DRAW;
-	default:
+	{
+		s_rtx.ctxActive = 1;
+		s_rtx.ctxSerial = r->serial;
+		// first vertex of a polygon packet: calibrates bucket -> z for packets without projections
+		u32 code = (lengthWords >= 2) ? (packet[1] >> 24) : 0;
+		if (s_rtx.ctxWorld && (code >= 0x20) && (code < 0x40))
+		{
+			const float *v = Rtx_CapLookup(packet[2], r->serial);
+			if ((v != NULL) && (v[2] > 1.0f))
+			{
+				s_rtx.calZ += v[2];
+				s_rtx.calB += s_rtx.ctxBucket + 0.5;
+				s_rtx.calN++;
+			}
+		}
+		u32 mask = Rtx_CapturedMask((u32)packet);
+		if (mask == RTX_MASK_ALL)
+		{
+			return RTX_PACKET_SKIP;
+		}
+		s_rtx.ctxMask = mask;
 		return RTX_PACKET_DRAW;
 	}
+	case RTX_TAG_DEPTH:
+		s_rtx.ctxActive = 1;
+		s_rtx.ctxZ = r->z;
+		Rtx_CaptureSmoke(packet, lengthWords, r->z);
+		return RTX_PACKET_DRAW;
+	default:
+		return RTX_PACKET_DRAW; // HUD models, other views
+	}
+}
+
+// one particle's packet (words long, at prim): its view z for the depth test
+void Rtx_OnParticleDepth(struct PushBuffer *pb, u32 *prim, int words, s32 viewZ4, s32 ofx, s32 ofy, s32 h)
+{
+	if ((RTX_HDR == NULL) || !s_rtx.enabled || (pb != &sdata->gGT->pushBuffer[0]))
+	{
+		return;
+	}
+	s_rtx.partOfx = ofx / 65536.0f;
+	s_rtx.partOfy = ofy / 65536.0f;
+	s_rtx.partH = (float)h;
+	u32 start = (u32)prim;
+	struct RtxRange *r = (s_rtx.numRanges > 0) ? &s_rtx.ranges[s_rtx.numRanges - 1] : NULL;
+	if ((r == NULL) || (r->tag != RTX_TAG_DEPTH) || (r->start != start))
+	{
+		if (s_rtx.numRanges >= RTX_MAX_RANGES)
+		{
+			return;
+		}
+		// (the last particle was culled after its hook: its slot is reused)
+		r = &s_rtx.ranges[s_rtx.numRanges++];
+		if ((s_rtx.numRanges > 1) && (start < r[-1].start))
+		{
+			s_rtx.rangesSorted = 0;
+		}
+	}
+	r->start = start;
+	r->end = start + (u32)words * 4;
+	r->tag = RTX_TAG_DEPTH;
+	r->serial = 0;
+	r->allowSemi = 0;
+	r->mode = 0;
+	r->z = viewZ4 * 0.25f;
 }
 
 int Rtx_SkyPhase(void)
@@ -1223,11 +2442,13 @@ void Rtx_EndSkyPhase(void)
 	NativeRenderer_RtxSkySnapshot();
 	int w, h;
 	const u8 *image = NULL;
+	const float *depth = NULL;
 	NativeRenderer_RtxViewportSize(&w, &h);
-	NativeRenderer_RtxSetImage(Rtx_RenderFrame(w, h, &image) ? image : NULL, w, h);
+	int ok = Rtx_RenderFrame(w, h, &image, &depth);
+	NativeRenderer_RtxSetImage(ok ? image : NULL, ok ? depth : NULL, w, h);
 }
 
-int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
+int Rtx_RenderFrame(int outW, int outH, const u8 **rgba, const float **depth)
 {
 	if (!Rtx_FrameActive())
 	{
@@ -1252,6 +2473,43 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 		Rtx_ViewToWorld(zero, cam);
 		printf("[RTX] frame %u: %d dyn tris, %d emitters -> %u lights, %d ranges, cam %.0f %.0f %.0f, renderer %.2f ms, %u spp\n", RTX_HDR->frame, s_rtx.numDyn, s_rtx.numEmitters, RTX_HDR->numDynLights, s_rtx.numRanges, cam[0], cam[1],
 		       cam[2], RTX_HDR->renderMs, RTX_HDR->traceSpp);
+		printf("[RTX]   models: %d instances, polygons %d traced, %d unprojected (GL), %d see-through (GL); %d level polygons\n", s_rtx.statInstances,
+		       s_rtx.statCaptured, s_rtx.statNoProj, s_rtx.statSemi, RTX_HDR->numLevelCap);
+		printf("[RTX]   (last 300 frames) instances: %d traced, %d glowing, %d GL only; emitter candidates: %d glow-model polys, %d see-through, %d opaque (skipped), %d particles, %d no projection; rejected %d grey, %d dim\n",
+		       s_rtx.statInstMode[RTX_INST_CAPTURE], s_rtx.statInstMode[RTX_INST_GLOW], s_rtx.statInstMode[RTX_INST_GL], s_rtx.statEmitGlow, s_rtx.statEmitSemi,
+		       s_rtx.statEmitOpaque, s_rtx.statEmitParticle, s_rtx.statEmitNoProj, s_rtx.statEmitGrey, s_rtx.statEmitDim);
+		printf("[RTX]   particles: %d additive, %d vivid, %d white, %d dull (no light), %d no texels\n", s_rtx.statPartAdditive, s_rtx.statPartVivid,
+		       s_rtx.statPartWhite, s_rtx.statPartDull, s_rtx.statPartNoTex);
+		printf("[RTX]   polygons: %d no texels, %d not glowing; emitters added %d (%d over the limit) -> %d frame lights\n", s_rtx.statPolyNoTex, s_rtx.statPolyNotGlow,
+		       s_rtx.statEmitAdded, s_rtx.statEmitFull, s_rtx.statLights);
+		int remembered = 0, tracked = 0, moving = 0;
+		for (int m = 0; m < (int)(sizeof(s_rtx.remembered) / sizeof(s_rtx.remembered[0])); m++)
+		{
+			const struct RtxRememberedLight *r = &s_rtx.remembered[m];
+			remembered += (r->seen >= 30) && !r->moving;
+			tracked += (r->seen != 0);
+			moving += (r->seen != 0) && r->moving;
+		}
+		printf("[RTX]   karts on the traced floor: %d seated (%d bodies moved along), mean gap %.1f (abs %.1f), %d with no floor under their wheels; %d animated texture rects, %d animated level polygons drawn\n",
+		       s_rtx.statGapN, s_rtx.statGapBody, s_rtx.statGapN ? s_rtx.statGapSum / s_rtx.statGapN : 0.0, s_rtx.statGapN ? s_rtx.statGapAbs / s_rtx.statGapN : 0.0, s_rtx.statGapFar,
+		       s_rtx.numAnimRect, s_rtx.statCapAnimated);
+		s_rtx.statGapN = s_rtx.statGapFar = s_rtx.statGapBody = s_rtx.statCapAnimated = 0;
+		s_rtx.statGapSum = s_rtx.statGapAbs = 0.0;
+		printf("[RTX]   glows tracked %d: %d static (remembered), %d moving; %d moved / %d forgotten on screen / %d timed out (last 300 frames)\n", tracked, remembered, moving,
+		       s_rtx.statMemMoved, s_rtx.statMemGone, s_rtx.statMemOld);
+		s_rtx.statMemMoved = s_rtx.statMemGone = s_rtx.statMemOld = 0;
+		s_rtx.statPolyNoTex = s_rtx.statPolyNotGlow = s_rtx.statEmitAdded = s_rtx.statEmitFull = s_rtx.statLights = 0;
+		memset(s_rtx.statInstMode, 0, sizeof(s_rtx.statInstMode));
+		s_rtx.statEmitGlow = s_rtx.statEmitSemi = s_rtx.statEmitOpaque = s_rtx.statEmitParticle = s_rtx.statEmitGrey = s_rtx.statEmitDim = s_rtx.statEmitNoProj = 0;
+		s_rtx.statPartAdditive = s_rtx.statPartVivid = s_rtx.statPartWhite = s_rtx.statPartDull = s_rtx.statPartNoTex = 0;
+		for (int i = 0; i < (int)RTX_HDR->numDynLights && i < 8; i++)
+		{
+			const struct RtxPointLight *l = &RTX_HDR->dynLights[i];
+			printf("[RTX]   frame light %d: %.0f %.0f %.0f colour %.2f %.2f %.2f falloff %.0f\n", i, l->pos[0], l->pos[1], l->pos[2], l->color[0], l->color[1], l->color[2], l->falloff);
+		}
+		const struct PrimMem *pm = &sdata->gGT->backBuffer->primMem;
+		printf("[RTX]   primitive memory %u of %u KB, level LOD x%.2f\n", (u32)((u32)pm->cursor - (u32)pm->start) / 1024, (u32)pm->capacityBytes / 1024,
+		       Rtx_LevelLodScale(1000) / 1000.0f);
 		for (int i = 0; i < s_rtx.numDyn && i < 3; i++)
 		{
 			struct RtxDynTri *d = &Rtx_DynTris()[i];
@@ -1259,28 +2517,52 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 			       d->p[1][1], d->p[1][2], d->p[2][0], d->p[2][1], d->p[2][2]);
 		}
 	}
+	// last frame's smoke after this frame's models
+	int smoke = s_rtx.numSmoke < (int)RTX_MAX_DYN_TRIS - s_rtx.numDyn ? s_rtx.numSmoke : (int)RTX_MAX_DYN_TRIS - s_rtx.numDyn;
+	memcpy(&Rtx_DynTris()[s_rtx.numDyn], s_rtx.smoke, sizeof(struct RtxDynTri) * smoke);
+	s_rtx.numDyn += smoke;
+	s_rtx.numSmoke = 0;
 	RTX_HDR->numDynTris = (u32)s_rtx.numDyn;
+	RTX_HDR->numLevelCap = (u32)s_rtx.numLevelCap; // last frame's; this frame's walk refills the section
+	s_rtx.numLevelCap = 0;
 	RTX_HDR->outW = (u32)outW;
 	RTX_HDR->outH = (u32)outH;
 	RTX_HDR->dispW = 512.0f;
 	RTX_HDR->dispH = 216.0f;
 	RTX_HDR->debugView = (u32)s_rtx.debugView;
 	RTX_HDR->lightMode = s_rtx.lightMode ? 0u : 1u; // default full relight, F5 hybrid
+	RTX_HDR->settings = s_rtx.settings;
+	// pipelined: show the previous request's image (made the same way, at this
+	// size, the game frame before) and only wait for the renderer to take this
+	// frame's input
+	int pipelined = s_rtx.settings.pipelined && s_rtx.prevPipelined && (s_rtx.prevW == outW) && (s_rtx.prevH == outH) && (s_rtx.prevGen + 1u == s_rtx.gen);
 	RTX_HDR->frame++;
 
 	__sync_synchronize();
 	u32 req = RTX_HDR->frameReq + 1;
 	RTX_HDR->frameReq = req;
+	Rtx_FutexWake(&RTX_HDR->frameReq);
 
-	u64 start = SDL_GetTicksNS();
-	while (RTX_HDR->frameDone != req)
+	u64 start = SDL_GetTicksNS(), lastBusy = start;
+	volatile u32 *wait = pipelined ? &RTX_HDR->frameTaken : &RTX_HDR->frameDone;
+	s_rtx.prevPipelined = 0;
+	for (;;)
 	{
-		if (SDL_GetTicksNS() - start > 250000000ull)
+		u32 v = *wait;
+		if (v == req)
+		{
+			break;
+		}
+		// (a level being loaded / prepared takes a while: up to 15 s; the frame
+		// after it still comes, so 250 ms from when it was last seen busy)
+		u64 now = SDL_GetTicksNS(), waited = now - start;
+		lastBusy = RTX_HDR->rendererBusy ? now : lastBusy;
+		if (((now - lastBusy) > 250000000ull) || (waited > 15000000000ull))
 		{
 			static int warned;
 			if (!warned++)
 			{
-				printf("[RTX] renderer timed out, frame drawn without ray tracing\n");
+				printf("[RTX] renderer timed out (request %u, game frame %u, %u ms), frame drawn without ray tracing\n", req, RTX_HDR->frame, (u32)(waited / 1000000ull));
 			}
 			return 0;
 		}
@@ -1290,9 +2572,15 @@ int Rtx_RenderFrame(int outW, int outH, const u8 **rgba)
 			RTX_HDR->rendererReady = 0;
 			return 0;
 		}
-		sched_yield();
+		Rtx_FutexWait(wait, v, 2000000); // (the renderer wakes it)
 	}
 	__sync_synchronize();
-	*rgba = s_rtx.base + RTX_OFF_IMAGE;
+	s_rtx.prevPipelined = s_rtx.settings.pipelined;
+	s_rtx.prevW = outW;
+	s_rtx.prevH = outH;
+	s_rtx.prevGen = s_rtx.gen;
+	u32 slot = (pipelined ? req - 1u : req) & 1u;
+	*rgba = s_rtx.base + RTX_OFF_IMAGE + slot * RTX_SLOT_BYTES;
+	*depth = (const float *)(s_rtx.base + RTX_OFF_DEPTH + slot * RTX_SLOT_BYTES);
 	return 1;
 }

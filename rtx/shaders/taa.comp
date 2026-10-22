@@ -1,0 +1,177 @@
+#version 460
+// Temporal anti-aliasing and upscaling. The composited image (final.comp and
+// bloom.comp, internal size, traced through this frame's sub-pixel jitter
+// F.jitter) is resolved onto the output size against last frame's output,
+// reprojected with the camera. There are no motion vectors: moving models are
+// kept from ghosting by clipping the history to the colours around the pixel
+// this frame. Also writes the output depth (GL overlay) and the RGBA8 image.
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 9, std430) readonly buffer GeoCur { vec4 geo[]; };   // internal size: normal, view z
+layout(set = 0, binding = 15, std430) writeonly buffer Out { uint outPixels[]; };
+layout(set = 0, binding = 20, std430) writeonly buffer DepthOut { float depthOut[]; };
+layout(set = 0, binding = 36, std430) readonly buffer Disp { vec4 disp[]; };    // internal size: display colour, alpha
+layout(set = 0, binding = 37, std430) readonly buffer TaaPrev { vec4 taaPrev[]; };
+layout(set = 0, binding = 38, std430) writeonly buffer TaaCur { vec4 taaCur[]; };
+
+vec3 toYCoCg(vec3 c) { return vec3(dot(c, vec3(0.25, 0.5, 0.25)), dot(c, vec3(0.5, 0.0, -0.5)), dot(c, vec3(-0.25, 0.5, -0.25))); }
+vec3 fromYCoCg(vec3 c) { return vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z); }
+
+vec4 dispAt(ivec2 p)
+{
+	p = clamp(p, ivec2(0), ivec2(F.size.xy) - 1);
+	return disp[p.y * int(F.size.x) + p.x];
+}
+
+// last frame's output at p (pixel units, centres at +0.5): Catmull-Rom, sharp
+// enough that the history doesn't blur over the frames
+vec4 historyAt(vec2 p)
+{
+	ivec2 size = ivec2(F.outSize.xy);
+	vec2 q = p - 0.5;
+	vec2 f = floor(q);
+	vec2 t = q - f;
+	vec2 w[4];
+	w[0] = t * (-0.5 + t * (1.0 - 0.5 * t));
+	w[1] = 1.0 + t * t * (-2.5 + 1.5 * t);
+	w[2] = t * (0.5 + t * (2.0 - 1.5 * t));
+	w[3] = t * t * (-0.5 + 0.5 * t);
+	vec4 sum = vec4(0.0);
+	for (int y = 0; y < 4; y++)
+	{
+		int yy = clamp(int(f.y) - 1 + y, 0, size.y - 1);
+		for (int x = 0; x < 4; x++)
+		{
+			int xx = clamp(int(f.x) - 1 + x, 0, size.x - 1);
+			sum += taaPrev[yy * size.x + xx] * (w[x].x * w[y].y);
+		}
+	}
+	return max(sum, vec4(0.0));
+}
+
+// pull h into the box (centre + extent) along the line towards its centre
+vec3 clipBox(vec3 h, vec3 lo, vec3 hi)
+{
+	vec3 c = 0.5 * (hi + lo), e = 0.5 * (hi - lo) + 1e-4;
+	vec3 v = h - c;
+	vec3 a = abs(v / e);
+	float m = max(a.x, max(a.y, a.z));
+	return (m > 1.0) ? c + v / m : h;
+}
+
+void main()
+{
+	uvec2 px = gl_GlobalInvocationID.xy;
+	uint outW = F.outSize.x, outH = F.outSize.y;
+	if ((px.x >= outW) || (px.y >= outH))
+	{
+		return;
+	}
+	uint idx = px.y * outW + px.x;
+	vec2 inSize = vec2(F.size.xy);
+	bool taa = (F.outSize.z != 0u) && (F.size.w == 0u); // (debug views: plain upscale)
+	// this frame's samples sit at internal pixel centres + J
+	vec2 J = taa ? F.jitter.xy - 0.5 : vec2(0.0);
+	vec2 q = (vec2(px) + 0.5) * inSize / vec2(outW, outH); // the output pixel's centre in internal pixels
+	ivec2 c0 = ivec2(floor(q - J));                          // the internal pixel whose sample is nearest
+
+	vec4 g0 = geo[clamp(c0.y, 0, int(F.size.y) - 1) * int(F.size.x) + clamp(c0.x, 0, int(F.size.x) - 1)];
+	depthOut[idx] = (g0.w > 0.0) ? g0.w : 1e9;
+
+	vec4 cur;
+	if (!taa)
+	{
+		// plain bilinear (exact at 100%)
+		vec2 b = q - 0.5;
+		ivec2 i0 = ivec2(floor(b));
+		vec2 t = b - vec2(i0);
+		cur = mix(mix(dispAt(i0), dispAt(i0 + ivec2(1, 0)), t.x), mix(dispAt(i0 + ivec2(0, 1)), dispAt(i0 + ivec2(1, 1)), t.x), t.y);
+		taaCur[idx] = cur;
+		uvec3 c8 = uvec3(clamp(cur.rgb, 0.0, 1.0) * 255.0 + 0.5);
+		outPixels[idx] = c8.r | (c8.g << 8) | (c8.b << 16) | (uint(clamp(cur.a, 0.0, 1.0) * 255.0 + 0.5) << 24);
+		return;
+	}
+
+	// this frame: the 3x3 samples around, weighted by their distance to the
+	// output pixel's centre (a Blackman-Harris like window); their spread (in
+	// YCoCg) bounds the history. The closest surface among them reprojects it
+	// (edges keep the foreground's motion)
+	vec4 sum = vec4(0.0);
+	float wsum = 0.0;
+	vec3 m1 = vec3(0.0), m2 = vec3(0.0);
+	vec3 lo = vec3(1e9), hi = vec3(-1e9);
+	float aLo = 1.0, aHi = 0.0;
+	float zNear = 1e30;
+	for (int dy = -1; dy <= 1; dy++)
+	{
+		for (int dx = -1; dx <= 1; dx++)
+		{
+			ivec2 i = clamp(c0 + ivec2(dx, dy), ivec2(0), ivec2(F.size.xy) - 1);
+			vec4 s = disp[i.y * int(F.size.x) + i.x];
+			vec2 d = vec2(c0 + ivec2(dx, dy)) + 0.5 + J - q;
+			float w = exp(-2.29 * dot(d, d));
+			sum += s * w;
+			wsum += w;
+			vec3 y = toYCoCg(s.rgb);
+			m1 += y;
+			m2 += y * y;
+			lo = min(lo, y);
+			hi = max(hi, y);
+			aLo = min(aLo, s.a);
+			aHi = max(aHi, s.a);
+			float z = geo[i.y * int(F.size.x) + i.x].w;
+			zNear = (z > 0.0) ? min(zNear, z) : zNear;
+		}
+	}
+	cur = sum / max(wsum, 1e-6);
+
+	// where this pixel was last frame: its surface (or, for the sky, its direction)
+	vec2 dispSize = vec2(F.proj2.y, F.proj2.z);
+	vec2 s = (vec2(px) + 0.5) / vec2(outW, outH) * dispSize;
+	vec2 c = s - vec2(F.proj.y, F.proj.z) - 0.5 * vec2(F.proj.w, F.proj2.x);
+	vec3 viewDir = vec3(c / F.proj.x, 1.0);
+	vec3 pv;
+	if (zNear < 1e29)
+	{
+		vec3 v = viewDir * zNear - F.camT.xyz;
+		vec3 p = vec3(dot(F.rInv[0].xyz, v), dot(F.rInv[1].xyz, v), dot(F.rInv[2].xyz, v));
+		pv = vec3(dot(F.prevR[0].xyz, p), dot(F.prevR[1].xyz, p), dot(F.prevR[2].xyz, p)) + F.prevT.xyz;
+	}
+	else
+	{
+		vec3 d = vec3(dot(F.rInv[0].xyz, viewDir), dot(F.rInv[1].xyz, viewDir), dot(F.rInv[2].xyz, viewDir));
+		pv = vec3(dot(F.prevR[0].xyz, d), dot(F.prevR[1].xyz, d), dot(F.prevR[2].xyz, d));
+	}
+	bool valid = (F.counts.w == 0u) && (pv.z > 1e-3);
+	vec2 pp = vec2(0.0);
+	if (valid)
+	{
+		vec2 ps = vec2(F.proj.y, F.proj.z) + 0.5 * vec2(F.proj.w, F.proj2.x) + pv.xy * (F.proj2.w / pv.z);
+		pp = ps / dispSize * vec2(outW, outH);
+		valid = (pp.x >= 0.0) && (pp.y >= 0.0) && (pp.x <= float(outW)) && (pp.y <= float(outH));
+	}
+
+	vec4 result = cur;
+	if (valid)
+	{
+		vec4 h = historyAt(pp);
+		// variance box (1.25 sigma) within the neighbourhood's range
+		vec3 mean = m1 / 9.0;
+		vec3 sigma = sqrt(max(m2 / 9.0 - mean * mean, 0.0));
+		vec3 bLo = max(mean - 1.25 * sigma, lo), bHi = min(mean + 1.25 * sigma, hi);
+		vec3 hc = fromYCoCg(clipBox(toYCoCg(h.rgb), bLo, bHi));
+		float ha = clamp(h.a, aLo, aHi);
+		// this frame's share: more where its nearest sample is close to the
+		// pixel centre (upscaling: some frames have no sample near this pixel)
+		vec2 dn = vec2(c0) + 0.5 + J - q;
+		float near = exp(-2.29 * dot(dn, dn));
+		float alpha = mix(0.04, 0.12, near);
+		result = mix(vec4(hc, ha), cur, alpha);
+	}
+	taaCur[idx] = result;
+	uvec3 c8 = uvec3(clamp(result.rgb, 0.0, 1.0) * 255.0 + 0.5);
+	outPixels[idx] = c8.r | (c8.g << 8) | (c8.b << 16) | (uint(clamp(result.a, 0.0, 1.0) * 255.0 + 0.5) << 24);
+}

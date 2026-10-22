@@ -1,0 +1,72 @@
+#version 460
+// Once per outdoor level: where is the sun the artists lit the track with?
+// For directions over the sky, regress the vertex colours of sample vertices
+// against their sun term (n.d where the level doesn't block d):
+//   colour ~ a + b * max(n.d, 0) * visible
+// The best fitting direction is the sun, b its colour, a the sky/ambient.
+// Step 0 first turns each sample's normal towards open space.
+
+#include "common.glsl"
+
+layout(local_size_x = 64) in;
+
+// [0]: samples, directions; samples from [1]: position, normal, linear colour (w luma);
+// then 3 vec4 of sums per direction
+layout(set = 0, binding = 25, std430) buffer Fit { vec4 fit[]; };
+
+layout(push_constant) uniform Push { int step; } pc;
+
+vec3 fitDir(uint i, uint n)
+{
+	float y = mix(0.12, 1.0, (float(i) + 0.5) / float(n));
+	float r = sqrt(max(1.0 - y * y, 0.0)), phi = float(i) * 2.39996323;
+	return vec3(r * cos(phi), y, r * sin(phi));
+}
+
+void main()
+{
+	uint ns = uint(fit[0].x), nd = uint(fit[0].y);
+	uint g = gl_GlobalInvocationID.x;
+	if (pc.step == 0)
+	{
+		if (g >= ns)
+		{
+			return;
+		}
+		vec3 p = fit[1u + g * 3u].xyz, n = fit[2u + g * 3u].xyz;
+		bool front = occludedMask(p + n * 4.0, n, 400.0, 0x1u), back = occludedMask(p - n * 4.0, -n, 400.0, 0x1u);
+		if (front && !back)
+		{
+			fit[2u + g * 3u] = vec4(-n, 0.0);
+		}
+		return;
+	}
+	if (g >= nd)
+	{
+		return;
+	}
+	vec3 d = fitDir(g, nd);
+	float sx = 0.0, sxx = 0.0, sl = 0.0, sll = 0.0, sxl = 0.0;
+	vec3 sy = vec3(0.0), sxy = vec3(0.0);
+	for (uint j = 0u; j < ns; j++)
+	{
+		vec3 p = fit[1u + j * 3u].xyz, n = fit[2u + j * 3u].xyz;
+		vec4 c = fit[3u + j * 3u];
+		float x = max(dot(n, d), 0.0);
+		if ((x > 0.0) && occludedMask(p + n * 3.0, d, 1e6, 0x1u))
+		{
+			x = 0.0;
+		}
+		sx += x;
+		sxx += x * x;
+		sy += c.rgb;
+		sxy += x * c.rgb;
+		sl += c.w;
+		sll += c.w * c.w;
+		sxl += x * c.w;
+	}
+	uint base = 1u + ns * 3u + g * 3u;
+	fit[base] = vec4(sx, sxx, sl, sll);
+	fit[base + 1u] = vec4(sy, sxl);
+	fit[base + 2u] = vec4(sxy, 0.0);
+}

@@ -35,6 +35,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	{
 		MainFrame_VisMemFullFrame(gGT, gGT->level1);
 	}
+#if defined(CTR_NATIVE)
+	MainFrame_PcVisibility(gGT); // MultiTrack: draw everything visible from anywhere (no pop-in)
+#endif
 
 
 	if ((gGT->renderFlags & RENDER_FLAG_DRAW_LEVEL) != 0)
@@ -935,8 +938,14 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 			scratch->textureLodDepthThreshold1 = CTR_MipsMulLo(distToScreen, 0xc);
 			scratch->topLevelNearDepthThreshold = CTR_MipsMulLo(distToScreen, 7);
 			scratch->recursiveNearDepthThreshold = RenderAllLevelGeometry_ScaleDistanceShift8(distToScreen, 0x380);
+			// MultiTrack: ray traced, the detail reaches further (output resolution vs the PS1's)
+			scratch->bspLodDistanceThreshold = Rtx_LevelLodScale(scratch->bspLodDistanceThreshold);
+			scratch->textureLodDepthThreshold0 = Rtx_LevelLodScale(scratch->textureLodDepthThreshold0);
+			scratch->textureLodDepthThreshold1 = Rtx_LevelLodScale(scratch->textureLodDepthThreshold1);
+			scratch->topLevelNearDepthThreshold = Rtx_LevelLodScale(scratch->topLevelNearDepthThreshold);
 			scratch->fullDynamicFadeDepthStart = CTR_MipsAddLo(scratch->bspLodDistanceThreshold, MAIN_RENDER_LEVEL_GEOMETRY_FULL_DYNAMIC_FADE_OFFSET);
 		}
+		Rtx_SetTextureNearDepth(scratch->textureLodDepthThreshold1); // MultiTrack: near textures beyond it too (ray traced)
 
 		RenderLists_PreInit();
 		gGT->bspLeafsDrawn = 0;
