@@ -1,0 +1,39 @@
+#version 460
+// Once per level: move each static light off the surface it belongs to, along
+// its direction (l2.yzw; none = straight up from a floor base) to the side
+// with room, by its height but at most 60% of the way to the next surface.
+
+#include "common.glsl"
+
+layout(local_size_x = 64) in;
+
+void main()
+{
+	uint i = gl_GlobalInvocationID.x;
+	if (i >= F.counts.x)
+	{
+		return;
+	}
+	vec4 l0 = lights[i * 3u], l2 = lights[i * 3u + 2u];
+	vec3 base = l0.xyz;
+	float height = l0.w;
+	vec3 dir = (dot(l2.yzw, l2.yzw) > 1e-6) ? normalize(l2.yzw) : vec3(0.0, 1.0, 0.0);
+	uint inst, prim;
+	vec2 bary;
+	float tUp = traceClosest(base + dir * 4.0, dir, 1e7, false, inst, prim, bary);
+	tUp = (tUp > 0.0) ? tUp + 4.0 : 1e7;
+	if (dot(l2.yzw, l2.yzw) > 1e-6)
+	{
+		// hotspots: the normal's sign is unknown, take the side with more room
+		float tDown = traceClosest(base - dir * 4.0, -dir, 1e7, false, inst, prim, bary);
+		tDown = (tDown > 0.0) ? tDown + 4.0 : 1e7;
+		if (tDown > tUp)
+		{
+			dir = -dir;
+			tUp = tDown;
+		}
+	}
+	float h = min(height, 0.6 * tUp);
+	lights[i * 3u] = vec4(base + dir * h, 0.0);
+	lights[i * 3u + 2u] = vec4(l2.x, dir);
+}

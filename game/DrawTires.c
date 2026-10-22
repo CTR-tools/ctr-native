@@ -604,7 +604,9 @@ static int DrawTiresSolid_StagePlayer(struct DrawTiresScratch *scratch, struct D
 	DrawTiresSolid_SetupGteState(scratch, inst, idpp, pb);
 	DrawTiresSolid_BuildWheelAxes(scratch);
 	DrawTiresSolid_SetupProjectionState(pb);
+	Rtx_BeginScaled(primMem, pb, 0.25f, inst); // MultiTrack: wheels become ray traced geometry (view space x4 here)
 	DrawTiresSolid_ProjectWheelQuads(scratch, primMem, primCount);
+	Rtx_EndTag(primMem);
 
 	return 1;
 }

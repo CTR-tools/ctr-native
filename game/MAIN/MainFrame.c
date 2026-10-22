@@ -130,6 +130,16 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 	int iVar11;
 	struct Thread *psVar12;
 
+#ifdef CTR_NATIVE
+	// MultiTrack: X / A skips the Naughty Dog box to the title screen
+	if ((gGT->levelID == NAUGHTY_DOG_CRATE) && ((gGT->gameMode1 & LOADING) == 0) && Platform_InputSkipPressed())
+	{
+		RaceFlag_SetDrawOrder(0);
+		gGT->gameMode2 &= ~VEH_FREEZE_PODIUM;
+		MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+	}
+#endif
+
 	wasPausedAtFrameStart = true;
 	if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 	{
@@ -641,6 +651,196 @@ static void MainFrame_VisMemAddDriverPVS(struct GameTracker *gGT, int playerInde
 		MainFrame_OrPackedVisList(gGT->visMem1->visFaceList[playerIndex], pvs->visFaceSrc, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 	}
 }
+
+#if defined(CTR_NATIVE)
+// MultiTrack: PC visibility. The PS1 draws only what its precomputed lists say
+// can be seen from where the camera is (per quadblock: BSP leaves, quadblocks,
+// level instances); on custom tracks those lists are often rough, so things
+// pop in as the kart gets near. A PC can draw it all: every frame the lists
+// become the union of every quadblock's lists (everything that is visible from
+// somewhere: invisible walls and triggers stay hidden). CTR_PS1_VIS=1 keeps
+// the PS1's lists.
+static struct
+{
+	const struct Level *level;
+	const struct mesh_info *mesh;
+	int numQuads, numNodes, numInst;
+	int *leaf, *face;            // unions, packed bit lists
+	u32 *instMask;               // level instances (index in ptrInstDefPtrArray) in any list
+	struct Instance **instList;  // this frame's: NULL terminated
+	int enabled;                 // -1 unknown
+} s_pcVis = {.enabled = -1};
+
+static void MainFrame_PcVisBuild(struct GameTracker *gGT, struct Level *level)
+{
+	struct mesh_info *mesh = level->ptr_mesh_info;
+	int leafBytes = ((mesh->numBspNodes + 0x1f) >> 5) << 2, faceBytes = ((mesh->numQuadBlock + 0x1f) >> 5) << 2;
+	free(s_pcVis.leaf);
+	free(s_pcVis.face);
+	free(s_pcVis.instMask);
+	free(s_pcVis.instList);
+	s_pcVis.leaf = calloc(1, leafBytes + 4);
+	s_pcVis.face = calloc(1, faceBytes + 4);
+	s_pcVis.level = level;
+	s_pcVis.mesh = mesh;
+	s_pcVis.numQuads = mesh->numQuadBlock;
+	s_pcVis.numNodes = mesh->numBspNodes;
+
+	// the level's instances, and a map from either record of each (instance or
+	// its InstDef: shared lists toggle between the two) to its index
+	int numInst = 0;
+	void **all = (void **)level->ptrInstDefPtrArray;
+	while ((all != NULL) && (all[numInst] != NULL))
+	{
+		numInst++;
+	}
+	s_pcVis.numInst = numInst;
+	s_pcVis.instMask = calloc((numInst >> 5) + 1, sizeof(u32));
+	s_pcVis.instList = calloc(numInst + 1, sizeof(struct Instance *));
+	int mapSize = 64;
+	while (mapSize < numInst * 4)
+	{
+		mapSize <<= 1;
+	}
+	const void **mapKey = calloc(mapSize, sizeof(void *));
+	int *mapVal = calloc(mapSize, sizeof(int));
+	for (int k = 0; k < numInst; k++)
+	{
+		const struct Instance *inst = (const struct Instance *)all[k];
+		const void *keys[2] = {inst, inst->instDef};
+		for (int j = 0; j < 2; j++)
+		{
+			u32 h = ((u32)keys[j] * 0x9E3779B1u) & (mapSize - 1);
+			while ((mapKey[h] != NULL) && (mapKey[h] != keys[j]))
+			{
+				h = (h + 1) & (mapSize - 1);
+			}
+			mapKey[h] = keys[j];
+			mapVal[h] = k;
+		}
+	}
+
+	int anyInstList = 0;
+	for (int q = 0; q < mesh->numQuadBlock; q++)
+	{
+		struct PVS *pvs = mesh->ptrQuadBlockArray[q].pvs;
+		if (pvs == NULL)
+		{
+			continue;
+		}
+		if (pvs->visLeafSrc != NULL)
+		{
+			MainFrame_OrPackedVisList(s_pcVis.leaf, pvs->visLeafSrc, leafBytes);
+		}
+		if (pvs->visFaceSrc != NULL)
+		{
+			MainFrame_OrPackedVisList(s_pcVis.face, pvs->visFaceSrc, faceBytes);
+		}
+		for (void **e = (void **)pvs->visInstSrc; (e != NULL) && (*e != NULL); e++)
+		{
+			anyInstList = 1;
+			u32 h = ((u32)*e * 0x9E3779B1u) & (mapSize - 1);
+			while ((mapKey[h] != NULL) && (mapKey[h] != *e))
+			{
+				h = (h + 1) & (mapSize - 1);
+			}
+			if (mapKey[h] == *e)
+			{
+				s_pcVis.instMask[mapVal[h] >> 5] |= 1u << (mapVal[h] & 31);
+			}
+		}
+	}
+	if (!anyInstList)
+	{
+		// (no lists: the PS1 shows the level's instances only through the camera's, none)
+		memset(s_pcVis.instMask, 0, ((numInst >> 5) + 1) * sizeof(u32));
+	}
+	free(mapKey);
+	free(mapVal);
+	int leafBits = 0, faceBits = 0, instBits = 0;
+	for (int i = 0; i < leafBytes / 4; i++)
+	{
+		leafBits += __builtin_popcount((u32)s_pcVis.leaf[i]);
+	}
+	for (int i = 0; i < faceBytes / 4; i++)
+	{
+		faceBits += __builtin_popcount((u32)s_pcVis.face[i]);
+	}
+	for (int i = 0; i <= (numInst >> 5); i++)
+	{
+		instBits += __builtin_popcount(s_pcVis.instMask[i]);
+	}
+	printf("[MultiTrack] PC visibility: %d of %d BSP nodes, %d of %d quadblocks, %d of %d level instances drawn from anywhere (CTR_PS1_VIS=1: as the PS1)\n", leafBits,
+	       mesh->numBspNodes, faceBits, mesh->numQuadBlock, instBits, numInst);
+	(void)gGT;
+}
+
+void MainFrame_PcVisibility(struct GameTracker *gGT)
+{
+	struct Level *level = gGT->level1;
+	struct VisMem *visMem = gGT->visMem1;
+	if (s_pcVis.enabled < 0)
+	{
+		const char *env = getenv("CTR_PS1_VIS");
+		s_pcVis.enabled = !((env != NULL) && (env[0] == '1'));
+	}
+	if (!s_pcVis.enabled || (level == NULL) || (visMem == NULL) || (level->ptr_mesh_info == NULL) || (gGT->numPlyrCurrGame == 0))
+	{
+		return;
+	}
+	struct mesh_info *mesh = level->ptr_mesh_info;
+	if ((s_pcVis.level != level) || (s_pcVis.mesh != mesh) || (s_pcVis.numQuads != mesh->numQuadBlock) || (s_pcVis.numNodes != mesh->numBspNodes))
+	{
+		MainFrame_PcVisBuild(gGT, level);
+	}
+	int leafBytes = ((mesh->numBspNodes + 0x1f) >> 5) << 2, faceBytes = ((mesh->numQuadBlock + 0x1f) >> 5) << 2;
+
+	// this frame's level instances in any list (their pointers as they are now)
+	void **all = (void **)level->ptrInstDefPtrArray;
+	int n = 0;
+	for (int k = 0; (all != NULL) && (k < s_pcVis.numInst) && (all[k] != NULL); k++)
+	{
+		if (s_pcVis.instMask[k >> 5] & (1u << (k & 31)))
+		{
+			s_pcVis.instList[n++] = (struct Instance *)all[k];
+		}
+	}
+	s_pcVis.instList[n] = NULL;
+
+	for (int p = 0; p < gGT->numPlyrCurrGame; p++)
+	{
+		if (visMem->visLeafList[p] != NULL)
+		{
+			memcpy(visMem->visLeafList[p], s_pcVis.leaf, leafBytes);
+		}
+		if (visMem->visFaceList[p] != NULL)
+		{
+			memcpy(visMem->visFaceList[p], s_pcVis.face, faceBytes);
+		}
+		if (n > 0)
+		{
+			gGT->cameraDC[p].visInstSrc = s_pcVis.instList;
+		}
+		// water / animated vertices: all move
+		if ((level->configFlags & 4) == 0)
+		{
+			if ((visMem->visOVertList[p] != NULL) && (level->numWaterVertices > 0))
+			{
+				memset(visMem->visOVertList[p], 0xff, ((level->numWaterVertices + 0x1f) >> 5) << 2);
+			}
+		}
+		else if ((visMem->visSCVertList[p] != NULL) && (level->numSCVert > 0))
+		{
+			memset(visMem->visSCVertList[p], 0xff, ((level->numSCVert + 0x1f) >> 5) << 2);
+		}
+	}
+}
+
+int MainFrame_PcVisibilityOn(void)
+{
+	return s_pcVis.enabled > 0;
+}
+#endif
 
 void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level)
 {

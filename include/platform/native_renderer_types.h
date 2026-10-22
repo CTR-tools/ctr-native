@@ -30,9 +30,11 @@ typedef struct
 	u8 r, g, b, a;
 
 	s8 tcx, tcy, _p0, _p1;
+
+	float viewZ; // MultiTrack: ray traced frame overlay depth test, 0 = none
 } GrVertex;
 
-CTR_STATIC_ASSERT(sizeof(GrVertex) == 20);
+CTR_STATIC_ASSERT(sizeof(GrVertex) == 24);
 
 typedef enum
 {
@@ -40,6 +42,7 @@ typedef enum
 	a_texcoord,
 	a_color,
 	a_extra,
+	a_depth, // MultiTrack
 } ShaderAttrib;
 
 typedef enum

@@ -1,0 +1,127 @@
+#version 460
+// Edge-aware a-trous wavelet filter on the accumulated lighting (one pass per
+// step size 1, 2, 4, ...), guided by how noisy each pixel really is (as SVGF):
+// w carries the variance of the accumulated light (trace.comp: its frames'
+// spread over how many were averaged; young pixels take their neighbours'
+// spread), each pass filters it along with the light, and neighbours count by
+// how far their light is from this pixel's in units of that noise.
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 0, binding = 8, std430) readonly buffer AlbedoBuf { vec4 albedoIn[]; };
+layout(set = 0, binding = 9, std430) readonly buffer GeoCur { vec4 geo[]; };
+layout(set = 0, binding = 12, std430) readonly buffer HistCur { vec4 hist[]; }; // a: sample count (+1000/+2000 flags)
+layout(set = 0, binding = 13, std430) readonly buffer Src { vec4 src[]; };      // rgb light, w variance
+layout(set = 0, binding = 14, std430) writeonly buffer Dst { vec4 dst[]; };
+
+layout(push_constant) uniform Push { int step; } pc;
+
+float sampleCount(int i)
+{
+	float a = hist[i].a;
+	return a - 1000.0 * floor(a / 1000.0);
+}
+
+void main()
+{
+	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
+	int w = int(F.size.x), h = int(F.size.y);
+	if ((px.x >= w) || (px.y >= h))
+	{
+		return;
+	}
+	int idx = px.y * w + px.x;
+	vec4 g = geo[idx];
+	vec4 c = src[idx];
+	if (g.w <= 0.0)
+	{
+		dst[idx] = c;
+		return;
+	}
+
+	const float kernel[3] = float[3](3.0 / 8.0, 1.0 / 4.0, 1.0 / 16.0);
+	float count = sampleCount(idx);
+	// where a moving shadow is (a short history) wide passes would smear it
+	if ((pc.step >= 4) && (count <= 2.0))
+	{
+		dst[idx] = c;
+		return;
+	}
+	float lc = luma(c.rgb);
+	float objC = floor(albedoIn[idx].a); // (fraction: debug flags)
+
+	// 3x3 (at this step) of the same object: the light's spread (a young pixel's
+	// variance on the first pass) and the variance blurred (edge stopping)
+	float m1 = 0.0, m2 = 0.0, mn = 0.0, vsum = 0.0, vw = 0.0;
+	for (int dy = -1; dy <= 1; dy++)
+	{
+		for (int dx = -1; dx <= 1; dx++)
+		{
+			ivec2 q = clamp(px + ivec2(dx, dy) * pc.step, ivec2(0), ivec2(w - 1, h - 1));
+			int qi = q.y * w + q.x;
+			if ((geo[qi].w > 0.0) && (floor(albedoIn[qi].a) == objC))
+			{
+				vec4 s = src[qi];
+				float l = luma(s.rgb);
+				m1 += l;
+				m2 += l * l;
+				mn += 1.0;
+				float k = kernel[abs(dx)] * kernel[abs(dy)];
+				vsum += k * s.w;
+				vw += k;
+			}
+		}
+	}
+	m1 /= max(mn, 1.0);
+	float var = c.w;
+	float varBlur = vsum / max(vw, 1e-6);
+	if ((pc.step == 1) && (count < 4.0))
+	{
+		var = max(m2 / max(mn, 1.0) - m1 * m1, 0.0);
+		varBlur = var;
+	}
+	// light within ~4 standard deviations of this pixel's blends; a little
+	// slack for what has no noise left (real edges, shadow borders, stay)
+	float sigmaL = 4.0 * sqrt(varBlur) + 0.004 + 0.01 * lc;
+	if (F.params.w > 2.5) // experiment 3: the filter before (local spread, sample count)
+	{
+		float sd = sqrt(max(m2 / max(mn, 1.0) - m1 * m1, 0.0));
+		sigmaL = (0.02 + 0.06 * lc + 0.8 * sd) * (1.0 + 1.5 / max(count, 1.0));
+		if ((pc.step >= 8) && (count >= 12.0))
+		{
+			dst[idx] = c;
+			return;
+		}
+	}
+
+	vec3 sum = vec3(0.0);
+	float wsum = 0.0, varSum = 0.0;
+	for (int dy = -2; dy <= 2; dy++)
+	{
+		for (int dx = -2; dx <= 2; dx++)
+		{
+			ivec2 q = px + ivec2(dx, dy) * pc.step;
+			if ((q.x < 0) || (q.y < 0) || (q.x >= w) || (q.y >= h))
+			{
+				continue;
+			}
+			int qi = q.y * w + q.x;
+			vec4 gq = geo[qi];
+			if ((gq.w <= 0.0) || (floor(albedoIn[qi].a) != objC))
+			{
+				continue;
+			}
+			vec4 cq = (qi == idx) ? vec4(c.rgb, var) : src[qi];
+			float wz = exp(-abs(g.w - gq.w) / (0.01 * g.w * float(pc.step) + 1e-3));
+			float wn = pow(max(dot(g.xyz, gq.xyz), 0.0), 64.0);
+			float wl = exp(-abs(lc - luma(cq.rgb)) / sigmaL);
+			float k = kernel[abs(dx)] * kernel[abs(dy)] * wz * wn * wl;
+			sum += cq.rgb * k;
+			varSum += k * k * cq.w;
+			wsum += k;
+		}
+	}
+	dst[idx] = vec4(sum / max(wsum, 1e-6), varSum / max(wsum * wsum, 1e-12));
+}

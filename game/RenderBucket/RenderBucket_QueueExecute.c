@@ -1201,6 +1201,14 @@ static struct ModelHeader *RenderBucket_SelectModelHeader(struct Instance *inst,
 
 	// NOTE(aalhendi): Retail keeps the low 32 bits of this product before dividing by GTE H.
 	projectedDistance = (int)(u32)((s64)(pb->rect.w >> 1) * viewDepth) / pb->distanceToScreen_PREV;
+#ifdef CTR_NATIVE
+	if (MainFrame_PcVisibilityOn())
+	{
+		// MultiTrack: detail switches as far out as the level's does (output resolution)
+		int scale = Rtx_LevelLodScale(4096);
+		projectedDistance = (scale > 4096) ? (int)((s64)projectedDistance * 4096 / scale) : projectedDistance;
+	}
+#endif
 	mh = inst->model->headers;
 	headersRemaining = inst->model->numHeaders;
 	lodIndex = 0;
@@ -1225,6 +1233,15 @@ static struct ModelHeader *RenderBucket_SelectModelHeader(struct Instance *inst,
 		}
 	}
 
+#ifdef CTR_NATIVE
+	if (MainFrame_PcVisibilityOn() && (lodIndex > 0))
+	{
+		// MultiTrack: past its last detail level the PS1 stops drawing a model
+		// (pop-in); a PC draws its lowest detail at any distance
+		*lodIndexOut = lodIndex - 1;
+		return mh - 1;
+	}
+#endif
 	*lodExhaustedOut = 1;
 	return 0;
 }
@@ -5235,6 +5252,8 @@ void RenderBucket_Execute(void *param_1, struct PrimMem *param_2)
 			continue;
 		}
 
+		Rtx_BeginInstance(param_2, ctx.inst, ctx.pb, ctx.idpp->mvp.t); // MultiTrack: capture for ray tracing
 		RenderBucket_DispatchDrawFunc(&ctx);
+		Rtx_EndTag(param_2);
 	}
 }

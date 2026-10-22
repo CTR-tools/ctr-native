@@ -99,6 +99,10 @@ int LOAD_TenStages(struct GameTracker *unusedGameTracker, int loadingStage, stru
 			{
 				VSync(0);
 				Platform_PresentVRAMDisplay();
+				if (Platform_InputSkipPressed()) // MultiTrack: X / A skips the boot intro
+				{
+					break;
+				}
 			}
 #endif
 

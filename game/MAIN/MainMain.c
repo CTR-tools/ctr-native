@@ -606,7 +606,7 @@ void StateZero()
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 
-	gGT->levelID = NAUGHTY_DOG_CRATE;
+	gGT->levelID = MT_BootLevel(NAUGHTY_DOG_CRATE); // MultiTrack: CTR_BOOT_LEVEL / CTR_BOOT_TRACK
 	memcpy(gGT->levelName, sdata->s_ndi, sizeof(sdata->s_ndi));
 	// gGT->levelID = OXIDE_TRUE_ENDING;
 
@@ -655,6 +655,11 @@ void StateZero()
 		// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
 		// this loop spins. Native owns VBlank in VSync(), so pump it here.
 		VSync(0);
+		if (Platform_InputSkipPressed()) // MultiTrack: X / A skips the boot intro
+		{
+			CDSYS_XAPauseForce();
+			break;
+		}
 #endif
 		CDSYS_XAPauseAtEnd();
 	}

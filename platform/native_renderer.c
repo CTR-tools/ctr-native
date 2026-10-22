@@ -13,8 +13,11 @@
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
+#include "platform/native_overlay.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -101,8 +104,10 @@ struct NativeRenderTarget
 	TextureID texture;
 	GLuint framebuffer;
 	GLuint stencilBuffer;
-	s32 width;
+	s32 width; // pixels
 	s32 height;
+	s32 psxWidth; // PS1 area it covers (MultiTrack: the main target renders at window size)
+	s32 psxHeight;
 };
 
 global_variable struct NativeRenderTarget s_mainRenderTarget;
@@ -139,6 +144,7 @@ global_variable GLuint s_packShader = 0;
 global_variable GLint s_packFlipYLoc = -1;
 global_variable GLuint s_presentVramShader = 0;
 global_variable GLint s_presentVramSourceRectLoc = -1;
+global_variable GLint s_presentVramOpaqueLoc = -1;
 global_variable GLuint s_vramQuadVAO = 0;
 global_variable GLuint s_vramQuadVBO = 0;
 
@@ -154,9 +160,24 @@ internal void NativeRenderer_ClearPresentationBars(void);
 internal void NativeRenderer_SetWireframe(int enable);
 internal void NativeRenderer_InitRenderTarget(struct NativeRenderTarget *target);
 internal void NativeRenderer_DestroyRenderTarget(struct NativeRenderTarget *target);
-internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height);
+internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height, int psxWidth, int psxHeight);
 internal void NativeRenderer_BindMainRenderTarget(void);
-internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height);
+// MultiTrack: draw at the window's resolution instead of the PS1's (CTR_RES=psx turns it off)
+internal int NativeRenderer_WindowResolution(void)
+{
+	static int s_mode = -1;
+	if (s_mode < 0)
+	{
+		const char *res = SDL_getenv("CTR_RES");
+		s_mode = !((res != NULL) && (SDL_strcmp(res, "psx") == 0));
+	}
+	return s_mode;
+}
+internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height, int opaque);
+internal void NativeRenderer_RtxPresent(int displayX, int displayY, int displayW, int displayH); // MultiTrack
+internal void NativeRenderer_RtxDepthState(int on);                                              // MultiTrack
+internal void NativeRenderer_PresentMainTarget(void);
+global_variable int s_rtxComposite;
 internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget *target, int x, int y);
 #if defined(CTR_INTERNAL)
 internal void NativeRenderer_ResolveGpuMeasurements(b32 waitForResults);
@@ -249,6 +270,9 @@ int NativeRenderer_InitialiseRender(char *windowName, int width, int height, int
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
+	// MultiTrack: opaque window. With an alpha channel, Wayland compositors blend the
+	// game over the desktop by the PS1 mask bit (blown-out menus, smeared backgrounds)
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
 
 	if (!NativeRenderer_InitialiseGLContext(windowName, fullscreen))
 	{
@@ -517,7 +541,7 @@ internal void NativeRenderer_DestroyRenderTarget(struct NativeRenderTarget *targ
 	target->texture = (TextureID)-1;
 }
 
-internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height)
+internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *target, int width, int height, int psxWidth, int psxHeight)
 {
 	if (width < 1)
 	{
@@ -527,6 +551,8 @@ internal void NativeRenderer_EnsureRenderTarget(struct NativeRenderTarget *targe
 	{
 		height = 1;
 	}
+	target->psxWidth = psxWidth;
+	target->psxHeight = psxHeight;
 
 	if ((target->width == width) && (target->height == height))
 	{
@@ -556,13 +582,21 @@ internal void NativeRenderer_BindMainRenderTarget(void)
 		height = activeDrawEnv.clip.h;
 	}
 
-	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, width, height);
+	// MultiTrack: render at the window's resolution (CTR_RES=psx: the PS1's own)
+	int pixelW = width, pixelH = height;
+	if (NativeRenderer_WindowResolution() && (s_presentViewport.w > 0) && (s_presentViewport.h > 0))
+	{
+		pixelW = s_presentViewport.w;
+		pixelH = s_presentViewport.h;
+	}
+	NativeRenderer_EnsureRenderTarget(&s_mainRenderTarget, pixelW, pixelH, width, height);
 	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
 }
 
-internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height)
+internal void NativeRenderer_DrawVRAMRegion(int x, int y, int width, int height, int opaque)
 {
 	glUseProgram(s_presentVramShader);
+	glUniform1i(s_presentVramOpaqueLoc, opaque);
 	glUniform4f(s_presentVramSourceRectLoc, (float)x, (float)y, (float)width, (float)height);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, s_vram.texture);
@@ -583,7 +617,7 @@ internal void NativeRenderer_LoadRenderTargetFromVRAM(struct NativeRenderTarget 
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glViewport(0, 0, target->width, target->height);
-	NativeRenderer_DrawVRAMRegion(x, y, target->width, target->height);
+	NativeRenderer_DrawVRAMRegion(x, y, target->psxWidth, target->psxHeight, 0);
 	glClear(GL_STENCIL_BUFFER_BIT);
 	glEnable(GL_STENCIL_TEST);
 
@@ -679,6 +713,8 @@ typedef struct
 	GLint psxSemiTransPassLoc;
 	GLint psxDrawMaskSetLoc;
 	GLint psxTextureOutputStpLoc;
+	GLint rtxDepthOnLoc; // MultiTrack: overlay depth test against the ray traced image
+	GLint rtxTargetSizeLoc;
 } GTEShader;
 
 internal int NativeRenderer_Shader_CheckShaderStatus(GLuint shader);
@@ -758,7 +794,17 @@ GLint u_psxTextureOutputStpLoc;
 	"		+2.0,  -2.0,  +3.0,  -1.0,\n"                              \
 	"		-3.0,  +1.0,  -4.0,  +0.0,\n"                              \
 	"		+3.0,  -1.0,  +2.0,  -2.0) / 255.0;\n"                     \
+	"	uniform int rtxDepthOn;\n"                                 \
+	"	uniform vec2 rtxTargetSize;\n"                             \
+	"	uniform sampler2D s_rtDepth;\n"                            \
+	"	void rtxDepthTest() {\n"                                   \
+	"		if (rtxDepthOn == 0 || v_rtxInvZ <= 0.0) { return; }\n"  \
+	"		float z = 1.0 / v_rtxInvZ;\n"                             \
+	"		vec2 uv = vec2(gl_FragCoord.x / rtxTargetSize.x, 1.0 - gl_FragCoord.y / rtxTargetSize.y);\n" \
+	"		if (z > texture2D(s_rtDepth, uv).r * 1.02 + 8.0) { discard; }\n" \
+	"	}\n"                                                       \
 	"	vec4 dither(vec4 color) {\n"                                \
+	"		rtxDepthTest();\n"                                         \
 	"		ivec2 dc = ivec2(mod(floor(v_ditherCoord), 4.0));\n"       \
 	"		color.xyz += vec3(c_dither[dc.x][dc.y] * v_texcoord.w);\n" \
 	"		return color;\n"                                           \
@@ -833,7 +879,8 @@ global_variable const char *gpu_shader_common = "	varying vec4 v_texcoord;\n"
                                                 "	varying vec4 v_color;\n"
                                                 "	varying vec4 v_page_clut;\n"
                                                 "	varying vec2 v_ditherCoord;\n"
-                                                "	varying float v_z;\n";
+                                                "	varying float v_z;\n"
+                                                "	noperspective varying float v_rtxInvZ;\n";
 
 const char *gte_shader_4 = GPU_FRAGMENT_SAMPLE_SHADER(4);
 const char *gte_shader_8 = GPU_FRAGMENT_SAMPLE_SHADER(8);
@@ -855,6 +902,7 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
 	"	attribute vec4 a_texcoord; // uv, color multiplier, dither\n"                                                \
 	"	attribute vec4 a_color;\n"                                                                                   \
 	"	attribute vec4 a_extra; // texcoord.xy ofs, unused.xy\n"                                                     \
+	"	attribute float a_depth; // view z (ray traced frame overlay), 0 = none\n"                                    \
 	"	uniform mat4 Projection;\n"                                                                                  \
 	"	const vec2 c_UVFudge = vec2(0.00025, 0.00025);\n"                                                            \
 	"	void main() {\n"                                                                                             \
@@ -862,6 +910,7 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
 	"		v_texcoord = a_texcoord;\n"                                                                                 \
 	"		v_texcoord.xy += a_extra.xy * 0.5;\n"                                                                       \
 	"		v_color = a_color;\n"                                                                                       \
+	"		v_rtxInvZ = (a_depth > 0.0) ? 1.0 / a_depth : 0.0;\n"                                                      \
 	"		v_color.xyz *= a_texcoord.z;\n"                                                                             \
 	"		v_page_clut.x = fract(a_position.z / 16.0) * 1024.0;\n"                                                     \
 	"		v_page_clut.y = floor(a_position.z / 16.0) * 256.0;\n"                                                      \
@@ -991,6 +1040,7 @@ internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxSh
 	glBindAttribLocation(program, a_texcoord, "a_texcoord");
 	glBindAttribLocation(program, a_color, "a_color");
 	glBindAttribLocation(program, a_extra, "a_extra");
+	glBindAttribLocation(program, a_depth, "a_depth");
 
 	glLinkProgram(program);
 	if (NativeRenderer_Shader_CheckProgramStatus(program) == 0)
@@ -1003,6 +1053,7 @@ internal ShaderID NativeRenderer_Shader_Compile(const char *source, bool isPsxSh
 	glUseProgram(program);
 	glUniform1iv(glGetUniformLocation(program, "s_texture"), 1, &textureSampler);
 	glUniform1iv(glGetUniformLocation(program, "s_rgLut"), 1, &lutSampler);
+	glUniform1i(glGetUniformLocation(program, "s_rtDepth"), 4); // MultiTrack: unit 4, NativeRenderer_RtxSetImage
 	glUseProgram(0);
 
 	return program;
@@ -1053,6 +1104,8 @@ internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)
 	sh->psxSemiTransPassLoc = glGetUniformLocation(sh->shader, "psxSemiTransPass");
 	sh->psxDrawMaskSetLoc = glGetUniformLocation(sh->shader, "psxDrawMaskSet");
 	sh->psxTextureOutputStpLoc = glGetUniformLocation(sh->shader, "psxTextureOutputStp");
+	sh->rtxDepthOnLoc = glGetUniformLocation(sh->shader, "rtxDepthOn");
+	sh->rtxTargetSizeLoc = glGetUniformLocation(sh->shader, "rtxTargetSize");
 }
 
 internal void NativeRenderer_InitialisePSXShaders(void)
@@ -1102,13 +1155,15 @@ global_variable const char *ctr_present_vram_shader = "#ifdef VERTEX\n"
                                                       "#ifdef FRAGMENT\n"
                                                       "varying vec2 v_uv;\n"
                                                       "uniform sampler2D s_texture;\n"
+                                                      "uniform int opaque;\n"
                                                       "void main() {\n"
                                                       "\tivec2 packedBytes = ivec2(texture2D(s_texture, v_uv).rg * 255.0 + 0.5);\n"
                                                       "\tint pixel = packedBytes.r | (packedBytes.g << 8);\n"
                                                       "\tivec3 color5 = ivec3(pixel & 31, (pixel >> 5) & 31, (pixel >> 10) & 31);\n"
                                                       "\tivec3 color8 = (color5 << 3) | (color5 >> 2);\n"
                                                       "\tfloat stp = float((pixel >> 15) & 1);\n"
-                                                      "\tfragColor = vec4(vec3(color8) / 255.0, stp);\n"
+                                                      "\t// the window must be opaque: Wayland compositors blend by alpha\n"
+                                                      "\tfragColor = vec4(vec3(color8) / 255.0, opaque != 0 ? 1.0 : stp);\n"
                                                       "}\n"
                                                       "#endif\n";
 
@@ -1125,6 +1180,7 @@ internal void NativeRenderer_InitVRAMPipelines(void)
 
 	s_presentVramShader = NativeRenderer_Shader_Compile(ctr_present_vram_shader, false);
 	s_presentVramSourceRectLoc = glGetUniformLocation(s_presentVramShader, "sourceRect");
+	s_presentVramOpaqueLoc = glGetUniformLocation(s_presentVramShader, "opaque");
 
 	glGenVertexArrays(1, &s_vramQuadVAO);
 	glGenBuffers(1, &s_vramQuadVBO);
@@ -1238,11 +1294,13 @@ int NativeRenderer_InitialisePSX(void)
 			glEnableVertexAttribArray(a_texcoord);
 			glEnableVertexAttribArray(a_color);
 			glEnableVertexAttribArray(a_extra);
+			glEnableVertexAttribArray(a_depth);
 
 			glVertexAttribPointer(a_position, 4, GL_SHORT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->x);
 			glVertexAttribPointer(a_texcoord, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->u);
 			glVertexAttribPointer(a_color, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GrVertex), &((GrVertex *)NULL)->r);
 			glVertexAttribPointer(a_extra, 4, GL_BYTE, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->tcx);
+			glVertexAttribPointer(a_depth, 1, GL_FLOAT, GL_FALSE, sizeof(GrVertex), &((GrVertex *)NULL)->viewZ);
 		}
 
 		glBindVertexArray(0);
@@ -1323,12 +1381,12 @@ void NativeRenderer_SetupClipMode(const RECT16 *rect, const DISPENV *displayEnv,
 		clipRectX += 0.5f;
 	}
 
-	// Normal game draws target the PSX-sized main framebuffer. Host-window
-	// coordinates are introduced only by the final presentation pass.
+	// Normal game draws target the main framebuffer, which covers the display
+	// area (MultiTrack: at window resolution, so scale to its pixels)
 	const float viewportX = 0.0f;
 	const float viewportY = 0.0f;
-	const float viewportW = (float)displayEnv->disp.w;
-	const float viewportH = (float)displayEnv->disp.h;
+	const float viewportW = (float)(s_previousOffscreenState ? displayEnv->disp.w : s_mainRenderTarget.width);
+	const float viewportH = (float)(s_previousOffscreenState ? displayEnv->disp.h : s_mainRenderTarget.height);
 	const float flipOffset = viewportY + viewportH - clipRectH * viewportH;
 	const float crx = viewportX + clipRectX * viewportW;
 	const float cry = clipRectY * viewportH;
@@ -1705,7 +1763,17 @@ void NativeRenderer_Clear(int x, int y, int w, int h, u8 r, u8 g, u8 b)
 	glGetIntegerv(GL_SCISSOR_BOX, previousScissorBox);
 
 	glEnable(GL_SCISSOR_TEST);
-	glScissor(scissorX, scissorY, scissorW, scissorH);
+	if (!s_previousOffscreenState && (s_mainRenderTarget.psxWidth > 0) && (s_mainRenderTarget.psxHeight > 0))
+	{
+		// MultiTrack: the main target is window-sized
+		const float sx = (float)s_mainRenderTarget.width / (float)s_mainRenderTarget.psxWidth;
+		const float sy = (float)s_mainRenderTarget.height / (float)s_mainRenderTarget.psxHeight;
+		glScissor((int)(scissorX * sx), (int)(scissorY * sy), (int)ceilf(scissorW * sx), (int)ceilf(scissorH * sy));
+	}
+	else
+	{
+		glScissor(scissorX, scissorY, scissorW, scissorH);
+	}
 	glClearColor(NativeRenderer_PSXColorComponentFloat(r), NativeRenderer_PSXColorComponentFloat(g), NativeRenderer_PSXColorComponentFloat(b), 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
@@ -1893,7 +1961,7 @@ void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, int enable)
 		}
 
 		s_previousOffscreenState = 1;
-		NativeRenderer_EnsureRenderTarget(&s_offscreenRenderTarget, offscreenRect->w, offscreenRect->h);
+		NativeRenderer_EnsureRenderTarget(&s_offscreenRenderTarget, offscreenRect->w, offscreenRect->h, offscreenRect->w, offscreenRect->h);
 		s_previousOffscreen = *offscreenRect;
 		NativeRenderer_LoadRenderTargetFromVRAM(&s_offscreenRenderTarget, offscreenRect->x, offscreenRect->y);
 	}
@@ -2118,7 +2186,22 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	NativeRenderer_EnableDepth(0);
 	NativeRenderer_SetBlendMode(BM_NONE);
 
-	NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH);
+	if (NativeRenderer_WindowResolution() && (displayW == s_mainRenderTarget.psxWidth) && (displayH == s_mainRenderTarget.psxHeight) &&
+	    (s_mainRenderTarget.width > 0))
+	{
+		// MultiTrack: the main target is the window-sized frame (ray traced image already blitted in)
+		NativeRenderer_PresentMainTarget();
+		s_rtxComposite = 0;
+	}
+	else if (s_rtxComposite) // MultiTrack: ray traced frame
+	{
+		NativeRenderer_RtxPresent(displayX, displayY, displayW, displayH);
+	}
+	else
+	{
+		NativeRenderer_DrawVRAMRegion(displayX, displayY, displayW, displayH, 1);
+	}
+	NativeRenderer_RtxDepthState(0); // MultiTrack: frame done
 	glBindVertexArray(0);
 
 	s_previousShader = (ShaderID)-1;
@@ -2134,9 +2217,84 @@ void NativeRenderer_PresentVRAMDisplay(void)
 	NativeRenderer_PresentVRAMRect(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 }
 
+// MultiTrack debug: CTR_SHOT=<prefix> CTR_SHOT_FRAME=<n>[,<n>...] writes the
+// n-th presented frames as <prefix>-<n>.ppm and exits after the last one
+// (scripts/shot_native.py)
+internal void NativeRenderer_DebugShot(void)
+{
+	static int s_frame;
+	static const char *s_prefix;
+	static int s_targets[32];
+	static int s_numTargets = -1;
+	static int s_next;
+
+	if (s_numTargets < 0)
+	{
+		s_numTargets = 0;
+		s_prefix = SDL_getenv("CTR_SHOT");
+		const char *frames = SDL_getenv("CTR_SHOT_FRAME");
+		if (s_prefix != NULL)
+		{
+			const char *c = frames ? frames : "600";
+			while (*c && s_numTargets < 32)
+			{
+				s_targets[s_numTargets++] = SDL_atoi(c);
+				while (*c && *c != ',')
+				{
+					c++;
+				}
+				if (*c == ',')
+				{
+					c++;
+				}
+			}
+		}
+	}
+
+	s_frame++;
+	if ((s_next >= s_numTargets) || (s_frame != s_targets[s_next]))
+	{
+		return;
+	}
+
+	int w = g_windowWidth, h = g_windowHeight;
+	u8 *pixels = (u8 *)SDL_malloc((size_t)w * h * 3);
+	GLint prevRead = 0;
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevRead);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevRead);
+
+	char path[1024];
+	snprintf(path, sizeof(path), "%s-%d.ppm", s_prefix, s_frame);
+	FILE *f = fopen(path, "wb");
+	if (f != NULL)
+	{
+		fprintf(f, "P6\n%d %d\n255\n", w, h);
+		for (int y = h - 1; y >= 0; y--)
+		{
+			fwrite(pixels + (size_t)y * w * 3, 1, (size_t)w * 3, f);
+		}
+		fclose(f);
+	}
+	SDL_free(pixels);
+	printf("[MultiTrack] shot %s (%dx%d)\n", path, w, h);
+	fflush(stdout);
+	if (++s_next >= s_numTargets)
+	{
+		_Exit(0);
+	}
+}
+
+internal void NativeRenderer_DrawOverlay(void); // MultiTrack: F12 debug overlay
+
 void NativeRenderer_SwapWindow(void)
 {
 	NativePerf_BeginScope(NATIVE_PERF_BUCKET_SWAP_WINDOW);
+	NativeRenderer_DebugShot();
+	NativeRenderer_DrawOverlay();
 	SDL_GL_SwapWindow(g_window);
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_SWAP_WINDOW);
 }
@@ -2276,4 +2434,397 @@ void NativeRenderer_PopDebugLabel(void)
 		return;
 	}
 	glPopDebugGroup();
+}
+
+// ---- MultiTrack: ray tracing composite -------------------------------------
+// The GL pass draws the sky first; at the first non-sky packet the sky is
+// snapshotted, the ray traced image (window resolution) is rendered and blitted
+// under everything that follows (so particles blend over the real scene), and
+// that background is snapshotted too. At present, pixels the overlay pass left
+// untouched show the full-resolution ray traced image (or sky where rays
+// missed); touched pixels (HUD, particles) show the PS1-resolution GL result.
+
+global_variable const char *ctr_rtx_blit_shader = "#ifdef VERTEX\n"
+                                                  "attribute vec2 a_position;\n"
+                                                  "varying vec2 v_uv;\n"
+                                                  "uniform int flipY;\n"
+                                                  "void main() {\n"
+                                                  "	v_uv = a_position * 0.5 + 0.5;\n"
+                                                  "	if (flipY != 0) { v_uv.y = 1.0 - v_uv.y; }\n"
+                                                  "	gl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                                  "}\n"
+                                                  "#endif\n"
+                                                  "#ifdef FRAGMENT\n"
+                                                  "varying vec2 v_uv;\n"
+                                                  "uniform sampler2D s_src;\n"
+                                                  "void main() {\n"
+                                                  "	fragColor = texture2D(s_src, v_uv);\n"
+                                                  "}\n"
+                                                  "#endif\n";
+
+global_variable const char *ctr_rtx_present_shader = "#ifdef VERTEX\n"
+                                                     "attribute vec2 a_position;\n"
+                                                     "varying vec2 v_main;\n"
+                                                     "varying vec2 v_rt;\n"
+                                                     "varying vec2 v_vram;\n"
+                                                     "uniform vec4 sourceRect;\n"
+                                                     "void main() {\n"
+                                                     "\tvec2 screenUV = a_position * 0.5 + 0.5;\n"
+                                                     "\tv_main = screenUV;\n"
+                                                     "\tv_rt = vec2(screenUV.x, 1.0 - screenUV.y);\n"
+                                                     "\tv_vram = (sourceRect.xy + v_rt * sourceRect.zw) / vec2(1024.0, 512.0);\n"
+                                                     "\tgl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                                     "}\n"
+                                                     "#endif\n"
+                                                     "#ifdef FRAGMENT\n"
+                                                     "varying vec2 v_main;\n"
+                                                     "varying vec2 v_rt;\n"
+                                                     "varying vec2 v_vram;\n"
+                                                     "uniform sampler2D s_vram;\n"
+                                                     "uniform sampler2D s_bg;\n"
+                                                     "uniform sampler2D s_sky;\n"
+                                                     "uniform sampler2D s_rt;\n"
+                                                     "void main() {\n"
+                                                     "\tivec2 packedBytes = ivec2(texture2D(s_vram, v_vram).rg * 255.0 + 0.5);\n"
+                                                     "\tint pixel = packedBytes.r | (packedBytes.g << 8);\n"
+                                                     "\tivec3 o5 = ivec3(pixel & 31, (pixel >> 5) & 31, (pixel >> 10) & 31);\n"
+                                                     "\tivec3 b5 = ivec3(texture2D(s_bg, v_main).rgb * 255.0 + 0.5) >> 3;\n"
+                                                     "\tif (o5 != b5) {\n"
+                                                     "\t\tfragColor = vec4(vec3((o5 << 3) | (o5 >> 2)) / 255.0, 1.0);\n"
+                                                     "\t\treturn;\n"
+                                                     "\t}\n"
+                                                     "\tvec4 rt = texture2D(s_rt, v_rt);\n"
+                                                     "\tvec3 sky = texture2D(s_sky, v_main).rgb;\n"
+                                                     "\tfragColor = vec4(mix(sky, rt.rgb, rt.a), 1.0);\n"
+                                                     "}\n"
+                                                     "#endif\n";
+
+global_variable GLuint s_rtxBlitShader;
+global_variable GLint s_rtxBlitFlipLoc = -1;
+global_variable GLuint s_rtxPresentShader;
+global_variable GLint s_rtxPresentRectLoc = -1;
+global_variable GLuint s_rtxSkyTex, s_rtxBgTex, s_rtxImageTex, s_rtxDepthTex;
+global_variable int s_rtxDepthW, s_rtxDepthH, s_rtxDepthOn;
+global_variable int s_rtxSkyW, s_rtxSkyH, s_rtxBgW, s_rtxBgH, s_rtxImageW, s_rtxImageH;
+
+const u16 *NativeRenderer_RtxVRAM(void)
+{
+	return s_vram.cpuPixels;
+}
+
+internal void NativeRenderer_RtxInitShaders(void)
+{
+	if (s_rtxBlitShader != 0)
+	{
+		return;
+	}
+	s_rtxBlitShader = NativeRenderer_Shader_Compile(ctr_rtx_blit_shader, false);
+	glUseProgram(s_rtxBlitShader);
+	glUniform1i(glGetUniformLocation(s_rtxBlitShader, "s_src"), 0);
+	s_rtxBlitFlipLoc = glGetUniformLocation(s_rtxBlitShader, "flipY");
+	s_rtxPresentShader = NativeRenderer_Shader_Compile(ctr_rtx_present_shader, false);
+	glUseProgram(s_rtxPresentShader);
+	glUniform1i(glGetUniformLocation(s_rtxPresentShader, "s_vram"), 0);
+	glUniform1i(glGetUniformLocation(s_rtxPresentShader, "s_bg"), 1);
+	glUniform1i(glGetUniformLocation(s_rtxPresentShader, "s_sky"), 2);
+	glUniform1i(glGetUniformLocation(s_rtxPresentShader, "s_rt"), 3);
+	s_rtxPresentRectLoc = glGetUniformLocation(s_rtxPresentShader, "sourceRect");
+	glUseProgram(0);
+}
+
+internal void NativeRenderer_RtxEnsureTexture(GLuint *tex, int *curW, int *curH, int w, int h)
+{
+	if (*tex == 0)
+	{
+		glGenTextures(1, tex);
+		glBindTexture(GL_TEXTURE_2D, *tex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	}
+	glBindTexture(GL_TEXTURE_2D, *tex);
+	if ((*curW != w) || (*curH != h))
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		*curW = w;
+		*curH = h;
+	}
+}
+
+internal void NativeRenderer_RtxCopyMainTarget(GLuint *tex, int *curW, int *curH)
+{
+	const int w = s_mainRenderTarget.width, h = s_mainRenderTarget.height;
+	GLint prevRead = 0, prevActive, prevTex;
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevRead);
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+	glActiveTexture(GL_TEXTURE0);
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+	NativeRenderer_RtxEnsureTexture(tex, curW, curH, w, h);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prevRead);
+	glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+	glActiveTexture((GLenum)prevActive);
+}
+
+// everything drawn so far (sky, stars, glow) -> sky layer
+void NativeRenderer_RtxSkySnapshot(void)
+{
+	if (NativeRenderer_WindowResolution())
+	{
+		return; // window-sized main target: the image is blitted over the sky in place
+	}
+	NativeRenderer_RtxCopyMainTarget(&s_rtxSkyTex, &s_rtxSkyW, &s_rtxSkyH);
+}
+
+void NativeRenderer_RtxViewportSize(int *w, int *h)
+{
+	NativeRenderer_UpdatePresentationViewport();
+	*w = s_presentViewport.w;
+	*h = s_presentViewport.h;
+}
+
+// overlay depth test (GPU_DITHERING rtxDepthTest) on/off in every PSX shader
+internal void NativeRenderer_RtxDepthState(int on)
+{
+	if (!on && !s_rtxDepthOn)
+	{
+		return;
+	}
+	s_rtxDepthOn = on;
+	GTEShader *shaders[] = {&s_gteShader4, &s_gteShader8, &s_gteShader16, &s_gteShader32Rgba};
+	for (int i = 0; i < 4; i++)
+	{
+		glUseProgram(shaders[i]->shader);
+		glUniform1i(shaders[i]->rtxDepthOnLoc, on);
+		glUniform2f(shaders[i]->rtxTargetSizeLoc, (float)s_mainRenderTarget.width, (float)s_mainRenderTarget.height);
+	}
+	glUseProgram(s_previousShader == (ShaderID)-1 ? 0 : s_previousShader);
+}
+
+// view z per pixel (rows top-down, like the image) -> texture unit 4
+internal void NativeRenderer_RtxUploadDepth(const float *depth, int w, int h)
+{
+	GLint prevActive, prevTex;
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+	glActiveTexture(GL_TEXTURE4);
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+	if (s_rtxDepthTex == 0)
+	{
+		glGenTextures(1, &s_rtxDepthTex);
+		glBindTexture(GL_TEXTURE_2D, s_rtxDepthTex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	}
+	glBindTexture(GL_TEXTURE_2D, s_rtxDepthTex);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	if ((s_rtxDepthW != w) || (s_rtxDepthH != h))
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, w, h, 0, GL_RED, GL_FLOAT, depth);
+		s_rtxDepthW = w;
+		s_rtxDepthH = h;
+	}
+	else
+	{
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RED, GL_FLOAT, depth);
+	}
+	(void)prevTex; // unit 4 belongs to the depth texture
+	glActiveTexture((GLenum)prevActive);
+}
+
+// ray traced image (rows top-down, alpha = geometry) -> under the overlay pass
+void NativeRenderer_RtxSetImage(const u8 *rgba, const float *depth, int w, int h)
+{
+	s_rtxComposite = 0;
+	if (rgba == NULL)
+	{
+		NativeRenderer_RtxDepthState(0);
+		return;
+	}
+	if (depth != NULL)
+	{
+		NativeRenderer_RtxUploadDepth(depth, w, h);
+		NativeRenderer_RtxDepthState(1);
+	}
+	NativeRenderer_RtxInitShaders();
+	GLint prevActive;
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+	glActiveTexture(GL_TEXTURE0);
+	GLint prevTex0;
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex0);
+	NativeRenderer_RtxEnsureTexture(&s_rtxImageTex, &s_rtxImageW, &s_rtxImageH, w, h);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+	// save the GL state the PSX pass relies on
+	GLint prevDraw, prevProgram, prevVao, prevTex, vp[4], blendSrcRGB, blendDstRGB, blendSrcA, blendDstA, eqRGB, eqA;
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDraw);
+	glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+	glGetIntegerv(GL_VIEWPORT, vp);
+	glGetIntegerv(GL_BLEND_SRC_RGB, &blendSrcRGB);
+	glGetIntegerv(GL_BLEND_DST_RGB, &blendDstRGB);
+	glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrcA);
+	glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDstA);
+	glGetIntegerv(GL_BLEND_EQUATION_RGB, &eqRGB);
+	glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &eqA);
+	const GLboolean blend = glIsEnabled(GL_BLEND), scissor = glIsEnabled(GL_SCISSOR_TEST), stencil = glIsEnabled(GL_STENCIL_TEST),
+	                depthTest = glIsEnabled(GL_DEPTH_TEST);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, s_mainRenderTarget.framebuffer);
+	glViewport(0, 0, s_mainRenderTarget.width, s_mainRenderTarget.height);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+	glUseProgram(s_rtxBlitShader);
+	glUniform1i(s_rtxBlitFlipLoc, 1);
+	glBindVertexArray(s_vramQuadVAO);
+	glBindTexture(GL_TEXTURE_2D, s_rtxImageTex);
+	NativeRenderer_DrawTriangles(0, 2);
+
+	if (!NativeRenderer_WindowResolution())
+	{
+		NativeRenderer_RtxCopyMainTarget(&s_rtxBgTex, &s_rtxBgW, &s_rtxBgH);
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prevDraw);
+	glViewport(vp[0], vp[1], vp[2], vp[3]);
+	glBlendEquationSeparate((GLenum)eqRGB, (GLenum)eqA);
+	glBlendFuncSeparate((GLenum)blendSrcRGB, (GLenum)blendDstRGB, (GLenum)blendSrcA, (GLenum)blendDstA);
+	(blend ? glEnable : glDisable)(GL_BLEND);
+	(scissor ? glEnable : glDisable)(GL_SCISSOR_TEST);
+	(stencil ? glEnable : glDisable)(GL_STENCIL_TEST);
+	(depthTest ? glEnable : glDisable)(GL_DEPTH_TEST);
+	glUseProgram((GLuint)prevProgram);
+	glBindVertexArray((GLuint)prevVao);
+	glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex0);
+	glActiveTexture((GLenum)prevActive);
+	(void)prevTex;
+	s_rtxComposite = 1;
+}
+
+// called instead of the plain VRAM present when a ray traced frame is ready
+internal void NativeRenderer_RtxPresent(int displayX, int displayY, int displayW, int displayH)
+{
+	NativeRenderer_RtxInitShaders();
+	glUseProgram(s_rtxPresentShader);
+	glUniform4f(s_rtxPresentRectLoc, (float)displayX, (float)displayY, (float)displayW, (float)displayH);
+	glBindVertexArray(s_vramQuadVAO);
+	GLuint tex[4] = {s_vram.texture, s_rtxBgTex, s_rtxSkyTex, s_rtxImageTex};
+	GLint prevActive, prevTex[4];
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+	for (int i = 3; i >= 0; i--)
+	{
+		glActiveTexture(GL_TEXTURE0 + i);
+		glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex[i]);
+		glBindTexture(GL_TEXTURE_2D, tex[i]);
+	}
+	NativeRenderer_DrawTriangles(0, 2);
+	// the PSX shaders sample units 1+ (CLUT / feedback): put them back
+	for (int i = 3; i >= 0; i--)
+	{
+		glActiveTexture(GL_TEXTURE0 + i);
+		glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex[i]);
+	}
+	glActiveTexture((GLenum)prevActive);
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+	s_rtxComposite = 0;
+}
+
+// ---- MultiTrack: window-resolution present ----------------------------------
+
+global_variable const char *ctr_present_target_shader = "#ifdef VERTEX\n"
+                                                        "attribute vec2 a_position;\n"
+                                                        "varying vec2 v_uv;\n"
+                                                        "void main() {\n"
+                                                        "	v_uv = a_position * 0.5 + 0.5;\n"
+                                                        "	gl_Position = vec4(a_position, 0.0, 1.0);\n"
+                                                        "}\n"
+                                                        "#endif\n"
+                                                        "#ifdef FRAGMENT\n"
+                                                        "varying vec2 v_uv;\n"
+                                                        "uniform sampler2D s_src;\n"
+                                                        "void main() {\n"
+                                                        "	fragColor = vec4(texture2D(s_src, v_uv).rgb, 1.0);\n"
+                                                        "}\n"
+                                                        "#endif\n";
+
+global_variable GLuint s_presentTargetShader;
+
+internal void NativeRenderer_PresentMainTarget(void)
+{
+	if (s_presentTargetShader == 0)
+	{
+		s_presentTargetShader = NativeRenderer_Shader_Compile(ctr_present_target_shader, false);
+		glUseProgram(s_presentTargetShader);
+		glUniform1i(glGetUniformLocation(s_presentTargetShader, "s_src"), 0);
+	}
+	glUseProgram(s_presentTargetShader);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_mainRenderTarget.texture);
+	glBindVertexArray(s_vramQuadVAO);
+	NativeRenderer_DrawTriangles(0, 2);
+	s_previousShader = (ShaderID)-1;
+	s_lastBoundTexture = (TextureID)-1;
+}
+
+// MultiTrack: F12 debug overlay, top left of the window (after the debug shot: not in it)
+global_variable GLuint s_overlayTex;
+global_variable int s_overlayTexW, s_overlayTexH;
+
+internal void NativeRenderer_DrawOverlay(void)
+{
+	int w, h;
+	const u8 *pixels = Overlay_Rasterize(&w, &h);
+	if ((pixels == NULL) || (g_windowWidth <= 0) || (g_windowHeight <= 0))
+	{
+		return;
+	}
+	NativeRenderer_RtxInitShaders();
+	GLint prevDraw, prevProgram, prevVao, prevTex, prevActive, vp[4];
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDraw);
+	glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
+	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+	glActiveTexture(GL_TEXTURE0);
+	glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+	glGetIntegerv(GL_VIEWPORT, vp);
+	const GLboolean blend = glIsEnabled(GL_BLEND), scissor = glIsEnabled(GL_SCISSOR_TEST), depthTest = glIsEnabled(GL_DEPTH_TEST);
+
+	NativeRenderer_RtxEnsureTexture(&s_overlayTex, &s_overlayTexW, &s_overlayTexH, w, h);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+	// whole pixels per font pixel: 1 up to 720 lines, 2 at 1080p, 3 at 1440p ...
+	int scale = g_windowHeight / 540;
+	scale = (scale < 1) ? 1 : scale;
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glViewport(8, g_windowHeight - 8 - h * scale, w * scale, h * scale);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendEquation(GL_FUNC_ADD);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glUseProgram(s_rtxBlitShader);
+	glUniform1i(s_rtxBlitFlipLoc, 1);
+	glBindVertexArray(s_vramQuadVAO);
+	NativeRenderer_DrawTriangles(0, 2);
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prevDraw);
+	glViewport(vp[0], vp[1], vp[2], vp[3]);
+	(blend ? glEnable : glDisable)(GL_BLEND);
+	(scissor ? glEnable : glDisable)(GL_SCISSOR_TEST);
+	(depthTest ? glEnable : glDisable)(GL_DEPTH_TEST);
+	glUseProgram((GLuint)prevProgram);
+	glBindVertexArray((GLuint)prevVao);
+	glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+	glActiveTexture((GLenum)prevActive);
 }

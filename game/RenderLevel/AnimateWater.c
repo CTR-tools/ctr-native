@@ -71,8 +71,23 @@ void AnimateQuadVertex(int timer, struct SCVert *scVert, u32 *visBits)
 
 void AnimateQuad(int timer, int numSCVert, struct SCVert *scVert, int *visSCVertList)
 {
+#if defined(CTR_NATIVE)
+	// MultiTrack: custom tracks can have animated vertices without their
+	// visibility list: the PS1 reads its RAM at 0 there, natively that faults.
+	// A missing list counts as everything visible (it advances over a stand-in)
+	static u32 s_allVisible[1] = {0xffffffffu};
+	int haveList = (visSCVertList != NULL);
+	if ((numSCVert == 0) || (scVert == NULL))
+	{
+		return;
+	}
+	u32 *visList = haveList ? (u32 *)visSCVertList : s_allVisible;
+	u32 visBits = *visList;
+	visList += haveList;
+#else
 	u32 *visList = (u32 *)visSCVertList;
 	u32 visBits = *visList++;
+#endif
 	int bitCount = 32;
 
 	CTC2(0, 21);
@@ -87,7 +102,12 @@ void AnimateQuad(int timer, int numSCVert, struct SCVert *scVert, int *visSCVert
 
 		if (bitCount == 0)
 		{
+#if defined(CTR_NATIVE)
+			visBits = *visList;
+			visList += haveList;
+#else
 			visBits = *visList++;
+#endif
 			bitCount = 31;
 		}
 		else
@@ -153,6 +173,22 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 	{
 		return;
 	}
+	// MultiTrack: custom tracks can have water without its visibility lists (or
+	// env map): the PS1 reads its RAM at 0 there, natively that faults. A
+	// missing list counts as everything visible (the water still moves)
+	if (waterEnvMap == NULL)
+	{
+		return;
+	}
+	static u32 s_allVisible[1];
+	for (int i = 0; i < numLists; i++)
+	{
+		if (visLists[i] == NULL)
+		{
+			visLists[i] = (int *)s_allVisible;
+		}
+	}
+	s_allVisible[0] = 0xffffffffu;
 #endif
 
 	u16 colorOffset = AnimateWater_ReadTextureHalf(waterEnvMap, 0);
@@ -167,7 +203,12 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 	for (int i = 0; i < numLists; i++)
 	{
 		visList[i] = (u32 *)visLists[i];
-		visBits |= *visList[i]++;
+		visBits |= *visList[i];
+#if defined(CTR_NATIVE)
+		visList[i] += (visLists[i] != (int *)s_allVisible); // (the stand-in list doesn't advance)
+#else
+		visList[i]++;
+#endif
 	}
 
 	firstFrame = ((u32)timer >> 3) % 28;
@@ -189,7 +230,12 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 
 			for (int i = 0; i < numLists; i++)
 			{
-				visBits |= *visList[i]++;
+				visBits |= *visList[i];
+#if defined(CTR_NATIVE)
+				visList[i] += (visLists[i] != (int *)s_allVisible);
+#else
+				visList[i]++;
+#endif
 			}
 
 			bitCount = 31;

@@ -319,6 +319,14 @@ internal int GTE_RotTransPers(int idx, int lm)
 	C2_SX2 = Lm_G1(F((s64)C2_OFX + ((s64)C2_IR1 * h_over_sz3)) >> 16);
 	C2_SY2 = Lm_G2(F((s64)C2_OFY + ((s64)C2_IR2 * h_over_sz3)) >> 16);
 
+	// MultiTrack: view-space position behind each projected screen XY (ray tracing capture)
+#ifdef NATIVE_RTX_H
+	if (g_rtxCapture)
+	{
+		Rtx_OnProject(C2_SXY2, C2_MAC1, C2_MAC2, C2_MAC3, m_sf);
+	}
+#endif
+
 	return h_over_sz3;
 }
 

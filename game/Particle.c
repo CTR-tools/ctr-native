@@ -675,6 +675,11 @@ void Particle_RenderList(struct PushBuffer *pb, void *particleList)
 			if (CTR_MipsSll(particle->renderDepthLimit, 2) < r13r21)
 				goto nextParticle;
 			color = Particle_SetColors(flagsAxis, flagsSetColor, particle);
+#ifdef NATIVE_RTX_H
+			Rtx_OnParticle(pb, (s32)CFC2(5), (s32)CFC2(6), (s32)CFC2(7), color, icon); // MultiTrack: glowing particles light the scene
+			Rtx_OnParticleDepth(pb, prim, (flagsSetColor & PARTICLE_SET_COLOR_FLAG_SPECIAL_LINE) ? 7 : 10, (s32)CFC2(7), (s32)CFC2(24), (s32)CFC2(25),
+			                    (s32)CFC2(26)); // MultiTrack: and hide behind it, and shade
+#endif
 			if (flagsSetColor & PARTICLE_SET_COLOR_FLAG_SPECIAL_LINE)
 			{
 				struct ParticleSpecialPacket *packet = (struct ParticleSpecialPacket *)prim;

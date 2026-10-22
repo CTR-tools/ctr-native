@@ -18,6 +18,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	struct Level *lev = gGT->level1;
 	struct mesh_info *ptr_mesh_info = 0;
 
+	Rtx_FrameBegin(); // MultiTrack: ray tracing capture
+
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_SETUP);
 	DrawUnpluggedMsg(gGT, gGamepads);
 	DrawFinalLap(gGT);
@@ -33,6 +35,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	{
 		MainFrame_VisMemFullFrame(gGT, gGT->level1);
 	}
+#if defined(CTR_NATIVE)
+	MainFrame_PcVisibility(gGT); // MultiTrack: draw everything visible from anywhere (no pop-in)
+#endif
 
 
 	if ((gGT->renderFlags & RENDER_FLAG_DRAW_LEVEL) != 0)
@@ -69,7 +74,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	RenderAllConfetti(gGT);
 	if (((gGT->renderFlags & RENDER_FLAG_STARS) != 0) && (gGT->stars.numStars != 0))
 	{
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		RenderStars(&gGT->pushBuffer[0], &gGT->backBuffer->primMem, &gGT->stars, gGT->numPlyrCurrGame);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 	}
 
 	if (((gGT->renderFlags & RENDER_FLAG_MULTIPLAYER_DECALS) != 0) && (gGT->numPlyrCurrGame > 1))
@@ -113,7 +120,9 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_EFFECTS);
 	RenderAllTires(gGT);
 
+	Rtx_BeginTag(RTX_TAG_SHADOW, &gGT->backBuffer->primMem); // MultiTrack: blob shadows, replaced by traced ones
 	RenderAllShadows(gGT);
+	Rtx_EndTag(&gGT->backBuffer->primMem);
 
 	RenderAllHeatParticles(gGT);
 
@@ -929,8 +938,14 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 			scratch->textureLodDepthThreshold1 = CTR_MipsMulLo(distToScreen, 0xc);
 			scratch->topLevelNearDepthThreshold = CTR_MipsMulLo(distToScreen, 7);
 			scratch->recursiveNearDepthThreshold = RenderAllLevelGeometry_ScaleDistanceShift8(distToScreen, 0x380);
+			// MultiTrack: ray traced, the detail reaches further (output resolution vs the PS1's)
+			scratch->bspLodDistanceThreshold = Rtx_LevelLodScale(scratch->bspLodDistanceThreshold);
+			scratch->textureLodDepthThreshold0 = Rtx_LevelLodScale(scratch->textureLodDepthThreshold0);
+			scratch->textureLodDepthThreshold1 = Rtx_LevelLodScale(scratch->textureLodDepthThreshold1);
+			scratch->topLevelNearDepthThreshold = Rtx_LevelLodScale(scratch->topLevelNearDepthThreshold);
 			scratch->fullDynamicFadeDepthStart = CTR_MipsAddLo(scratch->bspLodDistanceThreshold, MAIN_RENDER_LEVEL_GEOMETRY_FULL_DYNAMIC_FADE_OFFSET);
 		}
+		Rtx_SetTextureNearDepth(scratch->textureLodDepthThreshold1); // MultiTrack: near textures beyond it too (ray traced)
 
 		RenderLists_PreInit();
 		gGT->bspLeafsDrawn = 0;
@@ -939,10 +954,16 @@ void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struc
 		                                           gGT->visMem1->bspList[0], numPlyrCurrGame);
 
 		// 226-229
+		Rtx_OnLevelCamera(pushBuffer); // MultiTrack
+		Rtx_BeginTag(RTX_TAG_LEVEL, &gGT->backBuffer->primMem);
 		DrawLevelOvr1P(&gGT->LevRenderLists[0], pushBuffer, (struct BSP *)ptr_mesh_info, &gGT->backBuffer->primMem, gGT->visMem1->visFaceList[0],
 		               level1->ptr_tex_waterEnvMap); // waterEnvMap?
 
+		Rtx_EndTag(&gGT->backBuffer->primMem);
+
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		DrawSky_Full(level1->ptr_skybox, pushBuffer, &gGT->backBuffer->primMem);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 
 		// skybox gradient
 		if ((level1->configFlags & 1) != 0)
@@ -1034,7 +1055,9 @@ SkyboxGlow:
 	for (i = 0; i < numPlyrCurrGame; i++)
 	{
 		pushBuffer = &gGT->pushBuffer[i];
+		Rtx_BeginTag(RTX_TAG_SKY, &gGT->backBuffer->primMem); // MultiTrack
 		CAM_SkyboxGlow(&level1->glowGradient[0], pushBuffer, &gGT->backBuffer->primMem, &pushBuffer->ptrOT[0x3ff]);
+		Rtx_EndTag(&gGT->backBuffer->primMem);
 	}
 
 	return;

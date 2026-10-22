@@ -789,6 +789,17 @@ void Platform_InputUpdate(void)
 	SDL_PumpEvents();
 	u16 keyboardButtons = NativeInput_KeyboardSuppressed() ? 0xffff : NativeInput_ReadKeyboard();
 
+	// MultiTrack test harness (scripts/shot_native.py): CTR_AUTODRIVE=1 holds accelerate
+	static int s_autoDrive = -1;
+	if (s_autoDrive < 0)
+	{
+		s_autoDrive = SDL_getenv("CTR_AUTODRIVE") != NULL;
+	}
+	if (s_autoDrive)
+	{
+		keyboardButtons &= (u16)~0x4000;
+	}
+
 	for (s32 slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
 	{
 		NativeInput_ResetSnapshot(slot);
@@ -796,6 +807,30 @@ void Platform_InputUpdate(void)
 		NativeInput_ApplyKeyboard(slot, keyboardButtons);
 	}
 	NativeInput_WritePadBus();
+}
+
+// MultiTrack: cross (keyboard C) or a gamepad's south button (Xbox A) went
+// down since the last call; skips the boot intro (copyright, ND box)
+int Platform_InputSkipPressed(void)
+{
+	static s32 s_wasDown = 1; // a button held through boot doesn't count
+	if (s_inputInitialized == 0)
+	{
+		return 0;
+	}
+	SDL_PumpEvents();
+	s32 down = (NativeInput_ReadKeyboard() & 0x4000) == 0;
+	for (s32 slot = 0; slot < NATIVE_INPUT_MAX_CONTROLLERS; slot++)
+	{
+		SDL_Gamepad *controller = s_controllers[slot].controller;
+		if ((controller != NULL) && SDL_GamepadConnected(controller) && (NativeInput_ControllerButtonState(controller, s_controllerMapping.gc_cross) > 16384))
+		{
+			down = 1;
+		}
+	}
+	s32 pressed = down && !s_wasDown;
+	s_wasDown = down;
+	return pressed;
 }
 
 void Platform_InputControllerAdded(int deviceIndex)
