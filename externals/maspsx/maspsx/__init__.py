@@ -747,6 +747,8 @@ class MaspsxProcessor:
         if not self.nop_mflo_mfhi:
             return res
 
+        ordering = []
+        skip = 0
         next_instruction = self.get_next_instruction(
             skip=0, ignore_nop=True, ignore_set=True, ignore_label=True
         )
@@ -761,10 +763,14 @@ class MaspsxProcessor:
             # #nop
             # #nop
             # mult...
-            skip = 0
             while True:
                 inst = self.get_next_instruction(skip=skip)
                 skip += 1
+                if inst in (".set\treorder", ".set\tnoreorder"):
+                    ordering.append(inst)
+                    if inst == ".set\tnoreorder":
+                        res.append(inst)
+                    continue
                 if inst == next_instruction:
                     res.append("nop")
                     res.append("nop")
@@ -787,26 +793,22 @@ class MaspsxProcessor:
             # #nop
             # bne or addu or lh ...
             # mult ...
-            skip = 0
-            no_reorder = False
+            no_reorder = not self.is_reorder
             while True:
                 inst = self.get_next_instruction(skip=skip)
 
-                if inst.startswith(".set") and inst.endswith("noreorder"):
-                    no_reorder = True
+                if inst in (".set\treorder", ".set\tnoreorder"):
+                    no_reorder = inst == ".set\tnoreorder"
+                    ordering.append(inst)
                     skip += 1
                     continue
 
                 skip += 1
                 if inst == next_instruction:
                     op, *_ = inst.strip().split()
-                    if op in load_mnemonics:
-                        # allow for $at handling later in the script
-                        skip = 0
-                        break
-
-                    if op in ("mflo", "mfhi"):
-                        # allow for mflo/mfhi handling later on
+                    if op in load_mnemonics or op in ("mflo", "mfhi"):
+                        # Defer the whole prefix, not just its instruction.
+                        res = []
                         skip = 0
                         break
 
@@ -887,6 +889,9 @@ class MaspsxProcessor:
             # do nothing
             pass
 
+        if skip:
+            for directive in ordering:
+                res += self.process_line(directive)
         return res
 
     def process_line(self, line: str):

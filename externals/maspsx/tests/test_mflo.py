@@ -264,3 +264,85 @@ class TestMflo(unittest.TestCase):
         res = mp.process_lines()
         clean_lines = strip_comments(res)
         self.assertEqual(expected_lines, clean_lines)
+
+    def test_mflo_immediate_writer_ordering(self):
+        """Consumed reorder controls must not leak into GNU delay slots."""
+        for op in ("mflo", "mfhi"):
+            with self.subTest(op=op):
+                lines = [
+                    ".ent\tprobe", op + "\t$2", ".set\treorder",
+                    "div\t$zero,$7,$3", ".set\tnoreorder",
+                    "jr\t$31", "addiu\t$2,$zero,3", ".end\tprobe",
+                ]
+                expected_lines = [
+                    ".ent\tprobe", ".set\tnoreorder", op + "\t$2",
+                    "nop", "nop", "div\t$zero,$7,$3",
+                    "jr\t$31", "addiu\t$2,$zero,3", ".end\tprobe",
+                ]
+                mp = MaspsxProcessor(lines)
+                self.assertEqual(expected_lines, strip_comments(mp.process_lines()))
+
+    def test_mflo_effective_ordering(self):
+        """One-gap repair uses the incoming mode and both mode transitions."""
+        for op in ("mflo", "mfhi"):
+            for before, between, reorder in (
+                ([".set\tnoreorder"], [], False),
+                ([], [".set\tnoreorder", ".set\treorder"], True),
+                ([], [".set\treorder", ".set\tnoreorder"], False),
+            ):
+                with self.subTest(op=op, before=before, between=between):
+                    lines = [
+                        ".ent\tprobe", *before, op + "\t$2", *between,
+                        "beq\t$3,$zero,$L1", "div\t$zero,$7,$3", "$L1:",
+                        "beq\t$4,$zero,$L2", "addiu\t$8,$8,1", "$L2:",
+                        "jr\t$31", "addiu\t$2,$zero,3", ".end\tprobe",
+                    ]
+                    mp = MaspsxProcessor(lines)
+                    output = strip_comments(mp.process_lines())
+                    self.assertNotIn(".set\treorder", output)
+                    machine = [line for line in output
+                               if not line.startswith(".") and not line.endswith(":")]
+                    if reorder:
+                        expected_lines = [op + "\t$2", "beq\t$3,$zero,$L1",
+                                          "nop", "div\t$zero,$7,$3"]
+                    else:
+                        expected_lines = [op + "\t$2", "nop",
+                                          "beq\t$3,$zero,$L1", "div\t$zero,$7,$3"]
+                    at = machine.index(op + "\t$2")
+                    self.assertEqual(expected_lines, machine[at:at + 4])
+                    self.assertEqual((reorder, reorder),
+                                     (mp.is_reorder, mp.cop2_is_reorder))
+                    at = output.index("beq\t$4,$zero,$L2")
+                    self.assertEqual("nop" if reorder else "addiu\t$8,$8,1",
+                                     output[at + 1])
+
+    def test_mflo_deferred_prefix(self):
+        """A deferred load/transfer owns its labels and mode changes later."""
+        class Observed(MaspsxProcessor):
+            def _handle_mflo_mfhi(self, r_source=None):
+                before = (self.is_reorder, self.cop2_is_reorder)
+                output = super()._handle_mflo_mfhi(r_source)
+                if self.line_index == 1:
+                    self.first = (before, (self.is_reorder, self.cop2_is_reorder),
+                                  self.skip_instructions)
+                return output
+
+        for following in ("lw\t$4,0($6)", "mfhi\t$4"):
+            with self.subTest(following=following):
+                mp = Observed([
+                    ".ent\tprobe", "mflo\t$2", ".set\tnoreorder", "$L1:",
+                    following, "div\t$zero,$7,$3", ".end\tprobe",
+                ])
+                output = strip_comments(mp.process_lines())
+                self.assertEqual(((True, True), (True, True), 0), mp.first)
+                self.assertEqual(1, output.count("$L1:"))
+
+    def test_mflo_div_macro_retains_gap(self):
+        """Deferring a DIV macro must retain the preceding HI/LO gap."""
+        mp = MaspsxProcessor([
+            ".ent\tprobe", "mflo\t$2", "div\t$4,$7,$3", ".end\tprobe",
+        ])
+        output = strip_comments(mp.process_lines())
+        at = output.index("mflo\t$2")
+        self.assertEqual(["nop", "nop", "div\t$zero,$7,$3", "mflo\t$4"],
+                         output[at + 1:at + 5])
