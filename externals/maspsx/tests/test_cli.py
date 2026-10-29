@@ -1,6 +1,8 @@
 import importlib.util
+import platform
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -83,3 +85,40 @@ class TestCli(unittest.TestCase):
         )
 
         self.assertEqual(1, process.returncode)
+
+    def test_preserves_explicit_delay_slot_without_ent(self):
+        tools = self.repo_root.parent / "psx-binutils/prebuilt/linux-x86_64/bin"
+        assembler = tools / "mipsel-none-elf-as"
+        objcopy = tools / "mipsel-none-elf-objcopy"
+        if (sys.platform != "linux" or platform.machine() != "x86_64"
+                or not assembler.is_file() or not objcopy.is_file()):
+            self.skipTest("requires the bundled Linux x86_64 MIPS binutils")
+
+        source = (
+            '.section .delay_slot,"ax",@progbits\n'
+            '.set\tnoreorder\n'
+            'jr\t$31\n'
+            'sw\t$4,0($5)\n'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            subprocess.run(
+                [str(assembler), "-G0", "-o", str(output / "direct.o"), "-"],
+                input=source, text=True, capture_output=True, check=True,
+            )
+            subprocess.run(
+                [sys.executable, str(self.repo_root / "maspsx.py"),
+                 "--aspsx-version=2.77", "--run-assembler",
+                 f"--gnu-as-path={assembler}", "--force-stdin",
+                 "-o", str(output / "converted.o")],
+                input=source, text=True, capture_output=True, check=True,
+            )
+            for name in ("direct", "converted"):
+                subprocess.run(
+                    [str(objcopy), "-O", "binary", "--only-section=.delay_slot",
+                     str(output / f"{name}.o"), str(output / f"{name}.bin")],
+                    capture_output=True, check=True,
+                )
+            expected = (output / "direct.bin").read_bytes()
+            self.assertEqual(8, len(expected))
+            self.assertEqual(expected, (output / "converted.bin").read_bytes())

@@ -107,6 +107,8 @@ def main() -> None:
 
     preamble = [
         '.include "macro.inc"' if args.macro_inc else "",
+        # NOTE(aalhendi): maspsx schedules slots; GNU as must not schedule them again.
+        ".set\tnoreorder",
     ]
 
     sdata_limit = 0

@@ -130,6 +130,54 @@ Unoptimized output may serialize dead continuation after the barrier.
 `tests/check_unreachable.sh` checks real O0/O2 barriers, earlier effects,
 optimized dead-continuation cleanup, valid framed returns and argument errors.
 
+## Explicit scratch-frame and register-call contracts
+
+`psx-scratch-call-2.8.1.patch` follows the unreachable patch. Its SHA-256 is
+`81e9d1f1165849d20bf49247e402db5852d015764a988ff33c4cb98fbb37d965`.
+The exact delta is 611 added/15 removed lines across nine compiler owners,
+596 net; generic reorg.c is unchanged. It contains four bounded capabilities:
+
+- `mips_regcall_s012(mask)` applies to direct, non-inline C `void(void)`
+  declarations on little-endian MIPS-I/ABI32 soft-float, non-PIC targets.
+  It promises zero incoming stack homes, hidden reads from the constant
+  GPR2–25 bit mask, and real RA/S0–S2 kills. Other ordinary-call kills remain
+  conservative. Equivalent folded integral masks are canonicalized, not
+  arbitrary casts stripped. Declarations must repeat the contract; function
+  addresses and unsupported signatures/contexts are rejected.
+- `mips_unsafe_manual_at_frame` marks an implementation body, not its outward
+  ordinary call ABI. Its source must balance RA/S0–S2 saves in an AT-based
+  24-byte scratch window and owns slots16/20 for data. Calls must be the
+  register-call form with the separate `mips_preserves_at24` provider assertion.
+  The compiler models AT's hidden read, suppresses automatic stack frames and
+  emits function type/size rather than misleading SP-frame metadata. It rejects
+  stack/spill/homing/extra-save requirements and unsupported debug, profiling,
+  exception, dynamic and inline contexts, including late post-reload checks.
+  Ordinary callers keep their normal homes; the body marker cannot be inlined.
+  These unsafe assertions do not prove the source's balance, actual provider
+  preservation, assembler macro behavior or asynchronous safety.
+- `-mpsx-normal-ram-lw-delay=on|off` defaults to off, accepts only those values
+  and uses the last supplied value. It permits only a certified immediately
+  preceding volatile SI LW to fill an EQ/NE-zero branch slot, retaining the
+  access on both paths. Full-register hazards, two real successor gaps and
+  installed-slot final validation remain mandatory. The caller asserts aligned,
+  mapped, nonfaulting normal RAM, never MMIO; precise BD/EPC, IRQ timing and
+  asynchronous mutation are outside the contract. The existing LHU input-role
+  check now admits a genuinely fixed read-only condition, without relaxing
+  its strict destination guard.
+- Typed CTC2 accepts constant zero through the existing CONST0/J/%z convention,
+  without pretending the virtual argument-pointer register is physical GPR0.
+  Constant zero has no mutable CPU-register dependency; other inputs remain
+  full SI registers and argument effects are still completed before transfer.
+  One generic CSE correction validates PARALLEL USE substitutions together
+  with their owning instruction, preserving recognized MATCH_DUP operands.
+
+`tests/check_psx_scratch.sh` checks real call masks/kills/homes, manual-body and
+inline guards, default/off/on load slots and reached hazard/fixed-role cases.
+The GTE tests retain zero/ordinary-word CTC2 and side-effect/frame controls at
+O0/O2, including actual intermediate operand agreement. These are finite
+compiler-output controls, not execution on MIPS or universal ABI/fault proof.
+No game names or retail addresses select behavior in the compiler.
+
 ## Tested compiler release
 
 - Release:
@@ -139,19 +187,23 @@ optimized dead-continuation cleanup, valid framed returns and argument errors.
 - Platform: statically linked Linux i386
 - Local directory: `prebuilt/linux-i386/2.8.1`
 
-The C compiler pass (`cc1`) below includes the GTE, frame and unreachable
-patches. Two clean builds produced this hash in the fixed Ubuntu 20.04/GCC 9.4.0
-environment: one from the recorded 1,221-file source input set, and one freshly
-reconstructed from the GNU archive and public patch recipe. The latter passed
-the maintained base/GTE/frame smokes; a smoke-only successor on its unchanged
-binary passed the unreachable controls and ordinary O0/O2 raw-output parity.
-The other four files remain unchanged from the release archive. The Dockerfile
-builds only the replacement `cc1` and exports it alongside those stock files.
+The C compiler pass (`cc1`) below includes the GTE, frame, unreachable and
+scratch/call patches. Two clean offline builds from the GNU archive and public
+patch recipe produced this hash in the fixed Ubuntu 20.04/GCC 9.4.0 environment,
+with the same complete
+1,221-file source map
+`ce9d4a18bb571a3a403b0bedf374d42d6381f21085fa8028ea29bc4a67a25785`
+and the base, GTE, frame, unreachable and scratch/call/load smoke suites passing
+on both binaries. The source permissions follow the GNU archive; executable
+and source-content identities are independent of owner-write permissions.
+The other four files remain unchanged from the
+release archive. The Dockerfile builds only the replacement `cc1` and exports
+it alongside those stock files; the C++ frontend has not gained these C APIs.
 Its pinned base image and source archive do not freeze future apt repositories;
 the executable hashes, not a fresh package-manager run, identify the tested tuple.
 
 ```text
-ee617951e9c8cfc98fb407fb319477a94ef7e0e2e592f03f1cf8467669741e7d  cc1
+869f5c953e28ccb9869b737bd2d05fb889dcba48b55b326892d96ac2c6475858  cc1
 93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572  cc1plus
 8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb  cpp
 a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd  g++

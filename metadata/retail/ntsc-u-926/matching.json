@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "ee617951e9c8cfc98fb407fb319477a94ef7e0e2e592f03f1cf8467669741e7d",
+        "cc1": "869f5c953e28ccb9869b737bd2d05fb889dcba48b55b326892d96ac2c6475858",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -21,7 +21,7 @@
       "directory": "externals/maspsx",
       "entrypoint": "maspsx.py",
       "sha256": {
-        "maspsx.py": "d170463b0c519a825db97d3f30ffbe0228e4cf642de2dc64fb30f90f118c2b0c",
+        "maspsx.py": "830b17420ab310e63f9cfc4414637d884553587cf11a7cebc80f496ace045f1d",
         "maspsx/__init__.py": "7b22e9a7dfe3c620f4cfff6c785da774cf927aff57e012ad414baa335be7bbf5"
       },
       "aspsx_version": "2.77"
@@ -4307,6 +4307,32 @@
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "draw-sky",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "DrawSky_Full",
+      "end_symbol": "AnimateQuad",
+      "symbol_prefix": "DrawSky_",
+      "source": "game/DrawSky.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "source_flags": {
+        "game/DrawSky.c": [
+          "-fcall-used-s0",
+          "-ffixed-t5",
+          "-fno-schedule-insns",
+          "-fno-schedule-insns2",
+          "-mpsx-normal-ram-lhu-delay=on",
+          "-mpsx-local-bgez=on",
+          "-mpsx-normal-ram-lw-delay=on"
+        ]
+      },
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}

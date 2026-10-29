@@ -143,3 +143,54 @@ if "$task_gcc" -B"$task_prefix/" -S -O2 -G8 -msoft-float -mpsx-ctc2-return-delay
 fi
 grep -Fq 'bad value (banana)' "$task_out/ctc2-bad-policy.stderr"
 grep -Fq 'psx-ctc2-return-delay' "$task_out/ctc2-bad-policy.stderr"
+
+# Zero is a real constant input, not a pseudo for GPR0/the virtual arg pointer.
+# Retain all phases so recognized CTC2 MATCH_DUP uses are checked after CSE too.
+for task_opt in O0 O2; do
+    (cd "$task_out" && "$task_gcc" -B"$task_prefix/" -S "-$task_opt" -G8 \
+        -msoft-float -ffunction-sections -da -o "$task_out/zero-$task_opt.s" \
+        "$task_tests/psx_ctc2_zero.c")
+    for task_name in ctc_zero_literal ctc_zero_folded ctc_zero_repeated \
+        ctc_zero_effectful ctc_zero_runtime ctc_zero_nonzero ctc_zero_fifth; do
+        task_extract_function "$task_name" "$task_out/zero-$task_opt.s" \
+            "$task_out/$task_name-$task_opt.s"
+    done
+    grep -Eq 'ctc2[[:space:]]+\$0,\$0([[:space:]]|$)' "$task_out/ctc_zero_literal-$task_opt.s"
+    grep -Eq 'ctc2[[:space:]]+\$0,\$31([[:space:]]|$)' "$task_out/ctc_zero_folded-$task_opt.s"
+    test "$(grep -Ec '^[[:space:]]*ctc2[[:space:]]+\$0,\$[567]([[:space:]]|$)' \
+        "$task_out/ctc_zero_repeated-$task_opt.s")" -eq 3
+    grep -Eq 'ctc2[[:space:]]+\$0,\$4([[:space:]]|$)' "$task_out/ctc_zero_effectful-$task_opt.s"
+    grep -Eq 'ctc2[[:space:]]+\$[1-9][0-9]*,\$4([[:space:]]|$)' "$task_out/ctc_zero_runtime-$task_opt.s"
+    grep -Eq 'ctc2[[:space:]]+\$[1-9][0-9]*,\$31([[:space:]]|$)' "$task_out/ctc_zero_nonzero-$task_opt.s"
+    grep -Eq 'jal[[:space:]]+ctc_zero_keep_frame' "$task_out/ctc_zero_fifth-$task_opt.s"
+    grep -Eq 'ctc2[[:space:]]+\$0,\$6([[:space:]]|$)' "$task_out/ctc_zero_fifth-$task_opt.s"
+    task_phases='rtl cse combine greg dbr'
+    if test "$task_opt" = O0; then
+        test ! -s "$task_out/psx_ctc2_zero.c.dbr"
+        task_phases='rtl cse combine greg'
+    fi
+    for task_phase in $task_phases; do
+        awk '
+            /\(unspec_volatile\[/ { state=1; next }
+            state == 1 && /\(reg|\(const_int/ {
+                value=$0; gsub(/[ \t]/, "", value); state=2; next
+            }
+            state == 2 && /^[ \t]*\][ \t]+[0-9]+\)/ {
+                state = ($0 ~ /\][ \t]+4\)/) ? 3 : 0
+                next
+            }
+            state == 3 && /\(use / {
+                actual=$0; sub(/^.*\(use /, "", actual); sub(/\)[ \t]*$/, "", actual)
+                gsub(/[ \t]/, "", actual)
+                if (value != actual) bad=1
+                ++pairs; state=0
+            }
+            END { exit !(pairs && !state && !bad) }
+        ' "$task_out/psx_ctc2_zero.c.$task_phase"
+    done
+done
+# Only the intended volatile increment writes memory, before the zero transfer.
+test "$(grep -Ec '^[[:space:]]*sw[[:space:]]' "$task_out/ctc_zero_effectful-O2.s")" -eq 1
+awk '/^[[:space:]]*sw[[:space:]]/ { store=NR }
+     /^[[:space:]]*ctc2[[:space:]]/ { transfer=NR }
+     END { exit !(store && transfer && store < transfer) }' "$task_out/ctc_zero_effectful-O2.s"
