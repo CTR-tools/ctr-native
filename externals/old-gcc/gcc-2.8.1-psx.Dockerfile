@@ -21,6 +21,10 @@ RUN patch --fuzz=0 -u -p1 < ../patches/psx-gte-delay-policies-2.8.1.patch
 RUN patch --fuzz=0 -u -p1 < ../patches/psx-frame-policies-2.8.1.patch
 RUN patch --fuzz=0 -u -p1 < ../patches/generic-unreachable-2.8.1.patch
 RUN patch --fuzz=0 -u -p1 < ../patches/psx-scratch-call-2.8.1.patch
+RUN echo 'a2221b5a05bf81f3797b20725e901422e52579681ba5b9b1e95a60767154cd37  ../patches/psx-ram-load-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 -u -p2 < ../patches/psx-ram-load-2.8.1.patch
+RUN echo '698ebf5719f8a6ac8a594af894da1dee94400826f04263ee84e53dc2c1d27dcb  ../patches/psx-continuations-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/psx-continuations-2.8.1.patch
 
 RUN ./configure \
     --target=mips-sony-psx \
@@ -49,6 +53,7 @@ RUN sh /work/tests/check_psx_gte.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION
 RUN sh /work/tests/check_psx_frames.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_unreachable.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_psx_scratch.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_psx_ram_load.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 
 FROM scratch AS export
 COPY prebuilt/linux-i386/2.8.1/ /

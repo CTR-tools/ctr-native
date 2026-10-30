@@ -178,7 +178,108 @@ O0/O2, including actual intermediate operand agreement. These are finite
 compiler-output controls, not execution on MIPS or universal ABI/fault proof.
 No game names or retail addresses select behavior in the compiler.
 
-## Tested compiler release
+## Ordinary mapped-RAM slots and fixed epilogue cloning
+
+`psx-ram-load-2.8.1.patch` follows the scratch/call patch. It is the literal
+595-net-line delta (+618/-23 across four compiler files), SHA-256
+`a2221b5a05bf81f3797b20725e901422e52579681ba5b9b1e95a60767154cd37`.
+Its two independent optimization policies default to off, accept only `on`
+or `off`, and interpret the last supplied value. Invalid final values diagnose;
+an invalid earlier value followed by a valid final value is accepted.
+
+- `-mpsx-prebranch-lw-delay=on` admits an adjacent backward ordinary SI LW or
+  signed LH, or a first-fallthrough SI LW, into a certified unannulled NE/GT-zero
+  branch slot on little-endian MIPS-I/ABI32. Forward speculation does not admit
+  signed LH. Unlike the existing volatile-load option, the access is ordinary
+  nonvolatile RAM. The caller asserts complete, aligned, mapped, stable,
+  nonfaulting normal storage on every affected path, including paths on which
+  the source did not access it. MMIO, unmapped or faulting storage, precise
+  fault/BD/EPC context, IRQ timing and asynchronous mutation/observation are
+  outside this contract; a C pointer type does not establish those properties.
+  Real register hazards and generic opposite-path old-value liveness remain
+  mandatory. One emitting prefix ALU and independent physical instructions on
+  both successors protect load retirement. A USE marker is never an instruction
+  gap: the sole admitted administrative marker must identify the actual
+  preceding SEQUENCE's ALU tail. Installed slots are protected from copying,
+  threading, retargeting and relaxation; final output validation rechecks their
+  current ownership, carrier and both gaps, failing fatally on invalidation.
+- `-mclone-fixed-epilogues=on` clones actual compiler-generated restores,
+  blockage, SP teardown and RA return at exactly one direct shared-exit jump.
+  It runs after final jump merging and before fresh delay-slot resource tables.
+  Its initial scope is optimized C void functions with small fixed SP frames
+  saving only ABI S0-S7/RA. Frameless, value/aggregate-return, dynamic/FP/FPU,
+  PIC, debug, profiling, EH/nonlocal/varargs contexts, multiple clone candidates,
+  extra SP effects and unsupported template notes retain the ordinary path.
+  Empty constraints are inspected through real operand vectors, not constraint
+  metadata; nonempty ASM and opaque machine effects exclude the transformation.
+  Actual frame homes, RA use and the original final epilogue are retained, with
+  fresh instruction identities and updated exit bookkeeping. This is neither
+  a scratch-frame ABI nor a debug/unwind, fault or interrupt-equivalence promise.
+
+Enabled game compilations are approved only for the FIXED and MOVED collision
+quadblock dispatcher translation units selected in the matching manifest.
+Neither policy grants neighboring compiler, source or assembly exceptions.
+`tests/check_psx_ram_load.sh` checks actual installed SI slots and physical gaps,
+an opposite-path old-value refusal, literal default/OFF output and pre-DBR
+parity, parser/last-value behavior, real fixed-frame clones/restore homes and
+selected conservative fallbacks. Its fixtures are maintained inputs, not
+private-path dependencies. Signed-LH admission, mixed volatile policies,
+malformed-marker/lifecycle cases, a complete exclusion matrix and physical
+MIPS execution are not established by these finite compile-output controls.
+
+## Adjacent continuations and full scratch bodies
+
+`psx-continuations-2.8.1.patch` follows the ordinary-RAM patch, SHA-256
+`698ebf5719f8a6ac8a594af894da1dee94400826f04263ee84e53dc2c1d27dcb`.
+Its delta is768 added/15 removed lines across calls.c, toplev.c and mips.c/h/md,
+753 net; generic flow, allocation and reorg passes remain unchanged.
+
+`mips_adjacent_tail("Target")` is a C body contract for a genuine terminal
+direct void four-SI call. Its real nonconstant CALL retains arguments and RA
+reads but emits no physical transfer, RA write or delay slot. Supported setup
+branches are local forward acyclic edges before that call. Extra calls, paths
+skipping it, later work, frames, protected writes and unsupported contexts fail.
+Each entry emits a nonallocated eight-byte end/target relocation record;
+linkage must preserve it and verify distinct real positive function owners
+with exact end-to-entry adjacency, not ABS addresses or interior labels.
+
+`mips_unsafe_manual_at_full_frame` retains an ordinary four-SI void outward
+interface and a real two-SI indirect void callback with sixteen incoming homes.
+It suppresses automatic frames, not real CALL/RA/memory effects. Its source
+owns the original S0-S7/GP/SP/S8/RA image, balance, mapped/disjoint scratch,
+AT rebuilding, provider preservation and nonreentry. Late checks reject
+storage, unsupported calls, opaque instruction ASM and unmodeled protected
+operands/writes; they do not prove the unsafe source obligations. Empty cues
+remain constrained register captures/observations, not CPU instructions.
+
+`-mpsx-prebranch-lw-delay=extended` adds bounded SI load-gap classes and a
+backward-adjacent local-jump load slot; strict `on`, default and `off` retain
+their existing scope. Final reciprocal sequence ownership and actual successor
+gaps remain mandatory. A write-only pending-GPR kill or independent EQ/NE
+branch is narrowly recognized, never a blanket branch or ASM exemption.
+Mapped, stable, nonfaulting RAM and normal execution are required; precise
+fault/BD/EPC, IRQ and asynchronous observation remain outside the contract.
+
+Only full-scratch ADDU with three actual GPR operands and destination tied to
+source two prints that tied source first. It changes no RTL effects, opcode,
+trap behavior or scheduling policy; ordinary/immediate/other-profile output
+retains the original template. No game names, addresses or expected words
+select any of these behaviors.
+
+The expected continuation compiler pin is
+`90a506b6a4d6b690672eedfaf6e639b76e790d3038eca909d1cb1afb4f8557bc`.
+Its generated regular-source fingerprint is
+`51f82c250bbd0a0556098f9c0cde2b67424bfcbe0c3a3a7f27de5662f92e3400`,
+count1221, zero symlinks. Hash input is C-sorted `./path`, NUL, octal mode,
+NUL, lowercase content SHA-256, newline for each regular file before configure.
+No per-file source registry is maintained: the archive and pinned patches
+determine the files. This tuple requires its maintained export/smoke gates
+before it becomes a tested release; the previously tested tuple below is
+retained separately. The C++ frontend and four stock exported files do not
+gain these C contracts. None of these compile/output checks proves hardware
+execution, universal provider balance or exception/interrupt equivalence.
+
+## Previously tested compiler release
 
 - Release:
   <https://github.com/decompals/old-gcc/releases/download/0.17/gcc-2.8.1-psx.tar.gz>
@@ -187,13 +288,14 @@ No game names or retail addresses select behavior in the compiler.
 - Platform: statically linked Linux i386
 - Local directory: `prebuilt/linux-i386/2.8.1`
 
-The C compiler pass (`cc1`) below includes the GTE, frame, unreachable and
-scratch/call patches. Two clean offline builds from the GNU archive and public
-patch recipe produced this hash in the fixed Ubuntu 20.04/GCC 9.4.0 environment,
+The C compiler pass (`cc1`) below includes the GTE, frame, unreachable,
+scratch/call and ordinary-RAM/epilogue patches. Two clean offline builds from the GNU
+archive and public patch recipe produced this hash in the fixed Ubuntu
+20.04/GCC 9.4.0 environment,
 with the same complete
 1,221-file source map
-`ce9d4a18bb571a3a403b0bedf374d42d6381f21085fa8028ea29bc4a67a25785`
-and the base, GTE, frame, unreachable and scratch/call/load smoke suites passing
+`680e1af032aec56163871eddfa96a633e794dd99b429d17d0c859611dac4973e`
+and the base, GTE, frame, unreachable, scratch/call/load and ordinary-RAM/epilogue smoke suites passing
 on both binaries. The source permissions follow the GNU archive; executable
 and source-content identities are independent of owner-write permissions.
 The other four files remain unchanged from the
@@ -203,7 +305,7 @@ Its pinned base image and source archive do not freeze future apt repositories;
 the executable hashes, not a fresh package-manager run, identify the tested tuple.
 
 ```text
-869f5c953e28ccb9869b737bd2d05fb889dcba48b55b326892d96ac2c6475858  cc1
+a22f62beedb71c97ef637600492189327039433b1da7c8679b75492e60247770  cc1
 93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572  cc1plus
 8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb  cpp
 a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd  g++

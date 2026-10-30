@@ -660,6 +660,7 @@ class ResidentNamespaceTests(unittest.TestCase):
                         ctr_resident, "compile_source", side_effect=compile_source
                     ),
                     mock.patch.object(ctr_resident, "object_functions", return_value={}),
+                    mock.patch.object(ctr_match, "command_output", return_value=""),
                     mock.patch.object(ctr_match, "build_evidence", return_value={}),
                     mock.patch.object(
                         ctr_match,
@@ -1464,6 +1465,23 @@ class PsxHeaderTests(unittest.TestCase):
             path = Path(directory) / "SCUS_944.26"
             path.write_bytes(header)
             self.assertEqual(ctr_match.check_psx_exe_header(path, artifact), [])
+
+
+class AdjacentMetadataHeaderTests(unittest.TestCase):
+    def test_exact_section_rows_not_filenames(self) -> None:
+        row = " 0 .mips.adjacent {size:08x} 0 0 34 2**2\n {flags}\n"
+        absent = "/tmp/unmarked.mips.adjacent.o: file format elf32-littlemips\n"
+        malformed = " 2 .mips.adjacent not-hex 0 0 34 2**2\n CONTENTS\n"
+        for text, expected in (("", 0), (absent, 0),
+                               (row.format(size=8, flags="CONTENTS, READONLY"), 8)):
+            with self.subTest(text=text), mock.patch.object(ctr_match, "command_output", return_value=text):
+                self.assertEqual(ctr_resident.adjacent_metadata_size(Path("objdump"), Path("input")), expected)
+        for text in (malformed, row.format(size=0, flags="CONTENTS"),
+                     row.format(size=4, flags="CONTENTS"), row.format(size=8, flags="CONTENTS, ALLOC"),
+                     row.format(size=8, flags="READONLY"), row.format(size=8, flags="CONTENTS") * 2):
+            with self.subTest(text=text), mock.patch.object(ctr_match, "command_output", return_value=text):
+                with self.assertRaises(ctr_match.MatchError):
+                    ctr_resident.adjacent_metadata_size(Path("objdump"), Path("input"))
 
 
 if __name__ == "__main__":

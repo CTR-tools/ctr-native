@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "869f5c953e28ccb9869b737bd2d05fb889dcba48b55b326892d96ac2c6475858",
+        "cc1": "90a506b6a4d6b690672eedfaf6e639b76e790d3038eca909d1cb1afb4f8557bc",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -3290,6 +3290,21 @@
       "purpose": "Smoke-test the source extraction, old GCC, maspsx, GNU assembler, object extraction, and retail-byte oracle. This trivial function cannot identify the original compiler."
     },
     {
+      "name": "coll-levmodel-meta",
+      "kind": "probe",
+      "symbol": "COLL_LevModelMeta",
+      "source": "game/COLL.c",
+      "region": "exe",
+      "address": "0x8001d094",
+      "size": 48,
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_versions": ["2.77"],
+      "link": {"text_address": "0x8001d094", "symbols": {"data": "0x800809a0"}}
+    },
+    {
       "name": "UI_ConvertX_2",
       "kind": "probe",
       "symbol": "UI_ConvertX_2",
@@ -3971,6 +3986,41 @@
       }
     },
     {
+      "name": "coll-bsp-search",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "start_symbol": "COLL_SearchBSP_CallbackQUADBLK",
+          "end_symbol": "COLL_FIXED_TRIANGL_Barycentrics"
+        }
+      ],
+      "symbol_prefix": "COLL_SearchBSP_Callback",
+      "sources": [
+        "game/COLL/COLL_CallbackQuadBlock.c",
+        "game/COLL/COLL_BspSearch.c"
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
+      "source_flags": {
+        "game/COLL/COLL_CallbackQuadBlock.c": [
+          "-fno-schedule-insns",
+          "-fno-schedule-insns2"
+        ],
+        "game/COLL/COLL_BspSearch.c": [
+          "-fomit-frame-pointer",
+          "-ffixed-30",
+          "-fno-schedule-insns",
+          "-mpsx-prebranch-lw-delay=extended",
+          "-mpsx-local-bgez=on"
+        ]
+      },
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "coll-barycentrics",
       "kind": "resident",
       "artifact": "exe",
@@ -3995,6 +4045,64 @@
       "end_symbol": "COLL_FIXED_QUADBLK_TestTriangles",
       "symbol_prefix": "COLL_FIXED_TRIANGL_GetNormVec",
       "source": "game/COLL/COLL_GetNormVec.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-load-scratchpad-verts",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_QUADBLK_LoadScratchpadVerts",
+      "end_symbol": "COLL_MOVED_TRIANGL_ReorderNormals",
+      "symbol_prefix": "COLL_FIXED_QUADBLK_LoadScratchpadVerts",
+      "source": "game/COLL/COLL_LoadScratchpadVerts.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-quad-normals",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD",
+      "end_symbol": "COLL_MOVED_TRIANGL_ReorderNormals",
+      "symbol_prefix": "COLL_FIXED_QUADBLK_",
+      "sources": [
+        "game/COLL/COLL_QuadBlockNormals.c",
+        "game/COLL/COLL_LoadScratchpadVerts.c"
+      ],
+      "source_flags": {
+        "game/COLL/COLL_QuadBlockNormals.c": [
+          "-mstack-align=4",
+          "-ffixed-25",
+          "-mprologue-arg-alias=on",
+          "-mframed-return-boundary=on"
+        ]
+      },
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-find-scrub",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_MOVED_FindScrub",
+      "end_symbol": "COLL_MOVED_PlayerSearch",
+      "symbol_prefix": "COLL_MOVED_FindScrub",
+      "source": "game/COLL/COLL_FindScrub.c",
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
@@ -4381,6 +4489,186 @@
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-moved-test-triangles",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "COLL_",
+      "sources": [
+        "game/COLL/COLL_Barycentrics.c",
+        "game/COLL/COLL_GetNormVec.c",
+        "game/COLL/COLL_QuadBlockNormals.c",
+        "game/COLL/COLL_LoadScratchpadVerts.c",
+        "game/COLL/COLL_MovedReorderNormals.c",
+        "game/COLL/COLL_MovedTrianglePoint.c",
+        "game/COLL/COLL_MovedQuadBlock.c",
+        "game/COLL/COLL_MovedBspLeaf.c"
+      ],
+      "source_flags": {
+        "game/COLL/COLL_QuadBlockNormals.c": [
+          "-mstack-align=4",
+          "-ffixed-25",
+          "-mprologue-arg-alias=on",
+          "-mframed-return-boundary=on"
+        ],
+        "game/COLL/COLL_MovedBspLeaf.c": [
+          "-mordered-gp-prologue=on"
+        ],
+        "game/COLL/COLL_MovedQuadBlock.c": [
+          "-mordered-gp-prologue=on",
+          "-mclone-fixed-epilogues=on",
+          "-fno-schedule-insns",
+          "-mpsx-prebranch-lw-delay=on"
+        ]
+      },
+      "code_intervals": [
+        {
+          "start_symbol": "COLL_FIXED_TRIANGL_Barycentrics",
+          "end_symbol": "COLL_FIXED_TRIANGL_UNUSED"
+        },
+        {
+          "start_symbol": "COLL_FIXED_TRIANGL_GetNormVec",
+          "end_symbol": "COLL_FIXED_QUADBLK_TestTriangles"
+        },
+        {
+          "start_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD",
+          "end_symbol": "COLL_MOVED_TRIANGL_ReorderNormals"
+        },
+        {
+          "start_symbol": "COLL_MOVED_TRIANGL_ReorderNormals",
+          "end_symbol": "COLL_MOVED_FindScrub"
+        }
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-moved-dispatch",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "COLL_",
+      "sources": [
+        "game/COLL/COLL_Barycentrics.c",
+        "game/COLL/COLL_GetNormVec.c",
+        "game/COLL/COLL_QuadBlockNormals.c",
+        "game/COLL/COLL_LoadScratchpadVerts.c",
+        "game/COLL/COLL_MovedQuadBlock.c",
+        "game/COLL/COLL_MovedBspLeaf.c"
+      ],
+      "source_flags": {
+        "game/COLL/COLL_QuadBlockNormals.c": [
+          "-mstack-align=4",
+          "-ffixed-25",
+          "-mprologue-arg-alias=on",
+          "-mframed-return-boundary=on"
+        ],
+        "game/COLL/COLL_MovedBspLeaf.c": ["-mordered-gp-prologue=on"],
+        "game/COLL/COLL_MovedQuadBlock.c": [
+          "-mordered-gp-prologue=on",
+          "-mclone-fixed-epilogues=on",
+          "-fno-schedule-insns",
+          "-mpsx-prebranch-lw-delay=on"
+        ]
+      },
+      "code_intervals": [
+        {"start_symbol": "COLL_FIXED_TRIANGL_Barycentrics", "end_symbol": "COLL_FIXED_TRIANGL_UNUSED"},
+        {"start_symbol": "COLL_FIXED_TRIANGL_GetNormVec", "end_symbol": "COLL_FIXED_QUADBLK_TestTriangles"},
+        {"start_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD", "end_symbol": "COLL_MOVED_TRIANGL_ReorderNormals"},
+        {"start_symbol": "COLL_MOVED_QUADBLK_TestTriangles", "end_symbol": "COLL_MOVED_FindScrub"}
+      ],
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-fixed-test-point",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_TRIANGL_UNUSED",
+      "end_symbol": "COLL_FIXED_TRIANGL_GetNormVec",
+      "symbol_prefix": "COLL_FIXED_TRIANGL_",
+      "source": "game/COLL/COLL_TestPoint.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-fixed-test-triangles",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "COLL_FIXED_",
+      "sources": [
+        "game/COLL/COLL_InstanceQuery.c",
+        "game/COLL/COLL_TestPoint.c",
+        "game/COLL/COLL_GetNormVec.c",
+        "game/COLL/COLL_TestTriangles.c",
+        "game/COLL/COLL_BspLeaf.c",
+        "game/COLL/COLL_QuadBlockNormals.c",
+        "game/COLL/COLL_LoadScratchpadVerts.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "COLL_FIXED_BSPLEAF_TestInstance", "end_symbol": "COLL_FIXED_BotsSearch"},
+        {"start_symbol": "COLL_FIXED_TRIANGL_UNUSED", "end_symbol": "COLL_FIXED_TRIANGL_GetNormVec"},
+        {"start_symbol": "COLL_FIXED_TRIANGL_GetNormVec", "end_symbol": "COLL_FIXED_QUADBLK_TestTriangles"},
+        {"start_symbol": "COLL_FIXED_QUADBLK_TestTriangles", "end_symbol": "COLL_FIXED_BSPLEAF_TestQuadblocks"},
+        {"start_symbol": "COLL_FIXED_BSPLEAF_TestQuadblocks", "end_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD"},
+        {"start_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD", "end_symbol": "COLL_MOVED_TRIANGL_ReorderNormals"}
+      ],
+      "source_flags": {
+        "game/COLL/COLL_QuadBlockNormals.c": [
+          "-mstack-align=4",
+          "-ffixed-25",
+          "-mprologue-arg-alias=on",
+          "-mframed-return-boundary=on"
+        ],
+        "game/COLL/COLL_BspLeaf.c": ["-mordered-gp-prologue=on"],
+        "game/COLL/COLL_TestTriangles.c": [
+          "-mordered-gp-prologue=on",
+          "-mclone-fixed-epilogues=on",
+          "-fno-schedule-insns",
+          "-mpsx-prebranch-lw-delay=on"
+        ]
+      },
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "coll-bsp-leaf",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_BSPLEAF_TestQuadblocks",
+      "end_symbol": "COLL_FIXED_QUADBLK_GetNormVecs_LoLOD",
+      "symbol_prefix": "COLL_FIXED_BSPLEAF_TestQuadblocks",
+      "source": "game/COLL/COLL_BspLeaf.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float",
+        "-mordered-gp-prologue=on"
+      ],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}

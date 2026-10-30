@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -288,6 +289,66 @@ def owned_function(
     return symbol
 
 
+def adjacent_metadata_size(objdump: Path, artifact: Path) -> int:
+    headers = ctr_match.command_output([str(objdump), "-h", str(artifact)])
+    section_rows = re.findall(
+        r"(?m)^[ \t]*\d+[ \t]+\.mips\.adjacent(?=[ \t]|$)", headers
+    )
+    if not section_rows:
+        return 0
+    rows = re.findall(
+        r"(?m)^[ \t]*\d+[ \t]+\.mips\.adjacent[ \t]+([0-9a-fA-F]+)[^\n]*\n[ \t]+([^\n]+)",
+        headers,
+    )
+    if len(section_rows) != 1 or len(rows) != 1:
+        raise ctr_match.MatchError("expected one readable adjacency INFO section")
+    size, flags = int(rows[0][0], 16), {flag.strip() for flag in rows[0][1].split(",")}
+    if not size or size % 8 or "CONTENTS" not in flags or "ALLOC" in flags:
+        raise ctr_match.MatchError("adjacency INFO requires nonallocated eight-byte records")
+    return size
+
+
+def verify_adjacent_owners(
+    toolchain: ctr_match.Toolchain, linked: Path, functions: list[FunctionRange],
+    code_sections: set[str], expected_size: int,
+) -> None:
+    size = adjacent_metadata_size(toolchain.binutils["objdump"], linked)
+    if size != expected_size or size > len(functions) * 8:
+        raise ctr_match.MatchError("linked adjacency record count differs from its inputs")
+    if not size:
+        return
+    sections = ctr_match.allocated_sections(toolchain, linked, elf_metadata=True)
+    symbols = ctr_match.linked_symbols(toolchain.binutils["objdump"], linked, 0)
+    owners = []
+    for function in functions:
+        owner = symbols.get(function.emitted_name, {})
+        section = sections.get(owner.get("section"), {})
+        if (owner.get("type") != "FUNC"
+                or owner.get("binding") != "GLOBAL" or owner.get("visibility") != "DEFAULT"
+                or owner.get("section") not in code_sections
+                or section.get("elf_type") != 1 or section.get("elf_flags") != 6
+                or owner["address"] < section["address"]
+                or owner["address"] + owner["size"] > section["address"] + section["size"]):
+            raise ctr_match.MatchError("adjacency requires selected real positive GLOBAL DEFAULT CODE functions")
+        owners.append(owned_function(function, symbols, owner["section"]))
+    record_file = linked.with_name("adjacency.bin")
+    ctr_match.run_checked([
+        str(toolchain.binutils["objcopy"]), "--dump-section", f".mips.adjacent={record_file}",
+        str(linked), str(linked.with_name("adjacency-extract.elf")),
+    ])
+    data = record_file.read_bytes() if record_file.is_file() else b""
+    if len(data) != size:
+        raise ctr_match.MatchError("adjacency INFO dump has the wrong extent")
+    seen = set()
+    for end, target in struct.iter_unpack("<II", data):
+        prefixes = [owner for owner in owners if owner["address"] + owner["size"] == end]
+        targets = [owner for owner in owners if owner["address"] == target]
+        if (end != target or len(prefixes) != 1 or len(targets) != 1
+                or prefixes[0] is targets[0] or (end, target) in seen):
+            raise ctr_match.MatchError("adjacency requires unique distinct function end and real target entry")
+        seen.add((end, target))
+
+
 def reject_owned_aliases(config: dict[str, Any], functions: Iterable[FunctionRange]) -> None:
     aliases = set(config.get("link_symbols", {})) & {
         function.emitted_name for function in functions
@@ -359,6 +420,8 @@ def link_function(
     function_sections: list[str],
     expected: bytes,
 ) -> dict[str, Any]:
+    if adjacent_metadata_size(toolchain.binutils["objdump"], object_file):
+        raise ctr_match.MatchError("adjacency input requires linked CODE owners, not an isolated function")
     output = BUILD_ROOT / config["name"] / "functions" / function.name
     output.mkdir(parents=True, exist_ok=True)
     linked_object = output / f"{function.name}.elf"
@@ -624,6 +687,9 @@ def link_contiguous_block(
     rodata_address = ctr_match.parse_int(block["rodata_address"]) if has_rodata else None
     rodata_size = ctr_match.parse_int(block["rodata_size"]) if has_rodata else 0
     reject_owned_aliases(config, functions)
+    adjacency_bytes = sum(
+        adjacent_metadata_size(toolchain.binutils["objdump"], path) for path in object_files
+    )
     if joint:
         ranges = ctr_match.data_ranges(config)
         selected = {interval["symbol"] for interval in ranges}
@@ -673,6 +739,7 @@ def link_contiguous_block(
             "SECTIONS {\n"
             f"{code_script}"
             f"{rodata_script}"
+            "  .mips.adjacent 0 (INFO) : { KEEP(*(.mips.adjacent)) }\n"
             "  /DISCARD/ : { *(*) }\n"
             "}\n"
         )
@@ -692,6 +759,11 @@ def link_contiguous_block(
     )
     ctr_match.run_checked(
         [*command, "-o", str(linked_object), *(str(path) for path in object_files)]
+    )
+    verify_adjacent_owners(
+        toolchain, linked_object, functions,
+        {section for section, _, _ in intervals} if intervals else {".resident_block"},
+        adjacency_bytes,
     )
 
     interval_result = None

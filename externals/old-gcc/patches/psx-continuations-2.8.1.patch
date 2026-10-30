@@ -1,0 +1,1050 @@
+--- gcc-2.8.1/calls.c
++++ gcc-2.8.1/calls.c
+@@ -367,6 +367,9 @@
+   if (GET_CODE (funexp) != SYMBOL_REF)
+     funexp = memory_address (FUNCTION_MODE, funexp);
+ 
++#ifdef CHECK_MACHINE_SCRATCH_CALL
++  CHECK_MACHINE_SCRATCH_CALL (fndecl, funtype, funexp, stack_size, valreg, is_const);
++#endif
+ #ifdef EXPAND_MACHINE_DIRECT_REGCALL
+   if (EXPAND_MACHINE_DIRECT_REGCALL (fndecl, funexp, stack_size, valreg,
+                                     &call_fusage, is_const))
+@@ -584,6 +587,9 @@
+   int is_const = 0;
+   /* Nonzero if this is a call to a `volatile' function.  */
+   int is_volatile = 0;
++#ifdef MACHINE_ADJACENT_CALL_P
++  int adjacent_tail;
++#endif
+ #if defined(ACCUMULATE_OUTGOING_ARGS) && defined(REG_PARM_STACK_SPACE)
+   /* Define the boundary of the register parm stack space that needs to be
+      save, if any.  */
+@@ -672,6 +678,15 @@
+ #endif
+ #endif
+ 
++#ifdef MACHINE_ADJACENT_CALL_P
++  adjacent_tail = !is_integrable && MACHINE_ADJACENT_CALL_P (fndecl);
++  if (adjacent_tail)
++    {
++      is_integrable = 0;
++      reg_parm_stack_space = 0;
++    }
++#endif
++
+   /* Warn if this value is an aggregate type,
+      regardless of which calling convention we are using for it.  */
+   if (warn_aggregate_return && AGGREGATE_TYPE_P (TREE_TYPE (exp)))
+@@ -1135,6 +1150,14 @@
+ 
+       args[i].pass_on_stack = MUST_PASS_IN_STACK (mode, type);
+ 
++#ifdef MACHINE_ADJACENT_CALL_P
++      if (adjacent_tail
++          && (num_actuals != 4 || mode != SImode || args[i].partial
++              || args[i].pass_on_stack || !args[i].reg
++              || GET_CODE (args[i].reg) != REG || REGNO (args[i].reg) != argpos + 4))
++        error ("mips_adjacent_tail requires four register-only SI arguments");
++#endif
++
+       /* If FUNCTION_ARG returned a (parallel [(expr_list (nil) ...) ...]),
+ 	 it means that we are to pass this arg in the register(s) designated
+ 	 by the PARALLEL, but also to pass it in the stack.  */
+--- gcc-2.8.1/config/mips/mips.c
++++ gcc-2.8.1/config/mips/mips.c
+@@ -3454,11 +3454,302 @@
+     && lookup_attribute (name, DECL_MACHINE_ATTRIBUTES (decl)) != 0;
+ }
+ 
++static int
++mips_full_scratch_p (decl)
++     tree decl;
++{
++  return mips_manual_flag_p (decl, "mips_unsafe_manual_at_full_frame");
++}
++
++/* Within the full scratch profile, print a tied GPR source first. */
++char *
++mips_output_addsi3 (operands)
++     rtx *operands;
++{
++  if (mips_full_scratch_p (current_function_decl)
++      && GET_CODE (operands[0]) == REG
++      && GET_CODE (operands[1]) == REG && GET_CODE (operands[2]) == REG
++      && REGNO (operands[0]) == REGNO (operands[2]))
++    return "addu\t%0,%2,%1";
++  return "addu\t%0,%z1,%2";
++}
++
+ int
+ mips_manual_abi_p (decl)
+      tree decl;
+ {
+-  return mips_manual_flag_p (decl, "mips_unsafe_manual_at_frame");
++  return mips_manual_flag_p (decl, "mips_unsafe_manual_at_frame")
++    || mips_full_scratch_p (decl);
++}
++
++static tree
++mips_adjacent_attribute (decl)
++     tree decl;
++{
++  return decl && TREE_CODE (decl) == FUNCTION_DECL
++    ? lookup_attribute ("mips_adjacent_tail", DECL_MACHINE_ATTRIBUTES (decl)) : 0;
++}
++
++int
++mips_adjacent_p (decl)
++     tree decl;
++{
++  return mips_adjacent_attribute (decl) != 0;
++}
++
++static int
++mips_adjacent_type_p (decl)
++     tree decl;
++{
++  tree p, type;
++  int count = 0;
++  if (!decl || TREE_CODE (decl) != FUNCTION_DECL || DECL_INLINE (decl)
++      || DECL_BUILT_IN (decl) || DECL_CONTEXT (decl))
++    return 0;
++  type = TREE_TYPE (decl);
++  if (TREE_CODE (type) != FUNCTION_TYPE
++      || TREE_CODE (TREE_TYPE (type)) != VOID_TYPE)
++    return 0;
++  for (p = TYPE_ARG_TYPES (type); p; p = TREE_CHAIN (p))
++    {
++      type = TREE_VALUE (p);
++      if (TREE_CODE (type) == VOID_TYPE)
++        return count == 4 && TREE_CHAIN (p) == 0;
++      if (++count > 4 || TYPE_MODE (type) != SImode
++          || (TREE_CODE (type) != INTEGER_TYPE && TREE_CODE (type) != POINTER_TYPE))
++        return 0;
++    }
++  return 0;
++}
++
++/* Classify before calls.c reserves homes; the actual argument RTL is checked
++   there too.  This is a body contract, never a changed provider prototype. */
++int
++mips_adjacent_call_p (decl)
++     tree decl;
++{
++  tree a = mips_adjacent_attribute (current_function_decl);
++  if (!a)
++    return 0;
++  if (!mips_adjacent_type_p (decl) || TREE_READONLY (decl)
++      || TREE_THIS_VOLATILE (decl)
++      || strcmp (IDENTIFIER_POINTER (DECL_NAME (decl)),
++                 TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (a))))
++      || DECL_ASSEMBLER_NAME (decl) != DECL_NAME (decl))
++    {
++      error ("mips_adjacent_tail requires its named direct four-SI void target");
++      return 0;
++    }
++  return 1;
++}
++
++static void
++mips_adjacent_check_state (size)
++     int size;
++{
++  if (!TARGET_MIPS_REGCALL || !TARGET_GAS || !optimize || size
++      || get_frame_size () || current_function_outgoing_args_size
++      || current_function_pretend_args_size || frame_pointer_needed
++      || current_function_varargs || current_function_stdarg
++      || current_function_returns_struct || current_function_returns_pcc_struct
++      || current_function_calls_alloca || current_function_calls_setjmp
++      || current_function_calls_longjmp || current_function_needs_context
++      || current_function_contains_functions || current_function_has_nonlocal_label
++      || current_function_has_nonlocal_goto || profile_flag || profile_block_flag
++      || profile_arc_flag || flag_stack_check || flag_check_memory_usage
++      || flag_exceptions || asynchronous_exceptions || write_symbols != NO_DEBUG
++      || flag_inhibit_size_directive || TARGET_STATS || DECL_INLINE (current_function_decl)
++      || TREE_READONLY (current_function_decl) || TREE_THIS_VOLATILE (current_function_decl)
++      || mips_manual_abi_p (current_function_decl) || mips_regcall_p (current_function_decl))
++    fatal ("mips_adjacent_tail forbids storage or unsupported function context");
++}
++
++/* Inspect actual operands, not regs_ever_live: the genuine RA read and CALL's
++   honorary SP/global uses are not physical writes.  G8 reads may use old GP. */
++static int
++mips_adjacent_forbidden_p (x)
++     rtx x;
++{
++  const char *fmt;
++  rtx d;
++  int i, j, n;
++  if (!x)
++    return 0;
++  if (GET_CODE (x) == ASM_OPERANDS || GET_CODE (x) == ASM_INPUT
++      || GET_CODE (x) == LABEL_REF)
++    return 1;
++  if (GET_CODE (x) == REG)
++    return REGNO (x) == STACK_POINTER_REGNUM || REGNO (x) == FRAME_POINTER_REGNUM
++      || REGNO (x) == HARD_FRAME_POINTER_REGNUM;
++  if (GET_CODE (x) == SET || GET_CODE (x) == CLOBBER)
++    {
++      d = XEXP (x, 0);
++      while (GET_CODE (d) == SUBREG)
++        d = SUBREG_REG (d);
++      if (GET_CODE (d) == REG)
++        {
++          n = REGNO (d);
++          if ((n >= 16 && n <= 23) || (n >= 28 && n <= 31))
++            return 1;
++        }
++    }
++  fmt = GET_RTX_FORMAT (GET_CODE (x));
++  for (i = 0; i < GET_RTX_LENGTH (GET_CODE (x)); ++i)
++    if (fmt[i] == 'e' && mips_adjacent_forbidden_p (XEXP (x, i)))
++      return 1;
++    else if (fmt[i] == 'E' && XVEC (x, i))
++      for (j = 0; j < XVECLEN (x, i); ++j)
++        if (mips_adjacent_forbidden_p (XVECEXP (x, i, j)))
++          return 1;
++  return 0;
++}
++
++/* Only simple local edges strictly forward to setup before the real call. */
++static int
++mips_adjacent_forward_p (owner, branch, call)
++     rtx owner, branch, call;
++{
++  rtx x, p;
++  if (GET_CODE (branch) != JUMP_INSN || GET_CODE (PATTERN (branch)) != SET
++      || SET_DEST (PATTERN (branch)) != pc_rtx)
++    return 0;
++  x = SET_SRC (PATTERN (branch));
++  if (GET_CODE (x) == IF_THEN_ELSE)
++    {
++      if (mips_adjacent_forbidden_p (XEXP (x, 0)))
++        return 0;
++      if (GET_CODE (XEXP (x, 1)) == LABEL_REF && XEXP (x, 2) == pc_rtx)
++        x = XEXP (x, 1);
++      else if (XEXP (x, 1) == pc_rtx && GET_CODE (XEXP (x, 2)) == LABEL_REF)
++        x = XEXP (x, 2);
++      else
++        return 0;
++    }
++  if (GET_CODE (x) != LABEL_REF || GET_CODE (XEXP (x, 0)) != CODE_LABEL)
++    return 0;
++  for (p = NEXT_INSN (owner); p && p != call; p = NEXT_INSN (p))
++    if (p == XEXP (x, 0))
++      return 1;
++  return 0;
++}
++
++/* A zero-byte phase observation, never a branch-slot instruction witness. */
++static int
++mips_adjacent_empty_p (x)
++     rtx x;
++{
++  int i, n;
++  if (GET_CODE (x) != ASM_OPERANDS || !MEM_VOLATILE_P (x)
++      || ASM_OPERANDS_TEMPLATE (x)[0] || ASM_OPERANDS_OUTPUT_CONSTRAINT (x)[0]
++      || ASM_OPERANDS_INPUT_LENGTH (x) < 1 || ASM_OPERANDS_INPUT_LENGTH (x) > 6)
++    return 0;
++  for (i = 0; i < ASM_OPERANDS_INPUT_LENGTH (x); ++i)
++    {
++      rtx v = ASM_OPERANDS_INPUT (x, i);
++      char *c = ASM_OPERANDS_INPUT_CONSTRAINT (x, i);
++      if (GET_CODE (v) != REG || GET_MODE (v) != SImode)
++        return 0;
++      n = REGNO (v);
++      if (!((!strcmp (c, "l") && n == LO_REGNUM)
++            || (!strcmp (c, "r")
++                && ((n >= 2 && n <= 15) || (n >= 24 && n <= 25)
++                    || (!reload_completed && n >= FIRST_PSEUDO_REGISTER)))))
++        return 0;
++    }
++  return 1;
++}
++
++/* Validate raw control before cleanup, then actual scheduled branch slots. */
++void
++mips_adjacent_check (size, final_p)
++     int size, final_p;
++{
++  rtx p, call = 0, q, b, s, x;
++  int seen = 0;
++  if (!mips_adjacent_p (current_function_decl))
++    return;
++  mips_adjacent_check_state (size);
++  for (p = get_insns (); p; p = NEXT_INSN (p))
++    if (GET_CODE (p) == CALL_INSN)
++      {
++        if (call)
++          fatal ("mips_adjacent_tail forbids ordinary or hidden extra calls");
++        call = p;
++      }
++  if (!call)
++    fatal ("mips_adjacent_tail lacks its terminal continuation");
++  for (p = get_insns (); p; p = NEXT_INSN (p))
++    {
++      if (GET_CODE (p) == NOTE)
++        continue;
++      if (GET_CODE (p) == BARRIER)
++        {
++          q = prev_nonnote_insn (p);
++          if (q && GET_CODE (q) == INSN && GET_CODE (PATTERN (q)) == SEQUENCE)
++            q = XVECEXP (PATTERN (q), 0, 0);
++          if (!seen && (!q || GET_CODE (q) != JUMP_INSN
++              || GET_CODE (PATTERN (q)) != SET
++              || GET_CODE (SET_SRC (PATTERN (q))) != LABEL_REF))
++            fatal ("mips_adjacent_tail has an earlier nonreturning edge");
++          continue;
++        }
++      if (GET_CODE (p) == CODE_LABEL && (!seen || LABEL_NUSES (p) == 0))
++        continue;
++      if (seen || GET_CODE (p) == CODE_LABEL)
++        fatal ("mips_adjacent_tail requires one terminal continuation and no other control");
++      if (GET_CODE (p) == CALL_INSN)
++        {
++          rtx target;
++          tree a = mips_adjacent_attribute (current_function_decl);
++          if (recog_memoized (p) != CODE_FOR_mips_adjacent_tail || CONST_CALL_P (p))
++            fatal ("mips_adjacent_tail forbids ordinary or hidden extra calls");
++          target = XEXP (XEXP (XVECEXP (PATTERN (p), 0, 0), 0), 0);
++          if (strcmp (XSTR (target, 0), TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (a)))))
++            fatal ("mips_adjacent_tail continuation ownership changed");
++          seen = 1;
++        }
++      else if (GET_CODE (p) == JUMP_INSN
++               || (GET_CODE (p) == INSN && GET_CODE (PATTERN (p)) == SEQUENCE))
++        {
++          b = p;
++          if (GET_CODE (p) == INSN)
++            {
++              x = PATTERN (p);
++              if (XVECLEN (x, 0) != 2)
++                fatal ("mips_adjacent_tail requires one real branch delay slot");
++              b = XVECEXP (x, 0, 0);
++              s = XVECEXP (x, 0, 1);
++              if (GET_CODE (s) != INSN || INSN_DELETED_P (s)
++                  || mips_adjacent_forbidden_p (PATTERN (s))
++                  || recog_memoized (s) < 0 || get_attr_length (s) != 1)
++                fatal ("mips_adjacent_tail has an unsafe branch delay slot");
++            }
++          if (!mips_adjacent_forward_p (p, b, call))
++            fatal ("mips_adjacent_tail requires forward local setup branches");
++        }
++      else if (GET_CODE (p) != INSN
++               || (!mips_adjacent_empty_p (PATTERN (p))
++                   && mips_adjacent_forbidden_p (PATTERN (p))))
++        fatal ("mips_adjacent_tail contains a protected write or stack/ASM operand");
++    }
++  if (!final_p)
++    emit_barrier_after (call);
++}
++
++char *
++mips_output_adjacent_tail (target)
++     rtx target;
++{
++  static int number;
++  char label[100];
++  ASM_GENERATE_INTERNAL_LABEL (label, "Ladj", ++number);
++  ASM_OUTPUT_INTERNAL_LABEL (asm_out_file, "Ladj", number);
++  fputs ("\t.pushsection\t.mips.adjacent,\"\",@progbits\n\t.align\t2\n\t.word\t", asm_out_file);
++  assemble_name (asm_out_file, label);
++  fputs ("\n\t.word\t", asm_out_file);
++  output_addr_const (asm_out_file, target);
++  fputs ("\n\t.popsection\n", asm_out_file);
++  return "";
+ }
+ 
+ static int
+@@ -3466,6 +3757,7 @@
+      tree name;
+ {
+   return is_attribute_p ("mips_unsafe_manual_at_frame", name)
++    || is_attribute_p ("mips_unsafe_manual_at_full_frame", name)
+     || is_attribute_p ("mips_preserves_at24", name);
+ }
+ 
+@@ -3494,7 +3786,8 @@
+               && TREE_CODE (arg) != INTEGER_TYPE))
+         goto invalid;
+     }
+-  if (!parms || TREE_CHAIN (parms))
++  if (!parms || TREE_CHAIN (parms)
++      || (is_attribute_p ("mips_unsafe_manual_at_full_frame", name) && count != 4))
+     goto invalid;
+   return 1;
+ invalid:
+@@ -3502,11 +3795,52 @@
+   return 0;
+ }
+ 
++/* Unsafe source-owned full image. Real storage is forbidden; the caller's
++   incoming o32 homes, not zero homes, back the sole supported callback ABI. */
++static void
++mips_full_scratch_check_state (size)
++     int size;
++{
++  int i;
++#ifdef FUNCTION_NAME_ALREADY_DECLARED
++  fatal ("full scratch ABI lacks metadata support for this assembler");
++#endif
++  if (!TARGET_MIPS_REGCALL || !TARGET_GAS || !fixed_regs[1] || !optimize
++      || !fixed_regs[28] || !fixed_regs[29] || !fixed_regs[31]
++      || mips_stack_align != 8
++      || size || get_frame_size () || current_function_pretend_args_size
++      || (current_function_outgoing_args_size != 0
++          && current_function_outgoing_args_size != 16)
++      || frame_pointer_needed || current_function_varargs || current_function_stdarg
++      || current_function_returns_struct || current_function_returns_pcc_struct
++      || current_function_calls_alloca || current_function_calls_setjmp
++      || current_function_calls_longjmp || current_function_needs_context
++      || current_function_contains_functions || current_function_has_nonlocal_label
++      || current_function_has_nonlocal_goto || profile_flag || profile_block_flag
++      || profile_arc_flag || flag_stack_check || flag_check_memory_usage
++      || flag_exceptions || asynchronous_exceptions || write_symbols != NO_DEBUG
++      || flag_inhibit_size_directive || TARGET_STATS || DECL_INLINE (current_function_decl)
++      || DECL_CONTEXT (current_function_decl)
++      || TREE_READONLY (current_function_decl) || TREE_THIS_VOLATILE (current_function_decl)
++      || mips_regcall_p (current_function_decl) || mips_adjacent_p (current_function_decl)
++      || mips_manual_flag_p (current_function_decl, "mips_unsafe_manual_at_frame")
++      || mips_manual_flag_p (current_function_decl, "mips_preserves_at24"))
++    fatal ("full scratch ABI forbids storage or unsupported function context");
++  for (i = FP_REG_FIRST; i <= FP_REG_LAST; ++i)
++    if (regs_ever_live[i])
++      fatal ("full scratch ABI forbids physical FP registers");
++}
++
+ static void
+ mips_manual_check_state (size)
+      int size;
+ {
+   int i;
++  if (mips_full_scratch_p (current_function_decl))
++    {
++      mips_full_scratch_check_state (size);
++      return;
++    }
+ #ifdef FUNCTION_NAME_ALREADY_DECLARED
+   fatal ("manual AT ABI lacks metadata support for this assembler");
+ #endif
+@@ -3569,6 +3903,107 @@
+   return 0;
+ }
+ 
++static int
++mips_full_frame_mem_p (x)
++     rtx x;
++{
++  rtx a;
++  HOST_WIDE_INT offset = 0;
++  if (GET_CODE (x) != MEM || GET_MODE (x) != SImode)
++    return 0;
++  a = XEXP (x, 0);
++  if (GET_CODE (a) == PLUS && GET_CODE (XEXP (a, 1)) == CONST_INT)
++    {
++      offset = INTVAL (XEXP (a, 1));
++      a = XEXP (a, 0);
++    }
++  return GET_CODE (a) == REG && REGNO (a) == 1
++    && offset >= -32768 && offset <= 32764 && (offset & 3) == 0;
++}
++
++/* Only non-emitting genuine register captures/observations, with no clobbers.
++   Inspect real operand vectors, not constraint-metadata strings as RTL. */
++static int
++mips_full_empty_p (x)
++     rtx x;
++{
++  int i, n;
++  if (GET_CODE (x) == PARALLEL)
++    {
++      for (i = 0; i < XVECLEN (x, 0); ++i)
++        if (!mips_full_empty_p (XVECEXP (x, 0, i)))
++          return 0;
++      return XVECLEN (x, 0) != 0;
++    }
++  if (GET_CODE (x) == SET)
++    {
++      rtx d = SET_DEST (x);
++      if (GET_CODE (d) != REG || GET_MODE (d) != SImode)
++        return 0;
++      n = REGNO (d);
++      if (!((n >= 16 && n <= 23) || n == 28 || n == 30 || n == 31))
++        return 0;
++      x = SET_SRC (x);
++    }
++  if (GET_CODE (x) != ASM_OPERANDS || ASM_OPERANDS_TEMPLATE (x)[0]
++      || (ASM_OPERANDS_OUTPUT_CONSTRAINT (x)[0]
++          && strcmp (ASM_OPERANDS_OUTPUT_CONSTRAINT (x), "=r")))
++    return 0;
++  for (i = 0; i < ASM_OPERANDS_INPUT_LENGTH (x); ++i)
++    {
++      rtx v = ASM_OPERANDS_INPUT (x, i);
++      if (GET_CODE (v) != REG || GET_MODE (v) != SImode || REGNO (v) > 31
++          || strcmp (ASM_OPERANDS_INPUT_CONSTRAINT (x, i), "r"))
++        return 0;
++    }
++  return 1;
++}
++
++static void
++mips_full_scratch_check_insn (p)
++     rtx p;
++{
++  rtx pat = PATTERN (p), set, d, s;
++  int i, n;
++  if (GET_CODE (pat) == SEQUENCE)
++    {
++      for (i = 0; i < XVECLEN (pat, 0); ++i)
++        mips_full_scratch_check_insn (XVECEXP (pat, 0, i));
++      return;
++    }
++  if (mips_full_empty_p (pat))
++    return;
++  set = single_set (p);
++  if (set)
++    {
++      d = SET_DEST (set);
++      s = SET_SRC (set);
++      if (GET_CODE (d) == REG && GET_MODE (d) == SImode
++          && REGNO (d) >= 28 && REGNO (d) <= 31 && mips_full_frame_mem_p (s))
++        return;
++      if (GET_CODE (s) == REG && GET_MODE (s) == SImode
++          && REGNO (s) >= 28 && REGNO (s) <= 31 && mips_full_frame_mem_p (d))
++        return;
++    }
++  if (asm_noperands (pat) >= 0 || GET_CODE (pat) == ASM_INPUT
++      || mips_manual_stack_operand_p (pat))
++    fatal ("full scratch ABI requires bounded frame operands and empty register cues");
++  if (GET_CODE (p) == CALL_INSN)
++    {
++      if (recog_memoized (p) != CODE_FOR_call_internal1 || CONST_CALL_P (p)
++          || GET_CODE (XEXP (XEXP (XVECEXP (pat, 0, 0), 0), 0)) != REG
++          || GET_CODE (XEXP (XVECEXP (pat, 0, 0), 1)) != CONST_INT
++          || INTVAL (XEXP (XVECEXP (pat, 0, 0), 1)) != 16
++          || !find_reg_fusage (p, USE, gen_rtx (REG, SImode, 4))
++          || !find_reg_fusage (p, USE, gen_rtx (REG, SImode, 5)))
++        fatal ("full scratch ABI requires its typed indirect callback");
++      return;
++    }
++  for (n = 28; n <= 31; ++n)
++    if (reg_set_p (gen_rtx (REG, SImode, n), p))
++      fatal ("full scratch ABI forbids unmodeled protected-register writes");
++}
++
+ static void
+ mips_manual_check_insn (p)
+      rtx p;
+@@ -3578,6 +4013,11 @@
+   if (GET_CODE (p) != INSN && GET_CODE (p) != CALL_INSN
+       && GET_CODE (p) != JUMP_INSN)
+     return;
++  if (mips_full_scratch_p (current_function_decl))
++    {
++      mips_full_scratch_check_insn (p);
++      return;
++    }
+   pat = PATTERN (p);
+   if (GET_CODE (pat) == SEQUENCE)
+     {
+@@ -3627,6 +4067,13 @@
+ mips_regcall_placement_p (name, decl)
+      tree name, decl;
+ {
++  if (is_attribute_p ("mips_adjacent_tail", name))
++    {
++      if (decl && TREE_CODE (decl) == FUNCTION_DECL)
++        return 1;
++      error ("mips_adjacent_tail requires a function body");
++      return 0;
++    }
+   if (mips_manual_name_p (name))
+     {
+       if (decl && TREE_CODE (decl) == FUNCTION_DECL)
+@@ -3645,6 +4092,29 @@
+      tree decl, name, args;
+ {
+   tree type, parms, prior, mask;
++  if (is_attribute_p ("mips_adjacent_tail", name))
++    {
++      tree value = args ? TREE_VALUE (args) : 0;
++      int i, c;
++      if (!TARGET_MIPS_REGCALL || !TARGET_GAS || strcmp (lang_identify (), "c")
++          || !mips_adjacent_type_p (decl) || !value || TREE_CHAIN (args)
++          || TREE_CODE (value) != STRING_CST || TREE_STRING_LENGTH (value) < 2)
++        {
++          error ("mips_adjacent_tail requires a C void four-SI prototype and one target name");
++          return 0;
++        }
++      for (i = 0; i < TREE_STRING_LENGTH (value) - 1; ++i)
++        {
++          c = TREE_STRING_POINTER (value)[i];
++          if (c != '_' && !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z')
++              && !(i && c >= '0' && c <= '9'))
++            {
++              error ("mips_adjacent_tail target must be one C identifier");
++              return 0;
++            }
++        }
++      return 1;
++    }
+   if (mips_manual_name_p (name))
+     return mips_valid_manual_attribute_p (decl, name, args);
+   if (!is_attribute_p ("mips_regcall_s012", name))
+@@ -3691,6 +4161,14 @@
+ {
+   tree n = mips_regcall_attribute (newdecl);
+   tree o = mips_regcall_attribute (olddecl);
++  tree a = mips_adjacent_attribute (newdecl), b = mips_adjacent_attribute (olddecl);
++  if ((a || b) && (DECL_INLINE (newdecl) || DECL_INLINE (olddecl)
++      || (a && b && strcmp (TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (a))),
++                           TREE_STRING_POINTER (TREE_VALUE (TREE_VALUE (b)))))))
++    {
++      error ("mips_adjacent_tail has conflicting redeclarations or inline context");
++      return 0;
++    }
+   if ((mips_manual_abi_p (newdecl) || mips_manual_abi_p (olddecl))
+       && (DECL_INLINE (newdecl) || DECL_INLINE (olddecl)))
+     {
+@@ -3721,7 +4199,22 @@
+   tree attrs = DECL_MACHINE_ATTRIBUTES (olddecl);
+   tree marker = lookup_attribute ("mips_unsafe_manual_at_frame",
+                                  DECL_MACHINE_ATTRIBUTES (newdecl));
+-  if (marker && !mips_manual_abi_p (olddecl))
++  tree full = lookup_attribute ("mips_unsafe_manual_at_full_frame",
++                               DECL_MACHINE_ATTRIBUTES (newdecl));
++  tree adjacent = mips_adjacent_attribute (newdecl);
++  if (full && !mips_full_scratch_p (olddecl))
++    {
++      full = copy_node (full);
++      TREE_CHAIN (full) = attrs;
++      attrs = full;
++    }
++  if (adjacent && !mips_adjacent_p (olddecl))
++    {
++      adjacent = copy_node (adjacent);
++      TREE_CHAIN (adjacent) = attrs;
++      attrs = adjacent;
++    }
++  if (marker && !mips_manual_flag_p (olddecl, "mips_unsafe_manual_at_frame"))
+     {
+       marker = copy_node (marker);
+       TREE_CHAIN (marker) = attrs;
+@@ -3740,6 +4233,40 @@
+   return 0;
+ }
+ 
++/* Ordinary lowering retains call/RA/memory effects and the actual sixteen
++   incoming homes. The unsafe profile supplies scratch balance, not AT safety. */
++void
++mips_check_full_scratch_call (decl, type, funexp, size, valreg, is_const)
++     tree decl, type;
++     rtx funexp, valreg;
++     HOST_WIDE_INT size;
++     int is_const;
++{
++  tree p, t;
++  int n = 0;
++  if (!mips_full_scratch_p (current_function_decl))
++    return;
++  if (decl || !type || TREE_CODE (type) != FUNCTION_TYPE
++      || TREE_CODE (TREE_TYPE (type)) != VOID_TYPE || GET_CODE (funexp) != REG
++      || size != 16 || valreg || is_const)
++    goto invalid;
++  for (p = TYPE_ARG_TYPES (type); p; p = TREE_CHAIN (p))
++    {
++      t = TREE_VALUE (p);
++      if (TREE_CODE (t) == VOID_TYPE)
++        {
++          if (n == 2 && !TREE_CHAIN (p))
++            return;
++          goto invalid;
++        }
++      if (++n > 2 || TYPE_MODE (t) != SImode
++          || (TREE_CODE (t) != INTEGER_TYPE && TREE_CODE (t) != POINTER_TYPE))
++        goto invalid;
++    }
++invalid:
++  error ("full scratch ABI requires a void two-SI indirect callback and incoming homes");
++}
++
+ int
+ mips_expand_regcall (decl, funexp, size, valreg, usage, is_const)
+      tree decl;
+@@ -3750,6 +4277,18 @@
+   tree attr = mips_regcall_attribute (decl);
+   unsigned HOST_WIDE_INT mask;
+   int i;
++  if (mips_full_scratch_p (current_function_decl))
++    return 0;
++  if (mips_adjacent_call_p (decl))
++    {
++      if (GET_CODE (funexp) != SYMBOL_REF || size || valreg || is_const)
++        {
++          error ("unsupported mips_adjacent_tail call context");
++          return 0;
++        }
++      emit_call_insn (gen_mips_adjacent_tail (funexp));
++      return 1;
++    }
+   if (!attr)
+     {
+       if (mips_manual_abi_p (current_function_decl))
+@@ -3799,6 +4338,18 @@
+   return 0;
+ }
+ 
++static int
++mips_psx_prebranch_option (value)
++     char *value;
++{
++  if (value && !strcmp (value, "extended"))
++    return 2;
++  if (!value || !strcmp (value, "off") || !strcmp (value, "on"))
++    return mips_psx_policy_option ("psx-prebranch-lw-delay", value);
++  error ("bad value (%s) for -mpsx-prebranch-lw-delay= switch (expected off, on or extended)", value);
++  return 0;
++}
++
+ /* Explicit ordinary signed-C negation, not a guaranteed-trapping operation.
+    Evaluate the argument and flush its queue before the function result.  */
+ rtx
+@@ -3902,8 +4453,7 @@
+     = mips_psx_policy_option ("psx-normal-ram-lw-delay",
+                               mips_psx_normal_ram_lw_delay_string);
+   mips_psx_prebranch_lw_delay
+-    = mips_psx_policy_option ("psx-prebranch-lw-delay",
+-                              mips_psx_prebranch_lw_delay_string);
++    = mips_psx_prebranch_option (mips_psx_prebranch_lw_delay_string);
+   mips_psx_local_bgez
+     = mips_psx_policy_option ("psx-local-bgez", mips_psx_local_bgez_string);
+   mips_psx_ctc2_return_delay
+@@ -5625,6 +6175,77 @@
+               && mips_pblw_mem_p (XEXP (src, 0), HImode)));
+ }
+ 
++/* Strict on stays literal. Extended SI permits only these physical gaps. */
++static int
++mips_pblw_checked_gap_p (insn, dest, load)
++     rtx insn, dest, load;
++{
++  rtx owner, tail, pat, src, cond, target, x;
++  int i, code;
++  if (mips_pblw_gap_p (insn, dest))
++    return 1;
++  if (mips_psx_prebranch_lw_delay != 2
++      || recog_memoized (load) != CODE_FOR_movsi_internal2)
++    return 0;
++  while (insn && (GET_CODE (insn) == NOTE || GET_CODE (insn) == CODE_LABEL))
++    insn = NEXT_INSN (insn);
++  if (!insn || (GET_CODE (insn) != INSN && GET_CODE (insn) != JUMP_INSN)
++      || INSN_DELETED_P (insn))
++    return 0;
++  if (mips_pblw_alu_p (insn))
++    return (rtx_equal_p (SET_DEST (PATTERN (insn)), dest)
++            && !reg_overlap_mentioned_p (dest, SET_SRC (PATTERN (insn))));
++  pat = PATTERN (insn);
++  if (GET_CODE (insn) == INSN && GET_CODE (pat) == SEQUENCE)
++    {
++      if (XVECLEN (pat, 0) != 2)
++        return 0;
++      owner = insn, insn = XVECEXP (pat, 0, 0), tail = XVECEXP (pat, 0, 1);
++      if (!insn || !tail || GET_CODE (insn) != JUMP_INSN || GET_CODE (tail) != INSN
++          || PREV_INSN (insn) != PREV_INSN (owner) || NEXT_INSN (insn) != tail
++          || PREV_INSN (tail) != insn || NEXT_INSN (tail) != NEXT_INSN (owner)
++          || INSN_DELETED_P (tail)
++          || recog_memoized (tail) < 0 || get_attr_length (tail) != 1
++          || reg_overlap_mentioned_p (dest, PATTERN (tail)) || reg_set_p (dest, tail))
++        return 0;
++      if (!mips_pblw_alu_p (tail))
++        {
++          pat = PATTERN (tail);
++          if (GET_CODE (pat) != SET || GET_CODE (SET_DEST (pat)) != REG
++              || GET_MODE (SET_DEST (pat)) != SImode
++              || !GP_REG_P (REGNO (SET_DEST (pat))) || REGNO (SET_DEST (pat)) == 0
++              || get_attr_type (tail) != TYPE_ARITH
++              || GET_CODE (SET_SRC (pat)) != CONST_INT
++              || (INTVAL (SET_SRC (pat)) & 65535))
++            return 0;
++        }
++      pat = PATTERN (insn);
++    }
++  if (GET_CODE (insn) != JUMP_INSN || INSN_DELETED_P (insn)
++      || INSN_ANNULLED_BRANCH_P (insn) || !JUMP_LABEL (insn)
++      || GET_CODE (JUMP_LABEL (insn)) != CODE_LABEL
++      || ((code = recog_memoized (insn)) != CODE_FOR_branch_zero
++          && code != CODE_FOR_branch_equality)
++      || get_attr_type (insn) != TYPE_BRANCH || get_attr_length (insn) != 1
++      || GET_CODE (pat) != SET || SET_DEST (pat) != pc_rtx
++      || GET_CODE (SET_SRC (pat)) != IF_THEN_ELSE)
++    return 0;
++  src = SET_SRC (pat), cond = XEXP (src, 0);
++  if ((GET_CODE (cond) != EQ && GET_CODE (cond) != NE)
++      || GET_MODE (cond) != SImode || reg_overlap_mentioned_p (dest, cond)
++      || (XEXP (src, 1) != pc_rtx && XEXP (src, 2) != pc_rtx))
++    return 0;
++  for (i = 0; i < 2; i++)
++    {
++      x = XEXP (cond, i);
++      if (x != const0_rtx && (GET_CODE (x) != REG || GET_MODE (x) != SImode
++                              || !GP_REG_P (REGNO (x))))
++        return 0;
++    }
++  target = XEXP (src, 1) == pc_rtx ? XEXP (src, 2) : XEXP (src, 1);
++  return (GET_CODE (target) == LABEL_REF && XEXP (target, 0) == JUMP_LABEL (insn));
++}
++
+ static int
+ mips_pblw_branch_p (branch, slot)
+      rtx branch, slot;
+@@ -5652,6 +6273,71 @@
+           && XEXP (target, 0) == JUMP_LABEL (branch));
+ }
+ 
++/* Extended-only backward local jump; AT memory is a full-profile obligation. */
++static rtx
++mips_pjlw_dest (jump, slot)
++     rtx jump, slot;
++{
++  rtx pat, target, dest, mem, addr;
++  HOST_WIDE_INT off = 0;
++  if (mips_psx_prebranch_lw_delay != 2 || mips_isa != 1 || TARGET_64BIT
++      || TARGET_BIG_ENDIAN || mips_abi != ABI_32 || INT_TYPE_SIZE != 32
++      || !reload_completed || !jump || GET_CODE (jump) != JUMP_INSN
++      || INSN_DELETED_P (jump) || INSN_ANNULLED_BRANCH_P (jump)
++      || recog_memoized (jump) != CODE_FOR_jump
++      || get_attr_type (jump) != TYPE_JUMP || get_attr_length (jump) != 1
++      || !slot || GET_CODE (slot) != INSN || INSN_DELETED_P (slot)
++      || recog_memoized (slot) != CODE_FOR_movsi_internal2
++      || get_attr_type (slot) != TYPE_LOAD || get_attr_length (slot) != 1)
++    return 0;
++  pat = PATTERN (jump);
++  if (GET_CODE (pat) != SET || SET_DEST (pat) != pc_rtx
++      || GET_CODE (SET_SRC (pat)) != LABEL_REF || !JUMP_LABEL (jump))
++    return 0;
++  target = XEXP (SET_SRC (pat), 0);
++  pat = PATTERN (slot);
++  if (GET_CODE (target) != CODE_LABEL || target != JUMP_LABEL (jump)
++      || GET_CODE (pat) != SET || !mips_pblw_gpr_p (SET_DEST (pat)))
++    return 0;
++  dest = SET_DEST (pat), mem = SET_SRC (pat);
++  if (REGNO (dest) >= 26 || fixed_regs[REGNO (dest)] || global_regs[REGNO (dest)]
++      || GET_CODE (mem) != MEM || GET_MODE (mem) != SImode
++      || MEM_VOLATILE_P (mem) || RTX_UNCHANGING_P (mem)
++      || reg_overlap_mentioned_p (dest, mem))
++    return 0;
++  if (!mips_pblw_mem_p (mem, SImode))
++    {
++      if (!mips_full_scratch_p (current_function_decl) || !mips_full_frame_mem_p (mem))
++        return 0;
++      addr = XEXP (mem, 0);
++      if (GET_CODE (addr) == PLUS && GET_MODE (addr) == SImode
++          && GET_CODE (XEXP (addr, 1)) == CONST_INT)
++        off = INTVAL (XEXP (addr, 1)), addr = XEXP (addr, 0);
++      if (GET_CODE (addr) != REG || GET_MODE (addr) != SImode || REGNO (addr) != 1
++          || off < 0 || off > 1020 || (off & 3))
++        return 0;
++    }
++  return mips_pblw_checked_gap_p (target, dest, slot) ? dest : 0;
++}
++
++int
++mips_prejump_lw_delay_p (jump, slot)
++     rtx jump, slot;
++{
++  rtx prev, next;
++  if (!mips_pjlw_dest (jump, slot)) return 0;
++  next = jump;
++  do
++    {
++      prev = PREV_INSN (next);
++      if (!prev || NEXT_INSN (prev) != next) return 0;
++      next = prev;
++    }
++  while (GET_CODE (prev) == NOTE);
++  /* The GPR-free jump is the earlier pending load's real removal gap. */
++  return prev == slot;
++}
++
+ int
+ mips_prebranch_lw_slot_p (slot)
+      rtx slot;
+@@ -5703,8 +6389,8 @@
+         }
+       while (GET_CODE (next) == NOTE);
+       return (next == slot && mips_pblw_removal_p (branch)
+-              && mips_pblw_gap_p (NEXT_INSN (slot), dest)
+-              && mips_pblw_gap_p (JUMP_LABEL (branch), dest));
++              && mips_pblw_checked_gap_p (NEXT_INSN (slot), dest, slot)
++              && mips_pblw_checked_gap_p (JUMP_LABEL (branch), dest, slot));
+     }
+   while (GET_CODE (prev) == NOTE)
+     {
+@@ -5716,8 +6402,8 @@
+   cond = XEXP (SET_SRC (PATTERN (branch)), 0);
+   return (prev == slot && REGNO (XEXP (cond, 0)) != REGNO (dest)
+           && mips_pblw_removal_p (slot)
+-          && mips_pblw_gap_p (NEXT_INSN (branch), dest)
+-          && mips_pblw_gap_p (JUMP_LABEL (branch), dest));
++          && mips_pblw_checked_gap_p (NEXT_INSN (branch), dest, slot)
++          && mips_pblw_checked_gap_p (JUMP_LABEL (branch), dest, slot));
+ }
+ 
+ int
+@@ -5751,6 +6437,12 @@
+           {
+             slot = XVECEXP (pat, 0, i);
+             if (!mips_prebranch_lw_slot_p (slot)) continue;
++            if (!INSN_DELETED_P (insn) && XVECLEN (pat, 0) == 2 && i == 1
++                && mips_pjlw_dest (branch, slot)
++                && PREV_INSN (branch) == PREV_INSN (insn)
++                && NEXT_INSN (branch) == slot && PREV_INSN (slot) == branch
++                && NEXT_INSN (slot) == NEXT_INSN (insn))
++              continue;
+             dest = mips_pblw_dest (slot);
+             if (!INSN_DELETED_P (insn) && XVECLEN (pat, 0) == 2 && i == 1
+                 && mips_pblw_branch_p (branch, slot)
+@@ -5758,8 +6450,8 @@
+                 && NEXT_INSN (branch) == slot && PREV_INSN (slot) == branch
+                 && NEXT_INSN (slot) == NEXT_INSN (insn)
+                 && mips_pblw_removal_p (insn)
+-                && mips_pblw_gap_p (NEXT_INSN (insn), dest)
+-                && mips_pblw_gap_p (JUMP_LABEL (branch), dest))
++                && mips_pblw_checked_gap_p (NEXT_INSN (insn), dest, slot)
++                && mips_pblw_checked_gap_p (JUMP_LABEL (branch), dest, slot))
+               continue;
+             debug_rtx (insn);
+             fatal ("PSX prebranch normal-RAM LW invariant failed");
+@@ -6203,6 +6895,13 @@
+   int  fp_inc;			/* 1 or 2 depending on the size of fp regs */
+   long fp_bits;			/* bitmask to use for each fp register */
+ 
++  if (mips_adjacent_p (current_function_decl))
++    {
++      mips_adjacent_check_state (size);
++      current_frame_info = zero_frame_info;
++      current_frame_info.initialized = reload_completed;
++      return 0;
++    }
+   if (mips_manual_abi_p (current_function_decl))
+     {
+       mips_manual_check_state (size);
+@@ -6739,6 +7438,7 @@
+ #endif
+ 
+   inside_function = 1;
++  mips_adjacent_check (size, 1);
+   if (mips_manual_abi_p (current_function_decl))
+     {
+       mips_manual_final_check (size);
+@@ -6912,7 +7612,8 @@
+     }
+ 
+   tsize = compute_frame_size (get_frame_size ());
+-  if (mips_manual_abi_p (current_function_decl))
++  if (mips_manual_abi_p (current_function_decl)
++      || mips_adjacent_p (current_function_decl))
+     return;
+ 
+   /* If this function is a varargs function, store any registers that
+@@ -7031,6 +7732,7 @@
+   mips_validate_sxy2_slots ();
+   mips_validate_volatile_slots ();
+   mips_validate_prebranch_lw_slots ();
++  mips_adjacent_check (size, 1);
+ 
+ #ifndef FUNCTION_NAME_ALREADY_DECLARED
+   /* Get the function name the same way that toplev.c does before calling
+@@ -7268,6 +7970,8 @@
+   rtx tsize_rtx = GEN_INT (tsize);
+   rtx tmp_rtx = (rtx)0;
+ 
++  if (mips_adjacent_p (current_function_decl))
++    return;
+   if (mips_can_use_return_insn ())
+     {
+       emit_insn (gen_return ());
+--- gcc-2.8.1/config/mips/mips.h
++++ gcc-2.8.1/config/mips/mips.h
+@@ -183,10 +183,20 @@
+ extern int mips_regcall_placement_p (), mips_valid_regcall_attribute_p ();
+ extern int mips_regcall_redecl_p (), mips_regcall_address_p ();
+ extern int mips_regcall_p (), mips_expand_regcall ();
++#define CHECK_MACHINE_SCRATCH_CALL(D, T, F, S, V, C) \
++  mips_check_full_scratch_call (D, T, F, S, V, C)
++extern void mips_check_full_scratch_call ();
+ #define MERGE_MACHINE_DECL_ATTRIBUTES(N, O) mips_merge_decl_attributes (N, O)
+ extern union tree_node *mips_merge_decl_attributes ();
+-#define MACHINE_FUNCTION_NO_INLINE_P(D) mips_manual_abi_p (D)
++#define MACHINE_FUNCTION_NO_INLINE_P(D) \
++  (mips_manual_abi_p (D) || mips_adjacent_p (D))
+ extern int mips_manual_abi_p ();
++#define MACHINE_ADJACENT_CALL_P(D) mips_adjacent_call_p (D)
++#define MACHINE_ADJACENT_PREPARE() mips_adjacent_check (0, 0)
++extern int mips_adjacent_p (), mips_adjacent_call_p ();
++extern void mips_adjacent_check ();
++extern char *mips_output_adjacent_tail ();
++extern char *mips_output_addsi3 ();
+ 
+ #define EXPAND_BUILTIN_MIPS_CTC2(EXP) mips_expand_builtin_ctc2 (EXP)
+ extern struct rtx_def *mips_expand_builtin_ctc2 ();
+@@ -234,6 +244,7 @@
+ extern int              mips_adjacent_volatile_lhu_delay_p ();
+ extern int              mips_adjacent_volatile_lw_delay_p ();
+ extern int              mips_prebranch_lw_delay_p ();
++extern int              mips_prejump_lw_delay_p ();
+ extern int              mips_prebranch_lw_slot_p ();
+ extern int              mips_first_fallthrough_lw_p ();
+ #define FIRST_FALLTHROUGH_NONTRAPPING_P(BRANCH, SLOT) \
+--- gcc-2.8.1/config/mips/mips.md
++++ gcc-2.8.1/config/mips/mips.md
+@@ -127,7 +127,8 @@
+ 
+ (define_delay (eq_attr "type" "jump")
+   [(ior (and (eq_attr "dslot" "no") (eq_attr "length" "1"))
+-        (ne (symbol_ref "mips_ctc2_return_delay_p (delay_insn, insn)") (const_int 0)))
++        (ior (ne (symbol_ref "mips_ctc2_return_delay_p (delay_insn, insn)") (const_int 0))
++             (ne (symbol_ref "mips_prejump_lw_delay_p (delay_insn, insn)") (const_int 0))))
+    (nil)
+    (nil)])
+ 
+@@ -513,7 +514,7 @@
+ 	(plus:SI (match_operand:SI 1 "reg_or_0_operand" "dJ")
+ 		 (match_operand:SI 2 "arith_operand" "dI")))]
+   "GET_CODE (operands[2]) != CONST_INT || INTVAL (operands[2]) != -32768"
+-  "addu\\t%0,%z1,%2"
++  "* return mips_output_addsi3 (operands);"
+   [(set_attr "type"	"arith")
+    (set_attr "mode"	"SI")
+    (set_attr "length"	"1")])
+@@ -6623,6 +6624,16 @@
+    (set_attr "mode" "none")
+    (set_attr "length" "1")])
+ 
++;; A real terminal outgoing call with no physical transfer or delay slot.
++(define_insn "mips_adjacent_tail"
++  [(call (mem (match_operand 0 "call_insn_operand" "s")) (const_int 0))
++   (use (reg:SI 31))]
++  "TARGET_MIPS_REGCALL && GET_CODE (operands[0]) == SYMBOL_REF"
++  "* return mips_output_adjacent_tail (operands[0]);"
++  [(set_attr "type" "unknown")
++   (set_attr "mode" "none")
++   (set_attr "length" "0")])
++
+ ;; calls.c now passes a third argument, make saber happy
+ 
+ (define_expand "call"
+--- gcc-2.8.1/toplev.c
++++ gcc-2.8.1/toplev.c
+@@ -3178,6 +3178,10 @@
+   /* Find all the EH handlers.  */
+   find_exception_handler_labels ();
+ 
++#ifdef MACHINE_ADJACENT_PREPARE
++  MACHINE_ADJACENT_PREPARE ();
++#endif
++
+   /* Always do one jump optimization pass to ensure that JUMP_LABEL fields
+      are initialized and to compute whether control can drop off the end
+      of the function.  */

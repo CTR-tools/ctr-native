@@ -162,3 +162,94 @@ task_body psx_normal_ram_lhu_delay lhu-input | sed '/^[[:space:]]*#/d' \
 grep -Eq 'lhu[[:space:]]+\$8,2\(\$11\)' "$task_out/lhu-output.s"
 if task_body psx_normal_ram_lhu_delay lhu-output | sed '/^[[:space:]]*#/d' \
     | grep -A1 -E 'beq[[:space:]]+\$13,\$0,' | grep -Eq 'lhu[[:space:]]+\$8,2\(\$11\)'; then exit 1; fi
+
+# Typed continuation: real nonconstant CALL effects, zero transfer/DBR slots.
+for task_cue in plain GPR LO; do
+    set --
+    test "$task_cue" = plain || set -- "-DOBSERVE_$task_cue"
+    task_compile "adjacent-$task_cue" psx_continuations.c "$@"
+    task_body Begin "adjacent-$task_cue" > "$task_out/begin.s"
+    grep -Fq '.mips.adjacent' "$task_out/begin.s"
+    grep -Fq '{mips_adjacent_tail}' "$task_out/psx_continuations.c.dbr"
+    grep -Eq '\(use \(reg:SI 31 ' "$task_out/psx_continuations.c.dbr"
+    grep -Eq '\.frame[[:space:]]+\$sp,0,\$31' "$task_out/begin.s"
+    if grep -Eq '^[[:space:]]*(jal|jalr|jr|j[[:space:]]+\$[0-9])|^[[:space:]]*[a-z]+[[:space:]].*\$(sp|fp)' "$task_out/begin.s"; then exit 1; fi
+done
+task_reject adjacent-extra 'named direct four-SI void target' psx_continuations.c -DREJECT=1
+task_reject adjacent-skip 'forward local setup branches' psx_continuations.c -DREJECT=2
+task_reject adjacent-loop 'forward local setup branches' psx_continuations.c -DREJECT=3
+task_reject adjacent-storage 'forbids storage' psx_continuations.c -DREJECT=4
+task_reject adjacent-wide 'C void four-SI prototype' psx_continuations.c -DREJECT=5
+for task_case in 6 7 8 9 10 11; do
+    task_reject "adjacent-cue-$task_case" 'protected write or stack/ASM operand' \
+        psx_continuations.c "-DREJECT=$task_case"
+done
+
+# One actual twelve-word source-owned frame, not twelve initialized stand-ins.
+task_compile full psx_continuations.c -DTEST_FULL -ffixed-30
+task_body FullScratch full > "$task_out/full-body.s"
+for task_pair in 48:16 52:17 56:18 60:19 64:20 68:21 72:22 76:23 80:28 84:sp 88:fp 92:31; do
+    task_offset=${task_pair%:*}; task_reg=${task_pair#*:}
+    for task_op in sw lw; do
+        grep -Eq "$task_op[[:space:]]+\\\$$task_reg,$task_offset\\(\\\$1\\)" "$task_out/full-body.s"
+    done
+done
+grep -Eq 'jal[[:space:]]+\$31,\$[0-9]+' "$task_out/full-body.s"
+grep -Fq '{call_internal1}' "$task_out/psx_continuations.c.dbr"
+if grep -Eq '\.frame|\([^)]*\$(sp|fp)\)' "$task_out/full-body.s"; then exit 1; fi
+for task_case in 1 2 3 4 5 6 7; do
+    case "$task_case" in
+        1) task_diag='forbids storage' ;;
+        2) task_diag='manual AT ABI requires a supported' ;;
+        3|4) task_diag='void two-SI indirect callback' ;;
+        5|6) task_diag='bounded frame operands and empty register cues' ;;
+        7) task_diag='full scratch ABI forbids storage' ;;
+    esac
+    task_reject "full-$task_case" "$task_diag" psx_continuations.c -DTEST_FULL -ffixed-30 "-DREJECT=$task_case"
+done
+task_reject full-redecl-reverse 'full scratch ABI forbids storage' psx_continuations.c \
+    -DTEST_FULL -ffixed-30 -DREJECT=7 -DFULL_FIRST
+
+# Operand order assistance is full-profile-only; immediate/untied stay ordinary.
+for task_profile in 0 1 2; do
+    for task_shape in 1 2 3 4; do
+        task_compile "add-$task_profile-$task_shape" psx_tied_addu.c \
+            "-DPROFILE=$task_profile" "-DSHAPE=$task_shape"
+    done
+done
+grep -Eq 'addu[[:space:]]+\$10,\$10,\$8' "$task_out/add-1-1.s"
+grep -Eq 'addu[[:space:]]+\$10,\$8,\$10' "$task_out/add-2-1.s"
+for task_profile in 0 1 2; do
+    grep -Eq 'addu[[:space:]]+\$10,\$8,\$9' "$task_out/add-$task_profile-3.s"
+    grep -Eq 'addu[[:space:]]+\$10,\$8,7' "$task_out/add-$task_profile-4.s"
+done
+
+# Reached direct-EQ/NE gap; malformed/read-dependent target heads remain out.
+for task_policy in on extended; do
+    task_compile "gap-$task_policy" psx_prebranch_lw.c "-mpsx-prebranch-lw-delay=$task_policy"
+done
+task_body ram_gap_direct_branch gap-extended | sed '/^[[:space:]]*#/d' \
+    | grep -A1 -E 'bne[[:space:]]+\$9,\$0,' | grep -Eq 'lw[[:space:]]+\$9,0\(\$4\)'
+for task_case in GAP_BRANCH_READ GAP_OTHER_BRANCH GAP_OLD_LIVE; do
+    for task_policy in on extended; do
+        task_compile "$task_case-$task_policy" psx_prebranch_lw.c \
+            "-D$task_case" "-mpsx-prebranch-lw-delay=$task_policy"
+        task_body ram_gap_direct_branch "$task_case-$task_policy" > "$task_out/$task_policy-subject.s"
+    done
+    cmp "$task_out/on-subject.s" "$task_out/extended-subject.s"
+done
+for task_policy in on extended; do
+    task_compile "jump-$task_policy" psx_prebranch_lw.c -G0 -fomit-frame-pointer \
+        "-mpsx-prebranch-lw-delay=$task_policy"
+done
+task_body ram_jump_load jump-extended | sed '/^[[:space:]]*#/d' \
+    | grep -A1 -E '^[[:space:]]*j[[:space:]]+\$L' | grep -Eq 'lw[[:space:]]+\$9,'
+for task_case in GAP_HALF GAP_VOLATILE; do
+    for task_policy in on extended; do
+        task_compile "$task_case-$task_policy" psx_prebranch_lw.c -G0 -fomit-frame-pointer \
+            "-D$task_case" "-mpsx-prebranch-lw-delay=$task_policy"
+        task_body ram_jump_load "$task_case-$task_policy" > "$task_out/$task_policy-jump.s"
+    done
+    cmp "$task_out/on-jump.s" "$task_out/extended-jump.s"
+done
+echo 'Continuation/full-scratch/tied-ADDU/branch-gap semantic controls passed'

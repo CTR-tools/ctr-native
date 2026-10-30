@@ -44,6 +44,8 @@
 // NOTE(aalhendi): These opt-in contracts describe custom MIPS call frames.
 // Native keeps the host ABI; the caller still owns the scratch save protocol.
 #define CTR_PSX_UNSAFE_MANUAL_AT_FRAME
+#define CTR_PSX_UNSAFE_MANUAL_AT_FULL_FRAME
+#define CTR_PSX_ADJACENT_TAIL(targetName)
 #define CTR_PSX_PRESERVES_AT24
 #define CTR_PSX_REGCALL_S012(readMask)
 #if defined(__GNUC__) || defined(__clang__)
@@ -191,6 +193,8 @@
 	} while (0)
 #else
 #define CTR_PSX_UNSAFE_MANUAL_AT_FRAME                                          __attribute__((mips_unsafe_manual_at_frame))
+#define CTR_PSX_UNSAFE_MANUAL_AT_FULL_FRAME                                     __attribute__((mips_unsafe_manual_at_full_frame))
+#define CTR_PSX_ADJACENT_TAIL(targetName)                                       __attribute__((mips_adjacent_tail(targetName)))
 #define CTR_PSX_PRESERVES_AT24                                                  __attribute__((mips_preserves_at24))
 #define CTR_PSX_REGCALL_S012(readMask)                                          __attribute__((mips_regcall_s012(readMask)))
 
