@@ -29,9 +29,11 @@ cache for metadata obtained from the source, for example:
 ```ini
 id = saphi:1
 title = Drive Thru Danger
+author = Boxic
 ```
 
-Each field is optional. IDs must be unique. Lines
+Each field is optional. When present, the author is shown above the selected
+custom track. IDs must be unique. Lines
 starting with `#` or `;` are comments. Duplicate or unknown keys are rejected.
 The cache does not specify filenames: importers place files under the names
 above. The format and local identity policy remain subject to verification

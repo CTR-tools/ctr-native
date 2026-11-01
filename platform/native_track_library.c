@@ -53,8 +53,8 @@ static int NativeTrackLibrary_ReadTrack(struct NativeTrackRegistry *registry, co
 	{
 		return 0;
 	}
-	char fields[2][NATIVE_TRACK_FIELD_MAX] = {{0}};
-	const char *keys[] = {"id", "title"};
+	char fields[3][NATIVE_TRACK_FIELD_MAX] = {{0}};
+	const char *keys[] = {"id", "title", "author"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -150,7 +150,7 @@ static int NativeTrackLibrary_ReadTrack(struct NativeTrackRegistry *registry, co
 		return 0;
 	}
 	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
-	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL};
+	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL};
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
 

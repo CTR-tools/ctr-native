@@ -37,15 +37,15 @@ int main(void)
 	int id = 0;
 	CTR_TEST_CHECK(NativeTrackRegistry_Find(registry, "local:track", &id), "the directory supplies a local identity without a manifest");
 	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(registry, id);
-	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->title, "track") == 0 && metadata->scaPath == NULL,
+	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->title, "track") == 0 && metadata->scaPath == NULL && metadata->author == NULL,
 	               "directory name and music use defaults");
 	NativeTrackRegistry_Destroy(registry);
 
-	WriteFixture(track, "track.ini", "id=saphi:1\ntitle=Test Track\n");
+	WriteFixture(track, "track.ini", "id=saphi:1\ntitle=Test Track\nauthor=Track Author\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->identity, "saphi:1") == 0 &&
-	               strcmp(metadata->title, "Test Track") == 0,
+	               strcmp(metadata->title, "Test Track") == 0 && strcmp(metadata->author, "Track Author") == 0,
 	               "cached catalog metadata overrides local defaults");
 	NativeTrackRegistry_Destroy(registry);
 

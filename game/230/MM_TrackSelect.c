@@ -1062,6 +1062,21 @@ trackSelectionMenuDone:
 					register RECT16 *clearRectArg CTR_PSX_REGISTER("$4");
 					register u32 highlightColorPage CTR_PSX_REGISTER("$5");
 					register struct GameTracker *highlightTracker CTR_PSX_REGISTER("$2");
+					if (customTrack != NULL && customTrack->author != NULL)
+					{
+						char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
+						memcpy(author, "by ", sizeof("by ") - 1);
+						MM_TrackSelect_CustomTitle(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
+						size_t length = strlen(author);
+						while (length > sizeof("by ") - 1 && DecalFont_GetLineWidth(author, FONT_SMALL) > MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN)
+						{
+							author[--length] = '\0';
+						}
+						MM_DRAW_LINE_WIDE_FLAGS(author, (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X),
+						                        (s16)(rowRect.y - data.font_charPixHeight[FONT_SMALL] + rowRect.h -
+						                              (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET)),
+						                        FONT_SMALL, JUSTIFY_CENTER | PERIWINKLE);
+					}
 					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0 &&
 					    customTrack == NULL)
 					{

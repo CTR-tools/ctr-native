@@ -18,6 +18,7 @@ struct NativeTrackMetadata
 	const char *levPath;
 	const char *vrmPath;
 	const char *scaPath;
+	const char *author;
 };
 
 struct NativeTrackRegistry;

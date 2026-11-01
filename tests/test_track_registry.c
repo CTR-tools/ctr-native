@@ -12,13 +12,16 @@ int main(void)
 		return CtrTest_Summary();
 	}
 	char title[] = "First track";
-	struct NativeTrackMetadata first = {"track-a", title, "a.lev", "a.vrm", NULL};
-	struct NativeTrackMetadata second = {"track-b", "Second track", "b.lev", "b.vrm", "b.sca"};
+	char author[] = "Author";
+	struct NativeTrackMetadata first = {"track-a", title, "a.lev", "a.vrm", NULL, author};
+	struct NativeTrackMetadata second = {"track-b", "Second track", "b.lev", "b.vrm", "b.sca", NULL};
 	int firstID = 0, secondID = 0, found = 0;
 	CTR_TEST_CHECK(NativeTrackRegistry_Add(registry, &first, &firstID), "first track is registered");
 	const struct NativeTrackMetadata *stored = NativeTrackRegistry_Get(registry, firstID);
 	title[0] = 'X';
+	author[0] = 'X';
 	CTR_TEST_CHECK(stored != NULL && strcmp(stored->title, "First track") == 0, "metadata is owned by the registry");
+	CTR_TEST_CHECK(stored != NULL && strcmp(stored->author, "Author") == 0, "author is owned by the registry");
 	CTR_TEST_CHECK(NativeTrackRegistry_Add(registry, &second, &secondID), "second track is registered");
 	CTR_TEST_CHECK(firstID != secondID && firstID >= NATIVE_TRACK_CUSTOM_ID_BASE, "tracks have distinct extended IDs");
 	CTR_TEST_CHECK((int)(int16_t)firstID == firstID && NATIVE_TRACK_CUSTOM_ID_MAX <= INT16_MAX,
