@@ -130,7 +130,11 @@ void PopMatrix()
 
 void RotTrans(SVECTOR *v0, VECTOR *v1, s32 *flag)
 {
-	gte_RotTrans(v0, v1, flag);
+	// NOTE(aalhendi): Read vector components by type, not aliased words or pad.
+	CTR_GteLoadSV0(v0);
+	gte_rt();
+	gte_stlvnl(v1);
+	gte_stflg(flag);
 }
 
 void RotTransSV(SVECTOR *v0, SVECTOR *v1, s32 *flag)

@@ -4240,6 +4240,44 @@
       "linked_block": {}
     },
     {
+      "name": "cam-angle-fly",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_FollowDriver_AngleAxis",
+      "end_symbol": "CAM_FollowDriver_TrackPath",
+      "symbol_prefix": "CAM_",
+      "sources": [
+        "game/CAM/CAM_FollowDriver_AngleAxis.c",
+        "game/CAM/CAM_StartLine_FlyIn.c"
+      ],
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "source_flags": {
+        "game/CAM/CAM_FollowDriver_AngleAxis.c": ["-fno-crossjumping"]
+      },
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "cam-trackpath",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_FollowDriver_TrackPath",
+      "end_symbol": "CAM_LookAtPosition",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM/CAM_FollowDriver_TrackPath.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "cam-pose",
       "kind": "resident",
       "artifact": "exe",
