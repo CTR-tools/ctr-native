@@ -9,7 +9,17 @@ tracks/
     track.lev
     track.vrm
     track.sca
+    preview.jpg
 ```
+
+`preview.jpg` is an optional JPEG image shown in the track selector. A missing
+or unreadable image hides the preview and does not prevent the track
+from loading. The image is decoded only when the track is selected; files are
+limited to 4 MiB and dimensions to 4096 by 4096 pixels. It is scaled to the
+selector's preview rectangle preserving its aspect ratio, with black borders
+where needed.
+A Project Saphi importer can use the track's
+`track_thumbnail` download and save it under this name.
 
 No metadata file is required. Without one, the directory name is the title and
 `local:<directory name>` is the identity; renaming the directory changes that

@@ -1,5 +1,6 @@
 #include <common.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_preview.h>
 #include <stdlib.h>
 
 enum TrackSelectVideoState
@@ -84,6 +85,9 @@ static struct MainMenu_LevelRow *s_timeTrialTracks;
 static s16 s_timeTrialTrackCount;
 static s16 s_titleScrollSelectedRow = -1;
 static u32 s_titleScrollStartFrame;
+static int s_previewTrackID = -1;
+static int s_previewLoaded;
+static int s_previewAspectFactor;
 
 static void MM_TrackSelect_BuildTimeTrialTracks(void)
 {
@@ -250,7 +254,7 @@ void MM_TrackSelect_Video_State(b32 resetPreview)
 
 #include <platform/native_str.h>
 
-static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY)
+static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY, int opaque)
 {
 	u32 *prim;
 	u32 *ot;
@@ -278,6 +282,13 @@ static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY)
 	// a 16-bit textured quad instead of relying on a CPU-side VRAM copy.
 	*ot = (u32)CtrGpu_PrimToOTLink24(prim);
 	nextPrim = DISPLAY_Blur_SubFunc(prim, &tile[0]);
+	if (opaque)
+	{
+		for (POLY_FT4 *poly = (POLY_FT4 *)prim; poly < (POLY_FT4 *)nextPrim; poly++)
+		{
+			poly->code &= (u8)~2;
+		}
+	}
 	((POLY_FT4 *)nextPrim - 1)->tag = CtrGpu_PackOTTag(oldTag, 0x09000000);
 	gGT->backBuffer->primMem.cursor = nextPrim;
 }
@@ -298,9 +309,28 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 		}
 		MM_TRACK_VIDEO_STATE_CURR = MM_TRACK_VIDEO_ICON;
 		MM_TRACK_VIDEO_STATE_PREV = MM_TRACK_VIDEO_ICON;
-		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+		struct Icon *icon = GAME_TRACKER->ptrIcons[MM_TRACK_VIDEO_ICON_INDEX];
+		if (icon != NULL)
+		{
+			u16 tpage = icon->texLayout.tpage;
+			int srcX = icon->texLayout.u0 + (tpage & 0xf) * 0x40 + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X;
+			int srcY = icon->texLayout.v0 + (tpage & 0x10) * 0x10 + ((tpage & 0x800) >> 2) + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y;
+			int aspectFactor = Widescreen_GetFactor();
+			if (s_previewTrackID != selectMenu[trackIndex].levID || s_previewAspectFactor != aspectFactor)
+			{
+				s_previewTrackID = selectMenu[trackIndex].levID;
+				s_previewAspectFactor = aspectFactor;
+				s_previewLoaded = NativeTrackPreview_Load(s_previewTrackID, srcX, srcY, MM_TRACK_VIDEO_FRAME_WIDTH, MM_TRACK_VIDEO_FRAME_HEIGHT, aspectFactor);
+			}
+			if (s_previewLoaded && r->x >= 0 && r->y >= 0 && r->x + r->w <= MM_TRACK_VIDEO_SCREEN_W && r->y + r->h <= MM_TRACK_VIDEO_SCREEN_H)
+			{
+				MM_TrackSelect_Video_DrawNativePreview(r, srcX, srcY, 1);
+				RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+			}
+		}
 		return;
 	}
+	s_previewTrackID = -1;
 	bigfileHeader = MM_BIGFILE_HEADER;
 	bigfileEntries = BIG_GETENTRY(bigfileHeader);
 	selectedMenu = (struct MainMenu_LevelRow *)((u32)(trackIndex * sizeof(*selectedMenu)) + (u32)selectMenu);
@@ -345,7 +375,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 
 			if (MM_TRACK_VIDEO_STATE_CURR == MM_TRACK_VIDEO_PLAYING)
 			{
-				MM_TrackSelect_Video_DrawNativePreview(r, srcX + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X, srcY + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y);
+				MM_TrackSelect_Video_DrawNativePreview(r, srcX + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X, srcY + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y, 0);
 			}
 		}
 	}
@@ -418,6 +448,7 @@ void MM_TrackSelect_Init(void)
 	s16 numTracks;
 
 	s_titleScrollSelectedRow = -1;
+	s_previewTrackID = -1;
 	MM_TrackSelect_BuildTimeTrialTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
