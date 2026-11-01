@@ -49,6 +49,7 @@
 #include "platform/native_track_registry.c"
 #include "platform/native_track_library.c"
 #include "platform/native_track_file.c"
+#include "platform/native_track_validate.c"
 #include "platform/native_chaos_ipc.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
