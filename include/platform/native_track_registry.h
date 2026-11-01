@@ -13,7 +13,6 @@ struct NativeTrackMetadata
 	const char *levPath;
 	const char *vrmPath;
 	const char *scaPath;
-	unsigned int laps;
 };
 
 struct NativeTrackRegistry;

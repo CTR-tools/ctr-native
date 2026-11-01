@@ -63,7 +63,7 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 {
 	if (registry == NULL || metadata == NULL || metadata->identity == NULL || metadata->identity[0] == '\0' ||
 	    metadata->title == NULL || metadata->title[0] == '\0' || metadata->levPath == NULL || metadata->levPath[0] == '\0' ||
-	    metadata->vrmPath == NULL || metadata->vrmPath[0] == '\0' || metadata->laps == 0 ||
+	    metadata->vrmPath == NULL || metadata->vrmPath[0] == '\0' ||
 	    registry->count > (size_t)(INT_MAX - NATIVE_TRACK_CUSTOM_ID_BASE) ||
 	    NativeTrackRegistry_Find(registry, metadata->identity, NULL))
 	{
@@ -80,7 +80,6 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 	entry->metadata.levPath = NativeTrackRegistry_Copy(metadata->levPath);
 	entry->metadata.vrmPath = NativeTrackRegistry_Copy(metadata->vrmPath);
 	entry->metadata.scaPath = metadata->scaPath != NULL && metadata->scaPath[0] != '\0' ? NativeTrackRegistry_Copy(metadata->scaPath) : NULL;
-	entry->metadata.laps = metadata->laps;
 	if (entry->metadata.identity == NULL || entry->metadata.title == NULL || entry->metadata.levPath == NULL ||
 	    entry->metadata.vrmPath == NULL || (metadata->scaPath != NULL && metadata->scaPath[0] != '\0' && entry->metadata.scaPath == NULL))
 	{
