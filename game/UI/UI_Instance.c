@@ -39,12 +39,12 @@ enum UIInstanceConstants
 };
 
 
-struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudSlot, int rotateToHud, int pushBuffer, int threadName)
+struct Instance *UI_INSTANCE_BirthWithThread(s32 modelID, s32 tickFunc, s32 hudSlot, b32 rotateToHud, s32 pushBuffer, s32 threadName)
 {
-	struct GameTracker *gGT = sdata->gGT;
+	struct GameTracker *gGT = GAME_TRACKER;
+	struct UiElement2D *playerLayouts = GAME_HUD_LAYOUTS[gGT->numPlyrCurrGame - 1];
 	struct Model *model = gGT->modelPtr[modelID];
-	struct UiElement2D *hudStruct;
-	struct Instance *inst = NULL;
+	struct Instance *lastInst = NULL;
 	struct Thread *driverThread;
 	SVec3 rot;
 
@@ -53,192 +53,204 @@ struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudS
 		return NULL;
 	}
 
-	hudStruct = data.hudStructPtr[gGT->numPlyrCurrGame - 1];
 	driverThread = gGT->threadBuckets[PLAYER].thread;
 
-	while (driverThread != 0)
+	if (driverThread != 0)
 	{
-		struct Driver *driver = driverThread->object;
-		struct UiElement3D *ui3D;
-		struct Thread *hudThread;
-		s16 createdModelID;
-		s16 scale;
-		int rewardColor;
-
-		hudThread = PROC_BirthWithObject(UI_INSTANCE_THREAD_FLAGS, (void *)tickFunc, (char *)threadName, NULL);
-
-		// Get the object attached to the thread
-		ui3D = hudThread->object;
-
-		// Big Number HUD element
-		inst = INSTANCE_Birth2D(model, 0, hudThread);
-
-		// give the Instance to the thread
-		hudThread->inst = inst;
-
-		createdModelID = model->id;
-
-		// bigNum
-		if (createdModelID == STATIC_BIG1)
+		// NOTE(aalhendi): Indexing the player group lets GCC reduce it to the
+		// retail cursor without moving its setup ahead of the light constants.
+		s32 playerIndex = 0;
+		do
 		{
-			driver->instBigNum = inst;
-		}
+			struct UiElement2D *hudStruct = playerLayouts + playerIndex * UI_HUD_SLOT_COUNT;
+			struct Driver *driver = driverThread->object;
+			struct UiElement3D *ui3D;
+			struct Thread *hudThread;
+			struct Instance *inst;
 
-		// fruitDisp
-		else if (createdModelID == STATIC_FRUITDISP)
-		{
-			driver->instFruitDisp = inst;
-		}
+			hudThread = PROC_BirthWithObject(UI_INSTANCE_THREAD_FLAGS, (void *)tickFunc, (char *)threadName, NULL);
 
-		// if this is a gem
-		else if (createdModelID == STATIC_GEM)
-		{
-			rewardColor = UI_INSTANCE_GEM_COLOR;
-			goto ApplyDefaultRewardLight;
-		}
+			// Get the object attached to the thread
+			ui3D = hudThread->object;
 
-		// crystal
-		else if (createdModelID == STATIC_CRYSTAL)
-		{
-			rewardColor = UI_INSTANCE_CRYSTAL_COLOR;
-			ui3D->lightDir.x = UI_INSTANCE_CRYSTAL_LIGHT_X;
-			ui3D->lightDir.y = UI_INSTANCE_CRYSTAL_LIGHT_Y;
-			ui3D->lightDir.z = UI_INSTANCE_CRYSTAL_LIGHT_Z;
-			goto ApplyRewardColor;
-		}
+			// Attach the model instance to the HUD thread.
+			hudThread->inst = INSTANCE_Birth2D(model, 0, hudThread);
+			inst = hudThread->inst;
 
-		// relic
-		else if (createdModelID == STATIC_RELIC)
-		{
-			rewardColor = UI_INSTANCE_RELIC_COLOR;
-			goto ApplyDefaultRewardLight;
-		}
+			// bigNum
+			if (model->id == STATIC_BIG1)
+			{
+				driver->instBigNum = inst;
+			}
 
-		// key
-		else if (createdModelID == STATIC_KEY)
-		{
-			rewardColor = UI_INSTANCE_KEY_COLOR;
-			goto ApplyDefaultRewardLight;
-		}
-		goto AfterRewardSetup;
+			// fruitDisp
+			else if (model->id == STATIC_FRUITDISP)
+			{
+				driver->instFruitDisp = inst;
+			}
 
-	ApplyDefaultRewardLight:
-		ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
-		ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
-		ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
-	ApplyRewardColor:
-		inst->colorRGBA = rewardColor;
-		inst->flags |= USE_SPECULAR_LIGHT;
+			// if this is a gem
+			if (model->id == STATIC_GEM)
+			{
+				ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
+				inst->colorRGBA = UI_INSTANCE_GEM_COLOR;
+				inst->flags |= USE_SPECULAR_LIGHT;
+			}
 
-	AfterRewardSetup:
+			// relic
+			else if (model->id == STATIC_RELIC)
+			{
+				ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
+				inst->colorRGBA = UI_INSTANCE_RELIC_COLOR;
+				inst->flags |= USE_SPECULAR_LIGHT;
+			}
 
-		// if C-T-R letters
-		if ((u32)(createdModelID - STATIC_C) < UI_INSTANCE_CTR_LETTER_COUNT)
-		{
-			// -4 for C
-			// +0 for T
-			// +4 for R
-			ui3D->vel[0] = (createdModelID - STATIC_T) * UI_INSTANCE_CTR_LETTER_VEL_STEP;
-			ui3D->vel[1] = UI_INSTANCE_CTR_LETTER_VEL_Y;
+			// crystal
+			else if (model->id == STATIC_CRYSTAL)
+			{
+				ui3D->lightDir.x = UI_INSTANCE_CRYSTAL_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_CRYSTAL_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_CRYSTAL_LIGHT_Z;
+				inst->colorRGBA = UI_INSTANCE_CRYSTAL_COLOR;
+				inst->flags |= USE_SPECULAR_LIGHT;
+			}
 
-			// Set color
-			inst->colorRGBA = UI_INSTANCE_CTR_COLOR;
+			// key
+			else if (model->id == STATIC_KEY)
+			{
+				ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
+				inst->colorRGBA = UI_INSTANCE_KEY_COLOR;
+				inst->flags |= USE_SPECULAR_LIGHT;
+			}
+			// if C-T-R letters
+			else if ((u16)(model->id - STATIC_C) < UI_INSTANCE_CTR_LETTER_COUNT)
+			{
+				ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
+				ui3D->vel[1] = UI_INSTANCE_CTR_LETTER_VEL_Y;
+				if (model->id == STATIC_C)
+				{
+					ui3D->vel[0] = -UI_INSTANCE_CTR_LETTER_VEL_STEP;
+				}
+				else if (model->id == STATIC_T)
+				{
+					ui3D->vel[0] = 0;
+				}
+				else if (model->id == STATIC_R)
+				{
+					ui3D->vel[0] = UI_INSTANCE_CTR_LETTER_VEL_STEP;
+				}
 
-			goto ApplyDefaultLightTransparent;
-		}
+				// Set color
+				inst->colorRGBA = UI_INSTANCE_CTR_COLOR;
 
-		// token
-		else if (createdModelID == STATIC_TOKEN)
-		{
-			// get AdvCup ID from level metadata
-			int advCupID = data.metaDataLEV[gGT->levelID].ctrTokenGroupID;
+				inst->flags |= (DRAW_TRANSPARENT | USE_SPECULAR_LIGHT);
+			}
 
-			s16 *cupColor = &data.AdvCups[advCupID].color[0];
+			// token
+			else if (model->id == STATIC_TOKEN)
+			{
+				// get AdvCup ID from level metadata
+				s32 levelID = GAME_TRACKER->levelID;
+				s16 advCupID = GAME_LEVEL_METADATA[levelID].ctrTokenGroupID;
 
-			inst->colorRGBA = (cupColor[0] << UI_INSTANCE_TOKEN_COLOR_R_SHIFT) | (cupColor[1] << UI_INSTANCE_TOKEN_COLOR_G_SHIFT) |
-			                  (cupColor[2] << UI_INSTANCE_TOKEN_COLOR_B_SHIFT);
+				ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
+				ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
+				ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
 
-		ApplyDefaultLightTransparent:
+				inst->colorRGBA = ((u32)GAME_DATA_NAME(AdvCups)[advCupID].color[0] << UI_INSTANCE_TOKEN_COLOR_R_SHIFT) |
+				                  ((u32)GAME_DATA_NAME(AdvCups)[advCupID].color[1] << UI_INSTANCE_TOKEN_COLOR_G_SHIFT) |
+				                  ((u32)GAME_DATA_NAME(AdvCups)[advCupID].color[2] << UI_INSTANCE_TOKEN_COLOR_B_SHIFT);
+				inst->flags |= (DRAW_TRANSPARENT | USE_SPECULAR_LIGHT);
+			}
 
-			ui3D->lightDir.x = UI_INSTANCE_DEFAULT_LIGHT_X;
-			ui3D->lightDir.y = UI_INSTANCE_DEFAULT_LIGHT_Y;
-			ui3D->lightDir.z = UI_INSTANCE_DEFAULT_LIGHT_Z;
+			// Explicit push buffers use fixed depth; otherwise use the player's HUD.
+			if (pushBuffer != 0)
+			{
+				inst->idpp[0].pushBuffer = (struct PushBuffer *)pushBuffer;
 
-			inst->flags |= (DRAW_TRANSPARENT | USE_SPECULAR_LIGHT);
-		}
+				inst->flags |= PUSHBUFFER_EXISTS;
 
-		// if pushBuffer is not supplied,
-		// which means this draws in Player pushBuffer
-		if (pushBuffer == 0)
-		{
-			struct UiElement2D *currUI2D = &hudStruct[hudSlot];
+				lastInst = inst;
+				lastInst->matrix.t[0] = 0;
+				lastInst->matrix.t[1] = 0;
+				lastInst->matrix.t[2] = UI_INSTANCE_PUSHBUFFER_Z;
+			}
+			else
+			{
+				struct UiElement2D *currUI2D = &hudStruct[hudSlot];
+				inst->matrix.t[0] = UI_ConvertX_2(currUI2D->x, currUI2D->z);
+				inst->matrix.t[1] = UI_ConvertY_2(currUI2D->y, currUI2D->z);
+				inst->matrix.t[2] = currUI2D->z;
+				lastInst = inst;
+			}
 
-			inst->matrix.t[0] = UI_ConvertX_2(currUI2D->x, currUI2D->z);
-			inst->matrix.t[1] = UI_ConvertY_2(currUI2D->y, currUI2D->z);
-			inst->matrix.t[2] = currUI2D->z;
-		}
+			{
+				struct UiElement2D *scaleLayout = hudStruct + hudSlot;
+				inst->scale.x = scaleLayout->scale;
+				inst->scale.y = scaleLayout->scale;
+				inst->scale.z = scaleLayout->scale;
+			}
 
-		// if pushBuffer is supplied,
-		// for decalMP and fruitDisp
-		else
-		{
-			struct InstDrawPerPlayer *idpp = INST_GETIDPP(inst);
-			idpp[0].pushBuffer = (struct PushBuffer *)pushBuffer;
+			inst->depthBiasNormal = UI_INSTANCE_DEPTH_BIAS;
+			inst->depthBiasSecondary = UI_INSTANCE_DEPTH_BIAS;
+			if (rotateToHud != UI_INSTANCE_ROTATE_NONE)
+			{
+				s32 xRot = ratan2(inst->matrix.t[1], inst->matrix.t[2]);
+				rot.x = -(s16)xRot;
+				// NOTE(aalhendi): Complete each branch's rotation before the call;
+				// GCC merges the zero stores without pulling arguments ahead of them.
+				rot.y = 0;
+				rot.z = 0;
+			}
+			else
+			{
+				rot.x = 0;
+				rot.y = 0;
+				rot.z = 0;
+			}
 
-			inst->flags |= PUSHBUFFER_EXISTS;
+			ConvertRotToMatrix(&ui3D->m, &rot);
 
-			inst->matrix.t[0] = 0;
-			inst->matrix.t[1] = 0;
-			inst->matrix.t[2] = UI_INSTANCE_PUSHBUFFER_Z;
-		}
+			ui3D->rot.x = 0;
+			ui3D->rot.y = 0;
+			ui3D->rot.z = 0;
+			ui3D->scale = UI_INSTANCE_SCALE;
 
-		scale = hudStruct[hudSlot].scale;
-		inst->scale.x = scale;
-		inst->scale.y = scale;
-		inst->scale.z = scale;
+			// next thread
+			driverThread = driverThread->siblingThread;
 
-		inst->depthBiasNormal = UI_INSTANCE_DEPTH_BIAS;
-		inst->depthBiasSecondary = UI_INSTANCE_DEPTH_BIAS;
-		if (rotateToHud == UI_INSTANCE_ROTATE_NONE)
-		{
-			rot.x = 0;
-		}
-		else
-		{
-			s32 xRot = ratan2(inst->matrix.t[1], inst->matrix.t[2]);
-			rot.x = -(s16)xRot;
-		}
-		rot.y = 0;
-		rot.z = 0;
-
-		// converted to TEST in rebuildPS1
-		ConvertRotToMatrix(&ui3D->m, &rot);
-
-		ui3D->rot.x = 0;
-		ui3D->rot.y = 0;
-		ui3D->rot.z = 0;
-		ui3D->scale = UI_INSTANCE_SCALE;
-
-		// next thread
-		driverThread = driverThread->siblingThread;
-
-		hudStruct += UI_HUD_SLOT_COUNT;
+			playerIndex++;
+		} while (driverThread != 0);
 	}
 
-	return inst;
+	return lastInst;
 }
 
 void UI_INSTANCE_InitAll(void)
 {
 	struct GameTracker *gGT;
+	struct GameTracker *copyTracker;
 	struct Instance *token;
+	struct Instance *crystalToken;
+	struct Instance *hide;
+	struct Instance *hudC;
+	struct Instance *hudT;
+	struct Instance *hudR;
+	struct Instance *relic;
 	u32 gameMode1;
-	u32 relicType;
-	u32 relicTime;
-	int i;
+	s32 relicType;
+	s32 i;
 
-	gGT = sdata->gGT;
-	sdata->menuReadyToPass &= ~UI_INSTANCE_MENU_READY_SHOW_MENU;
+	gGT = GAME_TRACKER;
+	GAME_SDATA_NAME(menuReadyToPass) &= ~UI_INSTANCE_MENU_READY_SHOW_MENU;
 	gGT->renderFlags |= RENDER_FLAG_SPLIT_SCREEN_LINES;
 
 	gameMode1 = gGT->gameMode1;
@@ -246,187 +258,128 @@ void UI_INSTANCE_InitAll(void)
 	// If you're in Crystal Challenge
 	if ((gameMode1 & CRYSTAL_CHALLENGE) != 0)
 	{
-		sdata->ptrMenuCrystal = UI_INSTANCE_BirthWithThread(STATIC_CRYSTAL, (int)UI_ThTick_Reward, UI_HUD_SLOT_CRYSTAL, 0, 0, (int)rdata.s_crystal1);
-		sdata->ptrHudCrystal = UI_INSTANCE_BirthWithThread(STATIC_CRYSTAL, (int)UI_ThTick_Reward, UI_HUD_SLOT_CRYSTAL, 0, 0, (int)rdata.s_crystal1);
+		GAME_SDATA_NAME(ptrMenuCrystal) =
+		    UI_INSTANCE_BirthWithThread(STATIC_CRYSTAL, (s32)UI_ThTick_Reward, UI_HUD_SLOT_CRYSTAL, 0, 0, (s32)GAME_RDATA_NAME(s_crystal1));
+		GAME_SDATA_NAME(ptrHudCrystal) =
+		    UI_INSTANCE_BirthWithThread(STATIC_CRYSTAL, (s32)UI_ThTick_Reward, UI_HUD_SLOT_CRYSTAL, 0, 0, (s32)GAME_RDATA_NAME(s_crystal1));
 
 		// Make a token
-		sdata->ptrToken = UI_INSTANCE_BirthWithThread(STATIC_TOKEN, (int)UI_ThTick_Reward, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (int)sdata->s_token);
+		GAME_SDATA_NAME(ptrToken) =
+		    UI_INSTANCE_BirthWithThread(STATIC_TOKEN, (s32)UI_ThTick_Reward, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (s32)GAME_SDATA_NAME(s_token));
+		hide = GAME_SDATA_NAME(ptrHudCrystal);
 
 		// make Crystal invisible
 #if defined(CTR_NATIVE)
 		// NOTE(aalhendi): Menu-storage can carry CRYSTAL_CHALLENGE into tracks
 		// that did not publish crystal HUD models.
-		if (sdata->ptrHudCrystal != NULL)
+		if (hide != NULL)
 #endif
 		{
-			sdata->ptrHudCrystal->flags |= HIDE_MODEL;
+			hide->flags |= HIDE_MODEL;
 		}
 
 		// make copy of Token pointer
-		token = sdata->ptrToken;
+		crystalToken = GAME_SDATA_NAME(ptrToken);
 
 #if defined(CTR_NATIVE)
-		if (token == NULL)
+		if (crystalToken == NULL)
 		{
 			return;
 		}
 #endif
 
 		// set Token scale (x, y, z) to zero
-		token->scale.x = 0;
-		token->scale.y = 0;
-		token->scale.z = 0;
+		crystalToken->scale.x = 0;
+		crystalToken->scale.y = 0;
+		crystalToken->scale.z = 0;
 
 		// make Token invisible
-		token->flags |= HIDE_MODEL;
+		crystalToken->flags |= HIDE_MODEL;
 		return;
 	}
 
 	// If you're in Adventure Arena
 	if ((gameMode1 & ADVENTURE_ARENA) != 0)
 	{
-		// is ignoring the return value of these calls intentional?
-		UI_INSTANCE_BirthWithThread(STATIC_RELIC, (int)UI_ThTick_Reward, UI_HUD_SLOT_RELIC, 1, 0, (int)sdata->s_relic1);
-		UI_INSTANCE_BirthWithThread(STATIC_KEY, (int)UI_ThTick_Reward, UI_HUD_SLOT_KEY, 1, 0, (int)sdata->s_key1);
-		UI_INSTANCE_BirthWithThread(STATIC_TROPHY, (int)UI_ThTick_Reward, UI_HUD_SLOT_TROPHY, 0, 0, (int)sdata->s_trophy1);
+		// Birth the arena reward HUD elements.
+		UI_INSTANCE_BirthWithThread(STATIC_RELIC, (s32)UI_ThTick_Reward, UI_HUD_SLOT_RELIC, 1, 0, (s32)GAME_SDATA_NAME(s_relic1));
+		UI_INSTANCE_BirthWithThread(STATIC_KEY, (s32)UI_ThTick_Reward, UI_HUD_SLOT_KEY, 1, 0, (s32)GAME_SDATA_NAME(s_key1));
+		UI_INSTANCE_BirthWithThread(STATIC_TROPHY, (s32)UI_ThTick_Reward, UI_HUD_SLOT_TROPHY, 0, 0, (s32)GAME_SDATA_NAME(s_trophy1));
 
-		GAMEPROG_AdvPercent(&sdata->advProgress);
+		GAMEPROG_AdvPercent(&GAME_ADV_PROGRESS);
 
 		return;
 	}
 
 	if ((gameMode1 & (RELIC_RACE | ADVENTURE_ARENA | TIME_TRIAL)) != 0)
 	{
-		for (i = 0; i < UI_INSTANCE_DRIVER_COUNT; i++)
-		{
-#if defined(CTR_NATIVE)
-			// NOTE(aalhendi): PSX low-memory reads are non-fatal for unused driver slots.
-			if (gGT->drivers[i] == NULL)
-			{
-				data.rankIconsCurr[i] = 0;
-			}
-			else
-			{
-#endif
-				data.rankIconsCurr[i] = gGT->drivers[i]->driverRank;
-			}
-
-			// if more than 1 screen
-			if (1 < gGT->numPlyrCurrGame)
-			{
-				data.rankIconsTransitionTimer[i] = UI_INSTANCE_RANK_TRANSITION_FRAMES;
-			}
-		}
-
-		// If you're not in a Relic Race
-		if ((gameMode1 & RELIC_RACE) == 0)
-		{
-			return;
-		}
-
-		// The rest of this block only happens in Relic Mode
-		sdata->ptrRelic = UI_INSTANCE_BirthWithThread(STATIC_RELIC, (int)UI_ThTick_Reward, UI_HUD_SLOT_RELIC, 1, 0, (int)sdata->s_relic1);
-		sdata->ptrTimebox1 = UI_INSTANCE_BirthWithThread(STATIC_TIME_CRATE_01, (int)UI_ThTick_CountPickup, UI_HUD_SLOT_TIMEBOX, 1, 0, (int)rdata.s_timebox1);
-
-		// if instance
-		if (sdata->ptrRelic != 0)
-		{
-			// set scale to zero
-			sdata->ptrRelic->scale.z = 0;
-			sdata->ptrRelic->scale.y = 0;
-			sdata->ptrRelic->scale.x = 0;
-		}
-
-		// Get Relic Time to put in HUD
-		if (
-		    // no platinum and no gold
-		    !CHECK_ADV_BIT(sdata->advProgress.rewards, gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC) &&
-		    !CHECK_ADV_BIT(sdata->advProgress.rewards, gGT->levelID + ADV_REWARD_FIRST_GOLD_RELIC))
-		{
-			// 0 if sapphire not unlocked, (show sapphire)
-			// 1 if sapphire is unlocked (show gold)
-			relicType = CHECK_ADV_BIT(sdata->advProgress.rewards, gGT->levelID + ADV_REWARD_FIRST_SAPPHIRE_RELIC);
-		}
-
-		// if unlocked gold or unlocked platinum
-		else
-		{
-			// put platinum time on screen
-			relicType = UI_INSTANCE_RELIC_PLATINUM_TYPE;
-		}
-
-		// get relic time on this track, for this relic type (sapphire, gold, platinum)
-		relicTime = data.RelicTime[gGT->levelID * UI_INSTANCE_RELIC_TYPE_COUNT + relicType];
-
-		// store globally for HUD to access later
-		sdata->relicTime_1min = relicTime / UI_INSTANCE_RELIC_TIME_UNITS_PER_MINUTE;
-		sdata->relicTime_10sec = (relicTime / UI_INSTANCE_RELIC_TIME_UNITS_PER_10_SECONDS) % UI_INSTANCE_SECONDS_TENS_DIGIT_BASE;
-		sdata->relicTime_1sec = (relicTime / UI_INSTANCE_RELIC_TIME_UNITS_PER_SECOND) % UI_INSTANCE_DECIMAL_DIGIT_BASE;
-		sdata->relicTime_10ms = (relicTime / UI_INSTANCE_RELIC_TIME_UNITS_PER_TENTH_SECOND) % UI_INSTANCE_DECIMAL_DIGIT_BASE;
-		sdata->relicTime_1ms = ((relicTime * UI_INSTANCE_RELIC_HUNDREDTH_SCALE) / UI_INSTANCE_RELIC_TIME_UNITS_PER_SECOND) % UI_INSTANCE_DECIMAL_DIGIT_BASE;
-
-		return;
+		goto InitRankIcons;
 	}
 
 	// used for multiplayer wumpa
-	sdata->ptrPushBufferUI = (int)NULL;
-	if (gGT->numPlyrCurrGame >= 2)
-	{
-		sdata->ptrPushBufferUI = (int)&sdata->pushBuffer_DecalMP;
-	}
+	GAME_SDATA_NAME(ptrPushBufferUI) = gGT->numPlyrCurrGame >= 2 ? (s32)&GAME_SDATA_NAME(pushBuffer_DecalMP) : 0;
 
-	sdata->pushBuffer_DecalMP.matrix_ViewProj = gGT->pushBuffer_UI.matrix_ViewProj;
-	sdata->pushBuffer_DecalMP.pos = gGT->pushBuffer_UI.pos;
-	sdata->pushBuffer_DecalMP.rect = gGT->pushBuffer_UI.rect;
-	sdata->pushBuffer_DecalMP.ptrOT = gGT->pushBuffer_UI.ptrOT;
-	sdata->pushBuffer_DecalMP.distanceToScreen_PREV = gGT->pushBuffer_UI.distanceToScreen_PREV;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).matrix_ViewProj = GAME_TRACKER->pushBuffer_UI.matrix_ViewProj;
+	copyTracker = GAME_TRACKER;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).pos.x = copyTracker->pushBuffer_UI.pos.x;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).pos.y = copyTracker->pushBuffer_UI.pos.y;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).pos.z = copyTracker->pushBuffer_UI.pos.z;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).rect.x = copyTracker->pushBuffer_UI.rect.x;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).rect.y = copyTracker->pushBuffer_UI.rect.y;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).rect.w = copyTracker->pushBuffer_UI.rect.w;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).rect.h = copyTracker->pushBuffer_UI.rect.h;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).ptrOT = copyTracker->pushBuffer_UI.ptrOT;
+	GAME_SDATA_NAME(pushBuffer_DecalMP).distanceToScreen_PREV = copyTracker->pushBuffer_UI.distanceToScreen_PREV;
 
-	sdata->ptrFruitDisp = (int)UI_INSTANCE_BirthWithThread(STATIC_FRUITDISP, (int)UI_ThTick_CountPickup, UI_HUD_SLOT_FRUIT_MODEL, 1, sdata->ptrPushBufferUI,
-	                                                       (int)rdata.s_fruitdisp);
+	GAME_SDATA_NAME(ptrFruitDisp) = (s32)UI_INSTANCE_BirthWithThread(STATIC_FRUITDISP, (s32)UI_ThTick_CountPickup, UI_HUD_SLOT_FRUIT_MODEL, 1,
+	                                                                 GAME_SDATA_NAME(ptrPushBufferUI), (s32)GAME_RDATA_NAME(s_fruitdisp));
 
-	if ((gGT->numPlyrCurrGame < 3) &&
+	if ((GAME_TRACKER->numPlyrCurrGame < 3) &&
 
 	    // If you're not in Battle Mode
-	    ((gameMode1 & BATTLE_MODE) == 0))
+	    ((GAME_TRACKER->gameMode1 & BATTLE_MODE) == 0))
 	{
-		UI_INSTANCE_BirthWithThread(STATIC_BIG1, (int)UI_ThTick_big1, UI_HUD_SLOT_BIG1, 0, 0, (int)sdata->s_big1);
+		UI_INSTANCE_BirthWithThread(STATIC_BIG1, (s32)UI_ThTick_big1, UI_HUD_SLOT_BIG1, 0, 0, (s32)GAME_SDATA_NAME(s_big1));
 	}
 
 	// If you're not in Adventure Mode
-	if ((gameMode1 & ADVENTURE_MODE) == 0)
+	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) == 0)
 	{
 		return;
 	}
 
-	sdata->ptrHudC = UI_INSTANCE_BirthWithThread(STATIC_C, (int)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (int)sdata->s_hudc);
-	sdata->ptrHudT = UI_INSTANCE_BirthWithThread(STATIC_T, (int)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (int)sdata->s_hudt);
-	sdata->ptrHudR = UI_INSTANCE_BirthWithThread(STATIC_R, (int)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (int)sdata->s_hudr);
+	GAME_SDATA_NAME(ptrHudC) = UI_INSTANCE_BirthWithThread(STATIC_C, (s32)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (s32)GAME_SDATA_NAME(s_hudc));
+	GAME_SDATA_NAME(ptrHudT) = UI_INSTANCE_BirthWithThread(STATIC_T, (s32)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (s32)GAME_SDATA_NAME(s_hudt));
+	GAME_SDATA_NAME(ptrHudR) = UI_INSTANCE_BirthWithThread(STATIC_R, (s32)UI_ThTick_CtrLetters, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (s32)GAME_SDATA_NAME(s_hudr));
 
 	// Make a token
-	sdata->ptrToken = UI_INSTANCE_BirthWithThread(STATIC_TOKEN, (int)UI_ThTick_Reward, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (int)sdata->s_token);
+	GAME_SDATA_NAME(ptrToken) = UI_INSTANCE_BirthWithThread(STATIC_TOKEN, (s32)UI_ThTick_Reward, UI_HUD_SLOT_TOKEN_OR_CTR, 0, 0, (s32)GAME_SDATA_NAME(s_token));
+	hudC = GAME_SDATA_NAME(ptrHudC);
 
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): PSX writes the hidden C/T/R flags through null HUD pointers in Garage; native cannot.
-	if (sdata->ptrHudC != NULL)
+	if (hudC != NULL)
 #endif
 	{
-		sdata->ptrHudC->flags |= HIDE_MODEL;
+		hudC->flags |= HIDE_MODEL;
 	}
+	hudT = GAME_SDATA_NAME(ptrHudT);
 #if defined(CTR_NATIVE)
-	if (sdata->ptrHudT != NULL)
+	if (hudT != NULL)
 #endif
 	{
-		sdata->ptrHudT->flags |= HIDE_MODEL;
+		hudT->flags |= HIDE_MODEL;
 	}
+	hudR = GAME_SDATA_NAME(ptrHudR);
 #if defined(CTR_NATIVE)
-	if (sdata->ptrHudR != NULL)
+	if (hudR != NULL)
 #endif
 	{
-		sdata->ptrHudR->flags |= HIDE_MODEL;
+		hudR->flags |= HIDE_MODEL;
 	}
 
 	// make copy of Token pointer
-	token = sdata->ptrToken;
+	token = GAME_SDATA_NAME(ptrToken);
 
 	// set Token scale (x, y, z) to zero
 	token->scale.x = 0;
@@ -436,4 +389,63 @@ void UI_INSTANCE_InitAll(void)
 	// make Token invisible
 	token->flags |= HIDE_MODEL;
 	return;
+
+InitRankIcons:
+	for (i = 0; i < UI_INSTANCE_DRIVER_COUNT; i++)
+	{
+#if defined(CTR_NATIVE)
+		// NOTE(aalhendi): PSX low-memory reads are non-fatal for unused driver slots.
+		if (gGT->drivers[i] == NULL)
+		{
+			GAME_DATA_NAME(rankIconsCurr)[i] = 0;
+		}
+		else
+#endif
+		{
+			GAME_DATA_NAME(rankIconsCurr)[i] = gGT->drivers[i]->driverRank;
+		}
+		if (1 < gGT->numPlyrCurrGame)
+		{
+			GAME_DATA_NAME(rankIconsTransitionTimer)[i] = UI_INSTANCE_RANK_TRANSITION_FRAMES;
+		}
+	}
+	if ((GAME_TRACKER->gameMode1 & RELIC_RACE) == 0)
+	{
+		return;
+	}
+	GAME_SDATA_NAME(ptrRelic) = UI_INSTANCE_BirthWithThread(STATIC_RELIC, (s32)UI_ThTick_Reward, UI_HUD_SLOT_RELIC, 1, 0, (s32)GAME_SDATA_NAME(s_relic1));
+	GAME_SDATA_NAME(ptrTimebox1) =
+	    UI_INSTANCE_BirthWithThread(STATIC_TIME_CRATE_01, (s32)UI_ThTick_CountPickup, UI_HUD_SLOT_TIMEBOX, 1, 0, (s32)GAME_RDATA_NAME(s_timebox1));
+	relic = GAME_SDATA_NAME(ptrRelic);
+	if (relic != 0)
+	{
+		relic->scale.z = 0;
+		relic->scale.y = 0;
+		relic->scale.x = 0;
+	}
+	if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC) ||
+	    CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_GOLD_RELIC))
+	{
+		relicType = UI_INSTANCE_RELIC_PLATINUM_TYPE;
+	}
+	else
+	{
+		relicType = CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_SAPPHIRE_RELIC);
+	}
+	// Relic thresholds are signed; select this track's entry for each digit.
+	GAME_SDATA_NAME(relicTime_1min) =
+	    (GAME_DATA_NAME(RelicTime) + relicType)[GAME_TRACKER->levelID * UI_INSTANCE_RELIC_TYPE_COUNT] / UI_INSTANCE_RELIC_TIME_UNITS_PER_MINUTE;
+	GAME_SDATA_NAME(relicTime_10sec) =
+	    ((GAME_DATA_NAME(RelicTime) + relicType)[GAME_TRACKER->levelID * UI_INSTANCE_RELIC_TYPE_COUNT] / UI_INSTANCE_RELIC_TIME_UNITS_PER_10_SECONDS) %
+	    UI_INSTANCE_SECONDS_TENS_DIGIT_BASE;
+	GAME_SDATA_NAME(relicTime_1sec) =
+	    ((GAME_DATA_NAME(RelicTime) + relicType)[GAME_TRACKER->levelID * UI_INSTANCE_RELIC_TYPE_COUNT] / UI_INSTANCE_RELIC_TIME_UNITS_PER_SECOND) %
+	    UI_INSTANCE_DECIMAL_DIGIT_BASE;
+	GAME_SDATA_NAME(relicTime_10ms) =
+	    ((GAME_DATA_NAME(RelicTime) + relicType)[GAME_TRACKER->levelID * UI_INSTANCE_RELIC_TYPE_COUNT] / UI_INSTANCE_RELIC_TIME_UNITS_PER_TENTH_SECOND) %
+	    UI_INSTANCE_DECIMAL_DIGIT_BASE;
+	GAME_SDATA_NAME(relicTime_1ms) =
+	    (((GAME_DATA_NAME(RelicTime) + relicType)[GAME_TRACKER->levelID * UI_INSTANCE_RELIC_TYPE_COUNT] * UI_INSTANCE_RELIC_HUNDREDTH_SCALE) /
+	     UI_INSTANCE_RELIC_TIME_UNITS_PER_SECOND) %
+	    UI_INSTANCE_DECIMAL_DIGIT_BASE;
 }

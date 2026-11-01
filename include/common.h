@@ -65,6 +65,8 @@
 #define GAME_TOKEN                   (sdata->ptrToken)
 #define GAME_ADD_CONFIG_0            (sdata->Loading.OnBegin.AddBitsConfig0)
 #define GAME_REMOVE_CONFIG_0         (sdata->Loading.OnBegin.RemBitsConfig0)
+#define GAME_ADD_CONFIG_8            (sdata->Loading.OnBegin.AddBitsConfig8)
+#define GAME_REMOVE_CONFIG_8         (sdata->Loading.OnBegin.RemBitsConfig8)
 #define GAME_DOOR_ACCESS_FLAGS       (sdata->doorAccessFlags)
 #define GAME_DRIVER_MODEL_EXTRAS     (data.driverModelExtras)
 #define GAME_PLAYER_OBJECT_LIST      (sdata->PLYROBJECTLIST)
@@ -112,6 +114,10 @@
 #define GAME_HUD_LAYOUTS (data.hudStructPtr)
 #endif
 
+#ifndef GAME_LOAD_UI_COLOR_TABLE
+#define GAME_LOAD_UI_COLOR_TABLE(result) ((result) = data.ptrColor)
+#endif
+
 #ifndef GAME_LAP_MINUTE_UNITS
 #define GAME_LAP_MINUTE_UNITS      (sdata->LapTimes.minuteUnits)
 #define GAME_LAP_CENTISECOND_TENS  (sdata->LapTimes.centisecondTens)
@@ -120,8 +126,9 @@
 #define GAME_LAP_SECOND_UNITS      (sdata->LapTimes.secondUnits)
 #endif
 
-#ifndef GAME_WUMPA_HUD_VIEWPORTS
-#define GAME_WUMPA_HUD_VIEWPORTS (sdata->multiplayerWumpaHudData)
+#ifndef GAME_WUMPA_HUD_VIEWPORT_2P
+#define GAME_WUMPA_HUD_VIEWPORT_2P   (sdata->multiplayerWumpaHudData[0])
+#define GAME_WUMPA_HUD_VIEWPORT_3P4P (sdata->multiplayerWumpaHudData[1])
 #endif
 
 #ifndef GAME_MUSIC_PLAYING_INITIAL
@@ -209,6 +216,10 @@
 		(result) = GAME_AUDIO_BANK_COUNT;                    \
 		(void)(dependency);                                  \
 	} while (0)
+#endif
+
+#ifndef GAME_TRACKER_SYMBOLIC
+#define GAME_TRACKER_SYMBOLIC GAME_TRACKER
 #endif
 
 // NOTE(aalhendi): Retail sometimes rereads the pointer slot rather than reusing

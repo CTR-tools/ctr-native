@@ -2031,15 +2031,9 @@ struct Data
 	// 13 - timeCrateNum
 	// 14 - num elements
 
-	struct UiElement2D hud_1P_P1[0x14];
-
-	struct UiElement2D hud_2P_P1[0x14];
-	struct UiElement2D hud_2P_P2[0x14];
-
-	struct UiElement2D hud_4P_P1[0x14];
-	struct UiElement2D hud_4P_P2[0x14];
-	struct UiElement2D hud_4P_P3[0x14];
-	struct UiElement2D hud_4P_P4[0x14];
+	// NOTE(aalhendi): Garage has four PLAYER threads with one viewport.
+	// Keep all seven player layouts in one bank for cross-group traversal.
+	struct UiElement2D hudElements[7 * UI_HUD_SLOT_COUNT];
 
 	// 8008625c, array of four pointers,
 	// [0] = 1P P1

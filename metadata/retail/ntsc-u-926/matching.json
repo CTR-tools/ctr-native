@@ -1021,6 +1021,29 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "ui-icons",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_WeaponBG_AnimateShine",
+      "end_symbol": "UI_Lerp2D_Angular",
+      "symbol_prefix": "UI_",
+      "source": "game/UI/UI_Icon.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G16", "-msoft-float", "-fno-loop-optimize", "-mt9-constraint=on"],
+      "small_data_limit": 16,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_sdata_wumpaShineTheta": "0x8008d990",
+        "ctr_sdata_wumpaShineResult": "0x8008d994",
+        "ctr_sdata_wumpaShineColor1": "0x8008d998",
+        "ctr_sdata_wumpaShineColor2": "0x8008d9a4"
+      }
+    },
+    {
       "name": "ghost-replay",
       "kind": "resident",
       "artifact": "exe",
@@ -4205,6 +4228,23 @@
       "linked_block": {}
     },
     {
+      "name": "ui-speedometer",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_DrawSpeedNeedle",
+      "end_symbol": "UI_JumpMeter_Update",
+      "symbol_prefix": "UI_DrawSpeed",
+      "source": "game/UI/UI_Speedometer.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "cam-pose",
       "kind": "resident",
       "artifact": "exe",
@@ -4250,6 +4290,41 @@
       ],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "ui-instance",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_INSTANCE_BirthWithThread",
+      "end_symbol": "UI_Map_DrawMap",
+      "symbol_prefix": "UI_INSTANCE_",
+      "source": "game/UI/UI_Instance.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_sdata_menuReadyToPass": "0x8008d4bc",
+        "ctr_sdata_ptrPushBufferUI": "0x8008d4b4",
+        "ctr_sdata_ptrFruitDisp": "0x8008d4b8",
+        "ctr_sdata_ptrRelic": "0x8008d9b4",
+        "ctr_sdata_ptrHudCrystal": "0x8008d9bc",
+        "ctr_sdata_ptrMenuCrystal": "0x8008d9c0",
+        "ctr_sdata_ptrHudT": "0x8008d9c4",
+        "ctr_sdata_ptrHudR": "0x8008d9c8",
+        "ctr_sdata_ptrHudC": "0x8008d9cc",
+        "ctr_sdata_ptrToken": "0x8008d9d0",
+        "ctr_sdata_ptrTimebox1": "0x8008d9d8",
+        "ctr_sdata_relicTime_1min": "0x8008d9b0",
+        "ctr_sdata_relicTime_10sec": "0x8008d9e0",
+        "ctr_sdata_relicTime_1sec": "0x8008d9e8",
+        "ctr_sdata_relicTime_10ms": "0x8008d9d4",
+        "ctr_sdata_relicTime_1ms": "0x8008d9b8"
+      },
       "linked_block": {}
     },
     {
@@ -4660,6 +4735,47 @@
       "linked_block": {}
     },
     {
+      "name": "ui-wumpa-multiplayer",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_RenderFrame_Wumpa3D_2P3P4P",
+      "end_symbol": "UI_VsQuipReadDriver",
+      "symbol_prefix": "UI_",
+      "source": "game/UI/UI_RenderFrameWumpa.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_sdata_ptrPushBufferUI": "0x8008d4b4",
+        "ctr_sdata_wumpaShineResult": "0x8008d994"
+      },
+      "linked_block": {}
+    },
+    {
+      "name": "ui-tracker-indicators",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_BattleDrawHeadArrows",
+      "end_symbol": "UI_DrawPosSuffix",
+      "symbol_prefix": "UI_",
+      "sources": ["game/UI/UI_BattleDrawHeadArrows.c", "game/UI/UI_TrackerSelf.c"],
+      "source_flags": {
+        "game/UI/UI_BattleDrawHeadArrows.c": ["-mno-split-addresses"],
+        "game/UI/UI_TrackerSelf.c": ["-DRETAIL_GAME_TRACKER_CPU_ADDRESS=0x8008d2ac"]
+      },
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-fno-loop-optimize"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "ui-race-hud-text",
       "kind": "resident",
       "artifact": "exe",
@@ -5056,6 +5172,27 @@
       "linked_block": {}
     },
     {
+      "name": "ui-race-flow",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_RaceStart_IntroText1P",
+      "end_symbol": "UI_CupStandings_FinalizeCupRanks",
+      "symbol_prefix": "UI_Race",
+      "sources": ["game/UI/UI_RaceStart.c", "game/UI/UI_RaceEndMenu.c"],
+      "source_flags": {
+        "game/UI/UI_RaceEndMenu.c": ["-mordered-gp-prologue=descending"]
+      },
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "function_rodata_addresses": {"UI_RaceStart_IntroText1P": "0x80011708"},
+      "linked_block": {"rodata_address": "0x80011708", "rodata_size": 9}
+    },
+    {
       "name": "ui-jump-meter-update",
       "kind": "resident",
       "artifact": "exe",
@@ -5100,6 +5237,22 @@
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "ui-ranked-drivers",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_DrawRankedDrivers",
+      "end_symbol": "UI_RenderFrame_Racing",
+      "symbol_prefix": "UI_DrawRankedDrivers",
+      "source": "game/UI/UI_Rank.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/ui-ranked-drivers/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-fno-loop-optimize"],
+      "small_data_limit": 0,
       "aspsx_version": "2.77",
       "linked_block": {}
     },
@@ -5409,6 +5562,22 @@
       "include_directories": ["include"],
       "compiler_flags": ["-O2", "-G0", "-msoft-float"],
       "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "ui-cup-standings",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "UI_CupStandings_InputAndDraw",
+      "end_symbol": "Vector_SpecLightSpin2D",
+      "symbol_prefix": "UI_CupStandings_InputAndDraw",
+      "source": "game/UI/UI_CupStandings.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/ui-cup-standings/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}
     }

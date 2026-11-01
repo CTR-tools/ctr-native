@@ -71,6 +71,15 @@ static inline void CTR_GteComposeRotationWords(u32 *r0, u32 *r1, u32 *r2, u32 *r
 #define CTR_GteReadDataDelayed(dst, reg) __asm__ volatile("mfc2 %0,$" CTR_GTE_STRINGIFY(reg) "\n\tnop" : "=r"(dst))
 #endif
 
+// NOTE(aalhendi): SDK flags capture into a word-aligned destination includes
+// the CPU read delay before storing; T4 is the transfer's scratch register.
+#ifdef CTR_NATIVE
+#define CTR_GteStoreFlagsWord(destination) gte_stflg(destination)
+#else
+#define CTR_GteStoreFlagsWord(destination) \
+	__asm__ volatile("cfc2 $12,$31\n\tnop\n\tsw $12,0(%0)" : : "r"(destination) : "$12", "memory")
+#endif
+
 // The MAC2 read fills MAC1's CPU load delay. A caller using MAC2 must delay too.
 #ifdef CTR_NATIVE
 #define CTR_GteReadMAC12(mac1, mac2) \

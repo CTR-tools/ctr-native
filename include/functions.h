@@ -679,7 +679,7 @@ int UI_ConvertX_2(int posX, int scale);
 int UI_ConvertY_2(int posY, int scale);
 
 void UI_INSTANCE_InitAll(void);
-struct Instance *UI_INSTANCE_BirthWithThread(int modelID, int tickFunc, int hudSlot, int rotateToHud, int pushBuffer, int threadName);
+struct Instance *UI_INSTANCE_BirthWithThread(s32 modelID, s32 tickFunc, s32 hudSlot, b32 rotateToHud, s32 pushBuffer, s32 threadName);
 
 void UI_DrawBattleScores(s32 posX, s32 posY, struct Driver *d);
 void UI_BattleDrawHeadArrows(struct Driver *player);
@@ -688,8 +688,8 @@ void UI_DrawLapCount(s16 posX, s32 posY, s32 unusedScale, struct Driver *d);
 void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_WeaponBG_AnimateShine(void);
-void UI_WeaponBG_DrawShine(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int unusedColor);
-void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int color);
+void UI_WeaponBG_DrawShine(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 scaleX, s16 scaleY, u32 unusedColor);
+void UI_TrackerBG(struct Icon *icon, s32 centerX, s32 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 scaleX, s16 scaleY, u32 color);
 void UI_DrawNumWumpa(s16 param_1, s16 param_2, struct Driver *d);
 void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawNumRelic(s16 posX, s16 posY, struct Driver *driver);
@@ -708,7 +708,7 @@ void UI_VsQuipDrawAll(void);
 void UI_VsWaitForPressX(void);
 void UI_RaceStart_IntroText1P(void);
 void UI_DrawRankedDrivers(void);
-void UI_DrawDriverIcon(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 scale, u32 color);
+void UI_DrawDriverIcon(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 scale, u32 color);
 void UI_RenderFrame_AdvHub(void);
 void UI_RenderFrame_Racing(void);
 void UI_RenderFrame_Wumpa3D_2P3P4P(struct GameTracker *gGT);

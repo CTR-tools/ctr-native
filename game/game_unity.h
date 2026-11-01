@@ -234,7 +234,10 @@
 #include "UI/UI_RenderFrame.c"
 #include "UI/UI_VsQuip.c"
 #include "UI/UI_VsWait.c"
-#include "UI/UI_RaceFlow.c"
+#include "UI/UI_RaceEndClock.c"
+#include "UI/UI_RaceStart.c"
+#include "UI/UI_RaceEndMenu.c"
+#include "UI/UI_CupRanks.c"
 #include "UI/UI_CupStandings.c"
 
 #include "Vehicle/VehBirth.c"

@@ -38,7 +38,16 @@
 #define RETAIL_LOAD_PATCH_MEMORY_ASM_NAME                    "rdata+4552"
 #define RETAIL_LOAD_PATCH_MEMORY_LOW                         4552
 
+// NOTE(aalhendi): A per-unit CPU address avoids a live symbolic HIGH temporary
+// across packet allocations; its type and storage remain the canonical GT slot.
+#ifdef RETAIL_GAME_TRACKER_CPU_ADDRESS
+#define GAME_TRACKER (*(__typeof__(&sdata_static.gGT))RETAIL_GAME_TRACKER_CPU_ADDRESS)
+#else
 #define GAME_TRACKER                                         ctr_gameTrackerPtr
+#endif
+// NOTE(aalhendi): A named view of the same slot keeps address materialization
+// separate in units that also use the numeric CPU-address view above.
+#define GAME_TRACKER_SYMBOLIC                                ctr_gameTrackerPtr
 #define GAME_TRAFFIC_LIGHT_PREVIOUS_TIMER                    ctr_trafficLightPreviousTimer
 #define GAME_LOADING_STAGE                                   ctr_loadingStage
 #define GAME_LOAD_IN_PROGRESS                                ctr_loadInProgress
@@ -51,12 +60,21 @@
 #define GAME_CHARACTER_METADATA                              ctr_characterMetadata
 #define GAME_CHARACTER_IDS                                   ctr_characterIDs
 #define GAME_HUD_LAYOUTS                                     ctr_hudLayouts
+// NOTE(aalhendi): Retain the page owner separately from the indexed table;
+// unsplit loads otherwise merge these address producers in the HUD loop.
+#define GAME_LOAD_UI_COLOR_TABLE(result) \
+	do \
+	{ \
+		void *colorPage; \
+		CTR_PSX_WITH_RETAIL_PAGE(colorPage, 0x80080000u, 0x1d70, ctr_data_ptrColor, (result) = colorPage); \
+	} while (0)
 #define GAME_LAP_MINUTE_UNITS                                ctr_lapMinuteUnits
 #define GAME_LAP_CENTISECOND_TENS                            ctr_lapCentisecondTens
 #define GAME_LAP_CENTISECOND_UNITS                           ctr_lapCentisecondUnits
 #define GAME_LAP_SECOND_TENS                                 ctr_lapSecondTens
 #define GAME_LAP_SECOND_UNITS                                ctr_lapSecondUnits
-#define GAME_WUMPA_HUD_VIEWPORTS                             ctr_wumpaHudViewports
+#define GAME_WUMPA_HUD_VIEWPORT_2P                           ctr_wumpaHudViewport2P[0]
+#define GAME_WUMPA_HUD_VIEWPORT_3P4P                         ctr_wumpaHudViewport3P4P[0]
 #define GAME_BATTLE_CAMERA_HEIGHTS                           ctr_battleCameraHeights
 #define GAME_SPIN360_DRIVER_HEIGHTS                          ctr_spin360DriverHeights
 #define GAME_CAMERA_THREAD_NAME                              ctr_cameraThreadName
@@ -96,6 +114,8 @@
 #define GAME_TOKEN                                           ctr_token
 #define GAME_ADD_CONFIG_0                                    ctr_addConfig0
 #define GAME_REMOVE_CONFIG_0                                 ctr_removeConfig0
+#define GAME_ADD_CONFIG_8                                    ctr_addConfig8
+#define GAME_REMOVE_CONFIG_8                                 ctr_removeConfig8
 #define GAME_DOOR_ACCESS_FLAGS                               ctr_doorAccessFlags
 #define GAME_DRIVER_MODEL_EXTRAS                             ctr_driverModelExtras
 #define GAME_PLAYER_OBJECT_LIST                              ctr_playerObjectList
@@ -154,7 +174,14 @@ extern volatile u16 *psxSpuRegs asm("data+48468");
 // NOTE(aalhendi): These declarations name existing resident storage. Native
 // accesses the same fields through the canonical sData and Data aggregates.
 extern struct GameTracker *ctr_gameTrackerPtr asm(RETAIL_GAME_TRACKER_ASM_NAME);
+extern u32 *ctr_data_ptrColor[NUM_COLORS] asm("data+5072");
 extern s32 ctr_trafficLightPreviousTimer asm("168($28)");
+extern struct GhostRecording ctr_sdata_GhostRecording asm("sdata_static+11400");
+extern struct GhostHeader *ctr_sdata_ptrGhostTapePlaying asm("sdata_static+2024");
+extern b16 ctr_sdata_boolReplayHumanGhost asm("sdata_static+2540");
+extern b16 ctr_sdata_boolGhostsDrawing asm("sdata_static+2004");
+extern struct RectMenu *ctr_sdata_ptrDesiredMenu asm("sdata_static+2488");
+extern u32 ctr_sdata_battleSetup_Color_UI_1 asm("sdata_static+1228");
 extern u8 ctr_matrixTableBaked asm("1572($28)");
 extern b8 ctr_loadQueueReady asm("308($28)");
 extern s32 ctr_loadVramFinished asm("316($28)");
@@ -183,6 +210,21 @@ extern s32 ctr_sdata_relicTime_10sec;
 extern s32 ctr_sdata_relicTime_1sec;
 extern s32 ctr_sdata_relicTime_10ms;
 extern s32 ctr_sdata_relicTime_1ms;
+extern s32 ctr_sdata_menuReadyToPass;
+extern s32 ctr_sdata_ptrPushBufferUI;
+extern s32 ctr_sdata_ptrFruitDisp;
+extern struct Instance *ctr_sdata_ptrRelic;
+extern struct Instance *ctr_sdata_ptrHudCrystal;
+extern struct Instance *ctr_sdata_ptrMenuCrystal;
+extern struct Instance *ctr_sdata_ptrHudT;
+extern struct Instance *ctr_sdata_ptrHudR;
+extern struct Instance *ctr_sdata_ptrHudC;
+extern struct Instance *ctr_sdata_ptrToken;
+extern struct Instance *ctr_sdata_ptrTimebox1;
+extern s32 ctr_sdata_wumpaShineTheta;
+extern s32 ctr_sdata_wumpaShineResult;
+extern u8 ctr_sdata_wumpaShineColor1[3][4];
+extern u8 ctr_sdata_wumpaShineColor2[3][4];
 extern char ctr_sdata_s_Ln[] asm("sdata_static+1440");
 extern char ctr_sdata_s_int[] asm("sdata_static+1444");
 extern char ctr_sdata_s_intDividing[] asm("sdata_static+1448");
@@ -194,12 +236,38 @@ extern struct MetaDataCHAR ctr_characterMetadata[16] asm(RETAIL_CHARACTER_METADA
 extern s16 ctr_characterIDs[8] asm(RETAIL_CHARACTER_IDS_ASM_NAME);
 // NOTE(aalhendi): The owned HUD-layout pointer table is indexed by player count minus one.
 extern struct UiElement2D *ctr_hudLayouts[4] asm("data+22716");
+extern __typeof__(data.trackerAnim1) ctr_data_trackerAnim1 asm("data+22732");
+extern __typeof__(data.trackerAnim2) ctr_data_trackerAnim2 asm("data+22764");
+extern __typeof__(data.trackerTimer) ctr_data_trackerTimer asm("data+22856");
+extern __typeof__(data.trackerDist) ctr_data_trackerDist asm("data+22864");
+extern __typeof__(data.trackerType) ctr_data_trackerType asm("data+22872");
+extern struct AdventureCup ctr_data_AdvCups[5] asm("data+14196");
+extern s16 ctr_data_rankIconsCurr[8] asm("data+22824");
+extern __typeof__(data.rankIconsDesired) ctr_data_rankIconsDesired asm("data+22808");
+extern s16 ctr_data_rankIconsTransitionTimer[8] asm("data+22840");
+extern s32 ctr_data_RelicTime[54] asm("data+22944");
+extern Point ctr_data_speedometerBG_vertData[2][14] asm("data+23244");
+extern char ctr_retail_s_crystal1[12] asm("rdata+5808");
+extern char ctr_retail_s_fruitdisp[12] asm("rdata+5820");
+extern char ctr_retail_s_timebox1[12] asm("rdata+5832");
+extern char ctr_sdata_s_token[] asm("sdata_static+1364");
+extern char ctr_sdata_s_relic1[] asm("sdata_static+1372");
+extern char ctr_sdata_s_key1[] asm("sdata_static+1380");
+extern char ctr_sdata_s_trophy1[] asm("sdata_static+1388");
+extern char ctr_sdata_s_big1[] asm("sdata_static+1396");
+extern char ctr_sdata_s_hudc[] asm("sdata_static+1404");
+extern char ctr_sdata_s_hudt[] asm("sdata_static+1412");
+extern char ctr_sdata_s_hudr[] asm("sdata_static+1420");
+extern struct PushBuffer ctr_sdata_pushBuffer_DecalMP asm("sdata_static+56748");
 extern s32 ctr_lapMinuteUnits[14] asm("sdata_static+56468");
 extern s32 ctr_lapCentisecondTens[14] asm("sdata_static+56524");
 extern s32 ctr_lapCentisecondUnits[14] asm("sdata_static+56580");
 extern s32 ctr_lapSecondTens[14] asm("sdata_static+56636");
 extern s32 ctr_lapSecondUnits[14] asm("sdata_static+56692");
-extern RECT ctr_wumpaHudViewports[2] asm("sdata_static+1512");
+// NOTE(aalhendi): These adjacent presets have independent absolute addresses.
+// Unspecified extents keep each eight-byte row out of the small-data class.
+extern RECT ctr_wumpaHudViewport2P[] asm("sdata_static+1512");
+extern RECT ctr_wumpaHudViewport3P4P[] asm("sdata_static+1520");
 extern s32 ctr_battleCameraHeights[5] asm("data+1588");
 extern s32 ctr_spin360DriverHeights[5] asm("data+1608");
 // NOTE(aalhendi): An unspecified extent preserves retail absolute addressing;
@@ -297,6 +365,8 @@ extern Color ctr_menuHighlight asm("sdata_static+2528");
 extern struct Instance *ctr_token asm("sdata_static+2660");
 extern u32 ctr_addConfig0 asm(RETAIL_ADD_CONFIG_0_ASM_NAME);
 extern u32 ctr_removeConfig0 asm("sdata_static+408");
+extern u32 ctr_addConfig8 asm("sdata_static+412");
+extern u32 ctr_removeConfig8 asm("sdata_static+416");
 extern u32 ctr_doorAccessFlags asm("sdata_static+1980");
 extern DriverModelExtraSlot ctr_driverModelExtras[LOAD_DRIVER_MODEL_EXTRA_COUNT] asm("data+12400");
 extern struct Model **ctr_playerObjectList asm("sdata_static+2308");

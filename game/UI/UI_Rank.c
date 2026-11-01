@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ctr_gte_transfer.h>
 
 enum UIRankConstants
 {
@@ -11,13 +12,11 @@ enum UIRankConstants
 	UI_RANK_TEXT_SLOT_HEIGHT = 0x1b,
 	UI_RANK_ICON_X = 0x14,
 	UI_RANK_ICON_BASE_Y = 0x39,
-	UI_RANK_ICON_OFFSCREEN_X = -100,
 	UI_RANK_ICON_SCALE = FP(1),
 	UI_RANK_TRANSITION_FRAMES = 5,
 	UI_RANK_DAMAGE_TIMER_FRAMES = 30,
 	UI_RANK_DAMAGE_COLOR_STEP = 4,
 	UI_RANK_DAMAGE_COLOR_NEUTRAL = 0x808080,
-	UI_RANK_DAMAGE_COLOR_MAX_CHANNEL = 0xff,
 	UI_RANK_TRACK_DISTANCE_SCALE = 8,
 	UI_RANK_TRACK_SCREEN_DIVISOR = 0x1d1,
 	UI_RANK_TRACK_SMOOTH_DIVISOR = 0xe,
@@ -32,202 +31,213 @@ enum UIRankConstants
 };
 
 
-// UI_Rank_GetDamageColor factors the duplicated inline color-timer logic.
+// NOTE(aalhendi): Both paths write each damage channel separately; packed
+// arithmetic would carry between channels for timers outside the normal range.
 
-// Draw player icons on left side of screen
-// in Arcade mode and Boss mode, and draws
-// icons in multiplayer on the midY axis (and warpball)
+#define UI_RANK_DAMAGE_COLOR_BODY(driverSlot, color, channels, initialTimer, positiveTimerFrames)                             \
+	{                                                                                                                         \
+		if ((initialTimer) > 0)                                                                                               \
+		{                                                                                                                     \
+			s32 redStrength = ((positiveTimerFrames) - (initialTimer)) * UI_RANK_DAMAGE_COLOR_STEP;                           \
+			s32 greenTimer = (*(driverSlot))->damageColorTimer;                                                               \
+			(color)->r = ~redStrength;                                                                                        \
+			(channels)[1] = ((positiveTimerFrames) - greenTimer) * UI_RANK_DAMAGE_COLOR_STEP;                                 \
+			(channels)[2] = ((positiveTimerFrames) - (*(driverSlot))->damageColorTimer) * UI_RANK_DAMAGE_COLOR_STEP;          \
+			(*(driverSlot))->damageColorTimer--;                                                                              \
+		}                                                                                                                     \
+		else if ((initialTimer) < 0)                                                                                          \
+		{                                                                                                                     \
+			(color)->r = ((initialTimer) + UI_RANK_DAMAGE_TIMER_FRAMES) * UI_RANK_DAMAGE_COLOR_STEP;                          \
+			(channels)[1] = ~(((*(driverSlot))->damageColorTimer + UI_RANK_DAMAGE_TIMER_FRAMES) * UI_RANK_DAMAGE_COLOR_STEP); \
+			(channels)[2] = ((*(driverSlot))->damageColorTimer + UI_RANK_DAMAGE_TIMER_FRAMES) * UI_RANK_DAMAGE_COLOR_STEP;    \
+			(*(driverSlot))->damageColorTimer++;                                                                              \
+		}                                                                                                                     \
+		else                                                                                                                  \
+		{                                                                                                                     \
+			ColorCode_SetPacked(color, UI_RANK_DAMAGE_COLOR_NEUTRAL);                                                         \
+		}                                                                                                                     \
+	}
 
-internal int UI_Rank_GetDamageColor(int driverIndex)
+static inline void UI_Rank_UpdateDamageColor1P(struct Driver **driverSlot, Color *color, u8 *channelInput, s32 initialTimer, s32 positiveTimerFrames)
 {
-	struct GameTracker *gGT = sdata->gGT;
-	struct Driver *d = gGT->drivers[driverIndex];
+	register u8 *channels CTR_PSX_REGISTER("$23") = channelInput;
+	UI_RANK_DAMAGE_COLOR_BODY(driverSlot, color, channels, initialTimer, positiveTimerFrames);
+}
 
-	int damageTimer = d->damageColorTimer;
-
-	// make icon white
-	int color = UI_RANK_DAMAGE_COLOR_NEUTRAL;
-
-	// -30 to -1
-	if (damageTimer < 0)
-	{
-		color = 0;
-		int strength = (damageTimer + UI_RANK_DAMAGE_TIMER_FRAMES) * UI_RANK_DAMAGE_COLOR_STEP;
-		color += strength;
-		color += (UI_RANK_DAMAGE_COLOR_MAX_CHANNEL - strength) * 0x100;
-		color += strength * 0x10000;
-
-		// one frame closer to zero
-		d->damageColorTimer += 1;
-	}
-
-	// 30 to 1
-	if (damageTimer > 0)
-	{
-		color = 0;
-		int strength = (UI_RANK_DAMAGE_TIMER_FRAMES - damageTimer) * UI_RANK_DAMAGE_COLOR_STEP;
-		color += (UI_RANK_DAMAGE_COLOR_MAX_CHANNEL - strength);
-		color += strength * 0x100;
-		color += strength * 0x10000;
-
-		// one frame closer to zero
-		d->damageColorTimer -= 1;
-	}
-
-	return color;
+static inline void UI_Rank_UpdateDamageColorMP(struct Driver **driverSlot, Color *color, u8 *channelInput, s32 initialTimer, s32 positiveTimerFrames)
+{
+	register u8 *channels CTR_PSX_REGISTER("$19") = channelInput;
+	UI_RANK_DAMAGE_COLOR_BODY(driverSlot, color, channels, initialTimer, positiveTimerFrames);
 }
 
 void UI_DrawRankedDrivers(void)
 {
-	int driverIndex;
-	u32 damageColor;
-
-	struct GameTracker *gGT = sdata->gGT;
-	int numPlyr = gGT->numPlyrCurrGame;
-
-	if (numPlyr == 1)
+	struct GameTracker *initialTracker = GAME_TRACKER;
+	union
 	{
+		SVec2 iconPos;
+		Color color;
+	} draw;
+	SVec3 warpDelta;
+	SVec3 warpPosition;
+	SVec3 trackDir;
+	union
+	{
+		Color color;
+		u32 packed;
+	} damageColors[2];
+
+
+	if (initialTracker->numPlyrCurrGame == 1)
+	{
+		char *rankText = GAME_SDATA_NAME(s_spacebar);
+		register u8 *damageChannels CTR_PSX_REGISTER("$23");
+		s32 driverIndex;
+		s16 visibleRankCount;
+		s32 rankTextY;
+		u8 *driverCursor;
+		s16 *initialDesiredCursor;
+		s16 *initialTimerCursor;
+		register s16 *rankCurrCursor CTR_PSX_REGISTER("$22");
+		register s16 *rankDesiredCursor CTR_PSX_REGISTER("$21");
+		s32 rankByteOffset;
+		s32 positiveTimerFrames;
+		u32 finishFlagMask;
 		// Number of racers that have finished race
 		s16 numRacersFinished = 0;
 
 		// incremented when looping through player structures
 
-		for (driverIndex = 0; driverIndex < UI_RANK_DRIVER_COUNT; driverIndex++)
+		driverIndex = 0;
+		finishFlagMask = ACTION_RACE_FINISHED;
+		driverCursor = (u8 *)initialTracker;
+		initialDesiredCursor = GAME_DATA_NAME(rankIconsDesired);
+		initialTimerCursor = GAME_DATA_NAME(rankIconsTransitionTimer);
+		for (; driverIndex < UI_RANK_DRIVER_COUNT; driverCursor += sizeof(struct Driver *), initialDesiredCursor++, driverIndex++, initialTimerCursor++)
 		{
-			if (data.rankIconsTransitionTimer[driverIndex] == 0)
+			struct Driver **driverSlot = (struct Driver **)(driverCursor + offsetof(struct GameTracker, drivers));
+			if (*initialTimerCursor == 0)
 			{
-				// player structure + 0x482 is your rank in the race
-				// 0 = 1st place, 1 = 2nd place, 2 = 3rd place, etc
 #ifdef CTR_NATIVE
-				// NOTE(aalhendi): Boss races only allocate P1 plus the boss.
-				// Retail reads driverRank before its later null check; if the
-				// slot is empty, PS1 low RAM is still readable, but native
-				// must skip it before dereferencing a null driver pointer.
-				if (gGT->drivers[driverIndex] != NULL)
+				// NOTE(aalhendi): Retail can read an empty slot through low RAM; native
+				// must skip it before dereferencing the missing boss-race driver.
+				if (*driverSlot != NULL)
 				{
-					data.rankIconsDesired[driverIndex] = gGT->drivers[driverIndex]->driverRank;
+					*initialDesiredCursor = (*driverSlot)->driverRank;
 				}
 #else
-				data.rankIconsDesired[driverIndex] = gGT->drivers[driverIndex]->driverRank;
+				*initialDesiredCursor = (*driverSlot)->driverRank;
 #endif
 			}
-
-			// if player structure pointer is not nullptr
-			if ((gGT->drivers[driverIndex] != 0) &&
-
-			    ((gGT->drivers[driverIndex]->actionsFlagSet & ACTION_RACE_FINISHED) != 0))
+			if (*driverSlot != NULL && ((*driverSlot)->actionsFlagSet & finishFlagMask) != 0)
 			{
-				// count how many racers have finished
 				numRacersFinished++;
 			}
 		}
 
 		// Default for Arcade: Show 4 racers
-		int visibleRankCount = UI_RANK_VISIBLE_ARCADE_COUNT;
+		visibleRankCount = UI_RANK_VISIBLE_ARCADE_COUNT;
 
-		if (IS_BOSS_RACE(gGT->gameMode1))
+		if (IS_BOSS_RACE(GAME_TRACKER->gameMode1))
 		{
 			// Show 2 racers
 			visibleRankCount = UI_RANK_VISIBLE_BOSS_COUNT;
 		}
 
-		// height to draw rank (this bitshifts later)
-		int rankTextY = UI_RANK_TEXT_START_Y << 16;
-
-		for (int rankLineIndex = 0; rankLineIndex < visibleRankCount; rankLineIndex++)
+		driverIndex = 0;
+		if (visibleRankCount > 0)
 		{
-			// make the text white by default
-			s16 txtColor = WHITE;
-
-			// if racer has finished the race
-			if (rankLineIndex < numRacersFinished)
+			s32 finishedCount = numRacersFinished;
+			s32 rankCount = visibleRankCount;
+			rankTextY = UI_RANK_TEXT_START_Y << 16;
+			do
 			{
-				// make the text red
-				txtColor = RED;
-			}
+				// make the text white by default
+				s16 txtColor = WHITE;
 
-			// draw rank number: '1', '2', '3', '4'
-			sdata->s_spacebar[0] = (char)rankLineIndex + '1';
-			DecalFont_DrawLine(&sdata->s_spacebar[0], UI_RANK_TEXT_X, rankTextY >> 0x10, FONT_SMALL, txtColor);
+				// if racer has finished the race
+				if (driverIndex < finishedCount)
+				{
+					// make the text red
+					txtColor = RED;
+				}
 
-			// add to Y, which mekes it lower on screen
-			rankTextY = rankTextY + (UI_RANK_TEXT_SLOT_HEIGHT << 16);
+				// draw rank number: '1', '2', '3', '4'
+				rankText[0] = (char)driverIndex + '1';
+				DecalFont_DrawLine(rankText, UI_RANK_TEXT_X, rankTextY >> 0x10, FONT_SMALL, txtColor);
+
+				// Advance to the next rank line.
+				rankTextY = rankTextY + (UI_RANK_TEXT_SLOT_HEIGHT << 16);
+				driverIndex++;
+			} while (driverIndex < rankCount);
 		}
 
-		for (driverIndex = 0; driverIndex < UI_RANK_DRIVER_COUNT; driverIndex++)
+		driverIndex = 0;
+		positiveTimerFrames = UI_RANK_DAMAGE_TIMER_FRAMES;
+		damageChannels = (u8 *)&damageColors[0];
+		rankCurrCursor = GAME_DATA_NAME(rankIconsCurr);
+		rankDesiredCursor = GAME_DATA_NAME(rankIconsDesired);
+		rankByteOffset = driverIndex;
+		for (; driverIndex < UI_RANK_DRIVER_COUNT; rankCurrCursor++, rankDesiredCursor++, driverIndex++, rankByteOffset += sizeof(s16))
 		{
-			s16 *curr = &data.rankIconsCurr[driverIndex];
-			s16 *des = &data.rankIconsDesired[driverIndex];
-
-			if (
-			    // if player structure pointer is not nullptr
-			    (gGT->drivers[driverIndex] != 0) &&
-
-			    // if you haven't gotten to the last driver
-			    ((*des + 1) < UI_RANK_DRIVER_COUNT_PLUS_ONE))
+			register struct Driver *driver = GAME_TRACKER->drivers[driverIndex];
+			ColorCode_SetPacked(&damageColors[0].color, 0);
+			if (driver != 0 && *rankDesiredCursor + 1 < UI_RANK_DRIVER_COUNT_PLUS_ONE)
 			{
-				damageColor = UI_Rank_GetDamageColor(driverIndex);
-				s16 *transitionTimer = &data.rankIconsTransitionTimer[driverIndex];
-
-				// placeholder
-				Point pos;
-				pos.x = UI_RANK_ICON_OFFSCREEN_X;
-
-				// icon not transitioning
-				if (*transitionTimer == 0)
+				s16 *transitionTimer;
+				s32 desiredRank;
+				b32 isTransitioning;
+				UI_Rank_UpdateDamageColor1P(&GAME_TRACKER->drivers[driverIndex], &damageColors[0].color, damageChannels, driver->damageColorTimer,
+				                            positiveTimerFrames);
+				transitionTimer = (s16 *)((u8 *)GAME_DATA_NAME(rankIconsTransitionTimer) + rankByteOffset);
+				isTransitioning = *transitionTimer != 0;
+				if (!isTransitioning)
 				{
-					// get absolute pos-rank of driver
-					int desiredRank = *des;
-
-					// if current == desired
-					if (desiredRank == *curr)
+					desiredRank = *rankDesiredCursor;
+					CTR_PSX_KEEP_VALUE_RELAXED(desiredRank);
+					isTransitioning = desiredRank != *rankCurrCursor;
+				}
+				if (isTransitioning)
+				{
+					// NOTE(aalhendi): Prefer these work registers locally, without
+					// excluding multiplayer packet-copy scratch registers globally.
+					s16 *currBase CTR_PSX_LOCAL_REGISTER_HINT("10") = GAME_DATA_NAME(rankIconsCurr);
+					s16 *desBase CTR_PSX_LOCAL_REGISTER_HINT("11") = GAME_DATA_NAME(rankIconsDesired);
+					register s16 *curr CTR_PSX_REGISTER("$20") = (s16 *)((u8 *)currBase + rankByteOffset);
+					register s16 *des CTR_PSX_REGISTER("$19") = (s16 *)((u8 *)desBase + rankByteOffset);
+					CTR_PSX_ORDER_VALUES(currBase, curr);
+					CTR_PSX_ORDER_VALUES(desBase, des);
+					// NOTE(aalhendi): Lerp writes both coordinates before either is read.
+					UI_Lerp2D_Angular(&draw.iconPos, *curr, *des, *transitionTimer);
 					{
-						// if top positions
-
-						if (desiredRank < UI_RANK_VISIBLE_ARCADE_COUNT)
-						{
-							pos.x = UI_RANK_ICON_X;
-							pos.y = desiredRank * UI_RANK_TEXT_SLOT_HEIGHT + UI_RANK_ICON_BASE_Y;
-						}
-						else
-						{
-							continue;
-						}
+						s16 *characterSlot = (s16 *)((u8 *)GAME_CHARACTER_IDS + rankByteOffset);
+						register struct MetaDataCHAR *metadata CTR_PSX_REGISTER("$14");
+						metadata = GAME_CHARACTER_METADATA;
+						UI_DrawDriverIcon(GAME_TRACKER->ptrIcons[metadata[*characterSlot].iconID], draw.iconPos.x, draw.iconPos.y,
+						                  &GAME_TRACKER->backBuffer->primMem, GAME_TRACKER->pushBuffer_UI.ptrOT, TRANS_50_DECAL, UI_RANK_ICON_SCALE,
+						                  damageColors[0].packed);
 					}
-				}
-
-				SVec2 iconPos = {.x = pos.x, .y = pos.y};
-				s16 iconScale = UI_RANK_ICON_SCALE;
-
-				int isTransitioning = (pos.x == UI_RANK_ICON_OFFSCREEN_X);
-
-				// === Icon Transitioning ===
-				if (isTransitioning)
-				{
-					UI_Lerp2D_Angular(&iconPos, *curr, *des, *transitionTimer);
-					pos.x = iconPos.x;
-					pos.y = iconPos.y;
-				}
-
-				UI_DrawDriverIcon(
-
-				    gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[driverIndex]].iconID],
-
-				    pos.x, pos.y, &gGT->backBuffer->primMem,
-
-				    gGT->pushBuffer_UI.ptrOT,
-
-				    1, iconScale, damageColor);
-
-				if (isTransitioning)
-				{
-					transitionTimer[0]++;
-
+					CTR_PSX_KEEP_VALUE_RELAXED(curr);
+					CTR_PSX_KEEP_VALUE_RELAXED(des);
+					(*transitionTimer)++;
 					if (*transitionTimer >= UI_RANK_TRANSITION_FRAMES)
 					{
 						*transitionTimer = 0;
 						*curr = *des;
 					}
+				}
+				else if (desiredRank + 1 < UI_RANK_VISIBLE_ARCADE_COUNT + 1)
+				{
+					s16 *characterSlot = (s16 *)((u8 *)GAME_CHARACTER_IDS + rankByteOffset);
+					register struct MetaDataCHAR *metadata CTR_PSX_REGISTER("$15");
+					s32 iconX = UI_RANK_ICON_X;
+					CTR_PSX_KEEP_VALUE_RELAXED(iconX);
+					CTR_PSX_ORDER_VALUES(characterSlot, iconX);
+					metadata = GAME_CHARACTER_METADATA;
+					UI_DrawDriverIcon(GAME_TRACKER->ptrIcons[metadata[*characterSlot].iconID], iconX,
+					                  desiredRank * UI_RANK_TEXT_SLOT_HEIGHT + UI_RANK_ICON_BASE_Y, &GAME_TRACKER->backBuffer->primMem,
+					                  GAME_TRACKER->pushBuffer_UI.ptrOT, TRANS_50_DECAL, UI_RANK_ICON_SCALE, damageColors[0].packed);
+					*rankCurrCursor = *rankDesiredCursor;
 				}
 			}
 		}
@@ -236,110 +246,136 @@ void UI_DrawRankedDrivers(void)
 	// if this is multiplayer
 	else
 	{
-		s16 *trackIconX = &data.rankIconsTransitionTimer[0];
-		int totalNumDrivers = numPlyr + gGT->numBotsNextGame;
+		register s32 driverIndex CTR_PSX_REGISTER("$20");
+		s16 *trackIconX;
+		struct Thread *warpballThread;
+		register u8 *damageChannels CTR_PSX_REGISTER("$19");
+		s32 characterByteOffset;
+		s32 driverByteOffset;
+		s32 positiveTimerFrames;
+		struct MetaDataCHAR *characterMetadata;
+		SVec3 *trackDirection;
+		struct GameTracker *nextTracker;
 
-		for (driverIndex = 0; driverIndex < totalNumDrivers; driverIndex++)
+		driverIndex = 0;
+		if (initialTracker->numPlyrCurrGame + initialTracker->numBotsNextGame != 0)
 		{
-			damageColor = UI_Rank_GetDamageColor(driverIndex);
-
-			u16 currentTrackX = *trackIconX;
-			u16 targetTrackX;
-
-			if (
-			    // if racer is in first lap and
-			    (gGT->drivers[driverIndex]->lapIndex == 0) &&
-
-			    // racer crossed the startline backwards
-			    // this is when race starts and you're behind the finish line
-			    ((gGT->drivers[driverIndex]->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0))
+			positiveTimerFrames = UI_RANK_DAMAGE_TIMER_FRAMES;
+			damageChannels = (u8 *)&damageColors[1];
+			characterMetadata = GAME_CHARACTER_METADATA;
+			trackIconX = &GAME_DATA_NAME(rankIconsTransitionTimer)[0];
+			characterByteOffset = 0;
+			driverByteOffset = 0;
+			do
 			{
-			TrackIconAtStart:
-				// icon posX is zero,
-				// dont go to end of lap on the graph
-				targetTrackX = 0;
-			}
-			else
-			{
-				// length of track
-				int trackLength = gGT->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
-				int driverProgress = trackLength - gGT->drivers[driverIndex]->distanceToFinish_curr;
-				int trackScreenUnit = trackLength / UI_RANK_TRACK_SCREEN_DIVISOR;
-
-				// divide distanceToFinish by screen width
-				targetTrackX = (u16)(driverProgress / trackScreenUnit);
-
-				if ((s16)targetTrackX < 0)
+				u16 currentTrackX;
+				register s32 targetTrackX;
+				s32 delta;
+				register s32 step CTR_PSX_REGISTER("$3");
+				s32 stepQuotient;
+				b32 passedTarget;
+				s32 initialTimer;
+				s32 characterID;
+				s32 iconX;
+				s32 iconY;
 				{
-					goto TrackIconAtStart;
+					register struct Driver *driver = (*(struct Driver **)((u8 *)GAME_TRACKER + driverByteOffset + offsetof(struct GameTracker, drivers)));
+					initialTimer = driver->damageColorTimer;
 				}
-			}
-
-			// posX
-			int targetTrackXInt = targetTrackX;
-			int delta = targetTrackXInt - (s16)currentTrackX;
-
-			if (delta < 0)
-			{
-				delta = -delta;
-			}
-			u32 step = delta / UI_RANK_TRACK_SMOOTH_DIVISOR;
-			if ((step & 0xffff) == 0)
-			{
-				step = 1;
-			}
-			int nextTrackXInt = currentTrackX + step;
-			u16 nextTrackX = (u16)nextTrackXInt;
-			b32 passedTarget;
-			if ((s16)currentTrackX < targetTrackXInt)
-			{
-				passedTarget = targetTrackXInt < (s16)nextTrackXInt;
-			}
-			else
-			{
-				nextTrackXInt = currentTrackX - step;
-				nextTrackX = (u16)nextTrackXInt;
-				passedTarget = (s16)nextTrackXInt < targetTrackXInt;
-			}
-			if (passedTarget)
-			{
-				nextTrackX = targetTrackX;
-			}
-			int snapDelta = (int)targetTrackX - (int)nextTrackX;
-			if (snapDelta < 0)
-			{
-				snapDelta = -snapDelta;
-			}
-
-			if (UI_RANK_TRACK_SNAP_THRESHOLD < snapDelta)
-			{
-				nextTrackX = targetTrackX;
-			}
-
-			int posX = nextTrackX + UI_RANK_TRACK_ICON_POS_X_OFFSET;
-			int posY = UI_RANK_TRACK_ICON_POS_Y;
-			Color color;
-			ColorCode_SetPacked(&color, damageColor);
-
-			DecalHUD_DrawPolyGT4(gGT->ptrIcons[data.MetaDataCharacters[data.characterIDs[driverIndex]].iconID], posX, posY,
-
-			                     // pointer to PrimMem struct
-			                     &gGT->backBuffer->primMem,
-
-			                     // pointer to OT memory
-			                     gGT->pushBuffer_UI.ptrOT,
-
-			                     // color data
-			                     color, color, color, color,
-
-			                     TRANS_50_DECAL, UI_RANK_TRACK_ICON_SCALE);
-
-			*trackIconX = nextTrackX;
-			trackIconX = trackIconX + 1;
+				ColorCode_SetPacked(&damageColors[1].color, 0);
+				UI_Rank_UpdateDamageColorMP((struct Driver **)((u8 *)GAME_TRACKER + driverByteOffset + offsetof(struct GameTracker, drivers)),
+				                            &damageColors[1].color, damageChannels, initialTimer, positiveTimerFrames);
+				draw.color = damageColors[1].color;
+				currentTrackX = *trackIconX;
+				if ((*(struct Driver **)((u8 *)GAME_TRACKER + driverByteOffset + offsetof(struct GameTracker, drivers)))->lapIndex == 0 &&
+				    ((*(struct Driver **)((u8 *)GAME_TRACKER + driverByteOffset + offsetof(struct GameTracker, drivers)))->actionsFlagSet &
+				     ACTION_BEHIND_START_LINE) != 0)
+				{
+					targetTrackX = 0;
+				}
+				else
+				{
+					s32 trackLength = GAME_TRACKER->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+					register s32 trackProjection =
+					    (s32)(trackLength -
+					          (*(struct Driver **)((u8 *)GAME_TRACKER + driverByteOffset + offsetof(struct GameTracker, drivers)))->distanceToFinish_curr);
+					trackProjection /= trackLength / UI_RANK_TRACK_SCREEN_DIVISOR;
+					targetTrackX = trackProjection;
+					CTR_PSX_DEPEND_VALUE(targetTrackX, trackProjection);
+					if ((s16)trackProjection < 0)
+					{
+						targetTrackX = 0;
+					}
+				}
+				stepQuotient = abs((s16)targetTrackX - (s16)currentTrackX) / UI_RANK_TRACK_SMOOTH_DIVISOR;
+				step = stepQuotient;
+				CTR_PSX_KEEP_VALUE_RELAXED(stepQuotient);
+				if ((s16)stepQuotient == 0)
+				{
+					step = 1;
+				}
+				if ((s16)currentTrackX < (s16)targetTrackX)
+				{
+					currentTrackX += step;
+					passedTarget = (s16)targetTrackX < (s16)currentTrackX;
+				}
+				else
+				{
+					currentTrackX -= step;
+					passedTarget = (s16)currentTrackX < (s16)targetTrackX;
+				}
+				CTR_PSX_ORDER_VALUES(currentTrackX, step);
+				if (passedTarget)
+				{
+					currentTrackX = targetTrackX;
+				}
+				delta = abs((s16)targetTrackX - (s16)currentTrackX);
+				if (UI_RANK_TRACK_SNAP_THRESHOLD < delta)
+				{
+					currentTrackX = targetTrackX;
+				}
+				iconX = (s16)currentTrackX + UI_RANK_TRACK_ICON_POS_X_OFFSET;
+				iconY = UI_RANK_TRACK_ICON_POS_Y;
+				CTR_PSX_KEEP_VALUE_RELAXED(iconY);
+				CTR_PSX_ORDER_VALUES(iconY, iconX);
+				characterID = *(s16 *)((u8 *)GAME_CHARACTER_IDS + characterByteOffset);
+				characterByteOffset += sizeof(s16);
+				CTR_PSX_OBSERVE_MEMORY(draw.color);
+				{
+					struct GameTracker *drawTracker;
+					drawTracker = GAME_TRACKER_SYMBOLIC;
+					driverByteOffset += sizeof(struct Driver *);
+					DecalHUD_DrawPolyGT4(drawTracker->ptrIcons[characterMetadata[characterID].iconID], iconX, iconY, &drawTracker->backBuffer->primMem,
+					                     drawTracker->pushBuffer_UI.ptrOT, draw.color, draw.color, draw.color, draw.color, TRANS_50_DECAL,
+					                     UI_RANK_TRACK_ICON_SCALE);
+				}
+				nextTracker = GAME_TRACKER;
+				driverIndex++;
+				*trackIconX = currentTrackX;
+				trackIconX++;
+			} while (driverIndex < nextTracker->numPlyrCurrGame + nextTracker->numBotsNextGame);
 		}
 
-		for (struct Thread *warpballThread = gGT->threadBuckets[TRACKING].thread; warpballThread != 0; warpballThread = warpballThread->siblingThread)
+		trackDirection = &trackDir;
+		for (warpballThread = GAME_TRACKER->threadBuckets[TRACKING].thread; warpballThread != 0; warpballThread = warpballThread->siblingThread)
 		{
+			struct CheckpointNode *cn;
+			struct CheckpointNode *currentNode;
+			register struct TrackerWeapon *tw;
+			s16 checkpointIndex;
+			struct CheckpointNode *cn0;
+			struct CheckpointNode *cn1;
+			struct CheckpointNode *cn2;
+			register s32 projectedDistance;
+			s32 trackLength;
+			s32 wrappedProgress;
+			s32 remainingProgress;
+			s32 trackScreenUnit;
+			s32 posX;
+			s32 posY;
+			register struct GameTracker *trackTracker;
+			struct GameTracker *postTracker;
+			struct Thread *instanceThread;
 			// Get Instance from Thread
 			struct Instance *warpballInst = warpballThread->inst;
 
@@ -349,75 +385,63 @@ void UI_DrawRankedDrivers(void)
 				continue;
 			}
 
+			instanceThread = warpballInst->thread;
+
 			// pointer to path data
-			struct CheckpointNode *cn = gGT->level1->ptr_restart_points;
+			trackTracker = GAME_TRACKER;
+			tw = instanceThread->object;
+			currentNode = tw->ptrNodeCurr;
+			cn = trackTracker->level1->ptr_restart_points;
 
-			struct TrackerWeapon *tw = warpballInst->thread->object;
+			checkpointIndex = currentNode - cn;
 
-			int checkpointIndex = ((s32)tw->ptrNodeCurr - (s32)cn) / (s32)sizeof(struct CheckpointNode);
-
-			if (((u32)(gGT->level1->cnt_restart_points - 1) >= UI_RANK_TRACK_CHECKPOINT_COUNT_LIMIT) || (checkpointIndex < 0))
+			wrappedProgress = 0;
+			if (((u32)(trackTracker->level1->cnt_restart_points - 1) < UI_RANK_TRACK_CHECKPOINT_COUNT_LIMIT) && checkpointIndex >= 0)
 			{
-				continue;
+				s32 projectionTrackLength;
+				cn0 = &cn[checkpointIndex];
+				cn1 = &cn[cn0->nextIndex_forward];
+				cn2 = &cn[cn1->nextIndex_forward];
+				warpPosition.x = warpballInst->matrix.t[0];
+				warpPosition.y = warpballInst->matrix.t[1];
+				warpPosition.z = warpballInst->matrix.t[2];
+				trackDir.x = cn1->pos.x - cn2->pos.x;
+				trackDir.y = cn1->pos.y - cn2->pos.y;
+				trackDir.z = cn1->pos.z - cn2->pos.z;
+				MATH_VectorNormalize(trackDirection);
+				warpDelta.x = warpPosition.x - cn1->pos.x;
+				warpDelta.y = warpPosition.y - cn1->pos.y;
+				warpDelta.z = warpPosition.z - cn1->pos.z;
+				CTR_GteLoadDotProduct(trackDirection, &warpDelta);
+				CTR_GteLoadDelay();
+				gte_mvmva(0, 0, 0, 3, 0);
+				projectedDistance = CTR_GteReadMAC1();
+				postTracker = GAME_TRACKER_SYMBOLIC;
+				projectedDistance >>= UI_RANK_TRACK_WARPBALL_PROGRESS_SHIFT;
+				wrappedProgress = cn1->distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+				wrappedProgress += projectedDistance;
+				projectionTrackLength = postTracker->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+				wrappedProgress %= projectionTrackLength;
 			}
-
-			const s32 *warpballPos = &warpballInst->matrix.t[0];
-
-			struct CheckpointNode *cn0 = &cn[checkpointIndex];
-			struct CheckpointNode *cn1 = &cn[cn0->nextIndex_forward];
-			struct CheckpointNode *cn2 = &cn[cn1->nextIndex_forward];
-
-			SVec3 trackDir = {
-			    .x = cn1->pos.x - cn2->pos.x,
-			    .y = cn1->pos.y - cn2->pos.y,
-			    .z = cn1->pos.z - cn2->pos.z,
-			};
-			MATH_VectorNormalize(&trackDir);
-
-			SVec3 warpDelta = {
-			    .x = warpballPos[0] - cn1->pos.x,
-			    .y = warpballPos[1] - cn1->pos.y,
-			    .z = warpballPos[2] - cn1->pos.z,
-			};
-
-			CTR_GteLoadRotRow0SVec3(&trackDir);
-			CTR_GteLoadSVec3V0(&warpDelta);
-			gte_mvmva(0, 0, 0, 3, 0);
-			int projectedDistance = CTR_GteReadMAC1();
-
-			int trackProgress = cn1->distToFinish * UI_RANK_TRACK_DISTANCE_SCALE + (projectedDistance >> UI_RANK_TRACK_WARPBALL_PROGRESS_SHIFT);
-			int trackLength = gGT->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
-			int wrappedProgress = trackProgress % trackLength;
 			if (wrappedProgress == 0)
 			{
 				continue;
 			}
-
-#if 0
-			if (trackLength == 0) trap(0x1c00);
-			if ((trackLength == -1) && (trackProgress == -0x80000000)) trap(0x1800);
-#endif
-
-			int remainingProgress = trackLength - wrappedProgress;
-			int trackScreenUnit = trackLength / UI_RANK_TRACK_SCREEN_DIVISOR;
-
-#if 0
-			if (trackScreenUnit == 0) trap(0x1c00);
-			if ((trackScreenUnit == -1) && (remainingProgress == -0x80000000)) trap(0x1800);
-#endif
-
-			int posX = (remainingProgress / trackScreenUnit) + UI_RANK_TRACK_ICON_POS_X_OFFSET;
-			int posY = UI_RANK_TRACK_ICON_POS_Y;
+			trackLength = GAME_TRACKER->level1->ptr_restart_points[0].distToFinish * UI_RANK_TRACK_DISTANCE_SCALE;
+			remainingProgress = trackLength - wrappedProgress;
+			trackScreenUnit = trackLength / UI_RANK_TRACK_SCREEN_DIVISOR;
+			posX = (s16)(remainingProgress / trackScreenUnit) + UI_RANK_TRACK_ICON_POS_X_OFFSET;
+			posY = UI_RANK_TRACK_ICON_POS_Y;
 
 			DecalHUD_DrawWeapon(
 			    // warpball icon
-			    gGT->ptrIcons[UI_RANK_TRACK_WARPBALL_ICON], posX, posY,
+			    GAME_TRACKER->ptrIcons[UI_RANK_TRACK_WARPBALL_ICON], posX, posY,
 
 			    // pointer to PrimMem struct
-			    &gGT->backBuffer->primMem,
+			    &GAME_TRACKER->backBuffer->primMem,
 
 			    // pointer to OT memory
-			    gGT->pushBuffer_UI.ptrOT,
+			    GAME_TRACKER->pushBuffer_UI.ptrOT,
 
 			    TRANS_50_DECAL, UI_RANK_TRACK_WARPBALL_SCALE, 1);
 		}
