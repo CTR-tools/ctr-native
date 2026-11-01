@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 void Music_SetIntro(void)
 {
@@ -25,6 +26,10 @@ void Music_LoadBanks(void)
 	struct Bank thisBank;
 	struct GameTracker *gGT = sdata->gGT;
 	int level = gGT->levelID;
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	{
+		level = CRASH_COVE;
+	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
 	Audio_SetReverbMode(
@@ -85,6 +90,10 @@ u32 Music_AsyncParseBanks(void)
 	struct GameTracker *gGT = sdata->gGT;
 	struct Bank thisBank;
 	int level = gGT->levelID;
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	{
+		level = CRASH_COVE;
+	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
 	if (arr[1] == 5)

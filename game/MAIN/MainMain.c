@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 #if defined(CTR_INTERNAL)
 #include <platform/native_perf.h>
@@ -125,7 +126,8 @@ u32 CTR_Main(void)
 
 			if (
 			    // If Level ID is less than 18, it's one of the race tracks
-			    (gGT->levelID < NITRO_COURT) || (
+			    (gGT->levelID < NITRO_COURT) ||
+			    (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL) || (
 			                                        // Battle-Style track starts with traffic lights
 			                                        uVar12 = 10,
 			                                        // Level ID >= 18 and < 23

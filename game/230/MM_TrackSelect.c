@@ -1,4 +1,6 @@
 #include <common.h>
+#include <platform/native_track_library.h>
+#include <stdlib.h>
 
 enum TrackSelectVideoState
 {
@@ -74,6 +76,64 @@ enum
 #define MM_TRACK_GAME_TRACKER(page) CTR_PSX_PAGE_LVALUE(struct GameTracker *, page, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)
 
 static struct MainMenu_LevelRow s_combinedBattleTracks[MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT];
+static struct MainMenu_LevelRow *s_timeTrialTracks;
+static s16 s_timeTrialTrackCount;
+
+static void MM_TrackSelect_BuildTimeTrialTracks(void)
+{
+	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
+	size_t count = NativeTrackRegistry_Count(registry);
+	const size_t maxCustom = 0x7fff - MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+	if (count > maxCustom)
+	{
+		count = maxCustom;
+	}
+	free(s_timeTrialTracks);
+	s_timeTrialTracks = NULL;
+	s_timeTrialTrackCount = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+	if (count == 0)
+	{
+		return;
+	}
+	s_timeTrialTracks = malloc((MM_TRACK_SELECT_ARCADE_TRACK_COUNT + count) * sizeof(*s_timeTrialTracks));
+	if (s_timeTrialTracks == NULL)
+	{
+		return;
+	}
+	memcpy(s_timeTrialTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
+	for (size_t i = 0; i < count; i++)
+	{
+		struct MainMenu_LevelRow *row = &s_timeTrialTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + i];
+		*row = MM_ARCADE_TRACKS[0];
+		row->levID = (s16)(NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		row->mapTextureID = -1;
+		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
+	}
+	s_timeTrialTrackCount += (s16)count;
+}
+
+static void MM_TrackSelect_CustomTitle(char *destination, size_t capacity, const char *source)
+{
+	size_t length = 0;
+	while (*source != '\0' && length + 1 < capacity)
+	{
+		unsigned char c = (unsigned char)*source++;
+		if (c >= 0x80 && c < 0xc0)
+		{
+			continue;
+		}
+		if (c < 0x20 || c >= 0x7f || c == '@' || c == '[' || c == '^' || c == '*')
+		{
+			c = '?';
+		}
+		destination[length++] = (char)c;
+	}
+	destination[length] = '\0';
+	while (length > 0 && DecalFont_GetLineWidth(destination, FONT_BIG) > MM_TRACK_SELECT_ROW_W - 16)
+	{
+		destination[--length] = '\0';
+	}
+}
 
 static b32 MM_TrackSelect_UseRaceTracks(void)
 {
@@ -193,6 +253,18 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 	struct MainMenu_LevelRow *selectedMenu;
 	s32 videoFileIndex;
 
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), selectMenu[trackIndex].levID) != NULL)
+	{
+		if (MM_TRACK_VIDEO_MEM_ALLOCATED != 0)
+		{
+			NativeSTR_Stop();
+			MM_TRACK_VIDEO_MEM_ALLOCATED = 0;
+		}
+		MM_TRACK_VIDEO_STATE_CURR = MM_TRACK_VIDEO_ICON;
+		MM_TRACK_VIDEO_STATE_PREV = MM_TRACK_VIDEO_ICON;
+		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+		return;
+	}
 	bigfileHeader = MM_BIGFILE_HEADER;
 	bigfileEntries = BIG_GETENTRY(bigfileHeader);
 	selectedMenu = (struct MainMenu_LevelRow *)((u32)(trackIndex * sizeof(*selectedMenu)) + (u32)selectMenu);
@@ -309,6 +381,7 @@ void MM_TrackSelect_Init(void)
 	struct MainMenu_LevelRow *selectMenu;
 	s16 numTracks;
 
+	MM_TrackSelect_BuildTimeTrialTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
 	MM_TRACK_TRANSITION_STATE = ENTERING_MENU;
@@ -326,8 +399,8 @@ void MM_TrackSelect_Init(void)
 	}
 	else
 	{
-		selectMenu = MM_ARCADE_TRACKS;
-		numTracks = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		selectMenu = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 && s_timeTrialTracks != NULL) ? s_timeTrialTracks : MM_ARCADE_TRACKS;
+		numTracks = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0) ? s_timeTrialTrackCount : MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
 	}
 
 	// If you scroll past the max number of tracks, go back to the first track
@@ -420,6 +493,12 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 				}
 				if ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0)
 				{
+					if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), GAME_TRACKER->currLEV) != NULL)
+					{
+						MM_REPLAY_HUMAN_GHOST = 0;
+						MM_DESIRED_MENU = &MM_MENU_QUEUE_LOAD_TRACK;
+						return;
+					}
 					MM_GHOST_TAPE_PLAYING = MM_ALLOC_HIGH_MEM(MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE, MM_LOADED_GHOST_DATA);
 					memset(MM_GHOST_TAPE_PLAYING, 0, MM_TRACK_SELECT_GHOST_TAPE_CLEAR_SIZE);
 					MM_REPLAY_HUMAN_GHOST = 0;
@@ -462,9 +541,9 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 		register u32 trackTablePage CTR_PSX_REGISTER("$2");
 		register s16 trackCountValue CTR_PSX_REGISTER("$13");
 		trackTablePage = 0;
-		selectMenu = MM_ARCADE_TRACKS;
+		selectMenu = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 && s_timeTrialTracks != NULL) ? s_timeTrialTracks : MM_ARCADE_TRACKS;
 		(void)trackTablePage;
-		currTrack = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		currTrack = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0) ? s_timeTrialTrackCount : MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
 		trackCountValue = currTrack;
 		CTR_PSX_KEEP_VALUE_RELAXED(trackCountValue);
 		numTracks = trackCountValue;
@@ -813,7 +892,8 @@ trackSelectionMenuDone:
 			rowBaseY += MM_TRACK_SELECT_ROW_Y_OFFSET;
 			CTR_PSX_COPY_VALUE(rowY, rowBaseY);
 			rowRect.y = (s16)rowBaseY;
-			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0)
+			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0 &&
+			    NativeTrackRegistry_Get(NativeTrackLibrary_Current(), selectMenu[currTrack].levID) == NULL)
 			{
 				// Draw the N. Tropy and Oxide stars earned for this track.
 				register s32 timeTrialTrackOffset CTR_PSX_REGISTER("$2");
@@ -882,9 +962,19 @@ trackSelectionMenuDone:
 				trackEntry = &selectMenu[currTrack];
 				rowNameY = (s16)(rowY + MM_TRACK_SELECT_ROW_NAME_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET);
 				trackLevelID = trackEntry->levID;
-				trackNameIndex = levelMeta[trackLevelID].name_LNG;
-				MM_DRAW_LINE_WIDE_FLAGS(CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS)[trackNameIndex], rowNameX,
-				                        rowNameY, FONT_BIG, ORANGE);
+				const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackLevelID);
+				if (customTrack != NULL)
+				{
+					char title[64];
+					MM_TrackSelect_CustomTitle(title, sizeof(title), customTrack->title);
+					MM_DRAW_LINE_WIDE_FLAGS(title, rowNameX, rowNameY, FONT_BIG, ORANGE);
+				}
+				else
+				{
+					trackNameIndex = levelMeta[trackLevelID].name_LNG;
+					MM_DRAW_LINE_WIDE_FLAGS(CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS)[trackNameIndex], rowNameX,
+					                        rowNameY, FONT_BIG, ORANGE);
+				}
 				rowDrawRectArg = &rowRect;
 				if ((MM_TRACK_CHANGE_FRAMES == 0) && (((s16)rowIndex) == MM_TRACK_SELECT_CENTER_ROW))
 				{
@@ -892,7 +982,8 @@ trackSelectionMenuDone:
 					register RECT16 *clearRectArg CTR_PSX_REGISTER("$4");
 					register u32 highlightColorPage CTR_PSX_REGISTER("$5");
 					register struct GameTracker *highlightTracker CTR_PSX_REGISTER("$2");
-					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0)
+					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0 &&
+					    customTrack == NULL)
 					{
 						s16 ghostProfileCount = RefreshCard_CountGhostProfilesForLEV(trackEntry->levID);
 						if (ghostProfileCount != 0)

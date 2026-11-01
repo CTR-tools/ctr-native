@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <platform/native_track_library.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -19,6 +20,20 @@ NativeConfig g_config;
 static int s_setupEntries;
 static int s_titleReturns;
 static bool s_coop;
+
+// This fixture exercises the new-file flow without a custom track library.
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
+const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTrackRegistry *registry, int levelID)
+{
+	(void)registry;
+	(void)levelID;
+	return NULL;
+}
+size_t NativeTrackRegistry_Count(const struct NativeTrackRegistry *registry)
+{
+	(void)registry;
+	return 0;
+}
 
 void Chaos_PublishEffects(void) {}
 

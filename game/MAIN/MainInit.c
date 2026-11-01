@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 #include <platform/native_draw_distance.h>
 
 // MainInit_Drivers spawns one driver per racer counted here.
@@ -237,7 +238,14 @@ static int MainInit_GetRetailPrimMemSize(struct GameTracker *gGT)
 // table and the clip records.
 static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 {
-	return MainInit_GetRetailPrimMemSize(gGT) * NATIVE_DRAW_DISTANCE_SCALE;
+	enum { CUSTOM_TRACK_PRIM_ARENA_BYTES = 0x100000 };
+	int size = MainInit_GetRetailPrimMemSize(gGT) * NATIVE_DRAW_DISTANCE_SCALE;
+	// CTR Archipelago measured custom skies and geometry exceeding retail budgets.
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL && size < CUSTOM_TRACK_PRIM_ARENA_BYTES)
+	{
+		size = CUSTOM_TRACK_PRIM_ARENA_BYTES;
+	}
+	return size;
 }
 
 void MainInit_PrimMem(struct GameTracker *gGT)
