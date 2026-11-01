@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "8c1112f99e9e47a496a1d98bc9efc468c630a4925361e56b7801da5016fa5207",
+        "cc1": "5427ca2a7c7a5d7a7d2ccfe4fb9efc6f8f4d2f535ee5aaf71f95b6d29327ac43",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",

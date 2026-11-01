@@ -1,0 +1,208 @@
+diff --git a/config/mips/mips.h b/config/mips/mips.h
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -155,6 +155,8 @@
+ extern char *mips_stack_align_string;
+ extern int mips_stack_align;
+ extern char *mips_prologue_arg_alias_string;
++extern char *mips_t9_constraint_string;
++extern int mips_t9_constraint;
+ extern char *mips_framed_return_boundary_string;
+ extern char *mips_ordered_gp_prologue_string;
+ extern int mips_ordered_gp_prologue;
+@@ -635,6 +637,7 @@
+   { "preserve-small-si-constants=", &mips_preserve_small_si_constants_string }, \
+   { "stack-align=", &mips_stack_align_string }, \
+   { "prologue-arg-alias=", &mips_prologue_arg_alias_string }, \
++  { "t9-constraint=", &mips_t9_constraint_string }, \
+   { "framed-return-boundary=", &mips_framed_return_boundary_string }, \
+   { "ordered-gp-prologue=", &mips_ordered_gp_prologue_string }, \
+   { "clone-fixed-epilogues=", &mips_clone_fixed_epilogues_string }, \
+@@ -1736,6 +1739,7 @@
+ enum reg_class
+ {
+   NO_REGS,			/* no registers in set */
++  T9_REGS,			/* one ordinary caller-clobbered GPR */
+   GR_REGS,			/* integer registers */
+   FP_REGS,			/* floating point registers */
+   HI_REG,			/* hi register */
+@@ -1753,6 +1757,13 @@
+ 
+ #define GENERAL_REGS GR_REGS
+ 
++#define CONDITIONAL_REG_CLASS_CONTENTS \
++  if (!mips_t9_constraint) CLEAR_HARD_REG_SET (reg_class_contents[T9_REGS])
++
++/* T9 remains an ordinary GPR for caller saves, not a scarce special unit. */
++#define CLASS_LIKELY_SPILLED_P(CLASS) \
++  ((CLASS) != T9_REGS && reg_class_size[(int) (CLASS)] == 1)
++
+ /* An initializer containing the names of the register classes as C
+    string constants.  These names are used in writing some of the
+    debugging dumps.  */
+@@ -1760,6 +1771,7 @@
+ #define REG_CLASS_NAMES							\
+ {									\
+   "NO_REGS",								\
++  "T9_REGS",								\
+   "GR_REGS",								\
+   "FP_REGS",								\
+   "HI_REG",								\
+@@ -1786,6 +1798,7 @@
+ #define REG_CLASS_CONTENTS						\
+ {									\
+   { 0x00000000, 0x00000000, 0x00000000 },	/* no registers */	\
++  { 0x02000000, 0x00000000, 0x00000000 },	/* T9 register */	\
+   { 0xffffffff, 0x00000000, 0x00000000 },	/* integer registers */	\
+   { 0x00000000, 0xffffffff, 0x00000000 },	/* floating registers*/	\
+   { 0x00000000, 0x00000000, 0x00000001 },	/* hi register */	\
+@@ -1831,6 +1844,7 @@
+    DEFINED REGISTER CLASSES:
+ 
+    'd'  General (aka integer) registers
++   'c'  Ordinary T9 operand, not a permanent register-variable binding
+    'f'	Floating point registers
+    'h'	Hi register
+    'l'	Lo register
+@@ -1945,7 +1959,11 @@
+ 
+    Do not define this macro if its value would always be zero.  */
+ 
+-#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE)			\
++#define MIPS_GPR_SUPERCLASS(CLASS) ((CLASS) == T9_REGS ? GR_REGS : (CLASS))
++#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE) \
++  MIPS_SECONDARY_MEMORY_NEEDED (MIPS_GPR_SUPERCLASS (CLASS1), \
++                                MIPS_GPR_SUPERCLASS (CLASS2), MODE)
++#define MIPS_SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE)			\
+   ((!TARGET_DEBUG_H_MODE						\
+     && GET_MODE_CLASS (MODE) == MODE_INT				\
+     && ((CLASS1 == FP_REGS && CLASS2 == GR_REGS)			\
+@@ -3346,7 +3364,9 @@
+    met.  You should do this if the `movM' pattern's constraints do
+    not allow such copying.  */
+ 
+-#define REGISTER_MOVE_COST(FROM, TO)	\
++#define REGISTER_MOVE_COST(FROM, TO) \
++  MIPS_REGISTER_MOVE_COST (MIPS_GPR_SUPERCLASS (FROM), MIPS_GPR_SUPERCLASS (TO))
++#define MIPS_REGISTER_MOVE_COST(FROM, TO)	\
+   ((FROM) == GR_REGS && (TO) == GR_REGS ? 2				\
+    : (FROM) == FP_REGS && (TO) == FP_REGS ? 2				\
+    : (FROM) == GR_REGS && (TO) == FP_REGS ? 4				\
+diff --git a/config/mips/mips.c b/config/mips/mips.c
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -217,6 +217,8 @@
+ char *mips_psx_ctc2_return_delay_string;
+ char *mips_stack_align_string;
+ char *mips_prologue_arg_alias_string;
++char *mips_t9_constraint_string;
++int mips_t9_constraint;
+ char *mips_framed_return_boundary_string;
+ char *mips_ordered_gp_prologue_string;
+ int mips_ordered_gp_prologue;
+@@ -5015,6 +5017,8 @@
+   mips_prologue_arg_alias
+     = mips_psx_policy_option ("prologue-arg-alias",
+                               mips_prologue_arg_alias_string);
++  mips_t9_constraint = mips_psx_policy_option ("t9-constraint",
++                                              mips_t9_constraint_string);
+   mips_framed_return_boundary
+     = mips_psx_policy_option ("framed-return-boundary",
+                               mips_framed_return_boundary_string);
+@@ -5382,6 +5386,9 @@
+   mips_print_operand_punct['^'] = TRUE;
+ 
+   mips_char_to_class['d'] = GR_REGS;
++  mips_char_to_class['c'] = mips_t9_constraint ? T9_REGS : NO_REGS;
++  mips_regno_to_class[GP_REG_FIRST + 25] = mips_t9_constraint ? T9_REGS : GR_REGS;
++  init_reg_classes ();
+   mips_char_to_class['q'] = GTE_SXY2_REGS;
+   mips_char_to_class['f'] = ((TARGET_HARD_FLOAT) ? FP_REGS : NO_REGS);
+   mips_char_to_class['h'] = HI_REG;
+@@ -9028,6 +9035,8 @@
+ {
+   int regno = -1;
+ 
++  class = MIPS_GPR_SUPERCLASS (class);
++
+   if (GET_CODE (x) == SIGN_EXTEND)
+     {
+       int off = 0;
+diff --git a/regclass.c b/regclass.c
+--- a/regclass.c
++++ b/regclass.c
+@@ -188,11 +188,10 @@
+ 
+ #endif /* FORBIDDEN_INC_DEC_CLASSES */
+ 
+-/* Function called only once to initialize the above data on reg usage.
+-   Once this is done, various switches may override.  */
++/* Recompute class-only tables after target options, preserving register usage. */
+ 
+ void
+-init_reg_sets ()
++init_reg_classes ()
+ {
+   register int i, j;
+ 
+@@ -209,9 +208,9 @@
+ 	  SET_HARD_REG_BIT (reg_class_contents[i], j);
+     }
+ 
+-  bcopy (initial_fixed_regs, fixed_regs, sizeof fixed_regs);
+-  bcopy (initial_call_used_regs, call_used_regs, sizeof call_used_regs);
+-  bzero (global_regs, sizeof global_regs);
++#ifdef CONDITIONAL_REG_CLASS_CONTENTS
++  CONDITIONAL_REG_CLASS_CONTENTS;
++#endif
+ 
+   /* Compute number of hard regs in each class.  */
+ 
+@@ -235,6 +234,8 @@
+ 	    HARD_REG_SET c;
+ 	  register int k;
+ 
++	  reg_class_subunion[i][j] = NO_REGS;
++
+ 	  COPY_HARD_REG_SET (c, reg_class_contents[i]);
+ 	  IOR_HARD_REG_SET (c, reg_class_contents[j]);
+ 	  for (k = 0; k < N_REG_CLASSES; k++)
+@@ -293,7 +294,7 @@
+ 
+   for (i = 0; i < N_REG_CLASSES; i++)
+     {
+-      if (i == (int) NO_REGS)
++      if (reg_class_size[i] == 0)
+ 	continue;
+ 
+       for (j = i + 1; j < N_REG_CLASSES; j++)
+@@ -348,7 +349,16 @@
+ 	may_move_cost[i][j] = cost;
+       }
+ 
+-  /* Do any additional initialization regsets may need */
++}
++
++/* Initialize usage once before command-line register switches are applied. */
++void
++init_reg_sets ()
++{
++  bcopy (initial_fixed_regs, fixed_regs, sizeof fixed_regs);
++  bcopy (initial_call_used_regs, call_used_regs, sizeof call_used_regs);
++  bzero (global_regs, sizeof global_regs);
++  init_reg_classes ();
+   INIT_ONCE_REG_SET ();
+ }
+ 
+diff --git a/regs.h b/regs.h
+--- a/regs.h
++++ b/regs.h
+@@ -131,6 +131,7 @@
+    in the machine dependent files access it.  */
+ 
+ extern short *reg_renumber;
++extern void init_reg_classes ();
+ 
+ /* Vector indexed by hardware reg
+    saying whether that reg is ever used.  */
+

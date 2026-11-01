@@ -1,0 +1,241 @@
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -215,6 +215,7 @@
+ char *mips_psx_prebranch_lw_delay_string;
+ char *mips_psx_local_bgez_string;
+ char *mips_psx_ctc2_return_delay_string;
++char *mips_nonfaulting_sh_return_string;
+ char *mips_stack_align_string;
+ char *mips_prologue_arg_alias_string;
+ char *mips_prologue_static_alias_string;
+@@ -234,6 +235,7 @@
+ int mips_psx_prebranch_lw_delay;
+ int mips_psx_local_bgez;
+ int mips_psx_ctc2_return_delay;
++int mips_nonfaulting_sh_return;
+ char *mips_common_head_slot_string;
+ int mips_common_head_slot;
+ char *mips_preserve_small_si_constants_string;
+@@ -5016,6 +5018,9 @@
+   mips_psx_ctc2_return_delay
+     = mips_psx_policy_option ("psx-ctc2-return-delay",
+                               mips_psx_ctc2_return_delay_string);
++  mips_nonfaulting_sh_return
++    = mips_psx_policy_option ("nonfaulting-sh-return",
++                              mips_nonfaulting_sh_return_string);
+   mips_prologue_arg_alias
+     = mips_psx_policy_option ("prologue-arg-alias",
+                               mips_prologue_arg_alias_string);
+@@ -7091,6 +7096,74 @@
+   return prev == slot;
+ }
+ 
++/* An explicit nonfaulting-MMIO contract, not general volatile speculation.
++   One SH immediately before a frameless leaf return executes exactly once,
++   after every preceding volatile access.  Faulting addresses, exception
++   BD/EPC equivalence and interrupt observation are outside this opt-in.  */
++static int
++mips_nonfaulting_sh_slot_p (slot)
++     rtx slot;
++{
++  rtx pat, mem, value, addr;
++  int n;
++  if (!slot || GET_CODE (slot) != INSN || INSN_DELETED_P (slot)
++      || recog_memoized (slot) != CODE_FOR_movhi_internal2
++      || get_attr_type (slot) != TYPE_STORE || get_attr_length (slot) != 1)
++    return 0;
++  pat = PATTERN (slot);
++  if (GET_CODE (pat) != SET)
++    return 0;
++  mem = SET_DEST (pat);
++  value = SET_SRC (pat);
++  if (GET_CODE (mem) != MEM || GET_MODE (mem) != HImode
++      || !MEM_VOLATILE_P (mem) || RTX_UNCHANGING_P (mem))
++    return 0;
++  addr = XEXP (mem, 0);
++  if (!(mips_cpu_lhu_base_p (addr)
++        || mips_cpu_lhu_address_p (mem, HImode)))
++    return 0;
++  if (value == const0_rtx)
++    return 1;
++  if (GET_CODE (value) == SUBREG && GET_MODE (value) == HImode
++      && SUBREG_WORD (value) == 0 && GET_CODE (SUBREG_REG (value)) == REG
++      && GET_MODE (SUBREG_REG (value)) == SImode)
++    value = SUBREG_REG (value);
++  if (GET_CODE (value) != REG
++      || (GET_MODE (value) != HImode && GET_MODE (value) != SImode))
++    return 0;
++  n = REGNO (value);
++  return GP_REG_P (n) && n >= 2 && n < 26;
++}
++
++static int
++mips_nonfaulting_sh_return_p (ret, slot)
++     rtx ret, slot;
++{
++  return (TARGET_NONFAULTING_SH_RETURN && reload_completed
++          && mips_can_use_return_insn ()
++          && mips_nonfaulting_sh_slot_p (slot)
++          && ret && GET_CODE (ret) == JUMP_INSN && !INSN_DELETED_P (ret)
++          && !INSN_ANNULLED_BRANCH_P (ret)
++          && GET_CODE (PATTERN (ret)) == RETURN
++          && recog_memoized (ret) == CODE_FOR_return
++          && get_attr_type (ret) == TYPE_JUMP && get_attr_length (ret) == 1);
++}
++
++int
++mips_adjacent_nonfaulting_sh_return_p (ret, slot)
++     rtx ret, slot;
++{
++  rtx prev;
++  if (!mips_nonfaulting_sh_return_p (ret, slot))
++    return 0;
++  prev = PREV_INSN (ret);
++  if (ret != get_insns () && (!prev || NEXT_INSN (prev) != ret))
++    return 0;
++  while (prev && GET_CODE (prev) == NOTE)
++    prev = PREV_INSN (prev);
++  return prev == slot;
++}
++
+ /* Installed/final validation is not initial-adjacency eligibility.  */
+ static void
+ mips_validate_volatile_slots ()
+@@ -7109,6 +7182,15 @@
+             if (!volatile_refs_p (PATTERN (slot)))
+               continue;
+             branch = XVECEXP (seq, 0, 0);
++            if (TARGET_NONFAULTING_SH_RETURN
++                && mips_nonfaulting_sh_slot_p (slot))
++              {
++                if (!INSN_DELETED_P (insn) && XVECLEN (seq, 0) == 2 && i == 1
++                    && mips_nonfaulting_sh_return_p (branch, slot))
++                  continue;
++                debug_rtx (insn);
++                fatal ("Nonfaulting SH return-slot invariant failed");
++              }
+             if (mips_ctc2_p (slot))
+               {
+                 if (!INSN_DELETED_P (insn) && XVECLEN (seq, 0) == 2 && i == 1
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -148,6 +148,8 @@
+ extern int mips_psx_prebranch_lw_delay;
+ extern int mips_psx_local_bgez;
+ extern int mips_psx_ctc2_return_delay;
++extern char *mips_nonfaulting_sh_return_string;
++extern int mips_nonfaulting_sh_return;
+ extern char *mips_common_head_slot_string;
+ extern int mips_common_head_slot;
+ extern char *mips_preserve_small_si_constants_string;
+@@ -176,6 +178,12 @@
+ #define TARGET_PSX_PREBRANCH_LW_DELAY mips_psx_prebranch_lw_delay
+ #define TARGET_PSX_LOCAL_BGEZ mips_psx_local_bgez
+ #define TARGET_PSX_CTC2_RETURN_DELAY mips_psx_ctc2_return_delay
++#define TARGET_NONFAULTING_SH_RETURN \
++  (mips_nonfaulting_sh_return && mips_isa == 1 && !TARGET_BIG_ENDIAN \
++   && !TARGET_64BIT && mips_abi == ABI_32 && INT_TYPE_SIZE == 32 \
++   && POINTER_SIZE == 32 && TARGET_SOFT_FLOAT && !TARGET_ABICALLS \
++   && !TARGET_EMBEDDED_PIC && !TARGET_LONG_CALLS && !flag_pic \
++   && !TARGET_HALF_PIC && !HALF_PIC_P ())
+ #define TARGET_MIPS_CTC2 \
+   (mips_isa == 1 && !TARGET_BIG_ENDIAN && !TARGET_64BIT \
+    && mips_abi == ABI_32 && INT_TYPE_SIZE == 32)
+@@ -276,6 +284,7 @@
+   mips_first_fallthrough_lw_p ((BRANCH), (SLOT))
+ #define PROTECTED_DELAY_SLOT_P(SLOT) mips_prebranch_lw_slot_p (SLOT)
+ extern int              mips_ctc2_return_delay_p ();
++extern int              mips_adjacent_nonfaulting_sh_return_p ();
+ extern int mips_preserve_small_si_constant_p ();
+ #define PRESERVE_RELOAD_CONSTANT_P(INSN) \
+   mips_preserve_small_si_constant_p (INSN)
+@@ -292,16 +301,19 @@
+ 
+ /* Per-compilation opt-ins, not game modes or generic volatile optimization.
+    LHU/LW require aligned mapped nonfaulting RAM; CTC2 requires enabled,
+-   nonfaulting COP2 and a null RETURN.  BD/EPC and IRQ observation are excluded. */
++   nonfaulting COP2 and a null RETURN.  SH requires nonfaulting mapped MMIO
++   immediately before an ordinary frameless leaf RETURN.  BD/EPC and IRQ
++   observation are excluded. */
+ #define ADJACENT_VOLATILE_DELAY_ENABLED_P \
+   (TARGET_PSX_NORMAL_RAM_LHU_DELAY || TARGET_PSX_NORMAL_RAM_LW_DELAY \
+-   || TARGET_PSX_CTC2_RETURN_DELAY)
++   || TARGET_PSX_CTC2_RETURN_DELAY || TARGET_NONFAULTING_SH_RETURN)
+ #define ADJACENT_VOLATILE_DELAY_P(BRANCH, SLOT) \
+   ((TARGET_PSX_NORMAL_RAM_LHU_DELAY \
+     && mips_adjacent_volatile_lhu_delay_p ((BRANCH), (SLOT))) \
+    || (TARGET_PSX_NORMAL_RAM_LW_DELAY \
+        && mips_adjacent_volatile_lw_delay_p ((BRANCH), (SLOT))) \
+-   || mips_ctc2_return_delay_p ((BRANCH), (SLOT)))
++   || mips_ctc2_return_delay_p ((BRANCH), (SLOT)) \
++   || mips_adjacent_nonfaulting_sh_return_p ((BRANCH), (SLOT)))
+ extern void		function_prologue ();
+ extern void		gen_conditional_branch ();
+ extern void		gen_conditional_move ();
+@@ -641,6 +653,7 @@
+   { "psx-prebranch-lw-delay=", &mips_psx_prebranch_lw_delay_string }, \
+   { "psx-local-bgez=", &mips_psx_local_bgez_string },		\
+   { "psx-ctc2-return-delay=", &mips_psx_ctc2_return_delay_string }, \
++  { "nonfaulting-sh-return=", &mips_nonfaulting_sh_return_string }, \
+   { "common-head-slot=", &mips_common_head_slot_string }, \
+   { "preserve-small-si-constants=", &mips_preserve_small_si_constants_string }, \
+   { "stack-align=", &mips_stack_align_string }, \
+--- a/config/mips/mips.md
++++ b/config/mips/mips.md
+@@ -128,7 +128,8 @@
+ (define_delay (eq_attr "type" "jump")
+   [(ior (and (eq_attr "dslot" "no") (eq_attr "length" "1"))
+         (ior (ne (symbol_ref "mips_ctc2_return_delay_p (delay_insn, insn)") (const_int 0))
+-             (ne (symbol_ref "mips_prejump_lw_delay_p (delay_insn, insn)") (const_int 0))))
++             (ior (ne (symbol_ref "mips_prejump_lw_delay_p (delay_insn, insn)") (const_int 0))
++                  (ne (symbol_ref "mips_adjacent_nonfaulting_sh_return_p (delay_insn, insn)") (const_int 0)))))
+    (nil)
+    (nil)])
+ 
+--- a/reorg.c
++++ b/reorg.c
+@@ -3225,7 +3225,7 @@
+ 	  for (trial = prev_nonnote_insn (insn); ! stop_search_p (trial, 1);
+ 	       trial = next_trial)
+ 	    {
+-              int references_conflict;
++              int references_conflict, sets_conflict, needed_conflict;
+ 	      next_trial = prev_nonnote_insn (trial);
+ 
+ 	      /* This must be an INSN or CALL_INSN.  */
+@@ -3238,24 +3238,31 @@
+ 	      /* Check for resource conflict first, to avoid unnecessary 
+ 		 splitting.  */
+               references_conflict = insn_references_resource_p (trial, &set, 1);
++              sets_conflict = insn_sets_resource_p (trial, &set, 1);
++              needed_conflict = insn_sets_resource_p (trial, &needed, 1);
+ #ifdef ADJACENT_VOLATILE_DELAY_P
+-              if (references_conflict && slots_filled == 0 && slots_to_fill == 1
++              if ((references_conflict || sets_conflict || needed_conflict)
++                  && slots_filled == 0 && slots_to_fill == 1
+                   && delay_list == 0 && trial == prev_nonnote_insn (insn)
+                   && !set.volatil && !needed.volatil
+                   && ADJACENT_VOLATILE_DELAY_P (insn, trial))
+                 {
+-                  struct resources trial_refs;
++                  struct resources trial_refs, trial_sets;
+                   CLEAR_RESOURCE (&trial_refs);
++                  CLEAR_RESOURCE (&trial_sets);
+                   mark_referenced_resources (trial, &trial_refs, 1);
++                  mark_set_resources (trial, &trial_sets, 0, 1);
+                   /* Acknowledge only the certified effect's volatility in this
+                      comparison copy.  Keep real RTL and all other resources.  */
+                   trial_refs.volatil = 0;
++                  trial_sets.volatil = 0;
+                   references_conflict = resource_conflicts_p (&trial_refs, &set);
++                  sets_conflict = resource_conflicts_p (&trial_sets, &set);
++                  needed_conflict = resource_conflicts_p (&trial_sets, &needed);
+                 }
+ #endif
+               if (!references_conflict
+-		  && ! insn_sets_resource_p (trial, &set, 1)
+-		  && ! insn_sets_resource_p (trial, &needed, 1)
++		  && !sets_conflict && !needed_conflict
+ #ifdef HAVE_cc0
+ 		  /* Can't separate set of cc0 from its use.  */
+ 		  && ! (reg_mentioned_p (cc0_rtx, pat)

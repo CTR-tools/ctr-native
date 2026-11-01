@@ -1484,5 +1484,68 @@ class AdjacentMetadataHeaderTests(unittest.TestCase):
                     ctr_resident.adjacent_metadata_size(Path("objdump"), Path("input"))
 
 
+class StoragePaddingTests(unittest.TestCase):
+    def test_bss_owner_invariants_and_initialized_type_separation(self):
+        descriptor = {"output_section": ".bss.state", "symbol": "state", "symbol_address": "0x2000", "offset": 0, "size": 4}
+        section = {"address": 0x2000, "size": 4, "elf_type": 8, "elf_flags": 3,
+                   "initialized": False, "flags": ["ALLOC"]}
+        owner = {"address": 0x2000, "size": 4, "type": "OBJECT", "binding": "GLOBAL", "visibility": "DEFAULT", "count": 1, "section": ".bss.state"}
+        ctr_match.verify_bss_owners([descriptor], {".bss.state": section}, {"state": owner})
+        for field, value in (("address", 0x2004), ("size", 8), ("type", "NOTYPE"), ("type", "FUNC"),
+                             ("binding", "LOCAL"), ("binding", "WEAK"), ("visibility", "HIDDEN"), ("count", 2), ("section", "*ABS*")):
+            with self.subTest(owner_field=field, value=value), self.assertRaises(ctr_match.MatchError):
+                ctr_match.verify_bss_owners([descriptor], {".bss.state": section}, {"state": {**owner, field: value}})
+        for field, value in (("elf_type", 1), ("elf_flags", 2), ("elf_flags", 7), ("initialized", True),
+                             ("flags", ["ALLOC", "CONTENTS"]), ("flags", ["ALLOC", "LOAD"]), ("flags", []), ("size", 8)):
+            with self.subTest(section_field=field, value=value), self.assertRaises(ctr_match.MatchError):
+                ctr_match.verify_bss_owners([descriptor], {".bss.state": {**section, field: value}}, {"state": owner})
+        for values in ([], [descriptor, descriptor], [{**descriptor, "offset": 1}]):
+            with self.subTest(descriptors=values), self.assertRaises(ctr_match.MatchError):
+                ctr_match.verify_bss_owners(values, {".bss.state": section}, {"state": owner})
+        for alias_type in ("OBJECT", "FUNC", "NOTYPE"):
+            with self.subTest(alias=alias_type), self.assertRaises(ctr_match.MatchError):
+                ctr_match.verify_bss_owners([descriptor], {".bss.state": section}, {"state": owner, "alias": {**owner, "type": alias_type}})
+        with self.assertRaises(ctr_match.MatchError):
+            ctr_match.verify_initialized_owners([descriptor], {".bss.state": section}, {"state": owner})
+        initialized = {**section, "elf_type": 1, "initialized": True, "flags": ["ALLOC", "LOAD", "DATA", "CONTENTS"]}
+        ctr_match.verify_initialized_owners([descriptor], {".bss.state": initialized}, {"state": owner})
+        with self.assertRaises(ctr_match.MatchError):
+            ctr_match.verify_bss_owners([descriptor], {".bss.state": initialized}, {"state": owner})
+
+    def test_function_padding_inventory_rejects_unbounded_or_unknown_tails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "source.c").write_text("int Test_Read(void) { return 0; }\n")
+            config = {"name": "test", "kind": "resident", "source": "source.c", "symbol_prefix": "Test_", "linker_script": "test.ld", "linked_block": {},
+                      "code_intervals": [{"start_symbol": "Test_Read", "end_symbol": "End"}]}
+            symbols = [ctr_resident.Symbol("Test_Read", 0x1000), ctr_resident.Symbol("End", 0x100c)]
+            with mock.patch.object(ctr_match, "ROOT", root):
+                legacy = ctr_resident.discover_function_ranges(config, symbols)[0]
+                self.assertNotIn("body_size", legacy.result_fields())
+                self.assertNotIn("padding_size", legacy.result_fields())
+                selected = ctr_resident.discover_function_ranges({**config, "function_padding": {"Test_Read": 4}}, symbols)
+                self.assertEqual((selected[0].size, selected[0].body_size, selected[0].padding_size), (12, 8, 4))
+                for invalid in (None, [], {"Unknown": 4}, {"Test_Read": True}, {"Test_Read": -4}, {"Test_Read": 2}, {"Test_Read": 12}, {"Test_Read": 16}, {"Test_Read": "4"}):
+                    with self.subTest(invalid=invalid), self.assertRaises(ctr_match.MatchError):
+                        ctr_resident.discover_function_ranges({**config, "function_padding": invalid}, symbols)
+
+    def test_descriptor_parser_rejects_malformed_values_as_match_error(self):
+        descriptor = {"output_section": ".bss.state", "symbol": "state", "symbol_address": "0x80020000", "offset": 0, "size": 4}
+        values = [None, {}, [], [None], ["state"], [{}]]
+        values += [{key: value for key, value in descriptor.items() if key != missing} for missing in descriptor]
+        values = values[:6] + [[value] for value in values[6:]]
+        values += [[{**descriptor, key: value}] for key, value in (
+            ("output_section", []), ("symbol", []), ("symbol_address", None), ("symbol_address", "bad"),
+            ("symbol_address", -1), ("symbol_address", 0x100000000), ("size", True), ("size", 1.5),
+            ("size", 0), ("size", -1), ("size", 0x100000000), ("offset", -1), ("offset", 1))]
+        for value in values:
+            with self.subTest(value=value), self.assertRaises(ctr_match.MatchError):
+                ctr_match.bss_ranges({"bss_ranges": value})
+        self.assertEqual(ctr_match.bss_ranges({}), [])
+        self.assertEqual(ctr_match.data_ranges({"data_range": {**descriptor, "offset": 4}, "output_section": ".bss.state"})[0]["offset"], 4)
+        for value in (None, [], "state"):
+            with self.subTest(legacy=value), self.assertRaises(ctr_match.MatchError):
+                ctr_match.data_ranges({"data_range": value, "output_section": ".data"})
+
 if __name__ == "__main__":
     unittest.main()

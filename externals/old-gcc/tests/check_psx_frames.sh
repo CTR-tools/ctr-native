@@ -3,6 +3,7 @@ set -eu
 
 task_gcc=$1
 task_prefix=$2
+task_baseline=${3:-$task_prefix}
 task_tests=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 task_out=$(mktemp -d)
 echo "Frame policy smoke outputs: $task_out"
@@ -95,23 +96,48 @@ done
 task_compile ordered -mordered-gp-prologue=on
 task_compile ordered-last -mordered-gp-prologue=banana -mordered-gp-prologue=on
 cmp "$task_out/ordered.s" "$task_out/ordered-last.s"
+# Literal preceding-tool controls; the optional third prefix selects that tool.
+(
+    task_prefix=$task_baseline
+    task_compile baseline-default
+    task_compile baseline-off -mordered-gp-prologue=off
+    task_compile baseline-on -mordered-gp-prologue=on
+)
+cmp "$task_out/default.s" "$task_out/baseline-default.s"
+cmp "$task_out/default.s" "$task_out/baseline-off.s"
+cmp "$task_out/ordered.s" "$task_out/baseline-on.s"
+task_compile descending -mordered-gp-prologue=descending
+task_compile descending-last -mordered-gp-prologue=banana -mordered-gp-prologue=on -mordered-gp-prologue=descending
+cmp "$task_out/descending.s" "$task_out/descending-last.s"
+task_compile descending-last-off -mordered-gp-prologue=descending -mordered-gp-prologue=off
+cmp "$task_out/default.s" "$task_out/descending-last-off.s"
+task_compile descending-last-on -mordered-gp-prologue=descending -mordered-gp-prologue=on
+cmp "$task_out/ordered.s" "$task_out/descending-last-on.s"
 task_compile sparse-off -ffixed-17 -ffixed-19 -mordered-gp-prologue=off
 task_compile sparse-on -ffixed-17 -ffixed-19 -mordered-gp-prologue=on
+task_compile sparse-desc -ffixed-17 -ffixed-19 -mordered-gp-prologue=descending
 task_compile debug-off -g -mordered-gp-prologue=off
 task_compile debug-on -g -mordered-gp-prologue=on
+task_compile debug-desc -g -mordered-gp-prologue=descending
 grep -Eq '^[[:space:]]*\.loc[[:space:]]' "$task_out/debug-on.s"
+grep -Eq '^[[:space:]]*\.loc[[:space:]]' "$task_out/debug-desc.s"
 
-for task_mode in ordered sparse-on debug-on; do
+for task_mode in ordered sparse-on debug-on descending sparse-desc debug-desc; do
     task_regs='16 17 18 31'
     task_mask='0x80070000,-4'
     task_before=default
-    if test "$task_mode" = sparse-on; then
+    if test "$task_mode" = sparse-on || test "$task_mode" = sparse-desc; then
         task_regs='16 18 20 31'; task_mask='0x80150000,-4'; task_before=sparse-off
-    elif test "$task_mode" = debug-on; then
+    elif test "$task_mode" = debug-on || test "$task_mode" = debug-desc; then
         task_before=debug-off
     fi
-    task_body frame_branch "$task_mode" | awk -v regs="$task_regs" -v mask="$task_mask" '
-        BEGIN { split(regs, r, " "); for (i=1; i<=4; ++i) home[i]="$" r[i] "," (12+4*i) "($sp)" }
+    task_desc=0
+    case "$task_mode" in
+        descending|*-desc) task_desc=1 ;;
+    esac
+    task_body frame_branch "$task_mode" | awk -v regs="$task_regs" -v mask="$task_mask" -v desc="$task_desc" '
+        BEGIN { split(regs, r, " "); for (i=1; i<=4; ++i) {
+            slot=desc ? 5-i : i; home[i]="$" r[slot] "," (12+4*slot) "($sp)" } }
         $1 == ".frame" { frame = ($2 == "$sp,32,$31") }
         $1 == ".mask" { metadata = ($2 == mask) }
         $1 ~ /^[a-z]/ && $1 !~ /:$/ {
@@ -138,6 +164,8 @@ done
 task_body frame_leaf default > "$task_out/leaf-default.s"
 task_body frame_leaf ordered > "$task_out/leaf-ordered.s"
 cmp "$task_out/leaf-default.s" "$task_out/leaf-ordered.s"
+task_body frame_leaf descending > "$task_out/leaf-descending.s"
+cmp "$task_out/leaf-default.s" "$task_out/leaf-descending.s"
 
 # Exclusions must contain the actual construct, not merely a target flag.
 for task_context in excluded dynamic fpu pic profile; do
@@ -150,7 +178,9 @@ for task_context in excluded dynamic fpu pic profile; do
     esac
     task_compile "$task_context-off" "$@" -mordered-gp-prologue=off
     task_compile "$task_context-on" "$@" -mordered-gp-prologue=on
+    task_compile "$task_context-desc" "$@" -mordered-gp-prologue=descending
     cmp "$task_out/$task_context-off.s" "$task_out/$task_context-on.s"
+    cmp "$task_out/$task_context-off.s" "$task_out/$task_context-desc.s"
 done
 task_body frame_order_large excluded-on | grep -Eq '\.frame[[:space:]]+\$sp,40024,\$31'
 task_body frame_order_aggregate excluded-on | grep -Eq 'sw[[:space:]]+\$[4-7],.*\(\$sp\)'
@@ -172,6 +202,16 @@ for task_option in stack-align prologue-arg-alias framed-return-boundary ordered
     fi
     grep -Fq 'bad value (banana)' "$task_out/bad.stderr"
     grep -Fq "$task_option" "$task_out/bad.stderr"
+    if test "$task_option" = ordered-gp-prologue; then
+        grep -Fq 'expected on, off or descending' "$task_out/bad.stderr"
+    fi
+    if grep -Eiq 'internal compiler error|segmentation fault|fatal signal' "$task_out/bad.stderr"; then exit 1; fi
+done
+for task_value in descending-extra DESCENDING; do
+    if task_compile bad-direction "-mordered-gp-prologue=$task_value" > "$task_out/direction.stdout" 2> "$task_out/direction.stderr"; then exit 1; fi
+    grep -Fq "bad value ($task_value)" "$task_out/direction.stderr"
+    grep -Fq 'expected on, off or descending' "$task_out/direction.stderr"
+    if grep -Eiq 'internal compiler error|segmentation fault|fatal signal' "$task_out/direction.stderr"; then exit 1; fi
 done
 for task_case in ALIGNED_SLOT DYNAMIC_FRAME; do
     if task_compile rejected -mstack-align=4 "-DTEST_$task_case=1" \

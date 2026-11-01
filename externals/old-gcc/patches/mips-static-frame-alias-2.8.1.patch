@@ -1,0 +1,366 @@
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -217,6 +217,8 @@
+ char *mips_psx_ctc2_return_delay_string;
+ char *mips_stack_align_string;
+ char *mips_prologue_arg_alias_string;
++char *mips_prologue_static_alias_string;
++int mips_prologue_static_alias;
+ char *mips_t9_constraint_string;
+ int mips_t9_constraint;
+ char *mips_framed_return_boundary_string;
+@@ -5017,6 +5019,9 @@
+   mips_prologue_arg_alias
+     = mips_psx_policy_option ("prologue-arg-alias",
+                               mips_prologue_arg_alias_string);
++  mips_prologue_static_alias
++    = mips_psx_policy_option ("prologue-static-alias",
++                              mips_prologue_static_alias_string);
+   mips_t9_constraint = mips_psx_policy_option ("t9-constraint",
+                                               mips_t9_constraint_string);
+   mips_framed_return_boundary
+@@ -8249,7 +8254,7 @@
+ 					  tsize_rtx));
+ 
+ 	  RTX_FRAME_RELATED_P (insn) = 1;
+-          if (mips_prologue_arg_alias)
++          if (mips_prologue_arg_alias || mips_prologue_static_alias)
+             emit_insn (gen_blockage ());
+ 	}
+ 
+@@ -8414,6 +8419,266 @@
+           && INTVAL (XEXP (addr, 1)) == offset);
+ }
+ 
++/* Preserve declared static-object extent for opt-in prologue disjointness. */
++struct mips_static_extent
++{
++  char *name;
++  unsigned long size;
++  struct mips_static_extent *next;
++};
++static struct mips_static_extent *mips_static_extents;
++
++void
++mips_record_static_extent (decl)
++     tree decl;
++{
++  struct mips_static_extent *p;
++  rtx object, symbol;
++  char *name, *end;
++  extern unsigned long strtoul (const char *, char **, int);
++  int size;
++  if (!mips_prologue_static_alias || TREE_CODE (decl) != VAR_DECL
++      || (!TREE_STATIC (decl) && !DECL_EXTERNAL (decl))) return;
++  object = DECL_RTL (decl);
++  if (!object || GET_CODE (object) != MEM) return;
++  symbol = XEXP (object, 0);
++  if (GET_CODE (symbol) != SYMBOL_REF) return;
++  name = XSTR (symbol, 0); if (*name == '*') ++name;
++  if (!isalpha ((unsigned char)*name) && *name != '_') return;
++  for (++name; isalnum ((unsigned char)*name) || *name == '_' || *name == '.'; ++name);
++  if (*name && ((*name != '+' && *name != '-') || !isdigit ((unsigned char)name[1]))) return;
++  if (*name) { strtoul (name + 1, &end, 0); if (*end) return; }
++  size = int_size_in_bytes (TREE_TYPE (decl));
++  for (p = mips_static_extents; p; p = p->next)
++    if (!strcmp (p->name, XSTR (symbol, 0)))
++      { if (size <= 0 || p->size != size) p->size = 0; return; }
++  p = (struct mips_static_extent *) xmalloc (sizeof (*p));
++  p->name = xstrdup (XSTR (symbol, 0)); p->size = size > 0 ? size : 0;
++  p->next = mips_static_extents; mips_static_extents = p;
++}
++
++struct mips_static_bound
++{
++  struct mips_static_extent *object;
++  unsigned long low, high;
++};
++
++/* Return only the latest single GPR definition within the bounded prefix. */
++static rtx
++mips_static_producer (x, before)
++     rtx x, before;
++{
++  rtx insn, set;
++  int count = 0;
++  if (GET_CODE (x) != REG || !GP_REG_P (REGNO (x))
++      || global_regs[REGNO (x)] || REGNO (x) == STACK_POINTER_REGNUM
++      || REGNO (x) == HARD_FRAME_POINTER_REGNUM) return 0;
++  for (insn = PREV_INSN (before); insn && ++count <= 96;
++       insn = PREV_INSN (insn))
++    {
++      if (GET_CODE (insn) == NOTE) continue;
++      if (GET_CODE (insn) != INSN) return 0;
++      if (!reg_set_p (x, insn)) continue;
++      set = single_set (insn);
++      if (!set || GET_CODE (SET_DEST (set)) != REG
++          || REGNO (SET_DEST (set)) != REGNO (x)) return 0;
++      return insn;
++    }
++  return 0;
++}
++
++/* Only the actual latest HIGH of this exact LO_SUM relocation is accepted. */
++static int
++mips_static_high_match (x, before, depth, symbol)
++     rtx x, before, symbol;
++     int depth;
++{
++  rtx insn;
++  if (depth > 12) return 0;
++  if (GET_CODE (x) == HIGH) return rtx_equal_p (XEXP (x, 0), symbol);
++  insn = mips_static_producer (x, before);
++  return insn && mips_static_high_match (SET_SRC (single_set (insn)), insn,
++                                          depth + 1, symbol);
++}
++
++/* Latest definitions are relative to BEFORE, including self-updated registers.
++   Only nonnegative object offsets with a checked signed-32 bound are accepted. */
++static int
++mips_static_bound (x, before, depth, result)
++     rtx x, before;
++     int depth;
++     struct mips_static_bound *result;
++{
++  struct mips_static_bound a, b;
++  struct mips_static_extent *p;
++  rtx insn, mask;
++  if (depth > 12) return 0;
++  result->object = 0; result->low = result->high = 0;
++  switch (GET_CODE (x))
++    {
++    case SYMBOL_REF:
++      for (p = mips_static_extents; p; p = p->next)
++        if (p->size && !strcmp (p->name, XSTR (x, 0)))
++          { result->object = p; return 1; }
++      return 0;
++    case CONST:
++      return mips_static_bound (XEXP (x, 0), before, depth + 1, result);
++    case LO_SUM:
++      if (!mips_static_high_match (XEXP (x, 0), before, depth + 1,
++                                   XEXP (x, 1))) return 0;
++      return mips_static_bound (XEXP (x, 1), before, depth + 1, result);
++    case CONST_INT:
++      if (INTVAL (x) < 0 || INTVAL (x) > 0x7fffffff) return 0;
++      result->low = result->high = INTVAL (x); return 1;
++    case AND:
++      mask = XEXP (x, 1);
++      if (GET_CODE (mask) != CONST_INT || INTVAL (mask) < 0
++          || INTVAL (mask) > 0x7fffffff) return 0;
++      result->high = INTVAL (mask); return 1;
++    case PLUS:
++      if (!mips_static_bound (XEXP (x, 0), before, depth + 1, &a)
++          || !mips_static_bound (XEXP (x, 1), before, depth + 1, &b)
++          || (a.object && b.object) || a.high > 0x7fffffffUL - b.high)
++        return 0;
++      result->object = a.object ? a.object : b.object;
++      result->low = a.low + b.low; result->high = a.high + b.high;
++      return 1;
++    case REG:
++      insn = mips_static_producer (x, before);
++      return insn && mips_static_bound (SET_SRC (single_set (insn)), insn,
++                                        depth + 1, result);
++    default: return 0;
++    }
++}
++
++/* A direct SP-relative MEM is compiler stack access, not frame publication. */
++static int
++mips_static_frame_escape_p (x)
++     rtx x;
++{
++  const char *format;
++  rtx address;
++  int i, j;
++  if (GET_CODE (x) == REG)
++    return (REGNO (x) == STACK_POINTER_REGNUM
++            || (frame_pointer_needed && REGNO (x) == HARD_FRAME_POINTER_REGNUM));
++  if (GET_CODE (x) == MEM)
++    {
++      address = XEXP (x, 0);
++      if (address == stack_pointer_rtx
++          || (GET_CODE (address) == PLUS
++              && XEXP (address, 0) == stack_pointer_rtx
++              && GET_CODE (XEXP (address, 1)) == CONST_INT)) return 0;
++    }
++  format = GET_RTX_FORMAT (GET_CODE (x));
++  for (i = 0; i < GET_RTX_LENGTH (GET_CODE (x)); ++i)
++    {
++      if (format[i] == 'e' && mips_static_frame_escape_p (XEXP (x, i))) return 1;
++      if (format[i] == 'E')
++        for (j = 0; j < XVECLEN (x, i); ++j)
++          if (mips_static_frame_escape_p (XVECEXP (x, i, j))) return 1;
++    }
++  return 0;
++}
++
++/* Only fresh unshared reload homes; pseudo nodes become MEMs in place. */
++static rtx mips_reload_spills;
++void
++mips_record_reload_spill (x)
++     rtx x;
++{
++  if (!x) mips_reload_spills = 0;
++  else if (mips_prologue_static_alias && GET_MODE (x) == SImode)
++    mips_reload_spills = gen_rtx (EXPR_LIST, VOIDmode, x, mips_reload_spills);
++}
++static int
++mips_reload_spill_p (insn, mem)
++     rtx insn, mem;
++{
++  rtx p, set, addr;
++  long low = current_frame_info.args_size + current_frame_info.extra_size;
++  for (p = mips_reload_spills; p && XEXP (p, 0) != mem; p = XEXP (p, 1));
++  if (!p || GET_CODE (insn) != INSN || GET_CODE (mem) != MEM
++      || GET_MODE (mem) != SImode || MEM_VOLATILE_P (mem)
++      || !(set = single_set (insn)) || SET_DEST (set) != mem
++      || GET_CODE (SET_SRC (set)) != REG || !GP_REG_P (REGNO (SET_SRC (set))))
++    return 0;
++  addr = XEXP (mem, 0);
++  return (GET_CODE (addr) == PLUS && XEXP (addr, 0) == stack_pointer_rtx
++          && GET_CODE (XEXP (addr, 1)) == CONST_INT
++          && INTVAL (XEXP (addr, 1)) % UNITS_PER_WORD == 0
++          && INTVAL (XEXP (addr, 1)) >= low
++          && INTVAL (XEXP (addr, 1)) <= low + current_frame_info.var_size - 4);
++}
++int
++mips_prologue_static_read_disjoint_p (save, mem, insn, read_mem)
++     rtx save, mem, insn, read_mem;
++{
++  struct mips_static_bound address;
++  rtx p, set, source, allocation = 0;
++  int before = 1, saved = 0, marker = 0, count = 0, epilogue = 0;
++  if (!mips_prologue_static_alias || !reload_completed || TARGET_64BIT
++      || mips_isa != 1 || !TARGET_SOFT_FLOAT || TARGET_BIG_ENDIAN
++      || TARGET_ABICALLS || TARGET_EMBEDDED_PIC || mips_abi != ABI_32
++      || UNITS_PER_WORD != 4 || frame_pointer_needed || profile_flag
++      || profile_block_flag || profile_arc_flag || flag_stack_check
++      || flag_check_memory_usage || flag_exceptions || asynchronous_exceptions
++      || current_function_calls_alloca || current_function_calls_setjmp
++      || current_function_calls_longjmp || current_function_has_nonlocal_label
++      || current_function_has_nonlocal_goto || current_function_contains_functions
++      || current_function_needs_context || current_function_varargs
++      || current_function_stdarg || current_function_returns_struct
++      || current_function_returns_pcc_struct || current_function_pretend_args_size
++      || mips_manual_abi_p (current_function_decl)
++      || mips_regcall_p (current_function_decl) || mips_adjacent_p (current_function_decl)
++      || global_regs[STACK_POINTER_REGNUM] || global_regs[HARD_FRAME_POINTER_REGNUM]
++      || !current_frame_info.initialized || current_frame_info.fmask
++      || current_frame_info.total_size <= 0 || current_frame_info.total_size > 32767
++      || (!mips_new_frame_gpr_save_p (save, mem) && !mips_reload_spill_p (save, mem))
++      || GET_CODE (insn) != INSN
++      || GET_CODE (read_mem) != MEM || GET_MODE (read_mem) != QImode
++      || MEM_VOLATILE_P (read_mem) || (set = single_set (insn)) == 0
++      || GET_CODE (SET_DEST (set)) != REG) return 0;
++  source = SET_SRC (set);
++  if ((GET_CODE (source) != ZERO_EXTEND && GET_CODE (source) != SIGN_EXTEND)
++      || XEXP (source, 0) != read_mem) return 0;
++  for (p = get_insns (); p; p = NEXT_INSN (p))
++    {
++      if (p == insn) before = 0;
++      if (GET_CODE (p) == NOTE)
++        { if (NOTE_LINE_NUMBER (p) == NOTE_INSN_EPILOGUE_BEG) epilogue = 1;
++          continue; }
++      if (before && ++count > 96) return 0;
++      if (GET_CODE (p) != INSN)
++        { if (before) return 0; else continue; }
++      set = single_set (p);
++      if (set && SET_DEST (set) == stack_pointer_rtx
++          && (RTX_FRAME_RELATED_P (p) || (!before && epilogue)))
++        {
++          source = SET_SRC (set);
++          if ((GET_CODE (source) != MINUS && GET_CODE (source) != PLUS)
++              || XEXP (source, 0) != stack_pointer_rtx
++              || GET_CODE (XEXP (source, 1)) != CONST_INT
++              || INTVAL (XEXP (source, 1)) != current_frame_info.total_size) return 0;
++          if (before)
++            { if (allocation) return 0; allocation = p; }
++          continue;
++        }
++      if (before && allocation && prev_nonnote_insn (p) == allocation
++          && recog_memoized (p) == CODE_FOR_blockage)
++        { marker = 1; continue; }
++      if (asm_noperands (PATTERN (p)) >= 0 || GET_CODE (PATTERN (p)) == ASM_INPUT
++          || mips_static_frame_escape_p (PATTERN (p))) return 0;
++      if (before && (volatile_insn_p (PATTERN (p))
++                     || volatile_refs_p (PATTERN (p))
++                     || GET_CODE (PATTERN (p)) == TRAP_IF)) return 0;
++      if (p == save && before && allocation) saved = 1;
++    }
++  return (saved && marker
++          && mips_static_bound (XEXP (read_mem, 0), insn, 0, &address)
++          && address.object && address.high < address.object->size);
++}
++
+ /* Sched2-only, entry-prefix subset of stack/argument base-origin analysis.
+    It does not infer through pointer loads, copies, arbitrary expressions,
+    calls, ASM, frame exposure or control flow.  Existing non-memory edges,
+--- a/config/mips/mips.h
++++ b/config/mips/mips.h
+@@ -155,6 +155,14 @@
+ extern char *mips_stack_align_string;
+ extern int mips_stack_align;
+ extern char *mips_prologue_arg_alias_string;
++extern char *mips_prologue_static_alias_string;
++extern int mips_prologue_static_alias;
++extern void mips_record_static_extent ();
++extern void mips_record_reload_spill ();
++#define RECORD_RELOAD_PRIVATE_SPILL(X) mips_record_reload_spill (X)
++extern int mips_prologue_static_read_disjoint_p ();
++#define PROLOGUE_STATIC_READ_DISJOINT_P(SAVE, MEM, INSN, READ_MEM) \
++  mips_prologue_static_read_disjoint_p ((SAVE), (MEM), (INSN), (READ_MEM))
+ extern char *mips_t9_constraint_string;
+ extern int mips_t9_constraint;
+ extern char *mips_framed_return_boundary_string;
+@@ -637,6 +645,7 @@
+   { "preserve-small-si-constants=", &mips_preserve_small_si_constants_string }, \
+   { "stack-align=", &mips_stack_align_string }, \
+   { "prologue-arg-alias=", &mips_prologue_arg_alias_string }, \
++  { "prologue-static-alias=", &mips_prologue_static_alias_string }, \
+   { "t9-constraint=", &mips_t9_constraint_string }, \
+   { "framed-return-boundary=", &mips_framed_return_boundary_string }, \
+   { "ordered-gp-prologue=", &mips_ordered_gp_prologue_string }, \
+@@ -2971,6 +2980,7 @@
+ #define ENCODE_SECTION_INFO(DECL)					\
+ do									\
+   {									\
++    mips_record_static_extent (DECL); \
+     if (TARGET_EMBEDDED_PIC)						\
+       {									\
+         if (TREE_CODE (DECL) == VAR_DECL)				\
+--- a/reload1.c
++++ b/reload1.c
+@@ -562,6 +562,9 @@
+   /* The basic block number currently being processed for INSN.  */
+   int this_block;
+ 
++#ifdef RECORD_RELOAD_PRIVATE_SPILL
++  RECORD_RELOAD_PRIVATE_SPILL (0);
++#endif
+   /* Make sure even insns with volatile mem refs are recognizable.  */
+   init_recog ();
+ 
+@@ -2518,6 +2521,10 @@
+ 	  /* No known place to spill from => no slot to reuse.  */
+ 	  x = assign_stack_local (GET_MODE (regno_reg_rtx[i]), total_size,
+ 				  inherent_size == total_size ? 0 : -1);
++#ifdef RECORD_RELOAD_PRIVATE_SPILL
++          if (inherent_size == UNITS_PER_WORD && total_size == inherent_size)
++            RECORD_RELOAD_PRIVATE_SPILL (regno_reg_rtx[i]);
++#endif
+ 	  if (BYTES_BIG_ENDIAN)
+ 	    /* Cancel the  big-endian correction done in assign_stack_local.
+ 	       Get the address of the beginning of the slot.
+--- a/sched.c
++++ b/sched.c
+@@ -1974,6 +1974,10 @@
+         if (! PROLOGUE_ARG_READ_DISJOINT_P (XEXP (pending, 0),
+                                            XEXP (pending_mem, 0), insn, x))
+ #endif
++#ifdef PROLOGUE_STATIC_READ_DISJOINT_P
++        if (! PROLOGUE_STATIC_READ_DISJOINT_P (XEXP (pending, 0),
++                                              XEXP (pending_mem, 0), insn, x))
++#endif
+ 		add_dependence (insn, XEXP (pending, 0), 0);
+ 
+ 	    /* An order-only edge must not replace a stock dependency.  */

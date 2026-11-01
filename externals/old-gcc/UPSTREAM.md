@@ -65,6 +65,81 @@ control-register storage. It has no CPU GPR output or implicit call. The
 return-slot option changes only its narrowly certified scheduling, not ordinary
 ASM or arbitrary volatile effects.
 
+## Loop optimization control
+
+`generic-loop-optimize-2.8.1.patch` adds `-floop-optimize` and
+`-fno-loop-optimize` to the matching C compiler. Its SHA-256 is
+`ddb7cd2bb75d0d635e8385016fbe171be76ce9d9261478908a024b89b36cb621`.
+The default retains the original loop pass; the last supplied value wins.
+Disabling it skips all of `loop.c`, including invariant motion, induction
+optimization and unrolling, but preserves frontend loop notes and the other
+optimization passes. It does not change ordinary C operators or instruction
+lowering. The opt-out is scoped to the icon unit in the matching manifest.
+`tests/check_loop_optimize.sh` checks actual O0/O2 output and RTL for default/ON
+identity, precedence, loop notes and retained volatile/call effects. Its optional
+third argument compares against a separately retained baseline compiler.
+
+## Opt-in T9 operand class
+
+`mips-t9-constraint-2.8.1.patch` adds `-mt9-constraint=on|off`, default `off`,
+last supplied value wins. SHA-256:
+`34aa7a10a85f6aec8a1d9eb1df5dd11ea877cab012db1dfd6856704e3737b22f`.
+ON permits the `c` constraint to request the ordinary caller-clobbered T9 GPR
+at an operand. It does not permanently bind a C variable or change the call ABI;
+the allocator preserves live C values around calls. Default/OFF keep this class
+empty and the constraint unsupported. Class tables are recomputed after target
+options without repeating fixed/call-used/global-register usage initialization.
+The ordinary-GPR spill/copy-cost treatment is explicit, not a new hardware unit.
+`tests/check_mips_t9.sh` checks default/OFF and last-value output, impossible
+operands, requested register usage, volatile effects and real call preservation.
+These are finite compiler-output checks; no GDB or game source is needed.
+
+## Opt-in static-object and private-frame disjointness
+
+`mips-static-frame-alias-2.8.1.patch` adds
+`-mprologue-static-alias=on|off`, default `off`, last supplied value wins.
+SHA-256:
+`abce0a83ad019cca09a51e73800107fd81d2aec093844a156506c01aca2d4390`.
+It follows the T9 patch and changes 287 added/1 removed compiler lines across
+the MIPS target, reload allocation and sched2 dependency owners. No game name,
+address, expected word or hard-register equivalence selects the behavior.
+
+For an eligible fixed o32 frame after reload, the policy can prove a bounded
+ordinary byte read from declared static storage disjoint from a real computed
+GPR save home or a fresh, unshared compiler reload home. Reload ownership uses
+the exact pseudo node converted in place to MEM, reset each function, not a
+numeric SP offset. Only complete aligned SI stores inside the computed locals
+area qualify; caller/outgoing homes, copied/partial/source-addressable/unknown
+stores do not inherit that identity. Existing non-memory dependencies, frame
+notes, save/restore semantics and the source memory operation remain intact.
+
+Static extents remain mutable. A bounded latest-definition trace accepts only
+checked nonnegative offsets and complete matched HIGH/LO_SUM relocations,
+within 96 entry instructions and 12 trace levels. Both recursive interpretations
+share one conservative latest-single-GPR-definition lookup. Loaded pointer/index
+values do not gain bounds from assumed table contents. Assembler names require an alphabetic
+or underscore base, then alphanumeric/underscore/dot characters, optionally
+one fully parsed +/- integer. Register, relocation and other expression names
+are not static-owner evidence; leading-dot names are conservatively excluded.
+Truthful declarations must describe real readable static objects or views.
+
+The physical contract is normal, nonfaulting memory and a fresh disjoint ABI
+stack frame, not MMIO or an unsafe/manual stack window. Little-endian MIPS-I,
+ABI32 and soft-float are required. PIC, frame pointers, dynamic/large/exposed
+frames, profiling, EH/nonlocal/nested/variadic/manual contexts, source ASM and
+prefix calls/control transfers do not gain an exemption. Precise fault order,
+asynchronous observation and debugger/unwind equivalence are not promised.
+ON may still add conservative frame-allocation ordering in excluded contexts;
+default/OFF retain the original output, not universal ON output identity.
+
+`tests/check_mips_static_frame_alias.sh` uses standalone C and real scheduling
+dependencies to check static extents, private reload stores, source-home edges
+after the reload-owning function, legal section-qualified SP/GP name refusal,
+default/OFF/precedence and observable call/branch/ASM ordering. These are finite
+compiler raw-output/RTL checks, not assembler execution, MIPS execution or a
+complete exclusion matrix. Application, actual assembler/link and native gates
+remain separate.
+
 ## Frame policies
 
 `psx-frame-policies-2.8.1.patch` follows the GTE patch in the same recipe.
@@ -95,9 +170,10 @@ All frame options are per compilation; no function names or addresses select the
   after nonzero frame teardown prevents filling the return delay slot from
   before that boundary. Frameless returns retain ordinary delay-slot filling.
   This is not an exception/interrupt, unwind or alternate-assembler guarantee.
-- `-mordered-gp-prologue=on|off` defaults to `off`. For RTL-only fixed frames
-  of 1 through 32767 bytes, emit selected GPR saves in ascending order at their
-  existing homes and complete the save group before body work. Frame size,
+- `-mordered-gp-prologue=on|off|descending` defaults to `off`. For RTL-only fixed
+  frames of 1 through 32767 bytes, emit selected GPR saves in ascending (`on`)
+  or descending order at their existing homes and complete the save group before
+  body work. Frame size,
   save mask, per-save frame notes and restore emission are unchanged. Requires
   little-endian MIPS-I/ABI32, 32-bit int/GPR/pointer modes, soft-float and no
   PIC/ABICALLS. Frameless, large or dynamic frames, frame pointers, FPR saves,
@@ -117,6 +193,17 @@ dense/sparse save homes and body boundaries, conservative pointer/ASM cases
 and genuine excluded frame/FPU/PIC/profile contexts, not game-specific bytes.
 The debug control checks emitted records and frame/save/restore layout only,
 not debugger execution or unwind correctness.
+
+`mips-ordered-save-direction-2.8.1.patch` follows the static/frame-alias patch.
+SHA-256:
+`ed2765cc6e4b978649cb5522c275d7adfd2a62b72cade7e900dc6356f579ed77`.
+Its 18 added/7 removed target lines reverse only the existing eligible save
+traversal/home direction and list all three values in invalid-option diagnostics.
+Default, explicit OFF and previous ascending ON retain their prior output.
+The frame checker reuses its dense/sparse/debug home, restore and body-boundary
+checks for descending order, compares default/OFF/ON with an optional preceding
+tool prefix, and checks descending precedence, exclusions and invalid values.
+It adds no source fixture or suite and does not certify MIPS execution.
 
 ## Unreachable assertion
 
@@ -370,21 +457,74 @@ queued old-value snapshots, live results through later writers/calls and arity
 errors with standalone C/provider fixtures. These are finite compiler-output
 controls, not MIPS execution or universal scheduling/availability coverage.
 
+`generic-scheduler-2.8.1.patch` follows the ordered-save patch (SHA-256
+`a9fb7f24a39142f22fc8b8441c0b6c81ba7134302b415c07c33c8c94cdc8319a`).
+Its three default-off options enable dying-input/fresh-output coalescing for
+canonical empty ASM, first hazard-safe pre-reload ready ties, and guarded
+zero-issue accounting for exact-empty postreload ASM. It retains dependency,
+priority and hardware-latency rules; uncertain real input latency and grouped
+instructions refuse zero issue. The matching manifest scopes these options to
+Matrix setup. The standalone generic-scheduler smoke checks actual copy removal,
+ready ties, zero-clock observations, real load/LO-overlap refusals and option
+precedence. These finite compiler-output checks are not hardware timing proof.
+
+`generic-local-register-hint-2.8.1.patch` follows the scheduler patch (SHA-256
+`5a476128a14964acfcd31f047c2164c37f3bbb7473946d31b4a3a5be08417285`).
+The explicit C attribute `__attribute__((local_register_hint("10")))` gives an
+automatic single-word integer/pointer an ordinary LOCAL quantity preference,
+below copy/ABI preferences; it does not create hard-register RTL or exclude
+reload scratch registers function-wide. Unavailable/conflicting hints fall
+back, and declarations lost to optimization need not retain their preference.
+Invalid scopes/types/registers and hard-asm combinations diagnose. Existing
+`asm("reg")` bindings remain hard; GLOBAL allocation and reload policy are
+unchanged. The patch adds 118 C lines (115 net), plus a Makefile dependency.
+`tests/check_local_register_hint.sh` covers actual homes, inline metadata
+lifetime, fallback/coalesced conflict, unannotated identity, unchanged hard-asm,
+invalid forms and disjoint same-physical-register BLK scratch reuse.
+
+`mips-nonfaulting-sh-return-2.8.1.patch` follows the local-register-hint patch
+(SHA-256 `9a07f18d2fd45363dc3856b755a2a9c702685181dcd1e11056cff3748341f4ea`).
+The default-off `-mnonfaulting-sh-return=on` policy certifies one immediately
+preceding volatile halfword store for an ordinary frameless leaf return, in
+little-endian MIPS-I, ABI32, soft-float, non-PIC code only. The caller asserts
+mapped, nonfaulting MMIO; fault BD/EPC and interrupt observation are excluded.
+The store remains volatile, its width/address/input must be legal, and all true
+memory/register conflicts remain enforced. Only comparison copies lose the
+certified volatility bit. Existing protected-slot checks prevent copying or
+retargeting; final validation rejects a broken installed contract.
+`tests/check_nonfaulting_sh_return.sh` covers positive stores, unchanged
+unsupported shapes/profiles, preceding volatile order, normal scheduling,
+default-off identity, option precedence and invalid values.
+
 ## Current complete compiler tuple
 
-Two fresh maintained constructions produced byte-identical complete five-export
-tuples, with all seven maintained smoke suites passing on both binaries. The
+Two fresh clean constructions produced byte-identical complete five-export
+tuples, with all thirteen maintained smoke suites passing on both binaries. The
 replacement cc1 is
-`8c1112f99e9e47a496a1d98bc9efc468c630a4925361e56b7801da5016fa5207`,
+`01dbda0e42a1029dfe64fc264262da74bfb1f1dba1c0d8d4a4da5905094f2ad4`,
 a statically linked Linux i386 executable. The four stock companions retain the
 hashes listed in the historical release table below. The complete deterministic
 pre-configure source fingerprint is
-`b5a88639f676ad13568262c0cdd4685516a143f85a5cfdb58ffd5f3877bbe443`,
-1221 regular files, zero symlinks, with original source modes retained. Cached
-offline Ubuntu20.04/GCC9.4.0 provisioning is distinct from freshly executing the
+`1489d3e3c9cd45fadeebed5dfeadd7e228b9f4970313e104a5be2fd1f24a7e59`,
+1221 regular files, zero symlinks, with only the six patched files made
+owner-writable as in the recipe. Cached offline Ubuntu 20.04/GCC 9.4.0
+provisioning is distinct from freshly executing the
 Dockerfile's mutable apt steps. Matching and native coverage are verified
 separately; these compiler constructions and output controls do not establish
 whole-game or MIPS-hardware correctness.
+
+Each construction retains 1111 legacy host build warnings and the existing
+configure diagnostic `-D__psx__: not found`. The static/frame-alias smoke emits
+no stderr; the extended frame smoke emits expected debug/profile warnings.
+These diagnostics are recorded, not a warning-free build claim.
+The preceding static/frame construction used cc1
+`de93d4970b7596316aed47a1c13f72ee9084dd55a79ea1801e9de90abd183876`
+and source fingerprint
+`607595a168727cc764ac4ef8e5aa06c612acde55d384ad96fc64b608bf0f114f`.
+The earlier T9-option construction used cc1
+`9bff81a6308db65bfa81c043bef00aed3f91773700563eea00b44a1dddac9ddb`
+and source fingerprint
+`4a14b455edd6c3df8575c474eafece4ae353003fa6ff870875c65ab2ad5fe00f`.
 
 ## Previously tested compiler release
 
@@ -418,3 +558,77 @@ a22f62beedb71c97ef637600492189327039433b1da7c8679b75492e60247770  cc1
 a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd  g++
 451e6521d860fc6ff49000567d94d983125263bb0ae2149f89d95eaed34b3a02  gcc
 ```
+
+## Opt-in late in-place updates at actual call setup
+
+`generic-call-setup-tie-2.8.1.patch` follows the nonfaulting-SH-return patch.
+SHA-256: `beb2f8d8fcfc0e9ecc10ced3da1ff202969041c5e98914299c9bc835adcc1156`.
+The default-off `-fsched2-late-inplace-at-call-setup` policy changes only a
+postreload ready tie with equal priority and potential hazard after actual
+hazard filtering. It prefers a pure nontrapping complete single-hard-register
+integer in-place update which is not itself an actual call argument, when a
+genuine call-argument definition competes in that tie. Argument identity needs
+a TRUE CALL dependency plus a register USE in CALL_INSN_FUNCTION_USAGE, not a
+particular register, callee, literal or machine opcode.
+
+Per-block role marking adds no dependencies, ABI, instruction or RTL form.
+Existing priority, hardware hazards, groups, frame rules and call/register/
+memory dependencies remain authoritative. Fixed/global/partial/multiword
+destinations and unknown/effectful/memory expressions receive no preference.
+Default/OFF and final-option precedence are covered by standalone controls;
+an optional retained-compiler prefix also compares against its baseline. The new
+tests are finite compiler-output/RTL controls, not physical MIPS timing,
+runtime execution or universal exclusion coverage. Application, native and
+aggregate output checks remain separate gates.
+
+## Opt-in volatile word store in a private-frame local-jump slot
+
+`mips-private-frame-sw-jump-2.8.1.patch` follows the call-setup tie patch.
+SHA-256: `7a7589c325964172ff16ae4b667cfd636fff3780f46ab22c6cda0ed6f9ef66ff`.
+The default-off `-mprivate-frame-sw-jump=on|off` policy certifies one adjacent
+volatile SI word store for a direct nonannulled local jump, in little-endian
+MIPS-I/ABI32 soft-float code with 32-bit int/long/pointer/word and ordinary
+non-PIC calling conventions. It requires actual fixed private leaf locals,
+aligned complete in-local bounds and a dominating straight-entry allocation.
+Calls, exposed/dynamic/manual/unsupported frames, other widths/bases/regions,
+conditional/computed/return edges and source/SP hazards are excluded.
+
+Existing comparison-only volatility handling preserves actual RTL/register/
+memory resources; protected delay sequences and final validation remain.
+The caller supplies mapped nonfaulting private stack RAM. Precise fault BD/EPC,
+interrupt/asynchronous and debugger observations are outside this opt-in.
+The matching manifest enables it only for the two SPU voice-setter C bodies;
+native audio delegation is unchanged and needs no host timing loop.
+
+The patch adds151 C/header lines and removes3, without changing MD or reorg
+algorithms. Standalone C/POSIX-shell controls check four triggered sequences,
+sixteen unchanged negative bodies, option/default/precedence and unsupported
+profiles. Optional retained-tool comparison and two clean offline archive
+builds supplement the existing compiler suite. Controls inspect generated
+instructions/RTL; they do not execute MIPS or prove hardware/IRQ/fault timing.
+Only C cc1 is rebuilt; other exported frontend tools remain unchanged.
+
+## Opt-in target-thread delay-slot search order
+
+`generic-delay-slot-target-first-2.8.1.patch` follows the private-frame store patch.
+SHA-256: `f34e266d526290cd9bcdc0c4080aa1069ad28e3cbd665bd384efc58aa74364eb`.
+The default-off `-fdelay-slot-target-first` preference tries the existing target
+thread scan before fallthrough for a direct local conditional with one slot,
+no annulment, both threads owned, static prediction zero and no profiling or
+probability note. Real prediction and LIKELY, eligibility, resource/liveness,
+trapping/volatile, ownership and fallback checks remain unchanged.
+
+This is search order, not fabricated probability or a new instruction lowerer.
+The manifest enables it only for the stream read/gate source. The patch adds
+16 lines and replaces one; no game names, registers, constants, addresses or
+expected bytes occur in its predicates. C/POSIX-shell controls cover actual
+target moves, live-value/trapping/volatile refusals, ownership, strong NE eager
+selection, precedence, disabled scheduling and supported profile guards.
+They use only gcc/cpp/cc1; an optional retained-tool prefix checks old/default
+identity. Real profile-note and eager prediction-two cases remain unexercised;
+the unrelated old profile-note accessor defect is not changed or exploited.
+
+Two clean offline archive builds reproduce the pinned C cc1; other four tools
+are unchanged. Controls inspect finite assembly/RTL output, not executed MIPS,
+hardware/IRQ behavior or whole-program equivalence. Native stream backend
+selection is unchanged; application and provider checks remain separate.

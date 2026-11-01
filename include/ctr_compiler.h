@@ -61,13 +61,17 @@
 #define CTR_PSX_REGISTER(registerName)
 #endif
 #define CTR_PSX_BIND_VALUE_CLOBBER(value, registerName) ((void)(value))
+#define CTR_PSX_LOCAL_REGISTER_HINT(registerName)
 #define CTR_PSX_DEPEND_VALUE(value, dependency)         ((void)(value), (void)(dependency))
+#define CTR_PSX_DEPEND_COPY(result, value, dependency) ((result) = (value), (void)(dependency))
 #define CTR_PSX_ORDER_VALUES(value, dependency)         ((void)(value), (void)(dependency))
 #define CTR_PSX_DEPEND_MEMORY(pointer, dependency)      ((void)(pointer), (void)(dependency))
 #define CTR_PSX_CLOBBER(registerName)                   ((void)0)
 #define CTR_PSX_KEEP_VALUE(value)                       ((void)(value))
 #define CTR_PSX_KEEP_VALUE_RELAXED(value)               ((void)(value))
+#define CTR_PSX_T9_OPERAND(value)                       ((void)(value))
 #define CTR_PSX_OBSERVE_VALUE(value)                    ((void)(value))
+#define CTR_PSX_OBSERVE_LO_GR(value)                    ((void)(value))
 #define CTR_PSX_OBSERVE_MEMORY(value)                   ((void)sizeof(value))
 #define CTR_PSX_ZERO_VALUE(value)                       ((value) = 0)
 #define CTR_PSX_AND_MASK_NONZERO(result, mask, value)   ((result) = ((mask) & (value)), (result) != 0)
@@ -220,14 +224,22 @@
 #define CTR_NegateS32(value) __builtin_mips_neg_si(value)
 #define CTR_PSX_MATCH_SECTION(sectionName)                                      __attribute__((section(sectionName)))
 #define CTR_PSX_REGISTER(registerName)                                          __asm__(registerName)
+// NOTE(aalhendi): A best-effort LOCAL preference, not a fixed register or ABI contract.
+#define CTR_PSX_LOCAL_REGISTER_HINT(registerName)                                __attribute__((local_register_hint(registerName)))
 #define CTR_PSX_BIND_VALUE_CLOBBER(value, registerName)                         __asm__("" : "+r"(value) : : registerName)
 #define CTR_PSX_DEPEND_VALUE(value, dependency)                                 __asm__("" : "+r"(value) : "r"(dependency))
+#define CTR_PSX_DEPEND_COPY(result, value, dependency)                          __asm__("" : "=r"(result) : "0"(value), "r"(dependency))
 #define CTR_PSX_ORDER_VALUES(value, dependency)                                 __asm__ volatile("" : : "r"(value), "r"(dependency))
 #define CTR_PSX_DEPEND_MEMORY(pointer, dependency)                              __asm__ volatile("" : "+m"(*(pointer)) : "r"(dependency))
 #define CTR_PSX_CLOBBER(registerName)                                           __asm__ volatile("" : : : registerName)
 #define CTR_PSX_KEEP_VALUE(value)                                               __asm__ volatile("" : "+r"(value))
 #define CTR_PSX_KEEP_VALUE_RELAXED(value)                                       __asm__("" : "+r"(value))
+// NOTE(aalhendi): Constrain this operand only; the compiler still owns later moves and call preservation.
+#define CTR_PSX_T9_OPERAND(value)                                               __asm__("" : "+c"(value))
 #define CTR_PSX_OBSERVE_VALUE(value)                                            __asm__ volatile("" : : "r"(value))
+// NOTE(aalhendi): Observe the actual multiply result in LO and a general
+// register. Reload owns the transfer; this empty contract emits no CPU opcode.
+#define CTR_PSX_OBSERVE_LO_GR(value)                                            __asm__ volatile("" : : "l"(value), "r"(value))
 #define CTR_PSX_OBSERVE_MEMORY(value)                                           __asm__("" : : "m"(value))
 #define CTR_PSX_ZERO_VALUE(value)                                               __asm__("move %0,$0" : "=r"(value))
 #define CTR_PSX_AND_MASK_NONZERO(result, mask, value)                            ({ (result) = (mask); __asm__ volatile("and %0,%1,%0" : "+r"(result) : "r"(value)); (result) != 0; })
@@ -255,7 +267,7 @@
 #define CTR_PSX_ADD_POINTER_OFFSET_OFFSET_FIRST(result, base, offset)        __asm__("addu %0,%2,%1" : "=r"(result) : "r"(base), "r"(offset))
 #define CTR_PSX_ADD_POINTER_IMMEDIATE(result, base, byteOffset, nativeValue) __asm__("addiu %0,%1,%2" : "=r"(result) : "r"(base), "I"(byteOffset))
 #define CTR_PSX_ADD_PAGE_OFFSET(result, page, offset, nativeValue)                 ((result) = (void *)((u32)(page) + (offset)))
-#define CTR_PSX_ADD_U32(result, lhs, rhs)                                    __asm__("addu %0,%1,%2" : "=r"(result) : "r"(lhs), "r"(rhs))
+#define CTR_PSX_ADD_U32(result, lhs, rhs)                                    __asm__("addu %0,%z1,%z2" : "=r"(result) : "rJ"(lhs), "rJ"(rhs))
 #define CTR_PSX_NEGATE_IN_PLACE(value)                                       __asm__("negu %0,%0" : "+r"(value))
 #define CTR_PSX_NEGATE(result, value)                                        __asm__("subu %0,$0,%1" : "=r"(result) : "r"(value))
 #define CTR_PSX_LOAD_IMMEDIATE(result, value)                                __asm__("li %0,%1" : "=r"(result) : "I"(value))
@@ -321,5 +333,38 @@
 	__asm__("addiu %0,%1,%%lo(" symbolExpression ") # " identity : "=r"(result) : "r"(page))
 #define CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(value, symbolExpression, nativeValue) __asm__("addiu %0,%0,%%lo(" symbolExpression ")" : "+r"(value))
 #endif
+
+// NOTE(aalhendi): Stage an unaligned RAM word before writing. Scalar byte
+// operands avoid GCC 2.8's array-operand decay. A2 is a local preference,
+// not an ABI; this is not an MMIO or atomic-copy contract.
+#ifdef CTR_NATIVE
+#define CTR_PSX_COPY_UNALIGNED_WORD(destination, source) \
+	do                                                   \
+	{                                                    \
+		void *ctrCopyDestination = (destination);        \
+		const void *ctrCopySource = (source);            \
+		u32 ctrCopyWord = CTR_ReadU32LE(ctrCopySource);  \
+		CTR_WriteU32LE(ctrCopyDestination, ctrCopyWord); \
+	} while (0)
+#else
+#define CTR_PSX_COPY_UNALIGNED_WORD(destination, source)                                                                                        \
+	do                                                                                                                                          \
+	{                                                                                                                                           \
+		void *ctrCopyDestination = (destination);                                                                                               \
+		const void *ctrCopySource = (source);                                                                                                   \
+		u32 ctrCopyWord;                                                                                                                        \
+		u8 *ctrCopyAddress CTR_PSX_LOCAL_REGISTER_HINT("$6");                                                                                   \
+		__asm__ volatile("la %1,%2\n\t"                                                                                                         \
+		                 "lwl %0,%9\n\t"                                                                                                        \
+		                 "lwr %0,%6\n\t"                                                                                                        \
+		                 "swl %0,3(%1)\n\t"                                                                                                     \
+		                 "swr %0,0(%1)"                                                                                                         \
+		                 : "=&r"(ctrCopyWord), "=&r"(ctrCopyAddress), "=m"(((u8 *)ctrCopyDestination)[0]), "=m"(((u8 *)ctrCopyDestination)[1]), \
+		                   "=m"(((u8 *)ctrCopyDestination)[2]), "=m"(((u8 *)ctrCopyDestination)[3])                                             \
+		                 : "m"(((const u8 *)ctrCopySource)[0]), "m"(((const u8 *)ctrCopySource)[1]), "m"(((const u8 *)ctrCopySource)[2]),       \
+		                   "m"(((const u8 *)ctrCopySource)[3]));                                                                                \
+	} while (0)
+#endif
+
 
 #endif

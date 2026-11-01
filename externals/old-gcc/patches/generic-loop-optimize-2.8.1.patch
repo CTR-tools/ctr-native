@@ -1,0 +1,27 @@
+--- a/toplev.c
++++ b/toplev.c
+@@ -449,6 +449,7 @@
+ 
+ /* Preserve the default final cross-jumping optimization unless disabled.  */
+ int flag_crossjumping = 1;
++int flag_loop_optimize = 1;
+ 
+ /* Nonzero enables strength-reduction in loop.c.  */
+ 
+@@ -658,6 +659,7 @@
+   {"expensive-optimizations", &flag_expensive_optimizations, 1},
+   {"thread-jumps", &flag_thread_jumps, 1},
+   {"crossjumping", &flag_crossjumping, 1},
++  {"loop-optimize", &flag_loop_optimize, 1},
+   {"strength-reduce", &flag_strength_reduce, 1},
+   {"unroll-loops", &flag_unroll_loops, 1},
+   {"unroll-all-loops", &flag_unroll_all_loops, 1},
+@@ -3268,7 +3270,7 @@
+ 
+   /* Move constant computations out of loops.  */
+ 
+-  if (optimize > 0)
++  if (optimize > 0 && flag_loop_optimize)
+     {
+       TIMEVAR (loop_time,
+ 	       {

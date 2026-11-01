@@ -1,0 +1,293 @@
+--- a/flags.h
++++ b/flags.h
+@@ -230,6 +230,9 @@
+    perform miscellaneous relatively-expensive optimizations.  */
+ extern int flag_expensive_optimizations;
+ 
++/* Opt in to one dying-local/fresh-local pair in canonical empty asm.  */
++extern int flag_asm_empty_coalesce;
++
+ /* Nonzero enables cross-jumping in the final jump optimization pass.  */
+ extern int flag_crossjumping;
+ 
+@@ -309,6 +312,12 @@
+ 
+ /* Restrict store-to-load motion in the first scheduling pass only.  */
+ extern int flag_schedule_store_load_order;
++
++/* Preserve ready order among hazard-safe pre-reload priority ties.  */
++extern int flag_sched_first_safe_pre_reload;
++
++/* Exact empty extended asm may consume no post-reload issue clock. */
++extern int flag_sched_zero_empty_issue_after_reload;
+ 
+ /* Nonzero means put things in delayed-branch slots if supported. */
+ 
+--- a/local-alloc.c
++++ b/local-alloc.c
+@@ -1269,6 +1269,70 @@
+     }
+ }
+ 
++/* Join only the dying matching input of an otherwise untouched empty asm.  */
++static rtx
++combine_empty_asm (body, insn, number)
++     rtx body, insn;
++     int number;
++{
++  rtx a, regs[3], note;
++  int i, match = -1, dep = -1, q;
++
++  if (GET_CODE (body) != SET)
++    return NULL_RTX;
++  a = SET_SRC (body);
++  if (GET_CODE (a) != ASM_OPERANDS || GET_MODE (a) != VOIDmode
++      || MEM_VOLATILE_P (a) || ASM_OPERANDS_TEMPLATE (a)[0] != 0
++      || strcmp (ASM_OPERANDS_OUTPUT_CONSTRAINT (a), "=r")
++      || ASM_OPERANDS_OUTPUT_IDX (a) != 0
++      || ASM_OPERANDS_INPUT_VEC (a) == 0
++      || ASM_OPERANDS_INPUT_CONSTRAINT_VEC (a) == 0
++      || ASM_OPERANDS_INPUT_LENGTH (a) != 2
++      || XVECLEN (a, 4) != 2)
++    return NULL_RTX;
++  regs[0] = SET_DEST (body);
++  for (i = 0; i < 2; i++)
++    {
++      char *c = ASM_OPERANDS_INPUT_CONSTRAINT (a, i);
++      regs[i + 1] = ASM_OPERANDS_INPUT (a, i);
++      if (ASM_OPERANDS_INPUT_MODE (a, i) != SImode)
++        return NULL_RTX;
++      if (! strcmp (c, "0") && match < 0)
++        match = i + 1;
++      else if (! strcmp (c, "r") && dep < 0)
++        dep = i + 1;
++      else
++        return NULL_RTX;
++    }
++  if (match < 0 || dep < 0)
++    return NULL_RTX;
++  for (i = 0; i < 3; i++)
++    if (GET_CODE (regs[i]) != REG || GET_MODE (regs[i]) != SImode
++        || REGNO (regs[i]) < FIRST_PSEUDO_REGISTER
++        || REG_SIZE (regs[i]) != 1
++        || reg_preferred_class (REGNO (regs[i])) != GENERAL_REGS
++        || reg_alternate_class (REGNO (regs[i])) != NO_REGS
++        || REG_N_CALLS_CROSSED (REGNO (regs[i])) != 0)
++      return NULL_RTX;
++  q = reg_qty[REGNO (regs[match])];
++  if (REGNO (regs[0]) == REGNO (regs[match])
++      || REGNO (regs[0]) == REGNO (regs[dep])
++      || REGNO (regs[match]) == REGNO (regs[dep])
++      || reg_qty[REGNO (regs[0])] != -2 || q < 0
++      || reg_qty[REGNO (regs[dep])] == q
++      || qty_size[q] != 1 || qty_mode[q] != SImode
++      || qty_min_class[q] != GENERAL_REGS || qty_alternate_class[q] != NO_REGS
++      || qty_n_calls_crossed[q] != 0
++      || (note = find_regno_note (insn, REG_DEAD,
++                                REGNO (regs[match]))) == 0
++      || GET_CODE (XEXP (note, 0)) != REG
++      || GET_MODE (XEXP (note, 0)) != SImode)
++    return NULL_RTX;
++  if (! combine_regs (regs[match], regs[0], 1, number, insn, 0))
++    return NULL_RTX;
++  return regs[match];
++}
++
+ /* Allocate hard regs to the pseudo regs used only within block number B.
+    Only the pseudos that die but once can be handled.  */
+ 
+@@ -1448,6 +1512,10 @@
+ 		    break;
+ 		}
+ 	    }
++
++	  if (!win && insn_code_number < 0 && flag_asm_empty_coalesce
++	      && (r1 = combine_empty_asm (body, insn, insn_number)))
++	    win = 1;
+ 
+ 	  /* Recognize an insn sequence with an ultimate result
+ 	     which can safely overlap one of the inputs.
+--- a/sched.c
++++ b/sched.c
+@@ -2672,7 +2672,8 @@
+ 
+ /* Given N_READY insns in the ready list READY at time CLOCK, queue
+    those that are blocked due to function unit hazards and rearrange
+-   the remaining ones to minimize subsequent function unit hazards.  */
++   the remaining ones to minimize subsequent function unit hazards, or
++   preserve safe pre-reload ready order when requested.  */
+ 
+ static int
+ schedule_select (ready, n_ready, clock, file)
+@@ -2715,8 +2716,8 @@
+       if (j - i - q == 0)
+ 	continue;
+ 
+-      /* If more than one remains, select the first one with the largest
+-	 potential hazard.  */
++      /* Select the first largest potential hazard, or preserve ready
++	 order among same-priority safe candidates before reload.  */
+       else if (j - i - q > 1)
+ 	{
+ 	  best_cost = -1;
+@@ -2724,8 +2725,9 @@
+ 	    {
+ 	      if ((insn = ready[k]) == 0)
+ 		continue;
+-	      if ((cost = potential_hazard (insn_unit (insn), insn, 0))
+-		  > best_cost)
++	      cost = (flag_sched_first_safe_pre_reload && !reload_completed
++		      ? 0 : potential_hazard (insn_unit (insn), insn, 0));
++	      if (cost > best_cost)
+ 		{
+ 		  best_cost = cost;
+ 		  best_insn = k;
+@@ -2745,7 +2747,10 @@
+ 	  for (i = 0; i < n_ready; i++)
+ 	    if (ready[i])
+ 	      fprintf (file, " %d", INSN_UID (ready[i]));
+-	  fprintf (file, "\n;; insn %d has a greater potential hazard",
++	  fprintf (file,
++		   flag_sched_first_safe_pre_reload && !reload_completed
++		   ? "\n;; insn %d is first hazard-safe in ready order"
++		   : "\n;; insn %d has a greater potential hazard",
+ 		   INSN_UID (ready[best_insn]));
+ 	}
+       for (i = best_insn; i > 0; i--)
+@@ -3196,6 +3201,44 @@
+   return last;
+ }
+ 
++/* Empty templates emit no instruction.  Keep every dependency and reject
++   groups or uncertain real operand latency; never infer readiness from notes. */
++static int
++sched_zero_empty_issue_p (insn)
++     rtx insn;
++{
++  rtx pat, next, link, pred;
++  if (! reload_completed || ! flag_sched_zero_empty_issue_after_reload
++      || GET_CODE (insn) != INSN || SCHED_GROUP_P (insn)
++      || RTX_FRAME_RELATED_P (insn))
++    return 0;
++  next = next_nonnote_insn (insn);
++  if (next && GET_CODE (next) != CODE_LABEL && SCHED_GROUP_P (next))
++    return 0;
++  pat = PATTERN (insn);
++  if ((GET_CODE (pat) == PARALLEL && XVECLEN (pat, 0) == 0)
++      || asm_noperands (pat) < 0
++      || *decode_asm_operands (pat, NULL_PTR, NULL_PTR, NULL_PTR, NULL_PTR))
++    return 0;
++  for (link = LOG_LINKS (insn); link; link = XEXP (link, 1))
++    {
++      if (REG_NOTE_KIND (link) != 0)
++        continue;
++      pred = XEXP (link, 0);
++      if (GET_CODE (pred) != INSN || SCHED_GROUP_P (pred)
++          || RTX_FRAME_RELATED_P (pred) || recog_memoized (pred) < 0)
++        return 0;
++      next = next_nonnote_insn (pred);
++      if (next && GET_CODE (next) != CODE_LABEL && SCHED_GROUP_P (next))
++        return 0;
++      /* Old virtual-result links can survive reload without defining any
++         current asm operand.  Retain them, including their stock cost. */
++      if (result_ready_cost (pred) > 1 && modified_in_p (pat, pred))
++        return 0;
++    }
++  return 1;
++}
++
+ /* Use modified list scheduling to rearrange insns in basic block
+    B.  FILE, if nonzero, is where we dump interesting output about
+    this pass.  */
+@@ -3210,6 +3253,8 @@
+   int i, j, n_ready = 0, new_ready, n_insns;
+   int sched_n_insns = 0;
+   int clock;
++  int advance_clock = 1;
++  char *zero_issue = 0;
+ #define NEED_NOTHING	0
+ #define NEED_HEAD	1
+ #define NEED_TAIL	2
+@@ -3719,6 +3764,17 @@
+ 		   INSN_REF_COUNT (insn));
+     }
+ 
++  /* Inspect original neighbors before queue links reuse NEXT_INSN. */
++  if (reload_completed && flag_sched_zero_empty_issue_after_reload)
++    {
++      int size = get_max_uid () + 1;
++      zero_issue = (char *) alloca (size);
++      bzero (zero_issue, size);
++      for (insn = head; insn != next_tail; insn = NEXT_INSN (insn))
++	if (GET_CODE (insn) == INSN)
++	  zero_issue[INSN_UID (insn)] = sched_zero_empty_issue_p (insn);
++    }
++
+   /* Now HEAD and TAIL are going to become disconnected
+      entirely from the insn chain.  */
+   tail = 0;
+@@ -3740,7 +3796,12 @@
+   new_ready = n_ready;
+   while (sched_n_insns < n_insns)
+     {
+-      q_ptr = NEXT_Q (q_ptr); clock++;
++      if (advance_clock)
++	{
++	  q_ptr = NEXT_Q (q_ptr); clock++;
++	}
++      /* A blocked-only retry must advance even after a zero-issue node. */
++      advance_clock = 1;
+ 
+       /* Add all pending insns that can be scheduled without stalls to the
+ 	 ready list.  */
+@@ -3814,6 +3875,8 @@
+ 	}
+       n_ready = new_ready;
+       last_scheduled_insn = insn = ready[0];
++      if (zero_issue && zero_issue[INSN_UID (insn)])
++	advance_clock = 0;
+ 
+       /* The first insn scheduled becomes the new tail.  */
+       if (tail == 0)
+--- a/toplev.c
++++ b/toplev.c
+@@ -442,6 +442,9 @@
+    perform miscellaneous relatively-expensive optimizations.  */
+ int flag_expensive_optimizations;
+ 
++/* Leave canonical empty-asm coalescing disabled unless explicitly requested.  */
++int flag_asm_empty_coalesce = 0;
++
+ /* Nonzero for -fthread-jumps:
+    have jump optimize output of loop.  */
+ 
+@@ -590,6 +593,12 @@
+ 
+ /* Restrict store-to-load motion in the first scheduling pass only.  */
+ int flag_schedule_store_load_order = 0;
++
++/* Preserve ready order among hazard-safe pre-reload priority ties.  */
++int flag_sched_first_safe_pre_reload = 0;
++
++/* Exact empty extended asm may consume no post-reload issue clock. */
++int flag_sched_zero_empty_issue_after_reload = 0;
+ 
+ /* -finhibit-size-directive inhibits output of .size for ELF.
+    This is used only for compiling crtstuff.c, 
+@@ -657,6 +666,7 @@
+   {"cse-follow-jumps", &flag_cse_follow_jumps, 1},
+   {"cse-skip-blocks", &flag_cse_skip_blocks, 1},
+   {"expensive-optimizations", &flag_expensive_optimizations, 1},
++  {"empty-asm-coalesce", &flag_asm_empty_coalesce, 1},
+   {"thread-jumps", &flag_thread_jumps, 1},
+   {"crossjumping", &flag_crossjumping, 1},
+   {"loop-optimize", &flag_loop_optimize, 1},
+@@ -683,6 +693,8 @@
+   {"schedule-insns", &flag_schedule_insns, 1},
+   {"schedule-insns2", &flag_schedule_insns_after_reload, 1},
+   {"schedule-store-load-order", &flag_schedule_store_load_order, 1},
++  {"sched-first-safe-pre-reload", &flag_sched_first_safe_pre_reload, 1},
++  {"sched-zero-empty-issue-after-reload", &flag_sched_zero_empty_issue_after_reload, 1},
+   {"pic", &flag_pic, 1},
+   {"PIC", &flag_pic, 2},
+   {"exceptions", &flag_exceptions, 1},

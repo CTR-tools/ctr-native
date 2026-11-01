@@ -1,0 +1,194 @@
+--- a/c-common.c
++++ b/c-common.c
+@@ -43,7 +43,10 @@
+ 
+ enum attrs {A_PACKED, A_NOCOMMON, A_COMMON, A_NORETURN, A_CONST, A_T_UNION,
+ 	    A_CONSTRUCTOR, A_DESTRUCTOR, A_MODE, A_SECTION, A_ALIGNED,
+-	    A_UNUSED, A_FORMAT, A_FORMAT_ARG, A_WEAK, A_ALIAS};
++	    A_UNUSED, A_FORMAT, A_FORMAT_ARG, A_WEAK, A_ALIAS, A_LOCAL_REG_HINT};
++
++extern int local_register_hint_value PROTO((tree, tree));
++extern void push_obstacks PROTO((struct obstack *, struct obstack *));
+ 
+ static void declare_hidden_char_array	PROTO((char *, char *));
+ static void add_attribute		PROTO((enum attrs, char *,
+@@ -335,6 +338,7 @@
+   add_attribute (A_FORMAT_ARG, "format_arg", 1, 1, 1);
+   add_attribute (A_WEAK, "weak", 0, 0, 1);
+   add_attribute (A_ALIAS, "alias", 1, 1, 1);
++  add_attribute (A_LOCAL_REG_HINT, "local_register_hint", 1, 1, 1);
+ }
+ 
+ /* Process the attributes listed in ATTRIBUTES and PREFIX_ATTRIBUTES
+@@ -405,6 +409,26 @@
+       id = attrtab[i].id;
+       switch (id)
+ 	{
++	case A_LOCAL_REG_HINT:
++	  if (local_register_hint_value (decl, args))
++	    {
++	      if (lookup_attribute ("local_register_hint", DECL_MACHINE_ATTRIBUTES (decl)))
++		error ("duplicate local_register_hint attribute");
++	      else
++		{
++		  tree old = TREE_VALUE (args), value;
++		  int length = TREE_STRING_LENGTH (old);
++		  push_obstacks (&permanent_obstack, &permanent_obstack);
++		  value = build_string (length, TREE_STRING_POINTER (old));
++		  TREE_TYPE (value) = build_array_type (char_type_node,
++		    build_index_type (build_int_2 (length - 1, 0)));
++		  DECL_MACHINE_ATTRIBUTES (decl) = tree_cons (name,
++		    tree_cons (NULL_TREE, value, NULL_TREE), DECL_MACHINE_ATTRIBUTES (decl));
++		  pop_obstacks ();
++		}
++	    }
++	  break;
++
+ 	case A_PACKED:
+ 	  if (is_type)
+ 	    TYPE_PACKED (type) = 1;
+--- a/local-alloc.c
++++ b/local-alloc.c
+@@ -62,6 +62,7 @@
+ #include "config.h"
+ #include <stdio.h>
+ #include "rtl.h"
++#include "tree.h"
+ #include "flags.h"
+ #include "basic-block.h"
+ #include "regs.h"
+@@ -69,10 +70,74 @@
+ #include "insn-config.h"
+ #include "recog.h"
+ #include "output.h"
++extern void free PROTO((void *));
++extern void bzero PROTO((void *, size_t));
+ 
+ /* Next quantity number available for allocation.  */
+ 
+ static int next_qty;
++static short *local_reg_hints;
++
++/* Soft, declaration-local preferences never create hard-register RTL.  */
++int
++local_register_hint_value (decl, args)
++     tree decl, args;
++{
++  tree value = args ? TREE_VALUE (args) : 0;
++  int regno;
++  enum machine_mode mode;
++  if (!decl || TREE_CODE (decl) != VAR_DECL || !current_function_decl
++      || TREE_STATIC (decl) || DECL_EXTERNAL (decl)
++      || TREE_THIS_VOLATILE (decl)
++      || (!INTEGRAL_TYPE_P (TREE_TYPE (decl))
++          && !POINTER_TYPE_P (TREE_TYPE (decl)))
++      || !value || TREE_CHAIN (args) || TREE_CODE (value) != STRING_CST)
++    goto invalid;
++  mode = TYPE_MODE (TREE_TYPE (decl));
++  regno = decode_reg_name (TREE_STRING_POINTER (value));
++  if (regno < 0 || regno >= FIRST_PSEUDO_REGISTER || fixed_regs[regno]
++      || global_regs[regno] || regno == FRAME_POINTER_REGNUM
++      || regno == ARG_POINTER_REGNUM || !HARD_REGNO_MODE_OK (regno, mode)
++      || HARD_REGNO_NREGS (regno, mode) != 1
++      || GET_MODE_SIZE (mode) > UNITS_PER_WORD
++      || !TEST_HARD_REG_BIT (reg_class_contents[(int) GENERAL_REGS], regno))
++    goto invalid;
++  return regno + 1;
++invalid:
++  error ("local_register_hint requires an automatic scalar/pointer and a valid nonfixed single-word register");
++  return 0;
++}
++
++static void
++collect_local_register_hints (block)
++     tree block;
++{
++  tree decl, sub, attribute;
++  rtx reg;
++  if (!block || TREE_CODE (block) != BLOCK)
++    return;
++  for (decl = BLOCK_VARS (block); decl; decl = TREE_CHAIN (decl))
++    if (TREE_CODE (decl) == VAR_DECL
++        && (attribute = lookup_attribute ("local_register_hint",
++                                         DECL_MACHINE_ATTRIBUTES (decl))))
++      {
++        reg = DECL_RTL (decl);
++        if (!reg || GET_CODE (reg) != REG || REGNO (reg) < FIRST_PSEUDO_REGISTER)
++          error ("local_register_hint cannot apply to memory or hard-asm variables");
++        else if (REGNO (reg) < max_regno && REG_N_REFS (REGNO (reg)))
++          {
++            if (!local_reg_hints)
++              {
++                local_reg_hints = (short *) xmalloc (max_regno * sizeof (short));
++                bzero ((char *) local_reg_hints, max_regno * sizeof (short));
++              }
++            local_reg_hints[REGNO (reg)]
++              = local_register_hint_value (decl, TREE_VALUE (attribute));
++          }
++      }
++  for (sub = BLOCK_SUBBLOCKS (block); sub; sub = TREE_CHAIN (sub))
++    collect_local_register_hints (sub);
++}
+ 
+ /* In all the following vectors indexed by quantity number.  */
+ 
+@@ -407,6 +472,10 @@
+   /* Promote REG_EQUAL notes to REG_EQUIV notes and adjust status of affected
+      registers.  */
+   update_equiv_regs ();
++  if (local_reg_hints)
++    free ((char *) local_reg_hints);
++  local_reg_hints = 0;
++  collect_local_register_hints (DECL_INITIAL (current_function_decl));
+ 
+   /* This sets the maximum number of quantities we can have.  Quantity
+      numbers start at zero and we can have one for each pseudo plus the
+@@ -1647,6 +1716,24 @@
+      number of suggested registers they need so we allocate those with
+      the most restrictive needs first.  */
+ 
++  if (local_reg_hints)
++    for (q = 0; q < next_qty; q++)
++      {
++        int member, hint = 0, conflict = 0;
++        for (member = qty_first_reg[q]; member >= 0; member = reg_next_in_qty[member])
++          if (local_reg_hints[member])
++            {
++              if (hint && hint != local_reg_hints[member])
++                conflict = 1;
++              hint = local_reg_hints[member];
++            }
++        if (hint && !conflict
++            && !TEST_HARD_REG_BIT (qty_phys_sugg[q], hint - 1))
++          {
++            SET_HARD_REG_BIT (qty_phys_sugg[q], hint - 1);
++            qty_phys_num_sugg[q]++;
++          }
++      }
+   qty_order = (int *) alloca (next_qty * sizeof (int));
+   for (i = 0; i < next_qty; i++)
+     qty_order[i] = i;
+@@ -2554,6 +2641,10 @@
+ {
+   register int i;
+   for (i = FIRST_PSEUDO_REGISTER; i < max_regno; i++)
+-    if (reg_renumber[i] != -1)
+-      fprintf (file, ";; Register %d in %d.\n", i, reg_renumber[i]);
++    {
++      if (local_reg_hints && local_reg_hints[i])
++        fprintf (file, ";; Register %d local hint %d.\n", i, local_reg_hints[i] - 1);
++      if (reg_renumber[i] != -1)
++        fprintf (file, ";; Register %d in %d.\n", i, reg_renumber[i]);
++    }
+ }
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1356,7 +1356,7 @@
+ regclass.o : regclass.c $(CONFIG_H) $(RTL_H) hard-reg-set.h flags.h \
+    $(BASIC_BLOCK_H) regs.h insn-config.h $(RECOG_H) reload.h real.h bytecode.h
+ local-alloc.o : local-alloc.c $(CONFIG_H) $(RTL_H) flags.h $(BASIC_BLOCK_H) \
+-   regs.h hard-reg-set.h insn-config.h $(RECOG_H) output.h
++   regs.h hard-reg-set.h insn-config.h $(RECOG_H) output.h $(TREE_H)
+ bitmap.o : bitmap.c $(CONFIG_H) $(RTL_H) flags.h $(BASIC_BLOCK_H) regs.h
+ global.o : global.c $(CONFIG_H) $(RTL_H) flags.h  \
+    $(BASIC_BLOCK_H) regs.h hard-reg-set.h insn-config.h output.h

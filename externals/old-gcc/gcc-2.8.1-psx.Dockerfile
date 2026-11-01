@@ -31,6 +31,28 @@ RUN echo '341a6892bc34d6470c40809f5d748d59aaac7398b5a379026f4c8e633195950e  ../p
 RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/psx-codegen-policies-2.8.1.patch
 RUN echo 'd9db3535d1fe3b4641f6369b544d76f433eb581b2c559375f36849da88467dc0  ../patches/generic-smul-high-2.8.1.patch' | sha256sum -c -
 RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/generic-smul-high-2.8.1.patch
+RUN echo 'ddb7cd2bb75d0d635e8385016fbe171be76ce9d9261478908a024b89b36cb621  ../patches/generic-loop-optimize-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/generic-loop-optimize-2.8.1.patch
+RUN echo '34aa7a10a85f6aec8a1d9eb1df5dd11ea877cab012db1dfd6856704e3737b22f  ../patches/mips-t9-constraint-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/mips-t9-constraint-2.8.1.patch
+RUN echo 'abce0a83ad019cca09a51e73800107fd81d2aec093844a156506c01aca2d4390  ../patches/mips-static-frame-alias-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/mips-static-frame-alias-2.8.1.patch
+RUN echo 'ed2765cc6e4b978649cb5522c275d7adfd2a62b72cade7e900dc6356f579ed77  ../patches/mips-ordered-save-direction-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/mips-ordered-save-direction-2.8.1.patch
+RUN echo 'a9fb7f24a39142f22fc8b8441c0b6c81ba7134302b415c07c33c8c94cdc8319a  ../patches/generic-scheduler-2.8.1.patch' | sha256sum -c -
+RUN patch --batch --forward --fuzz=0 --read-only=warn --no-backup-if-mismatch -u -p1 < ../patches/generic-scheduler-2.8.1.patch
+RUN echo '5a476128a14964acfcd31f047c2164c37f3bbb7473946d31b4a3a5be08417285  ../patches/generic-local-register-hint-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w c-common.c local-alloc.c Makefile.in && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-local-register-hint-2.8.1.patch
+RUN echo '9a07f18d2fd45363dc3856b755a2a9c702685181dcd1e11056cff3748341f4ea  ../patches/mips-nonfaulting-sh-return-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w config/mips/mips.c config/mips/mips.h config/mips/mips.md && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/mips-nonfaulting-sh-return-2.8.1.patch
+RUN echo 'beb2f8d8fcfc0e9ecc10ced3da1ff202969041c5e98914299c9bc835adcc1156  ../patches/generic-call-setup-tie-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w flags.h sched.c toplev.c && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-call-setup-tie-2.8.1.patch
+
+RUN echo '7a7589c325964172ff16ae4b667cfd636fff3780f46ab22c6cda0ed6f9ef66ff  ../patches/mips-private-frame-sw-jump-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w config/mips/mips.c config/mips/mips.h && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/mips-private-frame-sw-jump-2.8.1.patch
+
+RUN echo 'f34e266d526290cd9bcdc0c4080aa1069ad28e3cbd665bd384efc58aa74364eb  ../patches/generic-delay-slot-target-first-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w flags.h toplev.c reorg.c && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-delay-slot-target-first-2.8.1.patch
 
 RUN ./configure \
     --target=mips-sony-psx \
@@ -62,6 +84,15 @@ RUN sh /work/tests/check_psx_scratch.sh /work/gcc-${VERSION}/gcc /work/gcc-${VER
 RUN sh /work/tests/check_psx_ram_load.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_psx_codegen.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_smul_high.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_loop_optimize.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_mips_t9.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_mips_static_frame_alias.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_generic_scheduler.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_local_register_hint.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_nonfaulting_sh_return.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_call_setup_ties.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_private_frame_sw_jump.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_delay_slot_target_first.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 
 FROM scratch AS export
 COPY prebuilt/linux-i386/2.8.1/ /

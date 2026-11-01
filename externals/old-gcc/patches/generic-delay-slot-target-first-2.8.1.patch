@@ -1,0 +1,58 @@
+--- a/flags.h
++++ b/flags.h
+@@ -326,6 +326,7 @@
+ /* Nonzero means put things in delayed-branch slots if supported. */
+ 
+ extern int flag_delayed_branch;
++extern int flag_delay_slot_target_first;
+ 
+ /* Nonzero means pretend it is OK to examine bits of target floats,
+    even if that isn't true.  The resulting code will have incorrect constants,
+--- a/toplev.c
++++ b/toplev.c
+@@ -557,6 +557,8 @@
+ /* Nonzero means schedule into delayed branch slots if supported.  */
+ 
+ int flag_delayed_branch;
++/* Default-off thread search preference, not a branch-probability assertion. */
++int flag_delay_slot_target_first = 0;
+ 
+ /* Nonzero if we are compiling pure (sharable) code.
+    Value is 1 if we are doing reasonable (i.e. simple
+@@ -694,6 +696,7 @@
+   {"pcc-struct-return", &flag_pcc_struct_return, 1},
+   {"reg-struct-return", &flag_pcc_struct_return, 0},
+   {"delayed-branch", &flag_delayed_branch, 1},
++  {"delay-slot-target-first", &flag_delay_slot_target_first, 1},
+   {"rerun-cse-after-loop", &flag_rerun_cse_after_loop, 1},
+   {"pretend-float", &flag_pretend_float, 1},
+   {"schedule-insns", &flag_schedule_insns, 1},
+--- a/reorg.c
++++ b/reorg.c
+@@ -4060,6 +4060,7 @@
+       int own_target;
+       int own_fallthrough;
+       int prediction, slots_to_fill, slots_filled;
++      int target_first;
+ 
+       insn = unfilled_slots_base[i];
+       if (insn == 0
+@@ -4103,7 +4104,17 @@
+ 	 target, then our fallthrough insns.  If it is not, expected to branch,
+ 	 try the other order.  */
+ 
+-      if (prediction > 0)
++      /* This opt-in changes search order only.  Preserve the real prediction,
++         including LIKELY, and all existing thread eligibility and fallback. */
++      target_first = (flag_delay_slot_target_first && prediction == 0
++                      && slots_to_fill == 1 && !INSN_ANNULLED_BRANCH_P (insn)
++                      && condition != const_true_rtx && condjump_p (insn)
++                      && target_label && GET_CODE (target_label) == CODE_LABEL
++                      && own_target && own_fallthrough
++                      && !profile_flag && !profile_block_flag && !profile_arc_flag
++                      && !flag_test_coverage && !flag_branch_probabilities
++                      && !find_reg_note (insn, REG_BR_PROB, 0));
++      if (prediction > 0 || target_first)
+ 	{
+ 	  delay_list
+ 	    = fill_slots_from_thread (insn, condition, insn_at_target,

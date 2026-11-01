@@ -1,0 +1,48 @@
+--- a/config/mips/mips.c
++++ b/config/mips/mips.c
+@@ -5027,9 +5027,17 @@
+   mips_framed_return_boundary
+     = mips_psx_policy_option ("framed-return-boundary",
+                               mips_framed_return_boundary_string);
+-  mips_ordered_gp_prologue
+-    = mips_psx_policy_option ("ordered-gp-prologue",
+-                              mips_ordered_gp_prologue_string);
++  mips_ordered_gp_prologue = 0;
++  if (mips_ordered_gp_prologue_string
++      && !strcmp (mips_ordered_gp_prologue_string, "on"))
++    mips_ordered_gp_prologue = 1;
++  else if (mips_ordered_gp_prologue_string
++           && !strcmp (mips_ordered_gp_prologue_string, "descending"))
++    mips_ordered_gp_prologue = 2;
++  else if (mips_ordered_gp_prologue_string
++           && strcmp (mips_ordered_gp_prologue_string, "off"))
++    error ("bad value (%s) for -mordered-gp-prologue= (expected on, off or descending)",
++           mips_ordered_gp_prologue_string);
+ 
+   mips_clone_fixed_epilogues_enabled
+     = mips_psx_policy_option ("clone-fixed-epilogues",
+@@ -7688,9 +7696,12 @@
+      eligible RTL store traversal, then finish the prologue before body work. */
+   if (store_p && file == (FILE *)0 && mips_ordered_gp_prologue_p ())
+     {
+-      gp_offset = current_frame_info.gp_sp_offset
+-                  - (current_frame_info.gp_reg_size - UNITS_PER_WORD);
+-      for (regno = GP_REG_FIRST; regno <= GP_REG_LAST; ++regno)
++      int direction = mips_ordered_gp_prologue == 2 ? -1 : 1;
++      gp_offset = current_frame_info.gp_sp_offset;
++      if (direction > 0)
++        gp_offset -= current_frame_info.gp_reg_size - UNITS_PER_WORD;
++      for (regno = direction > 0 ? GP_REG_FIRST : GP_REG_LAST;
++           regno >= GP_REG_FIRST && regno <= GP_REG_LAST; regno += direction)
+         if (BITSET_P (mask, regno - GP_REG_FIRST))
+           {
+             rtx reg_rtx = gen_rtx (REG, word_mode, regno);
+@@ -7699,7 +7710,7 @@
+                                           GEN_INT (gp_offset)));
+             insn = emit_move_insn (mem_rtx, reg_rtx);
+             RTX_FRAME_RELATED_P (insn) = 1;
+-            gp_offset += UNITS_PER_WORD;
++            gp_offset += direction * UNITS_PER_WORD;
+           }
+       emit_insn (gen_blockage ());
+       return;

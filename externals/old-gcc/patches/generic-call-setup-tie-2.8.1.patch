@@ -1,0 +1,198 @@
+--- a/flags.h
++++ b/flags.h
+@@ -317,6 +317,9 @@
+ /* Preserve ready order among hazard-safe pre-reload priority ties.  */
+ extern int flag_sched_first_safe_pre_reload;
+ 
++/* Prefer late pure updates only in tied actual call-setup competition.  */
++extern int flag_sched2_late_inplace_at_call_setup;
++
+ /* Exact empty extended asm may consume no post-reload issue clock. */
+ extern int flag_sched_zero_empty_issue_after_reload;
+ 
+--- a/sched.c
++++ b/sched.c
+@@ -328,7 +328,7 @@
+ static int birthing_insn_p		PROTO((rtx));
+ static void adjust_priority		PROTO((rtx));
+ static int schedule_insn		PROTO((rtx, rtx *, int, int));
+-static int schedule_select		PROTO((rtx *, int, int, FILE *));
++static int schedule_select		PROTO((rtx *, int, int, FILE *, char *));
+ static void create_reg_dead_note	PROTO((rtx, rtx));
+ static void attach_deaths		PROTO((rtx, rtx, int));
+ static void attach_deaths_insn		PROTO((rtx));
+@@ -2685,14 +2685,16 @@
+    preserve safe pre-reload ready order when requested.  */
+ 
+ static int
+-schedule_select (ready, n_ready, clock, file)
++schedule_select (ready, n_ready, clock, file, call_roles)
+      rtx *ready;
+      int n_ready, clock;
+      FILE *file;
++     char *call_roles;
+ {
+   int pri = INSN_PRIORITY (ready[0]);
+   int i, j, k, q, cost, best_cost, best_insn = 0, new_ready = n_ready;
+   rtx insn;
++  int late_update = 0;
+ 
+   /* Work down the ready list in groups of instructions with the same
+      priority value.  Queue insns in the group that are blocked and
+@@ -2742,6 +2744,21 @@
+ 		  best_insn = k;
+ 		}
+ 	    }
++	  if (call_roles)
++	    {
++	      int argument = 0, update = -1;
++	      for (k = i; k < j; k++)
++		if ((insn = ready[k]) != 0
++		    && potential_hazard (insn_unit (insn), insn, 0) == best_cost)
++		  {
++		    if (call_roles[INSN_UID (insn)] & 1)
++		      argument = 1;
++		    if (update < 0 && call_roles[INSN_UID (insn)] == 2)
++		      update = k;
++		  }
++	      if (argument && update >= 0)
++		best_insn = update, late_update = 1;
++	    }
+ 	}
+       /* We have found a suitable insn to schedule.  */
+       break;
+@@ -2757,7 +2774,8 @@
+ 	    if (ready[i])
+ 	      fprintf (file, " %d", INSN_UID (ready[i]));
+ 	  fprintf (file,
+-		   flag_sched_first_safe_pre_reload && !reload_completed
++		   late_update ? "\n;; insn %d is a tied pure update at actual call setup"
++		   : flag_sched_first_safe_pre_reload && !reload_completed
+ 		   ? "\n;; insn %d is first hazard-safe in ready order"
+ 		   : "\n;; insn %d has a greater potential hazard",
+ 		   INSN_UID (ready[best_insn]));
+@@ -2777,6 +2795,52 @@
+ 	ready[j++] = ready[i];
+ 
+   return new_ready;
++}
++
++/* Reject special effects and register fragments in both call-role queries.  */
++static rtx
++sched_call_tie_dest (insn)
++     rtx insn;
++{
++  rtx pat, dest, next;
++  if (GET_CODE (insn) != INSN || SCHED_GROUP_P (insn)
++      || RTX_FRAME_RELATED_P (insn) || recog_memoized (insn) < 0)
++    return 0;
++  next = next_nonnote_insn (insn);
++  if (next && GET_CODE (next) != CODE_LABEL && SCHED_GROUP_P (next))
++    return 0;
++  pat = PATTERN (insn);
++  if (GET_CODE (pat) != SET || GET_CODE (SET_DEST (pat)) != REG)
++    return 0;
++  dest = SET_DEST (pat);
++  if (GET_MODE_CLASS (GET_MODE (dest)) != MODE_INT
++      || REGNO (dest) >= FIRST_PSEUDO_REGISTER
++      || fixed_regs[REGNO (dest)] || global_regs[REGNO (dest)]
++      || HARD_REGNO_NREGS (REGNO (dest), GET_MODE (dest)) != 1)
++    return 0;
++  return dest;
++}
++
++/* Only ordinary integer arithmetic and complete register/constant leaves.  */
++static int
++sched_pure_integer_expr (x)
++     rtx x;
++{
++  char cls = GET_RTX_CLASS (GET_CODE (x));
++  if (GET_CODE (x) == CONST_INT)
++    return 1;
++  if (GET_CODE (x) == REG)
++    return (GET_MODE_CLASS (GET_MODE (x)) == MODE_INT
++            && REGNO (x) < FIRST_PSEUDO_REGISTER
++            && HARD_REGNO_NREGS (REGNO (x), GET_MODE (x)) == 1);
++  if (GET_MODE_CLASS (GET_MODE (x)) != MODE_INT)
++    return 0;
++  if (cls == '1')
++    return sched_pure_integer_expr (XEXP (x, 0));
++  if (cls == '2' || cls == 'c')
++    return (sched_pure_integer_expr (XEXP (x, 0))
++            && sched_pure_integer_expr (XEXP (x, 1)));
++  return 0;
+ }
+ 
+ /* Add a REG_DEAD note for REG to INSN, reusing a REG_DEAD note from the
+@@ -3264,6 +3328,7 @@
+   int clock;
+   int advance_clock = 1;
+   char *zero_issue = 0;
++  char *call_roles = 0;
+ #define NEED_NOTHING	0
+ #define NEED_HEAD	1
+ #define NEED_TAIL	2
+@@ -3786,6 +3851,34 @@
+ 
+   /* Now HEAD and TAIL are going to become disconnected
+      entirely from the insn chain.  */
++  if (reload_completed && flag_sched2_late_inplace_at_call_setup)
++    {
++      int size = get_max_uid () + 1;
++      rtx dest, src, link, pred;
++      call_roles = (char *) alloca (size);
++      bzero (call_roles, size);
++      for (insn = head; insn != next_tail; insn = NEXT_INSN (insn))
++	{
++	  dest = sched_call_tie_dest (insn);
++	  if (dest)
++	    {
++	      src = SET_SRC (PATTERN (insn));
++	      if (GET_CODE (src) != REG && sched_pure_integer_expr (src)
++		  && ! may_trap_p (src) && ! side_effects_p (src)
++		  && reg_overlap_mentioned_p (dest, src))
++		call_roles[INSN_UID (insn)] |= 2;
++	    }
++	  if (GET_CODE (insn) == CALL_INSN)
++	    for (link = LOG_LINKS (insn); link; link = XEXP (link, 1))
++	      if (REG_NOTE_KIND (link) == 0)
++		{
++		  pred = XEXP (link, 0);
++		  dest = sched_call_tie_dest (pred);
++		  if (dest && find_reg_fusage (insn, USE, dest))
++		    call_roles[INSN_UID (pred)] |= 1;
++		}
++	}
++    }
+   tail = 0;
+ 
+   /* Q_SIZE will always be zero here.  */
+@@ -3871,7 +3964,7 @@
+       SCHED_SORT (ready, new_ready, n_ready);
+       if (MAX_BLOCKAGE > 1)
+ 	{
+-	  new_ready = schedule_select (ready, new_ready, clock, file);
++	  new_ready = schedule_select (ready, new_ready, clock, file, call_roles);
+ 	  if (new_ready == 0)
+ 	    {
+ 	      if (file)
+--- a/toplev.c
++++ b/toplev.c
+@@ -599,6 +599,9 @@
+ 
+ /* Preserve ready order among hazard-safe pre-reload priority ties.  */
+ int flag_sched_first_safe_pre_reload = 0;
++
++/* Preserve stock ready selection unless explicitly requested.  */
++int flag_sched2_late_inplace_at_call_setup = 0;
+ 
+ /* Exact empty extended asm may consume no post-reload issue clock. */
+ int flag_sched_zero_empty_issue_after_reload = 0;
+@@ -697,6 +700,7 @@
+   {"schedule-insns2", &flag_schedule_insns_after_reload, 1},
+   {"schedule-store-load-order", &flag_schedule_store_load_order, 1},
+   {"sched-first-safe-pre-reload", &flag_sched_first_safe_pre_reload, 1},
++  {"sched2-late-inplace-at-call-setup", &flag_sched2_late_inplace_at_call_setup, 1},
+   {"sched-zero-empty-issue-after-reload", &flag_sched_zero_empty_issue_after_reload, 1},
+   {"pic", &flag_pic, 1},
+   {"PIC", &flag_pic, 2},

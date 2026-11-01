@@ -107,6 +107,7 @@ def configured_targets(
             raise MatchError("owned_symbols is only supported for resident targets")
         if "code_intervals" in target and target["kind"] != "resident":
             raise MatchError("code_intervals is only supported for resident targets")
+        validate_layout_config(target)
         names.add(name)
     return [target for target in targets if kind is None or target["kind"] == kind]
 
@@ -717,6 +718,11 @@ def compare_binary_files(
         )
     )
 
+    return {**binary_comparison(expected, actual), "objdump_diff": str(diff_path.relative_to(ROOT))}
+
+
+def binary_comparison(expected: bytes, actual: bytes) -> dict[str, Any]:
+    """Pure measurement shared by fresh builds and read-only proof replay."""
     matching_bytes = sum(left == right for left, right in zip(expected, actual))
     compared_size = max(len(expected), len(actual))
     matching_words = sum(
@@ -736,7 +742,6 @@ def compare_binary_files(
         "expected_sha256": sha256_bytes(expected),
         "candidate_sha256": sha256_bytes(actual),
         "first_mismatch_offsets": mismatch_offsets(expected, actual),
-        "objdump_diff": str(diff_path.relative_to(ROOT)),
         "exact": actual == expected,
     }
 
@@ -947,6 +952,7 @@ def result_is_current(
     result: dict[str, Any],
 ) -> bool:
     try:
+        validate_layout_config(config)
         artifact = artifact_by_id(
             manifest, config.get("artifact", config.get("region"))
         )
@@ -1007,7 +1013,7 @@ def result_is_current(
             block = result.get("linked_block")
             if not isinstance(block, dict):
                 return False
-            if "data_ranges" in config and block.get("error") and (
+            if any(key in config for key in ("data_ranges", "bss_ranges", "function_padding")) and block.get("error") and (
                 result.get("exact") or result.get("selected_exact") or result.get("exact_function_count")
                 or any(item.get("exact") for item in candidates)
             ):
@@ -1067,9 +1073,14 @@ def result_is_current(
                         if (owner["type"] != "FUNC" or owner["binding"] != "GLOBAL"
                                 or owner["visibility"] != "DEFAULT" or owner["count"] != 1
                                 or owner["address"] != parse_int(item["address"])
-                                or owner["size"] != item["size"]
+                                or owner["size"] != item.get("body_size", item["size"])
                                 or owner["section"] not in {span["section"] for span in intervals}):
                             return False
+        if any(key in config for key in ("bss_ranges", "function_padding")):
+            # New ownership proofs are checked against the sealed actual ELF,
+            # not accepted solely because cached descriptor JSON is consistent.
+            from resident import validate_layout_result
+            validate_layout_result(manifest, config, result)
         return all(
             item.get("error")
             or (
@@ -1078,7 +1089,7 @@ def result_is_current(
             )
             for item in candidates
         )
-    except (KeyError, TypeError, OSError, MatchError):
+    except (KeyError, TypeError, ValueError, OSError, MatchError):
         return False
 
 
@@ -1237,11 +1248,53 @@ def verify_shared_sections(
 def data_ranges(build: dict[str, Any]) -> list[dict[str, Any]]:
     """Normalize the legacy single view at the data module's entry point."""
     if "data_ranges" not in build:
-        return [{**build["data_range"], "output_section": build["output_section"]}]
+        try:
+            intervals = [{**build["data_range"], "output_section": build["output_section"]}]
+        except (KeyError, TypeError) as exc:
+            raise MatchError("data target requires a complete range descriptor") from exc
+        return validated_range_list(intervals)
     intervals = build["data_ranges"]
     if "data_range" in build or not isinstance(intervals, list) or not intervals:
         raise MatchError("data target requires one nonempty range list")
-    return intervals
+    return validated_range_list(intervals)
+
+
+def validated_range_list(value: Any, *, complete_owner: bool = False) -> list[dict[str, Any]]:
+    """One bounded descriptor parser for data views and complete storage owners."""
+    required = {"output_section", "symbol", "symbol_address", "offset", "size"}
+    if not isinstance(value, list) or not value:
+        raise MatchError("storage ranges require a nonempty descriptor list")
+    for item in value:
+        try:
+            if not isinstance(item, dict) or not required.issubset(item):
+                raise ValueError("missing descriptor fields")
+            if any(not isinstance(item[key], str) or not item[key] for key in ("output_section", "symbol")):
+                raise ValueError("invalid owner/section names")
+            if any(type(item[key]) not in (int, str) for key in ("symbol_address", "offset", "size")):
+                raise ValueError("invalid numeric descriptor fields")
+            address, offset, size = (parse_int(item[key]) for key in ("symbol_address", "offset", "size"))
+            if (address < 0 or offset < 0 or size <= 0 or address + offset + size > 0x100000000
+                    or (complete_owner and offset != 0)):
+                raise ValueError("invalid range bounds")
+        except (KeyError, TypeError, ValueError) as exc:
+            raise MatchError("storage range descriptor requires named storage and bounded positive size/offset") from exc
+    return value
+
+
+def bss_ranges(build: dict[str, Any]) -> list[dict[str, Any]]:
+    return validated_range_list(build["bss_ranges"], complete_owner=True) if "bss_ranges" in build else []
+
+
+def validate_layout_config(config: dict[str, Any]) -> None:
+    if not any(key in config for key in ("bss_ranges", "function_padding")):
+        return
+    if (config.get("kind") != "resident" or "code_intervals" not in config
+            or "linker_script" not in config or not isinstance(config.get("linked_block"), dict)):
+        raise MatchError("BSS/padding ownership requires a resident joint linked interval target")
+    if any(key in config for key in ("data_ranges", "data_range")) or any(
+            key in config["linked_block"] for key in ("rodata_address", "rodata_size")):
+        raise MatchError("BSS/padding ownership does not support mixed initialized DATA or rodata")
+    bss_ranges(config)
 
 
 def initialized_data_range(
@@ -1276,11 +1329,13 @@ def reject_overlapping_ranges(ranges: Iterable[dict[str, Any]], description: str
         raise MatchError(f"{description} overlap")
 
 
-def verify_initialized_owners(
+def verify_storage_owners(
     intervals: list[dict[str, Any]], sections: dict[str, dict[str, Any]],
-    symbols: dict[str, dict[str, Any]],
+    symbols: dict[str, dict[str, Any]], *, initialized: bool,
 ) -> None:
     """Joint resident ranges own whole real objects and complete mutable sections."""
+    label = "initialized" if initialized else "BSS"
+    intervals = validated_range_list(intervals, complete_owner=True)
     names = {interval["symbol"] for interval in intervals}
     if len(names) != len(intervals):
         raise MatchError("joint initialized owners are duplicated")
@@ -1288,20 +1343,21 @@ def verify_initialized_owners(
     for interval in intervals:
         name = interval["symbol"]
         owner = symbols.get(name, {})
-        if (parse_int(interval["offset"]) != 0 or parse_int(interval["size"]) <= 0
-                or owner.get("type") != "OBJECT" or owner.get("binding") != "GLOBAL"
+        if (owner.get("type") != "OBJECT" or owner.get("binding") != "GLOBAL"
                 or owner.get("visibility") != "DEFAULT" or owner.get("count") != 1
                 or owner.get("section") != interval["output_section"]
                 or owner.get("address") != parse_int(interval["symbol_address"])
                 or owner.get("size") != parse_int(interval["size"])):
-            raise MatchError(f"joint initialized owner {name!r} is not one complete GLOBAL DEFAULT OBJECT")
+            raise MatchError(f"joint {label} owner {name!r} is not one complete GLOBAL DEFAULT OBJECT")
     for name in declared:
         section = sections[name]
-        if (section.get("elf_type") != 1 or section.get("elf_flags") != 3
-                or not section.get("initialized")
-                or not {"CONTENTS", "ALLOC", "LOAD", "DATA"}.issubset(section.get("flags", []))
-                or {"READONLY", "CODE"}.intersection(section.get("flags", []))):
-            raise MatchError(f"joint initialized section {name!r} is not mutable AW PROGBITS")
+        flags = set(section.get("flags", []))
+        valid_flags = ({"CONTENTS", "ALLOC", "LOAD", "DATA"}.issubset(flags)
+                       and not {"READONLY", "CODE"}.intersection(flags)) if initialized else (
+                           "ALLOC" in flags and not {"CONTENTS", "LOAD", "READONLY", "CODE"}.intersection(flags))
+        if (section.get("elf_type") != (1 if initialized else 8) or section.get("elf_flags") != 3
+                or section.get("initialized") != initialized or not valid_flags):
+            raise MatchError(f"joint {label} section {name!r} is not mutable AW {'PROGBITS' if initialized else 'NOBITS'}")
         group = sorted((symbols[item["symbol"]] for item in intervals if item["output_section"] == name),
                        key=lambda owner: owner["address"])
         cursor = section["address"]
@@ -1313,6 +1369,42 @@ def verify_initialized_owners(
             raise MatchError("joint initialized owners do not cover their complete section")
     if {name for name, owner in symbols.items() if owner["section"] in declared and owner["type"] == "OBJECT"} != names:
         raise MatchError("joint initialized section contains an undeclared object or alias")
+    if not initialized and any(owner["section"] in declared and name not in names
+                               and not (name == owner["section"] and owner["size"] == 0
+                                        and owner["binding"] == "LOCAL" and owner["type"] == "NOTYPE")
+                               for name, owner in symbols.items()):
+        raise MatchError("joint BSS section contains an undeclared symbol or alias")
+
+
+def verify_initialized_owners(
+    intervals: list[dict[str, Any]], sections: dict[str, dict[str, Any]],
+    symbols: dict[str, dict[str, Any]],
+) -> None:
+    verify_storage_owners(intervals, sections, symbols, initialized=True)
+
+
+def verify_bss_owners(
+    intervals: list[dict[str, Any]], sections: dict[str, dict[str, Any]],
+    symbols: dict[str, dict[str, Any]],
+) -> None:
+    verify_storage_owners(intervals, sections, symbols, initialized=False)
+
+
+def elf_section_contents(linked: Path, section: str) -> bytes:
+    """Read PROGBITS after allocated_sections has verified the joint ELF table."""
+    actual = linked.read_bytes()
+    offset = struct.unpack_from("<I", actual, 32)[0]
+    width, count, names_index = struct.unpack_from("<HHH", actual, 46)
+    headers = [struct.unpack_from("<10I", actual, offset + index * width) for index in range(count)]
+    names_header = headers[names_index]
+    names = actual[names_header[4]:names_header[4] + names_header[5]]
+    for header in headers:
+        end = names.find(b"\0", header[0])
+        if names[header[0]:end].decode("ascii", errors="replace") == section:
+            if header[1] != 1 or header[4] + header[5] > len(actual):
+                raise MatchError("expected complete PROGBITS section")
+            return actual[header[4]:header[4] + header[5]]
+    raise MatchError(f"missing joint section {section!r}")
 
 
 def compare_initialized_ranges(

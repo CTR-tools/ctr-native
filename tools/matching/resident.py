@@ -30,6 +30,11 @@ class FunctionRange:
     size: int
     source: str
     candidate_symbol: str | None = None
+    padding_size: int = 0
+
+    @property
+    def body_size(self) -> int:
+        return self.size - self.padding_size
 
     @property
     def emitted_name(self) -> str:
@@ -39,6 +44,10 @@ class FunctionRange:
         fields = asdict(self)
         if self.emitted_name == self.name:
             fields.pop("candidate_symbol")
+        if self.padding_size:
+            fields["body_size"] = self.body_size
+        else:
+            fields.pop("padding_size")
         return fields
 
 
@@ -147,6 +156,7 @@ def definition_count(text: str, symbol: str) -> int:
 def discover_function_ranges(
     config: dict[str, Any], symbols: list[Symbol]
 ) -> list[FunctionRange]:
+    ctr_match.validate_layout_config(config)
     interval = namespace_symbol_ranges(config, symbols)
     owned = config.get("owned_symbols", {})
     if not isinstance(owned, dict) or any(
@@ -158,6 +168,11 @@ def discover_function_ranges(
     ):
         raise ctr_match.MatchError("owned_symbols must map identifiers to identifiers")
     names = {symbol.name for symbol, _ in interval}
+    padding = config.get("function_padding", {})
+    if (not isinstance(padding, dict) or set(padding) - names
+            or any(type(value) is not int or value < 0 or value % 4 for value in padding.values())
+            or ("function_padding" in config and ("code_intervals" not in config or "linker_script" not in config))):
+        raise ctr_match.MatchError("function_padding must map selected functions to bounded aligned zero tails")
     if unknown := sorted(set(owned) - names):
         raise ctr_match.MatchError(
             f"owned_symbols names outside namespace interval: {', '.join(unknown)}"
@@ -176,6 +191,8 @@ def discover_function_ranges(
     source_text = {source: source.read_text() for source in sources}
     ranges: list[FunctionRange] = []
     for symbol, size in interval:
+        if padding.get(symbol.name, 0) >= size or (padding.get(symbol.name, 0) and size % 4):
+            raise ctr_match.MatchError("function padding must leave a positive aligned body within its symbol span")
         candidate = resolved[symbol.name]
         owners: list[Path] = []
         for source, text in source_text.items():
@@ -200,12 +217,13 @@ def discover_function_ranges(
                 size=size,
                 source=str(owners[0].relative_to(ctr_match.ROOT)),
                 candidate_symbol=candidate if candidate != symbol.name else None,
+                padding_size=padding.get(symbol.name, 0),
             )
         )
 
     owners = {ctr_match.repository_path(function.source) for function in ranges}
     unowned = [source for source in sources if source not in owners]
-    if unowned:
+    if unowned and "bss_ranges" not in config:
         relative = ", ".join(
             str(source.relative_to(ctr_match.ROOT)) for source in unowned
         )
@@ -216,13 +234,40 @@ def discover_function_ranges(
     return ranges
 
 
+def source_output(config: dict[str, Any], source: Path, target: Path | None = None) -> Path:
+    """Keep compilation and frozen-proof replay on the same per-source path."""
+    directory = target if target is not None else BUILD_ROOT / config["name"]
+    return directory / "sources" / source.relative_to(ctr_match.ROOT).with_suffix("") / source.name
+
+
+def relocatable_symbols(toolchain: ctr_match.Toolchain, path: Path) -> dict[str, dict[str, Any]]:
+    raw = path.read_bytes()
+    if (len(raw) < 52 or raw[:6] != b"\x7fELF\x01\x01"
+            or struct.unpack_from("<HH", raw, 16) != (1, 8)):
+        raise ctr_match.MatchError("input definition proof requires a relocatable little-endian MIPS ELF32")
+    return ctr_match.linked_symbols(toolchain.binutils["objdump"], path, 0)
+
+
+def verify_code_owners(
+    owners: dict[str, dict[str, Any]], sections: dict[str, dict[str, Any]], functions: list[FunctionRange],
+) -> None:
+    actual = {name: owner for name, owner in owners.items() if owner["section"] in sections
+              and not (name == owner["section"] and owner["type"] == "NOTYPE"
+                       and owner["binding"] == "LOCAL" and owner["visibility"] == "DEFAULT"
+                       and owner["count"] == 1 and owner["size"] == 0
+                       and owner["address"] == sections[owner["section"]]["address"])}
+    if set(actual) != {function.emitted_name for function in functions} or any(owner["type"] != "FUNC" for owner in actual.values()):
+        raise ctr_match.MatchError("joint CODE contains an undeclared owner or alias")
+
+
 def compile_source(
     config: dict[str, Any],
     toolchain: ctr_match.Toolchain,
     source: Path,
 ) -> dict[str, Any]:
     relative = source.relative_to(ctr_match.ROOT)
-    output = BUILD_ROOT / config["name"] / "sources" / relative.with_suffix("")
+    compiled_output = source_output(config, source)
+    output = compiled_output.parent
     error_file = output / "compile-error.txt"
     output.mkdir(parents=True, exist_ok=True)
     try:
@@ -230,7 +275,7 @@ def compile_source(
             toolchain,
             config,
             source,
-            output / source.name,
+            compiled_output,
         )
     except ctr_match.MatchError as exc:
         error_file.write_text(f"{exc}\n")
@@ -372,7 +417,7 @@ def reference_slice(
             "symbol": function.name,
             "region": config["artifact"],
             "address": function.address,
-            "size": function.size,
+            "size": function.body_size,
         },
     )
 
@@ -525,7 +570,8 @@ def compare_linked_intervals(
 ) -> dict[str, Any]:
     """Measure function bodies in their real cross-interval link context."""
     output = linked_object.parent
-    joint = "data_ranges" in config
+    ctr_match.validate_layout_config(config)
+    joint = any(key in config for key in ("data_ranges", "bss_ranges", "function_padding"))
     if joint:
         sections = ctr_match.allocated_sections(toolchain, linked_object, elf_metadata=True)
     else:
@@ -546,7 +592,8 @@ def compare_linked_intervals(
         }
     allowed = {section for section, _, _ in intervals}
     if joint:
-        allowed.update(interval["output_section"] for interval in ctr_match.data_ranges(config))
+        allowed.update(interval["output_section"] for interval in config.get("data_ranges", []))
+        allowed.update(interval["output_section"] for interval in ctr_match.bss_ranges(config))
     if "rodata_address" in config["linked_block"]:
         allowed.add(".rodata")
     if any(
@@ -560,9 +607,15 @@ def compare_linked_intervals(
         if set(sections) != allowed:
             raise ctr_match.MatchError("joint intervals have a missing allocated section")
         ctr_match.reject_overlapping_ranges(sections.values(), "joint allocated sections")
-        ctr_match.verify_initialized_owners(ctr_match.data_ranges(config), sections, owners)
+        if "data_ranges" in config:
+            ctr_match.verify_initialized_owners(ctr_match.data_ranges(config), sections, owners)
+        if "bss_ranges" in config:
+            ctr_match.verify_bss_owners(ctr_match.bss_ranges(config), sections, owners)
+        if any(key in config for key in ("bss_ranges", "function_padding")):
+            verify_code_owners(owners, {span[0]: sections[span[0]] for span in intervals}, functions)
     spans = []
     results = []
+    padding_proofs = []
     for index, (section, start, end) in enumerate(intervals):
         entry = sections.get(section)
         if entry is None or not {"CONTENTS", "ALLOC", "LOAD", "CODE"}.issubset(
@@ -604,7 +657,7 @@ def compare_linked_intervals(
         )
         for function, symbol in zip(group, owned):
             function_placed = (
-                symbol["address"] == function.address and symbol["size"] == function.size
+                symbol["address"] == function.address and symbol["size"] == function.body_size
             )
             placed &= function_placed
             offset = symbol["address"] - entry["address"]
@@ -622,6 +675,15 @@ def compare_linked_intervals(
                 toolchain, reference, candidate, function.address, destination,
                 "retail/function", "candidate/function",
             )
+            if function.padding_size:
+                tail_offset = function.address - entry["address"] + function.body_size
+                actual_tail = actual[tail_offset:tail_offset + function.padding_size]
+                expected_tail = expected.read_bytes()[tail_offset:tail_offset + function.padding_size]
+                if actual_tail != bytes(function.padding_size) or expected_tail != bytes(function.padding_size):
+                    raise ctr_match.MatchError("declared function padding is not a complete zero tail in candidate and retail")
+            if "function_padding" in config:
+                padding_proofs.append({"function": function.name, "address": f"0x{function.address + function.body_size:08x}",
+                                       "size": function.padding_size, "exact": True})
             results.append({
                 **function.result_fields(), "address": f"0x{function.address:08x}",
                 **body, "placement_exact": function_placed,
@@ -637,7 +699,7 @@ def compare_linked_intervals(
             "candidate": str(code.relative_to(ctr_match.ROOT)),
         })
     data = []
-    if joint:
+    if "data_ranges" in config:
         data = ctr_match.compare_initialized_ranges(
             manifest, toolchain, config, references, linked_object, sections, owners,
         )
@@ -657,7 +719,23 @@ def compare_linked_intervals(
             "matching_bytes": sum(item["matching_bytes"] for item in data),
             "expected_size": sum(item["expected_size"] for item in data),
             "exact": all(item["exact"] for item in data),
-        }} if joint else {}),
+        }} if "data_ranges" in config else {}),
+        **({"bss_ranges": [{"name": interval["symbol"], "kind": "bss",
+                            "address": f"0x{ctr_match.parse_int(interval['symbol_address']):08x}",
+                            "size": ctr_match.parse_int(interval["size"]), "file_bytes": 0, "placement_exact": True,
+                            "bss_range": interval, "owner": owners[interval["symbol"]],
+                            "section": {"name": interval["output_section"], **sections[interval["output_section"]]}}
+                           for interval in ctr_match.bss_ranges(config)],
+            "bss": {"size": sum(ctr_match.parse_int(item["size"]) for item in ctr_match.bss_ranges(config)),
+                    "owner_count": len(ctr_match.bss_ranges(config)), "placement_exact": True}}
+           if "bss_ranges" in config else {}),
+        **({"layout": {"matching_bytes": sum(span["matching_bytes"] for span in spans),
+                        "expected_size": sum(span["size"] for span in spans), "exact": all(span["exact"] for span in spans)},
+            "code": {"matching_bytes": sum(item["matching_bytes"] for item in results),
+                     "expected_size": sum(function.body_size for function in functions), "exact": all(item["exact"] for item in results)},
+            "padding": {"size": sum(function.padding_size for function in functions), "exact": True},
+            "function_padding": padding_proofs}
+           if "function_padding" in config else {}),
     }
 
 
@@ -671,12 +749,13 @@ def link_contiguous_block(
 ) -> dict[str, Any]:
     """Check actual function placement and optional initialized data in one link."""
     output = BUILD_ROOT / config["name"] / "linked_block"
+    ctr_match.validate_layout_config(config)
     output.mkdir(parents=True, exist_ok=True)
     linked_object = output / "block.elf"
     linker_script = output / "block.ld"
     symbol_script = output / "symbols.ld"
     block = config["linked_block"]
-    joint = "data_ranges" in config
+    joint = any(key in config for key in ("data_ranges", "bss_ranges", "function_padding"))
     if joint and ("linker_script" not in config or "code_intervals" not in config):
         raise ctr_match.MatchError("joint initialized owners require linker_script and code_intervals")
     start = functions[0].address
@@ -691,13 +770,20 @@ def link_contiguous_block(
         adjacent_metadata_size(toolchain.binutils["objdump"], path) for path in object_files
     )
     if joint:
-        ranges = ctr_match.data_ranges(config)
+        ranges = (ctr_match.data_ranges(config) if "data_ranges" in config else []) + ctr_match.bss_ranges(config)
         selected = {interval["symbol"] for interval in ranges}
         if selected.intersection(config.get("link_symbols", {})):
             raise ctr_match.MatchError("link_symbols replaces a joint initialized owner")
         inputs = {}
+        input_proofs = []
         for object_file in object_files:
-            for name, owner in ctr_match.linked_symbols(toolchain.binutils["objdump"], object_file, 0).items():
+            table = (relocatable_symbols(toolchain, object_file) if any(key in config for key in ("bss_ranges", "function_padding"))
+                     else ctr_match.linked_symbols(toolchain.binutils["objdump"], object_file, 0))
+            if any(key in config for key in ("bss_ranges", "function_padding")):
+                input_proofs.append({"object": str(object_file.relative_to(ctr_match.ROOT)),
+                                     "sha256": ctr_match.sha256_file(object_file),
+                                     "owners": {name: owner for name, owner in table.items() if name in selected}})
+            for name, owner in table.items():
                 if name in selected and owner["section"] != "*UND*":
                     count = inputs.get(name, {}).get("count", 0) + owner["count"]
                     inputs[name] = {**owner, "count": count}
@@ -827,7 +913,10 @@ def link_contiguous_block(
         **({key: interval_result[key]
             for key in ("elf", "elf_sha256", "code_intervals", "functions")}
            if interval_result is not None else {}),
-        **({key: interval_result[key] for key in ("data_ranges", "data")} if joint else {}),
+        **({key: interval_result[key] for key in ("data_ranges", "data")} if "data_ranges" in config else {}),
+        **({key: interval_result[key] for key in ("bss_ranges", "bss")} if "bss_ranges" in config else {}),
+        **({"input_owners": input_proofs} if any(key in config for key in ("bss_ranges", "function_padding")) else {}),
+        **({key: interval_result[key] for key in ("layout", "padding", "function_padding")} if "function_padding" in config else {}),
         "address": f"0x{start:08x}",
         "size": size,
         "code_placement_exact": code_placed,
@@ -846,7 +935,7 @@ def link_contiguous_block(
         ),
         "exact": placement_exact and code_comparison["exact"] and (
             not has_rodata or rodata_exact
-        ) and (not joint or interval_result["data"]["exact"]),
+        ) and ("data_ranges" not in config or interval_result["data"]["exact"]),
     }
 
 
@@ -856,11 +945,11 @@ def error_result(
     result = {
         **function.result_fields(),
         "address": f"0x{function.address:08x}",
-        "expected_size": function.size,
+        "expected_size": function.body_size,
         "candidate_size": 0,
         "matching_bytes": 0,
         "matching_words": 0,
-        "total_words": function.size // 4,
+        "total_words": function.body_size // 4,
         "matching_byte_percent": 0.0,
         "exact": False,
         "error": error,
@@ -868,6 +957,153 @@ def error_result(
     if error_file is not None:
         result["error_file"] = error_file
     return result
+
+
+def validate_layout_result(
+    manifest: dict[str, Any], config: dict[str, Any], result: dict[str, Any],
+) -> None:
+    """Read-only replay of new ownership proofs against actual ELF/oracle bytes."""
+    ctr_match.validate_layout_config(config)
+    inventory = discover_function_ranges(config, parse_symbols(ctr_match.repository_path(config["symbol_file"])))
+    block = result["linked_block"]
+    if block.get("error"):
+        raise ctr_match.MatchError("BSS/padding result has no sealed joint ownership proof")
+    if any(key in block for key in ("data_ranges", "data")) or any(block.get(key) is not None for key in (
+            "rodata_address", "rodata_size", "rodata_exact", "rodata_placement_exact",
+            "rodata_candidate_size", "rodata_expected_sha256", "rodata_candidate_sha256")):
+        raise ctr_match.MatchError("BSS/padding proof contains unsupported mixed DATA/rodata claims")
+    tools = ctr_match.resolve_toolchain(manifest)
+    elf = ctr_match.repository_path(block["elf"])
+    if ctr_match.sha256_file(elf) != block["elf_sha256"]:
+        raise ctr_match.MatchError("joint ELF hash changed")
+    sections = ctr_match.allocated_sections(tools, elf, elf_metadata=True)
+    owners = ctr_match.linked_symbols(tools.binutils["objdump"], elf, 0)
+    bss_ranges = ctr_match.bss_ranges(config)
+    allowed = {item["section"] for item in block["code_intervals"]}
+    allowed.update(item["output_section"] for item in bss_ranges)
+    if set(sections) != allowed:
+        raise ctr_match.MatchError("joint proof has missing or undeclared allocated storage")
+    ctr_match.reject_overlapping_ranges(sections.values(), "joint proof sections")
+    if "bss_ranges" in config:
+        ctr_match.verify_bss_owners(bss_ranges, sections, owners)
+        proofs = block["bss_ranges"]
+        if [item["bss_range"] for item in proofs] != bss_ranges:
+            raise ctr_match.MatchError("cached BSS descriptors changed")
+        for item, descriptor in zip(proofs, bss_ranges):
+            name = descriptor["symbol"]
+            section_name = descriptor["output_section"]
+            if (item["owner"] != owners[name] or item["section"] != {"name": section_name, **sections[section_name]}
+                    or item["name"] != name or item["kind"] != "bss" or item["file_bytes"] != 0
+                    or item["address"] != f"0x{ctr_match.parse_int(descriptor['symbol_address']):08x}"
+                    or item["size"] != ctr_match.parse_int(descriptor["size"]) or item["placement_exact"] is not True):
+                raise ctr_match.MatchError("cached BSS placement proof changed")
+        if block["bss"] != {"size": sum(ctr_match.parse_int(item["size"]) for item in bss_ranges),
+                            "owner_count": len(bss_ranges), "placement_exact": True}:
+            raise ctr_match.MatchError("cached BSS summary changed")
+    selected = {item["symbol"] for item in bss_ranges}
+    definitions = {}
+    if not isinstance(block["input_owners"], list) or not block["input_owners"]:
+        raise ctr_match.MatchError("joint input definitions are missing")
+    if len(block["input_owners"]) != len(namespace_sources(config)):
+        raise ctr_match.MatchError("joint input source coverage is incomplete")
+    target = elf.parent.parent
+    if elf.name != "block.elf" or elf.parent.name != "linked_block" or target.name != config["name"]:
+        raise ctr_match.MatchError("joint ELF is outside its configured target output")
+    expected_inputs = {source_output(config, source, target).with_suffix(".o").resolve() for source in namespace_sources(config)}
+    seen_inputs = set()
+    for proof in block["input_owners"]:
+        path = ctr_match.repository_path(proof["object"])
+        if path not in expected_inputs or path in seen_inputs or ctr_match.sha256_file(path) != proof["sha256"]:
+            raise ctr_match.MatchError("joint input object changed or repeated")
+        seen_inputs.add(path)
+        table = relocatable_symbols(tools, path)
+        actual = {name: owner for name, owner in table.items() if name in selected}
+        if actual != proof["owners"]:
+            raise ctr_match.MatchError("cached input definitions changed")
+        for name, owner in actual.items():
+            if owner["section"] != "*UND*":
+                definitions[name] = {**owner, "count": definitions.get(name, {}).get("count", 0) + owner["count"]}
+    if seen_inputs != expected_inputs:
+        raise ctr_match.MatchError("joint input proof does not cover its declared source outputs")
+    for descriptor in bss_ranges:
+        owner = definitions.get(descriptor["symbol"], {})
+        if (owner.get("type") != "OBJECT" or owner.get("binding") != "GLOBAL"
+                or owner.get("visibility") != "DEFAULT" or owner.get("count") != 1
+                or owner.get("size") != ctr_match.parse_int(descriptor["size"])
+                or not owner.get("section", "").startswith(".")):
+            raise ctr_match.MatchError("joint input is not a unique real OBJECT definition")
+    artifact = ctr_match.artifact_by_id(manifest, config["artifact"])
+    references = ctr_match.reference_root(manifest, None)
+    if ctr_match.sha256_file(references / artifact["path"]) != artifact["sha256"]:
+        raise ctr_match.MatchError("retail oracle changed")
+    by_name = {item["name"]: item for item in result["functions"]}
+    if (set(by_name) - {function.name for function in inventory}
+            or result["function_count"] != len(inventory)
+            or result["interval_size"] != sum(function.size for function in inventory)
+            or result["interval_start"] != f"0x{inventory[0].address:08x}"
+            or result["interval_end"] != f"0x{inventory[-1].address + inventory[-1].size:08x}"):
+        raise ctr_match.MatchError("cached selected function inventory changed")
+    verify_code_owners(owners, {span["section"]: sections[span["section"]] for span in block["code_intervals"]}, inventory)
+    padding = []
+    body_matching = body_expected = layout_matching = layout_expected = 0
+    all_exact = True
+    for span in block["code_intervals"]:
+        section = sections[span["section"]]
+        actual = ctr_match.elf_section_contents(elf, span["section"])
+        address = ctr_match.parse_int(span["address"])
+        expected = ctr_match.reference_bytes(manifest, references, {"region": config["artifact"], "address": address, "size": span["size"]})
+        if (section["elf_type"] != 1 or section["elf_flags"] != 6 or section["address"] != address
+                or section["size"] != span["size"] or ctr_match.repository_path(span["candidate"]).read_bytes() != actual):
+            raise ctr_match.MatchError("joint interval is not the sealed ELF/oracle view")
+        group = [function for function in inventory if address <= function.address < address + span["size"]]
+        cursor = address
+        for function in group:
+            owner = owners[function.emitted_name]
+            if (function.address != cursor or owner["address"] != function.address or owner["size"] != function.body_size
+                    or owner["section"] != span["section"] or owner["type"] != "FUNC" or owner["binding"] != "GLOBAL"
+                    or owner["visibility"] != "DEFAULT" or owner["count"] != 1):
+                raise ctr_match.MatchError("actual function owner does not match bounded body/padding")
+            offset = cursor - address
+            body = actual[offset:offset + function.body_size]
+            retail_body = expected[offset:offset + function.body_size]
+            measurement = ctr_match.binary_comparison(retail_body, body)
+            body_matching += measurement["matching_bytes"]
+            body_expected += function.body_size
+            if function.name in by_name:
+                item = by_name[function.name]
+                if (item.get("error") or item["address"] != f"0x{function.address:08x}" or item["source"] != function.source
+                        or item.get("body_size", item["size"]) != function.body_size
+                        or item.get("padding_size", 0) != function.padding_size or item["size"] != function.size
+                        or item["owner"] != owner
+                        or ctr_match.repository_path(item["candidate"]).read_bytes() != body
+                        or any(item[key] != value for key, value in measurement.items())
+                        or item["placement_exact"] is not True):
+                    raise ctr_match.MatchError("cached function body proof changed")
+            if function.padding_size:
+                start = offset + function.body_size
+                if actual[start:start + function.padding_size] != bytes(function.padding_size) or expected[start:start + function.padding_size] != bytes(function.padding_size):
+                    raise ctr_match.MatchError("forged or nonzero function padding")
+            if "function_padding" in config:
+                padding.append({"function": function.name, "address": f"0x{cursor + function.body_size:08x}", "size": function.padding_size, "exact": True})
+            cursor += function.size
+        if cursor != address + span["size"]:
+            raise ctr_match.MatchError("joint body/padding coverage is incomplete")
+        measurement = ctr_match.binary_comparison(expected, actual)
+        if any(span[key] != value for key, value in measurement.items()) or span["placement_exact"] is not True:
+            raise ctr_match.MatchError("cached interval comparison changed")
+        layout_matching += measurement["matching_bytes"]
+        layout_expected += len(expected)
+        all_exact &= actual == expected
+    if block["code"] != {"matching_bytes": body_matching, "expected_size": body_expected, "exact": all_exact}:
+        raise ctr_match.MatchError("cached CODE summary changed")
+    if "function_padding" in config:
+        if (block["function_padding"] != padding or block["padding"] != {"size": sum(item["size"] for item in padding), "exact": True}
+                or block["layout"] != {"matching_bytes": layout_matching, "expected_size": layout_expected, "exact": all_exact}):
+            raise ctr_match.MatchError("cached CODE/PAD/layout summary changed")
+    if (result["exact_function_count"] != sum(item["exact"] for item in result["functions"])
+            or result["selected_exact"] != (all(item["exact"] for item in result["functions"]) and all_exact)
+            or block["exact"] != all_exact or result["exact"] != (result["complete"] and all_exact)):
+        raise ctr_match.MatchError("cached exactness summary changed")
 
 
 def write_result(destination: Path, result: dict[str, Any]) -> None:
@@ -914,6 +1150,8 @@ def build_resident(
         function.source: ctr_match.repository_path(function.source)
         for function in (inventory if multiple_intervals else functions)
     }
+    if "bss_ranges" in config:
+        sources = {str(path.relative_to(ctr_match.ROOT)): path for path in namespace_sources(config)}
     source_results: dict[str, dict[str, Any]] = {}
     for source_name, source in sources.items():
         compiled = compile_source(config, toolchain, source)
