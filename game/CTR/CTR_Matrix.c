@@ -1,119 +1,98 @@
 #include <common.h>
 
-/// @brief used for matrices generated without rotation, which need rotation, like AngleAxis matrices
-///        for instance, called when player fires a bowling bomb
-/// @param rot - resulting rotation vector
-/// @param matrix - instance matrix
-/// @param flags - 3 bits boots + 2 bits some offset value (b0 - switch XZ, b1 - ?, b2 - negate the result)
+// NOTE(aalhendi): Keep retail's row/diagonal address evaluation order.
+#define CTR_MATRIX_ROW(matrix, axis)            ((s16 *)((axis) * sizeof((matrix)->m[0]) + (u8 *)(matrix)))
+#define CTR_MATRIX_ELEMENT(matrix, row, column) (*((column) + CTR_MATRIX_ROW(matrix, row)))
+#define CTR_MATRIX_DIAGONAL(matrix, axis)       (*(s16 *)((axis) * 8 + (u8 *)(matrix)))
+
+// Recover Euler angles from a matrix, including the singular-axis case.
+// Flags select X/Z swapping (bit 0), repeated axes (bit 1), negation (bit 2)
+// and the initial axis (bits 3-4); the original flags remain in rot->pad.
 void CTR_MatrixToRot(SVECTOR *rot, MATRIX *matrix, u32 flags)
 {
-	int iVar2;
-	int iVar3;
-	s16 *psVar5;
-	s16 *psVar11;
+	u32 order = flags;
+	s32 repeatedAxis;
+	s32 negate;
+	s32 swapXZ = order & 1;
+	const u8 *const firstAxes = GAME_SDATA_NAME(matrixToRotInitialAxis);
+	const u8 *axisEntry;
+	s32 axis;
+	s32 next;
+	s32 last;
+	s32 reverseStep;
 
-	// bit 2 check - negate vector
-	u32 uVar7 = flags >> 2 & 1;
+	order >>= 1;
+	repeatedAxis = order & 1;
+	order >>= 1;
+	negate = order & 1;
+	order >>= 1;
+	order &= 3;
+	// NOTE(aalhendi): A direct pointer lookup reschedules the entry loads.
+	axisEntry = order + firstAxes;
+	axis = GAME_SDATA_NAME(matrixToRotInitialAxis)[axisEntry - firstAxes];
+	next = GAME_SDATA_NAME(matrixToRotNextAxis)[axis + negate];
+	reverseStep = negate - 1;
+	last = GAME_SDATA_NAME(matrixToRotNextAxis)[axis - reverseStep];
 
-	// TODO: update global table def and use that instead of local
-	// TODO: figure out better names for whatever indices these are
-	// my guess these are axes
-	// there are 2 char[] tables
-	// 0 1 2 0 0 0 0 0
-	// 1 2 0 1 0 0 0 0
-
-	// 8008D004
-	// char unk_CTR_MatrixToRot_table[0x10];
-// NOTE(aalhendi): CTR_NATIVE mirrors the retail 0x8008d004 table through sdata.
-#if defined(CTR_NATIVE)
-	char *table1 = &sdata->unk_CTR_MatrixToRot_table[0];
-	char *table2 = &sdata->unk_CTR_MatrixToRot_table[8];
-#else
-	char *table1 = (char *)0x8008d004;
-	char *table2 = (char *)0x8008d00C;
-#endif
-
-	// take value from the first table
-	u32 t1value = (u32)table1[flags >> 3 & 3];
-
-	// take two values from the second table
-	u32 t2value1 = (u32)table2[t1value + uVar7];
-	u32 t2value2 = (u32)table2[t1value - (uVar7 - 1)];
-
-	// bit 1 check - uses flipped matrix or smth?
-	if ((flags >> 1 & 1) == 1)
+	// NOTE(aalhendi): Each signed-halfword square fits s32, but their sum
+	// needs u32 for the full input range. Keep the retail matrix access order.
+	// At the singularity, choose zero for the unresolved Z angle.
+	if (repeatedAxis == 1)
 	{
-		// TODO: there's definitely more elegant way for this
-		// probably it was smth like matrix->m[val1][val2]
+		s32 magnitude = MATH_FastSqrt((u32)(CTR_MATRIX_ELEMENT(matrix, axis, next) * CTR_MATRIX_ELEMENT(matrix, axis, next)) +
+		                                  (u32)(CTR_MATRIX_ELEMENT(matrix, axis, last) * CTR_MATRIX_ELEMENT(matrix, axis, last)),
+		                              24) >>
+		                12;
 
-		psVar5 = matrix->m[t1value] + t2value1;
-		iVar2 = (int)*psVar5;
-
-		psVar11 = matrix->m[t1value] + t2value2;
-		iVar3 = (int)*psVar11;
-
-		iVar2 = MATH_FastSqrt(iVar2 * iVar2 + iVar3 * iVar3, 0x18) >> FRACTIONAL_BITS;
-
-		// based on sqrt result, calculate vector
-		if (iVar2 < 0x11)
+		if (magnitude >= 17)
 		{
-			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((int)matrix->m + t2value1 * 8));
-			rot->vy = (s16)ratan2(iVar2, (s32) * (s16 *)((int)matrix->m + t1value * 8));
-			rot->vz = (s16)0;
+			rot->vx = (s16)ratan2(CTR_MATRIX_ELEMENT(matrix, axis, next), CTR_MATRIX_ELEMENT(matrix, axis, last));
+			rot->vy = (s16)ratan2(magnitude, CTR_MATRIX_DIAGONAL(matrix, axis));
+			rot->vz = (s16)ratan2(CTR_MATRIX_ELEMENT(matrix, next, axis), -CTR_MATRIX_ELEMENT(matrix, last, axis));
 		}
 		else
 		{
-			rot->vx = (s16)ratan2((int)*psVar5, (int)*psVar11);
-			rot->vy = (s16)ratan2(iVar2, (int)*(s16 *)((int)matrix->m + t1value * 8));
-			rot->vz = (s16)ratan2((int)matrix->m[t2value1][t1value], -(int)matrix->m[t2value2][t1value]);
+			rot->vx = (s16)ratan2(-CTR_MATRIX_ELEMENT(matrix, next, last), CTR_MATRIX_DIAGONAL(matrix, next));
+			rot->vy = (s16)ratan2(magnitude, CTR_MATRIX_DIAGONAL(matrix, axis));
+			rot->vz = 0;
 		}
 	}
 	else
 	{
-		// TODO: there's definitely more elegant way for this
-		// probably it was smth like matrix->m[val1][val2]
+		s32 magnitude = MATH_FastSqrt((u32)(CTR_MATRIX_DIAGONAL(matrix, axis) * CTR_MATRIX_DIAGONAL(matrix, axis)) +
+		                                  (u32)(CTR_MATRIX_ELEMENT(matrix, next, axis) * CTR_MATRIX_ELEMENT(matrix, next, axis)),
+		                              24) >>
+		                12;
 
-		psVar5 = (s16 *)((int)matrix->m + t1value * 8);
-		iVar2 = (int)*psVar5;
-
-		psVar11 = matrix->m[t2value1] + t1value;
-		iVar3 = (int)*psVar11;
-
-		iVar2 = MATH_FastSqrt(iVar2 * iVar2 + iVar3 * iVar3, 0x18) >> FRACTIONAL_BITS;
-
-		// based on sqrt result, calculate vector
-		if (iVar2 < 0x11)
+		if (magnitude >= 17)
 		{
-			rot->vx = (s16)ratan2(-(int)matrix->m[t2value1][t2value2], (int)*(s16 *)((int)matrix->m + t2value1 * 8));
-			rot->vy = (s16)ratan2(-(int)matrix->m[t2value2][t1value], iVar2);
-			rot->vz = (s16)0;
+			rot->vx = (s16)ratan2(CTR_MATRIX_ELEMENT(matrix, last, next), CTR_MATRIX_DIAGONAL(matrix, last));
+			rot->vy = (s16)ratan2(-CTR_MATRIX_ELEMENT(matrix, last, axis), magnitude);
+			rot->vz = (s16)ratan2(CTR_MATRIX_ELEMENT(matrix, next, axis), CTR_MATRIX_DIAGONAL(matrix, axis));
 		}
 		else
 		{
-			rot->vx = (s16)ratan2((int)matrix->m[t2value2][t2value1], (int)*(s16 *)((int)matrix->m + t2value2 * 8));
-			rot->vy = (s16)ratan2(-(int)matrix->m[t2value2][t1value], iVar2);
-			rot->vz = (s16)ratan2((int)*psVar11, (int)*psVar5);
+			rot->vx = (s16)ratan2(-CTR_MATRIX_ELEMENT(matrix, next, last), CTR_MATRIX_DIAGONAL(matrix, next));
+			rot->vy = (s16)ratan2(-CTR_MATRIX_ELEMENT(matrix, last, axis), magnitude);
+			rot->vz = 0;
 		}
 	}
 
-	// bit 2 check - negate vector
-	// flags >> 2 & 1;
-	if (uVar7 == 1)
+	if (negate == 1)
 	{
 		rot->vx = -rot->vx;
-		rot->vz = -rot->vz;
 		rot->vy = -rot->vy;
+		rot->vz = -rot->vz;
 	}
-
-	// bit 0 check - switch XZ axis
-	if ((flags & 1) == 1)
+	if (swapXZ == 1)
 	{
-		// can use pad for the swap
-		rot->pad = rot->vx;
+		s32 x = rot->vx;
 		rot->vx = rot->vz;
-		rot->vz = rot->pad;
+		rot->vz = x;
 	}
-
-	// copy flags to pad
 	rot->pad = (s16)flags;
 }
+
+#undef CTR_MATRIX_ROW
+#undef CTR_MATRIX_ELEMENT
+#undef CTR_MATRIX_DIAGONAL

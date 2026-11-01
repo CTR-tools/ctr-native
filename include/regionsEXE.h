@@ -2383,7 +2383,9 @@ struct sData
 	u32 HudAndDebugFlags;
 
 	// 8008D004
-	char unk_CTR_MatrixToRot_table[0x10];
+	u8 matrixToRotInitialAxis[8];
+	// 8008D00C
+	u8 matrixToRotNextAxis[8];
 
 	// 8008d014
 	// used for "honk" sounds

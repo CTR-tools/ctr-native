@@ -57,26 +57,8 @@ struct sData sdata_static = {.langBufferSize = 0x3F04,
 
                              .HudAndDebugFlags = 0x100,
 
-                             .unk_CTR_MatrixToRot_table =
-                                 {
-                                     0,
-                                     1,
-                                     2,
-                                     0,
-                                     0,
-                                     0,
-                                     0,
-                                     0,
-
-                                     1,
-                                     2,
-                                     0,
-                                     1,
-                                     0,
-                                     0,
-                                     0,
-                                     0,
-                                 },
+                             .matrixToRotInitialAxis = {0, 1, 2, 0},
+                             .matrixToRotNextAxis = {1, 2, 0, 1},
 
                              .trafficLightsTimer_prevFrame = 0,
 

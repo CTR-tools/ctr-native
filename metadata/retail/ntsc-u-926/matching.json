@@ -1545,6 +1545,22 @@
       "aspsx_version": "2.77"
     },
     {
+      "name": "ctr-matrix-to-rot",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CTR_MatrixToRot",
+      "end_symbol": "CTR_ScrambleGhostString",
+      "symbol_prefix": "CTR_MatrixToRot",
+      "source": "game/CTR/CTR_Matrix.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mprologue-static-alias=on"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "ctr-ghost-string",
       "kind": "resident",
       "artifact": "exe",
