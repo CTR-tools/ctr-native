@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 void (*mainMenuInit[])() = {MM_JumpTo_Title_FirstTime, MM_JumpTo_Characters, MM_JumpTo_TrackSelect, MM_JumpTo_BattleSetup, CS_Garage_Init, MM_JumpTo_Scrapbook};
 
@@ -103,7 +104,15 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		gGT->level1 = 0;
 		gGT->level2 = 0;
 		gGT->numPlyrCurrGame = gGT->numPlyrNextGame;
-		strcpy(gGT->levelName, data.metaDataLEV[levelID].name_Debug);
+		if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID) != NULL)
+		{
+			/* The debug name controls level classification, not the UI title. */
+			strcpy(gGT->levelName, "custom");
+		}
+		else
+		{
+			strcpy(gGT->levelName, data.metaDataLEV[levelID].name_Debug);
+		}
 
 		// pop back here for every load, after first load,
 		// this permanently reserves LNG, bigfile header, etc

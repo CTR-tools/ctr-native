@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 enum
 {
@@ -200,6 +201,25 @@ internal s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
 	return CTR_MipsSll(gGT->level1->ptr_restart_points->distToFinish, 3);
 }
 
+static struct Difficulty *BOTS_CustomTrackDifficulty(void)
+{
+	static struct Difficulty difficulty;
+	const int trackCount = (int)(sizeof(data.ArcadeDifficulty) / sizeof(data.ArcadeDifficulty[0]));
+	for (int i = 0; i < BOTS_DIFFICULTY_PARAM_COUNT; i++)
+	{
+		int sum1 = 0;
+		int sum2 = 0;
+		for (int track = 0; track < trackCount; track++)
+		{
+			sum1 += data.ArcadeDifficulty[track].params1[i];
+			sum2 += data.ArcadeDifficulty[track].params2[i];
+		}
+		difficulty.params1[i] = (s16)(sum1 / trackCount);
+		difficulty.params2[i] = (s16)(sum2 / trackCount);
+	}
+	return &difficulty;
+}
+
 void BOTS_Adv_AdjustDifficulty(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
@@ -213,6 +233,12 @@ void BOTS_Adv_AdjustDifficulty(void)
 	{
 		sdata->difficultyParams[1] = data.BossDifficulty[gGT->bossID].params1;
 		sdata->difficultyParams[0] = data.BossDifficulty[gGT->bossID].params2;
+	}
+	else if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+	{
+		struct Difficulty *difficulty = BOTS_CustomTrackDifficulty();
+		sdata->difficultyParams[1] = difficulty->params1;
+		sdata->difficultyParams[0] = difficulty->params2;
 	}
 	else
 	{
