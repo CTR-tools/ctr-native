@@ -53,6 +53,10 @@ enum
 	MM_TRACK_SELECT_TIME_TRIAL_FLAGS_OFFSET = 0x12c,
 	MM_TRACK_SELECT_ROW_PHASE_UNIT = 0x10000,
 	MM_TRACK_SELECT_ROW_NAME_X_OFFSET = 8,
+	MM_TRACK_SELECT_CUSTOM_TITLE_BYTES = 256,
+	MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN = 16,
+	MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES = 45,
+	MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES = 8,
 	MM_TRACK_SELECT_ROW_NAME_Y_OFFSET = 0x65,
 	MM_TRACK_SELECT_STAR_X_OFFSET = 4,
 	MM_TRACK_SELECT_STAR_Y_OFFSET = 4,
@@ -78,6 +82,8 @@ enum
 static struct MainMenu_LevelRow s_combinedBattleTracks[MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT];
 static struct MainMenu_LevelRow *s_timeTrialTracks;
 static s16 s_timeTrialTrackCount;
+static s16 s_titleScrollSelectedRow = -1;
+static u32 s_titleScrollStartFrame;
 
 static void MM_TrackSelect_BuildTimeTrialTracks(void)
 {
@@ -129,9 +135,39 @@ static void MM_TrackSelect_CustomTitle(char *destination, size_t capacity, const
 		destination[length++] = (char)c;
 	}
 	destination[length] = '\0';
-	while (length > 0 && DecalFont_GetLineWidth(destination, FONT_BIG) > MM_TRACK_SELECT_ROW_W - 16)
+}
+
+static void MM_TrackSelect_ScrollTitle(char *title, int available, u32 frame)
+{
+	if (DecalFont_GetLineWidth(title, FONT_BIG) <= available)
 	{
-		destination[--length] = '\0';
+		return;
+	}
+
+	size_t length = strlen(title);
+	size_t lastStart = 0;
+	while (lastStart < length && DecalFont_GetLineWidth(title + lastStart, FONT_BIG) > available)
+	{
+		lastStart++;
+	}
+
+	u32 travelFrames = (u32)lastStart * MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES;
+	u32 cycle = travelFrames + 2 * MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES;
+	u32 position = frame % cycle;
+	size_t start = 0;
+	if (position >= MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES)
+	{
+		start = (position - MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES) / MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES;
+		if (start > lastStart)
+		{
+			start = lastStart;
+		}
+	}
+	memmove(title, title + start, length - start + 1);
+	length -= start;
+	while (length > 0 && DecalFont_GetLineWidth(title, FONT_BIG) > available)
+	{
+		title[--length] = '\0';
 	}
 }
 
@@ -381,6 +417,7 @@ void MM_TrackSelect_Init(void)
 	struct MainMenu_LevelRow *selectMenu;
 	s16 numTracks;
 
+	s_titleScrollSelectedRow = -1;
 	MM_TrackSelect_BuildTimeTrialTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
@@ -751,6 +788,12 @@ trackSelectionMenuDone:
 		}
 	}
 
+	if (MM_TRACK_CHANGE_FRAMES != 0 || s_titleScrollSelectedRow != menuLocal->rowSelected)
+	{
+		s_titleScrollSelectedRow = menuLocal->rowSelected;
+		s_titleScrollStartFrame = (u32)MM_FRAME_COUNTER;
+	}
+
 	resetPreviewVideo = 0;
 	if ((MM_TRACK_CHANGE_FRAMES != 0) || (MM_TRACK_TRANSITION_STATE == EXITING_MENU))
 	{
@@ -965,8 +1008,14 @@ trackSelectionMenuDone:
 				const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackLevelID);
 				if (customTrack != NULL)
 				{
-					char title[64];
+					char title[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
 					MM_TrackSelect_CustomTitle(title, sizeof(title), customTrack->title);
+					u32 scrollFrame = 0;
+					if (MM_TRACK_CHANGE_FRAMES == 0 && (s16)rowIndex == MM_TRACK_SELECT_CENTER_ROW)
+					{
+						scrollFrame = (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame;
+					}
+					MM_TrackSelect_ScrollTitle(title, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, scrollFrame);
 					MM_DRAW_LINE_WIDE_FLAGS(title, rowNameX, rowNameY, FONT_BIG, ORANGE);
 				}
 				else
