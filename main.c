@@ -46,6 +46,7 @@
 
 #include "platform/native_disc_image.c"
 #include "platform/native_assets.c"
+#include "platform/native_track_registry.c"
 #include "platform/native_chaos_ipc.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
