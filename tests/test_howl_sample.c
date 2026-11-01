@@ -13,6 +13,7 @@ static int s_reads;
 static int s_writtenCount;
 static int s_failRead;
 static u32 s_destination;
+static u32 s_expectedDestination;
 static struct ChannelStats s_channel;
 static int s_mixedVolume;
 static struct GameTracker s_tracker;
@@ -82,7 +83,7 @@ unsigned int SpuSetTransferStartAddr(unsigned int address)
 unsigned int SpuWrite(unsigned char *bytes, unsigned int size)
 {
 	CTR_TEST_CHECK(s_writtenCount + size <= sizeof(s_written), "only the selected sample is uploaded");
-	CTR_TEST_CHECK_EQ(s_destination, 0x20cu * 8 + (u32)s_writtenCount, "successive sector fragments remain contiguous in SPU memory");
+	CTR_TEST_CHECK_EQ(s_destination, s_expectedDestination + (u32)s_writtenCount, "successive sector fragments remain contiguous in SPU memory");
 	memcpy(s_written + s_writtenCount, bytes, size);
 	s_writtenCount += size;
 	return size;
@@ -171,8 +172,9 @@ static void Reset(void)
 	sdata->bankLoadStage = 4;
 	sdata->songLoadStage = 3;
 	sdata->numAudioBanks = 1;
-	sdata->bank[0] = (struct Bank){ .flags = 2, .min = 0x202, .max = 10 };
-	sdata->audioAllocPtr = 0x20c;
+	sdata->bank[0] = (struct Bank){ .flags = 2, .min = 0x101, .max = 5 };
+	sdata->audioAllocPtr = 0x106;
+	s_expectedDestination = 0x20c * 8;
 	const s16 indices[] = { 2, 0, 1 };
 	memcpy(s_disc + 2048, indices, sizeof(indices));
 	for (int i = 0; i < 32; i++)
@@ -190,17 +192,17 @@ int main(void)
 	Reset();
 	CTR_TEST_CHECK(OtherFX_Play(0, 1) != 0, "first playback loads and starts a missing sample");
 	CTR_TEST_CHECK(memcmp(s_written, s_disc + 6136, 32) == 0, "sample offsets are correct across disc sectors");
-	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, 0x20c, "playback can resolve the cached sample");
-	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x210, "subsequent banks cannot overwrite the sample");
-	CTR_TEST_CHECK_EQ(sdata->bank[0].max, 10, "the retained base bank does not acquire level-local samples");
-	CTR_TEST_CHECK_EQ(sdata->bank[1].max, 4, "the cache bank owns the sample allocation");
+	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, 0x106, "playback can resolve the cached sample");
+	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x108, "subsequent banks cannot overwrite the sample");
+	CTR_TEST_CHECK_EQ(sdata->bank[0].max, 5, "the retained base bank does not acquire level-local samples");
+	CTR_TEST_CHECK_EQ(sdata->bank[1].max, 2, "the cache bank owns the sample allocation");
 	CTR_TEST_CHECK_EQ(sdata->numAudioBanks, 2, "extra samples share a separate bank lifetime");
 	OtherFX_Play_Echo(0, 1, 1);
 	CTR_TEST_CHECK_EQ(s_reads, 3, "repeated playback and echo reuse the loaded sample without I/O");
 	CTR_TEST_CHECK_EQ(s_channel.echo, 1, "echo survives the common playback path");
 	Bank_DestroyUntilIndex(0);
 	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, 0, "level teardown invalidates cached sample addresses");
-	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x20c, "level teardown returns SPU space to the allocator");
+	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x106, "level teardown returns SPU space to the allocator");
 	CTR_TEST_CHECK_EQ(sdata->numAudioBanks, 1, "level teardown preserves the base bank");
 	s_writtenCount = 0;
 	CTR_TEST_CHECK(Bank_EnsureOtherFX(0), "the next level can reload an invalidated cache sample");
@@ -210,11 +212,19 @@ int main(void)
 	s_failRead = 3;
 	CTR_TEST_CHECK(!Bank_EnsureOtherFX(0), "a failed sample read rejects the sample");
 	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, 0, "partial uploads cannot mark a sample playable");
-	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x20c, "failed reads preserve the SPU allocator");
+	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x106, "failed reads preserve the SPU allocator");
 	CTR_TEST_CHECK_EQ(sdata->numAudioBanks, 1, "failed reads create no cache bank");
-	sdata->audioAllocPtr = 0xfbff;
+	sdata->audioAllocPtr = CTR_SPU_UNITS(CTR_SPU_CEILING) - 1;
 	CTR_TEST_CHECK(!Bank_EnsureOtherFX(0), "samples cannot overlap reserved SPU memory");
 	CTR_TEST_CHECK_EQ(s_reads, 3, "SPU capacity is checked before reading");
+	Reset();
+	sdata->audioAllocPtr = CTR_SPU_UNITS(0x80000);
+	s_expectedDestination = 0x80000;
+	CTR_TEST_CHECK(OtherFX_Play(0, 1) != 0, "a sample can be loaded and played above the retail SPU limit");
+	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, CTR_SPU_UNITS(0x80000), "the upper-half address fits the sample table");
+	CTR_TEST_CHECK_EQ((u32)sdata->channelAttrNew[0].spuStartAddr, 0x80000, "playback converts the upper-half sample address to bytes");
+	Bank_DestroyUntilIndex(0);
+	CTR_TEST_CHECK_EQ(s_samples[1].spuAddr, 0, "teardown clears an upper-half sample address");
 	Reset();
 	sdata->bankLoadStage = 2;
 	CTR_TEST_CHECK(!Bank_EnsureOtherFX(0), "an asynchronous bank transfer cannot be interrupted");
