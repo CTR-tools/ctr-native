@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 enum
 {
@@ -52,6 +53,12 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 	}
 
 	if ((gGT->gameMode1 & TIME_TRIAL) == 0)
+	{
+		return;
+	}
+
+	/* Retail time-trial targets and unlock flags have no entry for custom IDs. */
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
 	{
 		return;
 	}

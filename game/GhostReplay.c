@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 internal s16 Ghost_LerpRot12(s16 curr, s16 next, u16 t)
 {
@@ -339,6 +340,14 @@ void GhostReplay_Init1(void)
 	sdata->GhostRecording.ptrGhost = gh;
 	sdata->GhostRecording.ptrStartOffset = &recordBuffer[0];
 	sdata->GhostRecording.ptrEndOffset = &recordBuffer[0x3DD4];
+
+	/* Retail ghosts and unlock flags belong to retail geometry. Custom ghost
+	   playback needs its own identity and storage, so do not index those tables. */
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+	{
+		sdata->boolReplayHumanGhost = 0;
+		return;
+	}
 
 	// ALWAYS initialize ghost threads, even if gh == 0,
 	// or else the "Ghost Too Big" text will never play.
