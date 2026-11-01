@@ -101,7 +101,7 @@ void VehLap_UpdateProgress(struct Driver *driver)
 	}
 
 #if defined(CTR_NATIVE)
-	gte_ldv0(nodeDeltaPtr);
+	CTR_GteLoadSVec3SlotV0(&nodeDelta);
 #else
 	// NOTE(aalhendi): PsyQ emits direct coprocessor loads here; native routes
 	// the same two words through its GTE shim above.

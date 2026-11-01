@@ -251,6 +251,9 @@ extern __typeof__(data.rankIconsDesired) ctr_data_rankIconsDesired asm("data+228
 extern s16 ctr_data_rankIconsTransitionTimer[8] asm("data+22840");
 extern s32 ctr_data_RelicTime[54] asm("data+22944");
 extern Point ctr_data_speedometerBG_vertData[2][14] asm("data+23244");
+extern u16 ctr_sdata_finalLapTextTimer[4] asm("sdata_static+820");
+extern s16 ctr_sdata_numPlayersFinishedRace asm("sdata_static+830");
+extern char ctr_sdata_kartSpawnOrderArray[8] asm("sdata_static+1840");
 extern char ctr_retail_s_crystal1[12] asm("rdata+5808");
 extern char ctr_retail_s_fruitdisp[12] asm("rdata+5820");
 extern char ctr_retail_s_timebox1[12] asm("rdata+5832");

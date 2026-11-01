@@ -4223,6 +4223,23 @@
       "linked_block": {}
     },
     {
+      "name": "playlevel-lap-stats",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "PlayLevel_UpdateLapStats",
+      "end_symbol": "Podium_InitModels",
+      "symbol_prefix": "PlayLevel_",
+      "source": "game/PlayLevel.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "link_symbols": {"_gp": "0x8008cf6c"},
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "ui-speedometer",
       "kind": "resident",
       "artifact": "exe",

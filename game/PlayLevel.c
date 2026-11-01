@@ -28,41 +28,41 @@ enum PlayLevelConstants
 
 void PlayLevel_UpdateLapStats(void)
 {
-	int bestDriverIndex;
-	u8 lapCounter;
-	int effectiveLapIndex;
+	s32 bestDriverIndex;
 	struct Driver *farthestHuman;
 	struct Driver *currDriver;
-	int distToFinish_prev;
-	int distToFinish_curr;
-	int minDistance;
-	int bestLapIndex;
-	int driverIndex;
-	int finishedHumanCount;
-	int currRank;
-	struct GameTracker *gGT = sdata->gGT;
+	s32 distToFinish_prev;
+	s32 minDistance;
+	s32 bestLapIndex;
+	s32 driverIndex;
+	s32 finishedHumanCount;
+	s32 firstUnfinishedRank;
+	struct GameTracker *gGT = GAME_TRACKER;
 
+	firstUnfinishedRank = 0;
 	finishedHumanCount = 0;
-	currRank = 0;
 
-	// driver pointer,
-	// unlike other "rank" index variables
+	// Driver leading the previous race order, not a rank index.
 	farthestHuman = NULL;
 
 	// find farthest-ahead human
-	for (int raceOrderIndex = 0; raceOrderIndex < PLAYLEVEL_DRIVER_COUNT; raceOrderIndex++)
+	for (driverIndex = 0; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
 	{
-		currDriver = gGT->driversInRaceOrder[raceOrderIndex];
+		struct Driver *orderedDriver;
 
-		if ((currDriver != 0) && ((currDriver->actionsFlagSet & ACTION_BOT) == 0))
+		orderedDriver = gGT->driversInRaceOrder[driverIndex];
+
+		if ((orderedDriver != 0) && ((orderedDriver->actionsFlagSet & ACTION_BOT) == 0))
 		{
-			farthestHuman = currDriver;
+			farthestHuman = orderedDriver;
 			break;
 		}
 	}
 
 	for (driverIndex = 0; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
 	{
+		s32 newRank;
+
 		gGT->driversInRaceOrder[driverIndex] = NULL;
 
 		currDriver = gGT->drivers[driverIndex];
@@ -75,24 +75,18 @@ void PlayLevel_UpdateLapStats(void)
 		// before and after
 		distToFinish_prev = currDriver->distanceToFinish_curr;
 		VehLap_UpdateProgress(currDriver);
-		distToFinish_curr = currDriver->distanceToFinish_curr;
 
-		int drivenBackwards = currDriver->distanceDrivenBackwards + (distToFinish_curr - distToFinish_prev);
+		// NOTE(aalhendi): Publish progress before clamping; lap checks reread the driver owner.
+		currDriver->distanceDrivenBackwards += currDriver->distanceToFinish_curr - (u32)distToFinish_prev;
 
-		// clamp minimum
-		if (drivenBackwards < 0)
+		if ((s32)currDriver->distanceDrivenBackwards < 0)
 		{
-			drivenBackwards = 0;
+			currDriver->distanceDrivenBackwards = 0;
 		}
-
-		// clamp to max
-		else if (drivenBackwards > PLAYLEVEL_REVERSE_DISTANCE_MAX)
+		else if ((s32)currDriver->distanceDrivenBackwards > PLAYLEVEL_REVERSE_DISTANCE_MAX)
 		{
-			drivenBackwards = PLAYLEVEL_REVERSE_DISTANCE_MAX;
+			currDriver->distanceDrivenBackwards = PLAYLEVEL_REVERSE_DISTANCE_MAX;
 		}
-
-		// update distance driven backwards
-		currDriver->distanceDrivenBackwards = drivenBackwards;
 
 		// === Natty Video ===
 		// https://www.youtube.com/watch?v=lDaT2rY6GKI
@@ -103,7 +97,7 @@ void PlayLevel_UpdateLapStats(void)
 
 		if (
 		    // crossed finishline (forwards)
-		    (distToFinish_prev < PLAYLEVEL_FINISHLINE_NEAR_DISTANCE) && (distToFinish_curr > PLAYLEVEL_FINISHLINE_FAR_DISTANCE))
+		    (distToFinish_prev < PLAYLEVEL_FINISHLINE_NEAR_DISTANCE) && (((s32)currDriver->distanceToFinish_curr) > PLAYLEVEL_FINISHLINE_FAR_DISTANCE))
 		{
 			// Set racer's distance driven backwards to zero
 			currDriver->distanceDrivenBackwards = 0;
@@ -116,16 +110,9 @@ void PlayLevel_UpdateLapStats(void)
 			}
 
 			// update checkpoint with distToFinish
-			currDriver->distanceToFinish_checkpoint = distToFinish_curr;
+			currDriver->distanceToFinish_checkpoint = currDriver->distanceToFinish_curr;
 
-			// If finished last lap, clamp
-			if (gGT->numLaps < (currDriver->lapIndex + 1))
-			{
-				lapCounter = currDriver->lapIndex;
-			}
-
-			// if this is not final lap
-			else
+			if (gGT->numLaps >= (currDriver->lapIndex + 1))
 			{
 				if (
 				    // If you're in Arcade, or
@@ -136,9 +123,9 @@ void PlayLevel_UpdateLapStats(void)
 				    // player of any kind
 				    (currDriver->instSelf->thread->modelIndex == DYNAMIC_PLAYER))
 				{
-					UI_SaveLapTime(currDriver->lapIndex, gGT->elapsedEventTime - currDriver->lapTime, currDriver->driverID);
+					UI_SaveLapTime(currDriver->lapIndex, (s32)((u32)gGT->elapsedEventTime - (u32)currDriver->lapTime), currDriver->driverID);
 
-					gGT->lapTime[currDriver->lapIndex] = gGT->elapsedEventTime - currDriver->lapTime;
+					gGT->lapTime[currDriver->lapIndex] = (s32)((u32)gGT->elapsedEventTime - (u32)currDriver->lapTime);
 				}
 
 				// time on the clock
@@ -154,21 +141,19 @@ void PlayLevel_UpdateLapStats(void)
 					Voiceline_ClearTimeStamp();
 				}
 
-				lapCounter = currDriver->lapIndex;
-
 				// If Final Lap
-				if (lapCounter == (gGT->numLaps - 1))
+				if (currDriver->lapIndex == (GAME_TRACKER->numLaps - 1))
 				{
 					if ((currDriver->actionsFlagSet & ACTION_BOT) == 0)
 					{
 						// frames, so the animation lasts 3 seconds
-						sdata->finalLapTextTimer[driverIndex] = PLAYLEVEL_FINAL_LAP_TEXT_FRAMES;
+						GAME_SDATA_NAME(finalLapTextTimer)[driverIndex] = PLAYLEVEL_FINAL_LAP_TEXT_FRAMES;
 					}
 				}
 			}
 
 			// If did not just finish race
-			if (lapCounter != gGT->numLaps)
+			if (currDriver->lapIndex != gGT->numLaps)
 			{
 				goto UpdateFinishedDriverRank;
 			}
@@ -186,8 +171,8 @@ void PlayLevel_UpdateLapStats(void)
 				{
 					// set driver placement rank, based on
 					// how many drivers have finished the race
-					currDriver->driverRank = sdata->numPlayersFinishedRace;
-					sdata->numPlayersFinishedRace++;
+					currDriver->driverRank = GAME_SDATA_NAME(numPlayersFinishedRace);
+					GAME_SDATA_NAME(numPlayersFinishedRace)++;
 				}
 
 				// you have no weapon
@@ -204,17 +189,13 @@ void PlayLevel_UpdateLapStats(void)
 
 						// one person won,
 						// one person gets confetti
+						gGT->winnerIndex[PLAYLEVEL_FIRST_WINNER_INDEX] = currDriver->driverID;
 						gGT->numWinners = PLAYLEVEL_SINGLE_WINNER_COUNT;
 
-						u8 driverID = currDriver->driverID;
-
-						// add driver ID to array of confetti winners
-						gGT->winnerIndex[PLAYLEVEL_FIRST_WINNER_INDEX] = driverID;
-
 						// edit window variables for confetti
-						gGT->pushBuffer[driverID].fadeFromBlack_currentValue = PLAYLEVEL_WINNER_FADE_CURRENT;
-						gGT->pushBuffer[driverID].fadeFromBlack_desiredResult = PLAYLEVEL_WINNER_FADE_DESIRED;
-						gGT->pushBuffer[driverID].fade_step = PLAYLEVEL_WINNER_FADE_STEP;
+						gGT->pushBuffer[gGT->winnerIndex[PLAYLEVEL_FIRST_WINNER_INDEX]].fadeFromBlack_currentValue = PLAYLEVEL_WINNER_FADE_CURRENT;
+						gGT->pushBuffer[gGT->winnerIndex[PLAYLEVEL_FIRST_WINNER_INDEX]].fadeFromBlack_desiredResult = PLAYLEVEL_WINNER_FADE_DESIRED;
+						gGT->pushBuffer[gGT->winnerIndex[PLAYLEVEL_FIRST_WINNER_INDEX]].fade_step = PLAYLEVEL_WINNER_FADE_STEP;
 					}
 					if (currDriver->noItemTimer != 0)
 					{
@@ -234,7 +215,7 @@ void PlayLevel_UpdateLapStats(void)
 		{
 			if (
 			    // crossed startline backwards
-			    (distToFinish_curr < PLAYLEVEL_FINISHLINE_NEAR_DISTANCE) && (distToFinish_prev > PLAYLEVEL_FINISHLINE_FAR_DISTANCE))
+			    (((s32)currDriver->distanceToFinish_curr) < PLAYLEVEL_FINISHLINE_NEAR_DISTANCE) && (distToFinish_prev > PLAYLEVEL_FINISHLINE_FAR_DISTANCE))
 			{
 				// automatic backwards penalty
 				currDriver->distanceDrivenBackwards = PLAYLEVEL_REVERSE_CROSSING_PENALTY;
@@ -244,21 +225,19 @@ void PlayLevel_UpdateLapStats(void)
 			// if player did not JUST cross finish backwards
 			else
 			{
-				u32 trackLen = gGT->level1->ptr_restart_points[0].distToFinish;
-
 				if (
 				    // if player did not EVER cross finish backwards
 				    ((currDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) == 0) &&
 
 				    (
 				        // if distance driven this frame is less than...
-				        (currDriver->distanceToFinish_checkpoint - distToFinish_curr) <=
+				        (currDriver->distanceToFinish_checkpoint - ((s32)currDriver->distanceToFinish_curr)) <=
 
 				        // level's distance to finish
-				        ((trackLen >> 2) << 3)))
+				        (u32)((gGT->level1->ptr_restart_points[0].distToFinish >> 2) << 3)))
 				{
 					// save distance for next frame
-					currDriver->distanceToFinish_checkpoint = distToFinish_curr;
+					currDriver->distanceToFinish_checkpoint = currDriver->distanceToFinish_curr;
 				}
 			}
 
@@ -268,7 +247,6 @@ void PlayLevel_UpdateLapStats(void)
 				// set rank to "unsorted"
 				currDriver->driverRank = PLAYLEVEL_UNSORTED_RANK;
 
-				// skip next 5 lines of code
 				continue;
 			}
 		}
@@ -282,18 +260,20 @@ void PlayLevel_UpdateLapStats(void)
 		}
 
 		// increase your rank in the race, someone passed you
-		int newRank = currDriver->driverRank + 1;
+		newRank = currDriver->driverRank + 1;
 
 		// get human in last
-		if (currRank < newRank)
+		if (firstUnfinishedRank < newRank)
 		{
-			currRank = newRank;
+			firstUnfinishedRank = newRank;
 		}
 	}
 
 	// sort all drivers that have NOT finished race
-	for (; currRank < PLAYLEVEL_DRIVER_COUNT; currRank++)
+	for (driverIndex = firstUnfinishedRank; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
 	{
+		s32 candidateIndex;
+
 		// set "min" distance to max
 		minDistance = PLAYLEVEL_DISTANCE_SENTINEL;
 
@@ -305,28 +285,27 @@ void PlayLevel_UpdateLapStats(void)
 
 		// look for "next" farthest driver,
 		// out of all unsorted drivers remaining
-		for (driverIndex = 0; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
+		for (candidateIndex = 0; candidateIndex < PLAYLEVEL_DRIVER_COUNT; candidateIndex++)
 		{
+			struct Driver *candidateDriver;
+			s32 effectiveLapIndex;
+
 			// get current driver
-			currDriver = gGT->drivers[driverIndex];
+			candidateDriver = gGT->drivers[candidateIndex];
 
-			if (currDriver == NULL)
+			if (candidateDriver == NULL)
 			{
 				continue;
 			}
 
-			if (currDriver->driverRank != PLAYLEVEL_UNSORTED_RANK)
+			if (candidateDriver->driverRank != PLAYLEVEL_UNSORTED_RANK)
 			{
 				continue;
 			}
 
-			// driver lap index
-			effectiveLapIndex = currDriver->lapIndex;
-
-			if ((currDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
-			{
-				effectiveLapIndex -= 1;
-			}
+			// NOTE(aalhendi): Being behind the start line subtracts one effective lap.
+			effectiveLapIndex = candidateDriver->lapIndex;
+			effectiveLapIndex -= (candidateDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0;
 
 			if (
 			    // new highest lap
@@ -336,61 +315,58 @@ void PlayLevel_UpdateLapStats(void)
 
 			    (
 			        // same lap
-			        (bestLapIndex == effectiveLapIndex) &&
+			        (effectiveLapIndex == bestLapIndex) &&
 
 			        // AND
 
 			        // new lowest distance (max progress)
-			        ((s32)currDriver->distanceToFinish_curr < minDistance)))
+			        ((s32)candidateDriver->distanceToFinish_curr < minDistance)))
 			{
 				// set new min distToFinish (max progress)
-				minDistance = currDriver->distanceToFinish_curr;
+				minDistance = candidateDriver->distanceToFinish_curr;
+
+				// index of driver closest to finish
+				bestDriverIndex = candidateIndex;
 
 				// highest lap
 				bestLapIndex = effectiveLapIndex;
-
-				// index of driver closest to finish
-				bestDriverIndex = driverIndex;
 			}
 		}
 
 		if (bestDriverIndex != PLAYLEVEL_UNSORTED_RANK)
 		{
-			// If traffic lights run out
-			if (gGT->trafficLightsTimer < 1)
+			if (gGT->trafficLightsTimer > 0)
 			{
-				gGT->drivers[bestDriverIndex]->driverRank = currRank;
+				gGT->drivers[bestDriverIndex]->driverRank = GAME_SDATA_NAME(kartSpawnOrderArray)[bestDriverIndex];
+				gGT->humanPlayerPositions[bestDriverIndex] = GAME_SDATA_NAME(kartSpawnOrderArray)[bestDriverIndex];
 			}
-
-			// if traffic lights >= 1
 			else
 			{
-				// set every driver position rank,
-				// to the order that they spawn on the starting line
-				gGT->drivers[bestDriverIndex]->driverRank = sdata->kartSpawnOrderArray[bestDriverIndex];
-				gGT->humanPlayerPositions[bestDriverIndex] = sdata->kartSpawnOrderArray[bestDriverIndex];
+				gGT->drivers[bestDriverIndex]->driverRank = driverIndex;
 			}
 		}
 	}
 
 	for (driverIndex = 0; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
 	{
-		// get pointer to each player structure
-		currDriver = gGT->drivers[driverIndex];
+		struct Driver *rankedDriver;
 
-		if (currDriver == NULL)
+		// get pointer to each player structure
+		rankedDriver = gGT->drivers[driverIndex];
+
+		if (rankedDriver == NULL)
 		{
 			continue;
 		}
 
 		// should be impossible to be -1 here
-		if (currDriver->driverRank > PLAYLEVEL_UNSORTED_RANK)
+		if (rankedDriver->driverRank > PLAYLEVEL_UNSORTED_RANK)
 		{
-			gGT->driversInRaceOrder[currDriver->driverRank] = currDriver;
+			gGT->driversInRaceOrder[rankedDriver->driverRank] = rankedDriver;
 		}
 	}
 
-	for (driverIndex = 0; driverIndex < gGT->numPlyrCurrGame; driverIndex++)
+	for (driverIndex = 0; driverIndex < GAME_TRACKER->numPlyrCurrGame; driverIndex++)
 	{
 		// pointer to each player structure
 		currDriver = gGT->drivers[driverIndex];
@@ -400,17 +376,15 @@ void PlayLevel_UpdateLapStats(void)
 			continue;
 		}
 
-		int currRank = currDriver->driverRank;
-
-		if ((PLAYLEVEL_UNSORTED_RANK < currRank) && (PLAYLEVEL_PASS_VOICELINE_DELAY < gGT->elapsedEventTime) &&
-		    ((s8)gGT->humanPlayerPositions[driverIndex] < currRank))
+		if ((PLAYLEVEL_UNSORTED_RANK < currDriver->driverRank) && (PLAYLEVEL_PASS_VOICELINE_DELAY < gGT->elapsedEventTime) &&
+		    ((s8)gGT->humanPlayerPositions[driverIndex] < currDriver->driverRank))
 		{
-			int characterID = data.characterIDs[gGT->driversInRaceOrder[currRank - 1]->driverID];
+			s32 characterID = GAME_CHARACTER_IDS[GAME_TRACKER->driversInRaceOrder[currDriver->driverRank - 1]->driverID];
 
 			// Make driver talk
 			Voiceline_RequestPlay(PLAYLEVEL_PASS_VOICELINE, characterID, PLAYLEVEL_VOICELINE_FLAGS);
 		}
-		gGT->humanPlayerPositions[driverIndex] = currRank;
+		gGT->humanPlayerPositions[driverIndex] = currDriver->driverRank;
 	}
 
 	// If already finished race
@@ -419,28 +393,27 @@ void PlayLevel_UpdateLapStats(void)
 		return;
 	}
 
-	int humanPlayerCount = gGT->numPlyrCurrGame;
 
 	// Check if race should end
 	if ((
 	        // 1P game, with 1 human finished
-	        (humanPlayerCount == 1) && (finishedHumanCount > 0)
+	        (gGT->numPlyrCurrGame == 1) && (finishedHumanCount > 0)
 
 	            ) ||
 
 	    (
 	        // Multiplayer VS, all finished except one
-	        (humanPlayerCount > 1) && ((gGT->gameMode1 & ARCADE_MODE) == 0) && (finishedHumanCount >= (humanPlayerCount - 1))) ||
+	        (finishedHumanCount >= (gGT->numPlyrCurrGame - 1)) && (gGT->numPlyrCurrGame > 1) && ((gGT->gameMode1 & ARCADE_MODE) == 0)) ||
 
 	    (
 	        // Arcade mode, all humans finished
-	        ((gGT->gameMode1 & ARCADE_MODE) != 0) && (humanPlayerCount <= finishedHumanCount)))
+	        ((gGT->gameMode1 & ARCADE_MODE) != 0) && (gGT->numPlyrCurrGame <= finishedHumanCount)))
 	{
 		// End race for all drivers
-		for (currRank = 0; currRank < PLAYLEVEL_DRIVER_COUNT; currRank++)
+		for (driverIndex = 0; driverIndex < PLAYLEVEL_DRIVER_COUNT; driverIndex++)
 		{
 			// Get address of each player structure
-			currDriver = gGT->drivers[currRank];
+			currDriver = gGT->drivers[driverIndex];
 
 			if (currDriver == NULL)
 			{
