@@ -66,6 +66,11 @@ ctr_add_test_suite(test_track_library
     LIBRARIES SDL3::SDL3
 )
 
+ctr_add_test_suite(test_track_file
+    SOURCES test_track_file.c
+    LIBRARIES SDL3::SDL3
+)
+
 ctr_add_test_suite(test_config_menu
     SOURCES test_config_menu.c
 )
