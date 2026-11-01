@@ -1333,46 +1333,25 @@
       "aspsx_version": "2.77"
     },
     {
-      "name": "elim-bg-deactivate",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "ElimBG_Deactivate",
-      "end_symbol": "FLARE_ThTick",
-      "symbol_prefix": "ElimBG_Deactivate",
-      "source": "game/ElimBG.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "elim-bg-screenshot-chunk",
+      "name": "elim-bg",
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
       "start_symbol": "ElimBG_SaveScreenshot_Chunk",
-      "end_symbol": "ElimBG_SaveScreenshot_Full",
-      "symbol_prefix": "ElimBG_SaveScreenshot_Chunk",
-      "source": "game/ElimBG.c",
-      "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
-      "small_data_limit": 8,
-      "aspsx_version": "2.77"
-    },
-    {
-      "name": "elim-bg-toggles",
-      "kind": "resident",
-      "artifact": "exe",
-      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "ElimBG_Activate",
-      "end_symbol": "ElimBG_HandleState",
+      "end_symbol": "FLARE_ThTick",
       "symbol_prefix": "ElimBG_",
       "source": "game/ElimBG.c",
       "include_directories": ["include"],
-      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "link_symbols": {"_gp": "0x8008cf6c", "ctr_sdata_pause_state": "0x8008d036"},
+      "compiler_flags": ["-O2", "-fno-strength-reduce", "-G8", "-msoft-float"],
       "small_data_limit": 8,
-      "aspsx_version": "2.77"
+      "aspsx_version": "2.77",
+      "linked_block": {"rodata_address": "0x80011064", "rodata_size": "0x10"},
+      "function_rodata_addresses": {
+        "ElimBG_SaveScreenshot_Full": "0x80011064",
+        "ElimBG_HandleState": "0x80011064"
+      }
     },
     {
       "name": "drop-rain",

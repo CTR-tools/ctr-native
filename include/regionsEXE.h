@@ -2390,9 +2390,8 @@ struct sData
 	int trafficLightsTimer_prevFrame;
 
 	// 8008d018
-	// 6 four-byte pointers for pause/unpause,
-	// all relative to gGT->DB[0,1].primMem.end
-	char *PausePtrsVRAM[6]; // should maybe be `u32*[]` instead of `char*[]`
+	// Byte-addressed texture backups, raw strips and packed strips for both DB arenas.
+	char *PausePtrsVRAM[6];
 
 	// 8008d030
 	u32 pause_backup_renderFlags;
@@ -2401,8 +2400,7 @@ struct sData
 	u16 pause_backup_hudFlags;
 
 	// 8008d036
-	// (0,1,2,3)
-	// "Kyle's Mom"
+	// ElimBG capture, draw and restore phase; zero is idle.
 	s16 pause_state;
 
 	// 8008d038

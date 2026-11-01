@@ -24,6 +24,7 @@ enum ElimBGConstants
 	ELIM_BG_TEXTURE_RIGHT_X = 0x240,
 	ELIM_BG_TEXTURE_BACKUP_W = 0x40,
 	ELIM_BG_TEXTURE_BACKUP_H = 0x100,
+	ELIM_BG_TEXTURE_BACKUP_BYTES = ELIM_BG_TEXTURE_BACKUP_W * ELIM_BG_TEXTURE_BACKUP_H * sizeof(u16),
 	ELIM_BG_PRIMMEM_PAUSE_BYTES = 0xc800,
 	ELIM_BG_RAW_STRIP_OFFSET = 0x800,
 	ELIM_BG_TEXTURE_BACKUP_OFFSET = 0x4800,
@@ -47,9 +48,8 @@ enum ElimBGConstants
 
 void ElimBG_SaveScreenshot_Chunk(u16 *packedStrip, u16 *rawStrip, int rawPixelCount)
 {
-	u16 packedPixel;
 	register u16 *rawCursor CTR_PSX_REGISTER("$7") = rawStrip;
-	register u16 *rawGroupLast CTR_PSX_REGISTER("$5");
+	u16 *rawGroupLast;
 
 	if (rawPixelCount == 0)
 	{
@@ -58,17 +58,14 @@ void ElimBG_SaveScreenshot_Chunk(u16 *packedStrip, u16 *rawStrip, int rawPixelCo
 
 	rawGroupLast = rawStrip + 3;
 
-	// NOTE(aalhendi): Retail stores each partial packed word; both callers pass a multiple of four pixels.
+	// NOTE(aalhendi): The count must be a nonnegative multiple of four. A destination may alias later source pixels,
+	// so each partial store precedes its next source read.
 	do
 	{
-		packedPixel = (u16)((rawCursor[0] & 0x3e0) >> 6);
-		*(volatile u16 *)packedStrip = packedPixel;
-		packedPixel |= rawGroupLast[-2] >> 2 & 0xf0;
-		*(volatile u16 *)packedStrip = packedPixel;
-		packedPixel |= (u16)(((u32)rawGroupLast[-1] << 2) & 0xf00);
-		*(volatile u16 *)packedStrip = packedPixel;
-		packedPixel |= (u16)(((u32)*rawGroupLast << 6) & 0xf000);
-		*(volatile u16 *)packedStrip = packedPixel;
+		*packedStrip = (u16)((rawCursor[0] & 0x3e0) >> 6);
+		*packedStrip |= rawGroupLast[-2] >> 2 & 0xf0;
+		*packedStrip |= (u16)(((u32)rawGroupLast[-1] << 2) & 0xf00);
+		*packedStrip |= (u16)(((u32)*rawGroupLast << 6) & 0xf000);
 		rawCursor += 4;
 		rawPixelCount -= 4;
 		rawGroupLast += 4;
@@ -79,93 +76,95 @@ void ElimBG_SaveScreenshot_Chunk(u16 *packedStrip, u16 *rawStrip, int rawPixelCo
 
 void ElimBG_SaveScreenshot_Full(struct GameTracker *gGT)
 {
-	int bufferIndex;
-	RECT rect1;
-	RECT rect2;
+	s32 screenY;
+	register char **packedBuffers CTR_PSX_REGISTER("$20");
+	char *texture0;
+	char *texture1;
+	char *packed0;
+	RECT pageRects[2] = {{ELIM_BG_TEXTURE_LEFT_X, 0, ELIM_BG_TEXTURE_BACKUP_W, ELIM_BG_TEXTURE_BACKUP_H},
+	                     {ELIM_BG_TEXTURE_RIGHT_X, 0, ELIM_BG_TEXTURE_BACKUP_W, ELIM_BG_TEXTURE_BACKUP_H}};
 	RECT rSrc;
 	RECT rDst;
-	u32 start1;
-	u32 start2;
+	// NOTE(aalhendi): This real A0 argument dies at the first StoreImage; later calls use their own pointers.
+	register RECT *backupPage CTR_PSX_REGISTER("$4") = pageRects;
+	s32 bufferIndex = 0;
+	s32 stripY = bufferIndex;
 
-	bufferIndex = 0;
+	CTR_PSX_OBSERVE_VALUE(backupPage);
 
-	rect1.x = ELIM_BG_TEXTURE_LEFT_X;
-	rect1.y = 0;
-	rect1.w = ELIM_BG_TEXTURE_BACKUP_W;
-	rect1.h = ELIM_BG_TEXTURE_BACKUP_H;
-	rect2.x = ELIM_BG_TEXTURE_RIGHT_X;
-	rect2.y = 0;
-	rect2.w = ELIM_BG_TEXTURE_BACKUP_W;
-	rect2.h = ELIM_BG_TEXTURE_BACKUP_H;
+	// Back up the overwritten VRAM pages above the alternating raw/packed strips.
+	texture0 = (char *)gGT->db[0].primMem.end - ELIM_BG_TEXTURE_BACKUP_BYTES;
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0] = texture0;
+	texture1 = (char *)gGT->db[1].primMem.end - ELIM_BG_TEXTURE_BACKUP_BYTES;
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0] = texture0 - (ELIM_BG_TEXTURE_BACKUP_OFFSET - ELIM_BG_RAW_STRIP_OFFSET);
+	packed0 = texture0 - ELIM_BG_TEXTURE_BACKUP_OFFSET;
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0] = packed0;
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1] = texture1;
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB1] = texture1 - (ELIM_BG_TEXTURE_BACKUP_OFFSET - ELIM_BG_RAW_STRIP_OFFSET);
+	sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB1] = texture1 - ELIM_BG_TEXTURE_BACKUP_OFFSET;
+	gGT->db[0].primMem.end = packed0;
+	gGT->db[1].primMem.end = sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB1];
+	{
+		register char **rawBuffers CTR_PSX_REGISTER("$23");
+		u32 *backupTexture = (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0];
+		// NOTE(aalhendi): Materialize the capture base after publishing the arenas and reading the first texture argument.
+		CTR_PSX_BIND_VALUE_CLOBBER(backupTexture, "$23");
+		rawBuffers = &GAME_SDATA_NAME(PausePtrsVRAM)[ELIM_BG_SLOT_RAW_STRIP_DB0];
+		CTR_PSX_OBSERVE_VALUE(rawBuffers);
+		StoreImage(backupPage, backupTexture);
+		StoreImage(&pageRects[1], (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1]);
+		{
+			RECT *captureRect = &rSrc;
+			u32 *capturePixels = (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0];
+			screenY = gGT->swapchainIndex * ELIM_BG_SWAPCHAIN_Y_STRIDE;
+			rSrc.x = 0;
+			rSrc.y = screenY;
+			rSrc.w = ELIM_BG_SCREEN_W;
+			rSrc.h = ELIM_BG_STRIP_H;
+			StoreImage(captureRect, capturePixels);
+		}
 
-	// vram copy, then overwrite vram with pause image
-
-	start1 = (u32)gGT->db[0].primMem.end;
-	start2 = (u32)gGT->db[1].primMem.end;
-	start1 -= ELIM_BG_PRIMMEM_PAUSE_BYTES;
-	start2 -= ELIM_BG_PRIMMEM_PAUSE_BYTES;
-	gGT->db[0].primMem.end = (void *)start1;
-	gGT->db[1].primMem.end = (void *)start2;
-
-	// double-buffered packed 4bpp pause strips
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0] = (char *)start1;
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB1] = (char *)start2;
-
-	// double-buffered raw screenshot strips from VRAM
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0] = (char *)(start1 + ELIM_BG_RAW_STRIP_OFFSET);
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB1] = (char *)(start2 + ELIM_BG_RAW_STRIP_OFFSET);
-
-	// backups of the two VRAM pages overwritten by the pause image
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0] = (char *)(start1 + ELIM_BG_TEXTURE_BACKUP_OFFSET);
-	sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1] = (char *)(start2 + ELIM_BG_TEXTURE_BACKUP_OFFSET);
-
-	// copy texture vram into PrimMem
-	StoreImage(&rect1, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0]);
-	StoreImage(&rect2, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1]);
-
-	// === copy screen into texture vram ===
-
-	rSrc.x = 0;
-	rSrc.y = gGT->swapchainIndex * ELIM_BG_SWAPCHAIN_Y_STRIDE;
-	rSrc.w = ELIM_BG_SCREEN_W;
-	rSrc.h = ELIM_BG_STRIP_H;
-
+		do
+		{
+			u32 previousByteOffset;
+			char **previousPacked;
+			bufferIndex = 1 - bufferIndex;
+			rSrc.x = 0;
+			rSrc.y = screenY + stripY + ELIM_BG_STRIP_H;
+			rSrc.w = ELIM_BG_SCREEN_W;
+			rSrc.h = ELIM_BG_STRIP_H;
+			DrawSync(0);
+			StoreImage(&rSrc, (u32 *)rawBuffers[bufferIndex]);
+			// NOTE(aalhendi): Retain the byte offset before creating the packed base; all supported targets use 32-bit addresses.
+			previousByteOffset = (1 - bufferIndex) * sizeof(*packedBuffers);
+			CTR_PSX_BIND_VALUE_CLOBBER(previousByteOffset, "$20");
+			packedBuffers = &GAME_SDATA_NAME(PausePtrsVRAM)[ELIM_BG_SLOT_PACKED_STRIP_DB0];
+			previousPacked = (char **)((u8 *)packedBuffers + previousByteOffset);
+			ElimBG_SaveScreenshot_Chunk((u16 *)*previousPacked, (u16 *)*(char **)(previousByteOffset + (u32)rawBuffers), ELIM_BG_CHUNK_SOURCE_PIXELS);
+			rDst.x = ELIM_BG_CAPTURE_VRAM_X;
+			rDst.y = stripY;
+			rDst.w = ELIM_BG_CAPTURE_VRAM_W;
+			rDst.h = ELIM_BG_STRIP_H;
+			LoadImage(&rDst, (u32 *)*previousPacked);
+			stripY += ELIM_BG_STRIP_H;
+		} while (stripY + ELIM_BG_STRIP_H < ELIM_BG_SCREEN_H);
+	}
+	DrawSync(0);
+	// NOTE(aalhendi): End the raw-base equivalence here, but retain the packed base through the final image upload.
+	CTR_PSX_KEEP_VALUE(packedBuffers);
+	ElimBG_SaveScreenshot_Chunk((u16 *)packedBuffers[bufferIndex], (u16 *)(&GAME_SDATA_NAME(PausePtrsVRAM)[ELIM_BG_SLOT_RAW_STRIP_DB0])[bufferIndex],
+	                            ELIM_BG_CHUNK_SOURCE_PIXELS);
 	rDst.x = ELIM_BG_CAPTURE_VRAM_X;
+	rDst.y = stripY;
 	rDst.w = ELIM_BG_CAPTURE_VRAM_W;
 	rDst.h = ELIM_BG_STRIP_H;
-
-	// start the first Store
-	StoreImage(&rSrc, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0]);
-
-	for (rDst.y = 0; rDst.y < (ELIM_BG_SCREEN_H - ELIM_BG_STRIP_H); rDst.y += ELIM_BG_STRIP_H)
-	{
-		bufferIndex = 1 - bufferIndex;
-
-		// pause until Store is done
-		DrawSync(0);
-
-		// start next Store, while processing previous store
-		rSrc.y += ELIM_BG_STRIP_H;
-		StoreImage((RECT *)&rSrc, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0 + bufferIndex]);
-
-		ElimBG_SaveScreenshot_Chunk((u16 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0 + (1 - bufferIndex)],
-		                            (u16 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0 + (1 - bufferIndex)], ELIM_BG_CHUNK_SOURCE_PIXELS);
-
-		LoadImage(&rDst, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0 + (1 - bufferIndex)]);
-	}
-
-	// wait for last Store
-	DrawSync(0);
-
-	ElimBG_SaveScreenshot_Chunk((u16 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0 + bufferIndex],
-	                            (u16 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_RAW_STRIP_DB0 + bufferIndex], ELIM_BG_CHUNK_SOURCE_PIXELS);
-
-	LoadImage(&rDst, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_PACKED_STRIP_DB0 + bufferIndex]);
-
+	LoadImage(&rDst, (u32 *)packedBuffers[bufferIndex]);
+	rDst.x = ELIM_BG_CAPTURE_VRAM_X;
 	rDst.y = ELIM_BG_FINAL_STRIP_Y;
 	rDst.w = ELIM_BG_FINAL_STRIP_W;
 	rDst.h = 1;
 	LoadImage(&rDst, &data.pauseScreenStrip[0]);
+	CTR_PSX_OBSERVE_VALUE(packedBuffers);
 }
 
 
@@ -256,56 +255,53 @@ void ElimBG_ToggleAllInstances(struct GameTracker *gGT, b32 boolGameIsPaused)
 
 void ElimBG_HandleState(struct GameTracker *gGT)
 {
-	s16 screenX;
 	s16 screenY;
-	char textureUByte;
+	s16 state;
 	int screenXForTpage;
 	int textureU;
+	s32 lowerTextureU;
 	POLY_FT4 *p;
-	u32 textureX;
-	u32 tpage;
-	u32 textureY;
+	s32 textureX;
+	s32 tpage;
+	s32 pageOrigin;
+	s32 textureY;
 	int tileX;
-	RECT rect1;
-	RECT rect2;
 
 	// if this is last frame of pause
-	if (sdata->pause_state == ELIM_BG_PAUSE_STATE_RESTORE)
+	state = GAME_SDATA_NAME(pause_state);
+	if (state == ELIM_BG_PAUSE_STATE_RESTORE)
 	{
-		rect1.x = ELIM_BG_TEXTURE_LEFT_X;
-		rect1.y = 0;
-		rect1.w = ELIM_BG_TEXTURE_BACKUP_W;
-		rect1.h = ELIM_BG_TEXTURE_BACKUP_H;
-		rect2.x = ELIM_BG_TEXTURE_RIGHT_X;
-		rect2.y = 0;
-		rect2.w = ELIM_BG_TEXTURE_BACKUP_W;
-		rect2.h = ELIM_BG_TEXTURE_BACKUP_H;
+		u32 *texture0 = (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0];
+		RECT pageRects[2] = {{ELIM_BG_TEXTURE_LEFT_X, 0, ELIM_BG_TEXTURE_BACKUP_W, ELIM_BG_TEXTURE_BACKUP_H},
+		                     {ELIM_BG_TEXTURE_RIGHT_X, 0, ELIM_BG_TEXTURE_BACKUP_W, ELIM_BG_TEXTURE_BACKUP_H}};
 
 		// load from RAM, back to VRAM
-		LoadImage(&rect1, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0]);
-		LoadImage(&rect2, (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1]);
+		LoadImage(&pageRects[0], texture0);
+		LoadImage(&pageRects[1], (u32 *)sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1]);
 
 		DrawSync(0);
 
-		gGT->db[0].primMem.end = (void *)((int)gGT->db[0].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES);
-		gGT->db[1].primMem.end = (void *)((int)gGT->db[1].primMem.end + ELIM_BG_PRIMMEM_PAUSE_BYTES);
+		gGT->db[0].primMem.end = sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB0] + ELIM_BG_TEXTURE_BACKUP_BYTES;
+		gGT->db[1].primMem.end = sdata->PausePtrsVRAM[ELIM_BG_SLOT_TEXTURE_DB1] + ELIM_BG_TEXTURE_BACKUP_BYTES;
 
 		// Enable all instances
 		ElimBG_ToggleAllInstances(gGT, 0);
 
 		// game is not paused anymore
 		sdata->pause_state = ELIM_BG_PAUSE_STATE_NONE;
+		// NOTE(aalhendi): Publish the idle state before the exit jump, rather than in its delay slot.
+		CTR_PSX_MEMORY_BARRIER();
 	}
 
 	// if game is paused, but not on the restore frame
-	else if (sdata->pause_state != ELIM_BG_PAUSE_STATE_NONE)
+	else if (state != ELIM_BG_PAUSE_STATE_NONE)
 	{
 		// if this is the first frame of pause
-		if (sdata->pause_state == ELIM_BG_PAUSE_STATE_CAPTURE)
+		if (state == ELIM_BG_PAUSE_STATE_CAPTURE)
 		{
 			gGT->renderFlags = (gGT->renderFlags & RENDER_FLAG_CHECKERED_FLAG) | RENDER_FLAG_RENDER_BUCKET;
 
-			gGT->hudFlags &= HUD_FLAG_PAUSE_SCREENSHOT_MASK;
+			GAME_TRACKER->hudFlags &= HUD_FLAG_PAUSE_SCREENSHOT_MASK;
 
 			ElimBG_SaveScreenshot_Full(gGT);
 
@@ -321,7 +317,6 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 		do
 		{
 			textureY = 0;
-			screenX = (s16)tileX;
 			do
 			{
 				// backBuffer->primMem.cursor
@@ -335,11 +330,12 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 				screenY = (s16)textureY;
 
 				// RGB
-				setRGB0(p, ELIM_BG_TILE_COLOR, ELIM_BG_TILE_COLOR, ELIM_BG_TILE_COLOR);
+				p->b0 = ELIM_BG_TILE_COLOR;
+				p->g0 = ELIM_BG_TILE_COLOR;
+				p->r0 = ELIM_BG_TILE_COLOR;
 
 				// four (x,y) positions
-				setXY4(p, screenX, screenY, screenX + ELIM_BG_TILE_W, screenY, screenX, screenY + ELIM_BG_TILE_H, screenX + ELIM_BG_TILE_W,
-				       screenY + ELIM_BG_TILE_H);
+				setXY4(p, tileX, screenY, tileX + ELIM_BG_TILE_W, screenY, tileX, screenY + ELIM_BG_TILE_H, tileX + ELIM_BG_TILE_W, screenY + ELIM_BG_TILE_H);
 
 				screenXForTpage = tileX;
 				if (tileX < 0)
@@ -347,59 +343,56 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 					screenXForTpage = tileX + 3;
 				}
 				textureX = (screenXForTpage >> 2) + ELIM_BG_TEXTURE_LEFT_X;
-				tpage = getTPage(TEXPAGE_COLOR_4BIT, TRANS_50, (u32)textureX, (u32)textureY);
-
-				// tpage
-				p->tpage = (u16)tpage;
+				p->tpage = getTPage(TEXPAGE_COLOR_4BIT, TRANS_50, textureX, textureY);
+				tpage = p->tpage;
 
 				// clut
 				p->clut = ELIM_BG_TILE_CLUT;
 
-				textureU = (textureX - ((tpage << 6) & 0x3c0)) * 4;
+				pageOrigin = (tpage << 6) & 0x3c0;
+				textureU = (textureX - pageOrigin) * 4;
 
 				p->v0 = textureY;
-				p->v1 = textureY;
 
 				// u0
-				textureUByte = (char)textureU;
-				p->u0 = textureUByte;
+				p->u0 = textureU;
 
 				if (textureU + ELIM_BG_VRAM_U_WRAP < ELIM_BG_U_LIMIT)
 				{
 					// u1
-					p->u1 = textureUByte + -ELIM_BG_VRAM_U_WRAP;
+					p->u1 = textureU - ELIM_BG_VRAM_U_WRAP;
 				}
 				else
 				{
 					// u1
-					p->u1 = 0xff;
+					*(s8 *)&p->u1 = -1;
 				}
 
 				// u2
-				textureU = (textureX - ((tpage << 6) & 0x3c0)) * 4;
+				lowerTextureU = (textureX - pageOrigin) * 4;
+				// NOTE(aalhendi): Keep this lower-U calculation before the independent Y stores in retail's packet-write order.
+				CTR_PSX_OBSERVE_VALUE(lowerTextureU);
+				p->v2 = textureY + ELIM_BG_TILE_H;
+				p->v1 = textureY;
+				p->u2 = lowerTextureU;
 
-				// u2
-				textureUByte = (char)textureU;
-				p->u2 = textureUByte;
-
-				if (textureU + ELIM_BG_VRAM_U_WRAP < ELIM_BG_U_LIMIT)
+				if (lowerTextureU + ELIM_BG_VRAM_U_WRAP < ELIM_BG_U_LIMIT)
 				{
 					// u3
-					p->u3 = textureUByte + -ELIM_BG_VRAM_U_WRAP;
+					p->u3 = lowerTextureU - ELIM_BG_VRAM_U_WRAP;
 				}
 				else
 				{
 					// u3
-					p->u3 = 0xff;
+					*(s8 *)&p->u3 = -1;
 				}
 
 				// v3 = v0 + 0x10
 				textureY += ELIM_BG_TILE_H;
-				p->v2 = (char)textureY;
 				p->v3 = (char)textureY;
 
 				// pointer to OT mem, and pointer to primitive
-				AddPrim(&gGT->pushBuffer_UI.ptrOT[4], p);
+				AddPrim(&GAME_TRACKER->pushBuffer_UI.ptrOT[4], p);
 
 				// while v0 (tex coord Y) < screensize
 			} while ((int)textureY < ELIM_BG_SCREEN_H);
