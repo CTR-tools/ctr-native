@@ -133,7 +133,9 @@ void TT_EndEvent_DrawHighScore(s16 startX, s32 startY, s16 scoreMode)
 		scoreModeCopy = scoreMode;
 
 		// 12 entries per track, 6 for Time Trial and 6 for Relic Race
-		scoreEntries = GAME_PROGRESS.highScoreTracks[GAME_TRACKER->levelID].scoreEntry[scoreModeCopy];
+		struct HighScoreTrack *customTrack = GAMEPROG_CustomHighScoreTrack(GAME_TRACKER->levelID);
+		scoreEntries = customTrack != NULL ? customTrack->scoreEntry[scoreModeCopy] :
+		    GAME_PROGRESS.highScoreTracks[GAME_TRACKER->levelID].scoreEntry[scoreModeCopy];
 
 		// NOTE(aalhendi): Retail passes identical start and end points.
 		UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, startYCopy, startX, startYCopy, GAME_FRAMES_SINCE_RACE_ENDED, TT_LERP_FRAMES);

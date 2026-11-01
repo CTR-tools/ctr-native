@@ -1,4 +1,47 @@
 #include <common.h>
+#include <platform/native_track_library.h>
+#include <stdlib.h>
+
+struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
+{
+	static struct HighScoreTrack **tracks;
+	static size_t trackCount;
+	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
+	if (NativeTrackRegistry_Get(registry, levelID) == NULL)
+	{
+		return NULL;
+	}
+
+	size_t index = (size_t)(levelID - NATIVE_TRACK_CUSTOM_ID_BASE);
+	if (index >= trackCount)
+	{
+		size_t count = NativeTrackRegistry_Count(registry);
+		struct HighScoreTrack **expanded = realloc(tracks, count * sizeof(*tracks));
+		if (expanded == NULL)
+		{
+			abort();
+		}
+		memset(expanded + trackCount, 0, (count - trackCount) * sizeof(*tracks));
+		tracks = expanded;
+		trackCount = count;
+	}
+	if (tracks[index] == NULL)
+	{
+		tracks[index] = calloc(1, sizeof(*tracks[index]));
+		if (tracks[index] == NULL)
+		{
+			abort();
+		}
+		for (int mode = 0; mode < MEMCARD_HIGH_SCORE_MODE_COUNT; mode++)
+		{
+			for (int entry = 0; entry < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; entry++)
+			{
+				tracks[index]->scoreEntry[mode][entry].time = MEMCARD_HIGH_SCORE_DEFAULT_TIME;
+			}
+		}
+	}
+	return tracks[index];
+}
 
 void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 {
@@ -468,6 +511,12 @@ int GAMEPROG_RelicTargetTime(int levelID, int tier)
 void GAMEPROG_GetPtrHighScoreTrack(void)
 {
 	struct GameTracker *gGT = GAME_TRACKER;
+	struct HighScoreTrack *customTrack = GAMEPROG_CustomHighScoreTrack(gGT->levelID);
+	if (customTrack != NULL)
+	{
+		sdata->ptrActiveHighScoreEntry = customTrack->scoreEntry[(gGT->gameMode1 & RELIC_RACE) != 0];
+		return;
+	}
 	s32 relicBits = gGT->gameMode1 & RELIC_RACE;
 	s32 trackOffset = gGT->levelID * (s32)sizeof(struct HighScoreTrack);
 	b32 relicMode = relicBits != 0;
