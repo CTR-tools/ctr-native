@@ -1,4 +1,5 @@
 #include <platform/native_track_file.h>
+#include <platform/native_track_validate.h>
 
 #include <limits.h>
 #include <stdio.h>
@@ -12,6 +13,7 @@ struct NativeTrackFile
 	FILE *stream;
 	size_t size;
 	size_t sectorBytes;
+	enum NativeTrackFileRole role;
 };
 
 struct NativeTrackFile *NativeTrackFile_Open(const struct NativeTrackRegistry *registry, int levelID, enum NativeTrackFileRole role)
@@ -58,6 +60,7 @@ struct NativeTrackFile *NativeTrackFile_Open(const struct NativeTrackRegistry *r
 	file->stream = stream;
 	file->size = (size_t)length;
 	file->sectorBytes = (file->size + NATIVE_TRACK_FILE_SECTOR_SIZE - 1) / NATIVE_TRACK_FILE_SECTOR_SIZE * NATIVE_TRACK_FILE_SECTOR_SIZE;
+	file->role = role;
 	return file;
 }
 
@@ -78,6 +81,11 @@ int NativeTrackFile_Read(struct NativeTrackFile *file, void *destination, size_t
 		return 0;
 	}
 	if (fread(destination, 1, file->size, file->stream) != file->size || fgetc(file->stream) != EOF || ferror(file->stream))
+	{
+		return 0;
+	}
+	if ((file->role == NATIVE_TRACK_FILE_LEV && !NativeTrackValidate_Lev(destination, file->size)) ||
+	    (file->role == NATIVE_TRACK_FILE_VRM && !NativeTrackValidate_Vrm(destination, file->size)))
 	{
 		return 0;
 	}

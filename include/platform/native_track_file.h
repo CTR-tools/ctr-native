@@ -18,8 +18,10 @@ struct NativeTrackFile;
 struct NativeTrackFile *NativeTrackFile_Open(const struct NativeTrackRegistry *registry, int levelID, enum NativeTrackFileRole role);
 size_t NativeTrackFile_Size(const struct NativeTrackFile *file);
 size_t NativeTrackFile_SectorBytes(const struct NativeTrackFile *file);
-/* Reads into caller-owned memory and zeroes the sector padding. A failed read
-   must not be passed to the game loader. */
+/* Reads into caller-owned memory and zeroes sector padding. LEV and VRM also
+   pass the structural bounds checks in native_track_validate.h. SCA is read
+   without parsing; its audio consumer must validate it separately. A failed
+   read may have modified the buffer and must not be passed to the loader. */
 int NativeTrackFile_Read(struct NativeTrackFile *file, void *destination, size_t capacity);
 void NativeTrackFile_Close(struct NativeTrackFile *file);
 

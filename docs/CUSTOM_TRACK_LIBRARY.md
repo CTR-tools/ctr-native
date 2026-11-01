@@ -33,5 +33,6 @@ Time Trial implementation uses the standard three laps.
 Scanning reads the metadata and checks file existence and type; it does not
 open or validate LEV, VRM or SCA contents. The scanner returns a new registry,
 which the caller owns, and reports accepted and rejected directory counts.
-This is an initial internal format: import UI, automatic scanning and race
-loading are not implemented yet.
+The game scans `assets/tracks` at startup and logs accepted and rejected counts
+when the directory exists. This is an initial internal format: import UI and
+race loading are not implemented yet.

@@ -19,6 +19,8 @@ struct NativeTrackLibraryScan
 	struct NativeTrackScanResult result;
 };
 
+static struct NativeTrackRegistry *s_nativeTrackLibrary;
+
 static int NativeTrackLibrary_Join(char *output, size_t size, const char *directory, const char *name)
 {
 	int length = snprintf(output, size, "%s/%s", directory, name);
@@ -203,4 +205,27 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 		*result = scan.result;
 	}
 	return scan.registry;
+}
+
+int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result)
+{
+	struct NativeTrackRegistry *replacement = NativeTrackLibrary_Scan(directory, result);
+	if (replacement == NULL)
+	{
+		return 0;
+	}
+	NativeTrackRegistry_Destroy(s_nativeTrackLibrary);
+	s_nativeTrackLibrary = replacement;
+	return 1;
+}
+
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void)
+{
+	return s_nativeTrackLibrary;
+}
+
+void NativeTrackLibrary_Shutdown(void)
+{
+	NativeTrackRegistry_Destroy(s_nativeTrackLibrary);
+	s_nativeTrackLibrary = NULL;
 }

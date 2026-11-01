@@ -14,4 +14,10 @@ struct NativeTrackScanResult
    The caller owns the returned registry. An unreadable directory returns NULL. */
 struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struct NativeTrackScanResult *result);
 
+/* Publish a complete scan at a safe transition, when no caller retains a
+   pointer into the previous registry. Failure leaves the previous scan live. */
+int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result);
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void);
+void NativeTrackLibrary_Shutdown(void);
+
 #endif

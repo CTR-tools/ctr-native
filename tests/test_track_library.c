@@ -65,6 +65,15 @@ int main(void)
 	CTR_TEST_CHECK(metadata != NULL && metadata->scaPath != NULL, "optional audio is indexed");
 	NativeTrackRegistry_Destroy(registry);
 
+	CTR_TEST_SECTION("published library lifecycle");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, &result), "a successful scan publishes the library");
+	const struct NativeTrackRegistry *current = NativeTrackLibrary_Current();
+	CTR_TEST_CHECK(current != NULL && NativeTrackRegistry_Find(current, "local:track", NULL), "the published library is available to runtime consumers");
+	CTR_TEST_CHECK(!NativeTrackLibrary_Refresh("", &result) && NativeTrackLibrary_Current() == current,
+	               "a failed refresh preserves the previous library");
+	NativeTrackLibrary_Shutdown();
+	CTR_TEST_CHECK(NativeTrackLibrary_Current() == NULL, "shutdown releases the published library");
+
 	const char *files[] = {"track.ini", "track.lev", "track.vrm", "track.sca"};
 	for (size_t i = 0; i < SDL_arraysize(files); i++)
 	{
