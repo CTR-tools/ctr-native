@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 enum UIRaceEndMenuOption
 {
@@ -21,6 +22,8 @@ enum UIRaceFlowConstants
 	UI_RACE_START_CUP_TITLE_Y_OFFSET = -6,
 	UI_RACE_START_CUP_TRACK_Y_OFFSET = 0xb,
 	UI_RACE_START_LEVEL_TITLE_Y_OFFSET = -0x17,
+	UI_RACE_START_CUSTOM_TITLE_BYTES = 64,
+	UI_RACE_START_CUSTOM_TITLE_MARGIN = 32,
 	UI_RACE_START_DIVIDER_TOP_Y_OFFSET = 0x1c,
 	UI_RACE_START_DIVIDER_BOTTOM_Y_OFFSET = -0x1e,
 	UI_RACE_START_DIVIDER_HEIGHT = 2,
@@ -40,6 +43,30 @@ enum UIRaceFlowConstants
 	UI_RACE_END_PROMPT_Y = 0xbe,
 	UI_RACE_END_MENU_Y = 0xb4,
 };
+
+static void UI_RaceStart_CustomTitle(char *destination, size_t capacity, const char *source, int width)
+{
+	size_t length = 0;
+	while (*source != '\0' && length + 1 < capacity)
+	{
+		unsigned char c = (unsigned char)*source++;
+		if (c >= 0x80 && c < 0xc0)
+		{
+			continue;
+		}
+		/* These printable bytes have special button-glyph meanings in CTR. */
+		if (c < 0x20 || c >= 0x7f || c == '@' || c == '[' || c == '^' || c == '*')
+		{
+			c = '?';
+		}
+		destination[length++] = (char)c;
+	}
+	destination[length] = '\0';
+	while (length > 0 && DecalFont_GetLineWidth(destination, FONT_BIG) > width)
+	{
+		destination[--length] = '\0';
+	}
+}
 
 
 void UI_RaceEnd_GetDriverClock(struct Driver *driver)
@@ -280,13 +307,21 @@ LAB_80055930:
 
 		// Print the name of the level
 		// Crash Cove, Roos Tubes, etc
+		const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID);
+		char customTitle[UI_RACE_START_CUSTOM_TITLE_BYTES];
+		char *levelTitle;
+		if (customTrack != NULL)
+		{
+			UI_RaceStart_CustomTitle(customTitle, sizeof(customTitle), customTrack->title,
+			                         gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN);
+			levelTitle = customTitle;
+		}
+		else
+		{
+			levelTitle = sdata->lngStrings[data.metaDataLEV[gGT->levelID].name_LNG];
+		}
 		DecalFont_DrawLine(
-
-		    // 83a88 = 110
-		    // 8d878 + 110*4 -> Dingo Canyon
-
-		    // Level ID
-		    sdata->lngStrings[data.metaDataLEV[gGT->levelID].name_LNG],
+		    levelTitle,
 
 		    gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 
