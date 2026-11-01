@@ -30,6 +30,12 @@ against actual track files and the import workflow.
 Lap counts are controlled by the game mode, not track metadata. The initial
 Time Trial implementation uses the standard three laps.
 
+Custom runtime IDs currently occupy `0x100..0x7fff`: the load request interface
+uses signed 16-bit IDs. The runtime ID is not a persistent identity. This range
+alone does not make a custom level loadable: direct retail-table indexing,
+special level ranges, ghost/card storage and the BIGFILE queue still require
+explicit handling before a custom ID can enter a race.
+
 Scanning reads the metadata and checks file existence and type; it does not
 open or validate LEV, VRM or SCA contents. The scanner returns a new registry,
 which the caller owns, and reports accepted and rejected directory counts.

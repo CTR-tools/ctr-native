@@ -1,6 +1,5 @@
 #include <platform/native_track_registry.h>
 
-#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -64,7 +63,7 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 	if (registry == NULL || metadata == NULL || metadata->identity == NULL || metadata->identity[0] == '\0' ||
 	    metadata->title == NULL || metadata->title[0] == '\0' || metadata->levPath == NULL || metadata->levPath[0] == '\0' ||
 	    metadata->vrmPath == NULL || metadata->vrmPath[0] == '\0' ||
-	    registry->count > (size_t)(INT_MAX - NATIVE_TRACK_CUSTOM_ID_BASE) ||
+	    registry->count > (size_t)(NATIVE_TRACK_CUSTOM_ID_MAX - NATIVE_TRACK_CUSTOM_ID_BASE) ||
 	    NativeTrackRegistry_Find(registry, metadata->identity, NULL))
 	{
 		return 0;

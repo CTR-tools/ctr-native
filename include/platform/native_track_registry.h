@@ -3,8 +3,13 @@
 
 #include <stddef.h>
 
-/* Runtime IDs are not persistent identities and must not index retail tables. */
-enum { NATIVE_TRACK_CUSTOM_ID_BASE = 0x10000 };
+/* MainRaceTrack_RequestLoad currently takes a signed 16-bit level ID. Runtime
+   IDs are not persistent identities and must not index retail tables. */
+enum
+{
+	NATIVE_TRACK_CUSTOM_ID_BASE = 0x100,
+	NATIVE_TRACK_CUSTOM_ID_MAX = 0x7fff,
+};
 
 struct NativeTrackMetadata
 {
