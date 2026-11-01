@@ -91,7 +91,7 @@ void DecalMP_03(struct GameTracker *gGT);
 
 struct DisplayBlurTile;
 u32 *DISPLAY_Blur_SubFunc(u32 *prim, struct DisplayBlurTile *tile);
-void DISPLAY_Blur_Main(struct PushBuffer *pb, int strength);
+void DISPLAY_Blur_Main(struct PushBuffer *pb, s32 strength);
 void DISPLAY_Swap(void);
 
 void DotLights_Video(struct GameTracker *gGT, s32 red1, s32 red2, s32 red3, s32 green, s32 posY);

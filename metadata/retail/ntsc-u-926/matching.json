@@ -4323,11 +4323,11 @@
       "linked_block": {}
     },
     {
-      "name": "display-swap",
+      "name": "display",
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "start_symbol": "DISPLAY_Swap",
+      "start_symbol": "DISPLAY_Blur_SubFunc",
       "end_symbol": "DotLights_Video",
       "symbol_prefix": "DISPLAY_",
       "source": "game/Display.c",
