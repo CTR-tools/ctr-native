@@ -524,6 +524,13 @@ static void MainGameEnd_CheckTimeTrialGhost(struct GameTracker *gGT, struct Driv
 		return;
 	}
 
+	/* Custom tracks do not yet have a playback buffer or persistent ghosts. */
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+	{
+		GhostTape_End();
+		return;
+	}
+
 	if ((sdata->boolReplayHumanGhost != 0) &&
 	    ((sdata->boolGhostTooBigToSave != 0) || (player->timeElapsedInRace >= sdata->ptrGhostTapePlaying->timeElapsedInRace)))
 	{
