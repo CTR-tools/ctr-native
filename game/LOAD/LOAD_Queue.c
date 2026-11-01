@@ -1,4 +1,59 @@
 #include <common.h>
+#include <platform/native_track_file.h>
+#include <platform/native_track_library.h>
+#include <stdio.h>
+
+static int LOAD_NativeTrackFile(struct LoadQueueSlot *slot)
+{
+	int vram = slot->type_UNUSED == LT_NATIVE_TRACK_VRM;
+	enum NativeTrackFileRole role = vram ? NATIVE_TRACK_FILE_VRM : NATIVE_TRACK_FILE_LEV;
+	struct NativeTrackFile *file = NativeTrackFile_Open(NativeTrackLibrary_Current(), slot->subfileIndex, role);
+	if (file == NULL)
+	{
+		return 0;
+	}
+
+	size_t bytes = NativeTrackFile_SectorBytes(file);
+	size_t size = NativeTrackFile_Size(file);
+	if (bytes > (size_t)MEMPACK_GetFreeBytes())
+	{
+		NativeTrackFile_Close(file);
+		return 0;
+	}
+	if (MEMPACK_PushState() >= MEMPACK_BOOKMARK_COUNT)
+	{
+		NativeTrackFile_Close(file);
+		return 0;
+	}
+	void *buffer = MEMPACK_AllocMem((int)bytes, NULL);
+	int ok = buffer != NULL && NativeTrackFile_Read(file, buffer, bytes);
+	NativeTrackFile_Close(file);
+	if (!ok)
+	{
+		MEMPACK_PopState();
+		return 0;
+	}
+
+	if (!vram)
+	{
+		// Keep the LEV allocation while removing the temporary rollback bookmark.
+		MEMPACK_PopState();
+		buffer = MEMPACK_AllocMem((int)bytes, NULL);
+		MEMPACK_ReallocMem((int)size);
+	}
+	slot->flags |= LT_MEMPACK;
+	slot->ptrDestination = buffer;
+	slot->size_UNUSED = (u32)size;
+	if (vram)
+	{
+		LOAD_VramFileCallback(slot);
+	}
+	else
+	{
+		LOAD_DramFileCallback(slot);
+	}
+	return 1;
+}
 
 void LOAD_AppendQueue(struct BigHeader *bigfile, int type, int fileIndex, void *destinationPtr, void (*callback)(struct LoadQueueSlot *))
 {
@@ -66,6 +121,22 @@ void LOAD_NextQueuedFile()
 		case LT_VRAM:
 			curr->ptrDestination =
 			    LOAD_VramFile(curr->ptrBigfileCdPos_UNUSED, curr->subfileIndex, curr->ptrDestination, &curr->size_UNUSED, (int)(s32)curr->callbackFuncPtr);
+			break;
+
+		case LT_NATIVE_TRACK_LEV:
+		case LT_NATIVE_TRACK_VRM:
+			if (!LOAD_NativeTrackFile(curr))
+			{
+				fprintf(stderr, "Could not load custom track %d (%s)\n", curr->subfileIndex,
+				        curr->type_UNUSED == LT_NATIVE_TRACK_VRM ? "VRM" : "LEV");
+				// Discard pending level files and return through the normal menu load.
+				sdata->queueLength = 1;
+				sdata->queueReady = 1;
+				sdata->load_inProgress = 0;
+				sdata->mainMenuState = MAIN_MENU_TRACK_SELECT;
+				sdata->Loading.OnBegin.AddBitsConfig0 |= MAIN_MENU;
+				MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+			}
 			break;
 		}
 

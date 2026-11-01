@@ -487,11 +487,16 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			visualLevelLOD = LOAD_LEVEL_LOD_1P;
 		}
 
-		// add VRAM to loading queue
-		LOAD_AppendQueue(bigfile, LT_VRAM, LOAD_GetBigfileIndex(gGT->levelID, visualLevelLOD, LVI_VRAM), NULL, NULL);
-
-		// add LEV to loading queue
-		LOAD_AppendQueue(bigfile, LT_GETADDR, LOAD_GetBigfileIndex(gGT->levelID, visualLevelLOD, LVI_LEV), NULL, LOAD_Callback_LEV);
+		if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+		{
+			LOAD_AppendQueue(NULL, LT_NATIVE_TRACK_VRM, gGT->levelID, NULL, NULL);
+			LOAD_AppendQueue(NULL, LT_NATIVE_TRACK_LEV, gGT->levelID, NULL, LOAD_Callback_LEV);
+		}
+		else
+		{
+			LOAD_AppendQueue(bigfile, LT_VRAM, LOAD_GetBigfileIndex(gGT->levelID, visualLevelLOD, LVI_VRAM), NULL, NULL);
+			LOAD_AppendQueue(bigfile, LT_GETADDR, LOAD_GetBigfileIndex(gGT->levelID, visualLevelLOD, LVI_LEV), NULL, LOAD_Callback_LEV);
+		}
 
 		if (((u32)(levelID - GEM_STONE_VALLEY) < LOAD_PTR_MAP_ADV_LEVEL_COUNT) || ((u32)(levelID - CREDITS_CRASH) < LOAD_PTR_MAP_CREDIT_LEVEL_COUNT))
 		{
