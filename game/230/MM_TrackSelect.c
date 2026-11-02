@@ -563,7 +563,20 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 				{
 					if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), GAME_TRACKER->currLEV) != NULL)
 					{
-						MM_REPLAY_HUMAN_GHOST = 0;
+						MM_GHOST_TAPE_PLAYING = MM_ALLOC_HIGH_MEM(MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE, MM_LOADED_GHOST_DATA);
+						if (MM_GHOST_TAPE_PLAYING != NULL)
+						{
+							memset(MM_GHOST_TAPE_PLAYING, 0, MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE);
+							MM_REPLAY_HUMAN_GHOST = GAMEPROG_CustomLoadGhost(GAME_TRACKER->currLEV, MM_GHOST_TAPE_PLAYING);
+							if (MM_REPLAY_HUMAN_GHOST)
+							{
+								data.characterIDs[1] = MM_GHOST_TAPE_PLAYING->characterID;
+							}
+						}
+						else
+						{
+							MM_REPLAY_HUMAN_GHOST = 0;
+						}
 						MM_DESIRED_MENU = &MM_MENU_QUEUE_LOAD_TRACK;
 						return;
 					}

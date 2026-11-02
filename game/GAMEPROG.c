@@ -100,6 +100,76 @@ void GAMEPROG_CustomSaveHighScore(int levelID)
 	}
 }
 
+/* Ghost data is untrusted on disk: bound packet reads and the 33-entry cache. */
+static int GAMEPROG_CustomGhostValid(const struct GhostHeader *ghost)
+{
+	enum { CUSTOM_GHOST_MAX_BYTES = 0x3dd4, CUSTOM_GHOST_PACKET_CAPACITY = 33 };
+	if (ghost == NULL || ghost->version != GHOST_TAPE_VERSION_RETAIL || ghost->size <= 0 ||
+	    ghost->size > CUSTOM_GHOST_MAX_BYTES ||
+	    ghost->characterID < 0 || ghost->characterID >= GAME_CHARACTER_COUNT || ghost->timeElapsedInRace <= 0)
+	{
+		return 0;
+	}
+	const unsigned char *bytes = (const unsigned char *)(ghost + 1);
+	int pos = 0, entries = 0, positions = 0;
+	while (pos < ghost->size)
+	{
+		int length;
+		u8 op = bytes[pos];
+		if (op == GHOST_OP_POSITION)
+		{
+			if (positions != 0 && entries >= CUSTOM_GHOST_PACKET_CAPACITY) { return 0; }
+			length = GHOST_SIZE_POSITION;
+			positions++;
+			entries = positions > 1 ? 2 : 1;
+		}
+		else if (op == GHOST_OP_ANIMATION) { length = GHOST_SIZE_ANIMATION; }
+		else if (op == GHOST_OP_BOOST) { length = GHOST_SIZE_BOOST; }
+		else if (op == GHOST_OP_INSTANCE) { length = GHOST_SIZE_INSTANCE; }
+		else if (op == GHOST_OP_IDLE) { length = GHOST_SIZE_IDLE; entries++; }
+		else { length = GHOST_SIZE_VELOCITY; entries++; }
+		if (positions == 0 && (op == GHOST_OP_IDLE || !GHOST_IS_OPCODE(op))) { return 0; }
+		if (length > ghost->size - pos || entries > CUSTOM_GHOST_PACKET_CAPACITY) { return 0; }
+		pos += length;
+	}
+	return positions >= 2;
+}
+
+int GAMEPROG_CustomLoadGhost(int levelID, struct GhostHeader *ghost)
+{
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	struct NativeTrackRecordKey key;
+	if (ghost == NULL || g_config.oneLapRaces || track == NULL || !NativeTrackRecords_Key(track, &key))
+	{
+		return 0;
+	}
+	if (!NativeTrackRecords_Load("custom-records/ghosts", track, &key, ghost, GHOST_RECORD_BUFFER_SIZE) ||
+	    !GAMEPROG_CustomGhostValid(ghost))
+	{
+		memset(ghost, 0, GHOST_RECORD_BUFFER_SIZE);
+		return 0;
+	}
+	/* The on-disk runtime ID may belong to a different track this session. */
+	ghost->levelID = levelID;
+	return 1;
+}
+
+int GAMEPROG_CustomSaveGhost(int levelID, const struct GhostHeader *ghost)
+{
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	if (track == NULL || s_customRecordLevel != levelID || !s_customRecordKeyValid || !GAMEPROG_CustomGhostValid(ghost))
+	{
+		return 0;
+	}
+	unsigned char buffer[GHOST_RECORD_BUFFER_SIZE] = {0};
+	memcpy(buffer, ghost, sizeof(*ghost) + ghost->size);
+	if (!NativeTrackRecords_Save("custom-records/ghosts", track, &s_customRecordKey, buffer, sizeof(buffer)))
+	{
+		Platform_LogWarn("[CUSTOM TRACK] Could not save ghost for %s\n", track->identity);
+	}
+	return 1;
+}
+
 void GAMEPROG_AdvPercent(struct AdvProgress *adv)
 {
 	s32 goldBonus = 0;

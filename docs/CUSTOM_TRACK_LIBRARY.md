@@ -46,6 +46,8 @@ Time Trial records for custom tracks are stored in `custom-records/` next to
 the game. Each record is associated with the track identity and hashes of both
 LEV and VRM, so a changed revision starts a separate table. The one-lap debug
 option uses session-only records and does not modify three-lap records.
+The best human ghost is saved separately under `custom-records/ghosts/` with
+the same track identity and revision. It is loaded when selecting the track.
 
 Custom runtime IDs currently occupy `0x100..0x7fff`: the load request interface
 uses signed 16-bit IDs. The runtime ID is not a persistent identity. This range

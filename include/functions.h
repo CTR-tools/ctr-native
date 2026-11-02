@@ -125,6 +125,8 @@ void GAMEPROG_GetPtrHighScoreTrack(void);
 struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID);
 void GAMEPROG_CustomBeginLevel(int levelID);
 void GAMEPROG_CustomSaveHighScore(int levelID);
+int GAMEPROG_CustomLoadGhost(int levelID, struct GhostHeader *ghost);
+int GAMEPROG_CustomSaveGhost(int levelID, const struct GhostHeader *ghost);
 void GAMEPROG_InitFullMemcard(struct MemcardData *mcd);
 void GAMEPROG_ResetAdvMultiplayer(struct AdvMultiplayerSettings *settings);
 void GAMEPROG_ResetChaosSettings(struct ChaosSettings *settings);

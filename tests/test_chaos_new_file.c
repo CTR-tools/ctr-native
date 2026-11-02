@@ -357,8 +357,36 @@ static void TestResidentCreationRestore(void)
 	CTR_TEST_CHECK(!MM_NewLoad_InChain(), "Back can unwind the restored chain completely");
 }
 
+static void TestCustomGhostValidation(void)
+{
+	union
+	{
+		struct GhostHeader header;
+		unsigned char bytes[GHOST_RECORD_BUFFER_SIZE];
+	} ghost = {0};
+	struct GhostHeader *header = &ghost.header;
+	unsigned char *packets = (unsigned char *)(header + 1);
+	header->version = GHOST_TAPE_VERSION_RETAIL;
+	header->characterID = 0;
+	header->timeElapsedInRace = 1000;
+	header->size = 2 * GHOST_SIZE_POSITION;
+	packets[0] = GHOST_OP_POSITION;
+	packets[GHOST_SIZE_POSITION] = GHOST_OP_POSITION;
+	CTR_TEST_SECTION("custom ghost validation");
+	CTR_TEST_CHECK(GAMEPROG_CustomGhostValid(header), "a complete recording is accepted");
+	header->size--;
+	CTR_TEST_CHECK(!GAMEPROG_CustomGhostValid(header), "a truncated packet is rejected");
+	header->size++;
+	packets[0] = GHOST_OP_IDLE;
+	CTR_TEST_CHECK(!GAMEPROG_CustomGhostValid(header), "an idle packet before any position is rejected");
+	packets[0] = GHOST_OP_POSITION;
+	header->characterID = GAME_CHARACTER_COUNT;
+	CTR_TEST_CHECK(!GAMEPROG_CustomGhostValid(header), "an unknown character is rejected");
+}
+
 int main(void)
 {
+	TestCustomGhostValidation();
 	TestAdventureBotDifficulty();
 	TestAdventureTimeLimits();
 	TestDifficultyChoices();
