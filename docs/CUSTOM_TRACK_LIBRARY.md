@@ -42,6 +42,11 @@ against actual track files and the import workflow.
 Lap counts are controlled by the game mode, not track metadata. The initial
 Time Trial implementation uses the standard three laps.
 
+Time Trial records for custom tracks are stored in `custom-records/` next to
+the game. Each record is associated with the track identity and hashes of both
+LEV and VRM, so a changed revision starts a separate table. The one-lap debug
+option uses session-only records and does not modify three-lap records.
+
 Custom runtime IDs currently occupy `0x100..0x7fff`: the load request interface
 uses signed 16-bit IDs. The runtime ID is not a persistent identity. This range
 alone does not make a custom level loadable: direct retail-table indexing,

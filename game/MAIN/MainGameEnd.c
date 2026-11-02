@@ -146,6 +146,10 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 
 	if (highScoreIndex < 0)
 	{
+		if ((gGT->gameMode1 & TIME_TRIAL) != 0 && (gameModeEnd & NEW_BEST_LAP) != 0)
+		{
+			GAMEPROG_CustomSaveHighScore(gGT->levelID);
+		}
 		return;
 	}
 
@@ -160,6 +164,10 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 	entry->name[0] = 0;
 	entry->characterID = data.characterIDs[(u8)player->driverID];
 	memmove(entry->name, gGT->prevNameEntered, 0x11);
+	if ((gGT->gameMode1 & TIME_TRIAL) != 0)
+	{
+		GAMEPROG_CustomSaveHighScore(gGT->levelID);
+	}
 }
 
 

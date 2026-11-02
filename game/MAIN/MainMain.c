@@ -110,6 +110,7 @@ u32 CTR_Main(void)
 			}
 
 			DropRain_Reset(gGT);
+			GAMEPROG_CustomBeginLevel(gGT->levelID);
 			GAMEPROG_GetPtrHighScoreTrack();
 			MainInit_FinalizeInit(gGT);
 			GAMEPAD_GetNumConnected(gGS);

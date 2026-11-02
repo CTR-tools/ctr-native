@@ -123,6 +123,8 @@ void GAMEPROG_AdvPercent(struct AdvProgress *adv);
 void GAMEPROG_NewGame_OnBoot(void);
 void GAMEPROG_GetPtrHighScoreTrack(void);
 struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID);
+void GAMEPROG_CustomBeginLevel(int levelID);
+void GAMEPROG_CustomSaveHighScore(int levelID);
 void GAMEPROG_InitFullMemcard(struct MemcardData *mcd);
 void GAMEPROG_ResetAdvMultiplayer(struct AdvMultiplayerSettings *settings);
 void GAMEPROG_ResetChaosSettings(struct ChaosSettings *settings);

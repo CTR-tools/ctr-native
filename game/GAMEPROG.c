@@ -1,26 +1,43 @@
 #include <common.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_records.h>
+#include <platform/native_log.h>
 #include <stdlib.h>
 
 struct CustomHighScoreNode
 {
 	struct CustomHighScoreNode *next;
 	struct HighScoreTrack track;
+	struct NativeTrackRecordKey key;
+	int hasKey;
 	char identity[];
 };
 
+static struct CustomHighScoreNode *s_customHighScores;
+static struct NativeTrackRecordKey s_customRecordKey;
+static int s_customRecordKeyValid;
+static int s_customRecordLevel = -1;
+
+void GAMEPROG_CustomBeginLevel(int levelID)
+{
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	s_customRecordLevel = levelID;
+	s_customRecordKeyValid = track != NULL && !g_config.oneLapRaces && NativeTrackRecords_Key(track, &s_customRecordKey);
+}
+
 struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
 {
-	static struct CustomHighScoreNode *tracks;
 	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
 	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(registry, levelID);
 	if (metadata == NULL)
 	{
 		return NULL;
 	}
-	for (struct CustomHighScoreNode *node = tracks; node != NULL; node = node->next)
+	int hasKey = s_customRecordLevel == levelID && s_customRecordKeyValid;
+	for (struct CustomHighScoreNode *node = s_customHighScores; node != NULL; node = node->next)
 	{
-		if (strcmp(node->identity, metadata->identity) == 0)
+		if (strcmp(node->identity, metadata->identity) == 0 && node->hasKey == hasKey &&
+		    (!node->hasKey || memcmp(&node->key, &s_customRecordKey, sizeof(node->key)) == 0))
 		{
 			return &node->track;
 		}
@@ -32,6 +49,11 @@ struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
 		abort();
 	}
 	memcpy(node->identity, metadata->identity, identitySize);
+	node->hasKey = hasKey;
+	if (node->hasKey)
+	{
+		node->key = s_customRecordKey;
+	}
 	for (int mode = 0; mode < MEMCARD_HIGH_SCORE_MODE_COUNT; mode++)
 	{
 		for (int entry = 0; entry < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; entry++)
@@ -39,9 +61,43 @@ struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
 			node->track.scoreEntry[mode][entry].time = MEMCARD_HIGH_SCORE_DEFAULT_TIME;
 		}
 	}
-	node->next = tracks;
-	tracks = node;
+	if (node->hasKey)
+	{
+		struct HighScoreEntry saved[MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE];
+		if (NativeTrackRecords_Load("custom-records", metadata, &node->key, saved, sizeof(saved)))
+		{
+			int valid = 1;
+			for (int i = 0; i < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; i++)
+			{
+				if (saved[i].characterID >= GAME_CHARACTER_COUNT || memchr(saved[i].name, '\0', sizeof(saved[i].name)) == NULL)
+				{
+					valid = 0;
+					break;
+				}
+			}
+			if (valid)
+			{
+				memcpy(node->track.scoreEntry[0], saved, sizeof(saved));
+			}
+		}
+	}
+	node->next = s_customHighScores;
+	s_customHighScores = node;
 	return &node->track;
+}
+
+void GAMEPROG_CustomSaveHighScore(int levelID)
+{
+	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	if (metadata == NULL || s_customRecordLevel != levelID || !s_customRecordKeyValid)
+	{
+		return;
+	}
+	struct HighScoreTrack *track = GAMEPROG_CustomHighScoreTrack(levelID);
+	if (!NativeTrackRecords_Save("custom-records", metadata, &s_customRecordKey, track->scoreEntry[0], sizeof(track->scoreEntry[0])))
+	{
+		Platform_LogWarn("[CUSTOM TRACK] Could not save time trial records for %s\n", metadata->identity);
+	}
 }
 
 void GAMEPROG_AdvPercent(struct AdvProgress *adv)
