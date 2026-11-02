@@ -84,6 +84,7 @@
 #include "HOWL/HOWL_Playback.c"
 #include "HOWL/HOWL_Voiceline.c"
 #include "HOWL/HOWL_AudioState.c"
+#include "HOWL/HOWL_CustomMusic.c"
 #include "HOWL/HOWL_Music.c"
 #include "HOWL/HOWL_Garage.c"
 

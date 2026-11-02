@@ -55,6 +55,11 @@ int LOAD_HowlSectorChainStart(CdlFILE *cdlFileHWL, void *ptrDestination, int fir
 	{
 		return 1;
 	}
+	if (CustomSca_Serve(ptrDestination, firstSector, numSector))
+	{
+		sdata->howlChainState = 0;
+		return 1;
+	}
 
 	// backup, so chain can use it later
 	sdata->howlChainParams[0] = (int)cdlFileHWL;

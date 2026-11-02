@@ -22,6 +22,7 @@ void Music_SetIntro(void)
 
 void Music_LoadBanks(void)
 {
+	CustomSca_Reset();
 	u32 bankID;
 	struct Bank thisBank;
 	struct GameTracker *gGT = sdata->gGT;
@@ -130,6 +131,14 @@ u32 Music_AsyncParseBanks(void)
 		// any driving track
 		else if (level < INTRO_RACE_TODAY)
 		{
+			if (sdata->boolAudioEnabled && NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+			{
+				if (CustomSca_LoadBank(&thisBank))
+				{
+					break;
+				}
+				Platform_Log("[CUSTOM MUSIC] No usable track audio; using default audio\n");
+			}
 			index = data.levBank_FX[level];
 		}
 
@@ -174,6 +183,7 @@ u32 Music_AsyncParseBanks(void)
 		{
 			goto PARSE_FINISH;
 		}
+		s_scaServing = 0;
 
 		sdata->bankCount = 0;
 		sdata->bankPodiumStage = 0;
@@ -361,6 +371,10 @@ u32 Music_AsyncParseBanks(void)
 		// any level you can drive on
 		else if (level < INTRO_RACE_TODAY)
 		{
+			if (CustomSca_SetSong())
+			{
+				break;
+			}
 			// Set Song ID depending on track
 			index = data.levBank_Song[level];
 		}
