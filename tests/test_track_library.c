@@ -41,12 +41,26 @@ int main(void)
 	               "directory name and music use defaults");
 	NativeTrackRegistry_Destroy(registry);
 
-	WriteFixture(track, "track.ini", "id=saphi:1\ntitle=Test Track\nauthor=Track Author\n");
+	WriteFixture(track, "track.ini", "id=saphi:1\ntitle=Test Track\nauthor=Track Author\nmodes=time_trial,arcade\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->identity, "saphi:1") == 0 &&
-	               strcmp(metadata->title, "Test Track") == 0 && strcmp(metadata->author, "Track Author") == 0,
+	               strcmp(metadata->title, "Test Track") == 0 && strcmp(metadata->author, "Track Author") == 0 &&
+	               strcmp(metadata->modes, "time_trial,arcade") == 0,
 	               "cached catalog metadata overrides local defaults");
+	CTR_TEST_CHECK(NativeTrackLibrary_IsEnabled(metadata), "tracks are enabled by default");
+	CTR_TEST_CHECK(NativeTrackLibrary_AllowsTimeTrial(metadata), "source tags containing time_trial allow time trial selection");
+	struct NativeTrackMetadata arcadeOnly = *metadata;
+	arcadeOnly.modes = "arcade, relic_race";
+	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsTimeTrial(&arcadeOnly), "explicit tags without time_trial exclude the track from time trial");
+	arcadeOnly.modes = NULL;
+	CTR_TEST_CHECK(NativeTrackLibrary_AllowsTimeTrial(&arcadeOnly), "unknown source modes preserve time trial availability");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetEnabled(metadata, 0) && !NativeTrackLibrary_IsEnabled(metadata), "a track can be disabled");
+	NativeTrackRegistry_Destroy(registry);
+	registry = NativeTrackLibrary_Scan(root, &result);
+	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(metadata != NULL && !NativeTrackLibrary_IsEnabled(metadata), "disabled state survives a library rescan");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetEnabled(metadata, 1) && NativeTrackLibrary_IsEnabled(metadata), "a disabled track can be re-enabled");
 	NativeTrackRegistry_Destroy(registry);
 
 	WriteFixture(track, "track.ini", "title=First\ntitle=Second\n");

@@ -35,6 +35,7 @@ static void NativeTrackRegistry_FreeEntry(struct NativeTrackEntry *entry)
 	free((void *)entry->metadata.vrmPath);
 	free((void *)entry->metadata.scaPath);
 	free((void *)entry->metadata.author);
+	free((void *)entry->metadata.modes);
 	free(entry);
 }
 
@@ -81,9 +82,11 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 	entry->metadata.vrmPath = NativeTrackRegistry_Copy(metadata->vrmPath);
 	entry->metadata.scaPath = metadata->scaPath != NULL && metadata->scaPath[0] != '\0' ? NativeTrackRegistry_Copy(metadata->scaPath) : NULL;
 	entry->metadata.author = metadata->author != NULL && metadata->author[0] != '\0' ? NativeTrackRegistry_Copy(metadata->author) : NULL;
+	entry->metadata.modes = metadata->modes != NULL && metadata->modes[0] != '\0' ? NativeTrackRegistry_Copy(metadata->modes) : NULL;
 	if (entry->metadata.identity == NULL || entry->metadata.title == NULL || entry->metadata.levPath == NULL ||
 	    entry->metadata.vrmPath == NULL || (metadata->scaPath != NULL && metadata->scaPath[0] != '\0' && entry->metadata.scaPath == NULL) ||
-	    (metadata->author != NULL && metadata->author[0] != '\0' && entry->metadata.author == NULL))
+	    (metadata->author != NULL && metadata->author[0] != '\0' && entry->metadata.author == NULL) ||
+	    (metadata->modes != NULL && metadata->modes[0] != '\0' && entry->metadata.modes == NULL))
 	{
 		NativeTrackRegistry_FreeEntry(entry);
 		return 0;

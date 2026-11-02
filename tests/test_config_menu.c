@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <platform/native_track_registry.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -35,11 +36,21 @@ static int s_hubDestroys;
 static int s_hubUpdates;
 static int s_unpauses;
 static int s_backgroundDeactivations;
+static int s_trackImportOpened;
+static int s_lastMenuSound = -1;
+static int s_sectionFont = -1;
+static int s_trackFixtureCount;
+static int s_trackFixtureEnabled = 1;
+static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .modes = "time_trial"};
+static int s_trackDetailRows[2];
+static int s_unknownModesY;
+static int s_emptyTracksY;
 static struct RectMenu *s_chaosCaller;
 
 // Count menu persistence calls without touching any real configuration file.
 static void ConfigMenuTest_Save(void);
 #define NativeConfig_Save ConfigMenuTest_Save
+#include <game/230/MM_CustomTracks.c>
 #include <game/230/MM_ConfigMenu.c>
 #undef NativeConfig_Save
 #include <game/230/MM_AudioConfig.c>
@@ -83,6 +94,18 @@ void OptionsMenu_TestSound(s32 row, b32 playing)
 	s_previewPlaying = playing;
 }
 void MM_MenuProc_Controls(struct RectMenu *menu) { (void)menu; }
+void MM_TrackImport_Open(void) { s_trackImportOpened++; }
+int MM_TrackImport_Update(u32 buttons) { (void)buttons; return 0; }
+const char *MM_TrackImport_Message(void) { return ""; }
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
+size_t NativeTrackRegistry_Count(const struct NativeTrackRegistry *registry) { (void)registry; return (size_t)s_trackFixtureCount; }
+const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTrackRegistry *registry, int levelID)
+{
+	(void)registry; return s_trackFixtureCount && levelID == NATIVE_TRACK_CUSTOM_ID_BASE ? &s_trackFixture : NULL;
+}
+int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track) { (void)track; return s_trackFixtureEnabled; }
+int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled) { (void)track; s_trackFixtureEnabled = enabled; return 1; }
+int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track) { (void)track; return 1; }
 b32 MM_Controls_IsPickerOpen(void) { return s_pickerOpen; }
 u32 MM_Controls_MenuTapped(void) { return (u32)sdata->gGamepads->gamepad[0].buttonsTapped; }
 void MM_Controls_ResetNavigation(void)
@@ -99,11 +122,31 @@ void RECTMENU_ClearInput(void)
 	memset(sdata->buttonHeldPerPlayer, 0, sizeof(sdata->buttonHeldPerPlayer));
 }
 
-int OtherFX_Play(u32 id, int flags) { (void)id; (void)flags; return 0; }
+int OtherFX_Play(u32 id, int flags) { s_lastMenuSound = (int)id; (void)flags; return 0; }
 s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strlen(text) * 8; }
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (strcmp(text, "General") == 0)
+	{
+		s_sectionFont = font;
+	}
+	if (strcmp(text, "Game modes: Unknown") == 0)
+	{
+		s_unknownModesY = y;
+	}
+	if (strcmp(text, "No tracks imported") == 0 && x == FULLSCREEN_MENU_LABEL_X)
+	{
+		s_emptyTracksY = y;
+	}
+	const char *details[] = {"Author: Test Author", "Game modes: time trial"};
+	for (int i = 0; i < 2; i++)
+	{
+		if (strcmp(text, details[i]) == 0 && x == FULLSCREEN_MENU_LABEL_X + 12)
+		{
+			s_trackDetailRows[i] = y;
+		}
+	}
 	if ((flags & JUSTIFY_CENTER) != 0)
 	{
 		s_centerX = x;
@@ -169,6 +212,85 @@ static void UpdateMenu(void)
 	menu->funcPtr(menu);
 }
 
+static void TestTrackImportMenu(void)
+{
+	CTR_TEST_SECTION("track import entry");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	int customTracksSection = -1;
+	for (int section = 0; section < s_numSections; section++)
+	{
+		if (Config_IsSection(section, CONFIG_SECTION_CUSTOM_TRACKS))
+		{
+			customTracksSection = section;
+		}
+	}
+	CTR_TEST_CHECK(customTracksSection >= 0, "Custom Tracks is registered in the section table");
+	sdata->ptrActiveMenu->rowSelected = (s16)customTracksSection;
+	s_trackImportOpened = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && s_trackImportOpened == 0 && s_currentSection == -1,
+	               "the Options entry opens the custom tracks manager");
+	s_trackFixtureCount = 1;
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE, "Available Tracks opens the installed track list");
+	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening the list plays the confirm sound");
+	memset(s_trackDetailRows, 0, sizeof(s_trackDetailRows));
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackDetailRows[0] > 0 && s_trackDetailRows[1] > s_trackDetailRows[0] &&
+	               s_trackDetailRows[1] < SCREEN_HEIGHT,
+	               "author and mode details are indented on separate on-screen rows");
+	s_trackFixture.modes = NULL;
+	UpdateMenu();
+	CTR_TEST_CHECK(s_unknownModesY == s_trackDetailRows[1], "undeclared track modes are shown as Unknown");
+	s_trackFixture.modes = "time_trial";
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(!s_trackFixtureEnabled, "confirm disables the selected track");
+	SetInput(BTN_CIRCLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackFixtureEnabled, "confirm re-enables the selected track");
+	s_lastMenuSound = -1;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "back returns from the track list to the manager");
+	CTR_TEST_CHECK(s_lastMenuSound == 2, "leaving the list plays the back sound");
+	s_trackFixtureCount = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_emptyTracksY == FullScreenMenu_RowY(0, 1), "an empty library uses a normal content row");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	sdata->ptrActiveMenu->rowSelected = 1;
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 1, "the manager's Import row opens the importer");
+	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening import plays the confirm sound");
+	s_lastMenuSound = -1;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_CLOSED && s_lastMenuSound == 2, "leaving the manager plays the back sound");
+	CTR_TEST_CHECK(sdata->ptrActiveMenu->rowSelected == customTracksSection, "leaving the manager restores the Options entry");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_PAUSE);
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_CLOSED, "opening Options resets custom track navigation");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	sdata->ptrActiveMenu->rowSelected = (s16)customTracksSection;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "custom tracks can be opened from pause options");
+	sdata->ptrActiveMenu->rowSelected = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 2, "import is available from pause options");
+}
+
 static void TestSession(enum ConfigMenuContext context, int mode)
 {
 	struct RectMenu caller = {.rowSelected = 5};
@@ -183,9 +305,9 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 	CTR_TEST_CHECK(sdata->ptrActiveMenu->rowSelected == 0, "opening selects the first section");
 	UpdateMenu();
 	CTR_TEST_CHECK(s_currentSection == -1, "opening confirm does not also enter a section");
+	CTR_TEST_CHECK(s_sectionFont == FONT_SMALL, "section entries use the small font");
 	CTR_TEST_CHECK(s_tracker.gameMode1 == mode, "opening preserves the caller's game and pause flags");
-	const int expectedColumn = (context == CONFIG_MENU_MAIN) ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X;
-	CTR_TEST_CHECK(s_centerX == expectedColumn, "the section list follows the calling menu's column");
+	CTR_TEST_CHECK(s_centerX == FULLSCREEN_MENU_TITLE_X, "the section list uses the shared screen title position");
 	const int expectedStyle = (context == CONFIG_MENU_MAIN) ? FULLSCREEN_MENU_DRAW_STYLE_SHADED
 	                                                       : FULLSCREEN_MENU_DRAW_STYLE_FLAT;
 	CTR_TEST_CHECK(s_frameDrawStyle == expectedStyle, "the box matches the calling menu's shading");
@@ -255,7 +377,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "controls", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -585,6 +707,7 @@ int main(void)
 	s_strings[LNG_MONO] = "MONO";
 	s_strings[LNG_STEREO] = "STEREO";
 	s_tracker.backBuffer = &s_buffer;
+	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");
 	TestSession(CONFIG_MENU_MAIN, MAIN_MENU);
 	CTR_TEST_SECTION("Paused race session");

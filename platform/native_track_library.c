@@ -41,7 +41,7 @@ static char *NativeTrackLibrary_Trim(char *text)
 	return text;
 }
 
-static int NativeTrackLibrary_ReadTrack(struct NativeTrackRegistry *registry, const char *directory, const char *name)
+int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const char *directory, const char *name)
 {
 	char manifest[NATIVE_TRACK_PATH_MAX];
 	if (!NativeTrackLibrary_Join(manifest, sizeof(manifest), directory, "track.ini"))
@@ -53,8 +53,8 @@ static int NativeTrackLibrary_ReadTrack(struct NativeTrackRegistry *registry, co
 	{
 		return 0;
 	}
-	char fields[3][NATIVE_TRACK_FIELD_MAX] = {{0}};
-	const char *keys[] = {"id", "title", "author"};
+	char fields[4][NATIVE_TRACK_FIELD_MAX] = {{0}};
+	const char *keys[] = {"id", "title", "author", "modes"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -150,13 +150,18 @@ static int NativeTrackLibrary_ReadTrack(struct NativeTrackRegistry *registry, co
 		return 0;
 	}
 	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
-	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL};
+	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL,
+	                                       fields[3][0] ? fields[3] : NULL};
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
 
 static SDL_EnumerationResult SDLCALL NativeTrackLibrary_Visit(void *userdata, const char *directory, const char *name)
 {
 	struct NativeTrackLibraryScan *scan = userdata;
+	if (strncmp(name, ".import-", 8) == 0)
+	{
+		return SDL_ENUM_CONTINUE;
+	}
 	char path[NATIVE_TRACK_PATH_MAX];
 	SDL_PathInfo info;
 	if (!NativeTrackLibrary_Join(path, sizeof(path), directory, name))
@@ -168,7 +173,7 @@ static SDL_EnumerationResult SDLCALL NativeTrackLibrary_Visit(void *userdata, co
 	{
 		return SDL_ENUM_CONTINUE;
 	}
-	if (NativeTrackLibrary_ReadTrack(scan->registry, path, name))
+	if (NativeTrackLibrary_ReadDirectory(scan->registry, path, name))
 	{
 		scan->result.installed++;
 	}
@@ -222,6 +227,91 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void)
 {
 	return s_nativeTrackLibrary;
+}
+
+static int NativeTrackLibrary_DisabledPath(const struct NativeTrackMetadata *track, char *path, size_t size)
+{
+	if (track == NULL || track->levPath == NULL)
+	{
+		return 0;
+	}
+	const char *separator = strrchr(track->levPath, '/');
+	const char *backslash = strrchr(track->levPath, '\\');
+	if (backslash != NULL && (separator == NULL || backslash > separator))
+	{
+		separator = backslash;
+	}
+	if (separator == NULL || (size_t)(separator - track->levPath) + sizeof("/.ctr-disabled") > size)
+	{
+		return 0;
+	}
+	size_t prefix = (size_t)(separator - track->levPath);
+	memcpy(path, track->levPath, prefix);
+	memcpy(path + prefix, "/.ctr-disabled", sizeof("/.ctr-disabled"));
+	return 1;
+}
+
+int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track)
+{
+	char path[NATIVE_TRACK_PATH_MAX];
+	SDL_PathInfo info;
+	return NativeTrackLibrary_DisabledPath(track, path, sizeof(path)) && !SDL_GetPathInfo(path, &info);
+}
+
+int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track)
+{
+	if (track == NULL)
+	{
+		return 0;
+	}
+	if (track->modes == NULL || track->modes[0] == '\0')
+	{
+		return 1;
+	}
+	const char *item = track->modes;
+	while (*item != '\0')
+	{
+		while (*item == ',' || isspace((unsigned char)*item))
+		{
+			item++;
+		}
+		const char *end = item;
+		while (*end != '\0' && *end != ',')
+		{
+			end++;
+		}
+		const char *trimmed = end;
+		while (trimmed > item && isspace((unsigned char)trimmed[-1]))
+		{
+			trimmed--;
+		}
+		if ((size_t)(trimmed - item) == sizeof("time_trial") - 1 && strncmp(item, "time_trial", sizeof("time_trial") - 1) == 0)
+		{
+			return 1;
+		}
+		item = end;
+	}
+	return 0;
+}
+
+int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled)
+{
+	char path[NATIVE_TRACK_PATH_MAX];
+	SDL_PathInfo info;
+	if (!NativeTrackLibrary_DisabledPath(track, path, sizeof(path)))
+	{
+		return 0;
+	}
+	if (enabled)
+	{
+		return !SDL_GetPathInfo(path, &info) || (info.type == SDL_PATHTYPE_FILE && SDL_RemovePath(path));
+	}
+	if (SDL_GetPathInfo(path, &info))
+	{
+		return info.type == SDL_PATHTYPE_FILE;
+	}
+	FILE *file = fopen(path, "wb");
+	return file != NULL && fclose(file) == 0;
 }
 
 void NativeTrackLibrary_Shutdown(void)

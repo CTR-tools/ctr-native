@@ -13,8 +13,8 @@ int main(void)
 	}
 	char title[] = "First track";
 	char author[] = "Author";
-	struct NativeTrackMetadata first = {"track-a", title, "a.lev", "a.vrm", NULL, author};
-	struct NativeTrackMetadata second = {"track-b", "Second track", "b.lev", "b.vrm", "b.sca", NULL};
+	struct NativeTrackMetadata first = {"track-a", title, "a.lev", "a.vrm", NULL, author, NULL};
+	struct NativeTrackMetadata second = {"track-b", "Second track", "b.lev", "b.vrm", "b.sca", NULL, NULL};
 	int firstID = 0, secondID = 0, found = 0;
 	CTR_TEST_CHECK(NativeTrackRegistry_Add(registry, &first, &firstID), "first track is registered");
 	const struct NativeTrackMetadata *stored = NativeTrackRegistry_Get(registry, firstID);

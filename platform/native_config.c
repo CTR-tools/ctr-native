@@ -137,6 +137,13 @@ const ConfigEntry g_configEntries[] = {
         .type = CFG_ACTION,
     },
     {
+        .section = CONFIG_SECTION_CUSTOM_TRACKS,
+        .key = "custom_tracks",
+        .availableDuringPause = true,
+        .label = "Custom Tracks",
+        .type = CFG_ACTION,
+    },
+    {
         .section = "General",
         .key = "skip_intro",
         .availableDuringPause = true,

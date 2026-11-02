@@ -111,15 +111,22 @@ static void MM_TrackSelect_BuildTimeTrialTracks(void)
 		return;
 	}
 	memcpy(s_timeTrialTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
+	size_t enabled = 0;
 	for (size_t i = 0; i < count; i++)
 	{
-		struct MainMenu_LevelRow *row = &s_timeTrialTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + i];
+		int levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
+		if (!NativeTrackLibrary_IsEnabled(track) || !NativeTrackLibrary_AllowsTimeTrial(track))
+		{
+			continue;
+		}
+		struct MainMenu_LevelRow *row = &s_timeTrialTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + enabled++];
 		*row = MM_ARCADE_TRACKS[0];
-		row->levID = (s16)(NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		row->levID = (s16)levelID;
 		row->mapTextureID = -1;
 		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
 	}
-	s_timeTrialTrackCount += (s16)count;
+	s_timeTrialTrackCount += (s16)enabled;
 }
 
 static void MM_TrackSelect_CustomTitle(char *destination, size_t capacity, const char *source)

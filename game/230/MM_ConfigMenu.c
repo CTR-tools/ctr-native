@@ -1,8 +1,6 @@
 #include <common.h>
 
 #include <platform/native_controls.h>
-#include <stdio.h>
-
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {
@@ -138,6 +136,7 @@ void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext cont
 	s_configSession.returnRow = returnMenu->rowSelected;
 	FullScreenMenu_SetShadedFrame(context == CONFIG_MENU_MAIN);
 	s_currentSection = -1;
+	MM_CustomTracks_ResetNavigation();
 	s_configScroll.offset = 0;
 	g_configMenu.rowSelected = 0;
 	BuildSectionMap();
@@ -218,6 +217,11 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	struct GameTracker *gGT = sdata->gGT;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
+	if (MM_CustomTracks_Update(menu))
+	{
+		Config_ClearInput();
+		return;
+	}
 
 	if (s_numSections == 0)
 	{
@@ -232,9 +236,8 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	// The device picker consumes back itself, so it must close before this file acts,
 	// otherwise one press would close the picker and leave the section in the same
 	// frame.
-	if (!MM_Controls_IsPickerOpen() && ((backTapped & (BTN_TRIANGLE | BTN_START)) != 0))
+	if (!MM_Controls_IsPickerOpen() && FullScreenMenu_Back(backTapped))
 	{
-		OtherFX_Play(2, 1);
 
 		// A rebind in progress would keep eating input on the next screen.
 		NativeControls_CancelCapture();
@@ -279,9 +282,8 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		const ConfigEntry *e = &g_configEntries[firstEntry + menu->rowSelected];
 		if (Config_CanEdit(e))
 		{
-			if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0)
+			if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 			{
-				OtherFX_Play(1, 1);
 				if (e->type == CFG_BOOL)
 				{
 					*(bool *)e->valuePtr ^= 1;
@@ -327,9 +329,14 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 
 		FullScreenMenu_NavScroll(pad, &s_configScroll, &menu->rowSelected, s_numSections);
 
-		if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0)
+		if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 		{
-			OtherFX_Play(1, 1);
+			if (Config_IsSection(menu->rowSelected, CONFIG_SECTION_CUSTOM_TRACKS))
+			{
+				MM_CustomTracks_Open(menu);
+				Config_ClearInput();
+				return;
+			}
 			s_currentSection = menu->rowSelected;
 			menu->rowSelected = 0;
 			s_configScroll.offset = 0;
@@ -340,12 +347,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		{
 			sections[section] = g_configEntries[s_sectionToEntry[section]].section;
 		}
-		// Keep the section list under the menu that opened it: the title screen's menus
-		// sit on the right, while the pause menu is centred.
-		const int columnX = (s_configSession.context == CONFIG_MENU_MAIN)
-		                        ? FULLSCREEN_MENU_MAIN_X
-		                        : FULLSCREEN_MENU_TITLE_X;
-		FullScreenMenu_DrawSectionScreen(sdata->lngStrings[LNG_OPTIONS], sections, &s_configScroll,
-		                                s_numSections, menu->rowSelected, columnX, gGT, ot);
+		FullScreenMenu_DrawScreen(sdata->lngStrings[LNG_OPTIONS], 0, &s_configScroll,
+		                          s_numSections, menu->rowSelected, FullScreenMenu_DrawTextListRow, sections, gGT, ot);
 	}
 }

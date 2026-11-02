@@ -106,6 +106,7 @@ typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION } ConfigType;
 #define CONFIG_SECTION_DEVELOPER_HACKS "Developer Hacks"
 #define CONFIG_SECTION_CONTROLS      "Controls"
 #define CONFIG_SECTION_AUDIO         "Audio"
+#define CONFIG_SECTION_CUSTOM_TRACKS "Custom Tracks"
 
 typedef struct {
     const char *section;
