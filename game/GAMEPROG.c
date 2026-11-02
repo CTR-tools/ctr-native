@@ -2,45 +2,46 @@
 #include <platform/native_track_library.h>
 #include <stdlib.h>
 
+struct CustomHighScoreNode
+{
+	struct CustomHighScoreNode *next;
+	struct HighScoreTrack track;
+	char identity[];
+};
+
 struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
 {
-	static struct HighScoreTrack **tracks;
-	static size_t trackCount;
+	static struct CustomHighScoreNode *tracks;
 	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
-	if (NativeTrackRegistry_Get(registry, levelID) == NULL)
+	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(registry, levelID);
+	if (metadata == NULL)
 	{
 		return NULL;
 	}
-
-	size_t index = (size_t)(levelID - NATIVE_TRACK_CUSTOM_ID_BASE);
-	if (index >= trackCount)
+	for (struct CustomHighScoreNode *node = tracks; node != NULL; node = node->next)
 	{
-		size_t count = NativeTrackRegistry_Count(registry);
-		struct HighScoreTrack **expanded = realloc(tracks, count * sizeof(*tracks));
-		if (expanded == NULL)
+		if (strcmp(node->identity, metadata->identity) == 0)
 		{
-			abort();
-		}
-		memset(expanded + trackCount, 0, (count - trackCount) * sizeof(*tracks));
-		tracks = expanded;
-		trackCount = count;
-	}
-	if (tracks[index] == NULL)
-	{
-		tracks[index] = calloc(1, sizeof(*tracks[index]));
-		if (tracks[index] == NULL)
-		{
-			abort();
-		}
-		for (int mode = 0; mode < MEMCARD_HIGH_SCORE_MODE_COUNT; mode++)
-		{
-			for (int entry = 0; entry < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; entry++)
-			{
-				tracks[index]->scoreEntry[mode][entry].time = MEMCARD_HIGH_SCORE_DEFAULT_TIME;
-			}
+			return &node->track;
 		}
 	}
-	return tracks[index];
+	size_t identitySize = strlen(metadata->identity) + 1;
+	struct CustomHighScoreNode *node = calloc(1, sizeof(*node) + identitySize);
+	if (node == NULL)
+	{
+		abort();
+	}
+	memcpy(node->identity, metadata->identity, identitySize);
+	for (int mode = 0; mode < MEMCARD_HIGH_SCORE_MODE_COUNT; mode++)
+	{
+		for (int entry = 0; entry < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; entry++)
+		{
+			node->track.scoreEntry[mode][entry].time = MEMCARD_HIGH_SCORE_DEFAULT_TIME;
+		}
+	}
+	node->next = tracks;
+	tracks = node;
+	return &node->track;
 }
 
 void GAMEPROG_AdvPercent(struct AdvProgress *adv)
