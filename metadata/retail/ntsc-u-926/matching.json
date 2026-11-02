@@ -4418,6 +4418,32 @@
       "linked_block": {}
     },
     {
+      "name": "push-buffer-frustum",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "PushBuffer_SetMatrixVP",
+      "end_symbol": "PushBuffer_FadeOneWindow",
+      "symbol_prefix": "PushBuffer_",
+      "sources": [
+        "game/PushBuffer/PushBuffer_SetMatrixVP.c",
+        "game/PushBuffer/PushBuffer_SetFrustumPlane.c",
+        "game/PushBuffer/PushBuffer_UpdateFrustum.c"
+      ],
+      "source_flags": {
+        "game/PushBuffer/PushBuffer_SetMatrixVP.c": [
+          "-fempty-asm-coalesce", "-fsched-first-safe-pre-reload",
+          "-ffixed-t1", "-fsched-zero-empty-issue-after-reload"
+        ]
+      },
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
       "name": "push-buffer-fades",
       "kind": "resident",
       "artifact": "exe",

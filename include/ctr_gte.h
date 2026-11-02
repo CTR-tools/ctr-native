@@ -163,6 +163,20 @@ static inline s32 CTR_GteReadMAC1(void)
 }
 
 #ifdef CTR_NATIVE
+#define CTR_GteReadMAC123(x, y, z) \
+	do                             \
+	{                              \
+		(x) = MFC2_S(25);          \
+		(y) = MFC2_S(26);          \
+		(z) = MFC2_S(27);          \
+	} while (0)
+#else
+// NOTE(aalhendi): Capture all three MAC values before CPU scaling can reuse
+// their registers; unlike IR reads, these retain the full signed components.
+#define CTR_GteReadMAC123(x, y, z) __asm__ volatile("mfc2 %0,$25\n\tmfc2 %1,$26\n\tmfc2 %2,$27" : "=r"(x), "=r"(y), "=r"(z))
+#endif
+
+#ifdef CTR_NATIVE
 #define CTR_GteLoadLightMatrix(matrix) gte_SetLightMatrix(matrix)
 #else
 // NOTE(aalhendi): Preserve retail's paired loads and scratch-register

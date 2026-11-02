@@ -637,6 +637,7 @@ s32 PushBuffer_GetFrustumSavedCameraZ(void);
 #endif
 void PushBuffer_SetPsyqGeom(struct PushBuffer *pb);
 void PushBuffer_SetMatrixVP(struct PushBuffer *pb);
+s32 PushBuffer_SetFrustumPlane(struct PushBufferFrustumPlane *frustumPlane, struct FrustumCornerOUT *fc1, const SVec3 *camPos, struct FrustumCornerOUT *fc2);
 
 void PushBuffer_SetDrawEnv_DecalMP(void *ot, struct DB *backBuffer, RECT *viewport, s16 offsetX, s16 offsetY, u8 r0, u8 g0, u8 b0, s32 dtd, s32 isbg);
 void PushBuffer_SetDrawEnv_Normal(void *ot, struct PushBuffer *pb, struct DB *backBuffer, s16 *copyDrawEnvNULL, int isbg);

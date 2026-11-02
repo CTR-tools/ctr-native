@@ -37,17 +37,22 @@ CTR_STATIC_ASSERT(offsetof(struct ScratchpadFrustum, fc) == 0x0c);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadFrustum, camPos) == 0x24);
 CTR_STATIC_ASSERT(offsetof(struct ScratchpadFrustum, camPos) + sizeof(SVec3) == 0x2a);
 
-struct PushBufferSetMatrixVPScratch
+struct PushBufferMatrixVPWork
 {
-	u8 reserved0[0x3d4];
-
 	MATRIX cameraMatrix;
 	SVec3 rot;
 	u8 reserved1[0x6];
 };
 
-CTR_STATIC_ASSERT(offsetof(struct PushBufferSetMatrixVPScratch, cameraMatrix) == 0x3d4);
-CTR_STATIC_ASSERT(offsetof(struct PushBufferSetMatrixVPScratch, rot) == 0x3f4);
+struct PushBufferSetMatrixVPScratch
+{
+	u8 reserved0[0x3d4];
+	struct PushBufferMatrixVPWork matrixVP;
+};
+
+CTR_STATIC_ASSERT(sizeof(struct PushBufferMatrixVPWork) == 0x2c);
+CTR_STATIC_ASSERT(offsetof(struct PushBufferSetMatrixVPScratch, matrixVP) + offsetof(struct PushBufferMatrixVPWork, cameraMatrix) == 0x3d4);
+CTR_STATIC_ASSERT(offsetof(struct PushBufferSetMatrixVPScratch, matrixVP) + offsetof(struct PushBufferMatrixVPWork, rot) == 0x3f4);
 CTR_STATIC_ASSERT(sizeof(struct PushBufferSetMatrixVPScratch) == CTR_SCRATCHPAD_SIZE);
 
 // Let the compiler figure it out,
