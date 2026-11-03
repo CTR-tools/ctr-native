@@ -54,6 +54,7 @@
 #include "platform/native_track_patch.c"
 #include "platform/native_track_records.c"
 #include "platform/native_track_preview.c"
+#include "platform/native_track_map.c"
 CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_chaos_ipc.c"
 #include "platform/native_audio.c"

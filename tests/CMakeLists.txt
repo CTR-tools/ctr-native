@@ -94,6 +94,10 @@ ctr_add_test_suite(test_track_validate
     SOURCES test_track_validate.c
 )
 
+ctr_add_test_suite(test_track_map
+    SOURCES test_track_map.c
+)
+
 ctr_add_test_suite(test_cycle_tex
     SOURCES test_cycle_tex.c
 )

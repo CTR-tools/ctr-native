@@ -264,6 +264,13 @@ void SetDrawMove(DR_MOVE *p, RECT16 *rect, int x, int y)
 	setlen(p, len);
 }
 
+void SetPsyXTexture(DR_PSYX_TEX *p, u32 texture, int width, int height)
+{
+	p->code[0] = 0xb1000000 | (texture & 0xffffff);
+	p->code[1] = ((u32)width & 0xfff) | (((u32)height & 0xfff) << 16);
+	setlen(p, 2);
+}
+
 uint32_t DrawSyncCallback(void (*func)(void))
 {
 	uint32_t old = (uint32_t)(uintptr_t)drawsync_callback;

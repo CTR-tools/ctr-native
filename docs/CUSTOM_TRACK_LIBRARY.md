@@ -18,6 +18,9 @@ from loading. The image is decoded only when the track is selected; files are
 limited to 4 MiB and dimensions to 4096 by 4096 pixels. It is scaled to the
 selector's preview rectangle preserving its aspect ratio, with black borders
 where needed.
+The Time Trial selector also extracts a minimap from the selected
+track's LEV icons and VRM textures when both map halves are available. This is
+independent of `preview.jpg`; missing or unsupported map data hides the map.
 A Project Saphi importer can use the track's
 `track_thumbnail` download and save it under this name.
 

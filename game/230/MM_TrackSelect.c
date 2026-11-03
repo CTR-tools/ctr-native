@@ -1,6 +1,8 @@
 #include <common.h>
 #include <platform/native_track_library.h>
 #include <platform/native_track_preview.h>
+#include <platform/native_track_map.h>
+#include <platform/native_renderer.h>
 #include <stdlib.h>
 
 enum TrackSelectVideoState
@@ -88,6 +90,62 @@ static u32 s_titleScrollStartFrame;
 static int s_previewTrackID = -1;
 static int s_previewLoaded;
 static int s_previewAspectFactor;
+static struct NativeTrackMap s_customMap;
+static struct Icon s_customMapIcons[2];
+static int s_customMapTrackID = -1;
+static int s_customMapLoaded;
+static u32 s_customMapTexture;
+
+static int MM_TrackSelect_CustomMap(int levelID)
+{
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID) == NULL) { return 0; }
+	if (s_customMapTrackID != levelID)
+	{
+		s_customMapTrackID = levelID;
+		s_customMapLoaded = NativeTrackMap_Load(&s_customMap, levelID);
+		if (s_customMapLoaded)
+		{
+			s_customMapTexture = NativeRenderer_UploadTrackMap(s_customMap.pixels);
+			s_customMapLoaded = s_customMapTexture != 0;
+			memset(s_customMapIcons, 0, sizeof(s_customMapIcons));
+			for (int i = 0; i < 2; i++)
+			{
+				struct TextureLayout *layout = &s_customMapIcons[i].texLayout;
+				layout->u1 = layout->u3 = (u8)s_customMap.width;
+				layout->v0 = layout->v1 = i == 0 ? 0 : (u8)s_customMap.topHeight;
+				layout->v2 = layout->v3 = (u8)(i == 0 ? s_customMap.topHeight : s_customMap.height);
+				layout->tpage = 0x100;
+			}
+		}
+	}
+	return s_customMapLoaded;
+}
+
+static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
+{
+	struct GameTracker *gGT = GAME_TRACKER;
+	struct PrimMem *memory = &gGT->backBuffer->primMem;
+	size_t needed = 2 * sizeof(DR_PSYX_TEX) + MM_TRACK_SELECT_MAP_LAYER_COUNT * 2 * sizeof(POLY_FT4);
+	if ((uintptr_t)memory->cursor > (uintptr_t)memory->guardEnd ||
+	    (uintptr_t)memory->guardEnd - (uintptr_t)memory->cursor < needed) { return; }
+	/* OT insertion prepends: the reset is emitted after the map is drawn. */
+	DR_PSYX_TEX *reset = memory->cursor;
+	SetPsyXTexture(reset, 0, 0, 0);
+	AddPrim(gGT->pushBuffer_UI.ptrOT, reset);
+	memory->cursor = reset + 1;
+	for (int i = 0; i < MM_TRACK_SELECT_MAP_LAYER_COUNT; i++)
+	{
+		struct TrackSelectMapOffset *offset = &MM_TRACK_DRAW_MAP_OFFSET[i];
+		UI_Map_DrawMap(&s_customMapIcons[0], &s_customMapIcons[1],
+		               centerX + s_customMap.width / 2 + offset->offsetX,
+		               centerY + s_customMap.height / 2 + offset->offsetY,
+		               &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, offset->type);
+	}
+	DR_PSYX_TEX *bind = memory->cursor;
+	SetPsyXTexture(bind, s_customMapTexture, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE);
+	AddPrim(gGT->pushBuffer_UI.ptrOT, bind);
+	memory->cursor = bind + 1;
+}
 
 static void MM_TrackSelect_BuildTimeTrialTracks(void)
 {
@@ -338,6 +396,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 		return;
 	}
 	s_previewTrackID = -1;
+	s_customMapTrackID = -1;
 	bigfileHeader = MM_BIGFILE_HEADER;
 	bigfileEntries = BIG_GETENTRY(bigfileHeader);
 	selectedMenu = (struct MainMenu_LevelRow *)((u32)(trackIndex * sizeof(*selectedMenu)) + (u32)selectMenu);
@@ -456,6 +515,7 @@ void MM_TrackSelect_Init(void)
 
 	s_titleScrollSelectedRow = -1;
 	s_previewTrackID = -1;
+	s_customMapTrackID = -1;
 	MM_TrackSelect_BuildTimeTrialTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
@@ -1174,6 +1234,7 @@ trackSelectionMenuDone:
 				register s32 previewX CTR_PSX_REGISTER("$3");
 				register s32 previewY CTR_PSX_REGISTER("$2");
 				RECT16 previewRect;
+				int customMap = MM_TrackSelect_CustomMap(selectMenu[menuLocal->rowSelected].levID);
 				previewRect.w = MM_TRACK_VIDEO_WIDTH;
 				previewRect.h = MM_TRACK_VIDEO_HEIGHT;
 				previewX = MM_TRACK_TRANSITIONS[1].currX;
@@ -1185,7 +1246,7 @@ trackSelectionMenuDone:
 					register struct RectMenu *previewMenu CTR_PSX_REGISTER("$12");
 					previewMenu = menuLocal;
 					CTR_PSX_KEEP_VALUE(previewMenu);
-					if ((-1) < selectMenu[previewMenu->rowSelected].mapTextureID)
+					if (customMap || (-1) < selectMenu[previewMenu->rowSelected].mapTextureID)
 					{
 						previewRect.y = MM_TRACK_PREVIEW_Y + MM_TRACK_SELECT_PREVIEW_Y_WITH_MAP;
 					}
@@ -1206,6 +1267,13 @@ trackSelectionMenuDone:
 						                   JUSTIFY_CENTER | ORANGE);
 					}
 					previewRect.y += MM_TRACK_SELECT_TITLE_TO_MAP_Y;
+					if (customMap && CTR_PSX_PAGE_LVALUE(s16, previewLapPage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0)
+					{
+						int mapX = previewRect.x + MM_TRACK_TRANSITIONS[2].currX - MM_TRACK_TRANSITIONS[1].currX;
+						int mapY = previewRect.y + MM_TRACK_TRANSITIONS[2].currY - MM_TRACK_TRANSITIONS[1].currY;
+						MM_TrackSelect_DrawCustomMap(mapX + previewRect.w / 2,
+						                             mapY + MM_TRACK_SELECT_MAP_CENTER_Y_OFFSET + MM_TRACK_SELECT_MAP_BOX_H / 2);
+					}
 					{
 						register struct RectMenu *mapCheckMenu CTR_PSX_REGISTER("$13");
 						mapCheckMenu = menuLocal;

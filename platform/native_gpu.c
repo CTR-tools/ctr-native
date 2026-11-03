@@ -812,6 +812,7 @@ internal bool NativeGpu_RectOverlaps(int ax, int ay, int aw, int ah, int bx, int
 
 internal bool NativeGpu_TPageOverlapsActiveDrawPage(int tpage)
 {
+	if (s_gpu.overrideTexture != 0) { return false; }
 	const int pageX = (tpage & 0xf) << 6;
 	const int pageY = (tpage & 0x10) ? 0x100 : 0;
 	const int pageW = 0x100;
