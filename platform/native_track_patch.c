@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "native_track_patch_disc.c"
+#include "native_track_patch_audio.c"
 
 enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18 };
 enum PatchStage { PATCH_COPY, PATCH_APPLY, PATCH_EXTRACT, PATCH_COMPARE, PATCH_INSTALL, PATCH_CLEANUP };
@@ -15,6 +16,7 @@ struct TrackPatchJob
 	SDL_Thread *thread;
 	SDL_AtomicInt done, cancel, stage;
 	int succeeded;
+	int musicGenerated, musicSkipped;
 	char assets[PATCH_PATH_BYTES], patch[PATCH_PATH_BYTES], name[PATCH_NAME_BYTES];
 	char result[256];
 };
@@ -157,7 +159,7 @@ static const char *const s_patchTrackSlots[PATCH_TRACK_COUNT] = {
 	"ice1", "space", "coco1", "arena2", "secret1", "secret2"
 };
 
-static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count)
+static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
 {
 	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
 	if (!TrackPatch_Path(original, work, "original/levels/tracks") ||
@@ -194,6 +196,17 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		SDL_snprintf(name, sizeof(name), "%s-%s", job->name, s_patchTrackSlots[i]);
 		const char *error = NativeTrackImport_Directory(prepared, source, name);
 		if (error != NULL) { return error; }
+		if (music != NULL)
+		{
+			char directory[PATCH_PATH_BYTES], sca[PATCH_PATH_BYTES];
+			if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(sca, directory, "track.sca"))
+			{
+				return "Path is too long";
+			}
+			int level = music->available ? PatchMusic_Level(&music->originalExe, &music->exe, &music->menu, i) : -1;
+			if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
+			else { music->skipped++; }
+		}
 		(*count)++;
 	}
 	return *count != 0 ? NULL : "No modified single-player circuits found";
@@ -304,7 +317,12 @@ static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, i
 		return TrackPatch_Error(job, "CTR-tools bigtool failed");
 	}
 	SDL_SetAtomicInt(&job->stage, PATCH_COMPARE);
-	const char *error = TrackPatch_Collect(job, work, count);
+	struct PatchMusic music;
+	PatchMusic_Open(&music, copy, patched, &job->cancel);
+	const char *error = TrackPatch_Collect(job, work, count, &music);
+	job->musicGenerated = music.generated;
+	job->musicSkipped = music.skipped;
+	PatchMusic_Close(&music);
 	if (error != NULL) { return error; }
 	SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
 	return TrackPatch_InstallPrepared(job, prepared, library);
@@ -328,7 +346,12 @@ static int SDLCALL TrackPatch_Worker(void *userdata)
 	}
 	job->succeeded = error == NULL;
 	if (error != NULL) { SDL_strlcpy(job->result, error, sizeof(job->result)); }
-	else { SDL_snprintf(job->result, sizeof(job->result), "%d track%s imported", count, count == 1 ? "" : "s"); }
+	else if (job->musicSkipped != 0)
+	{
+		SDL_snprintf(job->result, sizeof(job->result), "%d track%s imported; %d music skipped", count,
+		             count == 1 ? "" : "s", job->musicSkipped);
+	}
+	else { SDL_snprintf(job->result, sizeof(job->result), "%d track%s imported with music", count, count == 1 ? "" : "s"); }
 	SDL_SetAtomicInt(&job->done, 1);
 	return 0;
 }

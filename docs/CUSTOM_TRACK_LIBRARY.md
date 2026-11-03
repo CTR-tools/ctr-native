@@ -85,19 +85,26 @@ The job runs in the background:
    A change in either file selects the complete patched pair. Unchanged tracks,
    relic/split-screen variants, arenas, hubs, overlays and executable patches
    are not imported.
-5. Validate all selected pairs with the shared local importer, then install
+5. Inspect the patched executable and, for supported TrackROM loaders, its menu
+   overlay to associate each circuit with its PS1 logical level. Read that
+   level's bank and sequence from `SOUNDS/KART.HWL` and package their ADPCM
+   samples and CSEQ as `track.sca`, without re-encoding.
+6. Validate all selected pairs with the shared local importer, then install
    them under `assets/tracks/<patch name>-<original slot>/`. A patch that changes
    several slots produces several entries, including distinct arcade/Time Trial
    variants when the patch stores those in different slots. Title and identity
    use the destination name; author and declared modes remain unknown.
-6. Remove the temporary ROMs, BIGFILE archives and extracted files. On a failed
+7. Remove the temporary ROMs, BIGFILE archives and extracted files. On a failed
    multi-track installation, newly published entries are rolled back; existing
    tracks are never overwritten. Cleanup errors are reported explicitly.
 
-This requires enough temporary disk space. Only circuit LEV/VRM
-data is transferred: custom PS1 code and HWL/XA music changes cannot be applied
-as native game code or SCA files by this importer. Imported tracks use the
-existing audio fallback.
+This requires enough temporary disk space. The music recognizer supports retail
+loading and the observed NTSC-U TrackROM loader patterns, not arbitrary PS1
+executable modifications. It rejects ambiguous associations, unsupported HWL
+data and incompatible shared sample IDs. The import reports how many tracks
+were imported without music; those tracks use the existing audio fallback.
+Runtime SPU capacity and character-bank compatibility are checked again when the
+track loads. XA audio and custom PS1 code are not imported.
 
 ### Local tool setup
 

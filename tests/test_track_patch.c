@@ -94,7 +94,7 @@ static void PatchTest_Collect(const char *root)
 		}
 	}
 	int count = 0;
-	const char *error = TrackPatch_Collect(&job, root, &count);
+	const char *error = TrackPatch_Collect(&job, root, &count, NULL);
 	if (error != NULL) { printf("Discovery error: %s\n", error); }
 	CTR_TEST_CHECK(error == NULL && count == 2, "geometry and texture changes are detected without importing the 16 untouched tracks");
 	char prepared[PATCH_PATH_BYTES];
@@ -117,7 +117,7 @@ static void PatchTest_Collect(const char *root)
 	               "a multi-circuit conflict preserves existing content and rolls back newly published tracks");
 	NativeTrackRegistry_Destroy(registry);
 	SDL_SetAtomicInt(&job.cancel, 1);
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count) != NULL, "cancellation stops circuit discovery");
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "cancellation stops circuit discovery");
 	SDL_SetAtomicInt(&job.cancel, 0);
 	TrackPatch_RemoveTree(prepared);
 	for (int i = 0; i < 2; i++)
@@ -129,12 +129,12 @@ static void PatchTest_Collect(const char *root)
 		TrackPatch_Path(patched, root, relative);
 		SDL_CopyFile(original, patched);
 	}
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count) != NULL && count == 0,
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL && count == 0,
 	               "an unchanged ROM never installs retail circuits as custom content");
 	char missing[PATCH_PATH_BYTES];
 	TrackPatch_Path(missing, root, "patched/levels/tracks/proto8/1P/data.vrm");
 	SDL_RemovePath(missing);
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count) != NULL, "an incomplete extracted pair is an error, not a guessed match");
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "an incomplete extracted pair is an error, not a guessed match");
 }
 
 static SDL_EnumerationResult SDLCALL PatchTest_NoTemporary(void *userdata, const char *directory, const char *name)
@@ -181,6 +181,141 @@ static void PatchTest_Process(void)
 	Uint64 start = SDL_GetTicks();
 	CTR_TEST_CHECK(!TrackPatch_Process(&job, wait) && SDL_GetTicks() - start < 3000,
 	               "cancelling kills and reaps a running tool before temporary cleanup");
+}
+
+static void PatchTest_Music(const char *root)
+{
+	CTR_TEST_SECTION("bounded patch music parsing");
+	unsigned char bytes[64] = {0};
+	struct PatchHowl howl = {.bytes = {bytes, sizeof(bytes)}};
+	CTR_TEST_CHECK(!PatchMusic_Howl(&howl), "unrecognized HWL headers are rejected");
+	memcpy(bytes, "HOWL", 4);
+	PatchTest_U32(bytes + 16, UINT32_MAX);
+	CTR_TEST_CHECK(!PatchMusic_Howl(&howl), "oversized HWL tables are rejected without overflow");
+	unsigned char code[256] = {0};
+	struct PatchMusicBytes menu = {code, sizeof(code)};
+	/* lui s2,0x8001; addiu v0,zero,3; sb v0,0xab4(s2). */
+	PatchTest_U32(code, UINT32_C(0x3c128001));
+	PatchTest_U32(code + 4, UINT32_C(0x24020003));
+	PatchTest_U32(code + 8, UINT32_C(0xa2420ab4));
+	CTR_TEST_CHECK(PatchMusic_ConfigLevel(&menu, UINT32_C(0x80010ab4)) == 3,
+	               "the menu's explicit configuration write supplies the runtime level");
+	PatchTest_U32(code + 12, UINT32_C(0x24020002));
+	PatchTest_U32(code + 16, UINT32_C(0xa2420ab4));
+	CTR_TEST_CHECK(PatchMusic_ConfigLevel(&menu, UINT32_C(0x80010ab4)) < 0,
+	               "conflicting runtime level writes are ambiguous rather than guessed");
+
+	size_t exeSize = PATCH_MUSIC_SONG_TABLE + 32;
+	unsigned char *retail = calloc(1, exeSize), *modified = calloc(1, exeSize);
+	if (retail == NULL || modified == NULL) { CtrTest_Bail("cannot allocate executable fixture"); }
+	memcpy(retail, "PS-X EXE", 8);
+	PatchTest_U32(retail + 24, UINT32_C(0x80010000));
+	PatchTest_U32(retail + 28, (uint32_t)exeSize - PATCH_MUSIC_EXE_HEADER);
+	memcpy(modified, retail, exeSize);
+	struct PatchMusicBytes originalExe = {retail, exeSize}, modifiedExe = {modified, exeSize};
+	CTR_TEST_CHECK(PatchMusic_Level(&originalExe, &modifiedExe, &menu, 3) == 3,
+	               "an unchanged retail loader uses the physical circuit level");
+	size_t branch = PATCH_MUSIC_LOADER_START + 64;
+	PatchTest_U32(modified + branch - 8, UINT32_C(0x8e041a10)); /* lw a0,levelID(s0) */
+	PatchTest_U32(modified + branch - 4, UINT32_C(0x2403000e)); /* addiu v1,zero,14 */
+	PatchTest_U32(modified + branch, UINT32_C(0x14830010)); /* bne a0,v1,after */
+	PatchTest_U32(modified + branch + 8, UINT32_C(0x24060018));
+	PatchTest_U32(modified + branch + 12, UINT32_C(0x24050003));
+	PatchTest_U32(modified + branch + 16, UINT32_C(0x0c00cb4c));
+	PatchTest_U32(modified + branch + 24, UINT32_C(0x24060019));
+	PatchTest_U32(modified + branch + 28, UINT32_C(0x24050002));
+	PatchTest_U32(modified + branch + 32, UINT32_C(0x0c00cb4c));
+	CTR_TEST_CHECK(PatchMusic_Level(&originalExe, &modifiedExe, &menu, 3) == 14,
+	               "an explicit TrackROM pair uses the compared logical level, not its storage slot");
+	modified[0x1deec + 2048] = 1;
+	CTR_TEST_CHECK(PatchMusic_Level(&originalExe, &modifiedExe, &menu, 3) < 0,
+	               "a modified audio lookup routine is not interpreted as the retail table");
+	free(retail);
+	free(modified);
+
+	unsigned char original[8192] = {0}, patched[8192] = {0}, exe[PATCH_MUSIC_SONG_TABLE + 18] = {0};
+	memcpy(original, "HOWL", 4);
+	PatchTest_U32(original + 16, 1);
+	PatchTest_U32(original + 28, 1);
+	PatchTest_U32(original + 32, 1);
+	original[42] = 2; /* sample size, in eight-byte units */
+	original[44] = 1; /* bank sector */
+	original[46] = 3; /* song sector */
+	original[2048] = 1; /* one sample, ID zero */
+	PatchTest_U32(original + 6144, 32);
+	original[6148] = 1; /* one melodic instrument */
+	original[6150] = 1; /* one song */
+	memcpy(patched, original, sizeof(original));
+	struct PatchMusic music = {.original.bytes = {original, sizeof(original)},
+	                           .patched.bytes = {patched, sizeof(patched)}, .exe = {exe, sizeof(exe)}};
+	char output[PATCH_PATH_BYTES];
+	TrackPatch_Path(output, root, "synthetic.sca");
+	CTR_TEST_CHECK(PatchMusic_Howl(&music.original) && PatchMusic_Howl(&music.patched),
+	               "bounded HWL tables can be parsed");
+	CTR_TEST_CHECK(PatchMusic_WriteSca(&music, 0, output), "a compatible bank and CSEQ produce an SCA");
+	FILE *file = fopen(output, "rb");
+	unsigned char sca[2200] = {0};
+	size_t n = file != NULL ? fread(sca, 1, sizeof(sca), file) : 0;
+	if (file != NULL) { fclose(file); }
+	CTR_TEST_CHECK(n == 2126 && memcmp(sca, "SCA\1BANK", 8) == 0 &&
+	               memcmp(sca + 2076, "CSEQ", 4) == 0 && memcmp(sca + 2116, "SIZE", 4) == 0,
+	               "SCA chunks contain the selected bank, sequence and sample sizes");
+	patched[6144 + 8 + 6] = 1;
+	CTR_TEST_CHECK(!PatchMusic_WriteSca(&music, 0, output), "an unavailable instrument sample is rejected");
+	patched[6144 + 8 + 6] = 0;
+	patched[2048 + PATCH_SCA_SECTOR] ^= 1;
+	CTR_TEST_CHECK(!PatchMusic_WriteSca(&music, 0, output), "changed shared samples are not silently replaced by retail audio");
+}
+
+/* Optional diagnostics: caller supplies images and an output in scratch space. */
+static int PatchTest_AudioLive(const char *base, const char *patched, const char *output, int slot)
+{
+	SDL_AtomicInt cancel = {0};
+	struct PatchMusic music;
+	PatchMusic_Open(&music, base, patched, &cancel);
+	int level = music.available ? PatchMusic_Level(&music.originalExe, &music.exe, &music.menu, slot) : -1;
+	int ok = level >= 0 && PatchMusic_WriteSca(&music, level, output);
+	printf("available=%d slot=%d level=%d generated=%d\n", music.available, slot, level, ok);
+	PatchMusic_Close(&music);
+	return ok ? 0 : 1;
+}
+
+static void PatchTest_ImportAudioLive(const char *root, const char *assets, const char *patch, const char *expected)
+{
+	CTR_TEST_SECTION("complete xdelta import with music");
+	char from[PATCH_PATH_BYTES], to[PATCH_PATH_BYTES], tools[PATCH_PATH_BYTES];
+	TrackPatch_Path(from, assets, "ctr-u.bin");
+	TrackPatch_Path(to, root, "ctr-u.bin");
+	if (!SDL_CopyFile(from, to)) { CtrTest_Bail("cannot copy test ROM"); }
+	TrackPatch_Path(tools, root, "tools");
+	SDL_CreateDirectory(tools);
+#if defined(_WIN32)
+	const char *names[] = {"xdelta3.exe", "bigtool.exe", "CTRFramework.dll", "NAudio.dll", "Newtonsoft.Json.dll"};
+#else
+	const char *names[] = {"xdelta3", "bigtool"};
+#endif
+	for (size_t i = 0; i < SDL_arraysize(names); i++)
+	{
+		char relative[128];
+		SDL_snprintf(relative, sizeof(relative), "tools/%s", names[i]);
+		TrackPatch_Path(from, assets, relative);
+		TrackPatch_Path(to, root, relative);
+		if (!SDL_CopyFile(from, to)) { CtrTest_Bail("cannot copy test tools"); }
+	}
+	CTR_TEST_CHECK(NativeTrackPatch_Start(root, patch), "the local patch starts");
+	int result;
+	do { result = NativeTrackPatch_Poll(); if (result == 0) { SDL_Delay(20); } } while (result == 0);
+	printf("%s\n", NativeTrackPatch_Message());
+	CTR_TEST_CHECK(result > 0 && s_trackPatchJob.musicGenerated == 1 && s_trackPatchJob.musicSkipped == 0,
+	               "the complete import generates a custom music file");
+	char relative[PATCH_NAME_BYTES + 40];
+	SDL_snprintf(relative, sizeof(relative), "tracks/%s-island1/track.sca", s_trackPatchJob.name);
+	TrackPatch_Path(to, root, relative);
+	CTR_TEST_CHECK(TrackPatch_Different(expected, to) == 0, "installed audio matches the verified SCA");
+	int clean = 1;
+	SDL_EnumerateDirectory(root, PatchTest_NoTemporary, &clean);
+	CTR_TEST_CHECK(clean, "temporary disc images and extracted files are removed");
+	NativeTrackPatch_Shutdown();
 }
 
 /* Swap the two retail 1P pairs by exchanging their BIGFILE extents. Only the
@@ -287,6 +422,10 @@ static void PatchTest_RetailLive(const char *root, const char *assets)
 
 int main(int argc, char **argv)
 {
+	if (argc == 6 && strcmp(argv[1], "--audio-live") == 0)
+	{
+		return PatchTest_AudioLive(argv[2], argv[3], argv[4], atoi(argv[5]));
+	}
 	if (argc == 3 && strcmp(argv[1], "--child") == 0)
 	{
 		return strcmp(argv[2], "path with spaces & symbols") == 0 ? 0 : 1;
@@ -300,7 +439,11 @@ int main(int argc, char **argv)
 	CtrTestScratch_Open(root, sizeof(root), "test-track-patch", NULL);
 	TrackPatch_RemoveTree(root);
 	SDL_CreateDirectory(root);
-	if (argc == 3 && strcmp(argv[1], "--retail-live") == 0)
+	if (argc == 5 && strcmp(argv[1], "--import-audio-live") == 0)
+	{
+		PatchTest_ImportAudioLive(root, argv[2], argv[3], argv[4]);
+	}
+	else if (argc == 3 && strcmp(argv[1], "--retail-live") == 0)
 	{
 		PatchTest_RetailLive(root, argv[2]);
 	}
@@ -310,6 +453,7 @@ int main(int argc, char **argv)
 		PatchTest_Collect(root);
 		PatchTest_Worker(root);
 		PatchTest_Process();
+		PatchTest_Music(root);
 	}
 	TrackPatch_RemoveTree(root);
 	CtrTestScratch_Remove("test-track-patch", NULL);
