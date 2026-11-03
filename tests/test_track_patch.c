@@ -94,11 +94,17 @@ static void PatchTest_Collect(const char *root)
 		}
 	}
 	int count = 0;
-	const char *error = TrackPatch_Collect(&job, root, &count, NULL);
+	unsigned char credits[] = "created by Example Author";
+	struct PatchMusic music = {.menu = {credits, sizeof(credits)}};
+	const char *error = TrackPatch_Collect(&job, root, &count, &music);
 	if (error != NULL) { printf("Discovery error: %s\n", error); }
 	CTR_TEST_CHECK(error == NULL && count == 2, "geometry and texture changes are detected without importing the 16 untouched tracks");
 	char prepared[PATCH_PATH_BYTES];
 	TrackPatch_Path(prepared, root, "prepared");
+	char manifest[PATCH_PATH_BYTES];
+	TrackPatch_Path(manifest, prepared, "Example-proto8/track.ini");
+	SDL_PathInfo manifestInfo;
+	CTR_TEST_CHECK(!SDL_GetPathInfo(manifest, &manifestInfo), "global credits are not attributed to multiple imported circuits");
 	struct NativeTrackScanResult scan;
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(prepared, &scan);
 	CTR_TEST_CHECK(registry != NULL && scan.installed == 2 && scan.rejected == 0,
@@ -135,6 +141,49 @@ static void PatchTest_Collect(const char *root)
 	TrackPatch_Path(missing, root, "patched/levels/tracks/proto8/1P/data.vrm");
 	SDL_RemovePath(missing);
 	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "an incomplete extracted pair is an error, not a guessed match");
+}
+
+static void PatchTest_Author(const char *root)
+{
+	CTR_TEST_SECTION("optional author from patch credits");
+	char author[PATCH_AUTHOR_BYTES] = {0};
+	const unsigned char absent[] = "unrelated text";
+	CTR_TEST_CHECK(TrackPatch_FindAuthor(absent, sizeof(absent), author) && author[0] == 0,
+	               "missing credits leave the author unset");
+	const unsigned char embedded[] = "not created by Someone";
+	CTR_TEST_CHECK(TrackPatch_FindAuthor(embedded, sizeof(embedded), author) && author[0] == 0,
+	               "a substring inside another string is not treated as a credit");
+	const unsigned char credit[] = "CREATED BY:  Example Author  ";
+	CTR_TEST_CHECK(TrackPatch_FindAuthor(credit, sizeof(credit), author) && strcmp(author, "Example Author") == 0,
+	               "a complete credit provides the author without surrounding spaces");
+	const unsigned char same[] = "created by example author";
+	CTR_TEST_CHECK(TrackPatch_FindAuthor(same, sizeof(same), author), "matching duplicate credits are unambiguous");
+	const unsigned char different[] = "created by Someone Else";
+	CTR_TEST_CHECK(!TrackPatch_FindAuthor(different, sizeof(different), author), "conflicting credits are not attributed");
+	char directory[PATCH_PATH_BYTES], manifest[PATCH_PATH_BYTES];
+	TrackPatch_Path(directory, root, "author-track");
+	SDL_CreateDirectory(directory);
+	char levPath[PATCH_PATH_BYTES];
+	TrackPatch_Path(levPath, directory, "track.lev");
+	PatchTest_Write(levPath, "LEV", 3);
+	TrackPatch_Path(manifest, directory, "track.ini");
+	struct PatchMusic noCredit = {.menu = {(unsigned char *)absent, sizeof(absent)}};
+	SDL_PathInfo info;
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &noCredit) == NULL && !SDL_GetPathInfo(manifest, &info),
+	               "an absent credit does not create a manifest or set an author");
+	struct PatchMusic music = {.menu = {(unsigned char *)credit, sizeof(credit)}};
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "a valid credit can be saved in track metadata");
+	size_t size = 0;
+	char *content = SDL_LoadFile(manifest, &size);
+	CTR_TEST_CHECK(content != NULL && strcmp(content, "author = Example Author\n") == 0,
+	               "the generated manifest contains only the detected author");
+	SDL_free(content);
+	PatchTest_Write(manifest, "author = Existing\n", strlen("author = Existing\n"));
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "existing metadata is preserved");
+	content = SDL_LoadFile(manifest, &size);
+	CTR_TEST_CHECK(content != NULL && strcmp(content, "author = Existing\n") == 0,
+	               "a pre-existing author is not overwritten");
+	SDL_free(content);
 }
 
 static SDL_EnumerationResult SDLCALL PatchTest_NoTemporary(void *userdata, const char *directory, const char *name)
@@ -280,7 +329,7 @@ static int PatchTest_AudioLive(const char *base, const char *patched, const char
 	return ok ? 0 : 1;
 }
 
-static void PatchTest_ImportAudioLive(const char *root, const char *assets, const char *patch, const char *expected)
+static void PatchTest_ImportAudioLive(const char *root, const char *assets, const char *patch, const char *expected, const char *expectedAuthor)
 {
 	CTR_TEST_SECTION("complete xdelta import with music");
 	char from[PATCH_PATH_BYTES], to[PATCH_PATH_BYTES], tools[PATCH_PATH_BYTES];
@@ -312,6 +361,16 @@ static void PatchTest_ImportAudioLive(const char *root, const char *assets, cons
 	SDL_snprintf(relative, sizeof(relative), "tracks/%s-island1/track.sca", s_trackPatchJob.name);
 	TrackPatch_Path(to, root, relative);
 	CTR_TEST_CHECK(TrackPatch_Different(expected, to) == 0, "installed audio matches the verified SCA");
+	if (expectedAuthor != NULL)
+	{
+		TrackPatch_Path(to, root, "tracks");
+		struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(to, NULL);
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+		int hasAuthor = track != NULL && track->author != NULL && track->author[0] != '\0';
+		CTR_TEST_CHECK(strcmp(expectedAuthor, "-") == 0 ? !hasAuthor : hasAuthor && strcmp(track->author, expectedAuthor) == 0,
+		               "installed metadata contains exactly the expected optional author");
+		NativeTrackRegistry_Destroy(registry);
+	}
 	int clean = 1;
 	SDL_EnumerateDirectory(root, PatchTest_NoTemporary, &clean);
 	CTR_TEST_CHECK(clean, "temporary disc images and extracted files are removed");
@@ -439,9 +498,9 @@ int main(int argc, char **argv)
 	CtrTestScratch_Open(root, sizeof(root), "test-track-patch", NULL);
 	TrackPatch_RemoveTree(root);
 	SDL_CreateDirectory(root);
-	if (argc == 5 && strcmp(argv[1], "--import-audio-live") == 0)
+	if ((argc == 5 || argc == 6) && strcmp(argv[1], "--import-audio-live") == 0)
 	{
-		PatchTest_ImportAudioLive(root, argv[2], argv[3], argv[4]);
+		PatchTest_ImportAudioLive(root, argv[2], argv[3], argv[4], argc == 6 ? argv[5] : NULL);
 	}
 	else if (argc == 3 && strcmp(argv[1], "--retail-live") == 0)
 	{
@@ -451,6 +510,7 @@ int main(int argc, char **argv)
 	{
 		PatchTest_Disc(root);
 		PatchTest_Collect(root);
+		PatchTest_Author(root);
 		PatchTest_Worker(root);
 		PatchTest_Process();
 		PatchTest_Music(root);

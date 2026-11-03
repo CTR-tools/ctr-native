@@ -96,7 +96,12 @@ The job runs in the background:
    them under `assets/tracks/<patch name>-<original slot>/`. A patch that changes
    several slots produces several entries, including distinct arcade/Time Trial
    variants when the patch stores those in different slots. Title and identity
-   use the destination name; author and declared modes remain unknown.
+    use the destination name. When exactly one circuit was modified, the
+    importer looks for an unambiguous NUL-terminated `created by` credit in the
+    patched menu overlay, executable and circuit LEV, and records it as the
+    author. Missing, invalid or conflicting credits leave the author unknown;
+    multi-circuit patches do not inherit a global credit. Declared modes remain
+    unknown.
 7. Remove the temporary ROMs, BIGFILE archives and extracted files. On a failed
    multi-track installation, newly published entries are rolled back; existing
    tracks are never overwritten. Cleanup errors are reported explicitly.

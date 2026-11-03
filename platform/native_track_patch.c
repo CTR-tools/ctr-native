@@ -9,6 +9,7 @@
 #include "native_track_patch_audio.c"
 
 enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18 };
+enum { PATCH_AUTHOR_BYTES = 256, PATCH_AUTHOR_FILE_LIMIT = 16 * 1024 * 1024 };
 enum PatchStage { PATCH_COPY, PATCH_APPLY, PATCH_EXTRACT, PATCH_COMPARE, PATCH_INSTALL, PATCH_CLEANUP };
 
 struct TrackPatchJob
@@ -159,6 +160,69 @@ static const char *const s_patchTrackSlots[PATCH_TRACK_COUNT] = {
 	"ice1", "space", "coco1", "arena2", "secret1", "secret2"
 };
 
+/* Menu credits are free-form strings, not structured track metadata. Only
+ * accept a complete NUL-terminated credit and refuse conflicting names. */
+static int TrackPatch_FindAuthor(const unsigned char *data, size_t size, char author[PATCH_AUTHOR_BYTES])
+{
+	static const char prefix[] = "created by";
+	if (data == NULL) { return 1; }
+	for (size_t at = 0; at + sizeof(prefix) < size; at++)
+	{
+		if ((at != 0 && data[at - 1] != 0) || SDL_strncasecmp((const char *)data + at, prefix, sizeof(prefix) - 1) != 0)
+		{
+			continue;
+		}
+		size_t start = at + sizeof(prefix) - 1;
+		if (data[start] == ':') { start++; }
+		if (start >= size || data[start] != ' ') { continue; }
+		while (start < size && data[start] == ' ') { start++; }
+		size_t end = start;
+		while (end < size && data[end] >= 32 && data[end] <= 126) { end++; }
+		if (end >= size || data[end] != 0) { continue; }
+		while (end > start && data[end - 1] == ' ') { end--; }
+		size_t length = end - start;
+		if (length == 0 || length >= PATCH_AUTHOR_BYTES) { continue; }
+		char value[PATCH_AUTHOR_BYTES];
+		memcpy(value, data + start, length);
+		value[length] = '\0';
+		if (author[0] != '\0' && SDL_strcasecmp(author, value) != 0) { return 0; }
+		SDL_strlcpy(author, value, PATCH_AUTHOR_BYTES);
+	}
+	return 1;
+}
+
+static int TrackPatch_ReadAuthorFile(const char *path, char author[PATCH_AUTHOR_BYTES])
+{
+	SDL_PathInfo info;
+	if (!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE || info.size > PATCH_AUTHOR_FILE_LIMIT) { return 0; }
+	size_t size = 0;
+	unsigned char *bytes = SDL_LoadFile(path, &size);
+	if (bytes == NULL) { return 0; }
+	int ok = TrackPatch_FindAuthor(bytes, size, author);
+	SDL_free(bytes);
+	return ok;
+}
+
+static const char *TrackPatch_WriteAuthor(const char *prepared, const char *name, const struct PatchMusic *music)
+{
+	char author[PATCH_AUTHOR_BYTES] = {0};
+	char directory[PATCH_PATH_BYTES], path[PATCH_PATH_BYTES];
+	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(path, directory, "track.lev")) { return "Path is too long"; }
+	if (!TrackPatch_FindAuthor(music->menu.data, music->menu.size, author) ||
+	    !TrackPatch_FindAuthor(music->exe.data, music->exe.size, author) || !TrackPatch_ReadAuthorFile(path, author) || author[0] == '\0')
+	{
+		return NULL;
+	}
+	if (!TrackPatch_Path(path, directory, "track.ini")) { return "Path is too long"; }
+	SDL_PathInfo existing;
+	if (SDL_GetPathInfo(path, &existing)) { return NULL; }
+	FILE *file = fopen(path, "wb");
+	if (file == NULL) { return "Cannot write track metadata"; }
+	int ok = fprintf(file, "author = %s\n", author) > 0;
+	if (fclose(file) != 0) { ok = 0; }
+	return ok ? NULL : "Cannot write track metadata";
+}
+
 static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
 {
 	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
@@ -169,6 +233,7 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		return "Path is too long";
 	}
 	*count = 0;
+	char singleName[PATCH_NAME_BYTES] = {0};
 	for (int i = 0; i < PATCH_TRACK_COUNT; i++)
 	{
 		if (SDL_GetAtomicInt(&job->cancel)) { return "Import cancelled"; }
@@ -194,6 +259,7 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		SDL_snprintf(relative, sizeof(relative), "%s/1P", s_patchTrackSlots[i]);
 		if (!TrackPatch_Path(source, patched, relative)) { return "Path is too long"; }
 		SDL_snprintf(name, sizeof(name), "%s-%s", job->name, s_patchTrackSlots[i]);
+		SDL_strlcpy(singleName, name, sizeof(singleName));
 		const char *error = NativeTrackImport_Directory(prepared, source, name);
 		if (error != NULL) { return error; }
 		if (music != NULL)
@@ -209,7 +275,9 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		}
 		(*count)++;
 	}
-	return *count != 0 ? NULL : "No modified single-player circuits found";
+	if (*count == 0) { return "No modified single-player circuits found"; }
+	/* A global menu credit cannot be attributed to one of several circuits. */
+	return *count == 1 && music != NULL ? TrackPatch_WriteAuthor(prepared, singleName, music) : NULL;
 }
 
 struct TrackPatchPublish
