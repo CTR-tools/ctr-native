@@ -333,7 +333,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		{
 			if (Config_IsSection(menu->rowSelected, CONFIG_SECTION_CUSTOM_TRACKS))
 			{
-				MM_CustomTracks_Open(menu);
+				MM_CustomTracks_Open(menu, s_configSession.context == CONFIG_MENU_MAIN);
 				Config_ClearInput();
 				return;
 			}

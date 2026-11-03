@@ -4,6 +4,18 @@ This project vendors third-party software and contains modified third-party
 derivatives. Keep this file with source and binary distributions of CTR Native
 Expanded.
 
+## Optional local track import tools
+
+The xdelta importer invokes separate, unmodified executables; these are not
+linked into CTR Native Expanded. `scripts/setup-track-tools.ps1` installs the
+Windows releases and saves their license texts alongside them in `assets/tools/`.
+
+- **xdelta3 3.2.2**, Jonathan MacDonald and contributors, Apache-2.0:
+  <https://github.com/jmacd/xdelta/tree/v3.2.2>.
+- **CTR-tools r14**, DCxDemo and contributors, GPL-2.0:
+  <https://github.com/CTR-tools/CTR-tools/tree/r14>. The importer uses `bigtool`
+  with the DLLs supplied by that release and its NTSC-U circuit filename map.
+
 ## PsyCross / Psy-X
 
 Source: <https://github.com/OpenDriver2/PsyCross>

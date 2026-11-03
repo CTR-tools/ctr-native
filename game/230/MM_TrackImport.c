@@ -3,15 +3,18 @@
 #include <platform/native_folder_dialog.h>
 #include <platform/native_track_import.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_patch.h>
 #include <stdio.h>
 
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
-enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_RESULT };
+enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_RESULT };
 static enum TrackImportState s_trackImportState;
 static const char *s_trackImportMessage;
+static bool s_trackImportIsPatch;
 
 void MM_TrackImport_Open(void)
 {
+	s_trackImportIsPatch = false;
 	if (NativeFolderDialog_Open())
 	{
 		s_trackImportState = TRACK_IMPORT_CHOOSING;
@@ -20,6 +23,20 @@ void MM_TrackImport_Open(void)
 	{
 		s_trackImportState = TRACK_IMPORT_RESULT;
 		s_trackImportMessage = "Cannot open folder dialog";
+	}
+}
+
+void MM_TrackImport_OpenPatch(void)
+{
+	s_trackImportIsPatch = true;
+	if (NativeFileDialog_OpenPatch())
+	{
+		s_trackImportState = TRACK_IMPORT_CHOOSING;
+	}
+	else
+	{
+		s_trackImportState = TRACK_IMPORT_RESULT;
+		s_trackImportMessage = "Cannot open patch dialog";
 	}
 }
 
@@ -68,7 +85,22 @@ int MM_TrackImport_Update(u32 buttons)
 		enum NativeFolderDialogResult result = NativeFolderDialog_Result();
 		if (result == NATIVE_FOLDER_DIALOG_SELECTED)
 		{
-			MM_TrackImport_Install(NativeFolderDialog_Path());
+			if (s_trackImportIsPatch)
+			{
+				if (NativeTrackPatch_Start(NativeAssets_GetAssetDir(), NativeFolderDialog_Path()))
+				{
+					s_trackImportState = TRACK_IMPORT_PATCHING;
+				}
+				else
+				{
+					s_trackImportState = TRACK_IMPORT_RESULT;
+					s_trackImportMessage = "Cannot start xdelta import";
+				}
+			}
+			else
+			{
+				MM_TrackImport_Install(NativeFolderDialog_Path());
+			}
 		}
 		else if (result == NATIVE_FOLDER_DIALOG_CANCELLED)
 		{
@@ -81,6 +113,28 @@ int MM_TrackImport_Update(u32 buttons)
 			s_trackImportMessage = "Folder dialog failed";
 		}
 	}
+	else if (s_trackImportState == TRACK_IMPORT_PATCHING)
+	{
+		if ((buttons & (BTN_TRIANGLE | BTN_START)) != 0)
+		{
+			NativeTrackPatch_Cancel();
+		}
+		int result = NativeTrackPatch_Poll();
+		if (result != 0)
+		{
+			s_trackImportMessage = NativeTrackPatch_Message();
+			if (result > 0)
+			{
+				char library[TRACK_IMPORT_PATH_BYTES];
+				int n = snprintf(library, sizeof(library), "%s/tracks", NativeAssets_GetAssetDir());
+				if (n < 0 || (size_t)n >= sizeof(library) || !NativeTrackLibrary_Refresh(library, NULL))
+				{
+					s_trackImportMessage = "Imported - restart game";
+				}
+			}
+			s_trackImportState = TRACK_IMPORT_RESULT;
+		}
+	}
 	else if ((buttons & (BTN_CROSS | BTN_CIRCLE | BTN_TRIANGLE | BTN_START)) != 0)
 	{
 		OtherFX_Play((buttons & (BTN_TRIANGLE | BTN_START)) != 0 ? 2 : 1, 1);
@@ -91,6 +145,7 @@ int MM_TrackImport_Update(u32 buttons)
 
 const char *MM_TrackImport_Message(void)
 {
-	return s_trackImportState == TRACK_IMPORT_CHOOSING ? "Choose a track folder" :
+	return s_trackImportState == TRACK_IMPORT_CHOOSING ? (s_trackImportIsPatch ? "Choose an xdelta patch" : "Choose a track folder") :
+	       s_trackImportState == TRACK_IMPORT_PATCHING ? NativeTrackPatch_Message() :
 	       s_trackImportState == TRACK_IMPORT_RESULT ? s_trackImportMessage : "";
 }

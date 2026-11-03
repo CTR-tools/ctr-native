@@ -9,6 +9,7 @@ enum CustomTracksPage
 	CUSTOM_TRACKS_CLOSED,
 	CUSTOM_TRACKS_ROOT,
 	CUSTOM_TRACKS_AVAILABLE,
+	CUSTOM_TRACKS_IMPORT,
 };
 
 enum
@@ -23,6 +24,7 @@ enum
 static enum CustomTracksPage s_customTracksPage;
 static struct FullScreenMenu_Scroll s_customTracksScroll;
 static s16 s_customTracksReturnRow;
+static b32 s_customTracksImportEnabled;
 
 void MM_CustomTracks_ResetNavigation(void)
 {
@@ -30,12 +32,21 @@ void MM_CustomTracks_ResetNavigation(void)
 	s_customTracksScroll.offset = 0;
 }
 
-void MM_CustomTracks_Open(struct RectMenu *menu)
+void MM_CustomTracks_Open(struct RectMenu *menu, b32 allowImport)
 {
+	s_customTracksImportEnabled = allowImport;
 	s_customTracksReturnRow = menu->rowSelected;
 	s_customTracksPage = CUSTOM_TRACKS_ROOT;
 	s_customTracksScroll.offset = 0;
 	menu->rowSelected = 0;
+}
+
+static void CustomTracks_DrawMenuRow(const void *context, int row, int y, bool selected, uint32_t *ot)
+{
+	const char *const *labels = context;
+	(void)selected;
+	const int color = s_customTracksPage == CUSTOM_TRACKS_ROOT && row == 1 && !s_customTracksImportEnabled ? GRAY : ORANGE;
+	DecalFont_DrawLineOT((char *)labels[row], FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, color, ot);
 }
 
 // Metadata is free-form UTF-8; the retail font also reserves ASCII glyphs for buttons.
@@ -144,10 +155,10 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 	}
 	if (FullScreenMenu_Back((u32)pad->buttonsTapped))
 	{
-		if (s_customTracksPage == CUSTOM_TRACKS_AVAILABLE)
+		if (s_customTracksPage == CUSTOM_TRACKS_AVAILABLE || s_customTracksPage == CUSTOM_TRACKS_IMPORT)
 		{
+			menu->rowSelected = s_customTracksPage == CUSTOM_TRACKS_IMPORT ? 1 : 0;
 			s_customTracksPage = CUSTOM_TRACKS_ROOT;
-			menu->rowSelected = 0;
 		}
 		else
 		{
@@ -162,23 +173,32 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		CustomTracks_DrawAvailable(menu, pad, gGT, ot);
 		return true;
 	}
-	static const char *items[] = {"Available Tracks", "Import"};
-	FullScreenMenu_NavScroll(pad, &s_customTracksScroll, &menu->rowSelected, (int)len(items));
-	if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
+	static const char *rootItems[] = {"Available Tracks", "Import"};
+	static const char *importItems[] = {"Folder", "Xdelta patch"};
+	const bool choosingImport = s_customTracksPage == CUSTOM_TRACKS_IMPORT;
+	const char *const *items = choosingImport ? importItems : rootItems;
+	const int count = choosingImport ? (int)len(importItems) : (int)len(rootItems);
+	FullScreenMenu_NavScroll(pad, &s_customTracksScroll, &menu->rowSelected, count);
+	const bool canOpen = choosingImport || menu->rowSelected != 1 || s_customTracksImportEnabled;
+	if (canOpen && FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 	{
-		if (menu->rowSelected == 1)
+		if (choosingImport && menu->rowSelected == 0)
 		{
 			MM_TrackImport_Open();
 		}
+		else if (choosingImport)
+		{
+			MM_TrackImport_OpenPatch();
+		}
 		else
 		{
-			s_customTracksPage = CUSTOM_TRACKS_AVAILABLE;
+			s_customTracksPage = menu->rowSelected == 1 ? CUSTOM_TRACKS_IMPORT : CUSTOM_TRACKS_AVAILABLE;
 			menu->rowSelected = 0;
 			s_customTracksScroll.offset = 0;
 		}
 		return true;
 	}
-	FullScreenMenu_DrawScreen("Custom Tracks", 0, &s_customTracksScroll, (int)len(items),
-	                          menu->rowSelected, FullScreenMenu_DrawTextListRow, items, gGT, ot);
+	FullScreenMenu_DrawScreen(choosingImport ? "Import" : "Custom Tracks", 0, &s_customTracksScroll, count,
+	                          menu->rowSelected, CustomTracks_DrawMenuRow, items, gGT, ot);
 	return true;
 }

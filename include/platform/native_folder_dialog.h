@@ -10,6 +10,8 @@ enum NativeFolderDialogResult
 };
 
 int NativeFolderDialog_Open(void);
+/* Shares the result/path accessors; only one native import dialog is open. */
+int NativeFileDialog_OpenPatch(void);
 enum NativeFolderDialogResult NativeFolderDialog_Result(void);
 const char *NativeFolderDialog_Path(void);
 

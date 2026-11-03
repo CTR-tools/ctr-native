@@ -41,10 +41,10 @@ int main(void)
 	               "directory name and music use defaults");
 	NativeTrackRegistry_Destroy(registry);
 
-	WriteFixture(track, "track.ini", "id=saphi:1\ntitle=Test Track\nauthor=Track Author\nmodes=time_trial,arcade\n");
+	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\nmodes=time_trial,arcade\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
-	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->identity, "saphi:1") == 0 &&
+	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->identity, "test:track") == 0 &&
 	               strcmp(metadata->title, "Test Track") == 0 && strcmp(metadata->author, "Track Author") == 0 &&
 	               strcmp(metadata->modes, "time_trial,arcade") == 0,
 	               "cached catalog metadata overrides local defaults");
@@ -85,6 +85,30 @@ int main(void)
 	CTR_TEST_CHECK(current != NULL && NativeTrackRegistry_Find(current, "local:track", NULL), "the published library is available to runtime consumers");
 	CTR_TEST_CHECK(!NativeTrackLibrary_Refresh("", &result) && NativeTrackLibrary_Current() == current,
 	               "a failed refresh preserves the previous library");
+	char newTrack[1100];
+	snprintf(newTrack, sizeof(newTrack), "%s/aaa-new-track", root);
+	SDL_CreateDirectory(newTrack);
+	WriteFixture(newTrack, "track.lev", "not LEV");
+	WriteFixture(newTrack, "track.vrm", "not VRM");
+	WriteFixture(track, "track.ini", "title=Updated Track\n");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, &result) &&
+	               NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 2 &&
+	               NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:aaa-new-track", NULL),
+	               "a refresh includes newly imported tracks");
+	int refreshedID = -1;
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:track", &refreshedID);
+	metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), refreshedID);
+	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->title, "Updated Track") == 0,
+	               "a refresh replaces stale metadata with the current disk contents");
+	const char *newFiles[] = {"track.lev", "track.vrm"};
+	for (size_t i = 0; i < SDL_arraysize(newFiles); i++)
+	{
+		snprintf(path, sizeof(path), "%s/%s", newTrack, newFiles[i]);
+		SDL_RemovePath(path);
+	}
+	SDL_RemovePath(newTrack);
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, &result) && NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 1,
+	               "a refresh removes entries deleted from disk");
 	NativeTrackLibrary_Shutdown();
 	CTR_TEST_CHECK(NativeTrackLibrary_Current() == NULL, "shutdown releases the published library");
 

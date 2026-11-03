@@ -51,6 +51,7 @@
 #include "platform/native_track_file.c"
 #include "platform/native_track_validate.c"
 #include "platform/native_track_import.c"
+#include "platform/native_track_patch.c"
 #include "platform/native_track_records.c"
 #include "platform/native_track_preview.c"
 CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);

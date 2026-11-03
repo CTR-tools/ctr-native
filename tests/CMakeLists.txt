@@ -75,6 +75,11 @@ ctr_add_test_suite(test_track_import_flow
     SOURCES test_track_import_flow.c
 )
 
+ctr_add_test_suite(test_track_patch
+    SOURCES test_track_patch.c
+    LIBRARIES SDL3::SDL3
+)
+
 ctr_add_test_suite(test_track_records
     SOURCES test_track_records.c
     LIBRARIES SDL3::SDL3

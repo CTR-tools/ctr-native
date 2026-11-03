@@ -59,13 +59,73 @@ track directory. Each track shows its author and declared supported modes under
 **Game modes**, or **Unknown** when no mode metadata is available. Time Trial
 is the only currently implemented custom mode.
 
-Alternatively, select **Options > Custom Tracks > Import** to choose a folder
+Alternatively, select **Options > Custom Tracks > Import > Folder** to choose a folder
 in the system dialog. It must contain one LEV and one VRM, and may also contain
 one SCA, one JPEG preview and `track.ini`. File names can vary; multiple files
 of the same type are rejected. The folder name supplies the destination and
 fallback identity. The game copies the files and refreshes the library.
 The importer checks LEV and VRM structure but cannot guarantee gameplay
 compatibility, and will not overwrite an existing destination or identity.
+
+## Importing a local xdelta patch
+
+Select **Options > Custom Tracks > Import > Xdelta patch**, then select a local
+`.xdelta` file in the system file dialog.
+
+The importer needs `assets/ctr-u.bin` in the same raw NTSC-U MODE2/2352 format
+used by the game, and the patch must target that base revision. 
+
+The job runs in the background:
+
+1. Create `assets/.import-xdelta-<unique ID>/` and copy the base ROM there.
+2. Run `xdelta3 -d -s source.bin selected.xdelta patched.bin`.
+3. Extract `BIGFILE.BIG` from both images using an independent ISO directory
+   reader, then extract both BIGFILE archives with CTR-tools `bigtool`.
+4. Compare the 18 retail circuit slots' `1P/data.lev` and `1P/data.vrm` pairs.
+   A change in either file selects the complete patched pair. Unchanged tracks,
+   relic/split-screen variants, arenas, hubs, overlays and executable patches
+   are not imported.
+5. Validate all selected pairs with the shared local importer, then install
+   them under `assets/tracks/<patch name>-<original slot>/`. A patch that changes
+   several slots produces several entries, including distinct arcade/Time Trial
+   variants when the patch stores those in different slots. Title and identity
+   use the destination name; author and declared modes remain unknown.
+6. Remove the temporary ROMs, BIGFILE archives and extracted files. On a failed
+   multi-track installation, newly published entries are rolled back; existing
+   tracks are never overwritten. Cleanup errors are reported explicitly.
+
+This requires enough temporary disk space. Only circuit LEV/VRM
+data is transferred: custom PS1 code and HWL/XA music changes cannot be applied
+as native game code or SCA files by this importer. Imported tracks use the
+existing audio fallback.
+
+### Local tool setup
+
+Windows users can install the standalone dependencies with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-track-tools.ps1
+```
+
+The script downloads SHA-256-verified xdelta3 **3.2.2** and CTR-tools **r14**
+archives, installing `xdelta3.exe`, `bigtool.exe` and its DLLs in `assets/tools/`.
+It also saves the upstream licenses. `bigtool` requires .NET Framework 4.6.2
+or newer. Use `-Assets <path>` when preparing a separate game installation.
+Tools are separate executables, not libraries linked into the game.
+
+Automated tests use synthetic disc and circuit fixtures. An opt-in integration
+check uses a supplied retail ROM and tools. It extracts the original tracks,
+generates a local xdelta patch that swaps two retail circuit pairs, and imports
+that patch into a disposable scratch library. It checks the imported files
+against the original extracted LEV/VRM, verifies that the base ROM is unchanged,
+and removes the scratch files. No community tracks or downloaded patches are
+used as test fixtures:
+
+```text
+build/tests/test_track_patch.exe --retail-live <absolute-assets-path>
+```
+
+## Time Trial records and runtime IDs
 
 Lap counts are controlled by the game mode, not track metadata. The initial
 Time Trial implementation uses the standard three laps.
@@ -87,5 +147,4 @@ Scanning reads the metadata and checks file existence and type; it does not
 open or validate LEV, VRM or SCA contents. The scanner returns a new registry,
 which the caller owns, and reports accepted and rejected directory counts.
 The game scans `assets/tracks` at startup and logs accepted and rejected counts
-when the directory exists. Time Trial supports loading custom tracks; the
-online catalog is still to come.
+when the directory exists. Time Trial supports loading locally imported tracks.

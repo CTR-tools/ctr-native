@@ -17,8 +17,8 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 /* Add one prepared directory using name for its fallback title and identity. */
 int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const char *directory, const char *name);
 
-/* Publish a complete scan at a safe transition, when no caller retains a
-   pointer into the previous registry. Failure leaves the previous scan live. */
+/* Replace the scan outside gameplay, with no retained metadata pointers.
+   Failure leaves the previous registry live. */
 int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result);
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void);
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track);

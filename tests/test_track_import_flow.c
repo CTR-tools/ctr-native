@@ -9,8 +9,14 @@ static int s_importCalls, s_refreshCalls, s_sound;
 static const char *s_importError;
 static char s_source[1024], s_name[1024];
 static const char *s_dialogPath = "C:/download/Example Track/";
+static int s_patchResult, s_patchCancel;
 
 int NativeFolderDialog_Open(void) { s_dialogResult = NATIVE_FOLDER_DIALOG_PENDING; return 1; }
+int NativeFileDialog_OpenPatch(void) { return NativeFolderDialog_Open(); }
+int NativeTrackPatch_Start(const char *assets, const char *patch) { (void)assets; (void)patch; s_patchResult = 0; return 1; }
+int NativeTrackPatch_Poll(void) { return s_patchResult; }
+const char *NativeTrackPatch_Message(void) { return s_patchResult > 0 ? "1 track imported" : "Applying xdelta patch"; }
+void NativeTrackPatch_Cancel(void) { s_patchCancel++; }
 enum NativeFolderDialogResult NativeFolderDialog_Result(void) { return s_dialogResult; }
 const char *NativeFolderDialog_Path(void) { return s_dialogPath; }
 const char *NativeAssets_GetAssetDir(void) { return "C:/game/assets"; }
@@ -63,5 +69,31 @@ int main(void)
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_importCalls == 2 && strcmp(MM_TrackImport_Message(), "Path is too long") == 0,
 	               "an oversized folder path is rejected instead of importing a truncated path");
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_SECTION("xdelta background import flow");
+	s_dialogPath = "C:/download/Example.xdelta";
+	MM_TrackImport_OpenPatch();
+	s_dialogResult = NATIVE_FOLDER_DIALOG_SELECTED;
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_PATCHING && s_importCalls == 2,
+	               "selecting a patch starts the worker without using folder import");
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_PATCHING && s_refreshCalls == 1,
+	               "confirm cannot close an active import or publish its library early");
+	MM_TrackImport_Update(BTN_TRIANGLE);
+	CTR_TEST_CHECK(s_patchCancel == 1 && s_trackImportState == TRACK_IMPORT_PATCHING,
+	               "back cancels and waits for worker cleanup");
+	s_patchResult = -1;
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_refreshCalls == 1 && s_trackImportState == TRACK_IMPORT_RESULT,
+	               "a failed patch does not refresh the library");
+	MM_TrackImport_Update(BTN_CROSS);
+	MM_TrackImport_OpenPatch();
+	s_dialogResult = NATIVE_FOLDER_DIALOG_SELECTED;
+	MM_TrackImport_Update(0);
+	s_patchResult = 1;
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_refreshCalls == 2 && strcmp(MM_TrackImport_Message(), "1 track imported") == 0,
+	               "a completed import refreshes the library and reports the result");
 	return CtrTest_Summary();
 }

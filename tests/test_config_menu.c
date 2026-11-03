@@ -45,6 +45,7 @@ static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .auth
 static int s_trackDetailRows[2];
 static int s_unknownModesY;
 static int s_emptyTracksY;
+static int s_importRowColor;
 static struct RectMenu *s_chaosCaller;
 
 // Count menu persistence calls without touching any real configuration file.
@@ -95,6 +96,7 @@ void OptionsMenu_TestSound(s32 row, b32 playing)
 }
 void MM_MenuProc_Controls(struct RectMenu *menu) { (void)menu; }
 void MM_TrackImport_Open(void) { s_trackImportOpened++; }
+void MM_TrackImport_OpenPatch(void) { s_trackImportOpened += 10; }
 int MM_TrackImport_Update(u32 buttons) { (void)buttons; return 0; }
 const char *MM_TrackImport_Message(void) { return ""; }
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
@@ -130,6 +132,10 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	if (strcmp(text, "General") == 0)
 	{
 		s_sectionFont = font;
+	}
+	if (strcmp(text, "Import") == 0 && x == FULLSCREEN_MENU_LABEL_X)
+	{
+		s_importRowColor = flags;
 	}
 	if (strcmp(text, "Game modes: Unknown") == 0)
 	{
@@ -271,8 +277,20 @@ static void TestTrackImportMenu(void)
 	s_lastMenuSound = -1;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
-	CTR_TEST_CHECK(s_trackImportOpened == 1, "the manager's Import row opens the importer");
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_IMPORT && s_trackImportOpened == 0,
+	               "Import opens the local source selection");
 	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening import plays the confirm sound");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 1, "Folder opens the directory importer");
+	sdata->ptrActiveMenu->rowSelected = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 11, "Xdelta patch opens the patch importer");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && sdata->ptrActiveMenu->rowSelected == 1,
+	               "back restores the manager's Import row");
 	s_lastMenuSound = -1;
 	SetInput(BTN_TRIANGLE, 0);
 	UpdateMenu();
@@ -286,9 +304,20 @@ static void TestTrackImportMenu(void)
 	UpdateMenu();
 	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "custom tracks can be opened from pause options");
 	sdata->ptrActiveMenu->rowSelected = 1;
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_importRowColor == GRAY, "Import remains visible and gray during a race");
+	s_lastMenuSound = -1;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
-	CTR_TEST_CHECK(s_trackImportOpened == 2, "import is available from pause options");
+	SetInput(BTN_CIRCLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && s_trackImportOpened == 11 && s_lastMenuSound == -1,
+	               "neither confirm button opens import or plays a confirmation sound during a race");
+	sdata->ptrActiveMenu->rowSelected = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE, "installed tracks remain accessible from pause options");
 }
 
 static void TestSession(enum ConfigMenuContext context, int mode)

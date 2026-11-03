@@ -191,6 +191,15 @@ streamed audio or Scrapbook video. Files available in `ctr-u.bin` still provide
 the fallback for missing extracted files. A present but invalid XA manifest
 remains a startup error.
 
+### Local Custom Tracks
+
+Open **Options > Custom Tracks > Import** to import a prepared track **Folder**
+or a local **Xdelta patch**. Patch import uses a temporary copy of
+`assets/ctr-u.bin`, xdelta3 and CTR-tools, then removes its temporary files.
+On Windows, run `scripts/setup-track-tools.ps1` once to install the local tools.
+See [the custom track library guide](docs/CUSTOM_TRACK_LIBRARY.md) for setup,
+supported files and current limitations.
+
 ## Configuration
 
 Open **Options** from the main menu or any race/battle/Adventure pause menu.
@@ -354,7 +363,12 @@ until I'm satisfied: the output is never accepted blindly.
 - [CTR-ModSDK](https://github.com/CTR-tools/CTR-ModSDK) — the decompilation project this is built on
 - [PsyCross](https://github.com/OpenDriver2/PsyCross) — original PS1 compatibility code from which parts of CTR Native's owned platform layer and PsyQ facade headers are derived
 - [SDL3](https://github.com/libsdl-org/SDL) — cross-platform multimedia
-- [ctr-native-ap](https://github.com/dowlle/ctr-native-ap) by dowlle — render-scale, scaling-filter, and texture-filtering options; inspiration for Ultra Hard difficulty
+- [ctr-native-ap](https://github.com/dowlle/ctr-native-ap) by dowlle — render-scale, scaling-filter, and texture-filtering options; inspiration for Ultra Hard difficulty; reference for custom-track support and source of the adapted SCA custom-music loader
+- [CTR-tools](https://github.com/CTR-tools/CTR-tools/tree/r14) by DCxDemo and contributors — `bigtool` and the NTSC-U resource filename map used by local xdelta track import (r14, GPL v2)
+- [xdelta3](https://github.com/jmacd/xdelta/tree/v3.2.2) by Jonathan MacDonald and contributors — applying local track patches to temporary ROM copies (3.2.2, Apache 2.0)
 - [Crash Team Racing: Turbocharged](https://github.com/CameronRedmore/Crash-Team-Racing-Turbocharged) by CameronRedmore — the `pgxp` sub-pixel vertex precision option, ported from their implementation and adapted to this fork's renderer and primitive-memory layout
 - [OxideFix](https://github.com/CTR-tools/CTR-ModSDK/tree/main/mods/Modules/OxideFix) from CTR-ModSDK — Nitros Oxide character-select implementation and menu model
 - Crash Team Racing is a trademark of Sony Computer Entertainment / Naughty Dog
+
+Third-party license notices and details about the separate import tools are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
