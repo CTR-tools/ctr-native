@@ -129,6 +129,14 @@ jobs:
           name: windows-i686-build
           path: build/ctr_native_expanded.exe
 
+      - name: Upload the verified track import tools
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-track-tools
+          path: assets/tools/
+          if-no-files-found: error
+
   release:
     name: Package and publish the draft release
     needs: windows-build-and-test
@@ -155,6 +163,12 @@ jobs:
         with:
           name: windows-i686-build
           path: build
+
+      - name: Download the verified track import tools
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-track-tools
+          path: assets/tools
 
       - name: Package the release
         shell: pwsh

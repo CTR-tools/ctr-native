@@ -196,7 +196,11 @@ remains a startup error.
 Open **Options > Custom Tracks > Import** to import a prepared track **Folder**
 or a local **Xdelta patch**. Patch import uses a temporary copy of
 `assets/ctr-u.bin`, xdelta3 and CTR-tools, then removes its temporary files.
-On Windows, run `scripts/setup-track-tools.ps1` once to install the local tools.
+Windows builds automatically download and verify the local tools when needed;
+later builds reuse the verified installation offline. Windows release archives
+include the tools, licenses and CTR-tools r14 sources in `assets/tools/`.
+Setup uses the upstream precompiled releases; no C# compiler or development
+packages are needed.
 See [the custom track library guide](docs/CUSTOM_TRACK_LIBRARY.md) for setup,
 supported files and current limitations.
 

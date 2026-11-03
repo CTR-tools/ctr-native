@@ -4,7 +4,8 @@
 
 .DESCRIPTION
     Collects the binary, the third-party notices and a README into
-    a flat directory, zips it, and writes a sha256 beside the archive.
+    a directory with local track import tools, zips it, and writes a sha256
+    beside the archive.
 
     config.ini and controls.ini are produced by copying default_config.ini and
     default_controls.ini. Every copy is written out source to destination on
@@ -57,6 +58,8 @@ $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('ctr-package-' + [guid]:
 New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
 try {
+    $assets = Join-Path $RepoRoot 'assets'
+    & (Join-Path $RepoRoot 'scripts/setup-track-tools.ps1') -Assets $assets -VerifyOnly
     $copies = @(
         @{ From = $Executable; To = $executableName }
         @{ From = 'THIRD_PARTY_NOTICES.md'; To = 'THIRD_PARTY_NOTICES.md' }
@@ -69,6 +72,20 @@ try {
             throw "Missing $source."
         }
         Copy-Item -LiteralPath $source -Destination (Join-Path $staging $copy.To) -Force
+    }
+
+    # Explicit files only: never package the user's ROM, tracks or tool caches.
+    $toolFiles = @(
+        'xdelta3.exe', 'bigtool.exe', 'CTRFramework.dll', 'NAudio.dll', 'Newtonsoft.Json.dll',
+        'xdelta-LICENSE.txt', 'CTR-tools-LICENSE.txt', 'NAudio-LICENSE.txt',
+        'Newtonsoft.Json-LICENSE.txt', 'Kaitai-LICENSE.txt', 'PlyImporter-LICENSE.txt',
+        'README.txt', 'sources/CTR-tools-r14.zip'
+    )
+    foreach ($file in $toolFiles) {
+        $source = Join-Path (Join-Path $assets 'tools') $file
+        $destination = Join-Path (Join-Path $staging 'assets/tools') $file
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination
     }
 
     # The version is the one thing in the README that is not known until release

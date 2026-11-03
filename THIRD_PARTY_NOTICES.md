@@ -6,15 +6,25 @@ Expanded.
 
 ## Optional local track import tools
 
-The xdelta importer invokes separate, unmodified executables; these are not
-linked into CTR Native Expanded. `scripts/setup-track-tools.ps1` installs the
-Windows releases and saves their license texts alongside them in `assets/tools/`.
+The xdelta importer invokes separate executables; these are not
+linked into CTR Native Expanded. The Windows build runs
+`scripts/setup-track-tools.ps1` to install pinned, SHA-256-verified releases in
+`assets/tools/`. CTR-tools binaries and DLLs come from the upstream Windows
+release **r14**. Windows release archives include the tools, license texts,
+`README.txt`, and the r14 source archive under `assets/tools/sources/`.
 
 - **xdelta3 3.2.2**, Jonathan MacDonald and contributors, Apache-2.0:
   <https://github.com/jmacd/xdelta/tree/v3.2.2>.
 - **CTR-tools r14**, DCxDemo and contributors, GPL-2.0:
-  <https://github.com/CTR-tools/CTR-tools/tree/r14>. The importer uses `bigtool`
-  with the DLLs supplied by that release and its NTSC-U circuit filename map.
+  <https://github.com/CTR-tools/CTR-tools/tree/r14>.
+  The importer uses the release's unmodified `bigtool`/`CTRFramework` and the
+  NTSC-U circuit filename map.
+- **NAudio 1.10.0**, Mark Heath and contributors, Microsoft Public License:
+  <https://github.com/naudio/NAudio/tree/v1.10.0>, supplied with the CTR-tools release.
+- **Newtonsoft.Json 13.0.1**, James Newton-King, MIT:
+  <https://github.com/JamesNK/Newtonsoft.Json/tree/13.0.1>, supplied with the CTR-tools release.
+- **Kaitai** and **PlyImporter**, MIT: embedded CTRFramework components. Their
+  upstream license texts accompany the binary and remain in the source archive.
 
 ## PsyCross / Psy-X
 

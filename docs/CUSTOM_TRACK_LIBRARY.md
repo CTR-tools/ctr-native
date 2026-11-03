@@ -101,17 +101,32 @@ existing audio fallback.
 
 ### Local tool setup
 
-Windows users can install the standalone dependencies with:
+Building the Windows game automatically runs the dependency setup before the
+game target. The first build downloads the standalone tools into `assets/tools/`;
+subsequent builds verify their hashes locally and need no network when all
+installed files are intact. Downloaded archives and license texts are cached in
+`build/_deps/track-tools/` (or the selected build directory) for offline repair.
+Building only the test targets does not download tools.
+
+Windows release archives include the verified tools, license texts and the
+CTR-tools source archive. Packaging validates them offline and excludes ROMs,
+track assets and download caches. Importing in-game never downloads dependencies.
+
+The setup can also be invoked manually:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup-track-tools.ps1
 ```
 
-The script downloads SHA-256-verified xdelta3 **3.2.2** and CTR-tools **r14**
-archives, installing `xdelta3.exe`, `bigtool.exe` and its DLLs in `assets/tools/`.
-It also saves the upstream licenses. `bigtool` requires .NET Framework 4.6.2
+The script downloads SHA-256-verified precompiled releases of xdelta3 **3.2.2**
+and CTR-tools **r14**, installing `bigtool.exe` and its bundled DLLs without
+compiling them or downloading development packages. Dependency licenses and
+the r14 source archive accompany the tools in `assets/tools/`.
+Running `bigtool` requires .NET Framework 4.6.2
 or newer. Use `-Assets <path>` when preparing a separate game installation.
-Tools are separate executables, not libraries linked into the game.
+Tools are separate executables, not libraries linked into the game. The build
+does not install the .NET Framework itself. Use `-VerifyOnly` to check the
+installation without downloading anything, or `-Cache <path>` to select a cache.
 
 Automated tests use synthetic disc and circuit fixtures. An opt-in integration
 check uses a supplied retail ROM and tools. It extracts the original tracks,

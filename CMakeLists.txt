@@ -137,6 +137,7 @@ endif()
 #TODO(aalhendi): fix warnings
 ctr_native_apply_common_options(ctr_native_expanded)
 target_link_libraries(ctr_native_expanded SDL3::SDL3)
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeTrackTools.cmake")
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native_expanded PRIVATE -static-libgcc)
 endif()
