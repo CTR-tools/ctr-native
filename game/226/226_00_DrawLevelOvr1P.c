@@ -7858,7 +7858,7 @@ static int Ovr226_800a0f78_EmitFullDynamicQuadBlock(struct PushBuffer *pb, struc
 static void Ovr226_800a0f0c_SeedFullDynamicVisibilityScratch(const int *visFaceList, const struct QuadBlock *block)
 {
 	u32 blockID = (u16)block->blockID;
-	const u32 *word = (const u32 *)((const u8 *)visFaceList + ((blockID >> 3) & 0x1fc));
+	const u32 *word = (const u32 *)((const u8 *)visFaceList + ((blockID >> 3) & ~3u));
 
 	DrawLevelOvr1P_Scratch()->visibilityWordPtr32 = (u32)(u32)word;
 	DrawLevelOvr1P_Scratch()->visibilityBitIndex = blockID & 0x1f;
