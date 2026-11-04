@@ -201,6 +201,8 @@ later builds reuse the verified installation offline. Windows release archives
 include the tools, licenses and CTR-tools r14 sources in `assets/tools/`.
 Setup uses the upstream precompiled releases; no C# compiler or development
 packages are needed.
+If a custom track runs slowly or has missing geometry, try disabling **Increase
+Draw Distance** in Options.
 See [the custom track library guide](docs/CUSTOM_TRACK_LIBRARY.md) for setup,
 supported files and current limitations.
 

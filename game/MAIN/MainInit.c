@@ -238,9 +238,9 @@ static int MainInit_GetRetailPrimMemSize(struct GameTracker *gGT)
 // table and the clip records.
 static int MainInit_GetPrimMemSize(struct GameTracker *gGT)
 {
-	enum { CUSTOM_TRACK_PRIM_ARENA_BYTES = 0x100000 };
+	enum { CUSTOM_TRACK_PRIM_ARENA_BYTES = 0x180000 };
 	int size = MainInit_GetRetailPrimMemSize(gGT) * NATIVE_DRAW_DISTANCE_SCALE;
-	// CTR Archipelago measured custom skies and geometry exceeding retail budgets.
+	// Some custom tracks custom skies and geometry exceed retail budgets.
 	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL && size < CUSTOM_TRACK_PRIM_ARENA_BYTES)
 	{
 		size = CUSTOM_TRACK_PRIM_ARENA_BYTES;
