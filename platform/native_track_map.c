@@ -139,8 +139,11 @@ int NativeTrackMap_Decode(struct NativeTrackMap *out, const void *levData, size_
 			{
 				ok = 0; break;
 			}
-			out->pixels[y * NATIVE_TRACK_MAP_TEXTURE_SIZE + x] = color;
-			any |= color != 0;
+			// A black STP texel used as the map background would be blended once
+			// for every menu outline and shadow layer, producing an opaque rectangle.
+			uint16_t menuColor = color == 0x8000 ? 0 : color;
+			out->pixels[y * NATIVE_TRACK_MAP_TEXTURE_SIZE + x] = menuColor;
+			any |= menuColor != 0;
 		}
 	}
 	free(vram);

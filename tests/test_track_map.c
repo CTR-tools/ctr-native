@@ -87,6 +87,10 @@ int main(int argc, char **argv)
 	CTR_TEST_CHECK(!map.pixels[0] && map.pixels[1] == 0x7fff && map.pixels[3] == 0x7fff &&
 	               map.pixels[NATIVE_TRACK_MAP_TEXTURE_SIZE] == 0x7fff && !map.pixels[NATIVE_TRACK_MAP_TEXTURE_SIZE + 1],
 	               "4-bit texture indices and the palette determine transparency");
+	vrm[40 + 21] = 0x80;
+	CTR_TEST_CHECK(NativeTrackMap_Decode(&map, lev, sizeof(lev), vrm, sizeof(vrm)) && !map.pixels[0] && map.pixels[1] == 0x7fff,
+	               "black STP background is transparent in the layered menu map");
+	vrm[40 + 21] = 0;
 	Write32(bottom + 16, 3);
 	CTR_TEST_CHECK(!NativeTrackMap_Decode(&map, lev, sizeof(lev), vrm, sizeof(vrm)), "ambiguous icon IDs are rejected");
 	Write32(bottom + 16, 4);
