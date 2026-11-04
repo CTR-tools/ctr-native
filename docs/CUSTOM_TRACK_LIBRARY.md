@@ -61,16 +61,15 @@ In **Options > Custom Tracks > Available Tracks**, imported tracks can be
 enabled or disabled. The selection persists in a `.ctr-disabled` marker in the
 track directory. Each track shows its author and automatically detected mode hints
 under **Available modes**. The installed LEV is examined on import and on each rescan,
-so replacing it does not leave a stale detection. Detection reports Time Trial as
-a baseline, VS when both weapon crates and Wumpa pickups are placed, Arcade
-when those pickups and at least one nonempty, structurally valid bot path are
-present, Relic
+so replacing it does not leave a stale detection. Detection reports Time Trial and
+VS as a baseline, Arcade when at least one nonempty, structurally valid bot path
+is present, Relic
 when at least one time crate is placed, CTR when all three letters are placed,
 and Crystal when crystals are placed. An unreadable or unsupported instance
 table is shown as Unknown. These are heuristics, not proof that a track is
 playable: they do not check reachability, bot path behavior, finish logic or relic targets.
-VS requires detected pickups; Arcade also requires a detected bot path. Unknown
-detection is not offered in those modes. Time Trial still follows the declared
+VS is available for every installed track; Arcade requires a detected bot path.
+Unknown detection is not offered in Arcade. Time Trial still follows the declared
 source modes when present. Relic, CTR and Crystal hints do not enable those
 custom modes in the port. Multiplayer uses the imported 1P LEV and allocates
 separate visibility lists for each viewport.

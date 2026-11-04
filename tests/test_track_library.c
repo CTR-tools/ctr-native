@@ -43,14 +43,14 @@ static void TestDetectModes(void)
 	}
 	unsigned int modes = 0;
 	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && (modes & NATIVE_TRACK_DETECTED_VS) &&
-	               !(modes & NATIVE_TRACK_DETECTED_ARCADE), "pickups without bot paths imply VS, not arcade");
+	               !(modes & NATIVE_TRACK_DETECTED_ARCADE), "a track without bot paths allows VS but not arcade");
 	DetectWrite32(p + 0x188, 0x440);
 	DetectWrite32(p + 0x440, 0x450);
 	p[0x450] = 0xfd;
 	p[0x451] = 0xec;
 	p[0x452] = 2;
 	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && modes == 63,
-	               "pickups and a valid nonempty bot path identify arcade as well as VS");
+	               "a valid nonempty bot path identifies arcade as well as VS");
 	p[0x451] = 0;
 	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && !(modes & NATIVE_TRACK_DETECTED_ARCADE),
 	               "outdated bot paths do not imply arcade");
@@ -59,8 +59,11 @@ static void TestDetectModes(void)
 	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && !(modes & NATIVE_TRACK_DETECTED_CTR),
 	               "a partial set of letters does not imply a CTR challenge");
 	p[0x380 + 1 * 0x18 + 0x10] = 0;
-	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && !(modes & NATIVE_TRACK_DETECTED_ARCADE),
-	               "weapon crates alone do not imply a standard arcade layout");
+	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && (modes & NATIVE_TRACK_DETECTED_ARCADE),
+	               "a bot path allows arcade without Wumpa pickups");
+	DetectWrite32(p + 0x0c, 0);
+	CTR_TEST_CHECK(TrackDetect_Lev(bytes, sizeof(bytes), &modes) && (modes & NATIVE_TRACK_DETECTED_VS) &&
+	               (modes & NATIVE_TRACK_DETECTED_ARCADE), "a bot path allows arcade and VS without any placed instances");
 	DetectWrite32(p + 0x0c, 0xffffffffu);
 	CTR_TEST_CHECK(!TrackDetect_Lev(bytes, sizeof(bytes), &modes), "an overflowing instance array is unknown");
 	DetectWrite32(p + 0x0c, 1);
@@ -113,13 +116,14 @@ int main(void)
 	arcadeOnly.detectedModes = NATIVE_TRACK_DETECTED_VS;
 	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_VS) &&
 	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_ARCADE),
-	               "pickups without bot paths allow VS but not arcade");
+	               "a track without bot paths allows VS but not arcade");
 	arcadeOnly.detectedModes |= NATIVE_TRACK_DETECTED_ARCADE;
 	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_ARCADE),
 	               "detected bot paths allow arcade");
 	arcadeOnly.detectionKnown = 0;
-	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_VS),
-	               "unknown compatibility does not enable VS");
+	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_VS) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_ARCADE),
+	               "unknown compatibility permits VS but does not confirm arcade");
 	CTR_TEST_CHECK(NativeTrackLibrary_SetEnabled(metadata, 0) && !NativeTrackLibrary_IsEnabled(metadata), "a track can be disabled");
 	NativeTrackRegistry_Destroy(registry);
 	registry = NativeTrackLibrary_Scan(root, &result);
