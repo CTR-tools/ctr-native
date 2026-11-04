@@ -60,7 +60,7 @@ respective compatibility requirements are met.
 In **Options > Custom Tracks > Available Tracks**, imported tracks can be
 enabled or disabled. The selection persists in a `.ctr-disabled` marker in the
 track directory. Each track shows its author and automatically detected mode hints
-under **Available modes**. The installed LEV is examined on import and on each rescan,
+under **Modes** (TT, ARC, VS, CTR, REL and CRY). The installed LEV is examined on import and on each rescan,
 so replacing it does not leave a stale detection. Detection reports Time Trial and
 VS as a baseline, Arcade when at least one nonempty, structurally valid bot path
 is present, Relic

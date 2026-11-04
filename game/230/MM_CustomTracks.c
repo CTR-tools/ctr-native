@@ -21,31 +21,11 @@ enum
 };
 
 static const struct { unsigned int bit; const char *name; } s_customTrackModes[] = {
-	{NATIVE_TRACK_DETECTED_TIME_TRIAL, "Time Trial"}, {NATIVE_TRACK_DETECTED_VS, "Versus"},
-	{NATIVE_TRACK_DETECTED_ARCADE, "Arcade"}, {NATIVE_TRACK_DETECTED_RELIC, "Relic Race"},
-	{NATIVE_TRACK_DETECTED_CTR, "CTR Challenge"}, {NATIVE_TRACK_DETECTED_CRYSTAL, "Crystal Challenge"},
+	{NATIVE_TRACK_DETECTED_TIME_TRIAL, "TT"}, {NATIVE_TRACK_DETECTED_ARCADE, "ARC"}, {NATIVE_TRACK_DETECTED_VS, "VS"},
+	{NATIVE_TRACK_DETECTED_CTR, "CTR"}, {NATIVE_TRACK_DETECTED_RELIC, "REL"}, {NATIVE_TRACK_DETECTED_CRYSTAL, "CRY"},
 };
 
-enum { CUSTOM_TRACKS_BASE_ROWS = 3, CUSTOM_TRACKS_MODE_INDENT = 24 };
-
-static int CustomTracks_ModeCount(const struct NativeTrackMetadata *track)
-{
-	if (!track->detectionKnown)
-	{
-		return 1;
-	}
-	int count = 0;
-	for (size_t i = 0; i < len(s_customTrackModes); i++)
-	{
-		if ((track->detectedModes & s_customTrackModes[i].bit) != 0) { count++; }
-	}
-	return count;
-}
-
-static int CustomTracks_TrackRows(const struct NativeTrackMetadata *track)
-{
-	return CUSTOM_TRACKS_BASE_ROWS + CustomTracks_ModeCount(track);
-}
+enum { CUSTOM_TRACKS_BASE_ROWS = 3 };
 
 static enum CustomTracksPage s_customTracksPage;
 static struct FullScreenMenu_Scroll s_customTracksScroll;
@@ -110,7 +90,7 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 	for (size_t i = 0; i < NativeTrackRegistry_Count(registry); i++)
 	{
 		track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
-		int rows = CustomTracks_TrackRows(track);
+		int rows = CUSTOM_TRACKS_BASE_ROWS;
 		if (row < rows) { break; }
 		row -= rows;
 		track = NULL;
@@ -134,25 +114,19 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 		break;
 	case 2:
 	{
-		DecalFont_DrawLineOT("Available modes:", FULLSCREEN_MENU_LABEL_X + CUSTOM_TRACKS_DETAIL_INDENT, y, FONT_SMALL, WHITE, ot);
-		break;
-	}
-	default:
-	{
-		const char *name = "Unknown";
-		int modeRow = row - CUSTOM_TRACKS_BASE_ROWS;
+		char modes[CUSTOM_TRACKS_DETAIL_BYTES] = "";
 		if (track->detectionKnown)
 		{
 			for (size_t i = 0; i < len(s_customTrackModes); i++)
 			{
-				if ((track->detectedModes & s_customTrackModes[i].bit) != 0 && modeRow-- == 0)
+				if ((track->detectedModes & s_customTrackModes[i].bit) != 0)
 				{
-					name = s_customTrackModes[i].name;
-					break;
+					if (modes[0] != '\0') { strcat(modes, ", "); }
+					strcat(modes, s_customTrackModes[i].name);
 				}
 			}
 		}
-		DecalFont_DrawLineOT((char *)name, FULLSCREEN_MENU_LABEL_X + CUSTOM_TRACKS_MODE_INDENT, y, FONT_SMALL, WHITE, ot);
+		CustomTracks_DrawDetail("Modes", modes, y, ot);
 		break;
 	}
 	}
@@ -177,8 +151,7 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 	int totalRows = 0, selectedRow = 0, selectedEnd = 0;
 	for (int i = 0; i < count; i++)
 	{
-		const struct NativeTrackMetadata *item = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + i);
-		int rows = CustomTracks_TrackRows(item);
+		int rows = CUSTOM_TRACKS_BASE_ROWS;
 		if (i == menu->rowSelected)
 		{
 			selectedRow = totalRows;
