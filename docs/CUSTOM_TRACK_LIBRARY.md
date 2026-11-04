@@ -53,14 +53,27 @@ against actual track files and the import workflow.
 ## Installing a local directory
 
 Copy the prepared track directory into `assets/tracks/` and restart the game.
-The files must use the names listed above. The track appears in the Time Trial
-selector after the library scan at startup.
+The files must use the names listed above. After the library scan, enabled
+tracks appear in the Time Trial, Arcade and VS single-race selectors when their
+respective compatibility requirements are met.
 
 In **Options > Custom Tracks > Available Tracks**, imported tracks can be
 enabled or disabled. The selection persists in a `.ctr-disabled` marker in the
-track directory. Each track shows its author and declared supported modes under
-**Game modes**, or **Unknown** when no mode metadata is available. Time Trial
-is the only currently implemented custom mode.
+track directory. Each track shows its author and automatically detected mode hints
+under **Available modes**. The installed LEV is examined on import and on each rescan,
+so replacing it does not leave a stale detection. Detection reports Time Trial as
+a baseline, VS when both weapon crates and Wumpa pickups are placed, Arcade
+when those pickups and at least one nonempty, structurally valid bot path are
+present, Relic
+when at least one time crate is placed, CTR when all three letters are placed,
+and Crystal when crystals are placed. An unreadable or unsupported instance
+table is shown as Unknown. These are heuristics, not proof that a track is
+playable: they do not check reachability, bot path behavior, finish logic or relic targets.
+VS requires detected pickups; Arcade also requires a detected bot path. Unknown
+detection is not offered in those modes. Time Trial still follows the declared
+source modes when present. Relic, CTR and Crystal hints do not enable those
+custom modes in the port. Multiplayer uses the imported 1P LEV and allocates
+separate visibility lists for each viewport.
 
 Alternatively, select **Options > Custom Tracks > Import > Folder** to choose a folder
 in the system dialog. It must contain one LEV and one VRM, and may also contain
@@ -101,7 +114,7 @@ The job runs in the background:
     patched menu overlay, executable and circuit LEV, and records it as the
     author. Missing, invalid or conflicting credits leave the author unknown;
     multi-circuit patches do not inherit a global credit. Declared modes remain
-    unknown.
+    unknown; mode hints are detected from the imported 1P LEV.
 7. Remove the temporary ROMs, BIGFILE archives and extracted files. On a failed
    multi-track installation, newly published entries are rolled back; existing
    tracks are never overwritten. Cleanup errors are reported explicitly.
@@ -173,8 +186,9 @@ alone does not make a custom level loadable: direct retail-table indexing,
 special level ranges, ghost/card storage and the BIGFILE queue still require
 explicit handling before a custom ID can enter a race.
 
-Scanning reads the metadata and checks file existence and type; it does not
-open or validate LEV, VRM or SCA contents. The scanner returns a new registry,
+Scanning reads metadata, checks file existence and type, and examines the LEV
+instance table for mode hints. It does not validate gameplay, VRM or SCA
+contents. The scanner returns a new registry,
 which the caller owns, and reports accepted and rejected directory counts.
 The game scans `assets/tracks` at startup and logs accepted and rejected counts
-when the directory exists. Time Trial supports loading locally imported tracks.
+when the directory exists. Time Trial, Arcade and VS support locally imported tracks.

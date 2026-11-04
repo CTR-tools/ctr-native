@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 enum
@@ -20,6 +21,126 @@ struct NativeTrackLibraryScan
 };
 
 static struct NativeTrackRegistry *s_nativeTrackLibrary;
+
+enum
+{
+	TRACK_DETECT_MAX_BYTES = 64 * 1024 * 1024,
+	TRACK_DETECT_HEADER_BYTES = 0x18c,
+	TRACK_DETECT_INST_BYTES = 0x40,
+	TRACK_DETECT_NAV_TABLE_OFFSET = 0x188,
+	TRACK_DETECT_NAV_PATHS = 3,
+	TRACK_DETECT_NAV_HEADER_BYTES = 0x4c,
+	TRACK_DETECT_NAV_FRAME_BYTES = 0x14,
+	TRACK_DETECT_NAV_MAGIC = 0xecfd,
+	TRACK_DETECT_MODEL_ID_OFFSET = 0x10,
+	TRACK_DETECT_FRUIT = 0x02,
+	TRACK_DETECT_FRUIT_CRATE = 0x07,
+	TRACK_DETECT_RANDOM_CRATE = 0x08,
+	TRACK_DETECT_TIME_1 = 0x5c,
+	TRACK_DETECT_TIME_2 = 0x64,
+	TRACK_DETECT_TIME_3 = 0x65,
+	TRACK_DETECT_CRYSTAL = 0x60,
+	TRACK_DETECT_C = 0x93,
+	TRACK_DETECT_R = 0x95,
+};
+
+static uint32_t TrackDetect_Read32(const unsigned char *p)
+{
+	return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+static int TrackDetect_BotPaths(const unsigned char *payload, uint32_t size)
+{
+	uint32_t table = TrackDetect_Read32(payload + TRACK_DETECT_NAV_TABLE_OFFSET);
+	if (table == 0)
+	{
+		return 0;
+	}
+	if (table > size || size - table < TRACK_DETECT_NAV_PATHS * 4)
+	{
+		return -1;
+	}
+	int valid = 0;
+	for (int i = 0; i < TRACK_DETECT_NAV_PATHS; i++)
+	{
+		uint32_t path = TrackDetect_Read32(payload + table + i * 4);
+		if (path == 0) { continue; }
+		if (path > size || size - path < TRACK_DETECT_NAV_HEADER_BYTES) { return -1; }
+		unsigned int magic = payload[path] | (unsigned int)payload[path + 1] << 8;
+		unsigned int points = payload[path + 2] | (unsigned int)payload[path + 3] << 8;
+		if (magic != TRACK_DETECT_NAV_MAGIC || points < 2 || points > 0x7fff) { continue; }
+		if (points + 1 > (size - path - TRACK_DETECT_NAV_HEADER_BYTES) / TRACK_DETECT_NAV_FRAME_BYTES) { return -1; }
+		valid = 1;
+	}
+	return valid;
+}
+
+/* These are hints about placed objects, not a gameplay validation. LEV pointers
+   are offsets from the payload, not from the beginning of the file. */
+static int TrackDetect_Lev(const unsigned char *bytes, size_t size, unsigned int *modes)
+{
+	if (bytes == NULL || size < 4 + TRACK_DETECT_HEADER_BYTES)
+	{
+		return 0;
+	}
+	uint32_t payloadSize = TrackDetect_Read32(bytes);
+	if (payloadSize > size - 4 || payloadSize < TRACK_DETECT_HEADER_BYTES)
+	{
+		return 0;
+	}
+	const unsigned char *payload = bytes + 4;
+	int botPaths = TrackDetect_BotPaths(payload, payloadSize);
+	if (botPaths < 0)
+	{
+		return 0;
+	}
+	uint32_t count = TrackDetect_Read32(payload + 0x0c);
+	uint32_t instances = TrackDetect_Read32(payload + 0x10);
+	if (instances > payloadSize || count > (payloadSize - instances) / TRACK_DETECT_INST_BYTES || (count != 0 && instances == 0))
+	{
+		return 0;
+	}
+	unsigned int found = NATIVE_TRACK_DETECTED_TIME_TRIAL;
+	unsigned int letters = 0;
+	int weapon = 0, fruit = 0;
+	for (uint32_t i = 0; i < count; i++)
+	{
+		const unsigned char *inst = payload + instances + i * TRACK_DETECT_INST_BYTES;
+		uint32_t model = TrackDetect_Read32(inst + 0x10);
+		if (model == 0 || model > payloadSize || payloadSize - model < TRACK_DETECT_MODEL_ID_OFFSET + 2)
+		{
+			return 0;
+		}
+		unsigned int id = payload[model + TRACK_DETECT_MODEL_ID_OFFSET] | (unsigned int)payload[model + TRACK_DETECT_MODEL_ID_OFFSET + 1] << 8;
+		if (id == TRACK_DETECT_RANDOM_CRATE) { weapon = 1; }
+		if (id == TRACK_DETECT_FRUIT || id == TRACK_DETECT_FRUIT_CRATE) { fruit = 1; }
+		if (id == TRACK_DETECT_TIME_1 || id == TRACK_DETECT_TIME_2 || id == TRACK_DETECT_TIME_3) { found |= NATIVE_TRACK_DETECTED_RELIC; }
+		if (id == TRACK_DETECT_CRYSTAL) { found |= NATIVE_TRACK_DETECTED_CRYSTAL; }
+		if (id >= TRACK_DETECT_C && id <= TRACK_DETECT_R) { letters |= 1u << (id - TRACK_DETECT_C); }
+	}
+	if (weapon && fruit)
+	{
+		found |= NATIVE_TRACK_DETECTED_VS;
+		if (botPaths) { found |= NATIVE_TRACK_DETECTED_ARCADE; }
+	}
+	if (letters == 7) { found |= NATIVE_TRACK_DETECTED_CTR; }
+	*modes = found;
+	return 1;
+}
+
+static int TrackDetect_File(const char *path, unsigned int *modes)
+{
+	SDL_PathInfo info;
+	if (!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE || info.size > TRACK_DETECT_MAX_BYTES)
+	{
+		return 0;
+	}
+	size_t size = 0;
+	unsigned char *bytes = SDL_LoadFile(path, &size);
+	int known = TrackDetect_Lev(bytes, size, modes);
+	SDL_free(bytes);
+	return known;
+}
 
 static int NativeTrackLibrary_Join(char *output, size_t size, const char *directory, const char *name)
 {
@@ -151,7 +272,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	}
 	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
 	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL,
-	                                       fields[3][0] ? fields[3] : NULL};
+	                                       fields[3][0] ? fields[3] : NULL, 0, 0};
+	metadata.detectionKnown = TrackDetect_File(paths[0], &metadata.detectedModes);
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
 
@@ -292,6 +414,13 @@ int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track)
 		item = end;
 	}
 	return 0;
+}
+
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
+{
+	return track != NULL && track->detectionKnown &&
+	       (mode == NATIVE_TRACK_DETECTED_VS || mode == NATIVE_TRACK_DETECTED_ARCADE) &&
+	       (track->detectedModes & mode) != 0;
 }
 
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled)

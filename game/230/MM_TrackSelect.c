@@ -83,8 +83,8 @@ enum
 #define MM_TRACK_GAME_TRACKER(page) CTR_PSX_PAGE_LVALUE(struct GameTracker *, page, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)
 
 static struct MainMenu_LevelRow s_combinedBattleTracks[MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT];
-static struct MainMenu_LevelRow *s_timeTrialTracks;
-static s16 s_timeTrialTrackCount;
+static struct MainMenu_LevelRow *s_raceTracks;
+static s16 s_raceTrackCount;
 static s16 s_titleScrollSelectedRow = -1;
 static u32 s_titleScrollStartFrame;
 static int s_previewTrackID = -1;
@@ -147,7 +147,7 @@ static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 	memory->cursor = bind + 1;
 }
 
-static void MM_TrackSelect_BuildTimeTrialTracks(void)
+static void MM_TrackSelect_BuildRaceTracks(void)
 {
 	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
 	size_t count = NativeTrackRegistry_Count(registry);
@@ -156,35 +156,38 @@ static void MM_TrackSelect_BuildTimeTrialTracks(void)
 	{
 		count = maxCustom;
 	}
-	free(s_timeTrialTracks);
-	s_timeTrialTracks = NULL;
-	s_timeTrialTrackCount = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+	free(s_raceTracks);
+	s_raceTracks = NULL;
+	s_raceTrackCount = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
 	if (count == 0)
 	{
 		return;
 	}
-	s_timeTrialTracks = malloc((MM_TRACK_SELECT_ARCADE_TRACK_COUNT + count) * sizeof(*s_timeTrialTracks));
-	if (s_timeTrialTracks == NULL)
+	s_raceTracks = malloc((MM_TRACK_SELECT_ARCADE_TRACK_COUNT + count) * sizeof(*s_raceTracks));
+	if (s_raceTracks == NULL)
 	{
 		return;
 	}
-	memcpy(s_timeTrialTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
+	memcpy(s_raceTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
 	size_t enabled = 0;
 	for (size_t i = 0; i < count; i++)
 	{
 		int levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
 		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
-		if (!NativeTrackLibrary_IsEnabled(track) || !NativeTrackLibrary_AllowsTimeTrial(track))
+		unsigned int mode = (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? NATIVE_TRACK_DETECTED_ARCADE : NATIVE_TRACK_DETECTED_VS;
+		b32 allowed = (GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 ? NativeTrackLibrary_AllowsTimeTrial(track) :
+		              NativeTrackLibrary_AllowsDetectedMode(track, mode);
+		if (!NativeTrackLibrary_IsEnabled(track) || !allowed)
 		{
 			continue;
 		}
-		struct MainMenu_LevelRow *row = &s_timeTrialTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + enabled++];
+		struct MainMenu_LevelRow *row = &s_raceTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + enabled++];
 		*row = MM_ARCADE_TRACKS[0];
 		row->levID = (s16)levelID;
 		row->mapTextureID = -1;
 		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
 	}
-	s_timeTrialTrackCount += (s16)enabled;
+	s_raceTrackCount += (s16)enabled;
 }
 
 static void MM_TrackSelect_CustomTitle(char *destination, size_t capacity, const char *source)
@@ -516,7 +519,7 @@ void MM_TrackSelect_Init(void)
 	s_titleScrollSelectedRow = -1;
 	s_previewTrackID = -1;
 	s_customMapTrackID = -1;
-	MM_TrackSelect_BuildTimeTrialTracks();
+	MM_TrackSelect_BuildRaceTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
 	MM_TRACK_TRANSITION_STATE = ENTERING_MENU;
@@ -534,8 +537,8 @@ void MM_TrackSelect_Init(void)
 	}
 	else
 	{
-		selectMenu = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 && s_timeTrialTracks != NULL) ? s_timeTrialTracks : MM_ARCADE_TRACKS;
-		numTracks = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0) ? s_timeTrialTrackCount : MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		selectMenu = s_raceTracks != NULL ? s_raceTracks : MM_ARCADE_TRACKS;
+		numTracks = s_raceTrackCount;
 	}
 
 	// If you scroll past the max number of tracks, go back to the first track
@@ -689,9 +692,9 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 		register u32 trackTablePage CTR_PSX_REGISTER("$2");
 		register s16 trackCountValue CTR_PSX_REGISTER("$13");
 		trackTablePage = 0;
-		selectMenu = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 && s_timeTrialTracks != NULL) ? s_timeTrialTracks : MM_ARCADE_TRACKS;
+		selectMenu = s_raceTracks != NULL ? s_raceTracks : MM_ARCADE_TRACKS;
 		(void)trackTablePage;
-		currTrack = ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0) ? s_timeTrialTrackCount : MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		currTrack = s_raceTrackCount;
 		trackCountValue = currTrack;
 		CTR_PSX_KEEP_VALUE_RELAXED(trackCountValue);
 		numTracks = trackCountValue;

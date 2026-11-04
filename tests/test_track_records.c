@@ -19,7 +19,7 @@ int main(void)
 	snprintf(records, sizeof(records), "%s/records", root);
 	WriteTrackFile(lev, "first revision");
 	WriteTrackFile(vrm, "textures");
-	struct NativeTrackMetadata track = {"local:one", "Track", lev, vrm, NULL, NULL, NULL};
+	struct NativeTrackMetadata track = {"local:one", "Track", lev, vrm, NULL, NULL, NULL, 0, 0};
 	struct NativeTrackRecordKey first, changed;
 	CTR_TEST_SECTION("persistent track revision records");
 	CTR_TEST_CHECK(NativeTrackRecords_Key(&track, &first), "a complete track has a stable revision key");

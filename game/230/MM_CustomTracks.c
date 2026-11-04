@@ -18,8 +18,34 @@ enum
 	CUSTOM_TRACKS_DETAIL_BYTES = 256,
 	CUSTOM_TRACKS_TOGGLE_WIDTH = 70,
 	CUSTOM_TRACKS_DETAIL_INDENT = 12,
-	CUSTOM_TRACKS_ROWS_PER_TRACK = 3,
 };
+
+static const struct { unsigned int bit; const char *name; } s_customTrackModes[] = {
+	{NATIVE_TRACK_DETECTED_TIME_TRIAL, "Time Trial"}, {NATIVE_TRACK_DETECTED_VS, "Versus"},
+	{NATIVE_TRACK_DETECTED_ARCADE, "Arcade"}, {NATIVE_TRACK_DETECTED_RELIC, "Relic Race"},
+	{NATIVE_TRACK_DETECTED_CTR, "CTR Challenge"}, {NATIVE_TRACK_DETECTED_CRYSTAL, "Crystal Challenge"},
+};
+
+enum { CUSTOM_TRACKS_BASE_ROWS = 3, CUSTOM_TRACKS_MODE_INDENT = 24 };
+
+static int CustomTracks_ModeCount(const struct NativeTrackMetadata *track)
+{
+	if (!track->detectionKnown)
+	{
+		return 1;
+	}
+	int count = 0;
+	for (size_t i = 0; i < len(s_customTrackModes); i++)
+	{
+		if ((track->detectedModes & s_customTrackModes[i].bit) != 0) { count++; }
+	}
+	return count;
+}
+
+static int CustomTracks_TrackRows(const struct NativeTrackMetadata *track)
+{
+	return CUSTOM_TRACKS_BASE_ROWS + CustomTracks_ModeCount(track);
+}
 
 static enum CustomTracksPage s_customTracksPage;
 static struct FullScreenMenu_Scroll s_customTracksScroll;
@@ -79,13 +105,21 @@ static void CustomTracks_DrawDetail(const char *label, const char *value, int y,
 static void CustomTracks_DrawRow(const void *context, int row, int y, bool selected, uint32_t *ot)
 {
 	(void)selected;
-	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(context,
-		NATIVE_TRACK_CUSTOM_ID_BASE + row / CUSTOM_TRACKS_ROWS_PER_TRACK);
+	const struct NativeTrackRegistry *registry = context;
+	const struct NativeTrackMetadata *track = NULL;
+	for (size_t i = 0; i < NativeTrackRegistry_Count(registry); i++)
+	{
+		track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
+		int rows = CustomTracks_TrackRows(track);
+		if (row < rows) { break; }
+		row -= rows;
+		track = NULL;
+	}
 	if (track == NULL)
 	{
 		return;
 	}
-	switch (row % CUSTOM_TRACKS_ROWS_PER_TRACK)
+	switch (row)
 	{
 	case 0:
 	{
@@ -100,19 +134,25 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 		break;
 	case 2:
 	{
-		char modes[CUSTOM_TRACKS_DETAIL_BYTES];
-		if (track->modes != NULL)
+		DecalFont_DrawLineOT("Available modes:", FULLSCREEN_MENU_LABEL_X + CUSTOM_TRACKS_DETAIL_INDENT, y, FONT_SMALL, WHITE, ot);
+		break;
+	}
+	default:
+	{
+		const char *name = "Unknown";
+		int modeRow = row - CUSTOM_TRACKS_BASE_ROWS;
+		if (track->detectionKnown)
 		{
-			snprintf(modes, sizeof(modes), "%s", track->modes);
-			for (char *p = modes; *p; p++)
+			for (size_t i = 0; i < len(s_customTrackModes); i++)
 			{
-				if (*p == '_')
+				if ((track->detectedModes & s_customTrackModes[i].bit) != 0 && modeRow-- == 0)
 				{
-					*p = ' ';
+					name = s_customTrackModes[i].name;
+					break;
 				}
 			}
 		}
-		CustomTracks_DrawDetail("Game modes", track->modes != NULL ? modes : NULL, y, ot);
+		DecalFont_DrawLineOT((char *)name, FULLSCREEN_MENU_LABEL_X + CUSTOM_TRACKS_MODE_INDENT, y, FONT_SMALL, WHITE, ot);
 		break;
 	}
 	}
@@ -134,8 +174,21 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 		bool changed = NativeTrackLibrary_SetEnabled(track, !NativeTrackLibrary_IsEnabled(track));
 		OtherFX_Play(changed ? 1 : 2, 1);
 	}
-	FullScreenMenu_DrawGroupedScreen("Available Tracks", CUSTOM_TRACKS_ROWS_PER_TRACK, count, menu->rowSelected,
-	                                 CustomTracks_DrawRow, registry, gGT, ot);
+	int totalRows = 0, selectedRow = 0, selectedEnd = 0;
+	for (int i = 0; i < count; i++)
+	{
+		const struct NativeTrackMetadata *item = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		int rows = CustomTracks_TrackRows(item);
+		if (i == menu->rowSelected)
+		{
+			selectedRow = totalRows;
+			selectedEnd = totalRows + rows - 1;
+		}
+		totalRows += rows;
+	}
+	struct FullScreenMenu_Scroll scroll = {0};
+	scroll.offset = FullScreenMenu_ScrollOffsetFor(&scroll, selectedEnd, totalRows);
+	FullScreenMenu_DrawScreen("Available Tracks", 0, &scroll, totalRows, selectedRow, CustomTracks_DrawRow, registry, gGT, ot);
 }
 
 // Uses the caller's row while open, restoring it when returning to Options.

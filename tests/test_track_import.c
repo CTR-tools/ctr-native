@@ -16,6 +16,14 @@ static void WriteImportFixture(const char *dir, const char *name, const void *da
 	}
 }
 
+static void ImportWrite32(unsigned char *p, uint32_t value)
+{
+	for (int i = 0; i < 4; i++)
+	{
+		p[i] = (unsigned char)(value >> (8 * i));
+	}
+}
+
 int main(void)
 {
 	char root[700], source[800], library[800], target[900], path[1000];
@@ -24,7 +32,12 @@ int main(void)
 	snprintf(library, sizeof(library), "%s/library", root);
 	snprintf(target, sizeof(target), "%s/installed", library);
 	SDL_CreateDirectory(source);
-	unsigned char lev[24] = {8, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4};
+	unsigned char lev[0x508] = {0};
+	ImportWrite32(lev, 0x500);
+	ImportWrite32(lev + 4 + 0x0c, 1);
+	ImportWrite32(lev + 4 + 0x10, 0x180);
+	ImportWrite32(lev + 4 + 0x180 + 0x10, 0x200);
+	lev[4 + 0x200 + 0x10] = 0x5c;
 	unsigned char vrm[36] = {0x20, 0, 0, 0, 24};
 	vrm[24] = 2;
 	vrm[26] = 1;
@@ -40,6 +53,16 @@ int main(void)
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(library, &result);
 	CTR_TEST_CHECK(registry != NULL && result.installed == 1 && NativeTrackRegistry_Find(registry, "example:1", NULL),
 	               "the installed track is discoverable with its identity");
+	const struct NativeTrackMetadata *installed = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(installed != NULL && installed->detectionKnown && (installed->detectedModes & NATIVE_TRACK_DETECTED_RELIC),
+	               "folder import detects time crates from the copied LEV");
+	NativeTrackRegistry_Destroy(registry);
+	lev[4 + 0x200 + 0x10] = 0;
+	WriteImportFixture(target, "track.lev", lev, sizeof(lev));
+	registry = NativeTrackLibrary_Scan(library, NULL);
+	installed = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(installed != NULL && installed->detectionKnown && !(installed->detectedModes & NATIVE_TRACK_DETECTED_RELIC),
+	               "rescanning uses the current LEV instead of stale import results");
 	NativeTrackRegistry_Destroy(registry);
 	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "installed") != NULL, "existing tracks are not overwritten");
 	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "duplicate") != NULL, "duplicate identities are refused");

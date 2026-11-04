@@ -11,6 +11,16 @@ enum
 	NATIVE_TRACK_CUSTOM_ID_MAX = 0x7fff,
 };
 
+enum NativeTrackDetectedMode
+{
+	NATIVE_TRACK_DETECTED_TIME_TRIAL = 1 << 0,
+	NATIVE_TRACK_DETECTED_ARCADE = 1 << 1,
+	NATIVE_TRACK_DETECTED_RELIC = 1 << 2,
+	NATIVE_TRACK_DETECTED_CTR = 1 << 3,
+	NATIVE_TRACK_DETECTED_CRYSTAL = 1 << 4,
+	NATIVE_TRACK_DETECTED_VS = 1 << 5,
+};
+
 struct NativeTrackMetadata
 {
 	const char *identity;
@@ -20,6 +30,8 @@ struct NativeTrackMetadata
 	const char *scaPath;
 	const char *author;
 	const char *modes;
+	unsigned int detectedModes;
+	int detectionKnown;
 };
 
 struct NativeTrackRegistry;

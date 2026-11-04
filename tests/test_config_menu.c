@@ -41,8 +41,9 @@ static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
 static int s_trackFixtureEnabled = 1;
-static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .modes = "time_trial"};
-static int s_trackDetailRows[2];
+static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .modes = "arcade", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
+static int s_trackDetailRows[3];
+static int s_modeRows[6];
 static int s_unknownModesY;
 static int s_emptyTracksY;
 static int s_importRowColor;
@@ -137,7 +138,7 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	{
 		s_importRowColor = flags;
 	}
-	if (strcmp(text, "Game modes: Unknown") == 0)
+	if (strcmp(text, "Unknown") == 0 && x == FULLSCREEN_MENU_LABEL_X + 24)
 	{
 		s_unknownModesY = y;
 	}
@@ -145,10 +146,18 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	{
 		s_emptyTracksY = y;
 	}
-	const char *details[] = {"Author: Test Author", "Game modes: time trial"};
-	for (int i = 0; i < 2; i++)
+	const char *details[] = {"Author: Test Author", "Available modes:", "Time Trial"};
+	const char *modeNames[] = {"Time Trial", "Versus", "Arcade", "Relic Race", "CTR Challenge", "Crystal Challenge"};
+	for (int i = 0; i < 6; i++)
 	{
-		if (strcmp(text, details[i]) == 0 && x == FULLSCREEN_MENU_LABEL_X + 12)
+		if (strcmp(text, modeNames[i]) == 0 && x == FULLSCREEN_MENU_LABEL_X + 24)
+		{
+			s_modeRows[i] = y;
+		}
+	}
+	for (int i = 0; i < 3; i++)
+	{
+		if (strcmp(text, details[i]) == 0 && x == FULLSCREEN_MENU_LABEL_X + (i == 2 ? 24 : 12))
 		{
 			s_trackDetailRows[i] = y;
 		}
@@ -248,12 +257,21 @@ static void TestTrackImportMenu(void)
 	SetInput(0, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackDetailRows[0] > 0 && s_trackDetailRows[1] > s_trackDetailRows[0] &&
-	               s_trackDetailRows[1] < SCREEN_HEIGHT,
-	               "author and mode details are indented on separate on-screen rows");
-	s_trackFixture.modes = NULL;
+	               s_trackDetailRows[2] > s_trackDetailRows[1] && s_trackDetailRows[2] < SCREEN_HEIGHT,
+	               "mode names appear on a further indented row below the heading");
+	s_trackFixture.detectionKnown = 0;
 	UpdateMenu();
-	CTR_TEST_CHECK(s_unknownModesY == s_trackDetailRows[1], "undeclared track modes are shown as Unknown");
-	s_trackFixture.modes = "time_trial";
+	CTR_TEST_CHECK(s_unknownModesY == s_trackDetailRows[2], "unrecognized track modes are shown as Unknown below the heading");
+	s_trackFixture.detectionKnown = 1;
+	s_trackFixture.detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL | NATIVE_TRACK_DETECTED_VS | NATIVE_TRACK_DETECTED_ARCADE |
+	                               NATIVE_TRACK_DETECTED_RELIC | NATIVE_TRACK_DETECTED_CTR | NATIVE_TRACK_DETECTED_CRYSTAL;
+	memset(s_modeRows, 0, sizeof(s_modeRows));
+	UpdateMenu();
+	CTR_TEST_CHECK(s_modeRows[0] > 0 && s_modeRows[1] > s_modeRows[0] && s_modeRows[2] > s_modeRows[1] &&
+	               s_modeRows[3] > s_modeRows[2] && s_modeRows[4] > s_modeRows[3] &&
+	               s_modeRows[5] > s_modeRows[4] && s_modeRows[5] < SCREEN_HEIGHT,
+	               "all detected modes have separate visible indented rows");
+	s_trackFixture.detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(!s_trackFixtureEnabled, "confirm disables the selected track");

@@ -325,7 +325,15 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 	MEMPACK_PushState();
 
 	JitPool_Init(&gGT->JitPools.thread, (renderBucketSize * 3) >> 7, sizeof(struct Thread), rdata.s_ThreadPool);
-	JitPool_Init(&gGT->JitPools.instance, renderBucketSize >> 5, sizeof(struct Instance) + (sizeof(struct InstDrawPerPlayer) * gGT->numPlyrCurrGame),
+	int instanceCount = renderBucketSize >> 5;
+	if (gGT->level1 != NULL && NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+	{
+		/* Retain the retail dynamic budget in addition to placed track objects. */
+		enum { CUSTOM_TRACK_MAX_INSTANCE_POOL = 1024 };
+		u32 available = CUSTOM_TRACK_MAX_INSTANCE_POOL - instanceCount;
+		instanceCount += (int)(gGT->level1->numInstances < available ? gGT->level1->numInstances : available);
+	}
+	JitPool_Init(&gGT->JitPools.instance, instanceCount, sizeof(struct Instance) + (sizeof(struct InstDrawPerPlayer) * gGT->numPlyrCurrGame),
 	             rdata.s_InstancePool);
 	JitPool_Init(&gGT->JitPools.smallStack, (poolScale * 0x19) >> 10, THREAD_SMALL_STACK_SIZE, rdata.s_SmallStackPool);
 	JitPool_Init(&gGT->JitPools.mediumStack, poolScale >> 7, THREAD_MEDIUM_STACK_SIZE, rdata.s_MediumStackPool);

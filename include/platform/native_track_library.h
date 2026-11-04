@@ -25,6 +25,8 @@ int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track);
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled);
 /* Unknown source modes remain selectable; explicit lists must include time_trial. */
 int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track);
+/* Arcade and VS require positive LEV detection, not just source tags. */
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode);
 void NativeTrackLibrary_Shutdown(void);
 
 #endif

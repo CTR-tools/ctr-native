@@ -212,8 +212,9 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 			sdata->levelLOD = gGT->numPlyrCurrGame;
 		}
 
-		sdata->highDetailSplitScreenLevel =
-		    g_config.disableSplitScreenLod && (gGT->numPlyrCurrGame > 1) && (gGT->levelID < GEM_STONE_VALLEY);
+		sdata->highDetailSplitScreenLevel = (gGT->numPlyrCurrGame > 1) &&
+		    ((g_config.disableSplitScreenLod && gGT->levelID < GEM_STONE_VALLEY) ||
+		     NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL);
 
 		gGT->hudFlags |= HUD_FLAG_INIT_UI_INSTANCES;
 
