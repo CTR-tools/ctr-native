@@ -52,7 +52,9 @@ against actual track files and the import workflow.
 
 ## Installing a local directory
 
-Copy the prepared track directory into `assets/tracks/` and restart the game.
+Copy the prepared track directory into `assets/tracks/`, then select **Options >
+Custom Tracks > Refresh** from the main menu, or restart the game. Refresh also
+detects removed or modified tracks and is unavailable while a game is paused.
 The files must use the names listed above. After the library scan, enabled
 tracks appear in the Time Trial, Arcade and VS single-race selectors when their
 respective compatibility requirements are met.

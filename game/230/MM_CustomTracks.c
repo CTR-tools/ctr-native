@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_assets.h>
 #include <platform/native_track_library.h>
 #include <stdio.h>
 
@@ -10,6 +11,7 @@ enum CustomTracksPage
 	CUSTOM_TRACKS_ROOT,
 	CUSTOM_TRACKS_AVAILABLE,
 	CUSTOM_TRACKS_IMPORT,
+	CUSTOM_TRACKS_REFRESH_RESULT,
 };
 
 enum
@@ -18,6 +20,7 @@ enum
 	CUSTOM_TRACKS_DETAIL_BYTES = 256,
 	CUSTOM_TRACKS_TOGGLE_WIDTH = 70,
 	CUSTOM_TRACKS_DETAIL_INDENT = 12,
+	CUSTOM_TRACKS_PATH_BYTES = 1024,
 };
 
 static const struct { unsigned int bit; const char *name; } s_customTrackModes[] = {
@@ -31,6 +34,7 @@ static enum CustomTracksPage s_customTracksPage;
 static struct FullScreenMenu_Scroll s_customTracksScroll;
 static s16 s_customTracksReturnRow;
 static b32 s_customTracksImportEnabled;
+static char s_customTracksRefreshMessage[128];
 
 void MM_CustomTracks_ResetNavigation(void)
 {
@@ -51,7 +55,7 @@ static void CustomTracks_DrawMenuRow(const void *context, int row, int y, bool s
 {
 	const char *const *labels = context;
 	(void)selected;
-	const int color = s_customTracksPage == CUSTOM_TRACKS_ROOT && row == 1 && !s_customTracksImportEnabled ? GRAY : ORANGE;
+	const int color = s_customTracksPage == CUSTOM_TRACKS_ROOT && row != 0 && !s_customTracksImportEnabled ? GRAY : ORANGE;
 	DecalFont_DrawLineOT((char *)labels[row], FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, color, ot);
 }
 
@@ -179,6 +183,19 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		FullScreenMenu_DrawMessage("Import Track", MM_TrackImport_Message(), gGT, ot);
 		return true;
 	}
+	if (s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT)
+	{
+		if (FullScreenMenu_Back((u32)pad->buttonsTapped) || FullScreenMenu_Confirm((u32)pad->buttonsTapped))
+		{
+			s_customTracksPage = CUSTOM_TRACKS_ROOT;
+			menu->rowSelected = 2;
+		}
+		else
+		{
+			FullScreenMenu_DrawMessage("Refresh", s_customTracksRefreshMessage, gGT, ot);
+		}
+		return true;
+	}
 	if (FullScreenMenu_Back((u32)pad->buttonsTapped))
 	{
 		if (s_customTracksPage == CUSTOM_TRACKS_AVAILABLE || s_customTracksPage == CUSTOM_TRACKS_IMPORT)
@@ -199,13 +216,13 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		CustomTracks_DrawAvailable(menu, pad, gGT, ot);
 		return true;
 	}
-	static const char *rootItems[] = {"Available Tracks", "Import"};
+	static const char *rootItems[] = {"Available Tracks", "Import", "Refresh"};
 	static const char *importItems[] = {"Folder", "Xdelta patch"};
 	const bool choosingImport = s_customTracksPage == CUSTOM_TRACKS_IMPORT;
 	const char *const *items = choosingImport ? importItems : rootItems;
 	const int count = choosingImport ? (int)len(importItems) : (int)len(rootItems);
 	FullScreenMenu_NavScroll(pad, &s_customTracksScroll, &menu->rowSelected, count);
-	const bool canOpen = choosingImport || menu->rowSelected != 1 || s_customTracksImportEnabled;
+	const bool canOpen = choosingImport || menu->rowSelected == 0 || s_customTracksImportEnabled;
 	if (canOpen && FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 	{
 		if (choosingImport && menu->rowSelected == 0)
@@ -215,6 +232,21 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		else if (choosingImport)
 		{
 			MM_TrackImport_OpenPatch();
+		}
+		else if (menu->rowSelected == 2)
+		{
+			char path[CUSTOM_TRACKS_PATH_BYTES];
+			struct NativeTrackScanResult result;
+			int length = snprintf(path, sizeof(path), "%s/tracks", NativeAssets_GetAssetDir());
+			if (length >= 0 && (size_t)length < sizeof(path) && NativeTrackLibrary_Refresh(path, &result))
+			{
+				snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "Tracks: %zu  Rejected: %zu", result.installed, result.rejected);
+			}
+			else
+			{
+				snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "Refresh failed");
+			}
+			s_customTracksPage = CUSTOM_TRACKS_REFRESH_RESULT;
 		}
 		else
 		{

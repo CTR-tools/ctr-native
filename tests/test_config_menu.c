@@ -37,6 +37,8 @@ static int s_hubUpdates;
 static int s_unpauses;
 static int s_backgroundDeactivations;
 static int s_trackImportOpened;
+static int s_trackRefreshCalls;
+static int s_trackRefreshSuccess = 1;
 static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
@@ -68,6 +70,19 @@ const char *NativeAssets_GetBaseDir(void)
 {
 	CtrTest_Bail("menu tests must not access configuration files");
 	return NULL;
+}
+const char *NativeAssets_GetAssetDir(void) { return "fixture-assets"; }
+int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result)
+{
+	if (strcmp(directory, "fixture-assets/tracks") != 0) { CtrTest_Bail("unexpected track refresh path"); }
+	s_trackRefreshCalls++;
+	if (s_trackRefreshSuccess && result != NULL)
+	{
+		result->installed = 2;
+		result->rejected = 1;
+		s_trackFixtureCount = 2;
+	}
+	return s_trackRefreshSuccess;
 }
 void NativeControls_Save(void) { s_controlsSaves++; }
 void GhostTape_Destroy(void) {}
@@ -275,6 +290,31 @@ static void TestTrackImportMenu(void)
 	UpdateMenu();
 	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "back returns from the track list to the manager");
 	CTR_TEST_CHECK(s_lastMenuSound == 2, "leaving the list plays the back sound");
+	sdata->ptrActiveMenu->rowSelected = 2;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 1 && s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT && s_trackFixtureCount == 2 &&
+	               strcmp(s_customTracksRefreshMessage, "Tracks: 2  Rejected: 1") == 0,
+	               "refresh scans the track directory and displays its result");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && sdata->ptrActiveMenu->rowSelected == 2,
+	               "closing the refresh result returns to the refresh row");
+	s_trackRefreshSuccess = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 2 && strcmp(s_customTracksRefreshMessage, "Refresh failed") == 0,
+	               "a failed refresh reports the failure");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	s_trackRefreshSuccess = 1;
+	s_customTracksImportEnabled = false;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 2 && s_customTracksPage == CUSTOM_TRACKS_ROOT,
+	               "refresh is unavailable during a paused game");
+	s_customTracksImportEnabled = true;
+	sdata->ptrActiveMenu->rowSelected = 0;
 	s_trackFixtureCount = 0;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
