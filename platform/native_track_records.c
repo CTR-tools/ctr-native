@@ -1,4 +1,5 @@
 #include <platform/native_track_records.h>
+#include <platform/native_memcard.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -104,4 +105,37 @@ int NativeTrackRecords_Save(const char *directory, const struct NativeTrackMetad
 	if (ok) { ok = SDL_RenamePath(temporary, path); }
 	if (!ok) { SDL_RemovePath(temporary); }
 	return ok;
+}
+
+static int TrackRecords_CurrentDirectory(char *path, size_t capacity, enum NativeTrackRecordKind kind)
+{
+	const char *suffix;
+	if (kind == NATIVE_TRACK_RECORD_SCORES)
+	{
+		suffix = "custom-records";
+	}
+	else if (kind == NATIVE_TRACK_RECORD_GHOST)
+	{
+		suffix = "custom-records/ghosts";
+	}
+	else
+	{
+		return 0;
+	}
+	int written = snprintf(path, capacity, "%s/%s", NativeMemcard_GetRoot(), suffix);
+	return written >= 0 && (size_t)written < capacity;
+}
+
+int NativeTrackRecords_LoadCurrent(enum NativeTrackRecordKind kind, const struct NativeTrackMetadata *track,
+                                   const struct NativeTrackRecordKey *key, void *data, size_t size)
+{
+	char directory[TRACK_RECORD_PATH_MAX];
+	return TrackRecords_CurrentDirectory(directory, sizeof(directory), kind) && NativeTrackRecords_Load(directory, track, key, data, size);
+}
+
+int NativeTrackRecords_SaveCurrent(enum NativeTrackRecordKind kind, const struct NativeTrackMetadata *track,
+                                   const struct NativeTrackRecordKey *key, const void *data, size_t size)
+{
+	char directory[TRACK_RECORD_PATH_MAX];
+	return TrackRecords_CurrentDirectory(directory, sizeof(directory), kind) && NativeTrackRecords_Save(directory, track, key, data, size);
 }

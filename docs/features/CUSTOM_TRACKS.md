@@ -91,8 +91,8 @@ manifest invalid.
 
 ## Records, previews and troubleshooting
 
-Custom Time Trial records are stored in `custom-records/` and ghosts in
-`custom-records/ghosts/`, next to the game. Keep those folders to back up your
+Custom Time Trial records are stored in `memcards/custom-records/` and ghosts in
+`memcards/custom-records/ghosts/`, next to the game. Keep those folders to back up your
 results. Records and ghosts are tied to the track identity and LEV/VRM file
 contents: a changed revision starts a separate record. The one-lap debug option
 does not save three-lap records or ghosts.

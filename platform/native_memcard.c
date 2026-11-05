@@ -60,7 +60,7 @@ internal struct NativeMemcardDeviceName NativeMemcard_ParseDeviceName(const char
 	return result;
 }
 
-internal const char *NativeMemcard_ActiveRoot(void)
+const char *NativeMemcard_GetRoot(void)
 {
 	if (s_memcardRoot[0] == '\0')
 	{
@@ -210,7 +210,7 @@ internal int NativeMemcard_EnsureSlotRoot(const char *root, int slot)
 internal int NativeMemcard_BuildPathFromDeviceName(char *dst, int dst_size, const char *save_name, int ensureSlotRoot)
 {
 	struct NativeMemcardDeviceName device = NativeMemcard_ParseDeviceName(save_name);
-	const char *root = NativeMemcard_ActiveRoot();
+	const char *root = NativeMemcard_GetRoot();
 	char slotRoot[NATIVE_MEMCARD_MAX_PATH];
 
 	if (ensureSlotRoot != 0)
@@ -738,7 +738,7 @@ enum NativeMemcardResult NativeMemcard_CloneRoot(const char *src_root, const cha
 
 enum NativeMemcardResult NativeMemcard_CloneCurrentRoot(const char *dst_root)
 {
-	return NativeMemcard_CloneRoot(NativeMemcard_ActiveRoot(), dst_root);
+	return NativeMemcard_CloneRoot(NativeMemcard_GetRoot(), dst_root);
 }
 
 int NativeMemcard_FindFirstFile(const char *pattern, char *dst_name, int dst_size)

@@ -64,7 +64,7 @@ struct HighScoreTrack *GAMEPROG_CustomHighScoreTrack(int levelID)
 	if (node->hasKey)
 	{
 		struct HighScoreEntry saved[MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE];
-		if (NativeTrackRecords_Load("custom-records", metadata, &node->key, saved, sizeof(saved)))
+		if (NativeTrackRecords_LoadCurrent(NATIVE_TRACK_RECORD_SCORES, metadata, &node->key, saved, sizeof(saved)))
 		{
 			int valid = 1;
 			for (int i = 0; i < MEMCARD_HIGH_SCORE_ENTRIES_PER_MODE; i++)
@@ -94,7 +94,7 @@ void GAMEPROG_CustomSaveHighScore(int levelID)
 		return;
 	}
 	struct HighScoreTrack *track = GAMEPROG_CustomHighScoreTrack(levelID);
-	if (!NativeTrackRecords_Save("custom-records", metadata, &s_customRecordKey, track->scoreEntry[0], sizeof(track->scoreEntry[0])))
+	if (!NativeTrackRecords_SaveCurrent(NATIVE_TRACK_RECORD_SCORES, metadata, &s_customRecordKey, track->scoreEntry[0], sizeof(track->scoreEntry[0])))
 	{
 		Platform_LogWarn("[CUSTOM TRACK] Could not save time trial records for %s\n", metadata->identity);
 	}
@@ -143,7 +143,7 @@ int GAMEPROG_CustomLoadGhost(int levelID, struct GhostHeader *ghost)
 	{
 		return 0;
 	}
-	if (!NativeTrackRecords_Load("custom-records/ghosts", track, &key, ghost, GHOST_RECORD_BUFFER_SIZE) ||
+	if (!NativeTrackRecords_LoadCurrent(NATIVE_TRACK_RECORD_GHOST, track, &key, ghost, GHOST_RECORD_BUFFER_SIZE) ||
 	    !GAMEPROG_CustomGhostValid(ghost))
 	{
 		memset(ghost, 0, GHOST_RECORD_BUFFER_SIZE);
@@ -163,7 +163,7 @@ int GAMEPROG_CustomSaveGhost(int levelID, const struct GhostHeader *ghost)
 	}
 	unsigned char buffer[GHOST_RECORD_BUFFER_SIZE] = {0};
 	memcpy(buffer, ghost, sizeof(*ghost) + ghost->size);
-	if (!NativeTrackRecords_Save("custom-records/ghosts", track, &s_customRecordKey, buffer, sizeof(buffer)))
+	if (!NativeTrackRecords_SaveCurrent(NATIVE_TRACK_RECORD_GHOST, track, &s_customRecordKey, buffer, sizeof(buffer)))
 	{
 		Platform_LogWarn("[CUSTOM TRACK] Could not save ghost for %s\n", track->identity);
 	}
