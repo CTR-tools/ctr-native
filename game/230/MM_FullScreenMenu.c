@@ -21,6 +21,7 @@ enum
 
 // Row geometry.
 #define FULLSCREEN_MENU_TITLE_X     0x100
+#define FULLSCREEN_MENU_MAIN_X      0x180
 #define FULLSCREEN_MENU_TITLE_Y     0x18
 #define FULLSCREEN_MENU_CENTER_Y    0x6C
 #define FULLSCREEN_MENU_ROW_START_Y 0x3C
@@ -487,6 +488,43 @@ static void FullScreenMenu_DrawScreen(const char *title, int nudgeY, const struc
 	FullScreenMenu_DrawTitle(title, numRows, nudgeY, ot);
 	FullScreenMenu_DrawRows(scroll, numRows, selected, drawRow, context, gGT, ot);
 	FullScreenMenu_DrawFrame(numRows);
+}
+
+// Large, content-sized section list: title menus sit right, pause menus centre.
+static inline void FullScreenMenu_DrawSectionScreen(const char *title, const char *const *labels,
+                                            const struct FullScreenMenu_Scroll *scroll,
+                                            int numRows, int selected, int columnX,
+                                            struct GameTracker *gGT, uint32_t *ot)
+{
+	const int rowHeight = data.font_charPixHeight[FONT_BIG] + 3;
+	const int visibleEnd = FullScreenMenu_VisibleEnd(scroll, numRows);
+	const int visibleRows = visibleEnd - scroll->offset;
+	const int height = (visibleRows + 1) * rowHeight + 6;
+	const int titleY = FULLSCREEN_MENU_CENTER_Y - height / 2 + 2;
+	int width = DecalFont_GetLineWidth((char *)title, FONT_BIG);
+	for (int row = 0; row < numRows; row++)
+	{
+		const int labelWidth = DecalFont_GetLineWidth((char *)labels[row], FONT_BIG);
+		if (labelWidth > width) { width = labelWidth; }
+	}
+	width += 2 * FULLSCREEN_MENU_ROW_PADDING;
+	if (width > FULLSCREEN_MENU_CONTENT_W) { width = FULLSCREEN_MENU_CONTENT_W; }
+	const int maxWidth = 2 * (SCREEN_WIDTH - 6 - columnX);
+	if (width > maxWidth) { width = maxWidth; }
+	DecalFont_DrawLineOT((char *)title, columnX, titleY, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+	for (int row = scroll->offset; row < visibleEnd; row++)
+	{
+		const int y = titleY + rowHeight + 6 + (row - scroll->offset) * rowHeight;
+		DecalFont_DrawLineOT((char *)labels[row], columnX, y, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		if (row == selected)
+		{
+			RECT highlight = {columnX - width / 2, y - 1, width, rowHeight - 3};
+			CTR_Box_DrawClearBox(&highlight, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot, &gGT->backBuffer->primMem);
+		}
+	}
+	struct RectMenu frame = {.stringIndexTitle = LNG_OPTIONS, .drawStyle = s_frameDrawStyle};
+	RECT bounds = {columnX - width / 2 - 6, titleY - 6, width + 12, height + 8};
+	RECTMENU_DrawFullRect(&frame, &bounds);
 }
 
 static inline void FullScreenMenu_DrawMessage(const char *title, const char *message, struct GameTracker *gGT, uint32_t *ot)

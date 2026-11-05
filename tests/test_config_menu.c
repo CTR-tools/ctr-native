@@ -145,7 +145,7 @@ s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strle
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
-	if (strcmp(text, "General") == 0)
+	if (strcmp(text, "System") == 0)
 	{
 		s_sectionFont = font;
 	}
@@ -238,19 +238,71 @@ static void UpdateMenu(void)
 	menu->funcPtr(menu);
 }
 
+static int NavigationRow(const char *name)
+{
+	const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
+	int count = Config_NavigationEntries(entries);
+	for (int i = 0; i < count; i++)
+	{
+		if (strcmp(entries[i]->key, name) == 0) { return i; }
+	}
+	return -1;
+}
+
+static void SelectNavigation(const char *name)
+{
+	int row = NavigationRow(name);
+	if (row < 0) { CtrTest_Bail("navigation entry not found"); }
+	sdata->ptrActiveMenu->rowSelected = (s16)row;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+}
+
+static void TestNavigation(void)
+{
+	CTR_TEST_SECTION("section hierarchy");
+	g_config.developerHacksEnabled = false;
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
+	const char *roots[] = {"System", "Game", "Modifiers", CONFIG_SECTION_CUSTOM_TRACKS};
+	int count = Config_NavigationEntries(entries);
+	CTR_TEST_CHECK(count == (int)len(roots), "the root shows four sections when developer hacks are disabled");
+	for (int i = 0; i < count; i++)
+	{
+		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
+	}
+	const char *groups[][4] = {
+		{"System", "Audio", "Controls", "Graphics"},
+		{"Game", "Adventure", "General", "Unlocks"},
+		{"Modifiers", "Vehicle", "Weapons", NULL},
+	};
+	for (size_t group = 0; group < len(groups); group++)
+	{
+		SelectNavigation(groups[group][0]);
+		count = Config_NavigationEntries(entries);
+		int expected = groups[group][3] != NULL ? 3 : 2;
+		CTR_TEST_CHECK(count == expected, "each group exposes its expected subsections");
+		for (int i = 0; i < count; i++)
+		{
+			CTR_TEST_CHECK(strcmp(entries[i]->key, groups[group][i + 1]) == 0, "subsections follow the requested order");
+		}
+		SetInput(BTN_TRIANGLE, 0);
+		UpdateMenu();
+	}
+	g_config.developerHacksEnabled = true;
+	count = Config_NavigationEntries(entries);
+	CTR_TEST_CHECK(count == 5 && strcmp(entries[4]->key, CONFIG_SECTION_DEVELOPER_HACKS) == 0,
+	               "developer hacks appear at the end only when enabled");
+	g_config = s_initialConfig;
+}
+
 static void TestTrackImportMenu(void)
 {
 	CTR_TEST_SECTION("track import entry");
 	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
 	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
-	int customTracksSection = -1;
-	for (int section = 0; section < s_numSections; section++)
-	{
-		if (Config_IsSection(section, CONFIG_SECTION_CUSTOM_TRACKS))
-		{
-			customTracksSection = section;
-		}
-	}
+	int customTracksSection = NavigationRow(CONFIG_SECTION_CUSTOM_TRACKS);
 	CTR_TEST_CHECK(customTracksSection >= 0, "Custom Tracks is registered in the section table");
 	sdata->ptrActiveMenu->rowSelected = (s16)customTracksSection;
 	s_trackImportOpened = 0;
@@ -384,14 +436,20 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 	CTR_TEST_CHECK(sdata->ptrActiveMenu->rowSelected == 0, "opening selects the first section");
 	UpdateMenu();
 	CTR_TEST_CHECK(s_currentSection == -1, "opening confirm does not also enter a section");
-	CTR_TEST_CHECK(s_sectionFont == FONT_SMALL, "section entries use the small font");
+	CTR_TEST_CHECK(s_sectionFont == FONT_BIG, "section entries use the large font");
 	CTR_TEST_CHECK(s_tracker.gameMode1 == mode, "opening preserves the caller's game and pause flags");
-	CTR_TEST_CHECK(s_centerX == FULLSCREEN_MENU_TITLE_X, "the section list uses the shared screen title position");
+	CTR_TEST_CHECK(s_centerX == (context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X),
+	               "the section list follows the caller's menu position");
 	const int expectedStyle = (context == CONFIG_MENU_MAIN) ? FULLSCREEN_MENU_DRAW_STYLE_SHADED
 	                                                       : FULLSCREEN_MENU_DRAW_STYLE_FLAT;
 	CTR_TEST_CHECK(s_frameDrawStyle == expectedStyle, "the box matches the calling menu's shading");
 
-	SetInput(BTN_CROSS, 0);
+	SelectNavigation("Game");
+	CTR_TEST_CHECK(s_configGroup != NULL && strcmp(s_configGroup->key, "Game") == 0, "Game opens its subsection list");
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_centerX == (context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X),
+	               "the subsection list follows the caller's menu position");
 	int generalSection = -1;
 	for (int section = 0; section < s_numSections; section++)
 	{
@@ -401,8 +459,7 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 		}
 	}
 	CTR_TEST_CHECK(generalSection >= 0, "the General section is present");
-	sdata->ptrActiveMenu->rowSelected = (s16)generalSection;
-	UpdateMenu();
+	SelectNavigation("General");
 	CTR_TEST_CHECK(s_currentSection == generalSection, "confirm enters the selected section");
 	// Back and confirm together must not reopen the section or edit an option.
 	SetInput(BTN_TRIANGLE | BTN_CROSS, BTN_RIGHT);
@@ -411,6 +468,9 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 	CTR_TEST_CHECK(!g_config.skipIntro, "leaving a section does not edit its option");
 	CTR_TEST_CHECK(s_configSaves == 0 && s_controlsSaves == 0, "leaving a section does not close the session");
 
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_configGroup == NULL && sdata->ptrActiveMenu->rowSelected == 1, "back restores the parent section row");
 	s_capturing = true;
 	SetInput(BTN_START | BTN_CROSS, BTN_DOWN);
 	UpdateMenu();
@@ -438,14 +498,21 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 	MM_ConfigMenu_Open(&s_caller, context);
 	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
 	sdata->ptrDesiredMenu = NULL;
+	const char *target = g_configEntries[index].section;
+	for (size_t i = 0; i < len(s_configNavigation); i++)
+	{
+		if (strcmp(s_configNavigation[i].key, target) == 0 && s_configNavigation[i].section[0] != '\0')
+		{
+			SelectNavigation(s_configNavigation[i].section);
+			break;
+		}
+	}
 	for (int section = 0; section < s_numSections; section++)
 	{
 		const int first = s_sectionToEntry[section];
 		if (index >= first && index < first + s_sectionCount[section])
 		{
-			sdata->ptrActiveMenu->rowSelected = (s16)section;
-			SetInput(BTN_CROSS, 0);
-			UpdateMenu();
+			SelectNavigation(target);
 			sdata->ptrActiveMenu->rowSelected = (s16)(index - first);
 			return;
 		}
@@ -786,6 +853,7 @@ int main(void)
 	s_strings[LNG_MONO] = "MONO";
 	s_strings[LNG_STEREO] = "STEREO";
 	s_tracker.backBuffer = &s_buffer;
+	TestNavigation();
 	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");
 	TestSession(CONFIG_MENU_MAIN, MAIN_MENU);

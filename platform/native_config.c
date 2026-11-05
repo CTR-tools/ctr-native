@@ -639,7 +639,7 @@ static void NativeConfig_ResetDisabledDeveloperHacks(void)
         }
 
         // Menu markers have no value to restore.
-        if (e->type == CFG_ACTION)
+        if (e->type == CFG_ACTION || e->type == CFG_SUBSECTION)
         {
             continue;
         }
@@ -759,7 +759,7 @@ void NativeConfig_Load(void)
             if (strcmp(section, e->section) == 0 &&
                 strcmp(key, e->key) == 0)
             {
-                if (e->type == CFG_ACTION)
+                if (e->type == CFG_ACTION || e->type == CFG_SUBSECTION)
                 {
                     // Nothing to parse; the section is drawn by its own screen.
                 }
@@ -815,8 +815,8 @@ void NativeConfig_Save(void)
     {
         const ConfigEntry *e = &g_configEntries[i];
 
-        // CFG_ACTION rows are menu markers with no config.ini representation.
-        if (e->type == CFG_ACTION)
+        // Menu-only rows have no config.ini representation.
+        if (e->type == CFG_ACTION || e->type == CFG_SUBSECTION)
             continue;
 
         if (lastSection == NULL || strcmp(e->section, lastSection) != 0)

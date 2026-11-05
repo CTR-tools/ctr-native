@@ -101,7 +101,7 @@ enum
     PGXP_MODE_PERSPECTIVE = 2,
 };
 
-typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION } ConfigType;
+typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION, CFG_SUBSECTION } ConfigType;
 
 #define CONFIG_SECTION_DEVELOPER_HACKS "Developer Hacks"
 #define CONFIG_SECTION_CONTROLS      "Controls"
@@ -120,7 +120,8 @@ typedef struct {
     bool availableDuringPause; // false = visible but read-only while a session is paused
 } ConfigEntry;
 
-// CFG_ACTION has no g_config backing and no file representation: it exists only to
+// CFG_ACTION and CFG_SUBSECTION have no g_config backing or file representation.
+// CFG_ACTION exists only to
 // give a section a row in the options menu, and the section's own screen draws
 // and edits everything under it. NativeConfig_Load and NativeConfig_Save skip it,
 // so it never reaches config.ini.
