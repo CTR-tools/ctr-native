@@ -193,18 +193,11 @@ remains a startup error.
 
 ### Local Custom Tracks
 
-Open **Options > Custom Tracks > Import** to import a prepared track **Folder**
-or a local **Xdelta patch**. Patch import uses a temporary copy of
-`assets/ctr-u.bin`, xdelta3 and CTR-tools, then removes its temporary files.
-Windows builds automatically download and verify the local tools when needed;
-later builds reuse the verified installation offline. Windows release archives
-include the tools, licenses and CTR-tools r14 sources in `assets/tools/`.
-Setup uses the upstream precompiled releases; no C# compiler or development
-packages are needed.
-If a custom track runs slowly or has missing geometry, try disabling **Increase
-Draw Distance** in Options.
-See [the custom track library guide](docs/CUSTOM_TRACK_LIBRARY.md) for setup,
-supported files and current limitations.
+Import a local **Folder** or **Xdelta patch** from **Options > Custom Tracks**.
+See the [custom tracks player guide](docs/features/CUSTOM_TRACKS.md) for
+installation, supported modes, records and troubleshooting. The
+[developer reference](docs/CUSTOM_TRACK_LIBRARY.md) describes the library and
+importer internals.
 
 ## Configuration
 
@@ -224,7 +217,7 @@ They are persisted to `build/config.ini` (standard INI format). An example
 template is at `default_config.ini` in the project root.
 
 Input bindings, deadzones, player assignment and per-player vibration are kept
-separately in `build/controls.ini` and edited from **Controls**. See
+separately in `build/controls.ini` and edited from **Options > System > Controls**. See
 [docs/features/CONTROLS.md](docs/features/CONTROLS.md).
 
 The **Audio** section contains the original effects/music/voice volume sliders
