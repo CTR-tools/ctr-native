@@ -61,6 +61,10 @@ ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )
 
+ctr_add_test_suite(test_level_info
+    SOURCES test_level_info.c
+)
+
 ctr_add_test_suite(test_track_registry
     SOURCES test_track_registry.c
 )

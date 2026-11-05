@@ -4,6 +4,7 @@
 #include <platform/native_track_map.h>
 #include <platform/native_renderer.h>
 #include <track_text.h>
+#include <level_info.h>
 #include <stdlib.h>
 
 enum TrackSelectVideoState
@@ -1036,7 +1037,7 @@ trackSelectionMenuDone:
 			CTR_PSX_COPY_VALUE(rowY, rowBaseY);
 			rowRect.y = (s16)rowBaseY;
 			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0 &&
-			    NativeTrackRegistry_Get(NativeTrackLibrary_Current(), selectMenu[currTrack].levID) == NULL)
+			    LevelInfo_Lookup(selectMenu[currTrack].levID).kind == LEVEL_INFO_RETAIL)
 			{
 				// Draw the N. Tropy and Oxide stars earned for this track.
 				register s32 timeTrialTrackOffset CTR_PSX_REGISTER("$2");
@@ -1093,23 +1094,23 @@ trackSelectionMenuDone:
 			}
 			{
 				register u32 uiPage CTR_PSX_REGISTER("$21");
-				register struct MetaDataLEV *levelMeta CTR_PSX_REGISTER("$4");
 				struct MainMenu_LevelRow *trackEntry;
 				register s32 trackLevelID CTR_PSX_REGISTER("$3");
 				register s32 rowNameX CTR_PSX_REGISTER("$5");
 				register s32 rowNameY CTR_PSX_REGISTER("$6");
-				s16 trackNameIndex;
 				uiPage = 0;
 				rowNameX = (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET);
-				levelMeta = MM_LEVEL_METADATA;
 				trackEntry = &selectMenu[currTrack];
 				rowNameY = (s16)(rowY + MM_TRACK_SELECT_ROW_NAME_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET);
 				trackLevelID = trackEntry->levID;
-				const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackLevelID);
+				struct LevelInfo levelInfo = LevelInfo_Lookup(trackLevelID);
+				const struct NativeTrackMetadata *customTrack = levelInfo.custom;
+				const char *titleText = LevelInfo_Title(&levelInfo, CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS));
+				if (titleText == NULL) { titleText = ""; }
 				if (customTrack != NULL)
 				{
 					char title[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
-					TrackText_Copy(title, sizeof(title), customTrack->title);
+					TrackText_Copy(title, sizeof(title), titleText);
 					u32 scrollFrame = 0;
 					if (MM_TRACK_CHANGE_FRAMES == 0 && (s16)rowIndex == MM_TRACK_SELECT_CENTER_ROW)
 					{
@@ -1120,9 +1121,7 @@ trackSelectionMenuDone:
 				}
 				else
 				{
-					trackNameIndex = levelMeta[trackLevelID].name_LNG;
-					MM_DRAW_LINE_WIDE_FLAGS(CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS)[trackNameIndex], rowNameX,
-					                        rowNameY, FONT_BIG, ORANGE);
+					MM_DRAW_LINE_WIDE_FLAGS((char *)titleText, rowNameX, rowNameY, FONT_BIG, ORANGE);
 				}
 				rowDrawRectArg = &rowRect;
 				if ((MM_TRACK_CHANGE_FRAMES == 0) && (((s16)rowIndex) == MM_TRACK_SELECT_CENTER_ROW))
@@ -1143,7 +1142,7 @@ trackSelectionMenuDone:
 						                        FONT_SMALL, JUSTIFY_CENTER | PERIWINKLE);
 					}
 					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0 &&
-					    customTrack == NULL)
+					    levelInfo.kind == LEVEL_INFO_RETAIL)
 					{
 						s16 ghostProfileCount = RefreshCard_CountGhostProfilesForLEV(trackEntry->levID);
 						if (ghostProfileCount != 0)

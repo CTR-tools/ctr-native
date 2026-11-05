@@ -3,6 +3,8 @@
 
 #include <common.h>
 
+#include "LevelInfo.c"
+
 #include "226/R226.c"
 #include "227/R227.c"
 #include "228/R228.c"

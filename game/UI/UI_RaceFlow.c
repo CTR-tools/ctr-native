@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_track_library.h>
+#include <level_info.h>
 #include <track_text.h>
 
 enum UIRaceEndMenuOption
@@ -283,21 +283,21 @@ LAB_80055930:
 
 		// Print the name of the level
 		// Crash Cove, Roos Tubes, etc
-		const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID);
+		struct LevelInfo levelInfo = LevelInfo_Lookup(gGT->levelID);
+		const char *title = LevelInfo_Title(&levelInfo, sdata->lngStrings);
 		char customTitle[UI_RACE_START_CUSTOM_TITLE_BYTES];
-		char *levelTitle;
-		if (customTrack != NULL)
+		if (title == NULL)
 		{
-			TrackText_Copy(customTitle, sizeof(customTitle), customTrack->title);
-			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
-			levelTitle = customTitle;
+			title = "";
 		}
-		else
+		if (levelInfo.kind == LEVEL_INFO_CUSTOM)
 		{
-			levelTitle = sdata->lngStrings[data.metaDataLEV[gGT->levelID].name_LNG];
+			TrackText_Copy(customTitle, sizeof(customTitle), title);
+			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
+			title = customTitle;
 		}
 		DecalFont_DrawLine(
-		    levelTitle,
+		    (char *)title,
 
 		    gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 
