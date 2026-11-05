@@ -167,8 +167,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
-	char fields[4][NATIVE_TRACK_FIELD_MAX] = {{0}};
-	const char *keys[] = {"id", "title", "author", "modes"};
+	char fields[3][NATIVE_TRACK_FIELD_MAX] = {{0}};
+	const char *keys[] = {"id", "title", "author"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -265,7 +265,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	}
 	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
 	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL,
-	                                       fields[3][0] ? fields[3] : NULL, 0, 0};
+	                                       0, 0};
 	metadata.detectionKnown = TrackDetect_File(paths[0], &metadata.detectedModes);
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
@@ -373,45 +373,9 @@ int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track)
 	return NativeTrackLibrary_DisabledPath(track, path, sizeof(path)) && !SDL_GetPathInfo(path, &info);
 }
 
-int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track)
-{
-	if (track == NULL)
-	{
-		return 0;
-	}
-	if (track->modes == NULL || track->modes[0] == '\0')
-	{
-		return 1;
-	}
-	const char *item = track->modes;
-	while (*item != '\0')
-	{
-		while (*item == ',' || isspace((unsigned char)*item))
-		{
-			item++;
-		}
-		const char *end = item;
-		while (*end != '\0' && *end != ',')
-		{
-			end++;
-		}
-		const char *trimmed = end;
-		while (trimmed > item && isspace((unsigned char)trimmed[-1]))
-		{
-			trimmed--;
-		}
-		if ((size_t)(trimmed - item) == sizeof("time_trial") - 1 && strncmp(item, "time_trial", sizeof("time_trial") - 1) == 0)
-		{
-			return 1;
-		}
-		item = end;
-	}
-	return 0;
-}
-
 int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
 {
-	return track != NULL && (mode == NATIVE_TRACK_DETECTED_VS ||
+	return track != NULL && (mode == NATIVE_TRACK_DETECTED_VS || mode == NATIVE_TRACK_DETECTED_TIME_TRIAL ||
 	                         (mode == NATIVE_TRACK_DETECTED_ARCADE && track->detectionKnown && (track->detectedModes & mode) != 0));
 }
 

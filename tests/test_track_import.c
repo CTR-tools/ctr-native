@@ -56,6 +56,9 @@ int main(void)
 	const struct NativeTrackMetadata *installed = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	CTR_TEST_CHECK(installed != NULL && installed->detectionKnown && (installed->detectedModes & NATIVE_TRACK_DETECTED_RELIC),
 	               "folder import detects time crates from the copied LEV");
+	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(installed, NATIVE_TRACK_DETECTED_TIME_TRIAL) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(installed, NATIVE_TRACK_DETECTED_ARCADE),
+	               "the game allows time trial but not arcade without bot paths");
 	NativeTrackRegistry_Destroy(registry);
 	lev[4 + 0x200 + 0x10] = 0;
 	WriteImportFixture(target, "track.lev", lev, sizeof(lev));

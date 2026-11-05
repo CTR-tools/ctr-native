@@ -181,9 +181,9 @@ static void MM_TrackSelect_BuildRaceTracks(void)
 	{
 		int levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
 		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
-		unsigned int mode = (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? NATIVE_TRACK_DETECTED_ARCADE : NATIVE_TRACK_DETECTED_VS;
-		b32 allowed = (GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 ? NativeTrackLibrary_AllowsTimeTrial(track) :
-		              NativeTrackLibrary_AllowsDetectedMode(track, mode);
+		unsigned int mode = (GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 ? NATIVE_TRACK_DETECTED_TIME_TRIAL :
+		                    (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? NATIVE_TRACK_DETECTED_ARCADE : NATIVE_TRACK_DETECTED_VS;
+		b32 allowed = NativeTrackLibrary_AllowsDetectedMode(track, mode);
 		if (!NativeTrackLibrary_IsEnabled(track) || !allowed)
 		{
 			continue;

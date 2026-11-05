@@ -43,7 +43,7 @@ static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
 static int s_trackFixtureEnabled = 1;
-static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .modes = "arcade", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
+static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
 static int s_trackDetailRows[2];
 static int s_allModesY;
 static int s_unknownModesY;
@@ -123,7 +123,6 @@ const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTra
 }
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track) { (void)track; return s_trackFixtureEnabled; }
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled) { (void)track; s_trackFixtureEnabled = enabled; return 1; }
-int NativeTrackLibrary_AllowsTimeTrial(const struct NativeTrackMetadata *track) { (void)track; return 1; }
 b32 MM_Controls_IsPickerOpen(void) { return s_pickerOpen; }
 u32 MM_Controls_MenuTapped(void) { return (u32)sdata->gGamepads->gamepad[0].buttonsTapped; }
 void MM_Controls_ResetNavigation(void)

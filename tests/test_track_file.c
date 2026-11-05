@@ -20,7 +20,7 @@ int main(void)
 		CtrTest_Bail("could not create track fixture");
 	}
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata metadata = {"local:one", "Track", path, path, NULL, NULL, NULL, 0, 0};
+	struct NativeTrackMetadata metadata = {"local:one", "Track", path, path, NULL, NULL, 0, 0};
 	int id = 0;
 	CTR_TEST_SECTION("on-demand track file reads");
 	CTR_TEST_CHECK(registry != NULL && NativeTrackRegistry_Add(registry, &metadata, &id), "track metadata can be registered");

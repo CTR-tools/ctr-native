@@ -36,7 +36,7 @@ int main(void)
 	CTR_TEST_CHECK(s_registry != NULL, "custom registry can be created");
 	if (s_registry != NULL)
 	{
-		struct NativeTrackMetadata metadata = {"custom-id", "Custom title", "track.lev", "track.vrm", NULL, NULL, NULL, 0, 0};
+		struct NativeTrackMetadata metadata = {"custom-id", "Custom title", "track.lev", "track.vrm", NULL, NULL, 0, 0};
 		int id = 0;
 		CTR_TEST_CHECK(NativeTrackRegistry_Add(s_registry, &metadata, &id), "custom track is registered");
 		info = LevelInfo_Lookup(id);
