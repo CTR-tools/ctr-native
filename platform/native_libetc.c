@@ -8,7 +8,6 @@
 #include <psx/libetc.h>
 
 void (*vsync_callback)(void) = NULL;
-global_variable int s_videoMode = -1;
 
 int VSyncCallback(void (*func)(void))
 {
@@ -29,17 +28,4 @@ int ResetCallback(void)
 
 	vsync_callback = NULL;
 	return old;
-}
-
-int SetVideoMode(int mode)
-{
-	int old = s_videoMode;
-
-	s_videoMode = mode;
-	return old;
-}
-
-int GetVideoMode(void)
-{
-	return s_videoMode;
 }

@@ -57,35 +57,14 @@ void InitGeom()
 	C2_OFY = 0;
 }
 
-void SetGeomOffset(int ofx, int ofy)
-{
-	C2_OFX = (ofx << 16);
-	C2_OFY = (ofy << 16);
-}
-
 void SetGeomScreen(int h)
 {
 	gte_SetGeomScreen(h);
 }
 
-void SetRotMatrix(MATRIX *m)
-{
-	gte_SetRotMatrix(m);
-}
-
-void SetLightMatrix(MATRIX *m)
-{
-	gte_SetLightMatrix(m);
-}
-
 void SetColorMatrix(MATRIX *m)
 {
 	gte_SetColorMatrix(m);
-}
-
-void SetTransMatrix(MATRIX *m)
-{
-	gte_SetTransMatrix(m);
 }
 
 #define MAX_NUM_MATRICES 20
@@ -126,15 +105,6 @@ void PopMatrix()
 	{
 		printf("Error: Can't pop matrix,stack is empty!\n");
 	}
-}
-
-void RotTrans(SVECTOR *v0, VECTOR *v1, s32 *flag)
-{
-	// NOTE(aalhendi): Read vector components by type, not aliased words or pad.
-	CTR_GteLoadSV0(v0);
-	gte_rt();
-	gte_stlvnl(v1);
-	gte_stflg(flag);
 }
 
 void RotTransSV(SVECTOR *v0, SVECTOR *v1, s32 *flag)

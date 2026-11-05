@@ -5663,6 +5663,263 @@
       "linked_block": {}
     },
     {
+      "name": "psx-sdk-cd-transfer",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {"start_symbol": "CdReady", "end_symbol": "CdSyncCallback"},
+        {"start_symbol": "CdGetSector", "end_symbol": "CdIntToPos"},
+        {"start_symbol": "CdReadCallback", "end_symbol": "ResetCallback"}
+      ],
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_CDTransfer.c",
+        "game/PSX/PSX_SDK_CDForward.c"
+      ],
+      "source_flags": {
+        "game/PSX/PSX_SDK_CDForward.c": [
+          "-mframed-return-boundary=on",
+          "-fno-schedule-insns2"
+        ]
+      },
+      "linker_script": "tools/matching/psx-cd-transfer.ld",
+      "data_ranges": [
+        {"output_section": ".data.CD_cbread", "symbol": "CD_cbread", "symbol_address": "0x8008ad10", "offset": 0, "size": 4}
+      ],
+      "link_symbols": {
+        "CD_ReadyController": "0x8007b970",
+        "CD_ReadSectorController": "0x8007c550",
+        "CD_ReadSectorAsyncController": "0x8007c650",
+        "CD_DataSyncController": "0x8007c3e8"
+      },
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "psx-sdk-stream-ring",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {"start_symbol": "CdDataCallback", "end_symbol": "CdDataSync"},
+        {"start_symbol": "CdIntToPos", "end_symbol": "CdInit"},
+        {
+          "start_symbol": "StClearRing",
+          "end_symbol": "DecDCTReset"
+        },
+        {"start_symbol": "CdRead2", "end_symbol": "DecDCTvlcSize2"},
+        {
+          "start_symbol": "StSetStream",
+          "end_symbol": "StFreeRing"
+        },
+        {
+          "start_symbol": "StFreeRing",
+          "end_symbol": "_SpuInit"
+        },
+        {
+          "start_symbol": "init_ring_status",
+          "end_symbol": "_SpuDataCallback"
+        }
+      ],
+      "symbol_prefix": "",
+      "linker_script": "tools/matching/psx-stream-ring.ld",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G0",
+        "-msoft-float",
+        "-mno-split-addresses",
+        "-fno-loop-optimize",
+        "-mframed-return-boundary=on",
+        "-mprologue-static-alias=on"
+      ],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "sources": [
+        "game/PSX/PSX_SDK_Stream.c",
+        "game/PSX/PSX_SDK_StreamState.c",
+        "game/PSX/PSX_SDK_StreamSetup.c",
+        "game/PSX/PSX_SDK_StreamConsumers.c",
+        "game/PSX/PSX_SDK_StreamStatus.c",
+        "game/PSX/PSX_SDK_StreamRead.c",
+        "game/PSX/PSX_SDK_StreamReady.c",
+        "game/PSX/PSX_SDK_StreamBackloc.c",
+        "game/PSX/PSX_SDK_CDCore.c",
+        "game/PSX/PSX_SDK_CDForward.c"
+      ],
+      "source_flags": {
+        "game/PSX/PSX_SDK_StreamState.c": [
+          "-fno-common"
+        ],
+        "game/PSX/PSX_SDK_StreamSetup.c": [
+          "-mframed-return-boundary=off"
+        ],
+        "game/PSX/PSX_SDK_StreamStatus.c": [
+          "-floop-optimize",
+          "-fno-strength-reduce"
+        ],
+        "game/PSX/PSX_SDK_StreamRead.c": [
+          "-mprologue-static-alias=off", "-mframed-return-boundary=off",
+          "-msplit-addresses", "-fdelay-slot-target-first"
+        ],
+        "game/PSX/PSX_SDK_StreamReady.c": ["-mprologue-static-alias=off"],
+        "game/PSX/PSX_SDK_StreamBackloc.c": [
+          "-mprologue-static-alias=off", "-mframed-return-boundary=off", "-msplit-addresses"
+        ],
+        "game/PSX/PSX_SDK_CDForward.c": ["-fno-schedule-insns2"]
+      },
+      "bss_ranges": [
+        {
+          "output_section": ".bss.St_streamCallback1",
+          "symbol": "St_streamCallback1",
+          "symbol_address": "0x8009ebec",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_streamCallback2",
+          "symbol": "St_streamCallback2",
+          "symbol_address": "0x8009ebf0",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ebf4",
+          "symbol": "St_state8009ebf4",
+          "symbol_address": "0x8009ebf4",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ebf8",
+          "symbol": "St_state8009ebf8",
+          "symbol_address": "0x8009ebf8",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ebfc",
+          "symbol": "St_state8009ebfc",
+          "symbol_address": "0x8009ebfc",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec00",
+          "symbol": "St_state8009ec00",
+          "symbol_address": "0x8009ec00",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec04",
+          "symbol": "St_state8009ec04",
+          "symbol_address": "0x8009ec04",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_streamMode",
+          "symbol": "St_streamMode",
+          "symbol_address": "0x8009ec08",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_maskEnd",
+          "symbol": "St_maskEnd",
+          "symbol_address": "0x8009ec0c",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_mask",
+          "symbol": "St_mask",
+          "symbol_address": "0x8009ec10",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec18",
+          "symbol": "St_state8009ec18",
+          "symbol_address": "0x8009ec18",
+          "offset": 0,
+          "size": 2
+        },
+        {
+          "output_section": ".bss.St_state8009ec1c",
+          "symbol": "St_state8009ec1c",
+          "symbol_address": "0x8009ec1c",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_ringBase",
+          "symbol": "St_ringBase",
+          "symbol_address": "0x8009ec24",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec28",
+          "symbol": "St_state8009ec28",
+          "symbol_address": "0x8009ec28",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec2c",
+          "symbol": "St_state8009ec2c",
+          "symbol_address": "0x8009ec2c",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_state8009ec30",
+          "symbol": "St_state8009ec30",
+          "symbol_address": "0x8009ec30",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_ringCount",
+          "symbol": "St_ringCount",
+          "symbol_address": "0x8009ec34",
+          "offset": 0,
+          "size": 4
+        },
+        {
+          "output_section": ".bss.St_maskStart",
+          "symbol": "St_maskStart",
+          "symbol_address": "0x8009ec38",
+          "offset": 0,
+          "size": 4
+        },
+        {"output_section": ".bss.St_backloc", "symbol": "St_backloc", "symbol_address": "0x8009ec3c", "offset": 0, "size": 4},
+        {"output_section": ".bss.St_backframe", "symbol": "St_backframe", "symbol_address": "0x8009ec40", "offset": 0, "size": 4},
+        {"output_section": ".bss.St_state8009ec90", "symbol": "St_state8009ec90", "symbol_address": "0x8009ec90", "offset": 0, "size": 4
+        }
+      ],
+      "function_padding": {
+        "StSetStream": 12,
+        "StSetMask": 4,
+        "StSetRing": 4,
+        "StGetNext": 8,
+        "StFreeRing": 4,
+        "StRingStatus": 12,
+        "init_ring_status": 12,
+        "StGetBackloc": 12,
+        "St_cdready_callback": 12
+      }
+    },
+    {
       "name": "ui-cup-standings",
       "kind": "resident",
       "artifact": "exe",
@@ -5677,6 +5934,270 @@
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}
+    },
+    {
+      "name": "psx-sdk-spu-setters",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "end_symbol": "SpuReadDecodedData",
+          "start_symbol": "SpuSetCommonCDVolume"
+        },
+        {
+          "end_symbol": "SpuSetReverb",
+          "start_symbol": "SpuSetReverbModeDepth"
+        },
+        {
+          "end_symbol": "SpuSetKey",
+          "start_symbol": "SpuSetCommonCDMix"
+        },
+        {
+          "end_symbol": "SpuSetReverbVoice",
+          "start_symbol": "SpuSetCommonMasterVolume"
+        }
+      ],
+      "symbol_prefix": "Spu",
+      "source": "game/PSX/PSX_SDK_SpuSetters.c",
+      "linker_script": "tools/matching/psx-spu-setters.ld",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/namespaces/psx-spu-setters/retail_symbols.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G0",
+        "-msoft-float",
+        "-mno-split-addresses",
+        "-fno-schedule-insns",
+        "-mnonfaulting-sh-return=on"
+      ],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "psxSpuReverbDepth": "0x8008c35c"
+      },
+      "function_padding": {
+        "SpuSetCommonCDVolume": 8,
+        "SpuSetCommonMasterVolume": 4,
+        "SpuSetReverbModeDepth": 8
+      }
+    },
+    {
+      "name": "psx-sdk-spu-state",
+      "kind": "data",
+      "artifact": "exe",
+      "source": "game/PSX/PSX_SDK_SpuState.c",
+      "linker_script": "tools/matching/psx-spu-state.ld",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G0",
+        "-msoft-float"
+      ],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "data_ranges": [
+        {
+          "offset": 0,
+          "output_section": ".initialized.depth",
+          "size": 4,
+          "symbol": "psxSpuReverbDepth",
+          "symbol_address": "0x8008c35c"
+        },
+        {
+          "offset": 0,
+          "output_section": ".initialized.regs",
+          "size": 4,
+          "symbol": "psxSpuSdkRegs",
+          "symbol_address": "0x8008c3b4"
+        }
+      ]
+    },
+    {
+      "name": "psx-sdk-addprim",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [{"start_symbol": "AddPrim", "end_symbol": "VSync"}],
+      "symbol_prefix": "AddPrim",
+      "source": "game/PSX/PSX_SDK_AddPrim.c",
+      "linker_script": "tools/matching/psx-addprim.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {"AddPrim": 4}
+    },
+    {
+      "name": "psx-sdk-video-defaults",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "code_intervals": [
+        {
+          "end_symbol": "PSX_SDK_VideoMode_EndOfFile",
+          "start_symbol": "SetVideoMode"
+        },
+        {
+          "end_symbol": "memmove",
+          "start_symbol": "SetDefDrawEnv"
+        }
+      ],
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_VideoMode.c",
+        "game/PSX/PSX_SDK_DefaultEnv.c"
+      ],
+      "linker_script": "tools/matching/psx-video.ld",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G0",
+        "-msoft-float"
+      ],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "PSX_videoMode": "0x8008c0b4"
+      },
+      "function_padding": {
+        "GetVideoMode": 12,
+        "SetDefDispEnv": 4,
+        "SetDefDrawEnv": 12
+      }
+    },
+    {
+      "name": "psx-sdk-video-state",
+      "kind": "data",
+      "artifact": "exe",
+      "source": "game/PSX/PSX_SDK_VideoState.c",
+      "linker_script": "tools/matching/psx-video-state.ld",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G0",
+        "-msoft-float"
+      ],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "data_ranges": [
+        {
+          "offset": 0,
+          "output_section": ".data.PSX_videoMode",
+          "size": 4,
+          "symbol": "PSX_videoMode",
+          "symbol_address": "0x8008c0b4"
+        }
+      ]
+    },
+    {
+      "name": "psx-sdk-draw-move",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "SetDrawMove",
+      "end_symbol": "start",
+      "symbol_prefix": "SetDrawMove",
+      "source": "game/PSX/PSX_SDK_DrawMove.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {}
+    },
+    {
+      "name": "psx-sdk-gte-matrix",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "source": "platform/gte_matrix.c",
+      "code_intervals": [
+        {"start_symbol": "RotTrans", "end_symbol": "PSX_SDK_RotTrans_CodeEnd"},
+        {"start_symbol": "SetTransMatrix", "end_symbol": "strncpy"},
+        {"start_symbol": "SetLightMatrix", "end_symbol": "PadGetState"},
+        {"start_symbol": "SetGeomOffset", "end_symbol": "PSX_SDK_GeomOffset_EndOfFile"}
+      ],
+      "linker_script": "tools/matching/psx-gte-matrix.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {"SetGeomOffset": 8}
+    },
+    {
+      "name": "psx-sdk-spu-transfer",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "Spu",
+      "source": "game/PSX/PSX_SDK_SpuTransfer.c",
+      "code_intervals": [
+        {"start_symbol": "SpuSetTransferMode", "end_symbol": "CdStatus"},
+        {"start_symbol": "SpuSetTransferCallback", "end_symbol": "SpuSetIRQAddr"}
+      ],
+      "linker_script": "tools/matching/psx-spu-transfer.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {"SpuSetTransferCallback": 12},
+      "link_symbols": {
+        "psxSpuTransferModeRaw": "0x8008c344",
+        "psxSpuTransferMode": "0x8008c3d0",
+        "psxSpuTransferCallback": "0x8008c3ec"
+      }
+    },
+    {
+      "name": "psx-sdk-spu-voice",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "Spu",
+      "source": "game/PSX/PSX_SDK_SpuVoice.c",
+      "code_intervals": [
+        {"start_symbol": "SpuSetVoicePitch", "end_symbol": "SpuSetCommonCDMix"},
+        {"start_symbol": "SpuSetVoiceVolume", "end_symbol": "SpuSetVoiceStartAddr"}
+      ],
+      "linker_script": "tools/matching/psx-spu-voice.ld",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/psx-spu-setters/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses", "-mprivate-frame-sw-jump=on"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {"SpuSetVoiceVolume": 4}
+    },
+    {
+      "name": "psx-sdk-spu-transfer-state",
+      "kind": "data",
+      "artifact": "exe",
+      "source": "game/PSX/PSX_SDK_SpuTransferState.c",
+      "linker_script": "tools/matching/psx-spu-transfer-state.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "data_ranges": [
+        {"output_section": ".data.psxSpuTransferModeRaw", "symbol": "psxSpuTransferModeRaw", "symbol_address": "0x8008c344", "offset": 0, "size": 4},
+        {"output_section": ".data.psxSpuTransferMode", "symbol": "psxSpuTransferMode", "symbol_address": "0x8008c3d0", "offset": 0, "size": 4},
+        {"output_section": ".data.psxSpuTransferCallback", "symbol": "psxSpuTransferCallback", "symbol_address": "0x8008c3ec", "offset": 0, "size": 4}
+      ]
     }
   ]
 }

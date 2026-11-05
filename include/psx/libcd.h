@@ -118,6 +118,8 @@ typedef struct
 	u8 track;  /* track (void) */
 } CdlLOC;
 
+CTR_STATIC_ASSERT(sizeof(CdlLOC) == 4);
+
 /*
  *	ADPCM Filter
  */
@@ -178,6 +180,8 @@ typedef struct
 	u32 dummy2;
 	CdlLOC loc;
 } StHEADER; /* CD-ROM STR structure */
+
+CTR_STATIC_ASSERT(sizeof(StHEADER) == 32);
 
 #define StFREE          0x0000
 #define StREWIND        0x0001

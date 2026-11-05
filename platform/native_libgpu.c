@@ -174,63 +174,10 @@ DISPENV *PutDispEnv(DISPENV *env)
 	return 0;
 }
 
-DISPENV *SetDefDispEnv(DISPENV *env, int x, int y, int w, int h)
-{
-	env->disp.x = x;
-	env->disp.y = y;
-	env->disp.w = w;
-	env->disp.h = h;
-
-	env->screen.x = 0;
-	env->screen.y = 0;
-	env->screen.w = 0;
-	env->screen.h = 0;
-
-	env->isrgb24 = 0;
-	env->isinter = 0;
-	env->pad1 = 0;
-	env->pad0 = 0;
-
-	return 0;
-}
-
 DRAWENV *PutDrawEnv(DRAWENV *env)
 {
 	memcpy(&activeDrawEnv, env, sizeof(DRAWENV));
 	return 0;
-}
-
-DRAWENV *SetDefDrawEnv(DRAWENV *env, int x, int y, int w, int h)
-{
-	env->clip.x = x;
-	env->clip.y = y;
-	env->clip.w = w;
-	env->clip.h = h;
-
-	env->tw.x = 0;
-	env->tw.y = 0;
-	env->tw.w = 0;
-	env->tw.h = 0;
-	env->r0 = 0;
-	env->g0 = 0;
-	env->b0 = 0;
-	env->dtd = 1;
-
-	if (GetVideoMode() == MODE_NTSC)
-	{
-		env->dfe = h < 289 ? 1 : 0;
-	}
-	else
-	{
-		env->dfe = h < 257 ? 1 : 0;
-	}
-
-	env->ofs[0] = x;
-	env->ofs[1] = y;
-	env->tpage = 10;
-	env->isbg = 0;
-
-	return env;
 }
 
 void SetDrawEnv(DR_ENV *dr_env, DRAWENV *env)
@@ -265,24 +212,6 @@ void SetDrawEnv(DR_ENV *dr_env, DRAWENV *env)
 		length = 9;
 	}
 	setlen(dr_env, length);
-}
-
-void SetDrawMove(DR_MOVE *p, RECT16 *rect, int x, int y)
-{
-	char len = 5;
-
-	if (rect->w == 0 || rect->h == 0)
-	{
-		len = 0;
-	}
-
-	p->code[0] = 0x1000000;
-	p->code[1] = 0x80000000;
-	p->code[2] = ((u32)(u16)rect->x) | ((u32)(u16)rect->y << 16);
-	p->code[3] = (y << 0x10) | (x & 0xffffU);
-	p->code[4] = ((u32)(u16)rect->w) | ((u32)(u16)rect->h << 16);
-
-	setlen(p, len);
 }
 
 uint32_t DrawSyncCallback(void (*func)(void))
@@ -330,13 +259,4 @@ void DrawPrim(void *p)
 	}
 
 	ParsePrimitivesLinkedList((uint32_t *)p, 1);
-}
-
-void AddPrim(void *ot, void *p)
-{
-	u32 otTag = CTR_GPU_ReadTagWord(ot);
-	u32 primTag = CTR_GPU_ReadTagWord(p);
-
-	CTR_GPU_WriteTagWord(p, CtrGpu_PackOTTag(otTag, primTag & 0xff000000u));
-	CTR_GPU_WriteTagWord(ot, CtrGpu_PrimToOTLink24(p));
 }

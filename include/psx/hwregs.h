@@ -10,5 +10,6 @@ extern volatile u8 *psxCdReg1;
 extern volatile u8 *psxCdReg2;
 extern volatile u8 *psxCdReg3;
 extern volatile u16 *psxSpuRegs;
+extern volatile u16 *psxSpuSdkRegs;
 
 #endif

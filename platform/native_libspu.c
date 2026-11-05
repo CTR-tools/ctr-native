@@ -2,6 +2,7 @@
 #include <platform/native_audio.h>
 #include <psx/libetc.h>
 #include <psx/libspu.h>
+#include "../game/PSX/PSX_SDK_SpuTransferState.h"
 
 #include <string.h>
 
@@ -10,8 +11,6 @@
 // See THIRD_PARTY_NOTICES.md.
 
 global_variable s32 s_inTransfer = 0;
-global_variable s32 s_transferMode = SPU_TRANSFER_BY_DMA;
-global_variable SpuTransferCallbackProc s_transferCallback = NULL;
 global_variable s32 s_spuIRQEnabled = 0;
 global_variable u32 s_spuIRQAddr = 0;
 global_variable SpuIRQCallbackProc s_spuIRQCallback = NULL;
@@ -20,9 +19,9 @@ unsigned int SpuWrite(unsigned char *addr, unsigned int size)
 {
 	u32 result = NativeAudio_SpuWrite(addr, size);
 
-	if (s_transferCallback)
+	if (psxSpuTransferCallback)
 	{
-		s_transferCallback();
+		psxSpuTransferCallback();
 	}
 	else
 	{
@@ -30,14 +29,6 @@ unsigned int SpuWrite(unsigned char *addr, unsigned int size)
 	}
 
 	return result;
-}
-
-int SpuSetTransferMode(int mode)
-{
-	s32 modeFix = mode == 0 ? 0 : 1;
-
-	s_transferMode = modeFix;
-	return modeFix;
 }
 
 unsigned int SpuSetTransferStartAddr(unsigned int addr)
@@ -48,7 +39,7 @@ unsigned int SpuSetTransferStartAddr(unsigned int addr)
 int SpuIsTransferCompleted(int flag)
 {
 	(void)flag;
-	(void)s_transferMode;
+	(void)psxSpuTransferMode;
 	(void)s_inTransfer;
 	return 1;
 }
@@ -101,23 +92,6 @@ void SpuSetReverbModeDepth(short depth_left, short depth_right)
 	attr.field = value;                                  \
 	NativeLibSpu_SetVoiceAttr(&attr)
 
-void SpuSetVoiceVolume(int vNum, short volL, short volR)
-{
-	SpuVoiceAttr attr;
-
-	attr.mask = SPU_VOICE_VOLL | SPU_VOICE_VOLR;
-	attr.voice = SPU_VOICECH(vNum);
-	attr.volume.left = volL;
-	attr.volume.right = volR;
-
-	NativeLibSpu_SetVoiceAttr(&attr);
-}
-
-void SpuSetVoicePitch(int vNum, unsigned short pitch)
-{
-	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_PITCH, pitch, pitch);
-}
-
 void SpuSetVoiceStartAddr(int vNum, unsigned int startAddr)
 {
 	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_WDSA, addr, startAddr);
@@ -142,13 +116,6 @@ void SpuSetVoiceADSRAttr(int vNum, unsigned short AR, unsigned short DR, unsigne
 	attr.r_mode = RRmode;
 
 	NativeLibSpu_SetVoiceAttr(&attr);
-}
-
-SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func)
-{
-	SpuTransferCallbackProc oldFn = s_transferCallback;
-	s_transferCallback = func;
-	return oldFn;
 }
 
 int SpuReadDecodedData(void *d_data, int flag)

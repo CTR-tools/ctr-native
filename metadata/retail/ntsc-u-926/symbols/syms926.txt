@@ -1138,6 +1138,7 @@
 // ==============================
 
 8007170c RotTrans
+80071734 PSX_SDK_RotTrans_CodeEnd // Executable endpoint; following eight zeros remain unowned.
 8007173c ratan2
 800718bc memset
 800718cc strcmp
@@ -1280,7 +1281,8 @@
 8007780c LoadExec
 8007781c SetGeomScreen
 8007782c SetGeomOffset
-80077854 InitGeom // ignore two instructions before it
+8007784c PSX_SDK_GeomOffset_EndOfFile // CODE/zero-tail end; SDK metadata follows
+80077854 InitGeom
 800778dc SetDrawMove
 8007793c start
 800779e4 __main // ignore "break" before it
@@ -1295,7 +1297,8 @@
 80077cc8 strlen
 // extra GTE function here in sep3
 80077cd8 SetVideoMode
-80077cec GetVideoMode //or GsGetWorkBase
+80077cec GetVideoMode
+80077d08 PSX_SDK_VideoMode_EndOfFile // Code/padding endpoint; separate SDK version metadata follows.
 80077d10 _96_remove
 80077d28 _96_init
 80077d38 SetDefDrawEnv
@@ -1341,7 +1344,7 @@
 // unknown 80079c24 ------ called by lib funcs
 // unknown 80079cd0 ------ called by lib funcs
 80079d54 CdRead2
-// unknown 80079dd8 ------ called by lib funcs
+80079dd8 St_cdready_callback
 80079e04 DecDCTvlcSize2
 80079e34 DecDCTvlc2
 8007a184 StSetStream
