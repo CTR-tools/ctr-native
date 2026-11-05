@@ -3,6 +3,7 @@
 #include <platform/native_track_preview.h>
 #include <platform/native_track_map.h>
 #include <platform/native_renderer.h>
+#include <track_text.h>
 #include <stdlib.h>
 
 enum TrackSelectVideoState
@@ -121,6 +122,17 @@ static int MM_TrackSelect_CustomMap(int levelID)
 	return s_customMapLoaded;
 }
 
+static void MM_TrackSelect_DrawMapLayers(struct Icon *top, struct Icon *bottom, int x, int y)
+{
+	struct GameTracker *gGT = GAME_TRACKER;
+	for (int i = 0; i < MM_TRACK_SELECT_MAP_LAYER_COUNT; i++)
+	{
+		struct TrackSelectMapOffset *offset = &MM_TRACK_DRAW_MAP_OFFSET[i];
+		UI_Map_DrawMap(top, bottom, x + offset->offsetX, y + offset->offsetY,
+		               &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, offset->type);
+	}
+}
+
 static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 {
 	struct GameTracker *gGT = GAME_TRACKER;
@@ -133,14 +145,8 @@ static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 	SetPsyXTexture(reset, 0, 0, 0);
 	AddPrim(gGT->pushBuffer_UI.ptrOT, reset);
 	memory->cursor = reset + 1;
-	for (int i = 0; i < MM_TRACK_SELECT_MAP_LAYER_COUNT; i++)
-	{
-		struct TrackSelectMapOffset *offset = &MM_TRACK_DRAW_MAP_OFFSET[i];
-		UI_Map_DrawMap(&s_customMapIcons[0], &s_customMapIcons[1],
-		               centerX + s_customMap.width / 2 + offset->offsetX,
-		               centerY + s_customMap.height / 2 + offset->offsetY,
-		               &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, offset->type);
-	}
+	MM_TrackSelect_DrawMapLayers(&s_customMapIcons[0], &s_customMapIcons[1],
+	                             centerX + s_customMap.width / 2, centerY + s_customMap.height / 2);
 	DR_PSYX_TEX *bind = memory->cursor;
 	SetPsyXTexture(bind, s_customMapTexture, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE);
 	AddPrim(gGT->pushBuffer_UI.ptrOT, bind);
@@ -188,25 +194,6 @@ static void MM_TrackSelect_BuildRaceTracks(void)
 		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
 	}
 	s_raceTrackCount += (s16)enabled;
-}
-
-static void MM_TrackSelect_CustomTitle(char *destination, size_t capacity, const char *source)
-{
-	size_t length = 0;
-	while (*source != '\0' && length + 1 < capacity)
-	{
-		unsigned char c = (unsigned char)*source++;
-		if (c >= 0x80 && c < 0xc0)
-		{
-			continue;
-		}
-		if (c < 0x20 || c >= 0x7f || c == '@' || c == '[' || c == '^' || c == '*')
-		{
-			c = '?';
-		}
-		destination[length++] = (char)c;
-	}
-	destination[length] = '\0';
 }
 
 static void MM_TrackSelect_ScrollTitle(char *title, int available, u32 frame)
@@ -576,7 +563,6 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 	u32 trackCountWork;
 	register s32 trackChangeFrames CTR_PSX_REGISTER("$2");
 	register struct TransitionMeta *levelTitleTransition CTR_PSX_REGISTER("$16");
-	struct PushBuffer *uiPushBuffer;
 	register b32 resetPreviewVideo CTR_PSX_REGISTER("$4");
 	s16 rowIndex;
 	(void)trackCountWork;
@@ -1123,7 +1109,7 @@ trackSelectionMenuDone:
 				if (customTrack != NULL)
 				{
 					char title[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
-					MM_TrackSelect_CustomTitle(title, sizeof(title), customTrack->title);
+					TrackText_Copy(title, sizeof(title), customTrack->title);
 					u32 scrollFrame = 0;
 					if (MM_TRACK_CHANGE_FRAMES == 0 && (s16)rowIndex == MM_TRACK_SELECT_CENTER_ROW)
 					{
@@ -1149,12 +1135,8 @@ trackSelectionMenuDone:
 					{
 						char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
 						memcpy(author, "by ", sizeof("by ") - 1);
-						MM_TrackSelect_CustomTitle(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
-						size_t length = strlen(author);
-						while (length > sizeof("by ") - 1 && DecalFont_GetLineWidth(author, FONT_SMALL) > MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN)
-						{
-							author[--length] = '\0';
-						}
+						TrackText_Copy(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
+						TrackText_Trim(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL);
 						MM_DRAW_LINE_WIDE_FLAGS(author, (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X),
 						                        (s16)(rowRect.y - data.font_charPixHeight[FONT_SMALL] + rowRect.h -
 						                              (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET)),
@@ -1293,14 +1275,10 @@ trackSelectionMenuDone:
 							u8 mapBottomV2;
 							u8 mapBottomV0;
 							s16 mapWidth;
-							register s16 mapLayer CTR_PSX_REGISTER("$18");
-							register struct TrackSelectMapOffset *mapOffsetBase CTR_PSX_REGISTER("$19");
 							s16 mapHeight;
-							s32 mapHalfWidth;
 							register s32 mapBoxHeight CTR_PSX_REGISTER("$2");
 							struct TextureLayout *mapLayout;
 							RECT16 mapRect;
-							mapLayer = 0;
 							mapBoxHeight = MM_TRACK_SELECT_MAP_BOX_H;
 							mapTransitions = MM_TRACK_TRANSITIONS;
 							mapRect = previewRect;
@@ -1353,28 +1331,9 @@ trackSelectionMenuDone:
 							mapHeight = mapHeight - ((s32)mapTopV0);
 							mapHeight += (s32)mapBottomV2;
 							mapHeight -= (s32)mapBottomV0;
-							mapOffsetBase = MM_TRACK_DRAW_MAP_OFFSET;
-							do
-							{
-								register struct TrackSelectMapOffset *mapOffset CTR_PSX_REGISTER("$4");
-								register struct RectMenu *mapDrawMenu CTR_PSX_REGISTER("$15");
-								register struct GameTracker *mapDrawTracker CTR_PSX_REGISTER("$8");
-								register s32 mapLayerIndex CTR_PSX_REGISTER("$2");
-								mapDrawTracker = GAME_TRACKER;
-								mapHalfWidth = ((s32)((s16)mapRect.w)) / 2;
-								mapLayerIndex = (s16)mapLayer;
-								mapOffset = &mapOffsetBase[mapLayerIndex];
-								mapLayer++;
-								mapDrawMenu = menuLocal;
-								uiPushBuffer = &mapDrawTracker->pushBuffer_UI;
-								rowCos = mapDrawMenu->rowSelected;
-								UI_Map_DrawMap(mapDrawTracker->ptrIcons[selectMenu[rowCos].mapTextureID],
-								               mapDrawTracker->ptrIcons[selectMenu[rowCos].mapTextureID + 1],
-								               ((((s32)((s16)mapOffset->offsetX)) + ((s32)((s16)mapRect.x))) + mapHalfWidth) + (((s32)((s16)mapWidth)) / 2),
-								               ((((s32)((s16)mapOffset->offsetY)) + ((s32)((s16)mapRect.y))) + (((s32)((s16)mapRect.h)) / 2)) +
-								                   (((s32)((s16)mapHeight)) / 2),
-								               &mapDrawTracker->backBuffer->primMem, uiPushBuffer->ptrOT, mapOffset->type);
-							} while (((u16)mapLayer) < MM_TRACK_SELECT_MAP_LAYER_COUNT);
+							MM_TrackSelect_DrawMapLayers(iconMap0, iconMap1,
+							                             (s16)mapRect.x + (s16)mapRect.w / 2 + mapWidth / 2,
+							                             (s16)mapRect.y + (s16)mapRect.h / 2 + mapHeight / 2);
 						}
 					}
 				}

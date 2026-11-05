@@ -57,6 +57,10 @@ function(ctr_add_test_suite NAME)
 endfunction()
 
 # Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_track_text
+    SOURCES test_track_text.c
+)
+
 ctr_add_test_suite(test_track_registry
     SOURCES test_track_registry.c
 )

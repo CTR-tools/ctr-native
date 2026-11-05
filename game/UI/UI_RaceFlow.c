@@ -1,5 +1,6 @@
 #include <common.h>
 #include <platform/native_track_library.h>
+#include <track_text.h>
 
 enum UIRaceEndMenuOption
 {
@@ -43,31 +44,6 @@ enum UIRaceFlowConstants
 	UI_RACE_END_PROMPT_Y = 0xbe,
 	UI_RACE_END_MENU_Y = 0xb4,
 };
-
-static void UI_RaceStart_CustomTitle(char *destination, size_t capacity, const char *source, int width)
-{
-	size_t length = 0;
-	while (*source != '\0' && length + 1 < capacity)
-	{
-		unsigned char c = (unsigned char)*source++;
-		if (c >= 0x80 && c < 0xc0)
-		{
-			continue;
-		}
-		/* These printable bytes have special button-glyph meanings in CTR. */
-		if (c < 0x20 || c >= 0x7f || c == '@' || c == '[' || c == '^' || c == '*')
-		{
-			c = '?';
-		}
-		destination[length++] = (char)c;
-	}
-	destination[length] = '\0';
-	while (length > 0 && DecalFont_GetLineWidth(destination, FONT_BIG) > width)
-	{
-		destination[--length] = '\0';
-	}
-}
-
 
 void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 {
@@ -312,8 +288,8 @@ LAB_80055930:
 		char *levelTitle;
 		if (customTrack != NULL)
 		{
-			UI_RaceStart_CustomTitle(customTitle, sizeof(customTitle), customTrack->title,
-			                         gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN);
+			TrackText_Copy(customTitle, sizeof(customTitle), customTrack->title);
+			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
 			levelTitle = customTitle;
 		}
 		else

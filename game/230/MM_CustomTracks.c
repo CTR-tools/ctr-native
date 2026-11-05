@@ -1,6 +1,7 @@
 #include <common.h>
 #include <platform/native_assets.h>
 #include <platform/native_track_library.h>
+#include <track_text.h>
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"
@@ -59,23 +60,10 @@ static void CustomTracks_DrawMenuRow(const void *context, int row, int y, bool s
 	DecalFont_DrawLineOT((char *)labels[row], FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, color, ot);
 }
 
-// Metadata is free-form UTF-8; the retail font also reserves ASCII glyphs for buttons.
 static void CustomTracks_FormatText(char *out, size_t capacity, const char *source, int width)
 {
-	size_t length = 0;
-	for (const unsigned char *p = (const unsigned char *)source; *p && length + 1 < capacity; p++)
-	{
-		if (*p >= 0x80 && *p < 0xc0)
-		{
-			continue;
-		}
-		out[length++] = *p < 0x20 || *p >= 0x7f || *p == '@' || *p == '[' || *p == '^' || *p == '*' ? '?' : (char)*p;
-	}
-	out[length] = '\0';
-	while (length > 0 && DecalFont_GetLineWidth(out, FONT_SMALL) > width)
-	{
-		out[--length] = '\0';
-	}
+	TrackText_Copy(out, capacity, source);
+	TrackText_Trim(out, width, FONT_SMALL);
 }
 
 static void CustomTracks_DrawDetail(const char *label, const char *value, int y, uint32_t *ot)
