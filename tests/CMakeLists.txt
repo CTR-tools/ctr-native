@@ -57,6 +57,59 @@ function(ctr_add_test_suite NAME)
 endfunction()
 
 # Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_track_text
+    SOURCES test_track_text.c
+)
+
+ctr_add_test_suite(test_level_info
+    SOURCES test_level_info.c
+)
+
+ctr_add_test_suite(test_track_registry
+    SOURCES test_track_registry.c
+)
+
+ctr_add_test_suite(test_track_library
+    SOURCES test_track_library.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_track_import
+    SOURCES test_track_import.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_track_import_flow
+    SOURCES test_track_import_flow.c
+)
+
+ctr_add_test_suite(test_track_patch
+    SOURCES test_track_patch.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_track_records
+    SOURCES test_track_records.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_track_file
+    SOURCES test_track_file.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_track_validate
+    SOURCES test_track_validate.c
+)
+
+ctr_add_test_suite(test_track_map
+    SOURCES test_track_map.c
+)
+
+ctr_add_test_suite(test_cycle_tex
+    SOURCES test_cycle_tex.c
+)
+
 ctr_add_test_suite(test_config_menu
     SOURCES test_config_menu.c
 )

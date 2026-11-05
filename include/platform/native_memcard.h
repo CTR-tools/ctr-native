@@ -10,6 +10,7 @@ enum NativeMemcardResult
 };
 
 enum NativeMemcardResult NativeMemcard_SetRoot(const char *root_path);
+const char *NativeMemcard_GetRoot(void);
 void NativeMemcard_ClearRoot(void);
 enum NativeMemcardResult NativeMemcard_CloneRoot(const char *src_root, const char *dst_root);
 enum NativeMemcardResult NativeMemcard_CloneCurrentRoot(const char *dst_root);

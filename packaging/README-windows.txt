@@ -3,8 +3,8 @@ CTR Native Expanded Windows x86 {{VERSION}} build
 Game assets are not included.
 
 Normal setup:
-- Create an assets folder next to ctr_native_expanded.exe and put your own
-  NTSC-U retail CTR disc image there:
+- Put your own
+   NTSC-U retail CTR disc image in the assets folder next to ctr_native_expanded.exe:
 
   assets/
     ctr-u.bin
@@ -28,6 +28,13 @@ Windows requirements:
 - OpenGL 3.3 capable GPU/driver
 
 No MSYS2 install is required to run this release build.
+
+Local custom track import:
+- Options > Custom Tracks > Import > Xdelta patch imports a local patch.
+- Standalone xdelta3 and CTR-tools are included in assets/tools, with licenses
+  and CTR-tools sources. See assets/tools/README.txt for details.
+- Import works offline. CTR-tools bigtool requires .NET Framework 4.6.2 or later;
+  the game does not install the .NET Framework itself.
 
 This build also ships config.ini and controls.ini, copied from the project's
 default settings so the options are visible and editable from the first run.

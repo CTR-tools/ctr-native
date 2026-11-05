@@ -13,6 +13,7 @@
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
+#include "platform/native_track_map.h"
 #include "platform/native_render_scale.h"
 #include "platform/native_config.h"
 
@@ -73,6 +74,7 @@ global_variable RECT16 s_previousOffscreen = {0, 0, 0, 0};
 global_variable ShaderID s_previousShader = (ShaderID)-1;
 
 global_variable TextureID s_rgLutTexture = (TextureID)-1;
+global_variable TextureID s_trackMapTexture = (TextureID)-1;
 // NOTE(penta3): Single persistent VRAM texture, matching real PS1's single
 // 1MB VRAM. PS1 page-flips two windows *inside* one VRAM; it never keeps two
 // full copies. The old double buffer existed only to orphan the texture on the
@@ -288,6 +290,7 @@ void NativeRenderer_Shutdown(void)
 
 	NativeRenderer_DestroyTexture(s_whiteTexture);
 	NativeRenderer_DestroyTexture(s_rgLutTexture);
+	NativeRenderer_DestroyTexture(s_trackMapTexture);
 	glDeleteProgram(s_packShader);
 	glDeleteProgram(s_presentVramShader);
 	glDeleteVertexArrays(1, &s_vramQuadVAO);
@@ -934,6 +937,7 @@ const char *gte_shader_32_rgba = "	uniform sampler2D s_texture;\n"
                                  "	void main() {\n"
                                  "		vec2 tc = v_texcoord.xy * texelSize + texelSize * 0.5;\n"
                                  "		vec4 color = texture2D(s_texture, tc);\n"
+                                 "		if (color.a == 0.0) discard;\n"
                                  "		fragColor = dither(color * v_color);\n"
                                  "		fragColor.a = float(psxDrawMaskSet);\n"
                                  "	}\n";
@@ -1140,6 +1144,36 @@ internal void NativeRenderer_GenerateCommonTextures(void)
 
 		glActiveTexture(GL_TEXTURE0);
 	}
+	glGenTextures(1, &s_trackMapTexture);
+	glBindTexture(GL_TEXTURE_2D, s_trackMapTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE,
+	             0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+u32 NativeRenderer_UploadTrackMap(const u16 *pixels)
+{
+	if (pixels == NULL || s_trackMapTexture == (TextureID)-1 || s_trackMapTexture > 0xffffff) { return 0; }
+	u8 rgba[NATIVE_TRACK_MAP_TEXTURE_SIZE * NATIVE_TRACK_MAP_TEXTURE_SIZE * 4];
+	for (int i = 0; i < NATIVE_TRACK_MAP_TEXTURE_SIZE * NATIVE_TRACK_MAP_TEXTURE_SIZE; i++)
+	{
+		u16 pixel = pixels[i];
+		rgba[i * 4] = (u8)((pixel & 31) * 255 / 31);
+		rgba[i * 4 + 1] = (u8)(((pixel >> 5) & 31) * 255 / 31);
+		rgba[i * 4 + 2] = (u8)(((pixel >> 10) & 31) * 255 / 31);
+		rgba[i * 4 + 3] = pixel == 0 ? 0 : 255;
+	}
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, s_trackMapTexture);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE,
+	                GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+	s_lastBoundTexture = (TextureID)-1;
+	return s_trackMapTexture;
 }
 
 internal void NativeRenderer_CompilePSXShader(GTEShader *sh, const char *source)

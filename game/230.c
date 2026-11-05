@@ -239,6 +239,8 @@
 #include "230/R230.c"
 #include "230/D230.c"
 #include "230/MM_Battle.c"
+#include "230/MM_TrackImport.c"
+#include "230/MM_CustomTracks.c"
 #include "230/MM_ConfigMenu.c"
 #include "230/MM_AudioConfig.c"
 #include "230/MM_ControlsConfig.c"

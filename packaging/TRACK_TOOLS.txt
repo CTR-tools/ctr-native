@@ -1,0 +1,33 @@
+Local custom track import tools
+==============================
+
+These standalone programs are invoked by CTR Native Expanded.
+They are not linked into the game. No ROMs, patches or track assets are included.
+
+xdelta3 3.2.2
+  Jonathan MacDonald and contributors
+  License: Apache 2.0 (xdelta-LICENSE.txt)
+  Source: https://github.com/jmacd/xdelta/tree/v3.2.2
+
+CTR-tools r14: bigtool.exe and CTRFramework.dll, from the upstream Windows release
+  DCxDemo and contributors
+  License: GPL v2 (CTR-tools-LICENSE.txt)
+  Release: https://github.com/CTR-tools/CTR-tools/releases/tag/r14
+  Release source tree: sources/CTR-tools-r14.zip
+  Source: https://github.com/CTR-tools/CTR-tools/tree/r14
+  Upstream build instructions: README.md and ctr-tools/ctr-tools.sln in the archive.
+  The game build installs the precompiled tools; no Visual Studio, compiler
+  or NuGet development packages are needed.
+
+CTR-tools dependencies:
+  NAudio 1.10.0, Mark Heath and contributors
+    License: Microsoft Public License (NAudio-LICENSE.txt)
+    https://github.com/naudio/NAudio/tree/v1.10.0
+  Newtonsoft.Json 13.0.1, James Newton-King
+    License: MIT (Newtonsoft.Json-LICENSE.txt)
+    https://github.com/JamesNK/Newtonsoft.Json/tree/13.0.1
+  CTRFramework's embedded Kaitai and PlyImporter components:
+    MIT (Kaitai-LICENSE.txt and PlyImporter-LICENSE.txt)
+
+bigtool requires .NET Framework 4.6.2 or later. Installation of the .NET
+Framework itself is managed by Windows, not by the game's build or importer.

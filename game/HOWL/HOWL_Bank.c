@@ -1,9 +1,10 @@
 #include <common.h>
+#include <platform/native_spu_memory.h>
 
 void Bank_ResetAllocator()
 {
 	sdata->numAudioBanks = 0;
-	sdata->audioAllocPtr = 0x202;
+	sdata->audioAllocPtr = CTR_SPU_UNITS(0x1010);
 	sdata->bankLoadStage = 4; // Stage 4: Finished
 }
 
@@ -99,7 +100,7 @@ int Bank_AssignSpuAddrs()
 		// not last bank needed for level
 		if (sdata->bankFlags == 0)
 		{
-			sdata->ptrLastBank->max = sdata->audioAllocSize >> 3;
+			sdata->ptrLastBank->max = CTR_SPU_UNITS(sdata->audioAllocSize);
 		}
 
 		// last bank needed for level
@@ -156,7 +157,7 @@ int Bank_AssignSpuAddrs()
 			{
 				sae->spuAddr = audioAllocPtr;
 			}
-			audioAllocPtr += sae->spuSize;
+			audioAllocPtr += CTR_SPU_SIZE_UNITS(sae->spuSize);
 		}
 
 		sdata->bankLoadStage++;
@@ -172,10 +173,9 @@ int Bank_AssignSpuAddrs()
 			return 0;
 		}
 
-		int spuAddrStart = (u32)sdata->ptrLastBank->min * 8;
+		int spuAddrStart = CTR_SPU_BYTES_AT((u32)sdata->ptrLastBank->min);
 
-		// 0x7e000 = 512kb SPU memory
-		if (spuAddrStart + sdata->audioAllocSize < 0x7e000)
+		if (spuAddrStart + sdata->audioAllocSize < CTR_SPU_CEILING)
 		{
 			// start transfer
 			SpuSetTransferStartAddr(spuAddrStart);
@@ -198,7 +198,7 @@ int Bank_AssignSpuAddrs()
 
 		if (sdata->bankFlags == 0)
 		{
-			sdata->audioAllocPtr += sdata->audioAllocSize >> 3;
+			sdata->audioAllocPtr += CTR_SPU_UNITS(sdata->audioAllocSize);
 		}
 
 		sdata->ptrLastBank->flags |= 2;

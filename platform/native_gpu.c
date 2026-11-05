@@ -97,6 +97,9 @@ typedef struct
 } GPUDrawSplit;
 
 #define MAX_DRAW_SPLITS 4096
+// The longest supported line packet emits three quads after one AddSplit.
+#define NATIVE_GPU_MAX_VERTICES_PER_PRIMITIVE 18
+#define NATIVE_GPU_SPLIT_VERTEX_LIMIT 65535
 
 typedef struct
 {
@@ -809,6 +812,7 @@ internal bool NativeGpu_RectOverlaps(int ax, int ay, int aw, int ah, int bx, int
 
 internal bool NativeGpu_TPageOverlapsActiveDrawPage(int tpage)
 {
+	if (s_gpu.overrideTexture != 0) { return false; }
 	const int pageX = (tpage & 0xf) << 6;
 	const int pageY = (tpage & 0x10) ? 0x100 : 0;
 	const int pageW = 0x100;
@@ -852,6 +856,19 @@ internal void NativeGpu_PrepareFramebufferFeedback(int tpage)
 	s_gpu.framebufferFeedbackRunActive = true;
 }
 
+// Based on CTR Archipelago's split-table flush: preserve parser state which
+// ClearSplits resets but which belongs to the current primitive stream.
+internal void NativeGpu_FlushFullBatch(void)
+{
+	const char *debugText = s_gpu.currentSplitDebugText;
+	bool feedbackRunActive = s_gpu.framebufferFeedbackRunActive;
+	GPUDrawSplit *current = &s_gpu.splits[s_gpu.splitIndex];
+	current->numVerts = s_gpu.vertexIndex - current->startVertex;
+	DrawAllSplits();
+	s_gpu.currentSplitDebugText = debugText;
+	s_gpu.framebufferFeedbackRunActive = feedbackRunActive;
+}
+
 internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 {
 	int tpage = activeDrawEnv.tpage;
@@ -863,6 +880,14 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 	else
 	{
 		s_gpu.framebufferFeedbackRunActive = false;
+	}
+
+	// Split vertex offsets and lengths are u16 even though the vertex buffer is
+	// larger. Finish the batch before either field or the buffer can overflow.
+	if (s_gpu.vertexIndex > NATIVE_GPU_SPLIT_VERTEX_LIMIT - NATIVE_GPU_MAX_VERTICES_PER_PRIMITIVE ||
+	    s_gpu.vertexIndex > (int)MAX_VERTEX_BUFFER_SIZE - NATIVE_GPU_MAX_VERTICES_PER_PRIMITIVE)
+	{
+		NativeGpu_FlushFullBatch();
 	}
 
 	GPUDrawSplit *curSplit = &s_gpu.splits[s_gpu.splitIndex];
@@ -899,8 +924,7 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 
 	if (s_gpu.splitIndex + 1 >= MAX_DRAW_SPLITS)
 	{
-		NATIVE_GPU_ERROR("%s\n", "MAX_DRAW_SPLITS reached (too many blend modes, texture formats, drawEnv clip rects, dfe switches), expect rendering errors");
-		return;
+		NativeGpu_FlushFullBatch();
 	}
 
 	GPUDrawSplit *split = &s_gpu.splits[++s_gpu.splitIndex];

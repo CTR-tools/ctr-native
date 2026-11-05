@@ -3,6 +3,7 @@
 #include <platform/native_assets.h>
 #include <platform/native_disc_image.h>
 #include <platform/native_perf.h>
+#include <platform/native_spu_memory.h>
 
 #include <SDL3/SDL.h>
 #include <limits.h>
@@ -13,7 +14,7 @@
 #define NATIVE_AUDIO_SAMPLE_RATE             44100
 #define NATIVE_AUDIO_CHANNELS                2
 #define NATIVE_AUDIO_SPU_VOICE_COUNT         24
-#define NATIVE_AUDIO_SPU_MEMSIZE             (512 * 1024)
+#define NATIVE_AUDIO_SPU_MEMSIZE             CTR_SPU_BYTES
 // streaming ADPCM decode like the real SPU: 16-byte blocks decoded on the fly
 // per voice, reading SPU RAM live (psx-spx "SPU ADPCM Samples/Pitch") -penta3
 #define NATIVE_AUDIO_ADPCM_BLOCK_BYTES       16
@@ -41,7 +42,7 @@
 // NOTE(aalhendi): Little-endian tag `CTRA` = CTR native Audio snapshot.
 #define NATIVE_AUDIO_STATE_MAGIC             0x41525443
 // v2: voices snapshot streaming decode state, not decoded-PCM indices -penta3
-#define NATIVE_AUDIO_STATE_VERSION           3
+#define NATIVE_AUDIO_STATE_VERSION           4
 #define NATIVE_AUDIO_ADSR_MIN                (-0x8000)
 #define NATIVE_AUDIO_ADSR_MAX                0x7fff
 #define NATIVE_AUDIO_ADSR_STEP_BIT           0x8000u

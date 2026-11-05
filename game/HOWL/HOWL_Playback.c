@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_spu_memory.h>
 
 void Cutscene_VolumeBackup(void)
 {
@@ -112,7 +113,7 @@ void howl_InitChannelAttr_EngineFX(struct EngineFX *engineFX, struct ChannelAttr
 	attr->ad = 0x80ff;
 	attr->sr = 0x1fc2;
 
-	attr->spuStartAddr = (void *)(sdata->howl_spuAddrs[engineFX->spuIndex].spuAddr << 3);
+	attr->spuStartAddr = (void *)CTR_SPU_BYTES_AT((u32)sdata->howl_spuAddrs[engineFX->spuIndex].spuAddr);
 }
 
 void howl_InitChannelAttr_OtherFX(struct OtherFX *otherFX, struct ChannelAttr *attr, int vol, int LR, int distort)
@@ -132,7 +133,7 @@ void howl_InitChannelAttr_OtherFX(struct OtherFX *otherFX, struct ChannelAttr *a
 	attr->ad = 0x80ff;
 	attr->sr = 0x1fc2;
 
-	attr->spuStartAddr = (void *)(sdata->howl_spuAddrs[otherFX->spuIndex].spuAddr << 3);
+	attr->spuStartAddr = (void *)CTR_SPU_BYTES_AT((u32)sdata->howl_spuAddrs[otherFX->spuIndex].spuAddr);
 }
 
 void howl_PauseAudio()

@@ -5,6 +5,7 @@ struct DrawSkyContext
 	const struct ShortVertex *verts;
 	u32 *ot;
 	u32 screenBounds;
+	const u8 *primGuardEnd;
 };
 
 struct DrawSkyScratch
@@ -89,6 +90,12 @@ static u32 *DrawSky_Piece(struct Skybox *skybox, struct DrawSkyContext *ctx, int
 
 	for (u32 i = 0; i < numFaces; i++, face++)
 	{
+		// Custom skies can exceed retail's per-level primitive budget. Stop before
+		// projecting more faces once no complete packet fits (CTR Archipelago).
+		if ((u8 *)prim > ctx->primGuardEnd || (size_t)(ctx->primGuardEnd - (u8 *)prim) < sizeof(POLY_G3))
+		{
+			break;
+		}
 		u32 *ot = (u32 *)(void *)((char *)ctx->ot + (s16)face->D);
 		u32 sxy0;
 		u32 sxy1;
@@ -146,6 +153,7 @@ void DrawSky_Full(void *skybox, struct PushBuffer *pb, struct PrimMem *primMem)
 		ctx.verts = sky->ptrVertex;
 		ctx.ot = &pb->ptrOT[0x3ff];
 		ctx.screenBounds = DrawSky_ReadWord(pb, 0x20);
+		ctx.primGuardEnd = primMem->guardEnd;
 
 		faceIndex = (int)(baseFaceOffset >> 2);
 		countIndex = (int)(baseCountOffset >> 1);

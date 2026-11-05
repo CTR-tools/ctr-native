@@ -257,7 +257,11 @@ enum LoadTypeLegacy
 	LT_DRAM = 2,
 
 	// read with vram transfer
-	LT_VRAM = 3
+	LT_VRAM = 3,
+
+	// Native library files; subfileIndex contains a custom runtime level ID.
+	LT_NATIVE_TRACK_LEV = 4,
+	LT_NATIVE_TRACK_VRM = 5
 };
 
 // New system

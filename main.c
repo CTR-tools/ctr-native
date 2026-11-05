@@ -46,6 +46,16 @@
 
 #include "platform/native_disc_image.c"
 #include "platform/native_assets.c"
+#include "platform/native_track_registry.c"
+#include "platform/native_track_library.c"
+#include "platform/native_track_file.c"
+#include "platform/native_track_validate.c"
+#include "platform/native_track_import.c"
+#include "platform/native_track_patch.c"
+#include "platform/native_track_records.c"
+#include "platform/native_track_preview.c"
+#include "platform/native_track_map.c"
+CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_chaos_ipc.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
@@ -224,8 +234,32 @@ Platform_Init("CTR Native Expanded", 800, 600);
 	(void)argv;
 #endif
 
+	char trackDirectory[1024];
+	int trackPathLength = snprintf(trackDirectory, sizeof(trackDirectory), "%s/tracks", NativeAssets_GetAssetDir());
+	if (trackPathLength >= 0 && (size_t)trackPathLength < sizeof(trackDirectory))
+	{
+		SDL_PathInfo trackPathInfo;
+		if (SDL_GetPathInfo(trackDirectory, &trackPathInfo))
+		{
+			struct NativeTrackScanResult trackScan;
+			if (trackPathInfo.type == SDL_PATHTYPE_DIRECTORY && NativeTrackLibrary_Refresh(trackDirectory, &trackScan))
+			{
+				printf("[Custom Tracks] Found %zu tracks; %zu rejected.\n", trackScan.installed, trackScan.rejected);
+			}
+			else
+			{
+				fprintf(stderr, "[Custom Tracks] Could not scan %s.\n", trackDirectory);
+			}
+		}
+	}
+	else
+	{
+		fprintf(stderr, "[Custom Tracks] Asset path is too long.\n");
+	}
+
 	const int result = CTR_Main();
 
+	NativeTrackLibrary_Shutdown();
 	Platform_Shutdown();
 	return NativeConsole_Return(result);
 }

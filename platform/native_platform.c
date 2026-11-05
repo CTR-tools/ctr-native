@@ -15,6 +15,8 @@
 #include "platform/native_savestate.h"
 
 #include <SDL3/SDL.h>
+#include <platform/native_folder_dialog.h>
+#include <platform/native_track_patch.h>
 #include <SDL3/SDL_main.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -22,6 +24,64 @@
 
 SDL_Window *g_window = NULL;
 int g_dbg_polygonSelected = 0;
+
+static char s_folderDialogPath[1024];
+static SDL_AtomicInt s_folderDialogResult;
+
+static void SDLCALL NativeFolderDialog_Callback(void *userdata, const char *const *files, int filter)
+{
+	(void)userdata;
+	(void)filter;
+	int result = NATIVE_FOLDER_DIALOG_ERROR;
+	if (files != NULL)
+	{
+		if (files[0] == NULL)
+		{
+			result = NATIVE_FOLDER_DIALOG_CANCELLED;
+		}
+		else if (strlen(files[0]) < sizeof(s_folderDialogPath))
+		{
+			strcpy(s_folderDialogPath, files[0]);
+			result = NATIVE_FOLDER_DIALOG_SELECTED;
+		}
+	}
+	SDL_SetAtomicInt(&s_folderDialogResult, result);
+}
+
+int NativeFolderDialog_Open(void)
+{
+	if (g_window == NULL)
+	{
+		return 0;
+	}
+	s_folderDialogPath[0] = '\0';
+	SDL_SetAtomicInt(&s_folderDialogResult, NATIVE_FOLDER_DIALOG_PENDING);
+	SDL_ShowOpenFolderDialog(NativeFolderDialog_Callback, NULL, g_window, NULL, false);
+	return 1;
+}
+
+enum NativeFolderDialogResult NativeFolderDialog_Result(void)
+{
+	return (enum NativeFolderDialogResult)SDL_GetAtomicInt(&s_folderDialogResult);
+}
+
+int NativeFileDialog_OpenPatch(void)
+{
+	static const SDL_DialogFileFilter filters[] = {{"Xdelta patch", "xdelta"}};
+	if (g_window == NULL)
+	{
+		return 0;
+	}
+	s_folderDialogPath[0] = '\0';
+	SDL_SetAtomicInt(&s_folderDialogResult, NATIVE_FOLDER_DIALOG_PENDING);
+	SDL_ShowOpenFileDialog(NativeFolderDialog_Callback, NULL, g_window, filters, 1, NULL, false);
+	return 1;
+}
+
+const char *NativeFolderDialog_Path(void)
+{
+	return s_folderDialogPath;
+}
 
 extern int g_cfg_bilinearFiltering;
 extern int g_dbg_emulatorPaused;
@@ -285,6 +345,7 @@ void Platform_Shutdown(void)
 #if defined(CTR_INTERNAL)
 	NativeRenderer_FinishGpuMeasurements();
 	NativePerf_Shutdown();
+	NativeTrackPatch_Shutdown();
 	NativeReplayScheduler_Shutdown();
 #endif
 	Platform_InputShutdown();

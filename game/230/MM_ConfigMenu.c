@@ -1,8 +1,6 @@
 #include <common.h>
 
 #include <platform/native_controls.h>
-#include <stdio.h>
-
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {
@@ -90,6 +88,42 @@ static void BuildSectionMap(void)
 
 static int s_currentSection = -1; // -1 = section selector, 0+ = submenu
 
+// Menu-only entries: key names the destination, section names the parent.
+static const ConfigEntry s_configNavigation[] = {
+	{.section = "", .key = "System", .label = "System", .type = CFG_SUBSECTION},
+	{.section = "", .key = "Game", .label = "Game", .type = CFG_SUBSECTION},
+	{.section = "", .key = "Modifiers", .label = "Modifiers", .type = CFG_SUBSECTION},
+	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .label = CONFIG_SECTION_CUSTOM_TRACKS, .type = CFG_ACTION},
+	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .label = CONFIG_SECTION_DEVELOPER_HACKS, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_AUDIO, .label = CONFIG_SECTION_AUDIO, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .label = CONFIG_SECTION_CONTROLS, .type = CFG_ACTION},
+	{.section = "System", .key = "Graphics", .label = "Graphics", .type = CFG_ACTION},
+	{.section = "Game", .key = "Adventure", .label = "Adventure", .type = CFG_ACTION},
+	{.section = "Game", .key = "General", .label = "General", .type = CFG_ACTION},
+	{.section = "Game", .key = "Unlocks", .label = "Unlocks", .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Vehicle", .label = "Vehicle", .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Weapons", .label = "Weapons", .type = CFG_ACTION},
+};
+static const ConfigEntry *s_configGroup;
+static s16 s_configRootRow;
+static s16 s_configGroupRow;
+
+static int Config_NavigationEntries(const ConfigEntry **entries)
+{
+	const char *parent = s_configGroup != NULL ? s_configGroup->key : "";
+	int count = 0;
+	for (size_t i = 0; i < len(s_configNavigation); i++)
+	{
+		const ConfigEntry *entry = &s_configNavigation[i];
+		if (strcmp(entry->section, parent) == 0 &&
+		    (strcmp(entry->key, CONFIG_SECTION_DEVELOPER_HACKS) != 0 || g_config.developerHacksEnabled))
+		{
+			entries[count++] = entry;
+		}
+	}
+	return count;
+}
+
 // First visible row in the section list.
 static struct FullScreenMenu_Scroll s_configScroll = {0};
 
@@ -138,6 +172,10 @@ void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext cont
 	s_configSession.returnRow = returnMenu->rowSelected;
 	FullScreenMenu_SetShadedFrame(context == CONFIG_MENU_MAIN);
 	s_currentSection = -1;
+	s_configGroup = NULL;
+	s_configRootRow = 0;
+	s_configGroupRow = 0;
+	MM_CustomTracks_ResetNavigation();
 	s_configScroll.offset = 0;
 	g_configMenu.rowSelected = 0;
 	BuildSectionMap();
@@ -218,6 +256,11 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	struct GameTracker *gGT = sdata->gGT;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
+	if (MM_CustomTracks_Update(menu))
+	{
+		Config_ClearInput();
+		return;
+	}
 
 	if (s_numSections == 0)
 	{
@@ -232,9 +275,8 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	// The device picker consumes back itself, so it must close before this file acts,
 	// otherwise one press would close the picker and leave the section in the same
 	// frame.
-	if (!MM_Controls_IsPickerOpen() && ((backTapped & (BTN_TRIANGLE | BTN_START)) != 0))
+	if (!MM_Controls_IsPickerOpen() && FullScreenMenu_Back(backTapped))
 	{
-		OtherFX_Play(2, 1);
 
 		// A rebind in progress would keep eating input on the next screen.
 		NativeControls_CancelCapture();
@@ -245,8 +287,15 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 			{
 				MM_AudioConfig_Leave();
 			}
-			menu->rowSelected = s_currentSection;
+			menu->rowSelected = s_configGroup != NULL ? s_configGroupRow : s_configRootRow;
 			s_currentSection = -1;
+			s_configScroll.offset = 0;
+			Config_ClearInput();
+		}
+		else if (s_configGroup != NULL)
+		{
+			s_configGroup = NULL;
+			menu->rowSelected = s_configRootRow;
 			s_configScroll.offset = 0;
 			Config_ClearInput();
 		}
@@ -279,9 +328,8 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		const ConfigEntry *e = &g_configEntries[firstEntry + menu->rowSelected];
 		if (Config_CanEdit(e))
 		{
-			if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0)
+			if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 			{
-				OtherFX_Play(1, 1);
 				if (e->type == CFG_BOOL)
 				{
 					*(bool *)e->valuePtr ^= 1;
@@ -294,7 +342,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 					if (s_currentSection >= s_numSections)
 					{
 						s_currentSection = -1;
-						menu->rowSelected = (s16)FullScreenMenu_ClampRow(sec, s_numSections);
+						menu->rowSelected = s_configRootRow;
 						s_configScroll.offset = 0;
 						Config_ClearInput();
 						return;
@@ -325,27 +373,46 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 			BuildSectionMap();
 		}
 
-		FullScreenMenu_NavScroll(pad, &s_configScroll, &menu->rowSelected, s_numSections);
+		const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
+		const char *sections[CONFIG_MAX_SECTIONS];
+		int count = Config_NavigationEntries(entries);
+		FullScreenMenu_NavScroll(pad, &s_configScroll, &menu->rowSelected, count);
 
-		if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0)
+		if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 		{
-			OtherFX_Play(1, 1);
-			s_currentSection = menu->rowSelected;
+			const ConfigEntry *selected = entries[menu->rowSelected];
+			if (selected->type == CFG_SUBSECTION)
+			{
+				s_configRootRow = menu->rowSelected;
+				s_configGroup = selected;
+				menu->rowSelected = 0;
+				s_configScroll.offset = 0;
+				Config_ClearInput();
+				return;
+			}
+			if (strcmp(selected->key, CONFIG_SECTION_CUSTOM_TRACKS) == 0)
+			{
+				MM_CustomTracks_Open(menu, s_configSession.context == CONFIG_MENU_MAIN);
+				Config_ClearInput();
+				return;
+			}
+			if (s_configGroup != NULL) { s_configGroupRow = menu->rowSelected; }
+			else { s_configRootRow = menu->rowSelected; }
+			for (int section = 0; section < s_numSections; section++)
+			{
+				if (Config_IsSection(section, selected->key)) { s_currentSection = section; break; }
+			}
+			if (s_currentSection < 0) { return; }
 			menu->rowSelected = 0;
 			s_configScroll.offset = 0;
 		}
 
-		const char *sections[CONFIG_MAX_SECTIONS];
-		for (int section = 0; section < s_numSections; section++)
+		for (int section = 0; section < count; section++)
 		{
-			sections[section] = g_configEntries[s_sectionToEntry[section]].section;
+			sections[section] = entries[section]->label;
 		}
-		// Keep the section list under the menu that opened it: the title screen's menus
-		// sit on the right, while the pause menu is centred.
-		const int columnX = (s_configSession.context == CONFIG_MENU_MAIN)
-		                        ? FULLSCREEN_MENU_MAIN_X
-		                        : FULLSCREEN_MENU_TITLE_X;
-		FullScreenMenu_DrawSectionScreen(sdata->lngStrings[LNG_OPTIONS], sections, &s_configScroll,
-		                                s_numSections, menu->rowSelected, columnX, gGT, ot);
+		const int columnX = s_configSession.context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X;
+		FullScreenMenu_DrawSectionScreen(s_configGroup != NULL ? s_configGroup->label : sdata->lngStrings[LNG_OPTIONS],
+		                                 sections, &s_configScroll, count, menu->rowSelected, columnX, gGT, ot);
 	}
 }

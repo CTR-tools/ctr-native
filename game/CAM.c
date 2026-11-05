@@ -1617,12 +1617,16 @@ LAB_8001ab04:
 		else
 		{
 			struct SpawnType1 *st1 = gGT->level1->ptrSpawnType1;
-			void **pointers = ST1_GETPOINTERS(st1);
-			u8 *cameraPath = pointers[ST1_CAMERA_PATH];
+			u8 *cameraPath = NULL;
+			if (st1 != NULL && st1->count > ST1_CAMERA_PATH)
+			{
+				void **pointers = ST1_GETPOINTERS(st1);
+				cameraPath = pointers[ST1_CAMERA_PATH];
+			}
 			s32 flyInDone = 0;
 
 			// No camera + No ghosts (battle maps)
-			if (st1->count < 4)
+			if (cameraPath == NULL)
 			{
 				// startline fly-in is done
 				flyInDone = 1;

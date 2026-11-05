@@ -1,4 +1,6 @@
 #include <common.h>
+#include <level_info.h>
+#include <track_text.h>
 
 enum UIRaceEndMenuOption
 {
@@ -21,6 +23,8 @@ enum UIRaceFlowConstants
 	UI_RACE_START_CUP_TITLE_Y_OFFSET = -6,
 	UI_RACE_START_CUP_TRACK_Y_OFFSET = 0xb,
 	UI_RACE_START_LEVEL_TITLE_Y_OFFSET = -0x17,
+	UI_RACE_START_CUSTOM_TITLE_BYTES = 64,
+	UI_RACE_START_CUSTOM_TITLE_MARGIN = 32,
 	UI_RACE_START_DIVIDER_TOP_Y_OFFSET = 0x1c,
 	UI_RACE_START_DIVIDER_BOTTOM_Y_OFFSET = -0x1e,
 	UI_RACE_START_DIVIDER_HEIGHT = 2,
@@ -40,7 +44,6 @@ enum UIRaceFlowConstants
 	UI_RACE_END_PROMPT_Y = 0xbe,
 	UI_RACE_END_MENU_Y = 0xb4,
 };
-
 
 void UI_RaceEnd_GetDriverClock(struct Driver *driver)
 {
@@ -280,13 +283,21 @@ LAB_80055930:
 
 		// Print the name of the level
 		// Crash Cove, Roos Tubes, etc
+		struct LevelInfo levelInfo = LevelInfo_Lookup(gGT->levelID);
+		const char *title = LevelInfo_Title(&levelInfo, sdata->lngStrings);
+		char customTitle[UI_RACE_START_CUSTOM_TITLE_BYTES];
+		if (title == NULL)
+		{
+			title = "";
+		}
+		if (levelInfo.kind == LEVEL_INFO_CUSTOM)
+		{
+			TrackText_Copy(customTitle, sizeof(customTitle), title);
+			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
+			title = customTitle;
+		}
 		DecalFont_DrawLine(
-
-		    // 83a88 = 110
-		    // 8d878 + 110*4 -> Dingo Canyon
-
-		    // Level ID
-		    sdata->lngStrings[data.metaDataLEV[gGT->levelID].name_LNG],
+		    (char *)title,
 
 		    gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 

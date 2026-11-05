@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <platform/native_track_registry.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -35,11 +36,25 @@ static int s_hubDestroys;
 static int s_hubUpdates;
 static int s_unpauses;
 static int s_backgroundDeactivations;
+static int s_trackImportOpened;
+static int s_trackRefreshCalls;
+static int s_trackRefreshSuccess = 1;
+static int s_lastMenuSound = -1;
+static int s_sectionFont = -1;
+static int s_trackFixtureCount;
+static int s_trackFixtureEnabled = 1;
+static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
+static int s_trackDetailRows[2];
+static int s_allModesY;
+static int s_unknownModesY;
+static int s_emptyTracksY;
+static int s_importRowColor;
 static struct RectMenu *s_chaosCaller;
 
 // Count menu persistence calls without touching any real configuration file.
 static void ConfigMenuTest_Save(void);
 #define NativeConfig_Save ConfigMenuTest_Save
+#include <game/230/MM_CustomTracks.c>
 #include <game/230/MM_ConfigMenu.c>
 #undef NativeConfig_Save
 #include <game/230/MM_AudioConfig.c>
@@ -55,6 +70,19 @@ const char *NativeAssets_GetBaseDir(void)
 {
 	CtrTest_Bail("menu tests must not access configuration files");
 	return NULL;
+}
+const char *NativeAssets_GetAssetDir(void) { return "fixture-assets"; }
+int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result)
+{
+	if (strcmp(directory, "fixture-assets/tracks") != 0) { CtrTest_Bail("unexpected track refresh path"); }
+	s_trackRefreshCalls++;
+	if (s_trackRefreshSuccess && result != NULL)
+	{
+		result->installed = 2;
+		result->rejected = 1;
+		s_trackFixtureCount = 2;
+	}
+	return s_trackRefreshSuccess;
 }
 void NativeControls_Save(void) { s_controlsSaves++; }
 void GhostTape_Destroy(void) {}
@@ -83,6 +111,18 @@ void OptionsMenu_TestSound(s32 row, b32 playing)
 	s_previewPlaying = playing;
 }
 void MM_MenuProc_Controls(struct RectMenu *menu) { (void)menu; }
+void MM_TrackImport_Open(void) { s_trackImportOpened++; }
+void MM_TrackImport_OpenPatch(void) { s_trackImportOpened += 10; }
+int MM_TrackImport_Update(u32 buttons) { (void)buttons; return 0; }
+const char *MM_TrackImport_Message(void) { return ""; }
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
+size_t NativeTrackRegistry_Count(const struct NativeTrackRegistry *registry) { (void)registry; return (size_t)s_trackFixtureCount; }
+const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTrackRegistry *registry, int levelID)
+{
+	(void)registry; return s_trackFixtureCount && levelID == NATIVE_TRACK_CUSTOM_ID_BASE ? &s_trackFixture : NULL;
+}
+int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track) { (void)track; return s_trackFixtureEnabled; }
+int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled) { (void)track; s_trackFixtureEnabled = enabled; return 1; }
 b32 MM_Controls_IsPickerOpen(void) { return s_pickerOpen; }
 u32 MM_Controls_MenuTapped(void) { return (u32)sdata->gGamepads->gamepad[0].buttonsTapped; }
 void MM_Controls_ResetNavigation(void)
@@ -99,11 +139,39 @@ void RECTMENU_ClearInput(void)
 	memset(sdata->buttonHeldPerPlayer, 0, sizeof(sdata->buttonHeldPerPlayer));
 }
 
-int OtherFX_Play(u32 id, int flags) { (void)id; (void)flags; return 0; }
+int OtherFX_Play(u32 id, int flags) { s_lastMenuSound = (int)id; (void)flags; return 0; }
 s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strlen(text) * 8; }
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (strcmp(text, "System") == 0)
+	{
+		s_sectionFont = font;
+	}
+	if (strcmp(text, "Import") == 0 && x == FULLSCREEN_MENU_LABEL_X)
+	{
+		s_importRowColor = flags;
+	}
+	if (strcmp(text, "Modes: Unknown") == 0 && x == FULLSCREEN_MENU_LABEL_X + 12)
+	{
+		s_unknownModesY = y;
+	}
+	if (strcmp(text, "No tracks imported") == 0 && x == FULLSCREEN_MENU_LABEL_X)
+	{
+		s_emptyTracksY = y;
+	}
+	if (strcmp(text, "Modes: TT, ARC, VS, CTR, REL, CRY") == 0 && x == FULLSCREEN_MENU_LABEL_X + 12)
+	{
+		s_allModesY = y;
+	}
+	const char *details[] = {"Author: Test Author", "Modes: TT"};
+	for (int i = 0; i < 2; i++)
+	{
+		if (strcmp(text, details[i]) == 0 && x == FULLSCREEN_MENU_LABEL_X + 12)
+		{
+			s_trackDetailRows[i] = y;
+		}
+	}
 	if ((flags & JUSTIFY_CENTER) != 0)
 	{
 		s_centerX = x;
@@ -169,6 +237,190 @@ static void UpdateMenu(void)
 	menu->funcPtr(menu);
 }
 
+static int NavigationRow(const char *name)
+{
+	const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
+	int count = Config_NavigationEntries(entries);
+	for (int i = 0; i < count; i++)
+	{
+		if (strcmp(entries[i]->key, name) == 0) { return i; }
+	}
+	return -1;
+}
+
+static void SelectNavigation(const char *name)
+{
+	int row = NavigationRow(name);
+	if (row < 0) { CtrTest_Bail("navigation entry not found"); }
+	sdata->ptrActiveMenu->rowSelected = (s16)row;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+}
+
+static void TestNavigation(void)
+{
+	CTR_TEST_SECTION("section hierarchy");
+	g_config.developerHacksEnabled = false;
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
+	const char *roots[] = {"System", "Game", "Modifiers", CONFIG_SECTION_CUSTOM_TRACKS};
+	int count = Config_NavigationEntries(entries);
+	CTR_TEST_CHECK(count == (int)len(roots), "the root shows four sections when developer hacks are disabled");
+	for (int i = 0; i < count; i++)
+	{
+		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
+	}
+	const char *groups[][4] = {
+		{"System", "Audio", "Controls", "Graphics"},
+		{"Game", "Adventure", "General", "Unlocks"},
+		{"Modifiers", "Vehicle", "Weapons", NULL},
+	};
+	for (size_t group = 0; group < len(groups); group++)
+	{
+		SelectNavigation(groups[group][0]);
+		count = Config_NavigationEntries(entries);
+		int expected = groups[group][3] != NULL ? 3 : 2;
+		CTR_TEST_CHECK(count == expected, "each group exposes its expected subsections");
+		for (int i = 0; i < count; i++)
+		{
+			CTR_TEST_CHECK(strcmp(entries[i]->key, groups[group][i + 1]) == 0, "subsections follow the requested order");
+		}
+		SetInput(BTN_TRIANGLE, 0);
+		UpdateMenu();
+	}
+	g_config.developerHacksEnabled = true;
+	count = Config_NavigationEntries(entries);
+	CTR_TEST_CHECK(count == 5 && strcmp(entries[4]->key, CONFIG_SECTION_DEVELOPER_HACKS) == 0,
+	               "developer hacks appear at the end only when enabled");
+	g_config = s_initialConfig;
+}
+
+static void TestTrackImportMenu(void)
+{
+	CTR_TEST_SECTION("track import entry");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	int customTracksSection = NavigationRow(CONFIG_SECTION_CUSTOM_TRACKS);
+	CTR_TEST_CHECK(customTracksSection >= 0, "Custom Tracks is registered in the section table");
+	sdata->ptrActiveMenu->rowSelected = (s16)customTracksSection;
+	s_trackImportOpened = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && s_trackImportOpened == 0 && s_currentSection == -1,
+	               "the Options entry opens the custom tracks manager");
+	s_trackFixtureCount = 1;
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE, "Available Tracks opens the installed track list");
+	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening the list plays the confirm sound");
+	memset(s_trackDetailRows, 0, sizeof(s_trackDetailRows));
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackDetailRows[0] > 0 && s_trackDetailRows[1] > s_trackDetailRows[0] && s_trackDetailRows[1] < SCREEN_HEIGHT,
+	               "the mode summary appears on one row below the author");
+	s_trackFixture.detectionKnown = 0;
+	UpdateMenu();
+	CTR_TEST_CHECK(s_unknownModesY == s_trackDetailRows[1], "unrecognized track modes are shown as Unknown on the same row");
+	s_trackFixture.detectionKnown = 1;
+	s_trackFixture.detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL | NATIVE_TRACK_DETECTED_VS | NATIVE_TRACK_DETECTED_ARCADE |
+	                               NATIVE_TRACK_DETECTED_RELIC | NATIVE_TRACK_DETECTED_CTR | NATIVE_TRACK_DETECTED_CRYSTAL;
+	s_allModesY = 0;
+	UpdateMenu();
+	CTR_TEST_CHECK(s_allModesY == s_trackDetailRows[1], "all detected modes fit on the same visible row");
+	s_trackFixture.detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(!s_trackFixtureEnabled, "confirm disables the selected track");
+	SetInput(BTN_CIRCLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackFixtureEnabled, "confirm re-enables the selected track");
+	s_lastMenuSound = -1;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "back returns from the track list to the manager");
+	CTR_TEST_CHECK(s_lastMenuSound == 2, "leaving the list plays the back sound");
+	sdata->ptrActiveMenu->rowSelected = 2;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 1 && s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT && s_trackFixtureCount == 2 &&
+	               strcmp(s_customTracksRefreshMessage, "Tracks: 2  Rejected: 1") == 0,
+	               "refresh scans the track directory and displays its result");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && sdata->ptrActiveMenu->rowSelected == 2,
+	               "closing the refresh result returns to the refresh row");
+	s_trackRefreshSuccess = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 2 && strcmp(s_customTracksRefreshMessage, "Refresh failed") == 0,
+	               "a failed refresh reports the failure");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	s_trackRefreshSuccess = 1;
+	s_customTracksImportEnabled = false;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackRefreshCalls == 2 && s_customTracksPage == CUSTOM_TRACKS_ROOT,
+	               "refresh is unavailable during a paused game");
+	s_customTracksImportEnabled = true;
+	sdata->ptrActiveMenu->rowSelected = 0;
+	s_trackFixtureCount = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_emptyTracksY == FullScreenMenu_RowY(0, 1), "an empty library uses a normal content row");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	sdata->ptrActiveMenu->rowSelected = 1;
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_IMPORT && s_trackImportOpened == 0,
+	               "Import opens the local source selection");
+	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening import plays the confirm sound");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 1, "Folder opens the directory importer");
+	sdata->ptrActiveMenu->rowSelected = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_trackImportOpened == 11, "Xdelta patch opens the patch importer");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && sdata->ptrActiveMenu->rowSelected == 1,
+	               "back restores the manager's Import row");
+	s_lastMenuSound = -1;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_CLOSED && s_lastMenuSound == 2, "leaving the manager plays the back sound");
+	CTR_TEST_CHECK(sdata->ptrActiveMenu->rowSelected == customTracksSection, "leaving the manager restores the Options entry");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_PAUSE);
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_CLOSED, "opening Options resets custom track navigation");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	sdata->ptrActiveMenu->rowSelected = (s16)customTracksSection;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT, "custom tracks can be opened from pause options");
+	sdata->ptrActiveMenu->rowSelected = 1;
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_importRowColor == GRAY, "Import remains visible and gray during a race");
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	SetInput(BTN_CIRCLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && s_trackImportOpened == 11 && s_lastMenuSound == -1,
+	               "neither confirm button opens import or plays a confirmation sound during a race");
+	sdata->ptrActiveMenu->rowSelected = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE, "installed tracks remain accessible from pause options");
+}
+
 static void TestSession(enum ConfigMenuContext context, int mode)
 {
 	struct RectMenu caller = {.rowSelected = 5};
@@ -183,14 +435,20 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 	CTR_TEST_CHECK(sdata->ptrActiveMenu->rowSelected == 0, "opening selects the first section");
 	UpdateMenu();
 	CTR_TEST_CHECK(s_currentSection == -1, "opening confirm does not also enter a section");
+	CTR_TEST_CHECK(s_sectionFont == FONT_BIG, "section entries use the large font");
 	CTR_TEST_CHECK(s_tracker.gameMode1 == mode, "opening preserves the caller's game and pause flags");
-	const int expectedColumn = (context == CONFIG_MENU_MAIN) ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X;
-	CTR_TEST_CHECK(s_centerX == expectedColumn, "the section list follows the calling menu's column");
+	CTR_TEST_CHECK(s_centerX == (context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X),
+	               "the section list follows the caller's menu position");
 	const int expectedStyle = (context == CONFIG_MENU_MAIN) ? FULLSCREEN_MENU_DRAW_STYLE_SHADED
 	                                                       : FULLSCREEN_MENU_DRAW_STYLE_FLAT;
 	CTR_TEST_CHECK(s_frameDrawStyle == expectedStyle, "the box matches the calling menu's shading");
 
-	SetInput(BTN_CROSS, 0);
+	SelectNavigation("Game");
+	CTR_TEST_CHECK(s_configGroup != NULL && strcmp(s_configGroup->key, "Game") == 0, "Game opens its subsection list");
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_centerX == (context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X),
+	               "the subsection list follows the caller's menu position");
 	int generalSection = -1;
 	for (int section = 0; section < s_numSections; section++)
 	{
@@ -200,8 +458,7 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 		}
 	}
 	CTR_TEST_CHECK(generalSection >= 0, "the General section is present");
-	sdata->ptrActiveMenu->rowSelected = (s16)generalSection;
-	UpdateMenu();
+	SelectNavigation("General");
 	CTR_TEST_CHECK(s_currentSection == generalSection, "confirm enters the selected section");
 	// Back and confirm together must not reopen the section or edit an option.
 	SetInput(BTN_TRIANGLE | BTN_CROSS, BTN_RIGHT);
@@ -210,6 +467,9 @@ static void TestSession(enum ConfigMenuContext context, int mode)
 	CTR_TEST_CHECK(!g_config.skipIntro, "leaving a section does not edit its option");
 	CTR_TEST_CHECK(s_configSaves == 0 && s_controlsSaves == 0, "leaving a section does not close the session");
 
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_configGroup == NULL && sdata->ptrActiveMenu->rowSelected == 1, "back restores the parent section row");
 	s_capturing = true;
 	SetInput(BTN_START | BTN_CROSS, BTN_DOWN);
 	UpdateMenu();
@@ -237,14 +497,21 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 	MM_ConfigMenu_Open(&s_caller, context);
 	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
 	sdata->ptrDesiredMenu = NULL;
+	const char *target = g_configEntries[index].section;
+	for (size_t i = 0; i < len(s_configNavigation); i++)
+	{
+		if (strcmp(s_configNavigation[i].key, target) == 0 && s_configNavigation[i].section[0] != '\0')
+		{
+			SelectNavigation(s_configNavigation[i].section);
+			break;
+		}
+	}
 	for (int section = 0; section < s_numSections; section++)
 	{
 		const int first = s_sectionToEntry[section];
 		if (index >= first && index < first + s_sectionCount[section])
 		{
-			sdata->ptrActiveMenu->rowSelected = (s16)section;
-			SetInput(BTN_CROSS, 0);
-			UpdateMenu();
+			SelectNavigation(target);
 			sdata->ptrActiveMenu->rowSelected = (s16)(index - first);
 			return;
 		}
@@ -255,7 +522,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "controls", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -585,6 +852,8 @@ int main(void)
 	s_strings[LNG_MONO] = "MONO";
 	s_strings[LNG_STEREO] = "STEREO";
 	s_tracker.backBuffer = &s_buffer;
+	TestNavigation();
+	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");
 	TestSession(CONFIG_MENU_MAIN, MAIN_MENU);
 	CTR_TEST_SECTION("Paused race session");

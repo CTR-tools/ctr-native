@@ -1,7 +1,8 @@
 #include <common.h>
 #include <platform/native_cd.h>
+#include <platform/native_spu_memory.h>
 
-enum { HOWL_SAMPLE_SPU_UNIT = 8, HOWL_SAMPLE_SPU_END = 0x7e000 };
+enum { HOWL_SAMPLE_SPU_UNIT = 8 };
 
 static bool Bank_FindSample(u16 sampleIndex, u32 *sampleOffset)
 {
@@ -97,8 +98,8 @@ bool Bank_EnsureOtherFX(u16 soundID)
 		return false;
 	}
 	const u32 size = sample->spuSize * HOWL_SAMPLE_SPU_UNIT;
-	const u32 destination = sdata->audioAllocPtr * HOWL_SAMPLE_SPU_UNIT;
-	if (size == 0 || destination + size >= HOWL_SAMPLE_SPU_END)
+	const u32 destination = CTR_SPU_BYTES_AT((u32)sdata->audioAllocPtr);
+	if (size == 0 || size % (1 << CTR_SPU_ADDR_SHIFT) != 0 || destination + size >= CTR_SPU_CEILING)
 	{
 		return false;
 	}
@@ -114,7 +115,7 @@ bool Bank_EnsureOtherFX(u16 soundID)
 		};
 	}
 	sample->spuAddr = sdata->audioAllocPtr;
-	sdata->audioAllocPtr += sample->spuSize;
-	sdata->bank[sdata->numAudioBanks - 1].max += sample->spuSize;
+	sdata->audioAllocPtr += CTR_SPU_SIZE_UNITS(sample->spuSize);
+	sdata->bank[sdata->numAudioBanks - 1].max += CTR_SPU_SIZE_UNITS(sample->spuSize);
 	return true;
 }

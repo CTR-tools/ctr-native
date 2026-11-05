@@ -1,4 +1,11 @@
 #include <common.h>
+#include <platform/native_track_library.h>
+#include <platform/native_track_preview.h>
+#include <platform/native_track_map.h>
+#include <platform/native_renderer.h>
+#include <track_text.h>
+#include <level_info.h>
+#include <stdlib.h>
 
 enum TrackSelectVideoState
 {
@@ -51,6 +58,10 @@ enum
 	MM_TRACK_SELECT_TIME_TRIAL_FLAGS_OFFSET = 0x12c,
 	MM_TRACK_SELECT_ROW_PHASE_UNIT = 0x10000,
 	MM_TRACK_SELECT_ROW_NAME_X_OFFSET = 8,
+	MM_TRACK_SELECT_CUSTOM_TITLE_BYTES = 256,
+	MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN = 16,
+	MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES = 45,
+	MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES = 8,
 	MM_TRACK_SELECT_ROW_NAME_Y_OFFSET = 0x65,
 	MM_TRACK_SELECT_STAR_X_OFFSET = 4,
 	MM_TRACK_SELECT_STAR_Y_OFFSET = 4,
@@ -74,6 +85,151 @@ enum
 #define MM_TRACK_GAME_TRACKER(page) CTR_PSX_PAGE_LVALUE(struct GameTracker *, page, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)
 
 static struct MainMenu_LevelRow s_combinedBattleTracks[MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT];
+static struct MainMenu_LevelRow *s_raceTracks;
+static s16 s_raceTrackCount;
+static s16 s_titleScrollSelectedRow = -1;
+static u32 s_titleScrollStartFrame;
+static int s_previewTrackID = -1;
+static int s_previewLoaded;
+static int s_previewAspectFactor;
+static struct NativeTrackMap s_customMap;
+static struct Icon s_customMapIcons[2];
+static int s_customMapTrackID = -1;
+static int s_customMapLoaded;
+static u32 s_customMapTexture;
+
+static int MM_TrackSelect_CustomMap(int levelID)
+{
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID) == NULL) { return 0; }
+	if (s_customMapTrackID != levelID)
+	{
+		s_customMapTrackID = levelID;
+		s_customMapLoaded = NativeTrackMap_Load(&s_customMap, levelID);
+		if (s_customMapLoaded)
+		{
+			s_customMapTexture = NativeRenderer_UploadTrackMap(s_customMap.pixels);
+			s_customMapLoaded = s_customMapTexture != 0;
+			memset(s_customMapIcons, 0, sizeof(s_customMapIcons));
+			for (int i = 0; i < 2; i++)
+			{
+				struct TextureLayout *layout = &s_customMapIcons[i].texLayout;
+				layout->u1 = layout->u3 = (u8)s_customMap.width;
+				layout->v0 = layout->v1 = i == 0 ? 0 : (u8)s_customMap.topHeight;
+				layout->v2 = layout->v3 = (u8)(i == 0 ? s_customMap.topHeight : s_customMap.height);
+				layout->tpage = 0x100;
+			}
+		}
+	}
+	return s_customMapLoaded;
+}
+
+static void MM_TrackSelect_DrawMapLayers(struct Icon *top, struct Icon *bottom, int x, int y)
+{
+	struct GameTracker *gGT = GAME_TRACKER;
+	for (int i = 0; i < MM_TRACK_SELECT_MAP_LAYER_COUNT; i++)
+	{
+		struct TrackSelectMapOffset *offset = &MM_TRACK_DRAW_MAP_OFFSET[i];
+		UI_Map_DrawMap(top, bottom, x + offset->offsetX, y + offset->offsetY,
+		               &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, offset->type);
+	}
+}
+
+static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
+{
+	struct GameTracker *gGT = GAME_TRACKER;
+	struct PrimMem *memory = &gGT->backBuffer->primMem;
+	size_t needed = 2 * sizeof(DR_PSYX_TEX) + MM_TRACK_SELECT_MAP_LAYER_COUNT * 2 * sizeof(POLY_FT4);
+	if ((uintptr_t)memory->cursor > (uintptr_t)memory->guardEnd ||
+	    (uintptr_t)memory->guardEnd - (uintptr_t)memory->cursor < needed) { return; }
+	/* OT insertion prepends: the reset is emitted after the map is drawn. */
+	DR_PSYX_TEX *reset = memory->cursor;
+	SetPsyXTexture(reset, 0, 0, 0);
+	AddPrim(gGT->pushBuffer_UI.ptrOT, reset);
+	memory->cursor = reset + 1;
+	MM_TrackSelect_DrawMapLayers(&s_customMapIcons[0], &s_customMapIcons[1],
+	                             centerX + s_customMap.width / 2, centerY + s_customMap.height / 2);
+	DR_PSYX_TEX *bind = memory->cursor;
+	SetPsyXTexture(bind, s_customMapTexture, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE);
+	AddPrim(gGT->pushBuffer_UI.ptrOT, bind);
+	memory->cursor = bind + 1;
+}
+
+static void MM_TrackSelect_BuildRaceTracks(void)
+{
+	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
+	size_t count = NativeTrackRegistry_Count(registry);
+	const size_t maxCustom = 0x7fff - MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+	if (count > maxCustom)
+	{
+		count = maxCustom;
+	}
+	free(s_raceTracks);
+	s_raceTracks = NULL;
+	s_raceTrackCount = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+	if (count == 0)
+	{
+		return;
+	}
+	s_raceTracks = malloc((MM_TRACK_SELECT_ARCADE_TRACK_COUNT + count) * sizeof(*s_raceTracks));
+	if (s_raceTracks == NULL)
+	{
+		return;
+	}
+	memcpy(s_raceTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
+	size_t enabled = 0;
+	for (size_t i = 0; i < count; i++)
+	{
+		int levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
+		unsigned int mode = (GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 ? NATIVE_TRACK_DETECTED_TIME_TRIAL :
+		                    (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? NATIVE_TRACK_DETECTED_ARCADE : NATIVE_TRACK_DETECTED_VS;
+		b32 allowed = NativeTrackLibrary_AllowsDetectedMode(track, mode);
+		if (!NativeTrackLibrary_IsEnabled(track) || !allowed)
+		{
+			continue;
+		}
+		struct MainMenu_LevelRow *row = &s_raceTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + enabled++];
+		*row = MM_ARCADE_TRACKS[0];
+		row->levID = (s16)levelID;
+		row->mapTextureID = -1;
+		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
+	}
+	s_raceTrackCount += (s16)enabled;
+}
+
+static void MM_TrackSelect_ScrollTitle(char *title, int available, u32 frame)
+{
+	if (DecalFont_GetLineWidth(title, FONT_BIG) <= available)
+	{
+		return;
+	}
+
+	size_t length = strlen(title);
+	size_t lastStart = 0;
+	while (lastStart < length && DecalFont_GetLineWidth(title + lastStart, FONT_BIG) > available)
+	{
+		lastStart++;
+	}
+
+	u32 travelFrames = (u32)lastStart * MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES;
+	u32 cycle = travelFrames + 2 * MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES;
+	u32 position = frame % cycle;
+	size_t start = 0;
+	if (position >= MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES)
+	{
+		start = (position - MM_TRACK_SELECT_CUSTOM_SCROLL_PAUSE_FRAMES) / MM_TRACK_SELECT_CUSTOM_SCROLL_STEP_FRAMES;
+		if (start > lastStart)
+		{
+			start = lastStart;
+		}
+	}
+	memmove(title, title + start, length - start + 1);
+	length -= start;
+	while (length > 0 && DecalFont_GetLineWidth(title, FONT_BIG) > available)
+	{
+		title[--length] = '\0';
+	}
+}
 
 static b32 MM_TrackSelect_UseRaceTracks(void)
 {
@@ -154,7 +310,7 @@ void MM_TrackSelect_Video_State(b32 resetPreview)
 
 #include <platform/native_str.h>
 
-static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY)
+static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY, int opaque)
 {
 	u32 *prim;
 	u32 *ot;
@@ -182,6 +338,13 @@ static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY)
 	// a 16-bit textured quad instead of relying on a CPU-side VRAM copy.
 	*ot = (u32)CtrGpu_PrimToOTLink24(prim);
 	nextPrim = DISPLAY_Blur_SubFunc(prim, &tile[0]);
+	if (opaque)
+	{
+		for (POLY_FT4 *poly = (POLY_FT4 *)prim; poly < (POLY_FT4 *)nextPrim; poly++)
+		{
+			poly->code &= (u8)~2;
+		}
+	}
 	((POLY_FT4 *)nextPrim - 1)->tag = CtrGpu_PackOTTag(oldTag, 0x09000000);
 	gGT->backBuffer->primMem.cursor = nextPrim;
 }
@@ -193,6 +356,44 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 	struct MainMenu_LevelRow *selectedMenu;
 	s32 videoFileIndex;
 
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), selectMenu[trackIndex].levID) != NULL)
+	{
+		if (MM_TRACK_VIDEO_MEM_ALLOCATED != 0)
+		{
+			NativeSTR_Stop();
+			MM_TRACK_VIDEO_MEM_ALLOCATED = 0;
+		}
+		MM_TRACK_VIDEO_STATE_CURR = MM_TRACK_VIDEO_ICON;
+		MM_TRACK_VIDEO_STATE_PREV = MM_TRACK_VIDEO_ICON;
+		int drawn = 0;
+		struct Icon *icon = GAME_TRACKER->ptrIcons[MM_TRACK_VIDEO_ICON_INDEX];
+		if (icon != NULL)
+		{
+			u16 tpage = icon->texLayout.tpage;
+			int srcX = icon->texLayout.u0 + (tpage & 0xf) * 0x40 + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X;
+			int srcY = icon->texLayout.v0 + (tpage & 0x10) * 0x10 + ((tpage & 0x800) >> 2) + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y;
+			int aspectFactor = Widescreen_GetFactor();
+			if (s_previewTrackID != selectMenu[trackIndex].levID || s_previewAspectFactor != aspectFactor)
+			{
+				s_previewTrackID = selectMenu[trackIndex].levID;
+				s_previewAspectFactor = aspectFactor;
+				s_previewLoaded = NativeTrackPreview_Load(s_previewTrackID, srcX, srcY, MM_TRACK_VIDEO_FRAME_WIDTH, MM_TRACK_VIDEO_FRAME_HEIGHT, aspectFactor);
+			}
+			if (s_previewLoaded && r->x >= 0 && r->y >= 0 && r->x + r->w <= MM_TRACK_VIDEO_SCREEN_W && r->y + r->h <= MM_TRACK_VIDEO_SCREEN_H)
+			{
+				MM_TrackSelect_Video_DrawNativePreview(r, srcX, srcY, 1);
+ 				drawn = 1;
+			}
+		}
+		if (!drawn)
+		{
+			DecalFont_DrawLine("NO PREVIEW", r->x + r->w / 2, r->y + r->h / 2, FONT_SMALL, JUSTIFY_CENTER | WHITE);
+		}
+		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+		return;
+	}
+	s_previewTrackID = -1;
+	s_customMapTrackID = -1;
 	bigfileHeader = MM_BIGFILE_HEADER;
 	bigfileEntries = BIG_GETENTRY(bigfileHeader);
 	selectedMenu = (struct MainMenu_LevelRow *)((u32)(trackIndex * sizeof(*selectedMenu)) + (u32)selectMenu);
@@ -237,7 +438,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 
 			if (MM_TRACK_VIDEO_STATE_CURR == MM_TRACK_VIDEO_PLAYING)
 			{
-				MM_TrackSelect_Video_DrawNativePreview(r, srcX + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X, srcY + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y);
+				MM_TrackSelect_Video_DrawNativePreview(r, srcX + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X, srcY + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y, 0);
 			}
 		}
 	}
@@ -309,6 +510,10 @@ void MM_TrackSelect_Init(void)
 	struct MainMenu_LevelRow *selectMenu;
 	s16 numTracks;
 
+	s_titleScrollSelectedRow = -1;
+	s_previewTrackID = -1;
+	s_customMapTrackID = -1;
+	MM_TrackSelect_BuildRaceTracks();
 	// lap selection menu is closed by default
 	MM_TRACK_LAP_BOX_OPEN = false;
 	MM_TRACK_TRANSITION_STATE = ENTERING_MENU;
@@ -326,8 +531,8 @@ void MM_TrackSelect_Init(void)
 	}
 	else
 	{
-		selectMenu = MM_ARCADE_TRACKS;
-		numTracks = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		selectMenu = s_raceTracks != NULL ? s_raceTracks : MM_ARCADE_TRACKS;
+		numTracks = s_raceTrackCount;
 	}
 
 	// If you scroll past the max number of tracks, go back to the first track
@@ -365,7 +570,6 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 	u32 trackCountWork;
 	register s32 trackChangeFrames CTR_PSX_REGISTER("$2");
 	register struct TransitionMeta *levelTitleTransition CTR_PSX_REGISTER("$16");
-	struct PushBuffer *uiPushBuffer;
 	register b32 resetPreviewVideo CTR_PSX_REGISTER("$4");
 	s16 rowIndex;
 	(void)trackCountWork;
@@ -420,6 +624,25 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 				}
 				if ((GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0)
 				{
+					if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), GAME_TRACKER->currLEV) != NULL)
+					{
+						MM_GHOST_TAPE_PLAYING = MM_ALLOC_HIGH_MEM(MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE, MM_LOADED_GHOST_DATA);
+						if (MM_GHOST_TAPE_PLAYING != NULL)
+						{
+							memset(MM_GHOST_TAPE_PLAYING, 0, MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE);
+							MM_REPLAY_HUMAN_GHOST = GAMEPROG_CustomLoadGhost(GAME_TRACKER->currLEV, MM_GHOST_TAPE_PLAYING);
+							if (MM_REPLAY_HUMAN_GHOST)
+							{
+								data.characterIDs[1] = MM_GHOST_TAPE_PLAYING->characterID;
+							}
+						}
+						else
+						{
+							MM_REPLAY_HUMAN_GHOST = 0;
+						}
+						MM_DESIRED_MENU = &MM_MENU_QUEUE_LOAD_TRACK;
+						return;
+					}
 					MM_GHOST_TAPE_PLAYING = MM_ALLOC_HIGH_MEM(MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE, MM_LOADED_GHOST_DATA);
 					memset(MM_GHOST_TAPE_PLAYING, 0, MM_TRACK_SELECT_GHOST_TAPE_CLEAR_SIZE);
 					MM_REPLAY_HUMAN_GHOST = 0;
@@ -462,9 +685,9 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 		register u32 trackTablePage CTR_PSX_REGISTER("$2");
 		register s16 trackCountValue CTR_PSX_REGISTER("$13");
 		trackTablePage = 0;
-		selectMenu = MM_ARCADE_TRACKS;
+		selectMenu = s_raceTracks != NULL ? s_raceTracks : MM_ARCADE_TRACKS;
 		(void)trackTablePage;
-		currTrack = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
+		currTrack = s_raceTrackCount;
 		trackCountValue = currTrack;
 		CTR_PSX_KEEP_VALUE_RELAXED(trackCountValue);
 		numTracks = trackCountValue;
@@ -672,6 +895,12 @@ trackSelectionMenuDone:
 		}
 	}
 
+	if (MM_TRACK_CHANGE_FRAMES != 0 || s_titleScrollSelectedRow != menuLocal->rowSelected)
+	{
+		s_titleScrollSelectedRow = menuLocal->rowSelected;
+		s_titleScrollStartFrame = (u32)MM_FRAME_COUNTER;
+	}
+
 	resetPreviewVideo = 0;
 	if ((MM_TRACK_CHANGE_FRAMES != 0) || (MM_TRACK_TRANSITION_STATE == EXITING_MENU))
 	{
@@ -813,7 +1042,8 @@ trackSelectionMenuDone:
 			rowBaseY += MM_TRACK_SELECT_ROW_Y_OFFSET;
 			CTR_PSX_COPY_VALUE(rowY, rowBaseY);
 			rowRect.y = (s16)rowBaseY;
-			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0)
+			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0 &&
+			    LevelInfo_Lookup(selectMenu[currTrack].levID).kind == LEVEL_INFO_RETAIL)
 			{
 				// Draw the N. Tropy and Oxide stars earned for this track.
 				register s32 timeTrialTrackOffset CTR_PSX_REGISTER("$2");
@@ -870,21 +1100,35 @@ trackSelectionMenuDone:
 			}
 			{
 				register u32 uiPage CTR_PSX_REGISTER("$21");
-				register struct MetaDataLEV *levelMeta CTR_PSX_REGISTER("$4");
 				struct MainMenu_LevelRow *trackEntry;
 				register s32 trackLevelID CTR_PSX_REGISTER("$3");
 				register s32 rowNameX CTR_PSX_REGISTER("$5");
 				register s32 rowNameY CTR_PSX_REGISTER("$6");
-				s16 trackNameIndex;
 				uiPage = 0;
 				rowNameX = (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET);
-				levelMeta = MM_LEVEL_METADATA;
 				trackEntry = &selectMenu[currTrack];
 				rowNameY = (s16)(rowY + MM_TRACK_SELECT_ROW_NAME_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET);
 				trackLevelID = trackEntry->levID;
-				trackNameIndex = levelMeta[trackLevelID].name_LNG;
-				MM_DRAW_LINE_WIDE_FLAGS(CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS)[trackNameIndex], rowNameX,
-				                        rowNameY, FONT_BIG, ORANGE);
+				struct LevelInfo levelInfo = LevelInfo_Lookup(trackLevelID);
+				const struct NativeTrackMetadata *customTrack = levelInfo.custom;
+				const char *titleText = LevelInfo_Title(&levelInfo, CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS));
+				if (titleText == NULL) { titleText = ""; }
+				if (customTrack != NULL)
+				{
+					char title[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
+					TrackText_Copy(title, sizeof(title), titleText);
+					u32 scrollFrame = 0;
+					if (MM_TRACK_CHANGE_FRAMES == 0 && (s16)rowIndex == MM_TRACK_SELECT_CENTER_ROW)
+					{
+						scrollFrame = (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame;
+					}
+					MM_TrackSelect_ScrollTitle(title, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, scrollFrame);
+					MM_DRAW_LINE_WIDE_FLAGS(title, rowNameX, rowNameY, FONT_BIG, ORANGE);
+				}
+				else
+				{
+					MM_DRAW_LINE_WIDE_FLAGS((char *)titleText, rowNameX, rowNameY, FONT_BIG, ORANGE);
+				}
 				rowDrawRectArg = &rowRect;
 				if ((MM_TRACK_CHANGE_FRAMES == 0) && (((s16)rowIndex) == MM_TRACK_SELECT_CENTER_ROW))
 				{
@@ -892,7 +1136,19 @@ trackSelectionMenuDone:
 					register RECT16 *clearRectArg CTR_PSX_REGISTER("$4");
 					register u32 highlightColorPage CTR_PSX_REGISTER("$5");
 					register struct GameTracker *highlightTracker CTR_PSX_REGISTER("$2");
-					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0)
+					if (customTrack != NULL && customTrack->author != NULL)
+					{
+						char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
+						memcpy(author, "by ", sizeof("by ") - 1);
+						TrackText_Copy(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
+						TrackText_Trim(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL);
+						MM_DRAW_LINE_WIDE_FLAGS(author, (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X),
+						                        (s16)(rowRect.y - data.font_charPixHeight[FONT_SMALL] + rowRect.h -
+						                              (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET)),
+						                        FONT_SMALL, JUSTIFY_CENTER | PERIWINKLE);
+					}
+					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0 &&
+					    levelInfo.kind == LEVEL_INFO_RETAIL)
 					{
 						s16 ghostProfileCount = RefreshCard_CountGhostProfilesForLEV(trackEntry->levID);
 						if (ghostProfileCount != 0)
@@ -968,6 +1224,7 @@ trackSelectionMenuDone:
 				register s32 previewX CTR_PSX_REGISTER("$3");
 				register s32 previewY CTR_PSX_REGISTER("$2");
 				RECT16 previewRect;
+				int customMap = MM_TrackSelect_CustomMap(selectMenu[menuLocal->rowSelected].levID);
 				previewRect.w = MM_TRACK_VIDEO_WIDTH;
 				previewRect.h = MM_TRACK_VIDEO_HEIGHT;
 				previewX = MM_TRACK_TRANSITIONS[1].currX;
@@ -979,7 +1236,7 @@ trackSelectionMenuDone:
 					register struct RectMenu *previewMenu CTR_PSX_REGISTER("$12");
 					previewMenu = menuLocal;
 					CTR_PSX_KEEP_VALUE(previewMenu);
-					if ((-1) < selectMenu[previewMenu->rowSelected].mapTextureID)
+					if (customMap || (-1) < selectMenu[previewMenu->rowSelected].mapTextureID)
 					{
 						previewRect.y = MM_TRACK_PREVIEW_Y + MM_TRACK_SELECT_PREVIEW_Y_WITH_MAP;
 					}
@@ -1000,6 +1257,13 @@ trackSelectionMenuDone:
 						                   JUSTIFY_CENTER | ORANGE);
 					}
 					previewRect.y += MM_TRACK_SELECT_TITLE_TO_MAP_Y;
+					if (customMap && CTR_PSX_PAGE_LVALUE(s16, previewLapPage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0)
+					{
+						int mapX = previewRect.x + MM_TRACK_TRANSITIONS[2].currX - MM_TRACK_TRANSITIONS[1].currX;
+						int mapY = previewRect.y + MM_TRACK_TRANSITIONS[2].currY - MM_TRACK_TRANSITIONS[1].currY;
+						MM_TrackSelect_DrawCustomMap(mapX + previewRect.w / 2,
+						                             mapY + MM_TRACK_SELECT_MAP_CENTER_Y_OFFSET + MM_TRACK_SELECT_MAP_BOX_H / 2);
+					}
 					{
 						register struct RectMenu *mapCheckMenu CTR_PSX_REGISTER("$13");
 						mapCheckMenu = menuLocal;
@@ -1016,14 +1280,10 @@ trackSelectionMenuDone:
 							u8 mapBottomV2;
 							u8 mapBottomV0;
 							s16 mapWidth;
-							register s16 mapLayer CTR_PSX_REGISTER("$18");
-							register struct TrackSelectMapOffset *mapOffsetBase CTR_PSX_REGISTER("$19");
 							s16 mapHeight;
-							s32 mapHalfWidth;
 							register s32 mapBoxHeight CTR_PSX_REGISTER("$2");
 							struct TextureLayout *mapLayout;
 							RECT16 mapRect;
-							mapLayer = 0;
 							mapBoxHeight = MM_TRACK_SELECT_MAP_BOX_H;
 							mapTransitions = MM_TRACK_TRANSITIONS;
 							mapRect = previewRect;
@@ -1076,28 +1336,9 @@ trackSelectionMenuDone:
 							mapHeight = mapHeight - ((s32)mapTopV0);
 							mapHeight += (s32)mapBottomV2;
 							mapHeight -= (s32)mapBottomV0;
-							mapOffsetBase = MM_TRACK_DRAW_MAP_OFFSET;
-							do
-							{
-								register struct TrackSelectMapOffset *mapOffset CTR_PSX_REGISTER("$4");
-								register struct RectMenu *mapDrawMenu CTR_PSX_REGISTER("$15");
-								register struct GameTracker *mapDrawTracker CTR_PSX_REGISTER("$8");
-								register s32 mapLayerIndex CTR_PSX_REGISTER("$2");
-								mapDrawTracker = GAME_TRACKER;
-								mapHalfWidth = ((s32)((s16)mapRect.w)) / 2;
-								mapLayerIndex = (s16)mapLayer;
-								mapOffset = &mapOffsetBase[mapLayerIndex];
-								mapLayer++;
-								mapDrawMenu = menuLocal;
-								uiPushBuffer = &mapDrawTracker->pushBuffer_UI;
-								rowCos = mapDrawMenu->rowSelected;
-								UI_Map_DrawMap(mapDrawTracker->ptrIcons[selectMenu[rowCos].mapTextureID],
-								               mapDrawTracker->ptrIcons[selectMenu[rowCos].mapTextureID + 1],
-								               ((((s32)((s16)mapOffset->offsetX)) + ((s32)((s16)mapRect.x))) + mapHalfWidth) + (((s32)((s16)mapWidth)) / 2),
-								               ((((s32)((s16)mapOffset->offsetY)) + ((s32)((s16)mapRect.y))) + (((s32)((s16)mapRect.h)) / 2)) +
-								                   (((s32)((s16)mapHeight)) / 2),
-								               &mapDrawTracker->backBuffer->primMem, uiPushBuffer->ptrOT, mapOffset->type);
-							} while (((u16)mapLayer) < MM_TRACK_SELECT_MAP_LAYER_COUNT);
+							MM_TrackSelect_DrawMapLayers(iconMap0, iconMap1,
+							                             (s16)mapRect.x + (s16)mapRect.w / 2 + mapWidth / 2,
+							                             (s16)mapRect.y + (s16)mapRect.h / 2 + mapHeight / 2);
 						}
 					}
 				}

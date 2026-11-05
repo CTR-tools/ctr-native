@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 enum
 {
@@ -52,6 +53,12 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 	}
 
 	if ((gGT->gameMode1 & TIME_TRIAL) == 0)
+	{
+		return;
+	}
+
+	/* Retail time-trial targets and unlock flags have no entry for custom IDs. */
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
 	{
 		return;
 	}
@@ -139,6 +146,10 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 
 	if (highScoreIndex < 0)
 	{
+		if ((gGT->gameMode1 & TIME_TRIAL) != 0 && (gameModeEnd & NEW_BEST_LAP) != 0)
+		{
+			GAMEPROG_CustomSaveHighScore(gGT->levelID);
+		}
 		return;
 	}
 
@@ -153,6 +164,10 @@ void MainGameEnd_SoloRaceSaveHighScore(void)
 	entry->name[0] = 0;
 	entry->characterID = data.characterIDs[(u8)player->driverID];
 	memmove(entry->name, gGT->prevNameEntered, 0x11);
+	if ((gGT->gameMode1 & TIME_TRIAL) != 0)
+	{
+		GAMEPROG_CustomSaveHighScore(gGT->levelID);
+	}
 }
 
 
@@ -514,6 +529,21 @@ static void MainGameEnd_CheckTimeTrialGhost(struct GameTracker *gGT, struct Driv
 	if ((gGT->gameMode1 & RELIC_RACE) != 0)
 	{
 		RR_EndEvent_UnlockAward();
+		return;
+	}
+
+	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+	{
+		if (sdata->boolGhostTooBigToSave != 0 || !sdata->boolCanSaveGhost || sdata->ptrGhostTapePlaying == NULL ||
+		    (sdata->boolReplayHumanGhost && player->timeElapsedInRace >= sdata->ptrGhostTapePlaying->timeElapsedInRace))
+		{
+			return;
+		}
+		GhostTape_End();
+		if (GAMEPROG_CustomSaveGhost(gGT->levelID, sdata->GhostRecording.ptrGhost))
+		{
+			gGT->gameModeEnd |= PLAYER_GHOST_BEAT;
+		}
 		return;
 	}
 

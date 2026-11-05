@@ -261,7 +261,6 @@ int main(void)
 	(void)FullScreenMenu_RowStep;
 	(void)FullScreenMenu_DrawRowValue;
 	(void)FullScreenMenu_DrawScreen;
-	(void)FullScreenMenu_DrawSectionScreen;
 	(void)FullScreenMenu_NavScroll;
 	(void)FullScreenMenu_SetShadedFrame;
 	sdata->gGT = &s_tracker;

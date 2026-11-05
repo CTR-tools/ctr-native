@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 
 internal s16 Ghost_LerpRot12(s16 curr, s16 next, u16 t)
 {
@@ -340,10 +341,18 @@ void GhostReplay_Init1(void)
 	sdata->GhostRecording.ptrStartOffset = &recordBuffer[0];
 	sdata->GhostRecording.ptrEndOffset = &recordBuffer[0x3DD4];
 
+	/* A custom track has a human ghost only, never the retail time-trial ghost. */
+	int customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL;
+	if (customTrack && sdata->ptrGhostTapePlaying == NULL)
+	{
+		sdata->boolReplayHumanGhost = 0;
+		return;
+	}
+
 	// ALWAYS initialize ghost threads, even if gh == 0,
 	// or else the "Ghost Too Big" text will never play.
 	// 0: human ghost, 1: N Tropy / Oxide ghost
-	for (s32 i = 0; i < 2; i++)
+	for (s32 i = 0; i < (customTrack ? 1 : 2); i++)
 	{
 		struct GhostTape *tape = MEMPACK_AllocMem(0x268, NULL);
 		sdata->ptrGhostTape[i] = tape;
@@ -374,7 +383,7 @@ void GhostReplay_Init1(void)
 		}
 	}
 
-	for (s32 i = 0; i < 2; i++)
+	for (s32 i = 0; i < (customTrack ? 1 : 2); i++)
 	{
 		struct Thread *t = PROC_BirthWithObject(SIZE_RELATIVE_POOL_BUCKET(4, NONE, LARGE, GHOST), GhostReplay_ThTick, sdata->s_ghost, 0);
 
