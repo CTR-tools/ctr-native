@@ -365,6 +365,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 		}
 		MM_TRACK_VIDEO_STATE_CURR = MM_TRACK_VIDEO_ICON;
 		MM_TRACK_VIDEO_STATE_PREV = MM_TRACK_VIDEO_ICON;
+		int drawn = 0;
 		struct Icon *icon = GAME_TRACKER->ptrIcons[MM_TRACK_VIDEO_ICON_INDEX];
 		if (icon != NULL)
 		{
@@ -381,9 +382,14 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 			if (s_previewLoaded && r->x >= 0 && r->y >= 0 && r->x + r->w <= MM_TRACK_VIDEO_SCREEN_W && r->y + r->h <= MM_TRACK_VIDEO_SCREEN_H)
 			{
 				MM_TrackSelect_Video_DrawNativePreview(r, srcX, srcY, 1);
-				RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+ 				drawn = 1;
 			}
 		}
+		if (!drawn)
+		{
+			DecalFont_DrawLine("NO PREVIEW", r->x + r->w / 2, r->y + r->h / 2, FONT_SMALL, JUSTIFY_CENTER | WHITE);
+		}
+		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
 		return;
 	}
 	s_previewTrackID = -1;
