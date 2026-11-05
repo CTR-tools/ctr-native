@@ -13,18 +13,22 @@ static void Write32(unsigned char *p, uint32_t value)
 int main(void)
 {
 	CTR_TEST_SECTION("LEV pointer map");
-	unsigned char lev[24] = {0};
-	Write32(lev, 8);
+	unsigned char lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES + 8] = {0};
+	unsigned char empty[8] = {0};
+	CTR_TEST_CHECK(!NativeTrackValidate_Lev(empty, sizeof(empty)), "an empty payload with an empty map is rejected");
+	Write32(lev, NATIVE_TRACK_LEV_HEADER_MIN_BYTES - 1);
+	CTR_TEST_CHECK(!NativeTrackValidate_Lev(lev, sizeof(lev)), "a map overlapping the last byte of the level header is rejected");
+	Write32(lev, NATIVE_TRACK_LEV_HEADER_MIN_BYTES);
 	Write32(lev + 4, 4);
-	Write32(lev + 12, 4);
-	Write32(lev + 16, 0);
-	CTR_TEST_CHECK(NativeTrackValidate_Lev(lev, sizeof(lev)), "a bounded pointer map is accepted");
-	Write32(lev + 16, 8);
+	Write32(lev + 4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES, 4);
+	Write32(lev + 8 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES, 0);
+	CTR_TEST_CHECK(NativeTrackValidate_Lev(lev, sizeof(lev)), "a complete minimum header and bounded pointer map are accepted");
+	Write32(lev + 8 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES, NATIVE_TRACK_LEV_HEADER_MIN_BYTES);
 	CTR_TEST_CHECK(!NativeTrackValidate_Lev(lev, sizeof(lev)), "a pointer slot outside the payload is rejected");
-	Write32(lev + 16, 0);
-	Write32(lev + 4, 8);
+	Write32(lev + 8 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES, 0);
+	Write32(lev + 4, NATIVE_TRACK_LEV_HEADER_MIN_BYTES);
 	CTR_TEST_CHECK(!NativeTrackValidate_Lev(lev, sizeof(lev)), "a relocated target outside the payload is rejected");
-	Write32(lev + 12, 100);
+	Write32(lev + 4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES, 100);
 	CTR_TEST_CHECK(!NativeTrackValidate_Lev(lev, sizeof(lev)), "a truncated map is rejected");
 
 	CTR_TEST_SECTION("VRM image bounds");

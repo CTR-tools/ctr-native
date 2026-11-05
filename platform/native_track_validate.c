@@ -30,7 +30,7 @@ int NativeTrackValidate_Lev(const void *data, size_t size)
 	const unsigned char *bytes = data;
 	size_t payload = size - NATIVE_TRACK_WORD_BYTES;
 	uint32_t mapOffset = NativeTrackValidate_Read32(bytes);
-	if (mapOffset > payload || payload - mapOffset < NATIVE_TRACK_WORD_BYTES)
+	if (mapOffset < NATIVE_TRACK_LEV_HEADER_MIN_BYTES || mapOffset > payload || payload - mapOffset < NATIVE_TRACK_WORD_BYTES)
 	{
 		return 0;
 	}

@@ -1,7 +1,10 @@
 #include <common.h>
 #include <platform/native_track_file.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_validate.h>
 #include <stdio.h>
+
+CTR_STATIC_ASSERT(NATIVE_TRACK_LEV_HEADER_MIN_BYTES == offsetof(struct Level, visMem) + sizeof(((struct Level *)0)->visMem));
 
 static int LOAD_NativeTrackFile(struct LoadQueueSlot *slot)
 {

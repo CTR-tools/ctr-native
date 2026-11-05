@@ -9,8 +9,12 @@ int main(void)
 	CtrTestScratch_Open(directory, sizeof(directory), "test-track-file", "track.lev");
 	snprintf(path, sizeof(path), "%strack.lev", directory);
 	FILE *fixture = fopen(path, "wb");
-	/* Eight-byte payload, followed by a one-entry pointer map. */
-	const unsigned char lev[] = {8, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0};
+	/* Minimum level header followed by a one-entry pointer map. */
+	unsigned char lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES + 8] = {0};
+	lev[0] = (unsigned char)NATIVE_TRACK_LEV_HEADER_MIN_BYTES;
+	lev[1] = (unsigned char)(NATIVE_TRACK_LEV_HEADER_MIN_BYTES >> 8);
+	lev[4] = 4;
+	lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES] = 4;
 	if (fixture == NULL || fwrite(lev, 1, sizeof(lev), fixture) != sizeof(lev) || fclose(fixture) != 0)
 	{
 		CtrTest_Bail("could not create track fixture");
@@ -43,6 +47,16 @@ int main(void)
 	NativeTrackFile_Close(wrongRole);
 	CTR_TEST_CHECK(NativeTrackFile_Open(registry, id, NATIVE_TRACK_FILE_SCA) == NULL, "missing optional audio cannot be opened");
 	CTR_TEST_CHECK(NativeTrackFile_Open(registry, 6, NATIVE_TRACK_FILE_LEV) == NULL, "a retail ID cannot resolve a custom file");
+	NativeTrackFile_Close(file);
+	fixture = fopen(path, "wb");
+	const unsigned char truncated[8] = {0};
+	if (fixture == NULL || fwrite(truncated, 1, sizeof(truncated), fixture) != sizeof(truncated) || fclose(fixture) != 0)
+	{
+		CtrTest_Bail("could not replace track fixture");
+	}
+	file = NativeTrackFile_Open(registry, id, NATIVE_TRACK_FILE_LEV);
+	CTR_TEST_CHECK(file != NULL && !NativeTrackFile_Read(file, bytes, sizeof(bytes)),
+	               "an installed truncated LEV is rejected when read");
 	NativeTrackFile_Close(file);
 	NativeTrackRegistry_Destroy(registry);
 	CtrTestScratch_Remove("test-track-file", "track.lev");

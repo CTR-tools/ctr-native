@@ -81,7 +81,11 @@ static void PatchTest_Collect(const char *root)
 			SDL_snprintf(relative, sizeof(relative), "%s/levels/tracks/%s/1P", side ? "patched" : "original", s_patchTrackSlots[i]);
 			TrackPatch_Path(directory, root, relative);
 			SDL_CreateDirectory(directory);
-			unsigned char lev[24] = {8, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4};
+			unsigned char lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES + 8] = {0};
+			lev[0] = (unsigned char)NATIVE_TRACK_LEV_HEADER_MIN_BYTES;
+			lev[1] = (unsigned char)(NATIVE_TRACK_LEV_HEADER_MIN_BYTES >> 8);
+			lev[4] = 4;
+			lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES] = 4;
 			unsigned char vrm[36] = {0x20, 0, 0, 0, 24};
 			vrm[24] = 2;
 			vrm[26] = 1;

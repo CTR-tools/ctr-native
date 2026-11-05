@@ -63,8 +63,8 @@ int main(int argc, char **argv)
 		return ok ? 0 : 1;
 	}
 	CTR_TEST_SECTION("custom minimap from bounded LEV and VRM");
-	unsigned char lev[324] = {0}, vrm[128] = {0};
-	Write32(lev, 316);
+	unsigned char lev[4 + NATIVE_TRACK_LEV_HEADER_MIN_BYTES + 4] = {0}, vrm[128] = {0};
+	Write32(lev, NATIVE_TRACK_LEV_HEADER_MIN_BYTES);
 	Write32(lev + 4 + 0x3c, 64);
 	Write32(lev + 4 + 64, 2);
 	Write32(lev + 4 + 68, 96);

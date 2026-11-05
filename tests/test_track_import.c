@@ -77,11 +77,17 @@ int main(void)
 	WriteImportFixture(otherSource, "second.lev", lev, sizeof(lev));
 	CTR_TEST_CHECK(NativeTrackImport_Directory(library, otherSource, "ambiguous") != NULL,
 	               "a folder with multiple LEV files is refused rather than chosen arbitrarily");
+ 	const unsigned char emptyLev[8] = {0};
+	WriteImportFixture(source, "track.lev", emptyLev, sizeof(emptyLev));
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "empty") != NULL,
+	               "an empty LEV with a bounded pointer map cannot be imported");
+	snprintf(path, sizeof(path), "%s/empty", library);
+	SDL_PathInfo info;
+	CTR_TEST_CHECK(!SDL_GetPathInfo(path, &info), "a truncated LEV is not published");
 	lev[0] = 255;
 	WriteImportFixture(source, "track.lev", lev, sizeof(lev));
 	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "invalid") != NULL, "invalid LEV data is refused");
 	snprintf(path, sizeof(path), "%s/invalid", library);
-	SDL_PathInfo info;
 	CTR_TEST_CHECK(!SDL_GetPathInfo(path, &info), "a rejected import does not publish a track");
 	snprintf(path, sizeof(path), "%s/track.vrm", source);
 	SDL_RemovePath(path);
