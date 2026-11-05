@@ -35,6 +35,26 @@ int main(void)
 	CTR_TEST_CHECK(NativeTrackRegistry_Get(registry, secondID)->scaPath != NULL, "optional music path is retained");
 	second.vrmPath = "";
 	CTR_TEST_CHECK(!NativeTrackRegistry_Add(registry, &second, NULL), "a track without VRM is rejected");
+	CTR_TEST_SECTION("registry growth");
+	int added = 1;
+	int lastID = 0;
+	for (int i = 0; i < 100; i++)
+	{
+		char identity[32];
+		snprintf(identity, sizeof(identity), "growth-%d", i);
+		struct NativeTrackMetadata item = {identity, "Growth", "a.lev", "a.vrm", NULL, NULL, NULL, 0, 0};
+		if (!NativeTrackRegistry_Add(registry, &item, &lastID))
+		{
+			added = 0;
+			break;
+		}
+	}
+	CTR_TEST_CHECK(added && NativeTrackRegistry_Count(registry) == 102, "many tracks can be added across capacity changes");
+	CTR_TEST_CHECK(NativeTrackRegistry_Get(registry, firstID) == stored && strcmp(stored->title, "First track") == 0,
+	               "growing the registry preserves previously returned metadata pointers");
+	CTR_TEST_CHECK(NativeTrackRegistry_Find(registry, "growth-99", &found) && found == lastID &&
+	               strcmp(NativeTrackRegistry_Get(registry, found)->identity, "growth-99") == 0,
+	               "identity and runtime ID lookups agree after growth");
 	NativeTrackRegistry_Destroy(registry);
 	return CtrTest_Summary();
 }

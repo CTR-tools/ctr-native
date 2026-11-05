@@ -6,14 +6,13 @@
 struct NativeTrackEntry
 {
 	struct NativeTrackMetadata metadata;
-	struct NativeTrackEntry *next;
 };
 
 struct NativeTrackRegistry
 {
-	struct NativeTrackEntry *first;
-	struct NativeTrackEntry *last;
+	struct NativeTrackEntry **entries;
 	size_t count;
+	size_t capacity;
 };
 
 static char *NativeTrackRegistry_Copy(const char *text)
@@ -50,13 +49,11 @@ void NativeTrackRegistry_Destroy(struct NativeTrackRegistry *registry)
 	{
 		return;
 	}
-	struct NativeTrackEntry *entry = registry->first;
-	while (entry != NULL)
+	for (size_t i = 0; i < registry->count; i++)
 	{
-		struct NativeTrackEntry *next = entry->next;
-		NativeTrackRegistry_FreeEntry(entry);
-		entry = next;
+		NativeTrackRegistry_FreeEntry(registry->entries[i]);
 	}
+	free(registry->entries);
 	free(registry);
 }
 
@@ -93,15 +90,19 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 		NativeTrackRegistry_FreeEntry(entry);
 		return 0;
 	}
-	if (registry->last != NULL)
+	if (registry->count == registry->capacity)
 	{
-		registry->last->next = entry;
+		size_t capacity = registry->capacity == 0 ? 16 : registry->capacity * 2;
+		struct NativeTrackEntry **entries = realloc(registry->entries, capacity * sizeof(*entries));
+		if (entries == NULL)
+		{
+			NativeTrackRegistry_FreeEntry(entry);
+			return 0;
+		}
+		registry->entries = entries;
+		registry->capacity = capacity;
 	}
-	else
-	{
-		registry->first = entry;
-	}
-	registry->last = entry;
+	registry->entries[registry->count] = entry;
 	if (levelID != NULL)
 	{
 		*levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)registry->count;
@@ -121,12 +122,7 @@ const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTra
 	{
 		return NULL;
 	}
-	const struct NativeTrackEntry *entry = registry->first;
-	while (index-- > 0)
-	{
-		entry = entry->next;
-	}
-	return &entry->metadata;
+	return &registry->entries[index]->metadata;
 }
 
 int NativeTrackRegistry_Find(const struct NativeTrackRegistry *registry, const char *identity, int *levelID)
@@ -135,22 +131,15 @@ int NativeTrackRegistry_Find(const struct NativeTrackRegistry *registry, const c
 	{
 		return 0;
 	}
-	const struct NativeTrackEntry *entry = registry->first;
-	int id = NATIVE_TRACK_CUSTOM_ID_BASE;
-	while (entry != NULL)
+	for (size_t i = 0; i < registry->count; i++)
 	{
-		if (strcmp(entry->metadata.identity, identity) == 0)
+		if (strcmp(registry->entries[i]->metadata.identity, identity) == 0)
 		{
 			if (levelID != NULL)
 			{
-				*levelID = id;
+				*levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
 			}
 			return 1;
-		}
-		entry = entry->next;
-		if (entry != NULL)
-		{
-			id++;
 		}
 	}
 	return 0;

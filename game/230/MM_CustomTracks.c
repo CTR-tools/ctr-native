@@ -78,15 +78,9 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 {
 	(void)selected;
 	const struct NativeTrackRegistry *registry = context;
-	const struct NativeTrackMetadata *track = NULL;
-	for (size_t i = 0; i < NativeTrackRegistry_Count(registry); i++)
-	{
-		track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
-		int rows = CUSTOM_TRACKS_BASE_ROWS;
-		if (row < rows) { break; }
-		row -= rows;
-		track = NULL;
-	}
+	if (row < 0) { return; }
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + row / CUSTOM_TRACKS_BASE_ROWS);
+	row %= CUSTOM_TRACKS_BASE_ROWS;
 	if (track == NULL)
 	{
 		return;
@@ -140,17 +134,9 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 		bool changed = NativeTrackLibrary_SetEnabled(track, !NativeTrackLibrary_IsEnabled(track));
 		OtherFX_Play(changed ? 1 : 2, 1);
 	}
-	int totalRows = 0, selectedRow = 0, selectedEnd = 0;
-	for (int i = 0; i < count; i++)
-	{
-		int rows = CUSTOM_TRACKS_BASE_ROWS;
-		if (i == menu->rowSelected)
-		{
-			selectedRow = totalRows;
-			selectedEnd = totalRows + rows - 1;
-		}
-		totalRows += rows;
-	}
+	int totalRows = count * CUSTOM_TRACKS_BASE_ROWS;
+	int selectedRow = menu->rowSelected * CUSTOM_TRACKS_BASE_ROWS;
+	int selectedEnd = selectedRow + CUSTOM_TRACKS_BASE_ROWS - 1;
 	struct FullScreenMenu_Scroll scroll = {0};
 	scroll.offset = FullScreenMenu_ScrollOffsetFor(&scroll, selectedEnd, totalRows);
 	FullScreenMenu_DrawScreen("Available Tracks", 0, &scroll, totalRows, selectedRow, CustomTracks_DrawRow, registry, gGT, ot);
