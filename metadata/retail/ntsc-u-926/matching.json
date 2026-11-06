@@ -4113,14 +4113,18 @@
       "linked_block": {}
     },
     {
-      "name": "coll-find-scrub",
+      "name": "coll-moved-player",
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
       "start_symbol": "COLL_MOVED_FindScrub",
-      "end_symbol": "COLL_MOVED_PlayerSearch",
-      "symbol_prefix": "COLL_MOVED_FindScrub",
-      "source": "game/COLL/COLL_FindScrub.c",
+      "end_symbol": "CTR_Box_DrawWirePrims",
+      "symbol_prefix": "COLL_MOVED_",
+      "sources": [
+        "game/COLL/COLL_FindScrub.c",
+        "game/COLL/COLL_MovedPlayerSearch.c",
+        "game/COLL/COLL_MovedScrubImpact.c"
+      ],
       "include_directories": ["include"],
       "forced_includes": ["tools/matching/retail_bindings.h"],
       "compiler_flags": ["-O2", "-G8", "-msoft-float", "-ffunction-sections"],
@@ -4979,6 +4983,23 @@
       "small_data_limit": 8,
       "aspsx_version": "2.77",
       "linked_block": {}
+    },
+    {
+      "name": "coll-fixed-player",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "COLL_FIXED_PlayerSearch",
+      "end_symbol": "COLL_SearchBSP_CallbackQUADBLK",
+      "symbol_prefix": "COLL_FIXED_PlayerSearch",
+      "source": "game/COLL/COLL_FixedPlayer.c",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/retail_bindings.h"],
+      "compiler_flags": ["-O2", "-G8", "-msoft-float", "-fsched2-late-inplace-at-call-setup"],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {"_gp": "0x8008cf6c"}
     },
     {
       "name": "coll-fixed-test-triangles",

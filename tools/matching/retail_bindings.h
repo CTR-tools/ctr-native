@@ -176,6 +176,7 @@ extern volatile u16 *psxSpuRegs asm("data+48468");
 extern struct GameTracker *ctr_gameTrackerPtr asm(RETAIL_GAME_TRACKER_ASM_NAME);
 extern u32 *ctr_data_ptrColor[NUM_COLORS] asm("data+5072");
 extern s32 ctr_trafficLightPreviousTimer asm("168($28)");
+extern __typeof__(sdata_static.HudAndDebugFlags) ctr_sdata_HudAndDebugFlags asm("sdata_static+148");
 extern u8 ctr_sdata_matrixToRotInitialAxis[8] asm("sdata_static+152");
 extern u8 ctr_sdata_matrixToRotNextAxis[8] asm("sdata_static+160");
 extern char *ctr_sdata_PausePtrsVRAM[6] asm("sdata_static+172");
