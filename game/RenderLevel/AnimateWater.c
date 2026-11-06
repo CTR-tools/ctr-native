@@ -1,4 +1,5 @@
 #include <common.h>
+#include <water_visibility.h>
 
 struct AnimateQuadTrig
 {
@@ -155,7 +156,7 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 
 	u16 colorOffset = AnimateWater_ReadTextureHalf(waterEnvMap, 0);
 	u32 visBits = 0;
-	u32 *visList[4];
+	const u32 *visList[4];
 	int firstFrame;
 	int secondFrame;
 	int firstOffset;
@@ -164,8 +165,8 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 
 	for (int i = 0; i < numLists; i++)
 	{
-		visList[i] = (u32 *)visLists[i];
-		visBits |= *visList[i]++;
+		visList[i] = (const u32 *)visLists[i];
+		visBits |= WaterVisibility_NextWord(&visList[i]);
 	}
 
 	firstFrame = ((u32)timer >> 3) % 28;
@@ -187,7 +188,7 @@ static void AnimateWater_Common(int timer, int numWaterVertices, struct WaterVer
 
 			for (int i = 0; i < numLists; i++)
 			{
-				visBits |= *visList[i]++;
+				visBits |= WaterVisibility_NextWord(&visList[i]);
 			}
 
 			bitCount = 31;

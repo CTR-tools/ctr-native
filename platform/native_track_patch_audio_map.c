@@ -152,3 +152,40 @@ static int PatchMusic_Level(const struct PatchMusicBytes *original, const struct
 	}
 	return matches == 1 ? level : -1;
 }
+
+/* TrackROM may index a table in ALL.BIN using the selected physical slot.
+ * Match the five instructions that form that lookup, not a whole function:
+ * lbu index; lui table; addiu table; addu table,index; lbu level. */
+static int PatchMusic_AllBinLevel(const struct PatchMusicBytes *exe, const struct PatchMusicBytes *all, int slot)
+{
+	enum { TRACK_COUNT = 18, MIPS_LBU = 36, MIPS_LUI = 15, MIPS_ADDIU = 9, MIPS_ADDU = 33 };
+	const uint32_t allBase = UINT32_C(0x807fe000);
+	if (slot < 0 || slot >= TRACK_COUNT || !PatchMusic_ExeValid(exe) || all->data == NULL)
+	{
+		return -1;
+	}
+	int level = -1;
+	for (size_t at = PATCH_MUSIC_EXE_HEADER; at + 20 <= exe->size; at += 4)
+	{
+		uint32_t index = PatchDisc_Read32(exe->data + at);
+		uint32_t upper = PatchDisc_Read32(exe->data + at + 4);
+		uint32_t lower = PatchDisc_Read32(exe->data + at + 8);
+		uint32_t add = PatchDisc_Read32(exe->data + at + 12);
+		uint32_t load = PatchDisc_Read32(exe->data + at + 16);
+		unsigned int indexReg = index >> 16 & 31, tableReg = upper >> 16 & 31;
+		if (index >> 26 != MIPS_LBU || upper >> 26 != MIPS_LUI || lower >> 26 != MIPS_ADDIU ||
+		    (lower >> 21 & 31) != tableReg || (lower >> 16 & 31) != tableReg ||
+		    add >> 26 != 0 || (add & 63) != MIPS_ADDU || (add >> 21 & 31) != indexReg ||
+		    (add >> 16 & 31) != tableReg || (add >> 11 & 31) != indexReg ||
+		    load >> 26 != MIPS_LBU || (load >> 21 & 31) != indexReg || (int16_t)load != 0)
+		{
+			continue;
+		}
+		uint32_t address = ((upper & 0xffff) << 16) + (int16_t)lower;
+		if (address < allBase || (uint64_t)(address - allBase) + TRACK_COUNT > all->size) { continue; }
+		int candidate = all->data[address - allBase + slot];
+		if (candidate >= TRACK_COUNT || (level >= 0 && level != candidate)) { return -1; }
+		level = candidate;
+	}
+	return level;
+}

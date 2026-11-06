@@ -160,6 +160,30 @@ static const char *const s_patchTrackSlots[PATCH_TRACK_COUNT] = {
 	"ice1", "space", "coco1", "arena2", "secret1", "secret2"
 };
 
+/* Only merge exact LEV/VRM pairs within this patch; an existing library entry
+ * may have its own metadata, music, records or intended identity. */
+static int TrackPatch_DuplicatePair(const char *patched, int slot, const int *accepted, int acceptedCount)
+{
+	char currentLev[PATCH_PATH_BYTES], currentVrm[PATCH_PATH_BYTES], relative[128];
+	SDL_snprintf(relative, sizeof(relative), "%s/1P/data.lev", s_patchTrackSlots[slot]);
+	if (!TrackPatch_Path(currentLev, patched, relative)) { return -1; }
+	SDL_snprintf(relative, sizeof(relative), "%s/1P/data.vrm", s_patchTrackSlots[slot]);
+	if (!TrackPatch_Path(currentVrm, patched, relative)) { return -1; }
+	for (int i = 0; i < acceptedCount; i++)
+	{
+		char otherLev[PATCH_PATH_BYTES], otherVrm[PATCH_PATH_BYTES];
+		SDL_snprintf(relative, sizeof(relative), "%s/1P/data.lev", s_patchTrackSlots[accepted[i]]);
+		if (!TrackPatch_Path(otherLev, patched, relative)) { return -1; }
+		SDL_snprintf(relative, sizeof(relative), "%s/1P/data.vrm", s_patchTrackSlots[accepted[i]]);
+		if (!TrackPatch_Path(otherVrm, patched, relative)) { return -1; }
+		int lev = TrackPatch_Different(currentLev, otherLev);
+		int vrm = TrackPatch_Different(currentVrm, otherVrm);
+		if (lev < 0 || vrm < 0) { return -1; }
+		if (lev == 0 && vrm == 0) { return 1; }
+	}
+	return 0;
+}
+
 /* Menu credits are free-form strings, not structured track metadata. Only
  * accept a complete NUL-terminated credit and refuse conflicting names. */
 static int TrackPatch_FindAuthor(const unsigned char *data, size_t size, char author[PATCH_AUTHOR_BYTES])
@@ -233,6 +257,7 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		return "Path is too long";
 	}
 	*count = 0;
+	int accepted[PATCH_TRACK_COUNT];
 	char singleName[PATCH_NAME_BYTES] = {0};
 	for (int i = 0; i < PATCH_TRACK_COUNT; i++)
 	{
@@ -255,6 +280,9 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			return "Missing circuit files - unsupported BIGFILE layout";
 		}
 		if (!changedLev && !changedVrm) { continue; }
+		int duplicate = TrackPatch_DuplicatePair(patched, i, accepted, *count);
+		if (duplicate < 0) { return "Cannot compare circuit files"; }
+		if (duplicate) { continue; }
 		char source[PATCH_PATH_BYTES], name[PATCH_NAME_BYTES];
 		SDL_snprintf(relative, sizeof(relative), "%s/1P", s_patchTrackSlots[i]);
 		if (!TrackPatch_Path(source, patched, relative)) { return "Path is too long"; }
@@ -269,11 +297,11 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			{
 				return "Path is too long";
 			}
-			int level = music->available ? PatchMusic_Level(&music->originalExe, &music->exe, &music->menu, i) : -1;
+			int level = PatchMusic_SelectLevel(music, i);
 			if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
 			else { music->skipped++; }
 		}
-		(*count)++;
+		accepted[(*count)++] = i;
 	}
 	if (*count == 0) { return "No modified single-player circuits found"; }
 	/* A global menu credit cannot be attributed to one of several circuits. */

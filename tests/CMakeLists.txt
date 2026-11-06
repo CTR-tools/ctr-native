@@ -110,6 +110,10 @@ ctr_add_test_suite(test_cycle_tex
     SOURCES test_cycle_tex.c
 )
 
+ctr_add_test_suite(test_water_visibility
+    SOURCES test_water_visibility.c
+)
+
 ctr_add_test_suite(test_config_menu
     SOURCES test_config_menu.c
 )
