@@ -30,7 +30,8 @@ not comprehensive gameplay or asset validation.
 Folder import copies files into a temporary directory, validates them, checks
 for duplicate destination and identity, then publishes the track. The xdelta
 importer uses a temporary copy of the NTSC-U disc, compares the 18 retail 1P
-circuit LEV/VRM pairs and installs changed pairs through the same importer. It
+circuit LEV/VRM pairs and installs changed pairs through the same importer,
+deduplicating byte-identical pairs within each patch. It
 best-effort extracts author credits and compatible music; executable patches,
 XA audio and arbitrary custom PS1 code are not imported. Failed multi-track
 imports roll back newly installed tracks and report cleanup failures.

@@ -97,12 +97,29 @@ static void PatchTest_Collect(const char *root)
 			PatchTest_Write(path, vrm, sizeof(vrm));
 		}
 	}
+	char cloneSource[PATCH_PATH_BYTES], cloneTarget[PATCH_PATH_BYTES];
+	TrackPatch_Path(cloneSource, root, "patched/levels/tracks/proto8/1P/data.lev");
+	TrackPatch_Path(cloneTarget, root, "patched/levels/tracks/desert2/1P/data.lev");
+	CTR_TEST_CHECK(SDL_CopyFile(cloneSource, cloneTarget), "duplicate fixture copies the modified LEV");
+	TrackPatch_Path(cloneSource, root, "patched/levels/tracks/proto8/1P/data.vrm");
+	TrackPatch_Path(cloneTarget, root, "patched/levels/tracks/desert2/1P/data.vrm");
+	CTR_TEST_CHECK(SDL_CopyFile(cloneSource, cloneTarget), "duplicate fixture copies the matching VRM");
+	int accepted[] = {0};
+	CTR_TEST_CHECK(TrackPatch_DuplicatePair("", 2, accepted, 1) < 0, "unreadable comparisons are reported as errors");
+	char patchedRoot[PATCH_PATH_BYTES];
+	TrackPatch_Path(patchedRoot, root, "patched/levels/tracks");
+	CTR_TEST_CHECK(TrackPatch_DuplicatePair(patchedRoot, 2, accepted, 1) == 1, "matching LEV and VRM are detected as duplicates");
+	TrackPatch_Path(cloneTarget, root, "patched/levels/tracks/desert2/1P/data.vrm");
+	unsigned char differentVrm[] = {1, 2, 3};
+	PatchTest_Write(cloneTarget, differentVrm, sizeof(differentVrm));
+	CTR_TEST_CHECK(TrackPatch_DuplicatePair(patchedRoot, 2, accepted, 1) == 0, "matching geometry with different textures remains distinct");
+	CTR_TEST_CHECK(SDL_CopyFile(cloneSource, cloneTarget), "duplicate fixture restores the matching VRM");
 	int count = 0;
 	unsigned char credits[] = "created by Example Author";
 	struct PatchMusic music = {.menu = {credits, sizeof(credits)}};
 	const char *error = TrackPatch_Collect(&job, root, &count, &music);
 	if (error != NULL) { printf("Discovery error: %s\n", error); }
-	CTR_TEST_CHECK(error == NULL && count == 2, "geometry and texture changes are detected without importing the 16 untouched tracks");
+	CTR_TEST_CHECK(error == NULL && count == 2, "identical LEV/VRM pairs are imported once while distinct pairs remain separate");
 	char prepared[PATCH_PATH_BYTES];
 	TrackPatch_Path(prepared, root, "prepared");
 	char manifest[PATCH_PATH_BYTES];
@@ -130,12 +147,12 @@ static void PatchTest_Collect(const char *root)
 	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "cancellation stops circuit discovery");
 	SDL_SetAtomicInt(&job.cancel, 0);
 	TrackPatch_RemoveTree(prepared);
-	for (int i = 0; i < 2; i++)
+	for (int i = 0; i < 3; i++)
 	{
 		char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], relative[180];
-		SDL_snprintf(relative, sizeof(relative), "original/levels/tracks/%s/1P/data.%s", s_patchTrackSlots[i], i == 0 ? "lev" : "vrm");
+		SDL_snprintf(relative, sizeof(relative), "original/levels/tracks/%s/1P/data.%s", s_patchTrackSlots[i], i == 1 ? "vrm" : "lev");
 		TrackPatch_Path(original, root, relative);
-		SDL_snprintf(relative, sizeof(relative), "patched/levels/tracks/%s/1P/data.%s", s_patchTrackSlots[i], i == 0 ? "lev" : "vrm");
+		SDL_snprintf(relative, sizeof(relative), "patched/levels/tracks/%s/1P/data.%s", s_patchTrackSlots[i], i == 1 ? "vrm" : "lev");
 		TrackPatch_Path(patched, root, relative);
 		SDL_CopyFile(original, patched);
 	}
