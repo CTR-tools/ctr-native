@@ -300,6 +300,22 @@ static void PatchTest_Music(const char *root)
 	modified[0x1deec + 2048] = 1;
 	CTR_TEST_CHECK(PatchMusic_Level(&originalExe, &modifiedExe, &menu, 3) < 0,
 	               "a modified audio lookup routine is not interpreted as the retail table");
+	struct PatchMusic selection = {.originalExe = originalExe, .exe = modifiedExe, .menu = menu, .available = 1};
+	CTR_TEST_CHECK(PatchMusic_SelectLevel(&selection, 3) == 3,
+	               "an unrecognized mapping falls back to the physical circuit slot");
+	CTR_TEST_CHECK(PatchMusic_SelectLevel(&selection, 18) < 0, "out-of-range slots are not used as audio indices");
+	unsigned char allBytes[0x1224 + 18] = {0};
+	selection.all = (struct PatchMusicBytes){allBytes, sizeof(allBytes)};
+	/* lbu index; lui/addiu table; addu address; lbu mapped level. */
+	static const uint32_t mapping[] = {0x9222f320, 0x3c038080, 0x2463f224, 0x00431021, 0x90440000};
+	for (size_t i = 0; i < SDL_arraysize(mapping); i++) { PatchTest_U32(modified + 0x3436c + i * 4, mapping[i]); }
+	allBytes[0x1224 + 3] = 1;
+	CTR_TEST_CHECK(PatchMusic_SelectLevel(&selection, 3) == 1, "recognized ALL.BIN mapping overrides the physical slot");
+	allBytes[0x1224 + 3] = 18;
+	CTR_TEST_CHECK(PatchMusic_SelectLevel(&selection, 3) == 3, "an invalid ALL.BIN level falls back to slot order");
+	allBytes[0x1224 + 3] = 1;
+	modified[0x3436f] ^= 0x80;
+	CTR_TEST_CHECK(PatchMusic_SelectLevel(&selection, 3) == 3, "an altered loader signature does not trust the ALL.BIN table");
 	free(retail);
 	free(modified);
 
@@ -343,14 +359,15 @@ static int PatchTest_AudioLive(const char *base, const char *patched, const char
 	SDL_AtomicInt cancel = {0};
 	struct PatchMusic music;
 	PatchMusic_Open(&music, base, patched, &cancel);
-	int level = music.available ? PatchMusic_Level(&music.originalExe, &music.exe, &music.menu, slot) : -1;
+	int level = PatchMusic_SelectLevel(&music, slot);
 	int ok = level >= 0 && PatchMusic_WriteSca(&music, level, output);
 	printf("available=%d slot=%d level=%d generated=%d\n", music.available, slot, level, ok);
 	PatchMusic_Close(&music);
 	return ok ? 0 : 1;
 }
 
-static void PatchTest_ImportAudioLive(const char *root, const char *assets, const char *patch, const char *expected, const char *expectedAuthor)
+static void PatchTest_ImportAudioLive(const char *root, const char *assets, const char *patch, const char *expected, const char *expectedAuthor,
+                                      const char *slot)
 {
 	CTR_TEST_SECTION("complete xdelta import with music");
 	char from[PATCH_PATH_BYTES], to[PATCH_PATH_BYTES], tools[PATCH_PATH_BYTES];
@@ -379,7 +396,7 @@ static void PatchTest_ImportAudioLive(const char *root, const char *assets, cons
 	CTR_TEST_CHECK(result > 0 && s_trackPatchJob.musicGenerated == 1 && s_trackPatchJob.musicSkipped == 0,
 	               "the complete import generates a custom music file");
 	char relative[PATCH_NAME_BYTES + 40];
-	SDL_snprintf(relative, sizeof(relative), "tracks/%s-island1/track.sca", s_trackPatchJob.name);
+	SDL_snprintf(relative, sizeof(relative), "tracks/%s-%s/track.sca", s_trackPatchJob.name, slot);
 	TrackPatch_Path(to, root, relative);
 	CTR_TEST_CHECK(TrackPatch_Different(expected, to) == 0, "installed audio matches the verified SCA");
 	if (expectedAuthor != NULL)
@@ -519,9 +536,9 @@ int main(int argc, char **argv)
 	CtrTestScratch_Open(root, sizeof(root), "test-track-patch", NULL);
 	TrackPatch_RemoveTree(root);
 	SDL_CreateDirectory(root);
-	if ((argc == 5 || argc == 6) && strcmp(argv[1], "--import-audio-live") == 0)
+	if (argc >= 5 && argc <= 7 && strcmp(argv[1], "--import-audio-live") == 0)
 	{
-		PatchTest_ImportAudioLive(root, argv[2], argv[3], argv[4], argc == 6 ? argv[5] : NULL);
+		PatchTest_ImportAudioLive(root, argv[2], argv[3], argv[4], argc >= 6 ? argv[5] : NULL, argc == 7 ? argv[6] : "island1");
 	}
 	else if (argc == 3 && strcmp(argv[1], "--retail-live") == 0)
 	{

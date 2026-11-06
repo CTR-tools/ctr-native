@@ -297,7 +297,7 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			{
 				return "Path is too long";
 			}
-			int level = music->available ? PatchMusic_Level(&music->originalExe, &music->exe, &music->menu, i) : -1;
+			int level = PatchMusic_SelectLevel(music, i);
 			if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
 			else { music->skipped++; }
 		}
