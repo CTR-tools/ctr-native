@@ -3,6 +3,7 @@
 
 void Bank_ResetAllocator()
 {
+	Bank_InvalidateLocalizedVoices();
 	sdata->numAudioBanks = 0;
 	sdata->audioAllocPtr = CTR_SPU_UNITS(0x1010);
 	sdata->bankLoadStage = 4; // Stage 4: Finished
@@ -238,6 +239,7 @@ void Bank_Destroy(struct Bank *ptrLastBank)
 
 void Bank_ClearInRange(u16 min, u16 max)
 {
+	Bank_ClearLocalizedVoices(min, max);
 	int i;
 	u16 end = min + max;
 	struct SpuAddrEntry *sae;

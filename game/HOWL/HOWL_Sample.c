@@ -1,8 +1,108 @@
 #include <common.h>
 #include <platform/native_cd.h>
 #include <platform/native_spu_memory.h>
+#include <platform/native_language_disc.h>
 
 enum { HOWL_SAMPLE_SPU_UNIT = 8 };
+
+enum { LOCAL_VOICE_FIRST = 28, LOCAL_VOICE_COUNT = 32, LOCAL_VOICE_FIRST_LANGUAGE = NATIVE_LANGUAGE_FRENCH, LOCAL_VOICE_LANGUAGES = NATIVE_LANGUAGE_DUTCH - NATIVE_LANGUAGE_FRENCH + 1 };
+
+static bool Bank_CacheCanAllocate(void)
+{
+	if (sdata->bankLoadStage != 4 || sdata->songLoadStage != 3 || sdata->numAudioBanks == 0)
+	{
+		return false;
+	}
+	return sdata->bank[sdata->numAudioBanks - 1].bankID == HOWL_BANK_LEVEL_CACHE ||
+	       sdata->numAudioBanks < (int)len(sdata->bank);
+}
+
+static void Bank_CacheCommit(u32 allocation)
+{
+	// The cache bank shares the existing level-teardown lifetime.
+	if (sdata->bank[sdata->numAudioBanks - 1].bankID != HOWL_BANK_LEVEL_CACHE)
+	{
+		sdata->bank[sdata->numAudioBanks++] = (struct Bank){
+			.bankID = HOWL_BANK_LEVEL_CACHE, .flags = 2, .min = sdata->audioAllocPtr,
+		};
+	}
+	sdata->audioAllocPtr += CTR_SPU_UNITS(allocation);
+	sdata->bank[sdata->numAudioBanks - 1].max += CTR_SPU_UNITS(allocation);
+}
+
+struct BankLocalizedVoice
+{
+	struct OtherFX meta;
+	u16 addr;
+};
+
+static struct BankLocalizedVoice s_bankLocalizedVoices[LOCAL_VOICE_LANGUAGES][LOCAL_VOICE_COUNT];
+
+void Bank_InvalidateLocalizedVoices(void)
+{
+	memset(s_bankLocalizedVoices, 0, sizeof(s_bankLocalizedVoices));
+}
+
+void Bank_ClearLocalizedVoices(u16 min, u16 size)
+{
+	u32 end = (u32)min + size;
+	for (int language = 0; language < LOCAL_VOICE_LANGUAGES; language++)
+	{
+		for (int i = 0; i < LOCAL_VOICE_COUNT; i++)
+		{
+			struct BankLocalizedVoice *voice = &s_bankLocalizedVoices[language][i];
+			if (voice->addr >= min && voice->addr < end)
+			{
+				voice->addr = 0;
+			}
+		}
+	}
+}
+
+bool Bank_LocalizedVoice(u16 soundID, struct OtherFX *meta, u16 *spuAddr)
+{
+	int language = g_config.voiceLanguage - LOCAL_VOICE_FIRST_LANGUAGE;
+	int index = (int)soundID - LOCAL_VOICE_FIRST;
+	if (language < 0 || language >= LOCAL_VOICE_LANGUAGES || index < 0 || index >= LOCAL_VOICE_COUNT ||
+	    meta == NULL || spuAddr == NULL || !sdata->boolAudioEnabled)
+	{
+		return false;
+	}
+	struct BankLocalizedVoice *cached = &s_bankLocalizedVoices[language][index];
+	if (cached->addr == 0)
+	{
+		if (!Bank_CacheCanAllocate())
+		{
+			return false;
+		}
+		struct NativeLanguageVoiceSample sample;
+		if (!NativeLanguageDisc_ReadVoiceSample(g_config.voiceLanguage, soundID, &sample))
+		{
+			return false;
+		}
+		u32 destination = CTR_SPU_BYTES_AT((u32)sdata->audioAllocPtr);
+		u32 allocation = (sample.size + (1u << CTR_SPU_ADDR_SHIFT) - 1) & ~((1u << CTR_SPU_ADDR_SHIFT) - 1);
+		if (sample.size == 0 || sample.size % HOWL_SAMPLE_SPU_UNIT != 0 || destination + allocation >= CTR_SPU_CEILING)
+		{
+			free(sample.data);
+			return false;
+		}
+		SpuSetTransferStartAddr(destination);
+		u32 written = SpuWrite(sample.data, sample.size);
+		free(sample.data);
+		if (written != sample.size)
+		{
+			return false;
+		}
+		while (!SpuIsTransferCompleted(SPU_TRANSFER_PEEK)) {}
+		cached->addr = sdata->audioAllocPtr;
+		cached->meta = (struct OtherFX){.flags = sample.flags, .volume = sample.volume, .pitch = sample.pitch, .duration = sample.duration};
+		Bank_CacheCommit(allocation);
+	}
+	*meta = cached->meta;
+	*spuAddr = cached->addr;
+	return true;
+}
 
 static bool Bank_FindSample(u16 sampleIndex, u32 *sampleOffset)
 {
@@ -85,18 +185,11 @@ bool Bank_EnsureOtherFX(u16 soundID)
 	{
 		return true;
 	}
-	if (sdata->bankLoadStage != 4 || sdata->songLoadStage != 3 || sdata->numAudioBanks == 0)
+	if (!Bank_CacheCanAllocate())
 	{
 		return false;
 	}
 
-	// A dedicated bank gives cached samples the existing level-teardown lifetime.
-	const int last = sdata->numAudioBanks - 1;
-	const bool create = sdata->bank[last].bankID != HOWL_BANK_LEVEL_CACHE;
-	if (create && sdata->numAudioBanks >= (int)len(sdata->bank))
-	{
-		return false;
-	}
 	const u32 size = sample->spuSize * HOWL_SAMPLE_SPU_UNIT;
 	const u32 destination = CTR_SPU_BYTES_AT((u32)sdata->audioAllocPtr);
 	if (size == 0 || size % (1 << CTR_SPU_ADDR_SHIFT) != 0 || destination + size >= CTR_SPU_CEILING)
@@ -108,14 +201,7 @@ bool Bank_EnsureOtherFX(u16 soundID)
 	{
 		return false;
 	}
-	if (create)
-	{
-		sdata->bank[sdata->numAudioBanks++] = (struct Bank){
-			.bankID = HOWL_BANK_LEVEL_CACHE, .flags = 2, .min = sdata->audioAllocPtr,
-		};
-	}
 	sample->spuAddr = sdata->audioAllocPtr;
-	sdata->audioAllocPtr += CTR_SPU_SIZE_UNITS(sample->spuSize);
-	sdata->bank[sdata->numAudioBanks - 1].max += CTR_SPU_SIZE_UNITS(sample->spuSize);
+	Bank_CacheCommit(size);
 	return true;
 }

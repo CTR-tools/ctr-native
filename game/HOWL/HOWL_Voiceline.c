@@ -302,7 +302,6 @@ void Voiceline_StartPlay(struct Item *voiceLine)
 	{
 		voiceSetIndex = data.voiceID[(s16)voiceID];
 	}
-
 	s16 *voiceIDs = data.voiceData[characterID].voiceSet[voiceSetIndex].ptr;
 	u16 numVoiceIDs = data.voiceData[characterID].voiceSet[voiceSetIndex].num;
 
@@ -315,8 +314,25 @@ void Voiceline_StartPlay(struct Item *voiceLine)
 	u32 rng = Voiceline_RequestPlay_NextAudioRNG();
 	u32 voiceIndex = rng % numVoiceIDs;
 	u32 xaID = (u16)voiceIDs[voiceIndex];
+	bool played = false;
+	// PAL uses set 0 for these events, but an unavailable PAL clip must fall
+	// back to the original NTSC-U set rather than to English from set 0.
+	if (voiceSetIndex == 8 && g_config.voiceLanguage != 1)
+	{
+		u16 palCount = data.voiceData[characterID].voiceSet[0].num;
+		if (palCount != 0)
+		{
+			s16 *palVoiceIDs = data.voiceData[characterID].voiceSet[0].ptr;
+			u32 candidate = (u16)palVoiceIDs[rng % palCount];
+			if (CDSYS_XAPlayLocalized(CDSYS_XA_TYPE_GAME, candidate))
+			{
+				xaID = candidate;
+				played = true;
+			}
+		}
+	}
 
-	if (CDSYS_XAPlay(CDSYS_XA_TYPE_GAME, xaID) == 0)
+	if (!played && CDSYS_XAPlay(CDSYS_XA_TYPE_GAME, xaID) == 0)
 	{
 		sdata->voicelineCooldown = 0x1e;
 		return;

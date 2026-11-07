@@ -225,6 +225,18 @@ and mono/stereo setting. Left/Right adjusts volumes; confirm switches mono/stere
 Previews stop when leaving Audio. In the main menu, Music uses the menu's existing
 music as feedback. Audio settings use the game's normal memory-card save system.
 
+### Language
+
+Place an optional European disc image at `assets/ctr-e.bin` to make its supported
+text and voice languages available under **Options > System > Language**. The
+base image supplies English; missing European voice tracks fall back to English.
+Text and voice selections are independent and apply when confirmed.
+
+| Key | Values | Default | Description |
+|-----|--------|---------|-------------|
+| `audio` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Voice language |
+| `text` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Game text language |
+
 ### General
 
 | Key                                   | Values                                                       | Default   | Description                                                                                      |

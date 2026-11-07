@@ -2,6 +2,8 @@
 #include <platform/native_audio.h>
 #include <platform/native_assets.h>
 #include <platform/native_disc_image.h>
+#include <platform/native_config.h>
+#include <platform/native_language_disc.h>
 #include <platform/native_perf.h>
 #include <platform/native_spu_memory.h>
 
@@ -238,6 +240,7 @@ struct NativeAudioXaSource
 {
 	FILE *file;
 	struct NativeDiscImageFile discFile;
+	enum NativeDiscImageId discImage;
 	int kind;
 	int sectorSize;
 	int sectorBase;
@@ -1639,32 +1642,22 @@ internal void NativeAudio_SelectDriverHint(void)
 	}
 }
 
-internal int NativeAudio_BuildXAPath(char *path, size_t pathSize, int categoryID, int fileNumber)
+internal int NativeAudio_BuildXAPath(char *path, size_t pathSize, int categoryID, int fileNumber, int language)
 {
-	const char *dir = NULL;
-
 	if (categoryID == 0)
 	{
-		dir = "XA/MUSIC";
+		int written = snprintf(path, pathSize, "XA/MUSIC/S%02d.XA", fileNumber);
+		return written > 0 && (size_t)written < pathSize;
 	}
-	else if (categoryID == 1)
-	{
-		dir = "XA/ENG/EXTRA";
-	}
-	else if (categoryID == 2)
-	{
-		dir = "XA/ENG/GAME";
-	}
-	else
+	if (categoryID != 1 && categoryID != 2)
 	{
 		return 0;
 	}
-
-	int written = snprintf(path, pathSize, "%s/S%02d.XA", dir, fileNumber);
+	int written = snprintf(path, pathSize, "XA/%s/%s/S%02d.XA", NativeLanguageDisc_VoiceCode(language), categoryID == 1 ? "EXTRA" : "GAME", fileNumber);
 	return (written > 0) && ((size_t)written < pathSize);
 }
 
-internal int NativeAudio_LookupXATrackInfo(int categoryID, int xaID, struct NativeAudioXaTrackInfo *info)
+internal int NativeAudio_LookupXATrackInfo(int categoryID, int xaID, int language, struct NativeAudioXaTrackInfo *info)
 {
 	struct NativeAudioByteBuffer xnf;
 
@@ -1673,7 +1666,10 @@ internal int NativeAudio_LookupXATrackInfo(int categoryID, int xaID, struct Nati
 		return 0;
 	}
 
-	if (!NativeAudio_ReadFileBytes("XA/ENG.XNF", &xnf))
+	char xnfPath[32];
+	snprintf(xnfPath, sizeof(xnfPath), "XA/%s.XNF", NativeLanguageDisc_VoiceCode(language));
+	if (language == 1 ? !NativeAudio_ReadFileBytes(xnfPath, &xnf) :
+	    !NativeDiscImage_ReadFileBytesOn(NATIVE_DISC_IMAGE_EUROPE, xnfPath, 0, &xnf.data, &xnf.size))
 	{
 		return 0;
 	}
@@ -1917,7 +1913,7 @@ internal void NativeAudio_XaSourceClose(struct NativeAudioXaSource *src)
 }
 
 // Open the temporary preparation source: a host handle or disc-image extent.
-internal int NativeAudio_XaSourceOpen(const char *path, struct NativeAudioXaSource *src)
+internal int NativeAudio_XaSourceOpenOn(const char *path, enum NativeDiscImageId discImage, struct NativeAudioXaSource *src)
 {
 	char resolved[512];
 
@@ -1942,7 +1938,8 @@ internal int NativeAudio_XaSourceOpen(const char *path, struct NativeAudioXaSour
 		return 1;
 	}
 
-	if (NativeDiscImage_FindFile(path, &src->discFile))
+	src->discImage = discImage;
+	if (NativeDiscImage_FindFileOn(src->discImage, path, &src->discFile))
 	{
 		// raw disc reads deliver the 2336-byte mode2 payload per sector
 		src->kind = NATIVE_AUDIO_XA_SOURCE_DISC;
@@ -1960,6 +1957,23 @@ internal int NativeAudio_XaSourceOpen(const char *path, struct NativeAudioXaSour
 	}
 
 	return 0;
+}
+
+// Arbitrary paths do not carry a language, so infer their disc as before.
+internal int NativeAudio_XaSourceOpen(const char *path, struct NativeAudioXaSource *src)
+{
+	enum NativeDiscImageId discImage = NATIVE_DISC_IMAGE_BASE;
+	for (int slot = NATIVE_LANGUAGE_FRENCH; slot <= NATIVE_LANGUAGE_DUTCH; slot++)
+	{
+		char prefix[8];
+		snprintf(prefix, sizeof(prefix), "XA/%s/", NativeLanguageDisc_VoiceCode(slot));
+		if (strncmp(path, prefix, strlen(prefix)) == 0)
+		{
+			discImage = NATIVE_DISC_IMAGE_EUROPE;
+			break;
+		}
+	}
+	return NativeAudio_XaSourceOpenOn(path, discImage, src);
 }
 
 // One raw sector into dst - the exact unit the CD drive delivers.
@@ -1981,9 +1995,46 @@ internal int NativeAudio_XaSourceReadSector(struct NativeAudioXaSource *src, int
 
 	if (src->kind == NATIVE_AUDIO_XA_SOURCE_DISC)
 	{
-		return NativeDiscImage_ReadRawSectors(&src->discFile, (u32)sector, 1, dst);
+		return NativeDiscImage_ReadRawSectorsOn(src->discImage, &src->discFile, (u32)sector, 1, dst);
 	}
 
+	return 0;
+}
+
+// Resolve metadata and audio from the same language and disc; a missing
+// individual European resource falls back to its base English counterpart.
+internal int NativeAudio_ResolveXATrack(int category, int track, struct NativeAudioXaTrackInfo *info, struct NativeAudioXaSource *source, bool localizedOnly)
+{
+	char path[128];
+	int language = category == 1 || category == 2 ? g_config.voiceLanguage : 1;
+	int palTrack = NativeLanguageDisc_PalXaIndex(category, track);
+	if (palTrack < 0)
+	{
+		language = 1;
+	}
+	if (strcmp(NativeLanguageDisc_VoiceCode(language), "ENG") == 0)
+	{
+		language = 1;
+	}
+	if (localizedOnly && language == 1)
+	{
+		return 0;
+	}
+	for (int attempt = 0; attempt < 2; attempt++)
+	{
+		int sourceTrack = language == 1 ? track : palTrack;
+		if (NativeAudio_LookupXATrackInfo(category, sourceTrack, language, info) &&
+		    NativeAudio_BuildXAPath(path, sizeof(path), category, info->fileNumber, language) &&
+		    NativeAudio_XaSourceOpenOn(path, language == 1 ? NATIVE_DISC_IMAGE_BASE : NATIVE_DISC_IMAGE_EUROPE, source))
+		{
+			return 1;
+		}
+		if (language == 1 || localizedOnly)
+		{
+			break;
+		}
+		language = 1;
+	}
 	return 0;
 }
 
@@ -2532,7 +2583,6 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 	struct NativeAudioXaSource xaSource;
 	struct NativeAudioXaPreparedStream xaPrepared;
 	struct NativeAudioXaTrackInfo xaInfo;
-	char xaPath[128];
 	int i;
 
 	memset(&xaSource, 0, sizeof(xaSource));
@@ -2578,8 +2628,7 @@ int NativeAudio_RestoreState(const void *src, int srcSize)
 
 	if (snapshot->xa.active && snapshot->xa.hasTrackIdentity)
 	{
-		if (!NativeAudio_LookupXATrackInfo(snapshot->xa.categoryID, snapshot->xa.xaID, &xaInfo) ||
-		    !NativeAudio_BuildXAPath(xaPath, sizeof(xaPath), snapshot->xa.categoryID, xaInfo.fileNumber) || !NativeAudio_XaSourceOpen(xaPath, &xaSource))
+		if (!NativeAudio_ResolveXATrack(snapshot->xa.categoryID, snapshot->xa.xaID, &xaInfo, &xaSource, false))
 		{
 			return 0;
 		}
@@ -3282,11 +3331,13 @@ void NativeAudio_SpuSetCommonCDReverb(s32 enabled)
 int NativeAudio_GetXATrackLength(int categoryID, int xaID)
 {
 	struct NativeAudioXaTrackInfo info;
+	struct NativeAudioXaSource source;
 
-	if (!NativeAudio_LookupXATrackInfo(categoryID, xaID, &info))
+	if (!NativeAudio_ResolveXATrack(categoryID, xaID, &info, &source, false))
 	{
 		return 0;
 	}
+	NativeAudio_XaSourceClose(&source);
 
 	return info.numSectors;
 }
@@ -3324,27 +3375,18 @@ int NativeAudio_IsXAPlaying(void)
 	return playing;
 }
 
-int NativeAudio_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight)
+internal int NativeAudio_PlayXATrackInternal(int categoryID, int xaID, int volumeLeft, int volumeRight, bool localizedOnly)
 {
 	struct NativeAudioXaTrackInfo info;
 	struct NativeAudioXaSource source;
 	struct NativeAudioXaPreparedStream prepared;
-	char path[128];
 
 	if (!NativeAudio_SpuInit())
 	{
 		return 0;
 	}
 
-	if (!NativeAudio_LookupXATrackInfo(categoryID, xaID, &info))
-	{
-		return 0;
-	}
-	if (!NativeAudio_BuildXAPath(path, sizeof(path), categoryID, info.fileNumber))
-	{
-		return 0;
-	}
-	if (!NativeAudio_XaSourceOpen(path, &source))
+	if (!NativeAudio_ResolveXATrack(categoryID, xaID, &info, &source, localizedOnly))
 	{
 		return 0;
 	}
@@ -3378,6 +3420,36 @@ int NativeAudio_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volume
 	NativeAudio_XaPreparedStreamClose(&prepared);
 
 	return 1;
+}
+
+int NativeAudio_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight)
+{
+	return NativeAudio_PlayXATrackInternal(categoryID, xaID, volumeLeft, volumeRight, false);
+}
+
+int NativeAudio_PlayLocalizedXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight)
+{
+	return NativeAudio_PlayXATrackInternal(categoryID, xaID, volumeLeft, volumeRight, true);
+}
+
+void NativeAudio_RefreshVoiceLanguage(void)
+{
+	int category, track, left, right, restart;
+	NativeAudio_LockOutput();
+	restart = s_audio.xa.active && s_audio.xa.hasTrackIdentity && s_audio.xa.categoryID != 0;
+	category = s_audio.xa.categoryID;
+	track = s_audio.xa.xaID;
+	left = s_audio.xa.volumeLeft;
+	right = s_audio.xa.volumeRight;
+	NativeAudio_UnlockOutput();
+	if (restart)
+	{
+		if (!NativeAudio_PlayXATrack(category, track, left, right))
+		{
+			NativeAudio_StopXA();
+		}
+		NativeAudio_ClearOutputQueue();
+	}
 }
 
 int NativeAudio_PlayXAFile(const char *relativePath, int channelFilter, int volumeLeft, int volumeRight)

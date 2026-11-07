@@ -19,6 +19,8 @@ void NativeAudio_SpuSetCommonCDVolume(s16 left, s16 right);
 void NativeAudio_SpuSetCommonCDReverb(s32 enabled);
 
 int NativeAudio_PlayXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight);
+int NativeAudio_PlayLocalizedXATrack(int categoryID, int xaID, int volumeLeft, int volumeRight);
+void NativeAudio_RefreshVoiceLanguage(void);
 int NativeAudio_PlayXAFile(const char *relativePath, int channelFilter, int volumeLeft, int volumeRight);
 int NativeAudio_GetXATrackLength(int categoryID, int xaID);
 int NativeAudio_IsXAPlaying(void);

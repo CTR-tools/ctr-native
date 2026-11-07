@@ -1,6 +1,8 @@
 #include <common.h>
 
 #include <platform/native_controls.h>
+#include <platform/native_audio.h>
+#include <platform/native_language_disc.h>
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {
@@ -44,6 +46,7 @@ void MM_Controls_ResetNavigation(void);
 u32 MM_Controls_MenuTapped(void);
 
 #include "MM_FullScreenMenu.c"
+#include "MM_ChoicePicker.c"
 
 // Section lookup built from g_configEntries at first use.
 enum
@@ -96,6 +99,7 @@ static const ConfigEntry s_configNavigation[] = {
 	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .label = CONFIG_SECTION_CUSTOM_TRACKS, .type = CFG_ACTION},
 	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .label = CONFIG_SECTION_DEVELOPER_HACKS, .type = CFG_ACTION},
 	{.section = "System", .key = CONFIG_SECTION_AUDIO, .label = CONFIG_SECTION_AUDIO, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .label = CONFIG_SECTION_LANGUAGE, .type = CFG_ACTION},
 	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .label = CONFIG_SECTION_CONTROLS, .type = CFG_ACTION},
 	{.section = "System", .key = "Graphics", .label = "Graphics", .type = CFG_ACTION},
 	{.section = "Game", .key = "Adventure", .label = "Adventure", .type = CFG_ACTION},
@@ -107,6 +111,10 @@ static const ConfigEntry s_configNavigation[] = {
 static const ConfigEntry *s_configGroup;
 static s16 s_configRootRow;
 static s16 s_configGroupRow;
+static bool s_languagePickerOpen;
+static int s_languageChoices[6];
+static int s_languageChoiceCount;
+static int s_languageChoice;
 
 static int Config_NavigationEntries(const ConfigEntry **entries)
 {
@@ -163,6 +171,7 @@ static void Config_ClearInput(void)
 
 void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext context)
 {
+	s_languagePickerOpen = false;
 	if (Config_IsSection(s_currentSection, CONFIG_SECTION_AUDIO))
 	{
 		MM_AudioConfig_Leave();
@@ -216,6 +225,12 @@ static bool Config_CanEdit(const ConfigEntry *entry)
 	return s_configSession.context == CONFIG_MENU_MAIN || entry->availableDuringPause;
 }
 
+static const char *Config_LanguageLabel(int slot, const char *fallback)
+{
+	const char *name = LOAD_LanguageSelfName(slot);
+	return name != NULL && name[0] != '\0' ? name : fallback;
+}
+
 static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 {
 	const int color = Config_CanEdit(e) ? WHITE : GRAY;
@@ -232,6 +247,10 @@ static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 			if (e->enumValues[j].value == val)
 			{
 				text = e->enumValues[j].name;
+				if (e->valuePtr == &g_config.textLanguage || e->valuePtr == &g_config.voiceLanguage)
+				{
+					text = Config_LanguageLabel(val, text);
+				}
 				break;
 			}
 		}
@@ -249,6 +268,68 @@ static void Config_DrawRow(const void *context, int row, int y, bool selected, u
 	(void)selected;
 	FullScreenMenu_DrawRowLabel(entries[row].label, y, ot);
 	Config_DrawValue(&entries[row], y, ot);
+}
+
+static void Config_OpenLanguagePicker(const ConfigEntry *entry)
+{
+	s_languageChoiceCount = 0;
+	s_languageChoice = 0;
+	for (int i = 0; i < entry->numEnumValues; i++)
+	{
+		int slot = entry->enumValues[i].value;
+		bool voice = entry->valuePtr == &g_config.voiceLanguage;
+		if (slot != 1 && !(voice ? NativeLanguageDisc_HasVoice(slot) : NativeLanguageDisc_HasText(slot)))
+		{
+			continue;
+		}
+		if (slot == *(int *)entry->valuePtr)
+		{
+			s_languageChoice = s_languageChoiceCount;
+		}
+		s_languageChoices[s_languageChoiceCount++] = i;
+	}
+	s_languagePickerOpen = true;
+}
+
+static const char *Config_LanguageChoiceLabel(const void *context, int index)
+{
+	const ConfigEntry *entry = context;
+	const ConfigEnumValue *value = &entry->enumValues[s_languageChoices[index]];
+	return Config_LanguageLabel(value->value, value->name);
+}
+
+static bool Config_ApplyLanguageChoice(const void *context, int selected)
+{
+	const ConfigEntry *entry = context;
+	int slot = entry->enumValues[s_languageChoices[selected]].value;
+	bool applied = true;
+	if (entry->valuePtr == &g_config.textLanguage)
+	{
+		applied = LOAD_ApplyLanguage(slot) != 0;
+		if (applied)
+		{
+			g_config.textLanguage = slot;
+		}
+	}
+	else
+	{
+		g_config.voiceLanguage = slot;
+		NativeAudio_RefreshVoiceLanguage();
+	}
+	NativeConfig_Save();
+	return applied;
+}
+
+static void Config_LanguagePicker(const ConfigEntry *entry, struct GameTracker *gGT, u32 *ot, u32 tapped)
+{
+	enum ChoicePickerResult result = ChoicePicker_UpdateAndApply(&s_languagePickerOpen, &s_languageChoice,
+	                                                            s_languageChoiceCount, tapped, Config_ApplyLanguageChoice, entry);
+	if (result != CHOICE_PICKER_NONE)
+	{
+		Config_ClearInput();
+		return;
+	}
+	ChoicePicker_Draw("SELECT LANGUAGE", s_languageChoiceCount, s_languageChoice, Config_LanguageChoiceLabel, entry, gGT, ot);
 }
 
 static void MM_MenuProc_Config(struct RectMenu *menu)
@@ -275,7 +356,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	// The device picker consumes back itself, so it must close before this file acts,
 	// otherwise one press would close the picker and leave the section in the same
 	// frame.
-	if (!MM_Controls_IsPickerOpen() && FullScreenMenu_Back(backTapped))
+	if (!MM_Controls_IsPickerOpen() && !s_languagePickerOpen && FullScreenMenu_Back(backTapped))
 	{
 
 		// A rebind in progress would keep eating input on the next screen.
@@ -322,6 +403,13 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		const int sec = s_currentSection;
 		const int numRows = s_sectionCount[sec];
 		const int firstEntry = s_sectionToEntry[sec];
+		if (Config_IsSection(sec, CONFIG_SECTION_LANGUAGE) && s_languagePickerOpen)
+		{
+			Config_LanguagePicker(&g_configEntries[firstEntry + menu->rowSelected], gGT, ot, (u32)pad->buttonsTapped);
+			FullScreenMenu_DrawScreen(g_configEntries[firstEntry].section, 0, &s_configScroll, numRows, menu->rowSelected,
+			                          Config_DrawRow, &g_configEntries[firstEntry], gGT, ot);
+			return;
+		}
 
 		FullScreenMenu_NavScroll(pad, &s_configScroll, &menu->rowSelected, numRows);
 
@@ -350,8 +438,16 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 				}
 				else if (e->type == CFG_ENUM)
 				{
-					int *val = (int *)e->valuePtr;
-					*val = (*val + 1) % e->numEnumValues;
+					if (Config_IsSection(sec, CONFIG_SECTION_LANGUAGE))
+					{
+						Config_OpenLanguagePicker(e);
+						Config_ClearInput();
+					}
+					else
+					{
+						int *val = (int *)e->valuePtr;
+						*val = (*val + 1) % e->numEnumValues;
+					}
 				}
 			}
 

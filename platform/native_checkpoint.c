@@ -2244,6 +2244,15 @@ int NativeCheckpoint_Restore(const void *src, int srcSize)
 	{
 		return 0;
 	}
+	Bank_InvalidateLocalizedVoices();
+	if (sdata->lngFile != NULL && !LOAD_ApplyLanguage(g_config.textLanguage))
+	{
+		g_config.textLanguage = 1;
+		if (!LOAD_ApplyLanguage(g_config.textLanguage))
+		{
+			return 0;
+		}
+	}
 
 	return 1;
 }

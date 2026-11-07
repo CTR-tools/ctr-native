@@ -5,16 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// Device picker popup. Width is measured from the longest entry rather than fixed,
-// bounded so a long controller name cannot push the box off screen or off the frame.
-// The frame itself spans 0x10 to 0x1F0, so this is the usable width minus a margin.
-#define CONTROLS_POPUP_ROW_SPACING  0x0E
-#define CONTROLS_POPUP_TITLE_H     0x0E
-#define CONTROLS_POPUP_PAD_TOP     0x08
-#define CONTROLS_POPUP_PAD_BOTTOM  0x08
-#define CONTROLS_POPUP_PAD_X       0x0C
-#define CONTROLS_POPUP_MAX_WIDTH   0x1A0
-#define CONTROLS_POPUP_CENTER_Y     0x7E
+#include "MM_ChoicePicker.c"
 
 enum ControlsRowKind
 {
@@ -271,86 +262,28 @@ static void Controls_ClosePicker(void)
 	s_pickerOpen = false;
 }
 
-static void Controls_ApplyChoice(void)
+static bool Controls_ApplyChoice(const void *context, int selected)
 {
-	const struct ControlsChoice *choice = &s_choices[s_choiceSelected];
+	const struct ControlsChoice *choice = &s_choices[selected];
 
+	(void)context;
 	NativeControls_SetPlayerPref(s_player, choice->pref, choice->device);
+	return true;
 }
 
 // One picker entry, filtered into the shared buffer. Measured after filtering, or the box
 // would be sized to characters that never reach the screen. Neither caller draws through
 // Controls_DrawSafeText, so the buffer can be shared.
-static char *Controls_FilteredChoiceName(int index)
+static const char *Controls_FilteredChoiceName(const void *context, int index)
 {
+	(void)context;
 	Controls_FilterText(Controls_ChoiceName(&s_choices[index]), s_safeBuffer, sizeof(s_safeBuffer));
 	return s_safeBuffer;
 }
 
-// Widest of the entry names, so the box hugs the list. Bounded because device names
-// come from the host and "Xbox 360 Controller" is not the longest thing SDL can
-// report.
-static int Controls_PickerContentWidth(void)
-{
-	int widest = DecalFont_GetLineWidth((char *)"SELECT DEVICE", FONT_SMALL);
-
-	for (int i = 0; i < s_choiceCount; i++)
-	{
-		const int width = DecalFont_GetLineWidth(Controls_FilteredChoiceName(i), FONT_SMALL);
-
-		if (width > widest)
-		{
-			widest = width;
-		}
-	}
-
-	return widest;
-}
-
 static void Controls_DrawPicker(struct GameTracker *gGT, uint32_t *ot)
 {
-	int contentWidth = Controls_PickerContentWidth();
-	const int maxContent = CONTROLS_POPUP_MAX_WIDTH - (CONTROLS_POPUP_PAD_X * 2);
-
-	if (contentWidth > maxContent)
-	{
-		// A host device name can be longer than the frame; the box stops growing and
-		// the entry is left to clip rather than pushing the popup off screen.
-		contentWidth = maxContent;
-	}
-
-	const int boxWidth = contentWidth + (CONTROLS_POPUP_PAD_X * 2);
-	const int boxHeight = CONTROLS_POPUP_PAD_TOP + CONTROLS_POPUP_TITLE_H + (s_choiceCount * CONTROLS_POPUP_ROW_SPACING) +
-	                      CONTROLS_POPUP_PAD_BOTTOM;
-	const int boxX = (0x200 - boxWidth) / 2;
-	const int boxY = CONTROLS_POPUP_CENTER_Y - (boxHeight / 2);
-
-	const int titleY = boxY + CONTROLS_POPUP_PAD_TOP;
-	const int firstRowY = titleY + CONTROLS_POPUP_TITLE_H;
-
-	// Labels first, background last. Later draws sit behind earlier ones, so the
-	// background lands behind its own contents while the whole popup still floats
-	// above the screen, which submits it before this runs.
-	DecalFont_DrawLineOT((char *)"SELECT DEVICE", boxX + (boxWidth / 2), titleY, FONT_SMALL,
-	                     JUSTIFY_CENTER | ORANGE, ot);
-
-	for (int i = 0; i < s_choiceCount; i++)
-	{
-		const int y = firstRowY + (i * CONTROLS_POPUP_ROW_SPACING);
-
-		DecalFont_DrawLineOT(Controls_FilteredChoiceName(i), boxX + CONTROLS_POPUP_PAD_X, y, FONT_SMALL, ORANGE, ot);
-
-		if (i == s_choiceSelected)
-		{
-			// Inset by less than the text padding so the bar frames the entry.
-			RECT sel = {boxX + 4, y - 2, boxWidth - 8, 0x0C};
-			CTR_Box_DrawClearBox(&sel, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot,
-			                     &gGT->backBuffer->primMem);
-		}
-	}
-
-	RECT popup = {boxX, boxY, boxWidth, boxHeight};
-	RECTMENU_DrawInnerRect(&popup, 4, ot);
+	ChoicePicker_Draw("SELECT DEVICE", s_choiceCount, s_choiceSelected, Controls_FilteredChoiceName, NULL, gGT, ot);
 }
 
 // Union of player 1's presses and the selected player's own, so the screen stays reachable
@@ -380,44 +313,6 @@ u32 MM_Controls_MenuHeld(void)
 	}
 
 	return held;
-}
-
-// Handles input while the picker is up. Cross applies the highlighted choice,
-// Circle and Triangle/Start back out without changing anything.
-static void Controls_UpdatePicker(u32 tapped)
-{
-	if ((tapped & BTN_UP) != 0)
-	{
-		s_choiceSelected = (s_choiceSelected > 0) ? s_choiceSelected - 1 : s_choiceCount - 1;
-		OtherFX_Play(0, 1);
-	}
-	else if ((tapped & BTN_DOWN) != 0)
-	{
-		s_choiceSelected = (s_choiceSelected < s_choiceCount - 1) ? s_choiceSelected + 1 : 0;
-		OtherFX_Play(0, 1);
-	}
-
-	// Back closes the picker before it backs out of the section.
-	if ((tapped & (BTN_TRIANGLE | BTN_START)) != 0)
-	{
-		Controls_ClosePicker();
-		OtherFX_Play(2, 1);
-		return;
-	}
-
-	if ((tapped & BTN_CIRCLE) != 0)
-	{
-		Controls_ClosePicker();
-		OtherFX_Play(2, 1);
-		return;
-	}
-
-	if ((tapped & BTN_CROSS) != 0)
-	{
-		Controls_ApplyChoice();
-		Controls_ClosePicker();
-		OtherFX_Play(1, 1);
-	}
 }
 
 static void Controls_SelectPlayer(int player)
@@ -691,7 +586,7 @@ static void Controls_HandleInput(struct RectMenu *menu, u32 tapped, u32 held, in
 {
 	if (s_pickerOpen)
 	{
-		Controls_UpdatePicker(tapped);
+		ChoicePicker_UpdateAndApply(&s_pickerOpen, &s_choiceSelected, s_choiceCount, tapped, Controls_ApplyChoice, NULL);
 		return;
 	}
 

@@ -12,6 +12,7 @@
 
 #define NATIVE_DISC_IMAGE_PATH_MAX          1024
 #define NATIVE_DISC_IMAGE_BIN_PATH          "ctr-u.bin"
+#define NATIVE_DISC_IMAGE_EU_BIN_PATH       "ctr-e.bin"
 #define NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE   2352u
 #define NATIVE_DISC_IMAGE_FORM1_DATA_OFFSET 24u
 #define NATIVE_DISC_IMAGE_FORM1_DATA_SIZE   2048u
@@ -21,9 +22,8 @@
 #define NATIVE_DISC_IMAGE_PVD_ROOT_RECORD   156u
 #define NATIVE_DISC_IMAGE_DIRECTORY_FLAG    0x02u
 
-// NOTE(aalhendi): This hardcodes only the common NTSC-U raw BIN layout:
-// one MODE2/2352 data track at byte zero. The user still supplies all disc
-// contents; native only uses this sector contract to read the image.
+// Each image must have one MODE2/2352 data track at byte zero. The user
+// supplies all disc contents; native only uses this sector contract to read it.
 
 struct NativeDiscImageDirRecord
 {
@@ -34,15 +34,20 @@ struct NativeDiscImageDirRecord
 	const u8 *name;
 };
 
-global_variable char s_nativeDiscImagePath[NATIVE_DISC_IMAGE_PATH_MAX];
-global_variable FILE *s_nativeDiscImageFile;
-global_variable struct NativeDiscImageFile s_nativeDiscImageRoot;
-global_variable int s_nativeDiscImageAvailable;
+struct NativeDiscImage
+{
+	FILE *file;
+	struct NativeDiscImageFile root;
+	int available;
+};
 
-internal int NativeDiscImage_FindHostImagePath(char *dst, size_t dstSize, NativeStr8 assetsDir)
+global_variable struct NativeDiscImage s_nativeDiscImages[NATIVE_DISC_IMAGE_COUNT];
+global_variable u32 s_nativeDiscImageGeneration;
+
+internal int NativeDiscImage_FindHostImagePath(char *dst, size_t dstSize, NativeStr8 assetsDir, const char *imageName)
 {
 #if defined(_WIN32)
-	return NativePath_Join(dst, dstSize, assetsDir, NATIVE_STR8_LIT(NATIVE_DISC_IMAGE_BIN_PATH));
+	return NativePath_Join(dst, dstSize, assetsDir, NativeStr8_FromCString(imageName));
 #else
 	char dirPath[NATIVE_DISC_IMAGE_PATH_MAX];
 	struct dirent *entry;
@@ -63,7 +68,7 @@ internal int NativeDiscImage_FindHostImagePath(char *dst, size_t dstSize, Native
 	{
 		NativeStr8 entryName = NativeStr8_FromCString(entry->d_name);
 
-		if (!NativeStr8_EqualsIgnoreCaseAscii(entryName, NATIVE_STR8_LIT(NATIVE_DISC_IMAGE_BIN_PATH)))
+		if (!NativeStr8_EqualsIgnoreCaseAscii(entryName, NativeStr8_FromCString(imageName)))
 		{
 			continue;
 		}
@@ -100,20 +105,20 @@ internal int NativeDiscImage_CheckRawSectorHeader(const u8 *sector)
 	return 1;
 }
 
-internal int NativeDiscImage_ReadRawSector(u32 lba, u8 *sector)
+internal int NativeDiscImage_ReadRawSector(struct NativeDiscImage *image, u32 lba, u8 *sector)
 {
-	if (s_nativeDiscImageFile == NULL)
+	if (image->file == NULL)
 	{
 		return 0;
 	}
 
 	u64 offset = (u64)lba * NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE;
-	if ((offset > (u64)LONG_MAX) || (fseek(s_nativeDiscImageFile, (long)offset, SEEK_SET) != 0))
+	if ((offset > (u64)LONG_MAX) || (fseek(image->file, (long)offset, SEEK_SET) != 0))
 	{
 		return 0;
 	}
 
-	if (fread(sector, 1, NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE, s_nativeDiscImageFile) != NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE)
+	if (fread(sector, 1, NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE, image->file) != NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE)
 	{
 		return 0;
 	}
@@ -121,11 +126,11 @@ internal int NativeDiscImage_ReadRawSector(u32 lba, u8 *sector)
 	return NativeDiscImage_CheckRawSectorHeader(sector);
 }
 
-internal int NativeDiscImage_ReadDataSector(u32 lba, u8 *payload)
+internal int NativeDiscImage_ReadDataSector(struct NativeDiscImage *image, u32 lba, u8 *payload)
 {
 	u8 sector[NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE];
 
-	if (!NativeDiscImage_ReadRawSector(lba, sector))
+	if (!NativeDiscImage_ReadRawSector(image, lba, sector))
 	{
 		return 0;
 	}
@@ -240,7 +245,7 @@ internal u32 NativeDiscImage_RawSectorCount(u32 size)
 	return NativeDiscImage_DataSectorCount(size);
 }
 
-internal int NativeDiscImage_ReadDirectoryBytes(const struct NativeDiscImageFile *dir, u8 **dataOut, int *sizeOut)
+internal int NativeDiscImage_ReadDirectoryBytes(struct NativeDiscImage *image, const struct NativeDiscImageFile *dir, u8 **dataOut, int *sizeOut)
 {
 	u8 *data;
 
@@ -266,7 +271,7 @@ internal int NativeDiscImage_ReadDirectoryBytes(const struct NativeDiscImageFile
 
 	for (u32 sector = 0; sector < sectorCount; sector++)
 	{
-		if (!NativeDiscImage_ReadDataSector(dir->lba + sector, &data[sector * NATIVE_DISC_IMAGE_FORM1_DATA_SIZE]))
+		if (!NativeDiscImage_ReadDataSector(image, dir->lba + sector, &data[sector * NATIVE_DISC_IMAGE_FORM1_DATA_SIZE]))
 		{
 			free(data);
 			return 0;
@@ -278,13 +283,13 @@ internal int NativeDiscImage_ReadDirectoryBytes(const struct NativeDiscImageFile
 	return 1;
 }
 
-internal int NativeDiscImage_FindInDirectory(const struct NativeDiscImageFile *dir, NativeStr8 component, struct NativeDiscImageFile *fileOut, u8 *flagsOut)
+internal int NativeDiscImage_FindInDirectory(struct NativeDiscImage *image, const struct NativeDiscImageFile *dir, NativeStr8 component, struct NativeDiscImageFile *fileOut, u8 *flagsOut)
 {
 	u8 *data;
 	int size;
 	int found = 0;
 
-	if (!NativeDiscImage_ReadDirectoryBytes(dir, &data, &size))
+	if (!NativeDiscImage_ReadDirectoryBytes(image, dir, &data, &size))
 	{
 		return 0;
 	}
@@ -322,12 +327,12 @@ internal int NativeDiscImage_FindInDirectory(const struct NativeDiscImageFile *d
 	return found;
 }
 
-internal int NativeDiscImage_LoadRoot(void)
+internal int NativeDiscImage_LoadRoot(struct NativeDiscImage *image)
 {
 	u8 sector[NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE];
 	struct NativeDiscImageDirRecord root;
 
-	if (!NativeDiscImage_ReadRawSector(NATIVE_DISC_IMAGE_PVD_LBA, sector))
+	if (!NativeDiscImage_ReadRawSector(image, NATIVE_DISC_IMAGE_PVD_LBA, sector))
 	{
 		return 0;
 	}
@@ -344,63 +349,79 @@ internal int NativeDiscImage_LoadRoot(void)
 		return 0;
 	}
 
-	s_nativeDiscImageRoot.lba = root.lba;
-	s_nativeDiscImageRoot.size = root.size;
+	image->root.lba = root.lba;
+	image->root.size = root.size;
+	return 1;
+}
+
+internal int NativeDiscImage_InitOne(struct NativeDiscImage *image, const char *assetsDir, const char *imageName)
+{
+	char path[NATIVE_DISC_IMAGE_PATH_MAX];
+
+	image->available = 0;
+
+	if (image->file != NULL)
+	{
+		fclose(image->file);
+		image->file = NULL;
+	}
+
+	if ((assetsDir == NULL) || !NativeDiscImage_FindHostImagePath(path, sizeof(path), NativeStr8_FromCString(assetsDir), imageName))
+	{
+		return 0;
+	}
+
+	image->file = fopen(path, "rb");
+	if (image->file == NULL)
+	{
+		return 0;
+	}
+
+	if (!NativeDiscImage_LoadRoot(image))
+	{
+		fclose(image->file);
+		image->file = NULL;
+		return 0;
+	}
+
+	image->available = 1;
 	return 1;
 }
 
 int NativeDiscImage_Init(const char *assetsDir)
 {
-	char path[NATIVE_DISC_IMAGE_PATH_MAX];
-
-	s_nativeDiscImageAvailable = 0;
-	s_nativeDiscImagePath[0] = '\0';
-
-	if (s_nativeDiscImageFile != NULL)
-	{
-		fclose(s_nativeDiscImageFile);
-		s_nativeDiscImageFile = NULL;
-	}
-
-	if ((assetsDir == NULL) || !NativeDiscImage_FindHostImagePath(path, sizeof(path), NativeStr8_FromCString(assetsDir)))
-	{
-		return 0;
-	}
-
-	s_nativeDiscImageFile = fopen(path, "rb");
-	if (s_nativeDiscImageFile == NULL)
-	{
-		return 0;
-	}
-
-	if (!NativeDiscImage_LoadRoot())
-	{
-		fclose(s_nativeDiscImageFile);
-		s_nativeDiscImageFile = NULL;
-		return 0;
-	}
-
-	if (!NativePath_NormalizeSlashes(s_nativeDiscImagePath, sizeof(s_nativeDiscImagePath), NativeStr8_FromCString(path)))
-	{
-		fclose(s_nativeDiscImageFile);
-		s_nativeDiscImageFile = NULL;
-		return 0;
-	}
-
-	s_nativeDiscImageAvailable = 1;
-	return 1;
+	s_nativeDiscImageGeneration++;
+	int baseAvailable = NativeDiscImage_InitOne(&s_nativeDiscImages[NATIVE_DISC_IMAGE_BASE], assetsDir, NATIVE_DISC_IMAGE_BIN_PATH);
+	NativeDiscImage_InitOne(&s_nativeDiscImages[NATIVE_DISC_IMAGE_EUROPE], assetsDir, NATIVE_DISC_IMAGE_EU_BIN_PATH);
+	return baseAvailable;
 }
 
-int NativeDiscImage_FindFile(const char *path, struct NativeDiscImageFile *fileOut)
+u32 NativeDiscImage_Generation(void)
 {
-	NativeStr8 remaining = NativePath_SkipLeadingSeparators(NativeStr8_FromCString(path));
-	struct NativeDiscImageFile current = s_nativeDiscImageRoot;
+	return s_nativeDiscImageGeneration;
+}
+
+internal struct NativeDiscImage *NativeDiscImage_Get(enum NativeDiscImageId id)
+{
+	if ((unsigned int)id >= NATIVE_DISC_IMAGE_COUNT || !s_nativeDiscImages[id].available)
+	{
+		return NULL;
+	}
+	return &s_nativeDiscImages[id];
+}
+
+int NativeDiscImage_FindFileOn(enum NativeDiscImageId id, const char *path, struct NativeDiscImageFile *fileOut)
+{
+	struct NativeDiscImage *image = NativeDiscImage_Get(id);
+	struct NativeDiscImageFile current;
 	u8 flags = NATIVE_DISC_IMAGE_DIRECTORY_FLAG;
 
-	if (!s_nativeDiscImageAvailable || (path == NULL) || (fileOut == NULL))
+	if ((image == NULL) || (path == NULL) || (fileOut == NULL))
 	{
 		return 0;
 	}
+	NativeStr8 remaining = NativePath_SkipLeadingSeparators(NativeStr8_FromCString(path));
+	current = image->root;
 
 	while (remaining.len != 0)
 	{
@@ -416,7 +437,7 @@ int NativeDiscImage_FindFile(const char *path, struct NativeDiscImageFile *fileO
 			return 0;
 		}
 
-		if (!NativeDiscImage_FindInDirectory(&current, component, &current, &flags))
+		if (!NativeDiscImage_FindInDirectory(image, &current, component, &current, &flags))
 		{
 			return 0;
 		}
@@ -431,7 +452,7 @@ int NativeDiscImage_FindFile(const char *path, struct NativeDiscImageFile *fileO
 	return 1;
 }
 
-internal int NativeDiscImage_ReadDataBytes(const struct NativeDiscImageFile *file, u32 offset, void *dst, size_t size)
+internal int NativeDiscImage_ReadDataBytes(struct NativeDiscImage *image, const struct NativeDiscImageFile *file, u32 offset, void *dst, size_t size)
 {
 	u8 sector[NATIVE_DISC_IMAGE_FORM1_DATA_SIZE];
 	u8 *out = (u8 *)dst;
@@ -452,7 +473,7 @@ internal int NativeDiscImage_ReadDataBytes(const struct NativeDiscImageFile *fil
 			copySize = size;
 		}
 
-		if (!NativeDiscImage_ReadDataSector(file->lba + sectorIndex, sector))
+		if (!NativeDiscImage_ReadDataSector(image, file->lba + sectorIndex, sector))
 		{
 			return 0;
 		}
@@ -466,11 +487,12 @@ internal int NativeDiscImage_ReadDataBytes(const struct NativeDiscImageFile *fil
 	return 1;
 }
 
-int NativeDiscImage_ReadDataSectors(const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
+int NativeDiscImage_ReadDataSectorsOn(enum NativeDiscImageId id, const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
 {
+	struct NativeDiscImage *image = NativeDiscImage_Get(id);
 	u8 *out = (u8 *)dst;
 
-	if ((file == NULL) || (dst == NULL))
+	if ((image == NULL) || (file == NULL) || (dst == NULL))
 	{
 		return 0;
 	}
@@ -483,7 +505,7 @@ int NativeDiscImage_ReadDataSectors(const struct NativeDiscImageFile *file, u32 
 
 	for (u32 i = 0; i < sectorCount; i++)
 	{
-		if (!NativeDiscImage_ReadDataSector(file->lba + sector + i, &out[i * NATIVE_DISC_IMAGE_FORM1_DATA_SIZE]))
+		if (!NativeDiscImage_ReadDataSector(image, file->lba + sector + i, &out[i * NATIVE_DISC_IMAGE_FORM1_DATA_SIZE]))
 		{
 			return 0;
 		}
@@ -492,12 +514,13 @@ int NativeDiscImage_ReadDataSectors(const struct NativeDiscImageFile *file, u32 
 	return 1;
 }
 
-int NativeDiscImage_ReadRawSectors(const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
+int NativeDiscImage_ReadRawSectorsOn(enum NativeDiscImageId id, const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
 {
+	struct NativeDiscImage *image = NativeDiscImage_Get(id);
 	u8 raw[NATIVE_DISC_IMAGE_RAW_SECTOR_SIZE];
 	u8 *out = (u8 *)dst;
 
-	if ((file == NULL) || (dst == NULL))
+	if ((image == NULL) || (file == NULL) || (dst == NULL))
 	{
 		return 0;
 	}
@@ -510,7 +533,7 @@ int NativeDiscImage_ReadRawSectors(const struct NativeDiscImageFile *file, u32 s
 
 	for (u32 i = 0; i < sectorCount; i++)
 	{
-		if (!NativeDiscImage_ReadRawSector(file->lba + sector + i, raw))
+		if (!NativeDiscImage_ReadRawSector(image, file->lba + sector + i, raw))
 		{
 			return 0;
 		}
@@ -521,8 +544,9 @@ int NativeDiscImage_ReadRawSectors(const struct NativeDiscImageFile *file, u32 s
 	return 1;
 }
 
-int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut, int *sizeOut)
+int NativeDiscImage_ReadFileBytesOn(enum NativeDiscImageId id, const char *path, int rawSectors, u8 **dataOut, int *sizeOut)
 {
+	struct NativeDiscImage *image = NativeDiscImage_Get(id);
 	struct NativeDiscImageFile file;
 	u32 sectorCount;
 	u32 size;
@@ -530,7 +554,7 @@ int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut
 	*dataOut = NULL;
 	*sizeOut = 0;
 
-	if (!NativeDiscImage_FindFile(path, &file))
+	if ((image == NULL) || !NativeDiscImage_FindFileOn(id, path, &file))
 	{
 		return 0;
 	}
@@ -559,13 +583,13 @@ int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut
 
 	if (rawSectors)
 	{
-		if (!NativeDiscImage_ReadRawSectors(&file, 0, sectorCount, data))
+		if (!NativeDiscImage_ReadRawSectorsOn(id, &file, 0, sectorCount, data))
 		{
 			free(data);
 			return 0;
 		}
 	}
-	else if (!NativeDiscImage_ReadDataBytes(&file, 0, data, size))
+	else if (!NativeDiscImage_ReadDataBytes(image, &file, 0, data, size))
 	{
 		free(data);
 		return 0;
@@ -574,4 +598,24 @@ int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut
 	*dataOut = data;
 	*sizeOut = (int)size;
 	return 1;
+}
+
+int NativeDiscImage_FindFile(const char *path, struct NativeDiscImageFile *fileOut)
+{
+	return NativeDiscImage_FindFileOn(NATIVE_DISC_IMAGE_BASE, path, fileOut);
+}
+
+int NativeDiscImage_ReadDataSectors(const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
+{
+	return NativeDiscImage_ReadDataSectorsOn(NATIVE_DISC_IMAGE_BASE, file, sector, sectorCount, dst);
+}
+
+int NativeDiscImage_ReadRawSectors(const struct NativeDiscImageFile *file, u32 sector, u32 sectorCount, void *dst)
+{
+	return NativeDiscImage_ReadRawSectorsOn(NATIVE_DISC_IMAGE_BASE, file, sector, sectorCount, dst);
+}
+
+int NativeDiscImage_ReadFileBytes(const char *path, int rawSectors, u8 **dataOut, int *sizeOut)
+{
+	return NativeDiscImage_ReadFileBytesOn(NATIVE_DISC_IMAGE_BASE, path, rawSectors, dataOut, sizeOut);
 }

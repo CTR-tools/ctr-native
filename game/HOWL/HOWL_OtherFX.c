@@ -1,4 +1,22 @@
 #include <common.h>
+#include <platform/native_spu_memory.h>
+
+static void OtherFX_InitResolvedAttr(struct OtherFX *base, struct OtherFX *localized, u16 localizedAddr,
+                                     struct ChannelAttr *attr, int volume, int lr, int distortion)
+{
+	struct OtherFX *effect = base;
+	if (localizedAddr != 0)
+	{
+		// The initializer uses the base sample index before we replace its address.
+		localized->spuIndex = base->spuIndex;
+		effect = localized;
+	}
+	howl_InitChannelAttr_OtherFX(effect, attr, volume, lr, distortion);
+	if (localizedAddr != 0)
+	{
+		attr->spuStartAddr = (void *)CTR_SPU_BYTES_AT((u32)localizedAddr);
+	}
+}
 
 int CountSounds(void)
 {
@@ -48,6 +66,8 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 	u32 volume = HowlSfx_Volume(flags);
 	u16 echo = (u16)HowlSfx_Echo(flags);
 	struct ChannelAttr channelAttr;
+	struct OtherFX localized;
+	u16 localizedAddr = 0;
 
 	if (sdata->boolAudioEnabled == 0)
 	{
@@ -65,13 +85,17 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 boolAntiSpam, u32 flags)
 	// get pointer to cseq audio, given soundID
 	ptrOtherFX = &sdata->howl_metaOtherFX[id];
 
-	if (!Bank_EnsureOtherFX(id))
+	if (!Bank_LocalizedVoice(id, &localized, &localizedAddr) && !Bank_EnsureOtherFX(id))
 	{
 		return 0;
 	}
 
 	const bool doubleGain = (flags & HOWL_SFX_GAIN_DOUBLE_FLAG) != 0;
-	howl_InitChannelAttr_OtherFX(ptrOtherFX, &channelAttr, HowlSfx_EffectiveVolume(volume, doubleGain), LR, distortion);
+	OtherFX_InitResolvedAttr(ptrOtherFX, &localized, localizedAddr, &channelAttr, HowlSfx_EffectiveVolume(volume, doubleGain), LR, distortion);
+	if (localizedAddr != 0)
+	{
+		ptrOtherFX = &localized;
+	}
 
 	channelAttr.reverb = echo;
 

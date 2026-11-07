@@ -227,6 +227,9 @@ static u32 s_wrongWayDraws;
 static int s_wrongWayVoices;
 static int s_wrongWayVoiceID;
 static bool s_voicePlayFails;
+static int s_testLocalizedVoiceID;
+static int s_testFallbackVoiceID;
+static bool s_testLocalizedVoiceSucceeds;
 static struct Driver *s_voiceDriver;
 static struct
 {
@@ -272,6 +275,11 @@ b32 VehPickupItem_MaskBoolGoodGuy(struct Driver *driver)
 
 int CDSYS_XAPlay(int category, int voice)
 {
+	if (category == CDSYS_XA_TYPE_GAME)
+	{
+		s_testFallbackVoiceID = voice;
+		return 1;
+	}
 	CTR_TEST_CHECK_EQ(category, CDSYS_XA_TYPE_EXTRA, "wrong-way voices use the normal mask speech bank");
 	s_wrongWayVoiceID = voice;
 	s_wrongWayVoices++;
@@ -281,6 +289,13 @@ int CDSYS_XAPlay(int category, int voice)
 	}
 	sdata->XA_State = XA_PLAYING;
 	return 1;
+}
+
+int CDSYS_XAPlayLocalized(int category, int voice)
+{
+	(void)category;
+	s_testLocalizedVoiceID = voice;
+	return s_testLocalizedVoiceSucceeds;
 }
 
 int CDSYS_XAGetTrackLength(int category, int voice)

@@ -6,6 +6,7 @@
 #include <platform/native_config.h>
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
+#include <platform/native_language_disc.h>
 
 static const ConfigEnumValue kMaskModeValues[] = {
     {"Normal", MASK_MODE_NORMAL},
@@ -13,6 +14,11 @@ static const ConfigEnumValue kMaskModeValues[] = {
     {"Inverted", MASK_MODE_INVERTED},
     {"All Uka", MASK_MODE_ALL_UKA},
     {"All Aku", MASK_MODE_ALL_AKU},
+};
+
+static const ConfigEnumValue kLanguageValues[] = {
+    {"English", NATIVE_LANGUAGE_ENGLISH}, {"French", NATIVE_LANGUAGE_FRENCH}, {"German", NATIVE_LANGUAGE_GERMAN},
+    {"Italian", NATIVE_LANGUAGE_ITALIAN}, {"Spanish", NATIVE_LANGUAGE_SPANISH}, {"Dutch", NATIVE_LANGUAGE_DUTCH},
 };
 #define NUM_MASK_MODES (sizeof(kMaskModeValues) / sizeof(kMaskModeValues[0]))
 
@@ -55,6 +61,8 @@ static const ConfigEnumValue kPgxpModeValues[] = {
 #define NUM_PGXP_MODES (sizeof(kPgxpModeValues) / sizeof(kPgxpModeValues[0]))
 
 NativeConfig g_config = {
+  .textLanguage = NATIVE_LANGUAGE_ENGLISH,
+  .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
   .skipIntro = false,
   .skipPodiumCeremonies = false,
   .showReservesMeter = false,
@@ -117,6 +125,19 @@ NativeConfig g_config = {
 };
 
 const ConfigEntry g_configEntries[] = {
+
+    {
+        .section = CONFIG_SECTION_LANGUAGE, .key = "audio", .label = "Audio",
+        .type = CFG_ENUM, .valuePtr = &g_config.voiceLanguage,
+        .enumValues = kLanguageValues, .numEnumValues = sizeof(kLanguageValues) / sizeof(kLanguageValues[0]),
+        .availableDuringPause = true,
+    },
+    {
+        .section = CONFIG_SECTION_LANGUAGE, .key = "text", .label = "Text",
+        .type = CFG_ENUM, .valuePtr = &g_config.textLanguage,
+        .enumValues = kLanguageValues, .numEnumValues = sizeof(kLanguageValues) / sizeof(kLanguageValues[0]),
+        .availableDuringPause = true,
+    },
 
     {
         .section = CONFIG_SECTION_AUDIO,

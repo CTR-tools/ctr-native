@@ -1012,9 +1012,35 @@ static void TestBodySwapPlayerCount(void)
 	CTR_TEST_CHECK(Chaos_PickEventEffect() == CHAOS_EFFECT_BODY_SWAP, "random selection includes Body Swap in multiplayer");
 }
 
+static void TestLocalizedVoiceFallback(void)
+{
+	CTR_TEST_SECTION("localized voice fallback preserves event");
+	SetupRace(CHAOS_TRIGGER_INTERVAL);
+	s16 original[] = {16};
+	s16 pal[] = {0, 1};
+	data.voiceID[21] = 8;
+	data.voiceData[0].voiceSet[8].ptr = original;
+	data.voiceData[0].voiceSet[8].num = 1;
+	data.voiceData[0].voiceSet[0].ptr = pal;
+	data.voiceData[0].voiceSet[0].num = 2;
+	struct VoicelineItem line = {.characterID = 0, .voiceID = 21};
+	g_config.voiceLanguage = 5;
+	s_testLocalizedVoiceID = -1;
+	s_testFallbackVoiceID = -1;
+	s_testLocalizedVoiceSucceeds = false;
+	Voiceline_StartPlay(&line.item);
+	CTR_TEST_CHECK(s_testLocalizedVoiceID == 0 || s_testLocalizedVoiceID == 1, "PAL set 0 is tried first");
+	CTR_TEST_CHECK_EQ(s_testFallbackVoiceID, 16, "unavailable PAL audio falls back to the original English event");
+	s_testFallbackVoiceID = -1;
+	s_testLocalizedVoiceSucceeds = true;
+	Voiceline_StartPlay(&line.item);
+	CTR_TEST_CHECK_EQ(s_testFallbackVoiceID, -1, "a playable PAL event does not start English audio");
+}
+
 int main(void)
 {
 	TestBodySwapPlayerCount();
+	TestLocalizedVoiceFallback();
 	TestBotEffectEventScope();
 	TestCataloguePublicationLifecycle();
 	TestExternalCommands();

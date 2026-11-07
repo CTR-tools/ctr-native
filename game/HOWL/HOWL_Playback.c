@@ -200,7 +200,11 @@ void howl_UnPauseChannel(struct ChannelStats *stats)
 
 	else if (type == HOWL_CHANNEL_TYPE_OTHER_FX)
 	{
-		howl_InitChannelAttr_OtherFX(&sdata->howl_metaOtherFX[soundID], &attr,
+		struct OtherFX localized;
+		u16 localizedAddr = 0;
+		struct OtherFX *effect = &sdata->howl_metaOtherFX[soundID];
+		Bank_LocalizedVoice((u16)soundID, &localized, &localizedAddr);
+		OtherFX_InitResolvedAttr(effect, &localized, localizedAddr, &attr,
 		    HowlChannel_EffectiveVolume(stats), stats->LR, stats->distort);
 	}
 

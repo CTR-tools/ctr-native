@@ -23,6 +23,12 @@ static struct GameTracker s_tracker;
 static struct DB s_buffer;
 static int s_configSaves;
 static int s_controlsSaves;
+static int s_languageApplied;
+static int s_voiceRefreshed;
+static bool s_recordLanguageDraw;
+static int s_languageDrawSequence;
+static int s_languagePopupDraw;
+static int s_languageUnderlyingDraw;
 static bool s_capturing;
 static bool s_pickerOpen;
 static NativeConfig s_initialConfig;
@@ -125,6 +131,20 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 	return s_trackRefreshSuccess;
 }
 void NativeControls_Save(void) { s_controlsSaves++; }
+int NativeLanguageDisc_HasText(int slot) { return slot == 5; }
+int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
+const char *LOAD_LanguageSelfName(int slot)
+{
+	switch (slot)
+	{
+	case NATIVE_LANGUAGE_ENGLISH: return "English";
+	case NATIVE_LANGUAGE_GERMAN: return "DISC GERMAN";
+	case NATIVE_LANGUAGE_ITALIAN: return "DISC ITALIAN";
+	default: return NULL;
+	}
+}
+int LOAD_ApplyLanguage(int slot) { s_languageApplied = slot; return 1; }
+void NativeAudio_RefreshVoiceLanguage(void) { s_voiceRefreshed++; }
 void GhostTape_Destroy(void) {}
 void MainRaceTrack_RequestLoad(s16 level) { (void)level; }
 b32 RaceFlag_IsFullyOnScreen(void) { return false; }
@@ -188,6 +208,14 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	(void)y; (void)font; (void)ot;
 	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
 	if (strcmp(text, "1 / 1") == 0) { s_trackNumberDraws++; }
+	if (s_recordLanguageDraw && strcmp(text, "English") == 0 && s_languagePopupDraw == 0)
+	{
+		s_languagePopupDraw = ++s_languageDrawSequence;
+	}
+	if (s_recordLanguageDraw && strcmp(text, "Audio") == 0 && s_languageUnderlyingDraw == 0)
+	{
+		s_languageUnderlyingDraw = ++s_languageDrawSequence;
+	}
 	if (strcmp(text, "System") == 0)
 	{
 		s_sectionFont = font;
@@ -318,8 +346,8 @@ static void TestNavigation(void)
 	{
 		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
 	}
-	const char *groups[][4] = {
-		{"System", "Audio", "Controls", "Graphics"},
+	const char *groups[][5] = {
+		{"System", "Audio", "Language", "Controls", "Graphics"},
 		{"Game", "Adventure", "General", "Unlocks"},
 		{"Modifiers", "Vehicle", "Weapons", NULL},
 	};
@@ -327,7 +355,7 @@ static void TestNavigation(void)
 	{
 		SelectNavigation(groups[group][0]);
 		count = Config_NavigationEntries(entries);
-		int expected = groups[group][3] != NULL ? 3 : 2;
+		int expected = group == 0 ? 4 : (groups[group][3] != NULL ? 3 : 2);
 		CTR_TEST_CHECK(count == expected, "each group exposes its expected subsections");
 		for (int i = 0; i < count; i++)
 		{
@@ -642,7 +670,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "text", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -668,7 +696,7 @@ static void TestEditing(enum ConfigMenuContext context)
 	for (int i = 0; i < g_numConfigEntries; i++)
 	{
 		const ConfigEntry *entry = &g_configEntries[i];
-		if (entry->type == CFG_ACTION || entry->valuePtr == &g_config.developerHacksEnabled)
+		if (entry->type == CFG_ACTION || entry->valuePtr == &g_config.developerHacksEnabled || strcmp(entry->section, CONFIG_SECTION_LANGUAGE) == 0)
 		{
 			continue;
 		}
@@ -729,6 +757,60 @@ static void TestEditing(enum ConfigMenuContext context)
 		}
 	}
 	s_observedLabel = NULL;
+}
+
+static void TestLanguagePicker(void)
+{
+	CTR_TEST_SECTION("independent language pickers");
+	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_FRENCH, "fallback"), "fallback") == 0,
+	               "an unavailable disc name falls back to the configured label");
+	for (int row = 0; row < 2; row++)
+	{
+		int index = -1;
+		for (int i = 0; i < g_numConfigEntries; i++)
+		{
+			if (g_configEntries[i].valuePtr == (row == 0 ? (void *)&g_config.voiceLanguage : (void *)&g_config.textLanguage))
+			{
+				index = i;
+				break;
+			}
+		}
+		if (index < 0) { CtrTest_Bail("language row missing"); }
+		g_config = s_initialConfig;
+		s_languageApplied = 0;
+		s_voiceRefreshed = 0;
+		OpenEntry(index, CONFIG_MENU_MAIN);
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
+		CTR_TEST_CHECK(s_languagePickerOpen && s_languageChoiceCount == 2, "picker includes only English and available resources");
+		CTR_TEST_CHECK(strcmp(Config_LanguageChoiceLabel(&g_configEntries[index], 1), row == 0 ? "DISC GERMAN" : "DISC ITALIAN") == 0,
+		               "picker displays the name supplied by the language resource");
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		SetInput(0, 0);
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw > s_languagePopupDraw,
+		               "popup primitives are submitted before the underlying menu so they appear above it");
+		SetInput(BTN_DOWN, 0);
+		UpdateMenu();
+		SetInput(BTN_CROSS, 0);
+		s_lastMenuSound = -1;
+		UpdateMenu();
+		CTR_TEST_CHECK(!s_languagePickerOpen, "confirm closes the picker");
+		CTR_TEST_CHECK(s_lastMenuSound == 1, "confirming a language plays the confirmation sound");
+		if (row == 0)
+		{
+			CTR_TEST_CHECK(g_config.voiceLanguage == 4 && g_config.textLanguage == 1 && s_voiceRefreshed == 1,
+			               "voice selection applies independently of text");
+		}
+		else
+		{
+			CTR_TEST_CHECK(g_config.textLanguage == 5 && g_config.voiceLanguage == 1 && s_languageApplied == 5,
+			               "text selection applies independently of voices");
+		}
+	}
+	g_config = s_initialConfig;
 }
 
 static void TestDeveloperGate(void)
@@ -1010,6 +1092,7 @@ int main(void)
 	               "a new session starts at the section list with reset scrolling");
 	CTR_TEST_SECTION("Pause availability policy");
 	TestAvailability();
+	TestLanguagePicker();
 	CTR_TEST_SECTION("Main-menu editing and values");
 	TestEditing(CONFIG_MENU_MAIN);
 	CTR_TEST_SECTION("Paused editing, disabled values and colors");
