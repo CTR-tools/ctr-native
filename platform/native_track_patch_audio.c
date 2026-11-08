@@ -23,7 +23,7 @@ struct PatchBank
 
 struct PatchMusic
 {
-	struct PatchMusicBytes originalExe, exe, menu, all;
+	struct PatchMusicBytes originalExe, exe, menu, all, adventure;
 	struct PatchHowl original, patched;
 	int available, skipped, generated;
 };
@@ -246,6 +246,7 @@ static struct PatchMusicBytes PatchMusic_Menu(const char *disc, SDL_AtomicInt *c
 static void PatchMusic_Close(struct PatchMusic *m)
 {
 	SDL_free(m->originalExe.data); SDL_free(m->exe.data); SDL_free(m->menu.data); SDL_free(m->all.data);
+	SDL_free(m->adventure.data);
 	SDL_free(m->original.bytes.data); SDL_free(m->patched.bytes.data);
 }
 
@@ -256,6 +257,7 @@ static void PatchMusic_Open(struct PatchMusic *m, const char *original, const ch
 	m->exe = PatchMusic_Load(patched, "SCUS_944.26;1", PATCH_EXE_LIMIT, cancel);
 	m->menu = PatchMusic_Menu(patched, cancel);
 	m->all = PatchMusic_Load(patched, "ALL.BIN;1", PATCH_EXE_LIMIT, cancel);
+	m->adventure = PatchMusic_Load(patched, "ADVC.BIN;1", PATCH_EXE_LIMIT, cancel);
 	m->original.bytes = PatchMusic_Load(original, "SOUNDS/KART.HWL;1", PATCH_HWL_LIMIT, cancel);
 	m->patched.bytes = PatchMusic_Load(patched, "SOUNDS/KART.HWL;1", PATCH_HWL_LIMIT, cancel);
 	m->available = m->originalExe.data != NULL && m->exe.data != NULL && m->original.bytes.data != NULL &&
@@ -265,7 +267,15 @@ static void PatchMusic_Open(struct PatchMusic *m, const char *original, const ch
 static int PatchMusic_SelectLevel(const struct PatchMusic *m, int slot)
 {
 	if (!m->available || slot < 0 || slot >= 18) { return -1; }
-	int level = PatchMusic_Level(&m->originalExe, &m->exe, &m->menu, slot);
+	unsigned char vrm[27], lev[27];
+	/* A physical slot can hold unrelated tracks at different LODs. The original
+	 * runtime level is not established by the adventure file-index arrays. */
+	if (PatchMusic_AdventureFiles(&m->exe, vrm, lev)) { return -1; }
+	/* Prefer an explicit multi-track mapping, then retail/TrackROM recognition,
+	 * then the older ALL.BIN lookup signature. These return a logical level,
+	 * which WriteSca resolves through the patched bank and song tables. */
+	int level = PatchMusic_AllBinTrack(&m->exe, &m->all, slot, NULL, 0);
+	if (level < 0) { level = PatchMusic_Level(&m->originalExe, &m->exe, &m->menu, slot); }
 	if (level < 0) { level = PatchMusic_AllBinLevel(&m->exe, &m->all, slot); }
 	/* Unknown loaders still get the audio of their physical slot. */
 	return level < 0 ? slot : level;

@@ -8,7 +8,8 @@
 #include "native_track_patch_disc.c"
 #include "native_track_patch_audio.c"
 
-enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18 };
+enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18, PATCH_TRACK_LIMIT = 64,
+       PATCH_TRACK_GROUPS = 25, PATCH_FILES_PER_GROUP = 8 };
 enum { PATCH_AUTHOR_BYTES = 256, PATCH_AUTHOR_FILE_LIMIT = 16 * 1024 * 1024 };
 enum PatchStage { PATCH_COPY, PATCH_APPLY, PATCH_EXTRACT, PATCH_COMPARE, PATCH_INSTALL, PATCH_CLEANUP };
 
@@ -247,6 +248,21 @@ static const char *TrackPatch_WriteAuthor(const char *prepared, const char *name
 	return ok ? NULL : "Cannot write track metadata";
 }
 
+static const char *TrackPatch_WriteTitle(const char *prepared, const char *name, const char *title)
+{
+	char directory[PATCH_PATH_BYTES], manifest[PATCH_PATH_BYTES];
+	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(manifest, directory, "track.ini")) { return "Path is too long"; }
+	SDL_PathInfo existing;
+	if (SDL_GetPathInfo(manifest, &existing)) { return NULL; }
+	FILE *file = fopen(manifest, "wb");
+	if (file == NULL) { return "Cannot write track metadata"; }
+	int ok = fprintf(file, "title = %s\n", title) > 0;
+	if (fclose(file) != 0) { ok = 0; }
+	return ok ? NULL : "Cannot write track metadata";
+}
+
+/* Generic strategy: compare bigtool's 18 named 1P pairs against retail. This
+ * also handles single-track patches without knowing their custom loader. */
 static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
 {
 	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
@@ -257,6 +273,8 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		return "Path is too long";
 	}
 	*count = 0;
+	unsigned char adventureVrm[27], adventureLev[27];
+	int adventureLoader = music != NULL && PatchMusic_AdventureFiles(&music->exe, adventureVrm, adventureLev);
 	int accepted[PATCH_TRACK_COUNT];
 	char singleName[PATCH_NAME_BYTES] = {0};
 	for (int i = 0; i < PATCH_TRACK_COUNT; i++)
@@ -277,6 +295,9 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		int changedVrm = TrackPatch_Different(a, b);
 		if (changedLev < 0 || changedVrm < 0)
 		{
+			/* A recognized adventure may not have a bigtool-compatible layout;
+			 * its explicitly referenced pairs are checked separately below. */
+			if (adventureLoader) { continue; }
 			return "Missing circuit files - unsupported BIGFILE layout";
 		}
 		if (!changedLev && !changedVrm) { continue; }
@@ -289,7 +310,12 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 		SDL_snprintf(name, sizeof(name), "%s-%s", job->name, s_patchTrackSlots[i]);
 		SDL_strlcpy(singleName, name, sizeof(singleName));
 		const char *error = NativeTrackImport_Directory(prepared, source, name);
-		if (error != NULL) { return error; }
+		if (error != NULL)
+		{
+			if (adventureLoader && (strcmp(error, "Invalid LEV or VRM") == 0 ||
+			                        strcmp(error, "Invalid track metadata or files") == 0)) { continue; }
+			return error;
+		}
 		if (music != NULL)
 		{
 			char directory[PATCH_PATH_BYTES], sca[PATCH_PATH_BYTES];
@@ -300,12 +326,144 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			int level = PatchMusic_SelectLevel(music, i);
 			if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
 			else { music->skipped++; }
+			char title[256];
+			if (PatchMusic_AllBinTrack(&music->exe, &music->all, i, title, sizeof(title)) >= 0 && title[0] != '\0')
+			{
+				const char *titleError = TrackPatch_WriteTitle(prepared, name, title);
+				if (titleError != NULL) { return titleError; }
+			}
 		}
 		accepted[(*count)++] = i;
 	}
-	if (*count == 0) { return "No modified single-player circuits found"; }
+	if (*count == 0)
+	{
+		if (!adventureLoader)
+		{
+			return "No modified single-player circuits found";
+		}
+	}
 	/* A global menu credit cannot be attributed to one of several circuits. */
 	return *count == 1 && music != NULL ? TrackPatch_WriteAuthor(prepared, singleName, music) : NULL;
+}
+
+/* Extract a BIGFILE entry independently of bigtool's LOD directory names. */
+static int TrackPatch_BigEntry(const char *big, unsigned int index, const char *output)
+{
+	FILE *in = fopen(big, "rb");
+	if (in == NULL) { return 0; }
+	unsigned char header[8], entry[8], buffer[8192];
+	int ok = fread(header, 1, sizeof(header), in) == sizeof(header) && index < PatchDisc_Read32(header + 4) &&
+	         index < 4096 && fseek(in, 8 + (long)index * 8, SEEK_SET) == 0 && fread(entry, 1, sizeof(entry), in) == sizeof(entry);
+	uint32_t sector = ok ? PatchDisc_Read32(entry) : 0, size = ok ? PatchDisc_Read32(entry + 4) : 0;
+	uint64_t start = (uint64_t)sector * PATCH_DISC_DATA_BYTES;
+	if (size == 0 || size > 64 * 1024 * 1024 || start > INT32_MAX ||
+	    fseek(in, 0, SEEK_END) != 0) { ok = 0; }
+	long length = ok ? ftell(in) : -1;
+	if (length < 0 || start + size > (uint64_t)length || fseek(in, (long)start, SEEK_SET) != 0) { ok = 0; }
+	FILE *out = ok ? fopen(output, "wb") : NULL;
+	if (out == NULL) { ok = 0; }
+	for (uint32_t left = size; ok && left != 0;)
+	{
+		size_t n = left < sizeof(buffer) ? left : sizeof(buffer);
+		ok = fread(buffer, 1, n, in) == n && fwrite(buffer, 1, n, out) == n;
+		left -= (uint32_t)n;
+	}
+	if (out != NULL && fclose(out) != 0) { ok = 0; }
+	fclose(in);
+	return ok;
+}
+
+struct TrackPatchPairCheck
+{
+	const char *lev, *vrm;
+	int duplicate, failed;
+};
+
+static SDL_EnumerationResult SDLCALL TrackPatch_CheckPreparedPair(void *userdata, const char *directory, const char *name)
+{
+	struct TrackPatchPairCheck *check = userdata;
+	char dir[PATCH_PATH_BYTES], lev[PATCH_PATH_BYTES], vrm[PATCH_PATH_BYTES];
+	if (!TrackPatch_Path(dir, directory, name) || !TrackPatch_Path(lev, dir, "track.lev") ||
+	    !TrackPatch_Path(vrm, dir, "track.vrm")) { check->failed = 1; return SDL_ENUM_FAILURE; }
+	int a = TrackPatch_Different(check->lev, lev), b = TrackPatch_Different(check->vrm, vrm);
+	if (a < 0 || b < 0) { check->failed = 1; return SDL_ENUM_FAILURE; }
+	if (a == 0 && b == 0) { check->duplicate = 1; }
+	return SDL_ENUM_CONTINUE;
+}
+
+/* Supplemental strategy: a recognized adventure loader names BIGFILE entries
+ * directly. Different LODs of one retail slot can contain different tracks.
+ * Unknown loaders return without adding anything, not a guessed LOD mapping. */
+static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const char *work, int *count,
+                                               struct PatchMusic *music)
+{
+	unsigned char vrm[27], lev[27];
+	if (music == NULL || !PatchMusic_AdventureFiles(&music->exe, vrm, lev)) { return NULL; }
+	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
+	char oldDir[PATCH_PATH_BYTES], newDir[PATCH_PATH_BYTES], oldLev[PATCH_PATH_BYTES], oldVrm[PATCH_PATH_BYTES];
+	char newLev[PATCH_PATH_BYTES], newVrm[PATCH_PATH_BYTES];
+	if (!TrackPatch_Path(original, work, "original.big") || !TrackPatch_Path(patched, work, "patched.big") ||
+	    !TrackPatch_Path(prepared, work, "prepared") || !TrackPatch_Path(oldDir, work, "lod-original") ||
+	    !TrackPatch_Path(newDir, work, "lod-patched") || !TrackPatch_Path(oldLev, oldDir, "data.lev") ||
+	    !TrackPatch_Path(oldVrm, oldDir, "data.vrm") || !TrackPatch_Path(newLev, newDir, "data.lev") ||
+	    !TrackPatch_Path(newVrm, newDir, "data.vrm") || !SDL_CreateDirectory(prepared) ||
+	    !SDL_CreateDirectory(oldDir) || !SDL_CreateDirectory(newDir))
+	{
+		return "Cannot prepare additional track files";
+	}
+	for (int i = 0; i < 27; i++)
+	{
+		if (SDL_GetAtomicInt(&job->cancel)) { return "Import cancelled"; }
+		unsigned int id = vrm[i];
+		/* Adventure loaders also store tracks in the seven arena groups. Other
+		 * BIGFILE groups are not necessarily LEV/VRM track pairs. */
+		if (id >= PATCH_TRACK_GROUPS * PATCH_FILES_PER_GROUP) { continue; }
+		int repeated = 0;
+		for (int j = 0; j < i; j++) { if (vrm[j] == id && lev[j] == lev[i]) { repeated = 1; } }
+		if (repeated) { continue; }
+		if (!TrackPatch_BigEntry(original, id, oldVrm) || !TrackPatch_BigEntry(original, lev[i], oldLev) ||
+		    !TrackPatch_BigEntry(patched, id, newVrm) || !TrackPatch_BigEntry(patched, lev[i], newLev))
+		{
+			return "Cannot extract additional track files";
+		}
+		int changedLev = TrackPatch_Different(oldLev, newLev), changedVrm = TrackPatch_Different(oldVrm, newVrm);
+		if (changedLev < 0 || changedVrm < 0) { return "Cannot compare additional track files"; }
+		if (!changedLev && !changedVrm) { continue; }
+		/* The generic 1P scan or another loader entry may already have installed
+		 * this exact pair in prepared; only merge duplicates within this patch. */
+		struct TrackPatchPairCheck check = {newLev, newVrm, 0, 0};
+		if (!SDL_EnumerateDirectory(prepared, TrackPatch_CheckPreparedPair, &check) || check.failed)
+		{
+			return "Cannot compare additional track files";
+		}
+		if (check.duplicate) { continue; }
+		char name[PATCH_NAME_BYTES];
+		unsigned int group = id / PATCH_FILES_PER_GROUP;
+		if (group < PATCH_TRACK_COUNT)
+		{
+			SDL_snprintf(name, sizeof(name), "%s-%s-lod%u", job->name, s_patchTrackSlots[group], id & 7);
+		}
+		else
+		{
+			SDL_snprintf(name, sizeof(name), "%s-slot%u-lod%u", job->name, group, id & 7);
+		}
+		const char *error = NativeTrackImport_Directory(prepared, newDir, name);
+		if (error != NULL)
+		{
+			if (strcmp(error, "Invalid LEV or VRM") == 0 || strcmp(error, "Invalid track metadata or files") == 0) { continue; }
+			return error;
+		}
+		(*count)++;
+		/* The file-index signature does not identify the runtime music level. */
+		music->skipped++;
+		char title[256];
+		if (PatchMusic_AdventureTitle(&music->exe, &music->adventure, i, title, sizeof(title)))
+		{
+			const char *titleError = TrackPatch_WriteTitle(prepared, name, title);
+			if (titleError != NULL) { return titleError; }
+		}
+	}
+	return NULL;
 }
 
 struct TrackPatchPublish
@@ -313,7 +471,7 @@ struct TrackPatchPublish
 	struct TrackPatchJob *job;
 	const char *library;
 	const char *error;
-	char installed[PATCH_TRACK_COUNT][PATCH_PATH_BYTES];
+	char installed[PATCH_TRACK_LIMIT][PATCH_PATH_BYTES];
 	int count;
 };
 
@@ -325,7 +483,7 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 	{
 		publish->error = "Import cancelled";
 	}
-	else if (publish->count == PATCH_TRACK_COUNT || !TrackPatch_Path(source, directory, name) ||
+	else if (publish->count == PATCH_TRACK_LIMIT || !TrackPatch_Path(source, directory, name) ||
 	         !TrackPatch_Path(target, publish->library, name))
 	{
 		publish->error = "Path is too long";
@@ -368,6 +526,8 @@ static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const c
 
 static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, int *count)
 {
+	/* Work only on temporary images: decode, extract both BIGFILEs, discover
+	 * and validate candidates in prepared, then publish the whole batch. */
 	char base[PATCH_PATH_BYTES], copy[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES];
 	char originalBig[PATCH_PATH_BYTES], patchedBig[PATCH_PATH_BYTES], tool[PATCH_PATH_BYTES];
 	char prepared[PATCH_PATH_BYTES], library[PATCH_PATH_BYTES];
@@ -408,14 +568,25 @@ static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, i
 	if (!TrackPatch_Path(tool, job->assets, bigtool)) { return "Path is too long"; }
 	const char *extractOriginal[] = {tool, originalBig, NULL};
 	const char *extractPatched[] = {tool, patchedBig, NULL};
-	if (!TrackPatch_Process(job, extractOriginal) || !TrackPatch_Process(job, extractPatched))
+	struct PatchMusic music;
+	PatchMusic_Open(&music, copy, patched, &job->cancel);
+	unsigned char vrm[27], lev[27];
+	int adventureLoader = PatchMusic_AdventureFiles(&music.exe, vrm, lev);
+	int extracted = TrackPatch_Process(job, extractOriginal) && TrackPatch_Process(job, extractPatched);
+	/* bigtool supplies named 1P folders for the generic strategy. A recognized
+	 * adventure can still use direct BIGFILE indices if that extraction fails. */
+	if (!extracted && (!adventureLoader || SDL_GetAtomicInt(&job->cancel)))
 	{
+		PatchMusic_Close(&music);
 		return TrackPatch_Error(job, "CTR-tools bigtool failed");
 	}
 	SDL_SetAtomicInt(&job->stage, PATCH_COMPARE);
-	struct PatchMusic music;
-	PatchMusic_Open(&music, copy, patched, &job->cancel);
-	const char *error = TrackPatch_Collect(job, work, count, &music);
+	*count = 0;
+	const char *error = extracted ? TrackPatch_Collect(job, work, count, &music) : NULL;
+	/* Try the loader-specific strategy in addition to the generic scan. Both
+	 * prepare validated pairs before publication; failures leave the library untouched. */
+	if (error == NULL) { error = TrackPatch_CollectAdventure(job, work, count, &music); }
+	if (error == NULL && *count == 0) { error = "No modified single-player circuits found"; }
 	job->musicGenerated = music.generated;
 	job->musicSkipped = music.skipped;
 	PatchMusic_Close(&music);
