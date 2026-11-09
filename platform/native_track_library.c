@@ -334,9 +334,17 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 	{
 		return 0;
 	}
-	NativeTrackRegistry_Destroy(s_nativeTrackLibrary);
-	s_nativeTrackLibrary = replacement;
+	NativeTrackLibrary_Replace(replacement);
 	return 1;
+}
+
+void NativeTrackLibrary_Replace(struct NativeTrackRegistry *replacement)
+{
+	if (replacement != NULL)
+	{
+		NativeTrackRegistry_Destroy(s_nativeTrackLibrary);
+		s_nativeTrackLibrary = replacement;
+	}
 }
 
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void)

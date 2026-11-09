@@ -61,6 +61,11 @@ ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )
 
+ctr_add_test_suite(test_native_text_edit
+    SOURCES test_native_text_edit.c
+    LIBRARIES SDL3::SDL3
+)
+
 ctr_add_test_suite(test_level_info
     SOURCES test_level_info.c
 )
@@ -85,6 +90,7 @@ ctr_add_test_suite(test_track_import
 
 ctr_add_test_suite(test_track_import_flow
     SOURCES test_track_import_flow.c
+    LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_patch

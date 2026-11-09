@@ -84,6 +84,77 @@ static void PatchTest_Disc(const char *root)
 	CTR_TEST_CHECK(!TrackPatch_BigEntry(disc, 0, output), "a BIGFILE entry outside the archive is rejected");
 }
 
+static void PatchTest_Review(const char *root, const char *source)
+{
+	CTR_TEST_SECTION("prepared patch review transaction");
+	char assets[PATCH_PATH_BYTES], work[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES], library[PATCH_PATH_BYTES];
+	TrackPatch_Path(assets, root, "review-assets");
+	TrackPatch_Path(work, assets, ".import-review");
+	TrackPatch_Path(prepared, work, "prepared");
+	TrackPatch_Path(library, assets, "tracks");
+	SDL_CreateDirectory(prepared);
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == NULL,
+	               "a validated candidate can be prepared outside the live library");
+	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
+	s_trackPatchJob.reviewReady = 1;
+	SDL_strlcpy(s_trackPatchJob.assets, assets, sizeof(s_trackPatchJob.assets));
+	SDL_strlcpy(s_trackPatchJob.work, work, sizeof(s_trackPatchJob.work));
+	SDL_PathInfo info;
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDirectory() != NULL && !SDL_GetPathInfo(library, &info),
+	               "prepared candidates are visible to review but not installed");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscard() && !SDL_GetPathInfo(work, &info) && !SDL_GetPathInfo(library, &info),
+	               "discard removes only the temporary import and does not create the library");
+	SDL_CreateDirectory(prepared);
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == NULL,
+	               "a second candidate can be prepared after discard");
+	s_trackPatchJob.reviewReady = 1;
+	SDL_strlcpy(s_trackPatchJob.work, work, sizeof(s_trackPatchJob.work));
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommit() == NULL && SDL_GetPathInfo(library, &info) && !SDL_GetPathInfo(work, &info),
+	               "confirm publishes the candidate and removes the temporary import");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDirectory() == NULL, "a committed review cannot be committed twice");
+	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
+	TrackPatch_Path(assets, root, "folder-review-assets");
+	SDL_CreateDirectory(assets);
+	TrackPatch_Path(library, assets, "tracks");
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL && NativeTrackPatch_ReviewDirectory() != NULL &&
+	               !SDL_GetPathInfo(library, &info), "folder imports also prepare without publishing");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscard() && SDL_GetPathInfo(source, &info) && !SDL_GetPathInfo(library, &info),
+	               "discarding a folder import preserves the user's source");
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL, "a discarded folder can be prepared again");
+	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	char identity[256];
+	SDL_strlcpy(identity, track != NULL ? track->identity : "", sizeof(identity));
+	NativeTrackRegistry_Destroy(registry);
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Edited Circuit", "Example Author") == NULL,
+	               "review can edit candidate title and attribution");
+	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
+	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(track != NULL && strcmp(track->identity, identity) == 0 && strcmp(track->title, "Edited Circuit") == 0 &&
+	               track->author != NULL && strcmp(track->author, "Example Author") == 0,
+	               "editing preserves identity and persists both values in the staged metadata");
+	NativeTrackRegistry_Destroy(registry);
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Renamed Circuit", "") == NULL,
+	               "editing again replaces the staged metadata and may clear the author");
+	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
+	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(track != NULL && strcmp(track->title, "Renamed Circuit") == 0 && track->author == NULL,
+	               "replacement keeps the manifest readable without an author");
+	NativeTrackRegistry_Destroy(registry);
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Invalid\nTitle", "") != NULL,
+	               "metadata cannot inject extra manifest lines");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Title", "   ") != NULL,
+	               "whitespace-only attribution cannot produce an invalid manifest");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommitStart(), "confirmation starts a background installation");
+	int result;
+	while ((result = NativeTrackPatch_Poll()) == 0) { SDL_Delay(1); }
+	struct NativeTrackRegistry *installed = NativeTrackPatch_TakeRegistry();
+	CTR_TEST_CHECK(result == 1 && installed != NULL && NativeTrackRegistry_Count(installed) == 1 &&
+	               SDL_GetPathInfo(library, &info), "background confirmation publishes and scans the folder import");
+	NativeTrackRegistry_Destroy(installed);
+	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
+}
+
 static void PatchTest_Collect(const char *root)
 {
 	CTR_TEST_SECTION("detect only modified single-player circuit pairs");
@@ -138,6 +209,9 @@ static void PatchTest_Collect(const char *root)
 	CTR_TEST_CHECK(error == NULL && count == 2, "identical LEV/VRM pairs are imported once while distinct pairs remain separate");
 	char prepared[PATCH_PATH_BYTES];
 	TrackPatch_Path(prepared, root, "prepared");
+	char reviewSource[PATCH_PATH_BYTES];
+	TrackPatch_Path(reviewSource, prepared, "Example-proto8");
+	PatchTest_Review(root, reviewSource);
 	char manifest[PATCH_PATH_BYTES];
 	TrackPatch_Path(manifest, prepared, "Example-proto8/track.ini");
 	SDL_PathInfo manifestInfo;

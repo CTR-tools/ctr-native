@@ -20,6 +20,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 /* Replace the scan outside gameplay, with no retained metadata pointers.
    Failure leaves the previous registry live. */
 int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result);
+/* Takes ownership on the main thread, after an off-thread scan completes. */
+void NativeTrackLibrary_Replace(struct NativeTrackRegistry *replacement);
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void);
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track);
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled);

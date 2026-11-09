@@ -2,6 +2,7 @@
 #include <platform/native_assets.h>
 #include <platform/native_track_library.h>
 #include <track_text.h>
+#include <track_import_view.h>
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"
@@ -39,6 +40,7 @@ static char s_customTracksRefreshMessage[128];
 
 void MM_CustomTracks_ResetNavigation(void)
 {
+	MM_TrackImport_Reset();
 	s_customTracksPage = CUSTOM_TRACKS_CLOSED;
 	s_customTracksScroll.offset = 0;
 }
@@ -142,6 +144,48 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 	FullScreenMenu_DrawScreen("Available Tracks", 0, &scroll, totalRows, selectedRow, CustomTracks_DrawRow, registry, gGT, ot);
 }
 
+static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y, bool selected, uint32_t *ot)
+{
+	(void)selected;
+	const struct TrackImportReviewView *view = context;
+	static const char *const labels[] = {"Track", "Name", "Author", "Confirm import", "Cancel import"};
+	FullScreenMenu_DrawRowLabel(labels[row], y, ot);
+	char value[CUSTOM_TRACKS_DETAIL_BYTES];
+	if (row == TRACK_REVIEW_TRACK)
+	{
+		snprintf(value, sizeof(value), "%d / %d", view->index + 1, view->count);
+	}
+	else if (row == TRACK_REVIEW_TITLE || row == TRACK_REVIEW_AUTHOR)
+	{
+		const char *text = view->editing && view->row == row ? view->editingValue :
+		                   row == TRACK_REVIEW_TITLE ? view->title : view->author;
+		if (view->editing && view->row == row)
+		{
+			TrackText_Copy(value, sizeof(value), text != NULL ? text : "");
+			FullScreenMenu_DrawEditableValue(value, FULLSCREEN_MENU_CONTENT_W / 2, y, ot);
+			return;
+		}
+		CustomTracks_FormatText(value, sizeof(value), text != NULL ? text : "", FULLSCREEN_MENU_CONTENT_W / 2);
+	}
+	else { return; }
+	FullScreenMenu_DrawValueText(value, y, ot);
+}
+
+static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *view, struct GameTracker *gGT, uint32_t *ot)
+{
+	struct FullScreenMenu_Scroll scroll = {0};
+	FullScreenMenu_DrawScreen("Review Import", 0, &scroll,
+	                          TRACK_REVIEW_ROWS, view->row, CustomTracks_DrawImportReviewRow, view, gGT, ot);
+	if (view->editing)
+	{
+		FullScreenMenu_DrawPrompt("Enter: save  Esc: cancel", ot);
+	}
+	else if (view->message != NULL)
+	{
+		FullScreenMenu_DrawPrompt(view->message, ot);
+	}
+}
+
 // Uses the caller's row while open, restoring it when returning to Options.
 b32 MM_CustomTracks_Update(struct RectMenu *menu)
 {
@@ -154,7 +198,9 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
 	if (MM_TrackImport_Update((u32)pad->buttonsTapped))
 	{
-		FullScreenMenu_DrawMessage("Import Track", MM_TrackImport_Message(), gGT, ot);
+		struct TrackImportReviewView view;
+		if (MM_TrackImport_GetReview(&view)) { CustomTracks_DrawImportReview(&view, gGT, ot); }
+		else { FullScreenMenu_DrawMessage("Import Track", MM_TrackImport_Message(), gGT, ot); }
 		return true;
 	}
 	if (s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT)

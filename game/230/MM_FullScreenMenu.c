@@ -47,7 +47,7 @@ static int FullScreenMenu_TitleY(int numRows);
 // Matches the box of the menu that opened the screen; flat until a caller says otherwise.
 static int s_frameDrawStyle = FULLSCREEN_MENU_DRAW_STYLE_FLAT;
 
-static void FullScreenMenu_SetShadedFrame(bool shaded)
+static inline void FullScreenMenu_SetShadedFrame(bool shaded)
 {
 	s_frameDrawStyle = shaded ? FULLSCREEN_MENU_DRAW_STYLE_SHADED : FULLSCREEN_MENU_DRAW_STYLE_FLAT;
 }
@@ -110,6 +110,22 @@ static void FullScreenMenu_DrawValueText(const char *text, int y, uint32_t *ot)
 	FullScreenMenu_DrawValueTextColored(text, y, WHITE, ot);
 }
 
+/* The keyboard editor appends at the end. Keep that end visible and underline
+ * its current character using the font's underscore glyph. */
+static inline void FullScreenMenu_DrawEditableValue(const char *text, int width, int y, uint32_t *ot)
+{
+	while (*text != '\0' && DecalFont_GetLineWidth((char *)text, FONT_SMALL) > width)
+	{
+		text++;
+	}
+	FullScreenMenu_DrawValueText(text, y, ot);
+	enum { FULLSCREEN_MENU_CURSOR_PERIOD = 30, FULLSCREEN_MENU_CURSOR_VISIBLE = 15, FULLSCREEN_MENU_CURSOR_OFFSET_Y = 3 };
+	if ((unsigned int)sdata->frameCounter % FULLSCREEN_MENU_CURSOR_PERIOD < FULLSCREEN_MENU_CURSOR_VISIBLE)
+	{
+		DecalFont_DrawLineOT("_", FULLSCREEN_MENU_VALUE_X, y + FULLSCREEN_MENU_CURSOR_OFFSET_Y, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, ot);
+	}
+}
+
 static void FullScreenMenu_DrawOnOffColored(bool on, int y, int color, uint32_t *ot)
 {
 	FullScreenMenu_DrawValueTextColored(on ? "ON" : "OFF", y, color, ot);
@@ -168,7 +184,7 @@ static const char *FullScreenMenu_ChoiceName(const char *const *choices, int cou
 
 // True when a held direction should step this frame. Takes the button mask rather than a
 // pad, because a screen may answer for more than one player and each has its own mask.
-static bool FullScreenMenu_OptionStepDue(int held, int direction)
+static inline bool FullScreenMenu_OptionStepDue(int held, int direction)
 {
 	const int button = (direction < 0) ? BTN_LEFT : BTN_RIGHT;
 
@@ -338,7 +354,7 @@ struct FullScreenMenu_Row
 	const char *suffix;         // FULLSCREEN_ROW_STEP unit
 };
 
-static void FullScreenMenu_DrawRowValue(const struct FullScreenMenu_Row *row, int value, int y, uint32_t *ot)
+static inline void FullScreenMenu_DrawRowValue(const struct FullScreenMenu_Row *row, int value, int y, uint32_t *ot)
 {
 	switch (row->kind)
 	{
@@ -364,7 +380,7 @@ static void FullScreenMenu_DrawRowValue(const struct FullScreenMenu_Row *row, in
 // is what the options menu does with its sliders: a choice and a toggle are changed by the
 // confirm button and not by the directions, so a held direction cannot run them. Reports
 // whether the value moved.
-static bool FullScreenMenu_RowStep(const struct FullScreenMenu_Row *row, int *value, int direction)
+static inline bool FullScreenMenu_RowStep(const struct FullScreenMenu_Row *row, int *value, int direction)
 {
 	if (row->kind != FULLSCREEN_ROW_STEP)
 	{
@@ -378,7 +394,7 @@ static bool FullScreenMenu_RowStep(const struct FullScreenMenu_Row *row, int *va
 // moves to the next name, round the end of the list and back to the first. A row with a
 // range has no single next value, so the button leaves it to the directions, and neither
 // touches a row the screen answers itself. Reports whether the value moved.
-static bool FullScreenMenu_RowActivate(const struct FullScreenMenu_Row *row, int *value)
+static inline bool FullScreenMenu_RowActivate(const struct FullScreenMenu_Row *row, int *value)
 {
 	switch (row->kind)
 	{
@@ -415,21 +431,33 @@ static void FullScreenMenu_FollowScroll(struct FullScreenMenu_Scroll *scroll, s1
 
 // ================= driving a full-screen list =================
 
-static void FullScreenMenu_NavScroll(struct GamepadBuffer *pad, struct FullScreenMenu_Scroll *scroll, s16 *selected, int numRows)
+static void FullScreenMenu_NavTapped(u32 buttons, struct FullScreenMenu_Scroll *scroll, s16 *selected, int numRows)
 {
 	FullScreenMenu_FollowScroll(scroll, selected, numRows);
 
-	if ((pad->buttonsTapped & BTN_UP) != 0)
+	if ((buttons & BTN_UP) != 0)
 	{
 		*selected = (s16)FullScreenMenu_MoveRow(scroll, *selected, -1, numRows);
 		OtherFX_Play(0, 1);
 	}
 
-	if ((pad->buttonsTapped & BTN_DOWN) != 0)
+	if ((buttons & BTN_DOWN) != 0)
 	{
 		*selected = (s16)FullScreenMenu_MoveRow(scroll, *selected, 1, numRows);
 		OtherFX_Play(0, 1);
 	}
+}
+
+static inline void FullScreenMenu_NavScroll(struct GamepadBuffer *pad, struct FullScreenMenu_Scroll *scroll, s16 *selected, int numRows)
+{
+	FullScreenMenu_NavTapped((u32)pad->buttonsTapped, scroll, selected, numRows);
+}
+
+static inline void FullScreenMenu_DrawPrompt(const char *text, uint32_t *ot)
+{
+	int height = DecalFont_DrawMultiLine((char *)text, 0x100, 0xb4, 400, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+	RECT rect = {-10, 0xb0, 0x214, height + 8};
+	RECTMENU_DrawInnerRect(&rect, 4, ot);
 }
 
 static inline bool FullScreenMenu_Confirm(u32 tapped)

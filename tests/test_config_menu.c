@@ -5,6 +5,13 @@
 struct sData sdata_static;
 struct Data data;
 struct OverlayDATA_232 D232;
+static int s_promptDraws, s_cursorDraws;
+s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 flags)
+{
+	(void)text; (void)x; (void)y; (void)width; (void)font; (void)flags;
+	s_promptDraws++;
+	return 8;
+}
 #include <platform/native_config.c>
 
 static struct GameTracker s_tracker;
@@ -113,6 +120,8 @@ void OptionsMenu_TestSound(s32 row, b32 playing)
 void MM_MenuProc_Controls(struct RectMenu *menu) { (void)menu; }
 void MM_TrackImport_Open(void) { s_trackImportOpened++; }
 void MM_TrackImport_OpenPatch(void) { s_trackImportOpened += 10; }
+void MM_TrackImport_Reset(void) {}
+int MM_TrackImport_GetReview(struct TrackImportReviewView *view) { (void)view; return 0; }
 int MM_TrackImport_Update(u32 buttons) { (void)buttons; return 0; }
 const char *MM_TrackImport_Message(void) { return ""; }
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
@@ -144,6 +153,7 @@ s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strle
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
 	if (strcmp(text, "System") == 0)
 	{
 		s_sectionFont = font;
@@ -852,6 +862,21 @@ int main(void)
 	s_strings[LNG_MONO] = "MONO";
 	s_strings[LNG_STEREO] = "STEREO";
 	s_tracker.backBuffer = &s_buffer;
+	CTR_TEST_SECTION("import text editing");
+	struct TrackImportReviewView review = {.title = "Circuit", .author = "Author", .row = TRACK_REVIEW_TITLE};
+	s_promptDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_promptDraws == 0, "the editing hint is hidden while not typing");
+	review.editing = 1;
+	review.editingValue = "Circuit";
+	sdata->frameCounter = 0;
+	s_cursorDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_promptDraws == 1 && s_cursorDraws == 1, "editing shows the hint and cursor");
+	sdata->frameCounter = 15;
+	s_cursorDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_cursorDraws == 0, "the editing cursor blinks off");
 	TestNavigation();
 	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");
