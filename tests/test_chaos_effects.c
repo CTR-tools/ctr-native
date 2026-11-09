@@ -840,6 +840,17 @@ static void TestBodySwap(void)
 	CTR_TEST_SECTION("Body Swap exchanges controller ownership while complete kart state and class stay on the kart");
 	struct BodySwapWorld world;
 	SetupBodySwap(&world, 2, 0);
+	struct Instance rankNumbers[2] = {0};
+	world.drivers[0].instBigNum = &rankNumbers[0];
+	world.drivers[1].instBigNum = &rankNumbers[1];
+	world.drivers[0].driverRank = 1;
+	world.drivers[1].driverRank = 5;
+	data.rankIconsCurr[0] = 1;
+	data.rankIconsCurr[1] = 4;
+	data.rankIconsDesired[0] = 2;
+	data.rankIconsDesired[1] = 5;
+	data.rankIconsTransitionTimer[0] = 3;
+	data.rankIconsTransitionTimer[1] = 7;
 	world.drivers[0].rotCurr.w = 120;
 	world.drivers[1].rotCurr.w = -160;
 	s_tracker.cameraDC[0].BlastedLerp.boolLerpPending = true;
@@ -853,6 +864,14 @@ static void TestBodySwap(void)
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_BODY_SWAP, 1000), "Body Swap occupies a timed effect slot");
 	CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[1] && s_tracker.drivers[1] == &world.drivers[0],
 	               "each human controls the other complete driver object");
+	CTR_TEST_CHECK(s_tracker.drivers[0]->instBigNum == &rankNumbers[0] && s_tracker.drivers[0]->driverRank == 5 &&
+	               s_tracker.drivers[1]->instBigNum == &rankNumbers[1] && s_tracker.drivers[1]->driverRank == 1,
+	               "each viewport's rank number displays its newly controlled kart's rank");
+	CTR_TEST_CHECK(data.rankIconsCurr[0] == 4 && data.rankIconsDesired[0] == 5 && data.rankIconsTransitionTimer[0] == 7 &&
+	               data.rankIconsCurr[1] == 1 && data.rankIconsDesired[1] == 2 && data.rankIconsTransitionTimer[1] == 3,
+	               "rank icon transitions stay with their physical karts");
+	CTR_TEST_CHECK(s_tracker.humanPlayerPositions[0] == 5 && s_tracker.humanPlayerPositions[1] == 1,
+	               "rank history follows the newly controlled karts without false overtakes");
 	CTR_TEST_CHECK(data.characterIDs[0] == 1 && data.characterIDs[1] == 0 &&
 	               world.drivers[1].driverID == 0 && world.drivers[0].driverID == 1,
 	               "character and input identities agree with controller slots");
@@ -873,18 +892,26 @@ static void TestBodySwap(void)
 	Tick(1000);
 	CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[0] && s_tracker.drivers[1] == &world.drivers[1],
 	               "expiry returns both controllers to their original kart");
+	CTR_TEST_CHECK(s_tracker.drivers[0]->instBigNum == &rankNumbers[0] && s_tracker.drivers[1]->instBigNum == &rankNumbers[1],
+	               "expiry keeps each rank number in its original viewport");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.engineClass[1], borrowedClass, "a class change during possession stays on the borrowed kart after return");
 	CTR_TEST_CHECK(world.drivers[0].kartScale == 0.5f && world.drivers[1].kartScale == 0.5f,
 	               "timed human size modifiers survive controller return");
 
 	CTR_TEST_SECTION("human and bot possession changes physics buckets without replacing instances or navigation-list members");
 	SetupBodySwap(&world, 1, 1);
+	world.drivers[0].instBigNum = &rankNumbers[0];
+	world.drivers[0].driverRank = 2;
+	world.drivers[1].driverRank = 6;
 	Chaos_Activate(CHAOS_EFFECT_SMALL_KART_ENERGY, 5000);
 	Chaos_Activate(CHAOS_EFFECT_BODY_SWAP, 1000);
 	CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[1] &&
 	               (world.drivers[1].actionsFlagSet & ACTION_BOT) == 0 &&
 	               (world.drivers[0].actionsFlagSet & ACTION_BOT) != 0,
 	               "human control and AI control exchange physical karts");
+	CTR_TEST_CHECK(s_tracker.drivers[0]->instBigNum == &rankNumbers[0] && s_tracker.drivers[0]->driverRank == 6 &&
+	               world.drivers[0].instBigNum == NULL,
+	               "a borrowed bot updates the player's existing rank number instead of leaving it on the bot");
 	CTR_TEST_CHECK(s_tracker.threadBuckets[PLAYER].thread == &world.threads[1] &&
 	               s_tracker.threadBuckets[ROBOT].thread == &world.threads[0], "the correct physics pipeline owns each thread");
 	CTR_TEST_CHECK(world.threads[1].modelIndex == DYNAMIC_PLAYER && world.threads[1].funcThTick == NULL &&
