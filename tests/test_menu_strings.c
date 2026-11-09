@@ -25,6 +25,8 @@ static void TestCustomStringsWithoutLanguageAsset(void)
 	CTR_TEST_CHECK(strcmp(RECTMENU_GetString(LNG_PORT_STRING_BASE + LNG_PORT_STRING_COUNT), "") == 0,
 	               "unknown custom IDs do not index beyond the catalogue");
 	CTR_TEST_CHECK(strcmp(RECTMENU_GetString(LNG_RESUME), "") == 0, "retail text waits for the language asset");
+	CTR_TEST_CHECK(strcmp(LANG_GetString(-1), "") == 0, "negative string identifiers are rejected");
+	CTR_TEST_CHECK(strcmp(LANG_GetString(LNG_PORT_CHAOS), "Chaos") == 0, "the central resolver handles Expanded identifiers");
 }
 
 static void TestRetailStringsAndLanguageChanges(void)

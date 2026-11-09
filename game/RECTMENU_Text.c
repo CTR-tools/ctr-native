@@ -11,9 +11,12 @@ static const char *const s_menuPortStrings[LNG_PORT_STRING_COUNT] = {
 
 CTR_STATIC_ASSERT(LNG_PORT_STRING_BASE + LNG_PORT_STRING_COUNT <= MENU_ROW_LNG_MASK);
 
-const char *RECTMENU_GetString(s32 stringIndex)
+const char *LANG_GetString(s32 index)
 {
-	const s32 index = stringIndex & MENU_ROW_LNG_MASK;
+	if (index < 0)
+	{
+		return "";
+	}
 	if (index >= LNG_PORT_STRING_BASE)
 	{
 		const s32 portIndex = index - LNG_PORT_STRING_BASE;
@@ -23,7 +26,12 @@ const char *RECTMENU_GetString(s32 stringIndex)
 	{
 		return "";
 	}
-	return sdata->lngStrings[index];
+	return sdata->lngStrings[index] != NULL ? sdata->lngStrings[index] : "";
+}
+
+const char *RECTMENU_GetString(s32 stringIndex)
+{
+	return LANG_GetString(stringIndex & MENU_ROW_LNG_MASK);
 }
 
 void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)

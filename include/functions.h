@@ -597,6 +597,7 @@ void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct Pri
 void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b32 boolCheckSubmenu);
 void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu);
 const char *RECTMENU_GetString(s32 stringIndex);
+const char *LANG_GetString(s32 stringIndex);
 void RECTMENU_Hide(struct RectMenu *m);
 void RECTMENU_Show(struct RectMenu *m);
 
