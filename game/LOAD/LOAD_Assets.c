@@ -709,7 +709,7 @@ int LOAD_LangFile(int bigfilePtr, int lang)
 // Installs a validated European table or restores the cached base English table.
 enum
 {
-	LOAD_LANGUAGE_US_STRING_COUNT = 588,
+	LOAD_LANGUAGE_US_STRING_COUNT = LNG_RETAIL_STRING_COUNT,
 	LOAD_LANGUAGE_PAL_REQUIRED_COUNT = LOAD_LANGUAGE_US_STRING_COUNT + 3,
 };
 

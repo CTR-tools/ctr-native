@@ -2253,6 +2253,7 @@ int NativeCheckpoint_Restore(const void *src, int srcSize)
 			return 0;
 		}
 	}
+	LANG_Refresh(g_config.textLanguage);
 
 	return 1;
 }

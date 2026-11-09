@@ -1,0 +1,6 @@
+MODE = "Mode"
+CHAOS = "Chaos"
+REGULAR = "Regular"
+CHAOS_RULES = "Chaos Rules"
+SUPER_HARD = "Super Hard"
+ULTRA_HARD = "Ultra Hard"

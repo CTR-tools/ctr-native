@@ -579,8 +579,8 @@ void MM_ToggleRows_Difficulty(void)
 		// with the other boxes while using compact rows.
 		difficultyMenu->state |= USE_SMALL_FONT | BIG_TEXT_IN_TITLE;
 		s16 locked = rows[2].stringIndex & MENU_ROW_LOCKED;
-		rows[3] = (struct MenuRow){LNG_PORT_SUPER_HARD | locked, 2, 4, 3, 3};
-		rows[4] = (struct MenuRow){LNG_PORT_ULTRA_HARD | locked, 3, 4, 4, 4};
+		rows[3] = (struct MenuRow){LNG_EXPANDED_SUPER_HARD | locked, 2, 4, 3, 3};
+		rows[4] = (struct MenuRow){LNG_EXPANDED_ULTRA_HARD | locked, 3, 4, 4, 4};
 		rows[5] = (struct MenuRow){.stringIndex = RECTMENU_STRING_NONE};
 	}
 	else

@@ -309,6 +309,7 @@ static bool Config_ApplyLanguageChoice(const void *context, int selected)
 		if (applied)
 		{
 			g_config.textLanguage = slot;
+			LANG_Refresh(slot);
 		}
 	}
 	else

@@ -175,6 +175,7 @@
 
 #include "RaceFlag.c"
 
+#include "LANG.c"
 #include "RECTMENU.c"
 
 #include "RaceConfig.c"

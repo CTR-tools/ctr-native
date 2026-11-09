@@ -47,6 +47,8 @@
 #include "platform/native_disc_image.c"
 #include "platform/native_language_disc.c"
 #include "platform/native_assets.c"
+#include "platform/native_text_catalog.c"
+#include "platform/native_text_runtime.c"
 #include "platform/native_track_registry.c"
 #include "platform/native_track_library.c"
 #include "platform/native_track_file.c"

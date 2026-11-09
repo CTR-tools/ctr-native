@@ -538,6 +538,7 @@ void StateZero()
 	{
 		g_config.textLanguage = 1;
 	}
+	LANG_Refresh(g_config.textLanguage);
 	if (g_config.voiceLanguage != 1 && !NativeLanguageDisc_HasVoice(g_config.voiceLanguage))
 	{
 		g_config.voiceLanguage = 1;

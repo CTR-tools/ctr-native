@@ -24,6 +24,7 @@ static struct DB s_buffer;
 static int s_configSaves;
 static int s_controlsSaves;
 static int s_languageApplied;
+static int s_textCatalogReloaded;
 static int s_voiceRefreshed;
 static bool s_recordLanguageDraw;
 static int s_languageDrawSequence;
@@ -93,6 +94,7 @@ static void ConfigMenuTest_Save(void);
 // distinguish staying at the section list from accidentally reopening a page.
 
 static void ConfigMenuTest_Save(void) { s_configSaves++; }
+void LANG_Refresh(int slot) { s_textCatalogReloaded = slot; }
 const char *NativeAssets_GetBaseDir(void)
 {
 	CtrTest_Bail("menu tests must not access configuration files");
@@ -778,6 +780,7 @@ static void TestLanguagePicker(void)
 		if (index < 0) { CtrTest_Bail("language row missing"); }
 		g_config = s_initialConfig;
 		s_languageApplied = 0;
+		s_textCatalogReloaded = 0;
 		s_voiceRefreshed = 0;
 		OpenEntry(index, CONFIG_MENU_MAIN);
 		SetInput(BTN_CROSS, 0);
@@ -803,11 +806,13 @@ static void TestLanguagePicker(void)
 		{
 			CTR_TEST_CHECK(g_config.voiceLanguage == 4 && g_config.textLanguage == 1 && s_voiceRefreshed == 1,
 			               "voice selection applies independently of text");
+			CTR_TEST_CHECK(s_textCatalogReloaded == 0, "voice changes do not reload text catalogs");
 		}
 		else
 		{
 			CTR_TEST_CHECK(g_config.textLanguage == 5 && g_config.voiceLanguage == 1 && s_languageApplied == 5,
 			               "text selection applies independently of voices");
+			CTR_TEST_CHECK(s_textCatalogReloaded == 5, "text confirmation reloads the selected catalog");
 		}
 	}
 	g_config = s_initialConfig;

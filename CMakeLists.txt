@@ -119,6 +119,20 @@ endif()
 
 # CTR Native Expanded
 add_executable(ctr_native_expanded main.c)
+file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml")
+set_property(TARGET ctr_native_expanded APPEND PROPERTY LINK_DEPENDS ${CTR_SHIPPED_TEXT_CATALOGS} "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake")
+add_custom_command(TARGET ctr_native_expanded POST_BUILD
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
+    VERBATIM
+)
+# Keep managed catalogs current on ordinary builds even when the executable did
+# not need relinking (notably with multi-configuration generators).
+add_custom_target(ctr_text_catalogs ALL
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
+    VERBATIM
+)
 set_target_properties(ctr_native_expanded PROPERTIES
     C_STANDARD 17
     C_STANDARD_REQUIRED ON

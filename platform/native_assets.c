@@ -39,6 +39,7 @@ struct NativeAssetIndexEntry
 };
 
 global_variable char s_nativeAssetsBaseDir[NATIVE_ASSETS_PATH_MAX] = ".";
+global_variable char s_nativeAssetsExecutableDir[NATIVE_ASSETS_PATH_MAX] = ".";
 global_variable char s_nativeAssetsDir[NATIVE_ASSETS_PATH_MAX] = NATIVE_ASSETS_DIR_NAME;
 global_variable int s_nativeAssetsInitialized;
 global_variable struct NativeAssetIndexEntry *s_nativeAssetIndex;
@@ -525,6 +526,10 @@ int NativeAssets_Init(const char *executableBasePath)
 	}
 
 	NativeStr8 exeDir = NativePath_TrimTrailingSeparators(NativeStr8_FromCString(executableBasePath));
+	if (!NativePath_NormalizeSlashes(s_nativeAssetsExecutableDir, sizeof(s_nativeAssetsExecutableDir), exeDir))
+	{
+		return 0;
+	}
 
 	if (NativeAssets_BaseHasRequiredFile(exeDir))
 	{
@@ -557,6 +562,11 @@ int NativeAssets_Init(const char *executableBasePath)
 const char *NativeAssets_GetBaseDir(void)
 {
 	return s_nativeAssetsBaseDir;
+}
+
+const char *NativeAssets_GetExecutableDir(void)
+{
+	return s_nativeAssetsExecutableDir;
 }
 
 const char *NativeAssets_GetAssetDir(void)

@@ -1,0 +1,6 @@
+MODE = "Modalita'"
+CHAOS = "Caos"
+REGULAR = "Normale"
+CHAOS_RULES = "Regole Caos"
+SUPER_HARD = "Difficilissimo"
+ULTRA_HARD = "Estremo"

@@ -16,7 +16,7 @@ static struct RectMenu *MainFreeze_ChaosPauseMenu(struct RectMenu *menu, struct 
 	memcpy(extended, rows, (size_t)numRows * sizeof(*rows));
 	extended[0].rowOnPressUp = (char)numRows;
 	extended[numRows - 1].rowOnPressDown = (char)numRows;
-	extended[numRows] = (struct MenuRow){LNG_PORT_CHAOS_RULES, (char)(numRows - 1), 0, (char)numRows, (char)numRows};
+	extended[numRows] = (struct MenuRow){LNG_EXPANDED_CHAOS_RULES, (char)(numRows - 1), 0, (char)numRows, (char)numRows};
 	extended[numRows + 1] = (struct MenuRow){RECTMENU_STRING_NONE, 0, 0, 0, 0};
 	menu->rows = extended;
 	return menu;

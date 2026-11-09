@@ -74,6 +74,21 @@ try {
         Copy-Item -LiteralPath $source -Destination (Join-Path $staging $copy.To) -Force
     }
 
+     # Shipped translations live beside the executable, not under assets.
+    $catalogRoot = Join-Path $RepoRoot 'resources/text'
+    $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -Filter 'expanded.toml' -File -Recurse)
+    if (-not ($catalogs | Where-Object { $_.Directory.Name -eq 'en' -and $_.Directory.Parent.FullName -eq $catalogRoot })) {
+        throw "Missing English text catalog in $catalogRoot."
+    }
+    foreach ($catalog in $catalogs) {
+        if ($catalog.Directory.Parent.FullName -ne $catalogRoot) {
+            continue
+        }
+        $destination = Join-Path (Join-Path $staging 'resources/text') $catalog.Directory.Name
+        New-Item -ItemType Directory -Path $destination -Force | Out-Null
+        Copy-Item -LiteralPath $catalog.FullName -Destination (Join-Path $destination 'expanded.toml')
+    }
+
     # Explicit files only: never package the user's ROM, tracks or tool caches.
     $toolFiles = @(
         'xdelta3.exe', 'bigtool.exe', 'CTRFramework.dll', 'NAudio.dll', 'Newtonsoft.Json.dll',

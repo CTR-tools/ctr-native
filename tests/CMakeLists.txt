@@ -71,6 +71,16 @@ ctr_add_test_suite(test_tomlc17
     LIBRARIES tomlc17
 )
 
+ctr_add_test_suite(test_text_catalog
+    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    LIBRARIES tomlc17
+)
+
+ctr_add_test_suite(test_text_runtime
+    SOURCES test_text_runtime.c
+    LIBRARIES tomlc17
+)
+
 ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )

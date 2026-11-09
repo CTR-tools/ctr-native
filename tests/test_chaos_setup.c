@@ -369,7 +369,7 @@ static void TestPauseEntryVisibility(void)
 				CTR_TEST_CHECK((pause.rows == sdata->chaosPauseRows) == visible, "the action requires a Chaos Adventure file in hub, race or cup for either player count");
 				if (visible)
 				{
-					CTR_TEST_CHECK_EQ(pause.rows[3].stringIndex, LNG_PORT_CHAOS_RULES, "Chaos Rules is appended after Options");
+					CTR_TEST_CHECK_EQ(pause.rows[3].stringIndex, LNG_EXPANDED_CHAOS_RULES, "Chaos Rules is appended after Options");
 					CTR_TEST_CHECK_EQ(pause.rows[0].rowOnPressUp, 3, "Up from Resume wraps to Chaos Rules");
 					CTR_TEST_CHECK_EQ(pause.rows[2].rowOnPressDown, 3, "Down from Options reaches Chaos Rules");
 					CTR_TEST_CHECK_EQ(pause.rows[3].rowOnPressDown, 0, "Down from Chaos Rules wraps to Resume");
