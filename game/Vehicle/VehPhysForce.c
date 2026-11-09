@@ -146,6 +146,20 @@ static inline u16 VehPhysForce_QuadFlags(const struct QuadBlock *quad)
 }
 
 
+static int VehPhysForce_ClampTerminalVelocity(int velocity, int original, int limit)
+{
+	// Overspeed must be allowed to move back toward the limit under gravity.
+	if (velocity > limit && velocity > original)
+	{
+		return original < limit ? limit : original;
+	}
+	if (velocity < -limit && velocity < original)
+	{
+		return original > -limit ? -limit : original;
+	}
+	return velocity;
+}
+
 void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 {
 	int originalLocalZ;
@@ -373,29 +387,7 @@ void VehPhysForce_OnGravity(struct Driver *driver, Vec3 *velocity)
 		}
 	}
 
-	if (localY > speedLimit)
-	{
-		localY = originalLocalY;
-		if (localY < speedLimit)
-		{
-			localY = speedLimit;
-		}
-	}
-
-	{
-		register int negativeTerminalLimit CTR_PSX_REGISTER("$3");
-
-		negativeTerminalLimit = CTR_MipsNegLo(speedLimit);
-		CTR_PSX_KEEP_VALUE(negativeTerminalLimit);
-		if (localY < negativeTerminalLimit)
-		{
-			localY = originalLocalY;
-			if (originalLocalY > negativeTerminalLimit)
-			{
-				localY = negativeTerminalLimit;
-			}
-		}
-	}
+	localY = VehPhysForce_ClampTerminalVelocity(localY, originalLocalY, speedLimit);
 
 	kartState = driver->kartState;
 	CTR_PSX_KEEP_VALUE(kartState);

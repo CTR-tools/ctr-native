@@ -1344,6 +1344,28 @@ static void Chaos_SwapBodies(int first, int second)
 	tracker->drivers[second] = a;
 	a->driverID = second;
 	b->driverID = first;
+	// The rank number belongs to the viewport, not the physical kart.
+	struct Instance *bigNum = a->instBigNum;
+	a->instBigNum = b->instBigNum;
+	b->instBigNum = bigNum;
+	// Rank icon animation, unlike the viewport number, follows the kart.
+	s16 rankIcon = data.rankIconsCurr[first];
+	data.rankIconsCurr[first] = data.rankIconsCurr[second];
+	data.rankIconsCurr[second] = rankIcon;
+	rankIcon = data.rankIconsDesired[first];
+	data.rankIconsDesired[first] = data.rankIconsDesired[second];
+	data.rankIconsDesired[second] = rankIcon;
+	rankIcon = data.rankIconsTransitionTimer[first];
+	data.rankIconsTransitionTimer[first] = data.rankIconsTransitionTimer[second];
+	data.rankIconsTransitionTimer[second] = rankIcon;
+	if (aHuman)
+	{
+		tracker->humanPlayerPositions[first] = b->driverRank;
+	}
+	if (bHuman)
+	{
+		tracker->humanPlayerPositions[second] = a->driverRank;
+	}
 
 	const struct ChaosIdentity identity = runtime->identity[first];
 	runtime->identity[first] = runtime->identity[second];

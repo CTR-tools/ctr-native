@@ -21,6 +21,10 @@ static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *drive
 static bool Chaos_EffectFitsEvent(ChaosEffectId effect)
 {
 	const ChaosEffectDef *def = ChaosEffect_Def(effect);
+	if (effect == CHAOS_EFFECT_BODY_SWAP && sdata->gGT->numPlyrCurrGame < 2)
+	{
+		return false;
+	}
 	if (effect == CHAOS_EFFECT_YARDRAT_TRAINING || effect == CHAOS_EFFECT_DEFECTIVE_TELEPORT)
 	{
 		return (sdata->gGT->gameMode1 & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0;
