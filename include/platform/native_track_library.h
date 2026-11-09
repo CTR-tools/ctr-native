@@ -35,6 +35,7 @@ int NativeTrackLibrary_Delete(const struct NativeTrackMetadata *track, const cha
 /* Missing or invalid selections retain the original custom-audio fallback. */
 int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track);
 int NativeTrackLibrary_SetDetails(const struct NativeTrackMetadata *track, const char *title, const char *author);
+int NativeTrackLibrary_ValidText(const char *text, int allowEmpty);
 int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
                                      int retail, int custom);
 int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom);

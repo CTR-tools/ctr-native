@@ -265,13 +265,15 @@ static const char *TrackPatch_WriteAuthor(const char *prepared, const char *name
 	{
 		return NULL;
 	}
-	if (!TrackPatch_Path(path, directory, "track.ini")) { return "Path is too long"; }
-	SDL_PathInfo existing;
-	if (SDL_GetPathInfo(path, &existing)) { return NULL; }
-	FILE *file = fopen(path, "wb");
-	if (file == NULL) { return "Cannot write track metadata"; }
-	int ok = fprintf(file, "author = %s\n", author) > 0;
-	if (fclose(file) != 0) { ok = 0; }
+	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
+	if (registry == NULL || !NativeTrackLibrary_ReadDirectory(registry, directory, name))
+	{
+		NativeTrackRegistry_Destroy(registry);
+		return "Cannot read track metadata";
+	}
+	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	int ok = track->author != NULL || NativeTrackLibrary_SetDetails(track, track->title, author);
+	NativeTrackRegistry_Destroy(registry);
 	return ok ? NULL : "Cannot write track metadata";
 }
 
@@ -843,24 +845,12 @@ int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
 	return 1;
 }
 
-static int TrackPatch_ReviewTextValid(const char *text, int allowEmpty)
-{
-	if (text == NULL || strlen(text) >= 256) { return 0; }
-	int visible = 0;
-	for (const unsigned char *p = (const unsigned char *)text; *p != 0; p++)
-	{
-		if (*p < 32 || *p == 127) { return 0; }
-		if (*p != ' ') { visible = 1; }
-	}
-	return visible || (allowEmpty && text[0] == '\0');
-}
-
 const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
 {
 	const char *prepared = NativeTrackPatch_ReviewDirectory();
 	if (prepared == NULL) { return "No import to review"; }
-	if (!TrackPatch_ReviewTextValid(identity, 0) || !TrackPatch_ReviewTextValid(title, 0) ||
-	    !TrackPatch_ReviewTextValid(author, 1)) { return "Invalid track metadata"; }
+	if (!NativeTrackLibrary_ValidText(identity, 0) || !NativeTrackLibrary_ValidText(title, 0) ||
+	    !NativeTrackLibrary_ValidText(author, 1)) { return "Invalid track metadata"; }
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(prepared, NULL);
 	int level;
 	if (registry == NULL || !NativeTrackRegistry_Find(registry, identity, &level))
@@ -877,40 +867,32 @@ const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *titl
 	return ok ? NULL : "Cannot write track metadata";
 }
 
-const char *NativeTrackPatch_ReviewCommit(void)
+static const char *TrackPatch_Commit(struct TrackPatchJob *job, int scan)
 {
-	struct TrackPatchJob *job = &s_trackPatchJob;
-	const char *prepared = NativeTrackPatch_ReviewDirectory();
-	char library[PATCH_PATH_BYTES];
-	if (prepared == NULL) { return "No import to confirm"; }
-	if (!TrackPatch_Path(library, job->assets, "tracks")) { return "Path is too long"; }
+	char prepared[PATCH_PATH_BYTES], library[PATCH_PATH_BYTES];
+	if (!TrackPatch_Path(prepared, job->work, "prepared") || !TrackPatch_Path(library, job->assets, "tracks")) { return "Path is too long"; }
+	SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
 	const char *error = TrackPatch_InstallPrepared(job, prepared, library);
 	if (error != NULL) { return error; }
 	job->reviewReady = 0;
+	if (scan) { job->replacement = NativeTrackLibrary_Scan(library, NULL); }
+	SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
 	if (!TrackPatch_RemoveTree(job->work)) { return "Imported - temporary cleanup failed"; }
 	job->work[0] = '\0';
+	if (scan && job->replacement == NULL) { return "Imported - restart game"; }
 	return NULL;
+}
+
+const char *NativeTrackPatch_ReviewCommit(void)
+{
+	if (NativeTrackPatch_ReviewDirectory() == NULL) { return "No import to confirm"; }
+	return TrackPatch_Commit(&s_trackPatchJob, 0);
 }
 
 static int SDLCALL TrackPatch_CommitWorker(void *userdata)
 {
 	struct TrackPatchJob *job = userdata;
-	char prepared[PATCH_PATH_BYTES], library[PATCH_PATH_BYTES];
-	const char *error = "Path is too long";
-	if (TrackPatch_Path(prepared, job->work, "prepared") && TrackPatch_Path(library, job->assets, "tracks"))
-	{
-		SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
-		error = TrackPatch_InstallPrepared(job, prepared, library);
-		if (error == NULL)
-		{
-			job->reviewReady = 0;
-			job->replacement = NativeTrackLibrary_Scan(library, NULL);
-			SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
-			if (!TrackPatch_RemoveTree(job->work)) { error = "Imported - temporary cleanup failed"; }
-			else { job->work[0] = '\0'; }
-			if (error == NULL && job->replacement == NULL) { error = "Imported - restart game"; }
-		}
-	}
+	const char *error = TrackPatch_Commit(job, 1);
 	job->succeeded = error == NULL || !job->reviewReady;
 	SDL_strlcpy(job->result, error != NULL ? error : "Tracks imported", sizeof(job->result));
 	SDL_SetAtomicInt(&job->done, 1);

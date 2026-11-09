@@ -176,6 +176,12 @@ int main(void)
 	CTR_TEST_CHECK(s_previewRestores > 0, "leaving review restores the menu music");
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARDING, "review cleanup remains responsive while pending");
+	s_patchResult = -1;
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARD_FAILED && strcmp(s_trackImportMessage, "Cleanup failed - confirm to retry") == 0,
+	               "failed cleanup offers a retry even if staged files were partially removed");
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARDING && s_discards == 2, "cleanup can be retried after a failure");
 	s_patchResult = 1;
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_RESULT, "completed cleanup displays its result");

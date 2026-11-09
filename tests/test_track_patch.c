@@ -336,6 +336,9 @@ static void PatchTest_Author(const char *root)
 	char levPath[PATCH_PATH_BYTES];
 	TrackPatch_Path(levPath, directory, "track.lev");
 	PatchTest_Write(levPath, "LEV", 3);
+	char vrmPath[PATCH_PATH_BYTES];
+	TrackPatch_Path(vrmPath, directory, "track.vrm");
+	PatchTest_Write(vrmPath, "VRM", 3);
 	TrackPatch_Path(manifest, directory, "track.ini");
 	struct PatchMusic noCredit = {.menu = {(unsigned char *)absent, sizeof(absent)}};
 	SDL_PathInfo info;
@@ -345,8 +348,14 @@ static void PatchTest_Author(const char *root)
 	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "a valid credit can be saved in track metadata");
 	size_t size = 0;
 	char *content = SDL_LoadFile(manifest, &size);
-	CTR_TEST_CHECK(content != NULL && strcmp(content, "author = Example Author\n") == 0,
-	               "the generated manifest contains only the detected author");
+	CTR_TEST_CHECK(content != NULL && strstr(content, "author = Example Author\n") != NULL,
+	               "the generated manifest contains the detected author");
+	SDL_free(content);
+	PatchTest_Write(manifest, "title = Detected Title\n", strlen("title = Detected Title\n"));
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "a detected author can be added to a detected title");
+	content = SDL_LoadFile(manifest, &size);
+	CTR_TEST_CHECK(content != NULL && strstr(content, "title = Detected Title\n") != NULL &&
+	               strstr(content, "author = Example Author\n") != NULL, "both detected metadata fields survive");
 	SDL_free(content);
 	PatchTest_Write(manifest, "author = Existing\n", strlen("author = Existing\n"));
 	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "existing metadata is preserved");

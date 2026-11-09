@@ -437,7 +437,7 @@ int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
 	return -1;
 }
 
-static int NativeTrackLibrary_ValidText(const char *text, int allowEmpty)
+int NativeTrackLibrary_ValidText(const char *text, int allowEmpty)
 {
 	if (text == NULL || strlen(text) >= NATIVE_TRACK_FIELD_MAX) { return 0; }
 	int visible = 0;

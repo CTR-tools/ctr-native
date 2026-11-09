@@ -11,7 +11,7 @@
 #include "MM_FullScreenMenu.c"
 
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
-enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_RESULT };
+enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_DISCARD_FAILED, TRACK_IMPORT_RESULT };
 static enum TrackImportState s_trackImportState;
 static const char *s_trackImportMessage;
 static bool s_trackImportIsPatch;
@@ -242,6 +242,10 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 			if (!confirm) { OtherFX_Play(0, 1); }
 		}
 	}
+	else if (s_trackImportState == TRACK_IMPORT_DISCARD_FAILED)
+	{
+		NativeTrackPatch_ReviewDiscard();
+	}
 	if (!back && (s_trackReviewRow == TRACK_REVIEW_MUSIC_SOURCE || s_trackReviewRow == TRACK_REVIEW_MUSIC_TRACK) &&
 	    ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
 	{
@@ -390,10 +394,23 @@ int MM_TrackImport_Update(u32 buttons)
 	}
 	else if (s_trackImportState == TRACK_IMPORT_DISCARDING)
 	{
-		if (NativeTrackPatch_Poll() != 0)
+		int result = NativeTrackPatch_Poll();
+		if (result < 0 && NativeTrackPatch_ReviewDirectory() != NULL)
+		{
+			s_trackImportMessage = "Cleanup failed - confirm to retry";
+			s_trackImportState = TRACK_IMPORT_DISCARD_FAILED;
+		}
+		else if (result != 0)
 		{
 			s_trackImportMessage = NativeTrackPatch_Message();
 			s_trackImportState = TRACK_IMPORT_RESULT;
+		}
+	}
+	else if (s_trackImportState == TRACK_IMPORT_DISCARD_FAILED)
+	{
+		if (FullScreenMenu_Confirm(buttons) && NativeTrackPatch_ReviewDiscardStart())
+		{
+			s_trackImportState = TRACK_IMPORT_DISCARDING;
 		}
 	}
 	else if (!MusicPreview_Busy() && (buttons & (BTN_CROSS | BTN_CIRCLE | BTN_TRIANGLE | BTN_START)) != 0)
@@ -408,5 +425,5 @@ const char *MM_TrackImport_Message(void)
 {
 	return s_trackImportState == TRACK_IMPORT_CHOOSING ? (s_trackImportIsPatch ? "Choose an xdelta patch" : "Choose a track folder") :
 	       (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING || s_trackImportState == TRACK_IMPORT_DISCARDING) ? NativeTrackPatch_Message() :
-	       s_trackImportState == TRACK_IMPORT_RESULT ? s_trackImportMessage : "";
+	       (s_trackImportState == TRACK_IMPORT_RESULT || s_trackImportState == TRACK_IMPORT_DISCARD_FAILED) ? s_trackImportMessage : "";
 }
