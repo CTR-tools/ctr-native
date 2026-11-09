@@ -37,6 +37,18 @@ int MusicPreview_Busy(void) { return 0; }
 static int s_musicRetail = -1;
 static char s_musicIdentity[256];
 static int s_musicAvailable;
+static unsigned int s_excluded;
+int NativeTrackPatch_ReviewIncluded(const char *identity)
+{
+	unsigned int bit = strcmp(identity, "local:other") == 0 ? 2u : 1u;
+	return (s_excluded & bit) == 0;
+}
+int NativeTrackPatch_ReviewSetIncluded(const char *identity, int included)
+{
+	unsigned int bit = strcmp(identity, "local:other") == 0 ? 2u : 1u;
+	if (included) { s_excluded &= ~bit; } else { s_excluded |= bit; }
+	return 1;
+}
 static struct NativeTrackRegistry *s_installedRegistry;
 const char *NativeTrackPatch_ReviewMusic(const char *identity) { (void)identity; return s_musicIdentity[0] ? s_musicIdentity : NULL; }
 int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
@@ -140,6 +152,7 @@ int main(void)
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
 	MM_TrackImport_Update(BTN_DOWN);
 	CTR_TEST_CHECK(s_sound == 0, "review navigation uses the shared menu navigation sound");
+	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_CROSS);
 	CTR_TEST_CHECK(s_trackReviewEditing && s_editResult == NATIVE_TEXT_EDIT_ACTIVE && s_sound == 1,
 	               "name opens the keyboard editor with the shared confirmation sound");
@@ -189,6 +202,23 @@ int main(void)
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(strcmp(view.musicSource, "Custom") == 0 && view.musicIndex == 1 && view.musicTrack == NULL,
 	               "an imported custom song is selected by default");
+ 	CTR_TEST_CHECK(view.included && view.includedCount == 2, "all imported tracks are selected initially");
+	s_trackReviewRow = TRACK_REVIEW_INCLUDE;
+	MM_TrackImport_Update(BTN_CROSS);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(!view.included && view.includedCount == 1, "a track can be excluded without removing it from review");
+	s_trackReviewIndex = 1;
+	MM_TrackImport_Update(BTN_CROSS);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(!view.included && view.includedCount == 0, "every candidate can be excluded");
+	s_trackReviewRow = TRACK_REVIEW_CONFIRM;
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_CHECK(s_commits == 0 && s_trackImportState == TRACK_IMPORT_REVIEW, "an empty selection cannot be confirmed");
+	s_trackReviewRow = TRACK_REVIEW_INCLUDE;
+	MM_TrackImport_Update(BTN_CROSS);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(view.included && view.includedCount == 1, "an excluded track can be restored");
+	s_trackReviewIndex = 0;
 	s_trackReviewRow = TRACK_REVIEW_MUSIC_TRACK;
 	MM_TrackImport_Update(BTN_RIGHT);
 	MM_TrackImport_GetReview(&view);
@@ -200,6 +230,7 @@ int main(void)
 	CTR_TEST_CHECK(view.musicIndex == 1 && strcmp(s_musicIdentity, "local:track") == 0,
 	               "custom choices wrap within this import and exclude previously installed tracks");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
+	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);

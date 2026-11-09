@@ -62,6 +62,17 @@ static const struct NativeTrackMetadata *MM_TrackImport_ReviewTrack(void)
 	return NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + s_trackReviewIndex);
 }
 
+static int MM_TrackImport_IncludedCount(void)
+{
+	int count = 0;
+	for (int i = 0; i < (int)NativeTrackRegistry_Count(s_trackReviewRegistry); i++)
+	{
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		if (track != NULL && NativeTrackPatch_ReviewIncluded(track->identity)) { count++; }
+	}
+	return count;
+}
+
  static void MM_TrackImport_PreviewMusic(void)
 {
 	const struct NativeTrackMetadata *track = MM_TrackImport_ReviewTrack();
@@ -127,6 +138,7 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	    .musicSource = custom ? "Custom" : "Retail",
 	    .musicTrack = custom ? NULL : sdata->lngStrings[data.metaDataLEV[choice].name_LNG],
 	    .musicIndex = custom ? choice + 1 : 0,
+	    .included = NativeTrackPatch_ReviewIncluded(track->identity), .includedCount = MM_TrackImport_IncludedCount(),
 	};
 	return 1;
 }
@@ -217,6 +229,19 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	int back = FullScreenMenu_Back(buttons);
 	int confirm = !back && FullScreenMenu_Confirm(buttons);
 	int count = (int)NativeTrackRegistry_Count(s_trackReviewRegistry);
+	if (!back && s_trackReviewRow == TRACK_REVIEW_INCLUDE && ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
+	{
+		if (!NativeTrackPatch_ReviewSetIncluded(track->identity, !NativeTrackPatch_ReviewIncluded(track->identity)))
+		{
+			s_trackImportMessage = "Cannot change track selection";
+			OtherFX_Play(2, 1);
+		}
+		else
+		{
+			s_trackImportMessage = NULL;
+			if (!confirm) { OtherFX_Play(0, 1); }
+		}
+	}
 	if (!back && (s_trackReviewRow == TRACK_REVIEW_MUSIC_SOURCE || s_trackReviewRow == TRACK_REVIEW_MUSIC_TRACK) &&
 	    ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
 	{
@@ -263,7 +288,12 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	}
 	else if (confirm && s_trackReviewRow == TRACK_REVIEW_CONFIRM)
 	{
-		if (NativeTrackPatch_ReviewCommitStart())
+		if (MM_TrackImport_IncludedCount() == 0)
+		{
+			s_trackImportMessage = "Select at least one track";
+			OtherFX_Play(2, 1);
+		}
+		else if (NativeTrackPatch_ReviewCommitStart())
 		{
 			MusicPreview_Restore();
 			s_trackImportState = TRACK_IMPORT_INSTALLING;

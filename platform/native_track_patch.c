@@ -28,9 +28,20 @@ struct TrackPatchJob
 	char result[256];
 	struct TrackPatchMusicChoice musicChoices[PATCH_TRACK_LIMIT];
 	int musicChoiceCount;
+	char excluded[PATCH_TRACK_LIMIT][256];
+	int excludedCount;
 };
 
 static struct TrackPatchJob s_trackPatchJob;
+
+static int TrackPatch_Included(const struct TrackPatchJob *job, const char *identity)
+{
+	for (int i = 0; identity != NULL && i < job->excludedCount; i++)
+	{
+		if (strcmp(job->excluded[i], identity) == 0) { return 0; }
+	}
+	return 1;
+}
 
 static const char *TrackPatch_MusicChoice(const struct TrackPatchJob *job, const char *identity)
 {
@@ -507,6 +518,18 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 	}
 	else
 	{
+		char lev[PATCH_PATH_BYTES];
+		const struct NativeTrackMetadata *preparedTrack = NULL;
+		if (TrackPatch_Path(lev, source, "track.lev"))
+		{
+			for (size_t i = 0; i < NativeTrackRegistry_Count(publish->prepared); i++)
+			{
+				const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(publish->prepared, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
+				if (track != NULL && strcmp(track->levPath, lev) == 0) { preparedTrack = track; break; }
+			}
+		}
+		if (preparedTrack == NULL) { publish->error = "Cannot read prepared track"; return SDL_ENUM_FAILURE; }
+		if (!TrackPatch_Included(publish->job, preparedTrack->identity)) { return SDL_ENUM_CONTINUE; }
 		publish->error = NativeTrackImport_Directory(publish->library, source, name);
 		if (publish->error == NULL)
 		{
@@ -553,6 +576,7 @@ static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const c
 	{
 		error = "Import cancelled";
 	}
+	if (error == NULL && publish.count == 0) { error = "No tracks selected"; }
 	if (error != NULL)
 	{
 		for (int i = 0; i < publish.count; i++)
@@ -770,6 +794,31 @@ const char *NativeTrackPatch_ReviewDirectory(void)
 const char *NativeTrackPatch_ReviewMusic(const char *identity)
 {
 	return TrackPatch_MusicChoice(&s_trackPatchJob, identity);
+}
+
+int NativeTrackPatch_ReviewIncluded(const char *identity)
+{
+	return TrackPatch_Included(&s_trackPatchJob, identity);
+}
+
+int NativeTrackPatch_ReviewSetIncluded(const char *identity, int included)
+{
+	struct TrackPatchJob *job = &s_trackPatchJob;
+	if (!job->reviewReady || job->thread != NULL || identity == NULL || identity[0] == '\0' || strlen(identity) >= 256) { return 0; }
+	int i = 0;
+	while (i < job->excludedCount && strcmp(job->excluded[i], identity) != 0) { i++; }
+	if (included)
+	{
+		if (i < job->excludedCount) { memcpy(job->excluded[i], job->excluded[--job->excludedCount], sizeof(job->excluded[i])); }
+		return 1;
+	}
+	if (i == job->excludedCount)
+	{
+		if (i == PATCH_TRACK_LIMIT) { return 0; }
+		SDL_strlcpy(job->excluded[i], identity, sizeof(job->excluded[i]));
+		job->excludedCount++;
+	}
+	return 1;
 }
 
 int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)

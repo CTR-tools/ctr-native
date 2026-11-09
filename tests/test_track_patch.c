@@ -109,24 +109,37 @@ static void PatchTest_Review(const char *root, const char *source)
 	               "a second candidate can be prepared after discard");
 	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "other") == NULL,
 	               "a second candidate is available for music exchange");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "discard") == NULL,
+	               "a third candidate can be excluded while retaining its music");
 	char sca[PATCH_PATH_BYTES];
 	TrackPatch_Path(sca, prepared, "candidate/track.sca");
 	PatchTest_Write(sca, "first", 5);
 	TrackPatch_Path(sca, prepared, "other/track.sca");
 	PatchTest_Write(sca, "second", 6);
+	TrackPatch_Path(sca, prepared, "discard/track.sca");
+	PatchTest_Write(sca, "excluded music", 14);
 	s_trackPatchJob.reviewReady = 1;
 	SDL_strlcpy(s_trackPatchJob.work, work, sizeof(s_trackPatchJob.work));
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetMusic("local:candidate", "local:other") &&
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetMusic("local:candidate", "local:discard") &&
 	               NativeTrackPatch_ReviewSetMusic("local:other", "local:candidate"),
 	               "review can select music from another candidate in both directions");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:discard", 0) &&
+	               !NativeTrackPatch_ReviewIncluded("local:discard"), "a candidate can be excluded without deleting its files");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:candidate", 0) && NativeTrackPatch_ReviewSetIncluded("local:other", 0) &&
+	               NativeTrackPatch_ReviewCommit() != NULL && NativeTrackPatch_ReviewDirectory() != NULL,
+	               "publishing no tracks fails while retaining the review");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:candidate", 1) && NativeTrackPatch_ReviewSetIncluded("local:other", 1),
+	               "excluded candidates can be reselected");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommit() == NULL && SDL_GetPathInfo(library, &info) && !SDL_GetPathInfo(work, &info),
 	               "confirm publishes the candidate and removes the temporary import");
 	TrackPatch_Path(sca, library, "candidate/track.sca");
 	size_t musicSize = 0;
 	char *musicBytes = SDL_LoadFile(sca, &musicSize);
-	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 6 && memcmp(musicBytes, "second", 6) == 0,
-	               "the selected custom music is copied into the candidate directory");
+	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 14 && memcmp(musicBytes, "excluded music", 14) == 0,
+	               "music from an excluded track is copied into the selected candidate directory");
 	SDL_free(musicBytes);
+	TrackPatch_Path(sca, library, "discard");
+	CTR_TEST_CHECK(!SDL_GetPathInfo(sca, &info), "the excluded candidate is not published");
 	TrackPatch_Path(sca, library, "other/track.sca");
 	musicBytes = SDL_LoadFile(sca, &musicSize);
 	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 5 && memcmp(musicBytes, "first", 5) == 0,

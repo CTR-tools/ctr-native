@@ -12,6 +12,8 @@ const char *NativeTrackPatch_ReviewDirectory(void);
 const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author);
 int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source);
 const char *NativeTrackPatch_ReviewMusic(const char *identity);
+int NativeTrackPatch_ReviewIncluded(const char *identity);
+int NativeTrackPatch_ReviewSetIncluded(const char *identity, int included);
 const char *NativeTrackPatch_ReviewCommit(void);
 int NativeTrackPatch_ReviewCommitStart(void);
 /* Transfers a completed background scan to the caller. */

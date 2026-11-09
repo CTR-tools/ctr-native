@@ -4,6 +4,7 @@
 enum TrackImportReviewRow
 {
 	TRACK_REVIEW_TRACK,
+	TRACK_REVIEW_INCLUDE,
 	TRACK_REVIEW_TITLE,
 	TRACK_REVIEW_AUTHOR,
 	TRACK_REVIEW_MUSIC_SOURCE,
@@ -19,6 +20,7 @@ struct TrackImportReviewView
 	const char *musicSource, *musicTrack;
 	int musicIndex;
 	int index, count, row, editing;
+	int included, includedCount;
 };
 
 void MM_TrackImport_Reset(void);

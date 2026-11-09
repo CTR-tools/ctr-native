@@ -148,8 +148,12 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 {
 	(void)selected;
 	const struct TrackImportReviewView *view = context;
-	static const char *const labels[] = {"Track", "Name", "Author", "Music source", "Music track", "Confirm import", "Cancel import"};
-	FullScreenMenu_DrawRowLabel(labels[row], y, ot);
+	static const char *const labels[] = {"Track", "Import", "Name", "Author", "Music source", "Music track", "Confirm import", "Cancel import"};
+	if (row == TRACK_REVIEW_CONFIRM && view->includedCount == 0)
+	{
+		DecalFont_DrawLineOT((char *)labels[row], FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
+	}
+	else { FullScreenMenu_DrawRowLabel(labels[row], y, ot); }
 	char value[CUSTOM_TRACKS_DETAIL_BYTES];
 	if (row == TRACK_REVIEW_TRACK)
 	{
@@ -178,6 +182,16 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 			const char *text = row == TRACK_REVIEW_MUSIC_SOURCE ? view->musicSource : view->musicTrack;
 			CustomTracks_FormatText(value, sizeof(value), text != NULL ? text : "", FULLSCREEN_MENU_CONTENT_W / 2);
 		}
+	}
+	else if (row == TRACK_REVIEW_INCLUDE)
+	{
+		snprintf(value, sizeof(value), "%s", view->included ? "Yes" : "No");
+	}
+	else if (row == TRACK_REVIEW_CONFIRM)
+	{
+		snprintf(value, sizeof(value), "%d / %d", view->includedCount, view->count);
+		FullScreenMenu_DrawValueTextColored(value, y, view->includedCount == 0 ? GRAY : WHITE, ot);
+		return;
 	}
 	else { return; }
 	FullScreenMenu_DrawValueText(value, y, ot);
