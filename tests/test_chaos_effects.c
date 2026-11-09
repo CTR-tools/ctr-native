@@ -311,6 +311,16 @@ static void TestMyPlanetNeedsMe(void)
 static void TestLaunchSpeedLimit(void)
 {
 	CTR_TEST_SECTION("launches fit canonical speed without reversing at high speed or on repeated activation");
+	CTR_TEST_CHECK_EQ(VehPhysForce_ClampTerminalVelocity(27000, 27576, 8000), 27000,
+	    "gravity reduces upward launch speed even above terminal velocity");
+	CTR_TEST_CHECK_EQ(VehPhysForce_ClampTerminalVelocity(-27000, -27576, 8000), -27000,
+	    "inward acceleration also reduces downward overspeed");
+	CTR_TEST_CHECK_EQ(VehPhysForce_ClampTerminalVelocity(28000, 27576, 8000), 27576,
+	    "outward acceleration cannot increase existing overspeed");
+	CTR_TEST_CHECK_EQ(VehPhysForce_ClampTerminalVelocity(9000, 7500, 8000), 8000,
+	    "outward acceleration from within the limit stops at terminal velocity");
+	CTR_TEST_CHECK_EQ(VehPhysForce_ClampTerminalVelocity(-9000, -7500, 8000), -8000,
+	    "downward acceleration from within the limit stops at terminal velocity");
 	SetupRace(CHAOS_TRIGGER_EXTERNAL);
 	for (int i = 0; i < ANG_HALF_PI; i++)
 	{
