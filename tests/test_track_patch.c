@@ -546,12 +546,24 @@ static void PatchTest_Music(const char *root)
 	original[6150] = 1; /* one song */
 	memcpy(patched, original, sizeof(original));
 	struct PatchMusic music = {.original.bytes = {original, sizeof(original)},
-	                           .patched.bytes = {patched, sizeof(patched)}, .exe = {exe, sizeof(exe)}};
+	                           .patched.bytes = {patched, sizeof(patched)}, .exe = {exe, sizeof(exe)},
+	                           .originalExe = {exe, sizeof(exe)}};
 	char output[PATCH_PATH_BYTES];
 	TrackPatch_Path(output, root, "synthetic.sca");
 	CTR_TEST_CHECK(PatchMusic_Howl(&music.original) && PatchMusic_Howl(&music.patched),
 	               "bounded HWL tables can be parsed");
 	CTR_TEST_CHECK(PatchMusic_WriteSca(&music, 0, output), "a compatible bank and CSEQ produce an SCA");
+	CTR_TEST_CHECK(PatchMusic_RetailMatch(&music, 3) == 3, "unchanged audio selects the matching retail level instead of custom SCA");
+	unsigned char *retailExe = calloc(1, sizeof(exe));
+	if (retailExe == NULL) { CtrTest_Bail("cannot allocate retail music fixture"); }
+	memset(retailExe + PATCH_MUSIC_BANK_TABLE, 255, 18);
+	retailExe[PATCH_MUSIC_BANK_TABLE + 5] = 0;
+	music.originalExe = (struct PatchMusicBytes){retailExe, sizeof(exe)};
+	CTR_TEST_CHECK(PatchMusic_RetailMatch(&music, 3) == 5, "retail audio redirected to a different level is identified by content");
+	patched[6144 + 31] = 1;
+	CTR_TEST_CHECK(PatchMusic_RetailMatch(&music, 3) < 0, "a modified song is not classified as retail");
+	patched[6144 + 31] = 0;
+	free(retailExe);
 	FILE *file = fopen(output, "rb");
 	unsigned char sca[2200] = {0};
 	size_t n = file != NULL ? fread(sca, 1, sizeof(sca), file) : 0;

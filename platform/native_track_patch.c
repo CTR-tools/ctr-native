@@ -290,6 +290,19 @@ static const char *TrackPatch_WriteTitle(const char *prepared, const char *name,
 	return ok ? NULL : "Cannot write track metadata";
 }
 
+static int TrackPatch_WriteRetailMusic(const char *directory, const char *name, int level)
+{
+	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
+	int ok = registry != NULL && NativeTrackLibrary_ReadDirectory(registry, directory, name);
+	if (ok)
+	{
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+		ok = NativeTrackLibrary_SetMusic(track, level, 0);
+	}
+	NativeTrackRegistry_Destroy(registry);
+	return ok;
+}
+
 /* Generic strategy: compare bigtool's 18 named 1P pairs against retail. This
  * also handles single-track patches without knowing their custom loader. */
 static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
@@ -352,15 +365,20 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			{
 				return "Path is too long";
 			}
-			int level = PatchMusic_SelectLevel(music, i);
-			if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
-			else { music->skipped++; }
 			char title[256];
 			if (PatchMusic_AllBinTrack(&music->exe, &music->all, i, title, sizeof(title)) >= 0 && title[0] != '\0')
 			{
 				const char *titleError = TrackPatch_WriteTitle(prepared, name, title);
 				if (titleError != NULL) { return titleError; }
 			}
+			int level = PatchMusic_SelectLevel(music, i);
+			int retail = level >= 0 ? PatchMusic_RetailMatch(music, level) : -1;
+			if (retail >= 0)
+			{
+				if (!TrackPatch_WriteRetailMusic(directory, name, retail)) { return "Cannot save retail music"; }
+			}
+			else if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
+			else { music->skipped++; }
 		}
 		accepted[(*count)++] = i;
 	}
