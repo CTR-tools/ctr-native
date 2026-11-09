@@ -11,7 +11,7 @@
 #include "MM_FullScreenMenu.c"
 
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
-enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_RESULT };
+enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_RESULT };
 static enum TrackImportState s_trackImportState;
 static const char *s_trackImportMessage;
 static bool s_trackImportIsPatch;
@@ -114,7 +114,7 @@ void MM_TrackImport_Reset(void)
 		MM_TrackImport_ReviewClose();
 		NativeTrackPatch_ReviewDiscard();
 	}
-	else if (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING)
+	else if (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING || s_trackImportState == TRACK_IMPORT_DISCARDING)
 	{
 		NativeTrackPatch_Shutdown();
 		MM_TrackImport_ReviewClose();
@@ -277,9 +277,12 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	}
 	if (back || (confirm && s_trackReviewRow == TRACK_REVIEW_CANCEL))
 	{
-		MM_TrackImport_ReviewClose();
-		s_trackImportMessage = NativeTrackPatch_ReviewDiscard() ? "Import cancelled" : "Cannot discard import";
-		s_trackImportState = TRACK_IMPORT_RESULT;
+		if (NativeTrackPatch_ReviewDiscardStart())
+		{
+			MM_TrackImport_ReviewClose();
+			s_trackImportState = TRACK_IMPORT_DISCARDING;
+		}
+		else { s_trackImportMessage = "Cannot discard import"; }
 	}
 	else if (confirm && (s_trackReviewRow == TRACK_REVIEW_TITLE || s_trackReviewRow == TRACK_REVIEW_AUTHOR))
 	{
@@ -382,6 +385,14 @@ int MM_TrackImport_Update(u32 buttons)
 			}
 		}
 	}
+	else if (s_trackImportState == TRACK_IMPORT_DISCARDING)
+	{
+		if (NativeTrackPatch_Poll() != 0)
+		{
+			s_trackImportMessage = NativeTrackPatch_Message();
+			s_trackImportState = TRACK_IMPORT_RESULT;
+		}
+	}
 	else if (!MusicPreview_Busy() && (buttons & (BTN_CROSS | BTN_CIRCLE | BTN_TRIANGLE | BTN_START)) != 0)
 	{
 		OtherFX_Play((buttons & (BTN_TRIANGLE | BTN_START)) != 0 ? 2 : 1, 1);
@@ -393,6 +404,6 @@ int MM_TrackImport_Update(u32 buttons)
 const char *MM_TrackImport_Message(void)
 {
 	return s_trackImportState == TRACK_IMPORT_CHOOSING ? (s_trackImportIsPatch ? "Choose an xdelta patch" : "Choose a track folder") :
-	       (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING) ? NativeTrackPatch_Message() :
+	       (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING || s_trackImportState == TRACK_IMPORT_DISCARDING) ? NativeTrackPatch_Message() :
 	       s_trackImportState == TRACK_IMPORT_RESULT ? s_trackImportMessage : "";
 }

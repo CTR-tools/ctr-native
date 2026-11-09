@@ -19,6 +19,7 @@ int NativeTrackPatch_ReviewCommitStart(void);
 /* Transfers a completed background scan to the caller. */
 struct NativeTrackRegistry *NativeTrackPatch_TakeRegistry(void);
 int NativeTrackPatch_ReviewDiscard(void);
+int NativeTrackPatch_ReviewDiscardStart(void);
 int NativeTrackPatch_Poll(void); /* 0 running, 1 success, -1 failure/cancel */
 const char *NativeTrackPatch_Message(void);
 void NativeTrackPatch_Cancel(void);

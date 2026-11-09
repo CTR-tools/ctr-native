@@ -86,6 +86,7 @@ int NativeTrackPatch_ReviewCommitStart(void) { s_commits++; s_patchResult = 0; r
 struct NativeTrackRegistry *NativeTrackPatch_TakeRegistry(void) { return NativeTrackRegistry_Create(); }
 void NativeTrackLibrary_Replace(struct NativeTrackRegistry *registry) { s_refresh++; NativeTrackRegistry_Destroy(registry); }
 int NativeTrackPatch_ReviewDiscard(void) { s_discards++; return 1; }
+int NativeTrackPatch_ReviewDiscardStart(void) { s_discards++; s_patchResult = 0; return 1; }
 const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
 {
 	(void)identity;
@@ -166,9 +167,15 @@ int main(void)
 	CTR_TEST_CHECK(strcmp(s_lastTitle, "New Name") == 0 && strcmp(s_lastAuthor, "Author") == 0,
 	               "enter saves the edited name without changing attribution");
 	MM_TrackImport_Update(BTN_TRIANGLE);
-	CTR_TEST_CHECK(s_discards == 1 && s_commits == 0 && s_refresh == 0 && s_sound == 2,
-	               "back discards the staged folder with the shared back sound");
+	CTR_TEST_CHECK(s_discards == 1 && s_commits == 0 && s_refresh == 0 && s_sound == 2 &&
+	               s_trackImportState == TRACK_IMPORT_DISCARDING,
+	               "back starts asynchronous cleanup with the shared back sound");
 	CTR_TEST_CHECK(s_previewRestores > 0, "leaving review restores the menu music");
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARDING, "review cleanup remains responsive while pending");
+	s_patchResult = 1;
+	MM_TrackImport_Update(0);
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_RESULT, "completed cleanup displays its result");
 	MM_TrackImport_Update(BTN_CROSS);
 	s_prepareError = "Invalid LEV or VRM";
 	MM_TrackImport_Open();

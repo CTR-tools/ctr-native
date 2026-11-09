@@ -945,6 +945,31 @@ int NativeTrackPatch_ReviewDiscard(void)
 	return 1;
 }
 
+static int SDLCALL TrackPatch_DiscardWorker(void *userdata)
+{
+	struct TrackPatchJob *job = userdata;
+	job->succeeded = TrackPatch_RemoveTree(job->work);
+	if (job->succeeded)
+	{
+		job->reviewReady = 0;
+		job->work[0] = '\0';
+	}
+	SDL_strlcpy(job->result, job->succeeded ? "Import cancelled" : "Cannot discard import", sizeof(job->result));
+	SDL_SetAtomicInt(&job->done, 1);
+	return 0;
+}
+
+int NativeTrackPatch_ReviewDiscardStart(void)
+{
+	struct TrackPatchJob *job = &s_trackPatchJob;
+	if (job->thread != NULL || !job->reviewReady) { return 0; }
+	SDL_SetAtomicInt(&job->done, 0);
+	SDL_SetAtomicInt(&job->cancel, 0);
+	SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
+	job->thread = SDL_CreateThread(TrackPatch_DiscardWorker, "track-discard", job);
+	return job->thread != NULL;
+}
+
 int NativeTrackPatch_Poll(void)
 {
 	if (s_trackPatchJob.thread == NULL) { return s_trackPatchJob.succeeded ? 1 : -1; }

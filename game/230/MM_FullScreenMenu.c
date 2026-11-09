@@ -455,8 +455,9 @@ static inline void FullScreenMenu_NavScroll(struct GamepadBuffer *pad, struct Fu
 
 static inline void FullScreenMenu_DrawPrompt(const char *text, uint32_t *ot)
 {
-	int height = DecalFont_DrawMultiLine((char *)text, 0x100, 0xb4, 400, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
-	RECT rect = {-10, 0xb0, 0x214, height + 8};
+	int y = SCREEN_HEIGHT - data.font_charPixHeight[FONT_SMALL] - 4;
+	int height = DecalFont_DrawMultiLine((char *)text, 0x100, y, 400, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+	RECT rect = {-10, y - 4, 0x214, height + 8};
 	RECTMENU_DrawInnerRect(&rect, 4, ot);
 }
 

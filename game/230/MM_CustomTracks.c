@@ -200,8 +200,6 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *view, struct GameTracker *gGT, uint32_t *ot)
 {
 	struct FullScreenMenu_Scroll scroll = {0};
-	FullScreenMenu_DrawScreen("Review Import", 0, &scroll,
-	                          TRACK_REVIEW_ROWS, view->row, CustomTracks_DrawImportReviewRow, view, gGT, ot);
 	if (view->editing)
 	{
 		FullScreenMenu_DrawPrompt("Enter: save  Esc: cancel", ot);
@@ -210,6 +208,8 @@ static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *vi
 	{
 		FullScreenMenu_DrawPrompt(view->message, ot);
 	}
+	FullScreenMenu_DrawScreen("Review Import", 0, &scroll,
+	                          TRACK_REVIEW_ROWS, view->row, CustomTracks_DrawImportReviewRow, view, gGT, ot);
 }
 
 // Uses the caller's row while open, restoring it when returning to Options.

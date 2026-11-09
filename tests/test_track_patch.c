@@ -159,8 +159,12 @@ static void PatchTest_Review(const char *root, const char *source)
 	TrackPatch_Path(library, assets, "tracks");
 	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL && NativeTrackPatch_ReviewDirectory() != NULL &&
 	               !SDL_GetPathInfo(library, &info), "folder imports also prepare without publishing");
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscard() && SDL_GetPathInfo(source, &info) && !SDL_GetPathInfo(library, &info),
-	               "discarding a folder import preserves the user's source");
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscardStart(), "discarding a folder import starts background cleanup");
+	int discardResult;
+	while ((discardResult = NativeTrackPatch_Poll()) == 0) { SDL_Delay(1); }
+	CTR_TEST_CHECK(discardResult == 1 && NativeTrackPatch_ReviewDirectory() == NULL &&
+	               SDL_GetPathInfo(source, &info) && !SDL_GetPathInfo(library, &info),
+	               "background cleanup removes the review and preserves the user's source");
 	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL, "a discarded folder can be prepared again");
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);

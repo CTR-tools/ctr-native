@@ -6,9 +6,13 @@ struct sData sdata_static;
 struct Data data;
 struct OverlayDATA_232 D232;
 static int s_promptDraws, s_cursorDraws;
+static int s_drawOrder, s_promptOrder, s_promptBoxOrder, s_frameOrder, s_promptY;
+static RECT s_promptRect;
 s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 flags)
 {
-	(void)text; (void)x; (void)y; (void)width; (void)font; (void)flags;
+	(void)text; (void)x; (void)width; (void)font; (void)flags;
+	s_promptY = y;
+	s_promptOrder = ++s_drawOrder;
 	s_promptDraws++;
 	return 8;
 }
@@ -200,7 +204,9 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 }
 void RECTMENU_DrawInnerRect(RECT *rect, int inset, u32 *ot)
 {
-	(void)rect; (void)inset; (void)ot;
+	s_promptRect = *rect;
+	s_promptBoxOrder = ++s_drawOrder;
+	(void)inset; (void)ot;
 }
 void RECTMENU_DrawOuterRect_Edge(RECT *rect, const Color *color, u32 flags, u32 *ot)
 {
@@ -212,6 +218,7 @@ void CTR_Box_DrawClearBox(const RECT *rect, const Color *color, s32 transparency
 }
 void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *rect)
 {
+	s_frameOrder = ++s_drawOrder;
 	s_frameDrawStyle = menu->drawStyle;
 	(void)rect;
 }
@@ -869,14 +876,20 @@ int main(void)
 	CTR_TEST_CHECK(s_promptDraws == 0, "the editing hint is hidden while not typing");
 	review.editing = 1;
 	review.editingValue = "Circuit";
+	data.font_charPixHeight[FONT_SMALL] = 8;
 	sdata->frameCounter = 0;
 	s_cursorDraws = 0;
 	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
 	CTR_TEST_CHECK(s_promptDraws == 1 && s_cursorDraws == 1, "editing shows the hint and cursor");
+	CTR_TEST_CHECK(s_promptY == SCREEN_HEIGHT - 12 && s_promptRect.y + s_promptRect.h == SCREEN_HEIGHT,
+	               "the hint box is positioned at the bottom of the screen");
+	CTR_TEST_CHECK(s_promptOrder < s_promptBoxOrder && s_promptBoxOrder < s_frameOrder,
+	               "the reversed ordering table draws the hint text and box above the menu");
 	sdata->frameCounter = 15;
 	s_cursorDraws = 0;
 	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
 	CTR_TEST_CHECK(s_cursorDraws == 0, "the editing cursor blinks off");
+	data.font_charPixHeight[FONT_SMALL] = 0;
 	TestNavigation();
 	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");
