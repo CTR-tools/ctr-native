@@ -68,6 +68,7 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_pgxp.c"
 #include "platform/native_glad.c"
 #include "platform/native_input.c"
+#include "platform/native_text_edit.c"
 #include "platform/native_inline_c.c"
 #include "platform/native_libapi.c"
 #include "platform/native_libetc.c"

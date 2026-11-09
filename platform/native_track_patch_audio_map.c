@@ -104,6 +104,169 @@ static int PatchMusic_ExeValid(const struct PatchMusicBytes *exe)
 	       PatchDisc_Read32(exe->data + 28) <= exe->size - PATCH_MUSIC_EXE_HEADER;
 }
 
+/* Adventure loaders copy two 27/28-byte BIGFILE index arrays to the stack,
+ * then use the first for VRM and the second for LEV. Match the copy and queue
+ * instructions, validate every pair, and reject ambiguous signatures. The
+ * returned array index is the loader's selection index, not a retail level. */
+static int PatchMusic_AdventureFiles(const struct PatchMusicBytes *exe, unsigned char vrm[27], unsigned char lev[27])
+{
+	if (!PatchMusic_ExeValid(exe)) { return 0; }
+	int matches = 0;
+	for (size_t at = 0x23e00; at + 20 < 0x23f80; at += 4)
+	{
+		const unsigned char *p = exe->data + at;
+		uint32_t size = PatchDisc_Read32(p + 4), address = PatchDisc_Read32(p + 8);
+		if (PatchDisc_Read32(p) != UINT32_C(0x3c058003) ||
+		    (size != UINT32_C(0x2406001b) && size != UINT32_C(0x2406001c)) ||
+		    (address & UINT32_C(0xffff0000)) != UINT32_C(0x24a50000) ||
+		    PatchDisc_Read32(p + 12) != UINT32_C(0x0c01df2e) ||
+		    PatchDisc_Read32(p + 16) != UINT32_C(0x27a40018)) { continue; }
+		int count = size & 0xffff;
+		uint32_t levAddr = UINT32_C(0x80030000) + (int16_t)address;
+		uint32_t vrmAddr = levAddr - (count == 27 ? 28 : 32);
+		int previous = 0, load = 0;
+		for (size_t i = at >= 64 ? at - 64 : 0; i < at; i += 4)
+		{
+			uint32_t w = PatchDisc_Read32(exe->data + i);
+			if ((w & UINT32_C(0xffff0000)) == UINT32_C(0x24a50000) &&
+			    UINT32_C(0x80030000) + (int16_t)w == vrmAddr) { previous = 1; }
+		}
+		for (size_t i = PATCH_MUSIC_LOADER_START; i + 24 < PATCH_MUSIC_LOADER_END; i += 4)
+		{
+			uint32_t w = PatchDisc_Read32(exe->data + i);
+			if ((w >> 26) != 36 || ((w >> 16) & 31) != 6 || (w & 0xffff) != 28) { continue; }
+			for (size_t j = i + 4; j <= i + 20; j += 4)
+			{
+				if (PatchDisc_Read32(exe->data + j) == UINT32_C(0x0c00cb4c)) { load = 1; }
+			}
+		}
+		if (!previous || !load || vrmAddr < UINT32_C(0x80010000) || levAddr < UINT32_C(0x80010000)) { continue; }
+		size_t vo = (size_t)(vrmAddr - UINT32_C(0x80010000)) + PATCH_MUSIC_EXE_HEADER;
+		size_t lo = (size_t)(levAddr - UINT32_C(0x80010000)) + PATCH_MUSIC_EXE_HEADER;
+		if (vo > exe->size || exe->size - vo < 27 || lo > exe->size || exe->size - lo < 27) { continue; }
+		for (int i = 0; i < 27; i++)
+		{
+			if ((unsigned int)exe->data[vo + i] + 1 != exe->data[lo + i] || (exe->data[vo + i] & 1) != 0) { return 0; }
+		}
+		if (++matches != 1) { return 0; }
+		memcpy(vrm, exe->data + vo, 27);
+		memcpy(lev, exe->data + lo, 27);
+	}
+	return matches == 1;
+}
+
+/* The LEGO-style menu copies 27 title pointers in the same selection order as
+ * its BIGFILE arrays. Refuse unknown loading addresses and invalid pointers. */
+static int PatchMusic_AdventureTitle(const struct PatchMusicBytes *exe, const struct PatchMusicBytes *adventure,
+                                     int index, char *title, size_t capacity)
+{
+	if (!PatchMusic_ExeValid(exe) || adventure->data == NULL || index < 0 || index >= 27 || capacity < 2) { return 0; }
+	unsigned char vrm[27], lev[27];
+	if (!PatchMusic_AdventureFiles(exe, vrm, lev)) { return 0; }
+	const uint32_t base = UINT32_C(0x807f1000);
+	size_t table = SIZE_MAX;
+	for (size_t at = PATCH_MUSIC_EXE_HEADER; at + 28 <= exe->size; at += 4)
+	{
+		const unsigned char *p = exe->data + at;
+		uint32_t upper = PatchDisc_Read32(p), lower = PatchDisc_Read32(p + 12);
+		if ((upper & UINT32_C(0xffff0000)) != UINT32_C(0x3c020000) ||
+		    PatchDisc_Read32(p + 4) != upper + UINT32_C(0x00030000) ||
+		    PatchDisc_Read32(p + 8) != UINT32_C(0x27a40020) ||
+		    (lower & UINT32_C(0xffff0000)) != UINT32_C(0x24420000) ||
+		    PatchDisc_Read32(p + 16) != UINT32_C(0x00001825) ||
+		    (PatchDisc_Read32(p + 20) & UINT32_C(0xffff0000)) != UINT32_C(0x24a50000) ||
+		    PatchDisc_Read32(p + 24) != UINT32_C(0x2408001b)) { continue; }
+		uint32_t address = ((upper & 0xffff) << 16) + (int16_t)lower;
+		if (address < base || (uint64_t)address - base + 27 * 4 > adventure->size || table != SIZE_MAX) { return 0; }
+		table = address - base;
+	}
+	if (table == SIZE_MAX) { return 0; }
+	for (int i = 0; i < 27; i++)
+	{
+		uint32_t address = PatchDisc_Read32(adventure->data + table + i * 4);
+		if (address < base || (uint64_t)address - base >= adventure->size) { return 0; }
+	}
+	uint32_t address = PatchDisc_Read32(adventure->data + table + index * 4);
+	size_t offset = address - base, n = 0;
+	while (offset + n < adventure->size && n + 1 < capacity && adventure->data[offset + n] >= 32 &&
+	       adventure->data[offset + n] <= 126 && adventure->data[offset + n] != '=' &&
+	       adventure->data[offset + n] != ';' && adventure->data[offset + n] != '#') { n++; }
+	if (n == 0 || offset + n >= adventure->size || adventure->data[offset + n] != 0) { return 0; }
+	memcpy(title, adventure->data + offset, n);
+	title[n] = '\0';
+	return 1;
+}
+
+/* One multi-track loader keeps its code, music map and title pointers in an
+ * ALL.BIN loaded at 807f0000. Recognize the actual lookup instructions, not
+ * the positions of its tables, which vary with the mod's build. */
+static int PatchMusic_AllBinTrack(const struct PatchMusicBytes *exe, const struct PatchMusicBytes *all,
+                                  int slot, char *title, size_t titleSize)
+{
+	const uint32_t base = UINT32_C(0x807f0000);
+	if (!PatchMusic_ExeValid(exe) || all->data == NULL || slot < 0 || slot >= 18) { return -1; }
+	size_t musicTable = SIZE_MAX, titleTable = SIZE_MAX;
+	for (size_t at = 0; at + 32 <= all->size; at += 4)
+	{
+		const unsigned char *p = all->data + at;
+		uint32_t a = PatchDisc_Read32(p), b = PatchDisc_Read32(p + 4);
+		uint32_t c = PatchDisc_Read32(p + 8), d = PatchDisc_Read32(p + 12);
+		if (a == UINT32_C(0x2c820013) && (b & UINT32_C(0xffff0000)) == UINT32_C(0x10400000) &&
+		    (c & UINT32_C(0xffff0000)) == UINT32_C(0x3c020000) &&
+		    (d & UINT32_C(0xffff0000)) == UINT32_C(0x24420000) &&
+		    PatchDisc_Read32(p + 16) == UINT32_C(0x00a22821) &&
+		    PatchDisc_Read32(p + 20) == UINT32_C(0x90a30000) &&
+		    PatchDisc_Read32(p + 28) == UINT32_C(0x2c620012))
+		{
+			uint32_t address = ((c & 0xffff) << 16) + (int16_t)d;
+			if (address < base || (uint64_t)address - base + 18 > all->size || musicTable != SIZE_MAX) { return -1; }
+		/* Require a call to this ALL.BIN routine from one of the code images. */
+			uint32_t call = UINT32_C(0x0c000000) | ((base + (uint32_t)at) >> 2 & UINT32_C(0x03ffffff));
+			int found = 0;
+			for (size_t i = PATCH_MUSIC_EXE_HEADER; i + 4 <= exe->size; i += 4)
+			{
+				if (PatchDisc_Read32(exe->data + i) == call) { found = 1; break; }
+			}
+			/* Some builds invoke the routine from ALL.BIN instead. */
+			for (size_t i = 0; !found && i + 4 <= all->size; i += 4)
+			{
+				if (PatchDisc_Read32(all->data + i) == call) { found = 1; }
+			}
+			if (!found) { return -1; }
+			musicTable = address - base;
+		}
+		if (a == UINT32_C(0x90830003) && (b & UINT32_C(0xffff0000)) == UINT32_C(0x3c020000) &&
+		    c == UINT32_C(0x2c640012) && (d & UINT32_C(0xffff0000)) == UINT32_C(0x14800000) &&
+		    (PatchDisc_Read32(p + 16) & UINT32_C(0xffff0000)) == UINT32_C(0x24420000) &&
+		    PatchDisc_Read32(p + 20) == UINT32_C(0x8c420048) &&
+		    PatchDisc_Read32(p + 24) == UINT32_C(0x03e00008))
+		{
+			uint32_t address = ((b & 0xffff) << 16) + (int16_t)PatchDisc_Read32(p + 16);
+			if (address < base || (uint64_t)address - base + 19 * 4 > all->size || titleTable != SIZE_MAX) { return -1; }
+			titleTable = address - base;
+		}
+	}
+	if (musicTable == SIZE_MAX || titleTable == SIZE_MAX || all->data[musicTable + slot] >= 18) { return -1; }
+	if (title != NULL && titleSize != 0)
+	{
+		title[0] = '\0';
+		uint32_t address = PatchDisc_Read32(all->data + titleTable + slot * 4);
+		if (address >= base && (uint64_t)address - base < all->size)
+		{
+			size_t offset = address - base, n = 0;
+			while (offset + n < all->size && n + 1 < titleSize && all->data[offset + n] >= 32 &&
+			       all->data[offset + n] <= 126 && all->data[offset + n] != '=' && all->data[offset + n] != ';' &&
+			       all->data[offset + n] != '#') { n++; }
+			if (n != 0 && offset + n < all->size && all->data[offset + n] == 0)
+			{
+				memcpy(title, all->data + offset, n);
+				title[n] = '\0';
+			}
+		}
+	}
+	return all->data[musicTable + slot];
+}
+
 static int PatchMusic_Level(const struct PatchMusicBytes *original, const struct PatchMusicBytes *exe,
                             const struct PatchMusicBytes *menu, int slot)
 {

@@ -43,7 +43,7 @@ int main(void)
 	vrm[26] = 1;
 	WriteImportFixture(source, "track.lev", lev, sizeof(lev));
 	WriteImportFixture(source, "track.vrm", vrm, sizeof(vrm));
-	const char manifest[] = "id=example:1\ntitle=Example\n";
+	const char manifest[] = "id=example:1\ntitle=Example\nmusic=retail:7\n";
 	WriteImportFixture(source, "track.ini", manifest, sizeof(manifest) - 1);
 	CTR_TEST_SECTION("local track import");
 	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "../escape") != NULL, "destination traversal is refused");
@@ -54,6 +54,7 @@ int main(void)
 	CTR_TEST_CHECK(registry != NULL && result.installed == 1 && NativeTrackRegistry_Find(registry, "example:1", NULL),
 	               "the installed track is discoverable with its identity");
 	const struct NativeTrackMetadata *installed = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(NativeTrackLibrary_Music(installed) == 7, "installation preserves the reviewed music selection");
 	CTR_TEST_CHECK(installed != NULL && installed->detectionKnown && (installed->detectedModes & NATIVE_TRACK_DETECTED_RELIC),
 	               "folder import detects time crates from the copied LEV");
 	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(installed, NATIVE_TRACK_DETECTED_TIME_TRIAL) &&

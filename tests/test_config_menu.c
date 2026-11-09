@@ -1,10 +1,22 @@
 #include <shared/ctr_test.h>
 #include <common.h>
 #include <platform/native_track_registry.h>
+#include <platform/native_text_edit.h>
 
 struct sData sdata_static;
 struct Data data;
 struct OverlayDATA_232 D232;
+static int s_promptDraws, s_cursorDraws;
+static int s_drawOrder, s_promptOrder, s_promptBoxOrder, s_frameOrder, s_promptY;
+static RECT s_promptRect;
+s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 flags)
+{
+	(void)text; (void)x; (void)width; (void)font; (void)flags;
+	s_promptY = y;
+	s_promptOrder = ++s_drawOrder;
+	s_promptDraws++;
+	return 8;
+}
 #include <platform/native_config.c>
 
 static struct GameTracker s_tracker;
@@ -43,7 +55,16 @@ static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
 static int s_trackFixtureEnabled = 1;
-static struct NativeTrackMetadata s_trackFixture = {.title = "Test Track", .author = "Test Author", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
+static int s_trackDeleteSuccess;
+static struct NativeTrackMetadata s_trackFixture = {.identity = "test:track", .title = "Test Track", .author = "Test Author", .detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL, .detectionKnown = 1};
+static enum NativeTextEditResult s_editResult;
+static const char *s_editValue;
+static char s_savedTitle[256], s_savedAuthor[256];
+static int s_savedMusic = -1, s_musicPreviewRequests, s_musicPreviewRestores;
+static int s_previewRetail;
+static const struct NativeTrackMetadata *s_previewTrack;
+static size_t s_editCharacterLimit;
+static int s_trackNumberDraws;
 static int s_trackDetailRows[2];
 static int s_allModesY;
 static int s_unknownModesY;
@@ -72,6 +93,25 @@ const char *NativeAssets_GetBaseDir(void)
 	return NULL;
 }
 const char *NativeAssets_GetAssetDir(void) { return "fixture-assets"; }
+int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track) { (void)track; return s_savedMusic; }
+int NativeTrackLibrary_SetDetails(const struct NativeTrackMetadata *track, const char *title, const char *author)
+{ (void)track; snprintf(s_savedTitle, sizeof(s_savedTitle), "%s", title); snprintf(s_savedAuthor, sizeof(s_savedAuthor), "%s", author); return 1; }
+int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom)
+{ (void)track; (void)custom; s_savedMusic = retail; return 1; }
+int NativeTrackRegistry_Find(const struct NativeTrackRegistry *registry, const char *identity, int *level)
+{ (void)registry; (void)identity; if (level != NULL) { *level = NATIVE_TRACK_CUSTOM_ID_BASE; } return 1; }
+int NativeTextEdit_BeginForGame(const char *initial, size_t maxBytes) { (void)initial; (void)maxBytes; s_editResult = NATIVE_TEXT_EDIT_ACTIVE; return 1; }
+void NativeTextEdit_LimitCharacters(size_t maxCharacters) { s_editCharacterLimit = maxCharacters; }
+enum NativeTextEditResult NativeTextEdit_Result(void) { return s_editResult; }
+const char *NativeTextEdit_Value(void) { return s_editValue; }
+void NativeTextEdit_Close(void) {}
+void MusicPreview_Request(int retail, const struct NativeTrackMetadata *track) { s_previewRetail = retail; s_previewTrack = track; s_musicPreviewRequests++; }
+void MusicPreview_Restore(void) { s_musicPreviewRestores++; }
+int NativeTrackLibrary_Delete(const struct NativeTrackMetadata *track, const char *directory)
+{
+	(void)track; (void)directory;
+	return s_trackDeleteSuccess;
+}
 int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result)
 {
 	if (strcmp(directory, "fixture-assets/tracks") != 0) { CtrTest_Bail("unexpected track refresh path"); }
@@ -113,6 +153,8 @@ void OptionsMenu_TestSound(s32 row, b32 playing)
 void MM_MenuProc_Controls(struct RectMenu *menu) { (void)menu; }
 void MM_TrackImport_Open(void) { s_trackImportOpened++; }
 void MM_TrackImport_OpenPatch(void) { s_trackImportOpened += 10; }
+void MM_TrackImport_Reset(void) {}
+int MM_TrackImport_GetReview(struct TrackImportReviewView *view) { (void)view; return 0; }
 int MM_TrackImport_Update(u32 buttons) { (void)buttons; return 0; }
 const char *MM_TrackImport_Message(void) { return ""; }
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
@@ -144,6 +186,8 @@ s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strle
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
+	if (strcmp(text, "1 / 1") == 0) { s_trackNumberDraws++; }
 	if (strcmp(text, "System") == 0)
 	{
 		s_sectionFont = font;
@@ -190,7 +234,9 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 }
 void RECTMENU_DrawInnerRect(RECT *rect, int inset, u32 *ot)
 {
-	(void)rect; (void)inset; (void)ot;
+	s_promptRect = *rect;
+	s_promptBoxOrder = ++s_drawOrder;
+	(void)inset; (void)ot;
 }
 void RECTMENU_DrawOuterRect_Edge(RECT *rect, const Color *color, u32 flags, u32 *ot)
 {
@@ -202,6 +248,7 @@ void CTR_Box_DrawClearBox(const RECT *rect, const Color *color, s32 transparency
 }
 void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *rect)
 {
+	s_frameOrder = ++s_drawOrder;
 	s_frameDrawStyle = menu->drawStyle;
 	(void)rect;
 }
@@ -330,12 +377,79 @@ static void TestTrackImportMenu(void)
 	UpdateMenu();
 	CTR_TEST_CHECK(s_allModesY == s_trackDetailRows[1], "all detected modes fit on the same visible row");
 	s_trackFixture.detectedModes = NATIVE_TRACK_DETECTED_TIME_TRIAL;
+	s_trackFixture.scaPath = "fixture.sca";
+	s_lastMenuSound = -1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_DETAIL && s_trackFixtureEnabled, "confirm opens details without changing the track");
+	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening track details uses the shared confirmation sound");
+	CTR_TEST_CHECK(s_musicPreviewRequests == 1 && s_previewRetail == -1 && s_previewTrack == &s_trackFixture,
+	               "opening track details previews the selected custom music");
+	s_trackFixture.scaPath = NULL;
+	s_trackNumberDraws = 0;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(!s_trackFixtureEnabled, "confirm disables the selected track");
+	CTR_TEST_CHECK(s_trackNumberDraws == 0, "installed track details omit the track counter");
 	SetInput(BTN_CIRCLE, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackFixtureEnabled, "confirm re-enables the selected track");
+	sdata->ptrActiveMenu->rowSelected = TRACK_REVIEW_TITLE;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksEditing, "confirm opens the track name editor");
+	CTR_TEST_CHECK(s_editCharacterLimit == TRACK_REVIEW_TEXT_CHARACTERS, "installed track names are limited to 30 characters");
+	s_editValue = "Renamed";
+	s_editResult = NATIVE_TEXT_EDIT_ACCEPTED;
+	SetInput(0, 0);
+	int previousFrame = s_frameOrder;
+	UpdateMenu();
+	CTR_TEST_CHECK(!s_customTracksEditing && strcmp(s_savedTitle, "Renamed") == 0 && strcmp(s_savedAuthor, "Test Author") == 0,
+	               "accepting the name saves it without changing the author");
+	CTR_TEST_CHECK(s_frameOrder > previousFrame, "the details menu is drawn when editing finishes");
+	sdata->ptrActiveMenu->rowSelected = TRACK_REVIEW_AUTHOR;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	s_editValue = "New Author";
+	s_editResult = NATIVE_TEXT_EDIT_ACCEPTED;
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(strcmp(s_savedTitle, "Test Track") == 0 && strcmp(s_savedAuthor, "New Author") == 0,
+	               "accepting the author saves it without changing the name");
+	sdata->ptrActiveMenu->rowSelected = TRACK_REVIEW_MUSIC_TRACK;
+	SetInput(BTN_RIGHT, 0);
+	previousFrame = s_frameOrder;
+	UpdateMenu();
+	CTR_TEST_CHECK(s_savedMusic >= 0 && s_musicPreviewRequests == 2 && s_previewRetail == s_savedMusic && s_previewTrack == NULL,
+	               "changing retail music saves and previews the choice");
+	CTR_TEST_CHECK(s_frameOrder > previousFrame, "the details menu is drawn when music changes");
+	sdata->ptrActiveMenu->rowSelected = TRACK_REVIEW_CONFIRM;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_DELETE && s_musicPreviewRestores == 0,
+	               "opening delete confirmation keeps the music preview playing");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_DETAIL && s_musicPreviewRestores == 0,
+	               "cancelling deletion leaves the preview playing");
+	s_trackRefreshCalls = 0;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE, "back returns to the track list");
+	CTR_TEST_CHECK(s_musicPreviewRestores == 1, "leaving track details restores menu music");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_musicPreviewRequests == 3 && s_previewRetail == s_savedMusic && s_previewTrack == NULL,
+	               "reopening track details previews the saved retail music");
+	sdata->ptrActiveMenu->rowSelected = TRACK_REVIEW_CONFIRM;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	s_trackDeleteSuccess = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_AVAILABLE && s_musicPreviewRestores == 2,
+	               "confirming deletion restores menu music");
+	s_trackDeleteSuccess = 0;
 	s_lastMenuSound = -1;
 	SetInput(BTN_TRIANGLE, 0);
 	UpdateMenu();
@@ -377,17 +491,23 @@ static void TestTrackImportMenu(void)
 	sdata->ptrActiveMenu->rowSelected = 1;
 	s_lastMenuSound = -1;
 	SetInput(BTN_CROSS, 0);
+	previousFrame = s_frameOrder;
 	UpdateMenu();
 	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_IMPORT && s_trackImportOpened == 0,
 	               "Import opens the local source selection");
+	CTR_TEST_CHECK(s_frameOrder > previousFrame, "opening import keeps a menu frame visible");
 	CTR_TEST_CHECK(s_lastMenuSound == 1, "opening import plays the confirm sound");
 	SetInput(BTN_CROSS, 0);
+	previousFrame = s_frameOrder;
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackImportOpened == 1, "Folder opens the directory importer");
+	CTR_TEST_CHECK(s_frameOrder > previousFrame, "opening the folder dialog keeps a menu frame visible");
 	sdata->ptrActiveMenu->rowSelected = 1;
 	SetInput(BTN_CROSS, 0);
+	previousFrame = s_frameOrder;
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackImportOpened == 11, "Xdelta patch opens the patch importer");
+	CTR_TEST_CHECK(s_frameOrder > previousFrame, "opening the patch dialog keeps a menu frame visible");
 	SetInput(BTN_TRIANGLE, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(s_customTracksPage == CUSTOM_TRACKS_ROOT && sdata->ptrActiveMenu->rowSelected == 1,
@@ -852,6 +972,27 @@ int main(void)
 	s_strings[LNG_MONO] = "MONO";
 	s_strings[LNG_STEREO] = "STEREO";
 	s_tracker.backBuffer = &s_buffer;
+	CTR_TEST_SECTION("import text editing");
+	struct TrackImportReviewView review = {.title = "Circuit", .author = "Author", .row = TRACK_REVIEW_TITLE};
+	s_promptDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_promptDraws == 0, "the editing hint is hidden while not typing");
+	review.editing = 1;
+	review.editingValue = "Circuit";
+	data.font_charPixHeight[FONT_SMALL] = 8;
+	sdata->frameCounter = 0;
+	s_cursorDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_promptDraws == 1 && s_cursorDraws == 1, "editing shows the hint and cursor");
+	CTR_TEST_CHECK(s_promptY == SCREEN_HEIGHT - 12 && s_promptRect.y + s_promptRect.h == SCREEN_HEIGHT,
+	               "the hint box is positioned at the bottom of the screen");
+	CTR_TEST_CHECK(s_promptOrder < s_promptBoxOrder && s_promptBoxOrder < s_frameOrder,
+	               "the reversed ordering table draws the hint text and box above the menu");
+	sdata->frameCounter = 15;
+	s_cursorDraws = 0;
+	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
+	CTR_TEST_CHECK(s_cursorDraws == 0, "the editing cursor blinks off");
+	data.font_charPixHeight[FONT_SMALL] = 0;
 	TestNavigation();
 	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");

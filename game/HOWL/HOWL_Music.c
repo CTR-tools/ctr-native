@@ -1,5 +1,12 @@
 #include <common.h>
 #include <platform/native_track_library.h>
+#include <stdio.h>
+
+enum { MUSIC_PREVIEW_MENU = -1, MUSIC_PREVIEW_CUSTOM = -2 };
+static int s_musicPreviewActive, s_musicPreviewLoading, s_musicPreviewWanted = MUSIC_PREVIEW_MENU;
+static int s_musicPreviewCurrent = MUSIC_PREVIEW_MENU;
+static char s_musicPreviewWantedPath[1024], s_musicPreviewCurrentPath[1024];
+static struct NativeTrackRegistry *s_musicPreviewWantedRegistry, *s_musicPreviewCurrentRegistry;
 
 void Music_SetIntro(void)
 {
@@ -27,9 +34,15 @@ void Music_LoadBanks(void)
 	struct Bank thisBank;
 	struct GameTracker *gGT = sdata->gGT;
 	int level = gGT->levelID;
-	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	if (s_musicPreviewActive && s_musicPreviewCurrent != MUSIC_PREVIEW_MENU)
 	{
-		level = CRASH_COVE;
+		level = s_musicPreviewCurrent == MUSIC_PREVIEW_CUSTOM ? CRASH_COVE : s_musicPreviewCurrent;
+	}
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level);
+	int retailMusic = customTrack != NULL ? NativeTrackLibrary_Music(customTrack) : -1;
+	if (customTrack != NULL)
+	{
+		level = retailMusic >= 0 ? retailMusic : CRASH_COVE;
 	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
@@ -91,9 +104,21 @@ u32 Music_AsyncParseBanks(void)
 	struct GameTracker *gGT = sdata->gGT;
 	struct Bank thisBank;
 	int level = gGT->levelID;
-	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level);
+	int retailMusic = customTrack != NULL ? NativeTrackLibrary_Music(customTrack) : -1;
+	const struct NativeTrackRegistry *musicRegistry = NativeTrackLibrary_Current();
+	int musicLevel = gGT->levelID;
+	if (s_musicPreviewActive && s_musicPreviewCurrent != MUSIC_PREVIEW_MENU)
 	{
-		level = CRASH_COVE;
+		retailMusic = s_musicPreviewCurrent;
+		level = retailMusic == MUSIC_PREVIEW_CUSTOM ? CRASH_COVE : retailMusic;
+		musicRegistry = s_musicPreviewCurrentRegistry;
+		musicLevel = NATIVE_TRACK_CUSTOM_ID_BASE;
+		customTrack = retailMusic == MUSIC_PREVIEW_CUSTOM ? NativeTrackRegistry_Get(musicRegistry, musicLevel) : NULL;
+	}
+	if (customTrack != NULL)
+	{
+		level = retailMusic >= 0 ? retailMusic : CRASH_COVE;
 	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
@@ -131,9 +156,9 @@ u32 Music_AsyncParseBanks(void)
 		// any driving track
 		else if (level < INTRO_RACE_TODAY)
 		{
-			if (sdata->boolAudioEnabled && NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+			if (sdata->boolAudioEnabled && customTrack != NULL && retailMusic < 0)
 			{
-				if (CustomSca_LoadBank(&thisBank))
+				if (CustomSca_LoadBankFrom(&thisBank, musicRegistry, musicLevel))
 				{
 					break;
 				}
@@ -446,6 +471,79 @@ PARSE_FINISH:
 	// state == 5 is finished.
 	// if false, function failed.
 	return (arr[1] == 5);
+}
+
+void MusicPreview_Request(int retail, const struct NativeTrackMetadata *track)
+{
+	if (!sdata->boolAudioEnabled) { return; }
+	int wanted = track != NULL ? MUSIC_PREVIEW_CUSTOM : retail;
+	const char *path = track != NULL && track->scaPath != NULL ? track->scaPath : "";
+	if (wanted == s_musicPreviewWanted && strcmp(path, s_musicPreviewWantedPath) == 0 && s_musicPreviewActive) { return; }
+	struct NativeTrackRegistry *registry = NULL;
+	if (track != NULL)
+	{
+		registry = NativeTrackRegistry_Create();
+		if (registry == NULL || !NativeTrackRegistry_Add(registry, track, NULL))
+		{
+			NativeTrackRegistry_Destroy(registry);
+			return;
+		}
+	}
+	NativeTrackRegistry_Destroy(s_musicPreviewWantedRegistry);
+	s_musicPreviewWantedRegistry = registry;
+	s_musicPreviewWanted = wanted;
+	snprintf(s_musicPreviewWantedPath, sizeof(s_musicPreviewWantedPath), "%s", path);
+	s_musicPreviewActive = 1;
+}
+
+void MusicPreview_Restore(void)
+{
+	if (!s_musicPreviewActive) { return; }
+	NativeTrackRegistry_Destroy(s_musicPreviewWantedRegistry);
+	s_musicPreviewWantedRegistry = NULL;
+	s_musicPreviewWanted = MUSIC_PREVIEW_MENU;
+	s_musicPreviewWantedPath[0] = '\0';
+}
+
+int MusicPreview_Busy(void)
+{
+	return s_musicPreviewActive;
+}
+
+void MusicPreview_Update(void)
+{
+	if (!s_musicPreviewActive) { return; }
+	if (s_musicPreviewLoading)
+	{
+		if (!Music_AsyncParseBanks()) { return; }
+		s_musicPreviewLoading = 0;
+		if (s_musicPreviewCurrent == s_musicPreviewWanted &&
+		    strcmp(s_musicPreviewCurrentPath, s_musicPreviewWantedPath) == 0)
+		{
+			Music_Adjust(CSEQ_SONG_LEVEL, 0, NULL, 0);
+			if (s_musicPreviewCurrent == MUSIC_PREVIEW_MENU)
+			{
+				s_musicPreviewActive = 0;
+				NativeTrackRegistry_Destroy(s_musicPreviewCurrentRegistry);
+				s_musicPreviewCurrentRegistry = NULL;
+			}
+		}
+	}
+	if (s_musicPreviewCurrent == s_musicPreviewWanted &&
+	    strcmp(s_musicPreviewCurrentPath, s_musicPreviewWantedPath) == 0)
+	{
+		if (s_musicPreviewCurrent == MUSIC_PREVIEW_MENU) { s_musicPreviewActive = 0; }
+		return;
+	}
+	Music_Stop();
+	CseqMusic_StopAll();
+	NativeTrackRegistry_Destroy(s_musicPreviewCurrentRegistry);
+	s_musicPreviewCurrentRegistry = s_musicPreviewWantedRegistry;
+	s_musicPreviewWantedRegistry = NULL;
+	s_musicPreviewCurrent = s_musicPreviewWanted;
+	snprintf(s_musicPreviewCurrentPath, sizeof(s_musicPreviewCurrentPath), "%s", s_musicPreviewWantedPath);
+	Music_LoadBanks();
+	s_musicPreviewLoading = 1;
 }
 
 void Music_SetDefaults(void)

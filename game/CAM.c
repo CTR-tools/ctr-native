@@ -510,43 +510,7 @@ void CAM_StartOfRace(struct CameraDC *cDC)
 	cDC->flags &= ~(CAMERA_FLAG_BATTLE_END_OF_RACE | CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE);
 }
 
-void CAM_EndOfRace_Battle(struct CameraDC *cDC, struct Driver *d)
-{
-	s32 height = data.Spin360_heightOffset_cameraPos[(s32)sdata->gGT->numPlyrCurrGame];
-	cDC->transitionTo.pos.x = 0xffe5;
-	cDC->transitionTo.pos.y = height;
-	cDC->transitionTo.pos.z = 0xc0;
-
-	cDC->flags |= CAMERA_FLAG_BATTLE_END_OF_RACE;
-
-	cDC->transitionBlend = 0;
-	cDC->transitionFrame = 60;
-	cDC->transitionFrameCount = 60;
-
-	struct PushBuffer *pb = cDC->pushBuffer;
-	s32 dx = CTR_MipsSubLo(pb->pos.x, CTR_MipsSra(d->posCurr.x, 8));
-	s32 dz = CTR_MipsSubLo(pb->pos.z, CTR_MipsSra(d->posCurr.z, 8));
-	cDC->spin360Angle = ratan2(dx, dz);
-}
-
-void CAM_EndOfRace(struct CameraDC *cDC, struct Driver *d)
-{
-	struct GameTracker *gGT = sdata->gGT;
-
-
-	// If not in Battle Mode and track path points exist and game is on 1P or 2P mode
-	if (((gGT->gameMode1 & BATTLE_MODE) == 0) && (1 < gGT->level1->ptrSpawnType1->count) && (gGT->numPlyrCurrGame < 3))
-	{
-		// Activate end-of-race cDC flag in CameraDC struct
-		cDC->flags |= CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED;
-	}
-	else
-	{
-		// Call function to initialize end-of-race cDC for Battle Mode
-		CAM_EndOfRace_Battle(cDC, d);
-	}
-	return;
-}
+#include "CAM/CAM_EndOfRace.c"
 
 static s32 CAM_MulLo(s32 a, s32 b)
 {
@@ -1813,7 +1777,6 @@ void CAM_ThTick(struct Thread *t)
 	struct PVS *psVar11;
 	s32 *piVar12;
 	struct Instance **ppsVar13;
-	struct SpawnType1 *psVar14;
 	struct CheckpointNode *psVar15;
 	u32 uVar16;
 	s32 iVar17;
@@ -1880,16 +1843,12 @@ void CAM_ThTick(struct Thread *t)
 		goto SkipNewCameraEOR;
 	}
 
-	psVar14 = gGT->level1->ptrSpawnType1;
-
 	psVar21 = 0;
-	if (psVar14->count < 3)
+	psVar19 = CAM_EndOfRace_Cameras(gGT->level1);
+	if (psVar19 == NULL)
 	{
 		goto SkipNewCameraEOR;
 	}
-
-	void **ptrs = ST1_GETPOINTERS(psVar14);
-	psVar19 = ptrs[ST1_CAMERA_EOR];
 
 	// number of EOR cameras
 	sVar6 = *psVar19;

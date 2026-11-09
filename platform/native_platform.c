@@ -23,6 +23,11 @@
 #include <stdlib.h>
 
 SDL_Window *g_window = NULL;
+
+int NativeTextEdit_BeginForGame(const char *initial, size_t maxBytes)
+{
+	return NativeTextEdit_Begin(g_window, initial, maxBytes);
+}
 int g_dbg_polygonSelected = 0;
 
 static char s_folderDialogPath[1024];
@@ -512,6 +517,11 @@ void Platform_PollHostEvents(void)
 
 	while (SDL_PollEvent(&event))
 	{
+		if (NativeTextEdit_HandleEvent(&event))
+		{
+			if (event.type == SDL_EVENT_KEY_UP) { Platform_HandleKey(event.key.scancode, 0); }
+			continue;
+		}
 		switch (event.type)
 		{
 		case SDL_EVENT_GAMEPAD_ADDED:

@@ -23,7 +23,7 @@ struct PatchBank
 
 struct PatchMusic
 {
-	struct PatchMusicBytes originalExe, exe, menu, all;
+	struct PatchMusicBytes originalExe, exe, menu, all, adventure;
 	struct PatchHowl original, patched;
 	int available, skipped, generated;
 };
@@ -167,24 +167,26 @@ static void PatchMusic_Write32(unsigned char *p, size_t n)
 	for (int i = 0; i < 4; i++) { p[i] = (unsigned char)(n >> (i * 8)); }
 }
 
-static int PatchMusic_WriteSca(const struct PatchMusic *m, int level, const char *path)
+static unsigned char *PatchMusic_BuildSca(const struct PatchMusic *m, int level, size_t *size)
 {
+	*size = 0;
+	if (level < 0 || level >= 18 || m->exe.data == NULL || m->exe.size < PATCH_MUSIC_SONG_TABLE + 18) { return NULL; }
 	const struct PatchHowl *h = &m->patched;
 	unsigned int bankID = m->exe.data[PATCH_MUSIC_BANK_TABLE + level];
 	unsigned int songID = m->exe.data[PATCH_MUSIC_SONG_TABLE + level];
 	struct PatchBank bank;
-	if (!PatchMusic_Bank(h, bankID, &bank) || songID >= h->songs) { return 0; }
+	if (!PatchMusic_Bank(h, bankID, &bank) || songID >= h->songs) { return NULL; }
 	size_t songOffset = (size_t)PatchMusic_U16(h->bytes.data + h->offsets + (h->banks + songID) * 2) * PATCH_SCA_SECTOR;
-	if (!PatchMusic_Range(h->bytes.size, songOffset, 8)) { return 0; }
+	if (!PatchMusic_Range(h->bytes.size, songOffset, 8)) { return NULL; }
 	size_t songSize = PatchDisc_Read32(h->bytes.data + songOffset);
 	if (songSize < 8 || songSize > 65536 || !PatchMusic_Range(h->bytes.size, songOffset, songSize) ||
-	    !PatchMusic_Compatible(&m->original, h, &bank, h->bytes.data + songOffset, songSize)) { return 0; }
+	    !PatchMusic_Compatible(&m->original, h, &bank, h->bytes.data + songOffset, songSize)) { return NULL; }
 	size_t bankEnd = (12 + bank.size + 3) & ~(size_t)3;
 	size_t songEnd = (bankEnd + 8 + songSize + 3) & ~(size_t)3;
 	size_t total = songEnd + 8 + bank.count * 2;
-	if (total > PATCH_SCA_LIMIT) { return 0; }
+	if (total > PATCH_SCA_LIMIT) { return NULL; }
 	unsigned char *out = calloc(1, total);
-	if (out == NULL) { return 0; }
+	if (out == NULL) { return NULL; }
 	memcpy(out, "SCA\1BANK", 8);
 	PatchMusic_Write32(out + 8, bank.size);
 	memcpy(out + 12, h->bytes.data + bank.offset, bank.size);
@@ -198,12 +200,44 @@ static int PatchMusic_WriteSca(const struct PatchMusic *m, int level, const char
 		unsigned int id = PatchMusic_U16(h->bytes.data + bank.offset + 2 + i * 2);
 		memcpy(out + songEnd + 8 + i * 2, h->bytes.data + 42 + id * 4, 2);
 	}
+	*size = total;
+	return out;
+}
+
+static int PatchMusic_WriteSca(const struct PatchMusic *m, int level, const char *path)
+{
+	size_t total;
+	unsigned char *out = PatchMusic_BuildSca(m, level, &total);
+	if (out == NULL) { return 0; }
 	FILE *file = fopen(path, "wb");
 	int ok = file != NULL && fwrite(out, 1, total, file) == total;
 	if (file != NULL && fclose(file) != 0) { ok = 0; }
 	free(out);
 	if (!ok) { SDL_RemovePath(path); }
 	return ok;
+}
+
+/* Compare the complete playable SCA, not the whole HWL: unrelated banks may
+ * change while this track still uses unmodified retail music. */
+static int PatchMusic_RetailMatch(const struct PatchMusic *m, int level)
+{
+	size_t size;
+	unsigned char *candidate = PatchMusic_BuildSca(m, level, &size);
+	if (candidate == NULL) { return -1; }
+	struct PatchMusic retail = {.original = m->original, .patched = m->original, .exe = m->originalExe};
+	int match = -1;
+	for (int i = -1; i < 18; i++)
+	{
+		int current = i < 0 ? level : i;
+		if (i == level) { continue; }
+		size_t retailSize;
+		unsigned char *reference = PatchMusic_BuildSca(&retail, current, &retailSize);
+		int equal = reference != NULL && size == retailSize && memcmp(candidate, reference, size) == 0;
+		free(reference);
+		if (equal) { match = current; break; }
+	}
+	free(candidate);
+	return match;
 }
 
 static struct PatchMusicBytes PatchMusic_Load(const char *disc, const char *path, size_t limit, SDL_AtomicInt *cancel)
@@ -246,6 +280,7 @@ static struct PatchMusicBytes PatchMusic_Menu(const char *disc, SDL_AtomicInt *c
 static void PatchMusic_Close(struct PatchMusic *m)
 {
 	SDL_free(m->originalExe.data); SDL_free(m->exe.data); SDL_free(m->menu.data); SDL_free(m->all.data);
+	SDL_free(m->adventure.data);
 	SDL_free(m->original.bytes.data); SDL_free(m->patched.bytes.data);
 }
 
@@ -256,6 +291,7 @@ static void PatchMusic_Open(struct PatchMusic *m, const char *original, const ch
 	m->exe = PatchMusic_Load(patched, "SCUS_944.26;1", PATCH_EXE_LIMIT, cancel);
 	m->menu = PatchMusic_Menu(patched, cancel);
 	m->all = PatchMusic_Load(patched, "ALL.BIN;1", PATCH_EXE_LIMIT, cancel);
+	m->adventure = PatchMusic_Load(patched, "ADVC.BIN;1", PATCH_EXE_LIMIT, cancel);
 	m->original.bytes = PatchMusic_Load(original, "SOUNDS/KART.HWL;1", PATCH_HWL_LIMIT, cancel);
 	m->patched.bytes = PatchMusic_Load(patched, "SOUNDS/KART.HWL;1", PATCH_HWL_LIMIT, cancel);
 	m->available = m->originalExe.data != NULL && m->exe.data != NULL && m->original.bytes.data != NULL &&
@@ -265,7 +301,15 @@ static void PatchMusic_Open(struct PatchMusic *m, const char *original, const ch
 static int PatchMusic_SelectLevel(const struct PatchMusic *m, int slot)
 {
 	if (!m->available || slot < 0 || slot >= 18) { return -1; }
-	int level = PatchMusic_Level(&m->originalExe, &m->exe, &m->menu, slot);
+	unsigned char vrm[27], lev[27];
+	/* A physical slot can hold unrelated tracks at different LODs. The original
+	 * runtime level is not established by the adventure file-index arrays. */
+	if (PatchMusic_AdventureFiles(&m->exe, vrm, lev)) { return -1; }
+	/* Prefer an explicit multi-track mapping, then retail/TrackROM recognition,
+	 * then the older ALL.BIN lookup signature. These return a logical level,
+	 * which WriteSca resolves through the patched bank and song tables. */
+	int level = PatchMusic_AllBinTrack(&m->exe, &m->all, slot, NULL, 0);
+	if (level < 0) { level = PatchMusic_Level(&m->originalExe, &m->exe, &m->menu, slot); }
 	if (level < 0) { level = PatchMusic_AllBinLevel(&m->exe, &m->all, slot); }
 	/* Unknown loaders still get the audio of their physical slot. */
 	return level < 0 ? slot : level;

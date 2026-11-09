@@ -101,6 +101,23 @@ int main(void)
 	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_SECTION("music selection persistence");
+	CTR_TEST_CHECK(NativeTrackLibrary_Music(metadata) == -1,
+	               "missing selection retains the original audio fallback");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetMusic(metadata, 7, 0), "retail selection is written");
+	struct NativeTrackRegistry *withMusic = NativeTrackLibrary_Scan(root, NULL);
+	const struct NativeTrackMetadata *saved = NativeTrackRegistry_Get(withMusic, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(NativeTrackLibrary_Music(saved) == 7, "retail selection is read from the refreshed registry");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetMusic(saved, -1, 1), "custom selection replaces retail");
+	NativeTrackRegistry_Destroy(withMusic);
+	withMusic = NativeTrackLibrary_Scan(root, NULL);
+	saved = NativeTrackRegistry_Get(withMusic, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(saved != NULL && strcmp(saved->title, "Test Track") == 0 && saved->author != NULL &&
+	               strcmp(saved->author, "Track Author") == 0 &&
+	               saved->music != NULL && strcmp(saved->music, "custom") == 0,
+	               "music is stored in a valid manifest without losing the track metadata");
+	NativeTrackRegistry_Destroy(withMusic);
+	CTR_TEST_CHECK(!NativeTrackLibrary_SetMusic(metadata, 18, 0), "invalid retail selection is rejected");
 	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->identity, "test:track") == 0 &&
 	               strcmp(metadata->title, "Test Track") == 0 && strcmp(metadata->author, "Track Author") == 0,
 	               "cached catalog metadata overrides local defaults");
@@ -129,6 +146,28 @@ int main(void)
 	CTR_TEST_CHECK(metadata != NULL && !NativeTrackLibrary_IsEnabled(metadata), "disabled state survives a library rescan");
 	CTR_TEST_CHECK(NativeTrackLibrary_SetEnabled(metadata, 1) && NativeTrackLibrary_IsEnabled(metadata), "a disabled track can be re-enabled");
 	NativeTrackRegistry_Destroy(registry);
+	CTR_TEST_SECTION("unrecognized music fallback");
+	const char *invalidMusic[] = {"unknown", "retail:18", "retail:abc", ""};
+	for (size_t i = 0; i < SDL_arraysize(invalidMusic); i++)
+	{
+		char manifest[128];
+		snprintf(manifest, sizeof(manifest), "title=Test Track\nmusic=%s\n", invalidMusic[i]);
+		WriteFixture(track, "track.ini", manifest);
+		registry = NativeTrackLibrary_Scan(root, &result);
+		metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+		CTR_TEST_CHECK(metadata != NULL && NativeTrackLibrary_Music(metadata) == -1 && metadata->scaPath == NULL,
+		               "an unrecognized music value keeps the track and falls back without custom audio");
+		NativeTrackRegistry_Destroy(registry);
+	}
+	WriteFixture(track, "track.ini", "title=Test Track\nmusic=unknown\n");
+	WriteFixture(track, "track.sca", "not SCA");
+	registry = NativeTrackLibrary_Scan(root, &result);
+	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(metadata != NULL && NativeTrackLibrary_Music(metadata) == -1 && metadata->scaPath != NULL,
+	               "an unrecognized music value retains the local custom audio fallback");
+	NativeTrackRegistry_Destroy(registry);
+	snprintf(path, sizeof(path), "%s/track.sca", track);
+	SDL_RemovePath(path);
 	WriteFixture(track, "track.ini", "id=test:track\nmodes=arcade\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
@@ -181,6 +220,53 @@ int main(void)
 	SDL_RemovePath(newTrack);
 	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, &result) && NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 1,
 	               "a refresh removes entries deleted from disk");
+	CTR_TEST_SECTION("installed track editing and deletion");
+	SDL_CreateDirectory(newTrack);
+	WriteFixture(newTrack, "track.lev", "not LEV");
+	WriteFixture(newTrack, "track.vrm", "not VRM");
+	WriteFixture(track, "track.ini", "title=Updated Track\nmusic=custom:local:aaa-new-track\n");
+	WriteFixture(newTrack, "track.ini", "title=Other\nmusic=custom:local:track\n");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, NULL), "invalid music selections are repaired during refresh");
+	int trackID = 0, sourceID = 0;
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:track", &trackID);
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:aaa-new-track", &sourceID);
+	metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackID);
+	const struct NativeTrackMetadata *source = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), sourceID);
+	CTR_TEST_CHECK(strcmp(metadata->music, "custom") == 0 && NativeTrackLibrary_Music(source) == NATIVE_TRACK_DEFAULT_RETAIL_MUSIC,
+	               "invalid references fall back to local SCA or Crash Cove");
+	struct NativeTrackRegistry *reloaded = NativeTrackLibrary_Scan(root, NULL);
+	int reloadedTrack, reloadedSource;
+	NativeTrackRegistry_Find(reloaded, "local:track", &reloadedTrack);
+	NativeTrackRegistry_Find(reloaded, "local:aaa-new-track", &reloadedSource);
+	CTR_TEST_CHECK(strcmp(NativeTrackRegistry_Get(reloaded, reloadedTrack)->music, "custom") == 0 &&
+	               NativeTrackLibrary_Music(NativeTrackRegistry_Get(reloaded, reloadedSource)) == NATIVE_TRACK_DEFAULT_RETAIL_MUSIC,
+	               "both fallback choices are persisted to the manifests");
+	NativeTrackRegistry_Destroy(reloaded);
+	CTR_TEST_CHECK(NativeTrackLibrary_SetDetails(metadata, "New Name", "New Author"), "name and author can be saved");
+	CTR_TEST_CHECK(!NativeTrackLibrary_SetDetails(metadata, " ", "Author"), "an empty name is rejected");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, NULL), "edited details can be reloaded");
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:track", &trackID);
+	metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackID);
+	CTR_TEST_CHECK(strcmp(metadata->title, "New Name") == 0 && strcmp(metadata->author, "New Author") == 0 &&
+	               strcmp(metadata->music, "custom") == 0,
+	               "editing details preserves the custom music choice");
+	/* SDL's enumeration callback supplies a trailing separator; old scans could
+	   consequently have doubled or mixed separators in the stored LEV path. */
+	char oldPath[1200];
+	snprintf(oldPath, sizeof(oldPath), "%s\\/track/track.lev", root);
+	struct NativeTrackMetadata oldScan = *metadata;
+	oldScan.levPath = oldPath;
+	CTR_TEST_CHECK(NativeTrackLibrary_Delete(&oldScan, root), "a track from an older mixed-separator scan can be deleted");
+	SDL_PathInfo deletedInfo;
+	CTR_TEST_CHECK(!SDL_GetPathInfo(track, &deletedInfo) && NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 1,
+	               "deletion removes the directory and updates the published library");
+	const char *sourceFiles[] = {"track.lev", "track.vrm", "track.ini"};
+	for (size_t i = 0; i < SDL_arraysize(sourceFiles); i++)
+	{
+		snprintf(path, sizeof(path), "%s/%s", newTrack, sourceFiles[i]);
+		SDL_RemovePath(path);
+	}
+	SDL_RemovePath(newTrack);
 	NativeTrackLibrary_Shutdown();
 	CTR_TEST_CHECK(NativeTrackLibrary_Current() == NULL, "shutdown releases the published library");
 

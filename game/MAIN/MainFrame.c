@@ -55,6 +55,7 @@ void MainFrame_ResetDB(struct GameTracker *gGT)
 	int iVar4;
 	struct DB *db;
 	int otSwapchainDB;
+	MusicPreview_Update();
 
 	// check if new adv hub should be loaded,
 	// this was a random place for ND to put it

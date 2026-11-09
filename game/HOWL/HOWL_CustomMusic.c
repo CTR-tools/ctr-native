@@ -120,9 +120,9 @@ static int CustomSca_Parse(size_t size, unsigned int slots, unsigned int *countO
 	return 1;
 }
 
-static int CustomSca_LoadBank(struct Bank *bank)
+static int CustomSca_LoadBankFrom(struct Bank *bank, const struct NativeTrackRegistry *registry, int level)
 {
-	struct NativeTrackFile *file = NativeTrackFile_Open(NativeTrackLibrary_Current(), sdata->gGT->levelID, NATIVE_TRACK_FILE_SCA);
+	struct NativeTrackFile *file = NativeTrackFile_Open(registry, level, NATIVE_TRACK_FILE_SCA);
 	if (file == NULL) { return 0; }
 	size_t size = NativeTrackFile_Size(file), padded = NativeTrackFile_SectorBytes(file);
 	if (size > CUSTOM_SCA_LIMIT || (s_scaBytes = malloc(padded)) == NULL || !NativeTrackFile_Read(file, s_scaBytes, padded))

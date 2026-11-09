@@ -197,16 +197,16 @@ static void MM_TrackSelect_BuildRaceTracks(void)
 	s_raceTrackCount += (s16)enabled;
 }
 
-static void MM_TrackSelect_ScrollTitle(char *title, int available, u32 frame)
+static void MM_TrackSelect_ScrollText(char *text, int available, int font, u32 frame)
 {
-	if (DecalFont_GetLineWidth(title, FONT_BIG) <= available)
+	if (DecalFont_GetLineWidth(text, font) <= available)
 	{
 		return;
 	}
 
-	size_t length = strlen(title);
+	size_t length = strlen(text);
 	size_t lastStart = 0;
-	while (lastStart < length && DecalFont_GetLineWidth(title + lastStart, FONT_BIG) > available)
+	while (lastStart < length && DecalFont_GetLineWidth(text + lastStart, font) > available)
 	{
 		lastStart++;
 	}
@@ -223,11 +223,11 @@ static void MM_TrackSelect_ScrollTitle(char *title, int available, u32 frame)
 			start = lastStart;
 		}
 	}
-	memmove(title, title + start, length - start + 1);
+	memmove(text, text + start, length - start + 1);
 	length -= start;
-	while (length > 0 && DecalFont_GetLineWidth(title, FONT_BIG) > available)
+	while (length > 0 && DecalFont_GetLineWidth(text, font) > available)
 	{
-		title[--length] = '\0';
+		text[--length] = '\0';
 	}
 }
 
@@ -1122,7 +1122,7 @@ trackSelectionMenuDone:
 					{
 						scrollFrame = (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame;
 					}
-					MM_TrackSelect_ScrollTitle(title, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, scrollFrame);
+					MM_TrackSelect_ScrollText(title, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_BIG, scrollFrame);
 					MM_DRAW_LINE_WIDE_FLAGS(title, rowNameX, rowNameY, FONT_BIG, ORANGE);
 				}
 				else
@@ -1141,7 +1141,8 @@ trackSelectionMenuDone:
 						char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
 						memcpy(author, "by ", sizeof("by ") - 1);
 						TrackText_Copy(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
-						TrackText_Trim(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL);
+						MM_TrackSelect_ScrollText(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL,
+						                          (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame);
 						MM_DRAW_LINE_WIDE_FLAGS(author, (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X),
 						                        (s16)(rowRect.y - data.font_charPixHeight[FONT_SMALL] + rowRect.h -
 						                              (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET)),
