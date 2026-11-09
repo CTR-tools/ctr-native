@@ -95,6 +95,12 @@ set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
+# Keep the vendored parser in its own translation unit, separate from main.c's
+# game/platform unity build. The source revision and license are recorded there.
+add_library(tomlc17 STATIC externals/tomlc17/tomlc17.c)
+set_target_properties(tomlc17 PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(tomlc17 PUBLIC "${CMAKE_SOURCE_DIR}/externals/tomlc17")
+
 # Copy default config.ini to build directory if config.ini doesn't exist
 if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.ini")
     configure_file("${CMAKE_SOURCE_DIR}/default_config.ini"
@@ -136,7 +142,7 @@ if(CTR_DIAGNOSTICS)
 endif()
 #TODO(aalhendi): fix warnings
 ctr_native_apply_common_options(ctr_native_expanded)
-target_link_libraries(ctr_native_expanded SDL3::SDL3)
+target_link_libraries(ctr_native_expanded SDL3::SDL3 tomlc17)
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeTrackTools.cmake")
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native_expanded PRIVATE -static-libgcc)

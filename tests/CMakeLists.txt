@@ -66,6 +66,11 @@ ctr_add_test_suite(test_language_disc
     SOURCES test_language_disc.c
 )
 
+ctr_add_test_suite(test_tomlc17
+    SOURCES test_tomlc17.c
+    LIBRARIES tomlc17
+)
+
 ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )
