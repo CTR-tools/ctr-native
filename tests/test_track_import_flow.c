@@ -25,6 +25,15 @@ static const char *s_prepareError;
 static char s_lastTitle[256], s_lastAuthor[256];
 static enum NativeTextEditResult s_editResult;
 static const char *s_editValue;
+static int s_previewRetail, s_previewRestores;
+static char s_previewIdentity[256];
+void MusicPreview_Request(int retail, const struct NativeTrackMetadata *track)
+{
+	s_previewRetail = retail;
+	snprintf(s_previewIdentity, sizeof(s_previewIdentity), "%s", track != NULL ? track->identity : "");
+}
+void MusicPreview_Restore(void) { s_previewRestores++; }
+int MusicPreview_Busy(void) { return 0; }
 static int s_musicRetail = -1;
 static char s_musicIdentity[256];
 static int s_musicAvailable;
@@ -116,6 +125,7 @@ int main(void)
 	struct TrackImportReviewView view;
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(strcmp(view.musicSource, "Retail") == 0, "imports without custom audio default to retail");
+	CTR_TEST_CHECK(s_previewRetail == CRASH_COVE && s_previewIdentity[0] == '\0', "opening review previews the selected retail music");
 	CTR_TEST_CHECK(strcmp(view.musicTrack, "localized crash") == 0, "retail music uses the localized level metadata");
 	s_trackReviewRow = TRACK_REVIEW_MUSIC_SOURCE;
 	MM_TrackImport_Update(BTN_RIGHT);
@@ -124,6 +134,7 @@ int main(void)
 	s_trackReviewRow = TRACK_REVIEW_MUSIC_TRACK;
 	MM_TrackImport_Update(BTN_LEFT);
 	CTR_TEST_CHECK(s_musicRetail == CRASH_COVE - 1, "retail music scrolls backwards");
+	CTR_TEST_CHECK(s_previewRetail == CRASH_COVE - 1, "changing the retail selection updates the preview");
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(strcmp(view.musicTrack, "localized blizzard") == 0, "scrolling resolves the selected level's localized name");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
@@ -144,6 +155,7 @@ int main(void)
 	MM_TrackImport_Update(BTN_TRIANGLE);
 	CTR_TEST_CHECK(s_discards == 1 && s_commits == 0 && s_refresh == 0 && s_sound == 2,
 	               "back discards the staged folder with the shared back sound");
+	CTR_TEST_CHECK(s_previewRestores > 0, "leaving review restores the menu music");
 	MM_TrackImport_Update(BTN_CROSS);
 	s_prepareError = "Invalid LEV or VRM";
 	MM_TrackImport_Open();
@@ -182,6 +194,7 @@ int main(void)
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(view.musicIndex == 2 && strcmp(s_musicIdentity, "local:other") == 0,
 	               "custom music scrolls through imported songs and saves a stable identity");
+	CTR_TEST_CHECK(strcmp(s_previewIdentity, "local:other") == 0, "changing the custom song previews its staged audio");
 	MM_TrackImport_Update(BTN_RIGHT);
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(view.musicIndex == 1 && strcmp(s_musicIdentity, "local:track") == 0,

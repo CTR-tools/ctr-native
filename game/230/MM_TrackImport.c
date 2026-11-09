@@ -62,6 +62,15 @@ static const struct NativeTrackMetadata *MM_TrackImport_ReviewTrack(void)
 	return NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + s_trackReviewIndex);
 }
 
+ static void MM_TrackImport_PreviewMusic(void)
+{
+	const struct NativeTrackMetadata *track = MM_TrackImport_ReviewTrack();
+	if (track == NULL) { return; }
+	int custom;
+	int choice = MM_TrackImport_MusicChoice(track, &custom);
+	MusicPreview_Request(custom ? -1 : choice, custom ? MM_TrackImport_CustomMusic(choice) : NULL);
+}
+
 static int MM_TrackImport_ReviewRescan(const char *identity)
 {
 	char saved[256];
@@ -81,6 +90,7 @@ static int MM_TrackImport_ReviewRescan(const char *identity)
 
 static void MM_TrackImport_ReviewClose(void)
 {
+	MusicPreview_Restore();
 	NativeTextEdit_Close();
 	NativeTrackRegistry_Destroy(s_trackReviewRegistry);
 	s_trackReviewRegistry = NULL;
@@ -138,6 +148,7 @@ static void MM_TrackImport_ReviewOpen(void)
 	s_trackReviewEditing = 0;
 	s_trackImportMessage = NULL;
 	s_trackImportState = TRACK_IMPORT_REVIEW;
+	MM_TrackImport_PreviewMusic();
 }
 
 void MM_TrackImport_Open(void)
@@ -254,6 +265,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	{
 		if (NativeTrackPatch_ReviewCommitStart())
 		{
+			MusicPreview_Restore();
 			s_trackImportState = TRACK_IMPORT_INSTALLING;
 		}
 		else { s_trackImportMessage = "Cannot start import"; }
@@ -320,6 +332,7 @@ int MM_TrackImport_Update(u32 buttons)
 	else if (s_trackImportState == TRACK_IMPORT_REVIEW)
 	{
 		MM_TrackImport_ReviewUpdate(buttons);
+		if (s_trackImportState == TRACK_IMPORT_REVIEW) { MM_TrackImport_PreviewMusic(); }
 	}
 	else if (s_trackImportState == TRACK_IMPORT_INSTALLING)
 	{
@@ -339,7 +352,7 @@ int MM_TrackImport_Update(u32 buttons)
 			}
 		}
 	}
-	else if ((buttons & (BTN_CROSS | BTN_CIRCLE | BTN_TRIANGLE | BTN_START)) != 0)
+	else if (!MusicPreview_Busy() && (buttons & (BTN_CROSS | BTN_CIRCLE | BTN_TRIANGLE | BTN_START)) != 0)
 	{
 		OtherFX_Play((buttons & (BTN_TRIANGLE | BTN_START)) != 0 ? 2 : 1, 1);
 		s_trackImportState = TRACK_IMPORT_CLOSED;
