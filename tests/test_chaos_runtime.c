@@ -993,8 +993,28 @@ static void TestBotEffectEventScope(void)
 	Chaos_Reset();
 }
 
+static void TestBodySwapPlayerCount(void)
+{
+	CTR_TEST_SECTION("Body Swap is available only in multiplayer events");
+	SetupRace(CHAOS_TRIGGER_EXTERNAL);
+	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+	sdata->chaosSettings.effects[CHAOS_EFFECT_BODY_SWAP] = true;
+	sdata->chaosSettings.enabledCount = 1;
+	s_tracker.numPlyrCurrGame = 1;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strstr(s_externalCatalogue, "body-swap\n") == NULL, "single-player catalogue excludes Body Swap");
+	CTR_TEST_CHECK(Chaos_PickEventEffect() == CHAOS_EFFECT_NONE, "random selection excludes Body Swap in single-player");
+	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_BODY_SWAP, 1000), "single-player rejects direct activation");
+	CTR_TEST_CHECK(!Chaos_ActivateExternalEffect("body-swap"), "single-player rejects external commands");
+	s_tracker.numPlyrCurrGame = 2;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strstr(s_externalCatalogue, "body-swap\n") != NULL, "multiplayer catalogue includes Body Swap");
+	CTR_TEST_CHECK(Chaos_PickEventEffect() == CHAOS_EFFECT_BODY_SWAP, "random selection includes Body Swap in multiplayer");
+}
+
 int main(void)
 {
+	TestBodySwapPlayerCount();
 	TestBotEffectEventScope();
 	TestCataloguePublicationLifecycle();
 	TestExternalCommands();

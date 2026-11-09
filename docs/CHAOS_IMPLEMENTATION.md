@@ -395,7 +395,8 @@ for smoke coverage. Reset restores original identities before resetting engine
 audio; ordinary birth restores class constants. No asset reads occur on activation.
 Activation plays the retail invisibility sound once, shared by all recipients.
 
-Body Swap (ID 35, `body-swap`) stores symmetric controller-slot partners in
+Body Swap (ID 35, `body-swap`) is available only with at least two human players.
+It stores symmetric controller-slot partners in
 `ChaosRuntime`. Operations exchange `GameTracker.drivers`, driver IDs and character
 IDs rather than copying/recreating karts, preserving weapon ownership and physical
 race state. Effective class overrides and Identity Crisis baselines move with the
