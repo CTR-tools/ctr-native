@@ -18,9 +18,65 @@ static bool s_trackImportIsPatch;
 static struct NativeTrackRegistry *s_trackReviewRegistry;
 static int s_trackReviewIndex, s_trackReviewRow, s_trackReviewEditing;
 
+enum { TRACK_IMPORT_RETAIL_MUSIC_COUNT = TURBO_TRACK + 1 };
+
+static int MM_TrackImport_CustomMusicCount(void)
+{
+	int count = 0;
+	for (int i = 0; i < (int)NativeTrackRegistry_Count(s_trackReviewRegistry); i++)
+	{
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		if (track != NULL && track->scaPath != NULL) { count++; }
+	}
+	return count;
+}
+
+static const struct NativeTrackMetadata *MM_TrackImport_CustomMusic(int index)
+{
+	for (int i = 0; i < (int)NativeTrackRegistry_Count(s_trackReviewRegistry); i++)
+	{
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + i);
+		if (track != NULL && track->scaPath != NULL && index-- == 0) { return track; }
+	}
+	return NULL;
+}
+
+static int MM_TrackImport_MusicChoice(const struct NativeTrackMetadata *track, int *custom)
+{
+	int retail = NativeTrackLibrary_Music(track);
+	const char *selected = NativeTrackPatch_ReviewMusic(track->identity);
+	int count = MM_TrackImport_CustomMusicCount();
+	if (count == 0 || (selected == NULL && (retail >= 0 || track->scaPath == NULL)))
+	{ *custom = 0; return retail >= 0 ? retail : CRASH_COVE; }
+	*custom = 1;
+	const char *wanted = selected != NULL ? selected : track->identity;
+	for (int i = 0; i < count; i++)
+	{
+		if (strcmp(MM_TrackImport_CustomMusic(i)->identity, wanted) == 0) { return i; }
+	}
+	return 0;
+}
+
 static const struct NativeTrackMetadata *MM_TrackImport_ReviewTrack(void)
 {
 	return NativeTrackRegistry_Get(s_trackReviewRegistry, NATIVE_TRACK_CUSTOM_ID_BASE + s_trackReviewIndex);
+}
+
+static int MM_TrackImport_ReviewRescan(const char *identity)
+{
+	char saved[256];
+	snprintf(saved, sizeof(saved), "%s", identity);
+	struct NativeTrackRegistry *updated = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
+	int level;
+	if (updated == NULL || !NativeTrackRegistry_Find(updated, saved, &level))
+	{
+		NativeTrackRegistry_Destroy(updated);
+		return 0;
+	}
+	NativeTrackRegistry_Destroy(s_trackReviewRegistry);
+	s_trackReviewRegistry = updated;
+	s_trackReviewIndex = level - NATIVE_TRACK_CUSTOM_ID_BASE;
+	return 1;
 }
 
 static void MM_TrackImport_ReviewClose(void)
@@ -50,12 +106,17 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	if (view == NULL || s_trackImportState != TRACK_IMPORT_REVIEW) { return 0; }
 	const struct NativeTrackMetadata *track = MM_TrackImport_ReviewTrack();
 	if (track == NULL) { return 0; }
+	int custom;
+	int choice = MM_TrackImport_MusicChoice(track, &custom);
 	*view = (struct TrackImportReviewView){
 	    .title = track->title, .author = track->author,
 	    .editingValue = s_trackReviewEditing ? NativeTextEdit_Value() : NULL,
 	    .message = s_trackImportMessage, .index = s_trackReviewIndex,
 	    .count = (int)NativeTrackRegistry_Count(s_trackReviewRegistry), .row = s_trackReviewRow,
 	    .editing = s_trackReviewEditing,
+	    .musicSource = custom ? "Custom" : "Retail",
+	    .musicTrack = custom ? NULL : sdata->lngStrings[data.metaDataLEV[choice].name_LNG],
+	    .musicIndex = custom ? choice + 1 : 0,
 	};
 	return 1;
 }
@@ -130,17 +191,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 			    s_trackReviewRow == TRACK_REVIEW_AUTHOR ? value : (track->author != NULL ? track->author : ""));
 			if (error == NULL)
 			{
-				char identity[256];
-				snprintf(identity, sizeof(identity), "%s", track->identity);
-				struct NativeTrackRegistry *updated = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
-				int level;
-				if (updated != NULL && NativeTrackRegistry_Find(updated, identity, &level))
-				{
-					NativeTrackRegistry_Destroy(s_trackReviewRegistry);
-					s_trackReviewRegistry = updated;
-					s_trackReviewIndex = level - NATIVE_TRACK_CUSTOM_ID_BASE;
-				}
-				else { NativeTrackRegistry_Destroy(updated); }
+				if (!MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = "Cannot refresh review"; }
 			}
 			else { s_trackImportMessage = error; OtherFX_Play(2, 1); }
 		}
@@ -155,6 +206,33 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	int back = FullScreenMenu_Back(buttons);
 	int confirm = !back && FullScreenMenu_Confirm(buttons);
 	int count = (int)NativeTrackRegistry_Count(s_trackReviewRegistry);
+	if (!back && (s_trackReviewRow == TRACK_REVIEW_MUSIC_SOURCE || s_trackReviewRow == TRACK_REVIEW_MUSIC_TRACK) &&
+	    ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
+	{
+		int custom;
+		int choice = MM_TrackImport_MusicChoice(track, &custom);
+		int customCount = MM_TrackImport_CustomMusicCount();
+		int direction = (buttons & BTN_LEFT) != 0 ? -1 : 1;
+		if (s_trackReviewRow == TRACK_REVIEW_MUSIC_SOURCE)
+		{
+			if (customCount > 0) { custom = !custom; choice = custom ? 0 : CRASH_COVE; }
+		}
+		else
+		{
+			int choices = custom ? customCount : TRACK_IMPORT_RETAIL_MUSIC_COUNT;
+			choice = (choice + choices + direction) % choices;
+		}
+		const struct NativeTrackMetadata *music = custom ? MM_TrackImport_CustomMusic(choice) : NULL;
+		int saved = custom ? NativeTrackPatch_ReviewSetMusic(track->identity, music->identity) :
+		    NativeTrackLibrary_SetMusic(track, choice, 0) && NativeTrackPatch_ReviewSetMusic(track->identity, NULL);
+		if (!saved)
+		{
+			s_trackImportMessage = "Cannot save music selection";
+			OtherFX_Play(2, 1);
+		}
+		else if (!custom && !MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = "Cannot refresh review"; }
+		else if (!confirm) { OtherFX_Play(0, 1); }
+	}
 	if (s_trackReviewRow == TRACK_REVIEW_TRACK && count > 0)
 	{
 		if (buttons & BTN_LEFT) { s_trackReviewIndex = (s_trackReviewIndex + count - 1) % count; OtherFX_Play(0, 1); }

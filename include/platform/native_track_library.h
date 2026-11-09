@@ -25,6 +25,11 @@ void NativeTrackLibrary_Replace(struct NativeTrackRegistry *replacement);
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void);
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track);
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled);
+/* Missing or invalid selections retain the original custom-audio fallback. */
+int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track);
+int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
+                                     int retail, int custom);
+int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom);
 /* Unknown source modes remain selectable; explicit lists must include time_trial. */
 /* Arcade and VS require positive LEV detection, not just source tags. */
 int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode);

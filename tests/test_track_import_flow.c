@@ -25,6 +25,28 @@ static const char *s_prepareError;
 static char s_lastTitle[256], s_lastAuthor[256];
 static enum NativeTextEditResult s_editResult;
 static const char *s_editValue;
+static int s_musicRetail = -1;
+static char s_musicIdentity[256];
+static int s_musicAvailable;
+static struct NativeTrackRegistry *s_installedRegistry;
+const char *NativeTrackPatch_ReviewMusic(const char *identity) { (void)identity; return s_musicIdentity[0] ? s_musicIdentity : NULL; }
+int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
+{
+	(void)identity;
+	snprintf(s_musicIdentity, sizeof(s_musicIdentity), "%s", source != NULL ? source : "");
+	return 1;
+}
+const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return s_installedRegistry; }
+int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
+{
+	(void)track;
+	return s_musicRetail;
+}
+int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom)
+{
+	(void)track; (void)custom; s_musicRetail = retail;
+	return 1;
+}
 
 int NativeFolderDialog_Open(void) { s_dialogResult = NATIVE_FOLDER_DIALOG_PENDING; return 1; }
 int NativeFileDialog_OpenPatch(void) { return NativeFolderDialog_Open(); }
@@ -54,8 +76,13 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 {
 	(void)directory; (void)result;
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", NULL, "Author", 0, 0};
+	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable ? "track.sca" : NULL, "Author", 0, 0, NULL};
 	NativeTrackRegistry_Add(registry, &track, NULL);
+	if (s_musicAvailable)
+	{
+		struct NativeTrackMetadata other = {"local:other", "Other", "other.lev", "other.vrm", "other.sca", NULL, 0, 0, NULL};
+		NativeTrackRegistry_Add(registry, &other, NULL);
+	}
 	return registry;
 }
 int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResult *result)
@@ -75,6 +102,10 @@ int OtherFX_Play(u32 id, int flags) { s_sound = (int)id; (void)flags; return 0; 
 
 int main(void)
 {
+	static char *language[] = {"localized crash", "localized blizzard"};
+	sdata->lngStrings = language;
+	data.metaDataLEV[CRASH_COVE].name_LNG = 0;
+	data.metaDataLEV[BLIZZARD_BLUFF].name_LNG = 1;
 	MM_TrackImport_Reset();
 	CTR_TEST_SECTION("folder review and cancellation");
 	MM_TrackImport_Open();
@@ -82,6 +113,20 @@ int main(void)
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_prepared == 1 && s_commits == 0 && s_refresh == 0 && s_trackImportState == TRACK_IMPORT_REVIEW,
 	               "selecting a folder prepares review without publishing");
+	struct TrackImportReviewView view;
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(strcmp(view.musicSource, "Retail") == 0, "imports without custom audio default to retail");
+	CTR_TEST_CHECK(strcmp(view.musicTrack, "localized crash") == 0, "retail music uses the localized level metadata");
+	s_trackReviewRow = TRACK_REVIEW_MUSIC_SOURCE;
+	MM_TrackImport_Update(BTN_RIGHT);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(strcmp(view.musicSource, "Retail") == 0, "custom source cannot be selected without custom audio");
+	s_trackReviewRow = TRACK_REVIEW_MUSIC_TRACK;
+	MM_TrackImport_Update(BTN_LEFT);
+	CTR_TEST_CHECK(s_musicRetail == CRASH_COVE - 1, "retail music scrolls backwards");
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(strcmp(view.musicTrack, "localized blizzard") == 0, "scrolling resolves the selected level's localized name");
+	s_trackReviewRow = TRACK_REVIEW_TRACK;
 	MM_TrackImport_Update(BTN_DOWN);
 	CTR_TEST_CHECK(s_sound == 0, "review navigation uses the shared menu navigation sound");
 	MM_TrackImport_Update(BTN_CROSS);
@@ -108,6 +153,12 @@ int main(void)
 	               s_commits == 0 && s_refresh == 0, "an invalid folder reports its error without publishing");
 	MM_TrackImport_Update(BTN_CROSS);
 	s_prepareError = NULL;
+	s_musicAvailable = 1;
+	s_musicRetail = -1;
+	s_musicIdentity[0] = '\0';
+	s_installedRegistry = NativeTrackRegistry_Create();
+	struct NativeTrackMetadata installed = {"local:installed", "Installed", "installed.lev", "installed.vrm", "installed.sca", NULL, 0, 0, NULL};
+	NativeTrackRegistry_Add(s_installedRegistry, &installed, NULL);
 	CTR_TEST_SECTION("patch review and confirmation");
 	MM_TrackImport_OpenPatch();
 	s_dialogResult = NATIVE_FOLDER_DIALOG_SELECTED;
@@ -123,6 +174,21 @@ int main(void)
 	s_patchResult = 1;
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_REVIEW && s_commits == 0, "a prepared patch opens review before publication");
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(strcmp(view.musicSource, "Custom") == 0 && view.musicIndex == 1 && view.musicTrack == NULL,
+	               "an imported custom song is selected by default");
+	s_trackReviewRow = TRACK_REVIEW_MUSIC_TRACK;
+	MM_TrackImport_Update(BTN_RIGHT);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(view.musicIndex == 2 && strcmp(s_musicIdentity, "local:other") == 0,
+	               "custom music scrolls through imported songs and saves a stable identity");
+	MM_TrackImport_Update(BTN_RIGHT);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(view.musicIndex == 1 && strcmp(s_musicIdentity, "local:track") == 0,
+	               "custom choices wrap within this import and exclude previously installed tracks");
+	s_trackReviewRow = TRACK_REVIEW_TRACK;
+	MM_TrackImport_Update(BTN_DOWN);
+	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
@@ -133,5 +199,6 @@ int main(void)
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_commits == 1 && s_refresh == 1 && s_trackImportState == TRACK_IMPORT_RESULT,
 	               "confirm publishes the reviewed patch and refreshes the library");
+	NativeTrackRegistry_Destroy(s_installedRegistry);
 	return CtrTest_Summary();
 }

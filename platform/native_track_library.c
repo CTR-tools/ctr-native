@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum
@@ -167,8 +168,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
-	char fields[3][NATIVE_TRACK_FIELD_MAX] = {{0}};
-	const char *keys[] = {"id", "title", "author"};
+	char fields[4][NATIVE_TRACK_FIELD_MAX + 7] = {{0}};
+	const char *keys[] = {"id", "title", "author", "music"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -199,7 +200,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 			index++;
 		}
 		unsigned int bit = 1u << index;
-		if ((seen & bit) != 0 || *value == '\0')
+		if ((seen & bit) != 0 || (*value == '\0' && index != 3))
 		{
 			valid = 0;
 			break;
@@ -207,8 +208,9 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 		seen |= bit;
 		if (index < SDL_arraysize(keys))
 		{
-			if (strlen(value) >= sizeof(fields[index]))
+			if (strlen(value) >= (index == 3 ? sizeof(fields[index]) : NATIVE_TRACK_FIELD_MAX))
 			{
+				if (index == 3) { continue; }
 				valid = 0;
 				break;
 			}
@@ -265,7 +267,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	}
 	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
 	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL,
-	                                       0, 0};
+	                                       0, 0, fields[3][0] ? fields[3] : NULL};
 	metadata.detectionKnown = TrackDetect_File(paths[0], &metadata.detectedModes);
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
@@ -372,6 +374,60 @@ static int NativeTrackLibrary_DisabledPath(const struct NativeTrackMetadata *tra
 	memcpy(path, track->levPath, prefix);
 	memcpy(path + prefix, "/.ctr-disabled", sizeof("/.ctr-disabled"));
 	return 1;
+}
+
+static int NativeTrackLibrary_TrackPath(const struct NativeTrackMetadata *track, const char *name, char *path, size_t size)
+{
+	if (track == NULL || track->levPath == NULL) { return 0; }
+	const char *slash = strrchr(track->levPath, '/');
+	const char *backslash = strrchr(track->levPath, '\\');
+	if (backslash != NULL && (slash == NULL || backslash > slash)) { slash = backslash; }
+	if (slash == NULL || (size_t)(slash - track->levPath) + 1 + strlen(name) + 1 > size) { return 0; }
+	size_t length = (size_t)(slash - track->levPath);
+	memcpy(path, track->levPath, length);
+	path[length++] = '/';
+	strcpy(path + length, name);
+	return 1;
+}
+
+int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
+{
+	if (track == NULL || track->music == NULL) { return -1; }
+	const char *line = track->music;
+	if (strncmp(line, "retail:", 7) == 0)
+	{
+		char *end;
+		long level = strtol(line + 7, &end, 10);
+		if (end != line + 7 && *end == '\0' && level >= 0 && level < 18) { return (int)level; }
+	}
+	return -1;
+}
+
+int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
+	                                     int retail, int custom)
+{
+	char path[NATIVE_TRACK_PATH_MAX], temporary[NATIVE_TRACK_PATH_MAX];
+	if (!NativeTrackLibrary_TrackPath(track, "track.ini", path, sizeof(path)) ||
+	    strlen(path) + sizeof(".tmp") > sizeof(temporary) ||
+	    title == NULL || author == NULL || retail >= 18) { return 0; }
+	strcpy(temporary, path);
+	strcat(temporary, ".tmp");
+	FILE *file = fopen(temporary, "wb");
+	if (file == NULL) { return 0; }
+	int ok = fprintf(file, "id = %s\ntitle = %s\n", track->identity, title) > 0;
+	if (ok && author[0] != '\0') { ok = fprintf(file, "author = %s\n", author) > 0; }
+	if (ok && retail >= 0) { ok = fprintf(file, "music = retail:%d\n", retail) > 0; }
+	else if (ok && custom) { ok = fprintf(file, "music = custom\n") > 0; }
+	if (fclose(file) != 0) { ok = 0; }
+	if (ok) { ok = SDL_RenamePath(temporary, path); }
+	if (!ok) { SDL_RemovePath(temporary); }
+	return ok;
+}
+
+int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom)
+{
+	if (track == NULL || (retail < 0 && !custom)) { return 0; }
+	return NativeTrackLibrary_WriteMetadata(track, track->title, track->author != NULL ? track->author : "", retail, custom);
 }
 
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track)

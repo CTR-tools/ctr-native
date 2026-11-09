@@ -27,9 +27,11 @@ void Music_LoadBanks(void)
 	struct Bank thisBank;
 	struct GameTracker *gGT = sdata->gGT;
 	int level = gGT->levelID;
-	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level);
+	int retailMusic = customTrack != NULL ? NativeTrackLibrary_Music(customTrack) : -1;
+	if (customTrack != NULL)
 	{
-		level = CRASH_COVE;
+		level = retailMusic >= 0 ? retailMusic : CRASH_COVE;
 	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
@@ -91,9 +93,11 @@ u32 Music_AsyncParseBanks(void)
 	struct GameTracker *gGT = sdata->gGT;
 	struct Bank thisBank;
 	int level = gGT->levelID;
-	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level) != NULL)
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), level);
+	int retailMusic = customTrack != NULL ? NativeTrackLibrary_Music(customTrack) : -1;
+	if (customTrack != NULL)
 	{
-		level = CRASH_COVE;
+		level = retailMusic >= 0 ? retailMusic : CRASH_COVE;
 	}
 	u8 *arr = (u8 *)&sdata->audioDefaults[7];
 
@@ -131,7 +135,7 @@ u32 Music_AsyncParseBanks(void)
 		// any driving track
 		else if (level < INTRO_RACE_TODAY)
 		{
-			if (sdata->boolAudioEnabled && NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
+			if (sdata->boolAudioEnabled && customTrack != NULL && retailMusic < 0)
 			{
 				if (CustomSca_LoadBank(&thisBank))
 				{

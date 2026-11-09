@@ -107,10 +107,38 @@ static void PatchTest_Review(const char *root, const char *source)
 	SDL_CreateDirectory(prepared);
 	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == NULL,
 	               "a second candidate can be prepared after discard");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "other") == NULL,
+	               "a second candidate is available for music exchange");
+	char sca[PATCH_PATH_BYTES];
+	TrackPatch_Path(sca, prepared, "candidate/track.sca");
+	PatchTest_Write(sca, "first", 5);
+	TrackPatch_Path(sca, prepared, "other/track.sca");
+	PatchTest_Write(sca, "second", 6);
 	s_trackPatchJob.reviewReady = 1;
 	SDL_strlcpy(s_trackPatchJob.work, work, sizeof(s_trackPatchJob.work));
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetMusic("local:candidate", "local:other") &&
+	               NativeTrackPatch_ReviewSetMusic("local:other", "local:candidate"),
+	               "review can select music from another candidate in both directions");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommit() == NULL && SDL_GetPathInfo(library, &info) && !SDL_GetPathInfo(work, &info),
 	               "confirm publishes the candidate and removes the temporary import");
+	TrackPatch_Path(sca, library, "candidate/track.sca");
+	size_t musicSize = 0;
+	char *musicBytes = SDL_LoadFile(sca, &musicSize);
+	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 6 && memcmp(musicBytes, "second", 6) == 0,
+	               "the selected custom music is copied into the candidate directory");
+	SDL_free(musicBytes);
+	TrackPatch_Path(sca, library, "other/track.sca");
+	musicBytes = SDL_LoadFile(sca, &musicSize);
+	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 5 && memcmp(musicBytes, "first", 5) == 0,
+	               "crossed selections do not overwrite their staged sources");
+	SDL_free(musicBytes);
+	struct NativeTrackRegistry *published = NativeTrackLibrary_Scan(library, NULL);
+	int candidateLevel;
+	const struct NativeTrackMetadata *candidate = NativeTrackRegistry_Find(published, "local:candidate", &candidateLevel) ?
+	    NativeTrackRegistry_Get(published, candidateLevel) : NULL;
+	CTR_TEST_CHECK(candidate != NULL && candidate->music != NULL && strcmp(candidate->music, "custom") == 0,
+	               "the installed manifest stores only custom, not the source identity");
+	NativeTrackRegistry_Destroy(published);
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewDirectory() == NULL, "a committed review cannot be committed twice");
 	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
 	TrackPatch_Path(assets, root, "folder-review-assets");
@@ -123,6 +151,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL, "a discarded folder can be prepared again");
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(NativeTrackLibrary_SetMusic(track, -1, 1), "review saves music in the candidate manifest");
 	char identity[256];
 	SDL_strlcpy(identity, track != NULL ? track->identity : "", sizeof(identity));
 	NativeTrackRegistry_Destroy(registry);
@@ -130,6 +159,8 @@ static void PatchTest_Review(const char *root, const char *source)
 	               "review can edit candidate title and attribution");
 	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(track != NULL && track->music != NULL && strcmp(track->music, "custom") == 0,
+	               "editing metadata preserves the selected music");
 	CTR_TEST_CHECK(track != NULL && strcmp(track->identity, identity) == 0 && strcmp(track->title, "Edited Circuit") == 0 &&
 	               track->author != NULL && strcmp(track->author, "Example Author") == 0,
 	               "editing preserves identity and persists both values in the staged metadata");
@@ -152,6 +183,17 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(result == 1 && installed != NULL && NativeTrackRegistry_Count(installed) == 1 &&
 	               SDL_GetPathInfo(library, &info), "background confirmation publishes and scans the folder import");
 	NativeTrackRegistry_Destroy(installed);
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL,
+	               "another folder import can be reviewed after installation");
+	const char *reviewDirectory = NativeTrackPatch_ReviewDirectory();
+	registry = NativeTrackLibrary_Scan(reviewDirectory, NULL);
+	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(track != NULL && NativeTrackRegistry_Count(registry) == 1 &&
+	               strncmp(track->levPath, reviewDirectory, strlen(reviewDirectory)) == 0 &&
+	               strcmp(track->title, "Renamed Circuit") != 0,
+	               "a later review scans the new temporary import, not the previously installed library");
+	NativeTrackRegistry_Destroy(registry);
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscard(), "the later review can be discarded independently");
 	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
 }
 

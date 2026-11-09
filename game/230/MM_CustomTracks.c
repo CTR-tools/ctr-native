@@ -148,7 +148,7 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 {
 	(void)selected;
 	const struct TrackImportReviewView *view = context;
-	static const char *const labels[] = {"Track", "Name", "Author", "Confirm import", "Cancel import"};
+	static const char *const labels[] = {"Track", "Name", "Author", "Music source", "Music track", "Confirm import", "Cancel import"};
 	FullScreenMenu_DrawRowLabel(labels[row], y, ot);
 	char value[CUSTOM_TRACKS_DETAIL_BYTES];
 	if (row == TRACK_REVIEW_TRACK)
@@ -166,6 +166,18 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 			return;
 		}
 		CustomTracks_FormatText(value, sizeof(value), text != NULL ? text : "", FULLSCREEN_MENU_CONTENT_W / 2);
+	}
+	else if (row == TRACK_REVIEW_MUSIC_SOURCE || row == TRACK_REVIEW_MUSIC_TRACK)
+	{
+		if (row == TRACK_REVIEW_MUSIC_TRACK && view->musicIndex > 0)
+		{
+			snprintf(value, sizeof(value), "%d", view->musicIndex);
+		}
+		else
+		{
+			const char *text = row == TRACK_REVIEW_MUSIC_SOURCE ? view->musicSource : view->musicTrack;
+			CustomTracks_FormatText(value, sizeof(value), text != NULL ? text : "", FULLSCREEN_MENU_CONTENT_W / 2);
+		}
 	}
 	else { return; }
 	FullScreenMenu_DrawValueText(value, y, ot);

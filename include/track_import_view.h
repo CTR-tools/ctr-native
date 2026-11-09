@@ -6,6 +6,8 @@ enum TrackImportReviewRow
 	TRACK_REVIEW_TRACK,
 	TRACK_REVIEW_TITLE,
 	TRACK_REVIEW_AUTHOR,
+	TRACK_REVIEW_MUSIC_SOURCE,
+	TRACK_REVIEW_MUSIC_TRACK,
 	TRACK_REVIEW_CONFIRM,
 	TRACK_REVIEW_CANCEL,
 	TRACK_REVIEW_ROWS,
@@ -14,6 +16,8 @@ enum TrackImportReviewRow
 struct TrackImportReviewView
 {
 	const char *title, *author, *editingValue, *message;
+	const char *musicSource, *musicTrack;
+	int musicIndex;
 	int index, count, row, editing;
 };
 

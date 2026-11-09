@@ -31,6 +31,7 @@ struct NativeTrackMetadata
 	const char *author;
 	unsigned int detectedModes;
 	int detectionKnown;
+	const char *music;
 };
 
 struct NativeTrackRegistry;

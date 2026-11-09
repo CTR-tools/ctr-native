@@ -10,6 +10,8 @@ const char *NativeTrackPatch_PrepareFolder(const char *assets, const char *sourc
 const char *NativeTrackPatch_ReviewDirectory(void);
 /* identity is the candidate's stable registry identity, not its transient ID. */
 const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author);
+int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source);
+const char *NativeTrackPatch_ReviewMusic(const char *identity);
 const char *NativeTrackPatch_ReviewCommit(void);
 int NativeTrackPatch_ReviewCommitStart(void);
 /* Transfers a completed background scan to the caller. */

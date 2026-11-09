@@ -13,6 +13,8 @@ enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18, 
 enum { PATCH_AUTHOR_BYTES = 256, PATCH_AUTHOR_FILE_LIMIT = 16 * 1024 * 1024 };
 enum PatchStage { PATCH_COPY, PATCH_APPLY, PATCH_EXTRACT, PATCH_COMPARE, PATCH_INSTALL, PATCH_CLEANUP };
 
+struct TrackPatchMusicChoice { char track[256], source[256]; };
+
 struct TrackPatchJob
 {
 	SDL_Thread *thread;
@@ -24,9 +26,20 @@ struct TrackPatchJob
 	char assets[PATCH_PATH_BYTES], patch[PATCH_PATH_BYTES], name[PATCH_NAME_BYTES];
 	char work[PATCH_PATH_BYTES];
 	char result[256];
+	struct TrackPatchMusicChoice musicChoices[PATCH_TRACK_LIMIT];
+	int musicChoiceCount;
 };
 
 static struct TrackPatchJob s_trackPatchJob;
+
+static const char *TrackPatch_MusicChoice(const struct TrackPatchJob *job, const char *identity)
+{
+	for (int i = 0; identity != NULL && i < job->musicChoiceCount; i++)
+	{
+		if (strcmp(job->musicChoices[i].track, identity) == 0) { return job->musicChoices[i].source; }
+	}
+	return NULL;
+}
 
 static int TrackPatch_Path(char *out, const char *directory, const char *name)
 {
@@ -472,6 +485,7 @@ static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const 
 struct TrackPatchPublish
 {
 	struct TrackPatchJob *job;
+	struct NativeTrackRegistry *prepared;
 	const char *library;
 	const char *error;
 	char installed[PATCH_TRACK_LIMIT][PATCH_PATH_BYTES];
@@ -497,6 +511,30 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 		if (publish->error == NULL)
 		{
 			SDL_strlcpy(publish->installed[publish->count++], target, PATCH_PATH_BYTES);
+			struct NativeTrackRegistry *candidate = NativeTrackRegistry_Create();
+			if (candidate == NULL || !NativeTrackLibrary_ReadDirectory(candidate, target, name))
+			{
+				publish->error = "Cannot read imported track";
+			}
+			else
+			{
+				const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(candidate, NATIVE_TRACK_CUSTOM_ID_BASE);
+				const char *selected = TrackPatch_MusicChoice(publish->job, track->identity);
+				if (selected != NULL)
+				{
+					int level;
+					const struct NativeTrackMetadata *music = NativeTrackRegistry_Find(publish->prepared, selected, &level) ?
+					    NativeTrackRegistry_Get(publish->prepared, level) : NULL;
+					char sca[PATCH_PATH_BYTES];
+					if (music == NULL || music->scaPath == NULL || !TrackPatch_Path(sca, target, "track.sca") ||
+					    !SDL_CopyFile(music->scaPath, sca)) { publish->error = "Cannot copy selected music"; }
+				}
+				if (publish->error == NULL && (selected != NULL || (track->music == NULL && track->scaPath != NULL)))
+				{
+					if (!NativeTrackLibrary_SetMusic(track, -1, 1)) { publish->error = "Cannot save selected music"; }
+				}
+			}
+			NativeTrackRegistry_Destroy(candidate);
 		}
 	}
 	return publish->error == NULL ? SDL_ENUM_CONTINUE : SDL_ENUM_FAILURE;
@@ -504,7 +542,8 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 
 static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const char *prepared, const char *library)
 {
-	struct TrackPatchPublish publish = {.job = job, .library = library};
+	struct TrackPatchPublish publish = {.job = job, .library = library, .prepared = NativeTrackLibrary_Scan(prepared, NULL)};
+	if (publish.prepared == NULL) { return "Cannot read prepared tracks"; }
 	const char *error = NULL;
 	if (!SDL_EnumerateDirectory(prepared, TrackPatch_Publish, &publish))
 	{
@@ -524,6 +563,7 @@ static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const c
 			}
 		}
 	}
+	NativeTrackRegistry_Destroy(publish.prepared);
 	return error;
 }
 
@@ -727,6 +767,33 @@ const char *NativeTrackPatch_ReviewDirectory(void)
 	return job->thread == NULL && job->reviewReady && TrackPatch_Path(prepared, job->work, "prepared") ? prepared : NULL;
 }
 
+const char *NativeTrackPatch_ReviewMusic(const char *identity)
+{
+	return TrackPatch_MusicChoice(&s_trackPatchJob, identity);
+}
+
+int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
+{
+	struct TrackPatchJob *job = &s_trackPatchJob;
+	if (!job->reviewReady || identity == NULL || identity[0] == '\0' || strlen(identity) >= 256 ||
+	    (source != NULL && (source[0] == '\0' || strlen(source) >= 256))) { return 0; }
+	int i = 0;
+	while (i < job->musicChoiceCount && strcmp(job->musicChoices[i].track, identity) != 0) { i++; }
+	if (source == NULL)
+	{
+		if (i < job->musicChoiceCount) { job->musicChoices[i] = job->musicChoices[--job->musicChoiceCount]; }
+		return 1;
+	}
+	if (i == job->musicChoiceCount)
+	{
+		if (i == PATCH_TRACK_LIMIT) { return 0; }
+		job->musicChoiceCount++;
+	}
+	SDL_strlcpy(job->musicChoices[i].track, identity, sizeof(job->musicChoices[i].track));
+	SDL_strlcpy(job->musicChoices[i].source, source, sizeof(job->musicChoices[i].source));
+	return 1;
+}
+
 static int TrackPatch_ReviewTextValid(const char *text, int allowEmpty)
 {
 	if (text == NULL || strlen(text) >= 256) { return 0; }
@@ -753,27 +820,9 @@ const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *titl
 		return "Track not found";
 	}
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, level);
-	char directory[PATCH_PATH_BYTES], manifest[PATCH_PATH_BYTES], temporary[PATCH_PATH_BYTES];
-	SDL_strlcpy(directory, track->levPath, sizeof(directory));
-	char *slash = strrchr(directory, '/'), *backslash = strrchr(directory, '\\');
-	if (slash == NULL || (backslash != NULL && backslash > slash)) { slash = backslash; }
-	if (slash == NULL)
-	{
-		NativeTrackRegistry_Destroy(registry);
-		return "Invalid track path";
-	}
-	*slash = '\0';
-	if (!TrackPatch_Path(manifest, directory, "track.ini") || !TrackPatch_Path(temporary, directory, ".track.ini.tmp"))
-	{
-		NativeTrackRegistry_Destroy(registry);
-		return "Path is too long";
-	}
-	FILE *file = fopen(temporary, "wb");
-	int ok = file != NULL && fprintf(file, "id = %s\ntitle = %s\n", identity, title) > 0;
-	if (ok && author[0] != '\0') { ok = fprintf(file, "author = %s\n", author) > 0; }
-	if (file != NULL && fclose(file) != 0) { ok = 0; }
-	if (ok) { ok = SDL_RenamePath(temporary, manifest); }
-	if (!ok) { SDL_RemovePath(temporary); }
+	int retailMusic = NativeTrackLibrary_Music(track);
+	int custom = track->music != NULL && strcmp(track->music, "custom") == 0;
+	int ok = NativeTrackLibrary_WriteMetadata(track, title, author, retailMusic, custom);
 	NativeTrackRegistry_Destroy(registry);
 	return ok ? NULL : "Cannot write track metadata";
 }
