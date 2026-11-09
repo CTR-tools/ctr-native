@@ -210,7 +210,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 		{
 			if (strlen(value) >= (index == 3 ? sizeof(fields[index]) : NATIVE_TRACK_FIELD_MAX))
 			{
-				if (index == 3) { continue; }
+				if (index == 3) { strcpy(fields[index], "invalid"); continue; }
 				valid = 0;
 				break;
 			}
@@ -259,6 +259,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
+	if ((seen & (1u << 3)) != 0 && fields[3][0] == '\0') { strcpy(fields[3], "invalid"); }
 	char localID[NATIVE_TRACK_FIELD_MAX + sizeof("local:")];
 	int length = snprintf(localID, sizeof(localID), "local:%s", name);
 	if (length < 0 || (size_t)length >= sizeof(localID))
@@ -344,6 +345,39 @@ void NativeTrackLibrary_Replace(struct NativeTrackRegistry *replacement)
 {
 	if (replacement != NULL)
 	{
+		struct NativeTrackRegistry *normalized = NativeTrackRegistry_Create();
+		int valid = normalized != NULL;
+		char fallback[32];
+		snprintf(fallback, sizeof(fallback), "retail:%d", NATIVE_TRACK_DEFAULT_RETAIL_MUSIC);
+		for (size_t i = 0; valid && i < NativeTrackRegistry_Count(replacement); i++)
+		{
+			const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(replacement, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
+			struct NativeTrackMetadata copy = *track;
+			if (track->music != NULL && NativeTrackLibrary_Music(track) < 0 &&
+			    (strcmp(track->music, "custom") != 0 || track->scaPath == NULL))
+			{
+				copy.music = track->scaPath != NULL ? "custom" : fallback;
+			}
+			valid = NativeTrackRegistry_Add(normalized, &copy, NULL);
+		}
+		if (valid)
+		{
+			for (size_t i = 0; i < NativeTrackRegistry_Count(replacement); i++)
+			{
+				const struct NativeTrackMetadata *old = NativeTrackRegistry_Get(replacement, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
+				const struct NativeTrackMetadata *fixed = NativeTrackRegistry_Get(normalized, NATIVE_TRACK_CUSTOM_ID_BASE + (int)i);
+				if (old->music != NULL && fixed->music != NULL && strcmp(old->music, fixed->music) != 0)
+				{
+					if (!NativeTrackLibrary_SetMusic(old, old->scaPath != NULL ? -1 : NATIVE_TRACK_DEFAULT_RETAIL_MUSIC, old->scaPath != NULL))
+					{
+						SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Cannot persist music fallback for track %s", old->identity);
+					}
+				}
+			}
+			NativeTrackRegistry_Destroy(replacement);
+			replacement = normalized;
+		}
+		else { NativeTrackRegistry_Destroy(normalized); }
 		NativeTrackRegistry_Destroy(s_nativeTrackLibrary);
 		s_nativeTrackLibrary = replacement;
 	}
@@ -403,25 +437,50 @@ int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
 	return -1;
 }
 
-int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
-	                                     int retail, int custom)
+static int NativeTrackLibrary_ValidText(const char *text, int allowEmpty)
+{
+	if (text == NULL || strlen(text) >= NATIVE_TRACK_FIELD_MAX) { return 0; }
+	int visible = 0;
+	for (const unsigned char *p = (const unsigned char *)text; *p != 0; p++)
+	{
+		if (*p < 32 || *p == 127) { return 0; }
+		if (*p != ' ') { visible = 1; }
+	}
+	return visible || (allowEmpty && text[0] == '\0');
+}
+
+static int NativeTrackLibrary_WriteFields(const struct NativeTrackMetadata *track, const char *title, const char *author, const char *music)
 {
 	char path[NATIVE_TRACK_PATH_MAX], temporary[NATIVE_TRACK_PATH_MAX];
 	if (!NativeTrackLibrary_TrackPath(track, "track.ini", path, sizeof(path)) ||
 	    strlen(path) + sizeof(".tmp") > sizeof(temporary) ||
-	    title == NULL || author == NULL || retail >= 18) { return 0; }
+	    !NativeTrackLibrary_ValidText(title, 0) || !NativeTrackLibrary_ValidText(author, 1)) { return 0; }
 	strcpy(temporary, path);
 	strcat(temporary, ".tmp");
 	FILE *file = fopen(temporary, "wb");
 	if (file == NULL) { return 0; }
 	int ok = fprintf(file, "id = %s\ntitle = %s\n", track->identity, title) > 0;
 	if (ok && author[0] != '\0') { ok = fprintf(file, "author = %s\n", author) > 0; }
-	if (ok && retail >= 0) { ok = fprintf(file, "music = retail:%d\n", retail) > 0; }
-	else if (ok && custom) { ok = fprintf(file, "music = custom\n") > 0; }
+	if (ok && music != NULL && music[0] != '\0') { ok = fprintf(file, "music = %s\n", music) > 0; }
 	if (fclose(file) != 0) { ok = 0; }
 	if (ok) { ok = SDL_RenamePath(temporary, path); }
 	if (!ok) { SDL_RemovePath(temporary); }
 	return ok;
+}
+
+int NativeTrackLibrary_SetDetails(const struct NativeTrackMetadata *track, const char *title, const char *author)
+{
+	return track != NULL && NativeTrackLibrary_WriteFields(track, title, author, track->music);
+}
+
+int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
+	                                     int retail, int custom)
+{
+	if (track == NULL || retail >= 18) { return 0; }
+	char music[32];
+	if (retail >= 0) { snprintf(music, sizeof(music), "retail:%d", retail); }
+	else { snprintf(music, sizeof(music), "%s", custom ? "custom" : ""); }
+	return NativeTrackLibrary_WriteFields(track, title, author, music);
 }
 
 int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom)
@@ -461,6 +520,55 @@ int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int e
 	}
 	FILE *file = fopen(path, "wb");
 	return file != NULL && fclose(file) == 0;
+}
+
+static SDL_EnumerationResult SDLCALL NativeTrackLibrary_DeleteEntry(void *userdata, const char *directory, const char *name)
+{
+	char path[NATIVE_TRACK_PATH_MAX];
+	SDL_PathInfo info;
+	/* Installed tracks contain files only. Refuse subdirectories rather than
+	   traversing an unexpected directory or link. */
+	if (!NativeTrackLibrary_Join(path, sizeof(path), directory, name) ||
+	    !SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
+	    (userdata != NULL && !SDL_RemovePath(path)))
+	{
+		return SDL_ENUM_FAILURE;
+	}
+	return SDL_ENUM_CONTINUE;
+}
+
+int NativeTrackLibrary_Delete(const struct NativeTrackMetadata *track, const char *directory)
+{
+	char path[NATIVE_TRACK_PATH_MAX], root[NATIVE_TRACK_PATH_MAX];
+	if (track == NULL || directory == NULL || !NativeTrackLibrary_TrackPath(track, "", path, sizeof(path))) { return 0; }
+	/* SDL enumeration supplies a trailing separator, sometimes with a different
+	   slash on Windows. Compare normalized paths, including older cached scans. */
+	size_t out = 0;
+	for (size_t i = 0; directory[i] != '\0' && out + 1 < sizeof(root); i++)
+	{
+		char c = directory[i] == '\\' ? '/' : directory[i];
+		if (c != '/' || out == 0 || root[out - 1] != '/') { root[out++] = c; }
+	}
+	root[out] = '\0';
+	while (out > 1 && root[out - 1] == '/') { root[--out] = '\0'; }
+	size_t written = 0;
+	for (size_t i = 0; path[i] != '\0'; i++)
+	{
+		char c = path[i] == '\\' ? '/' : path[i];
+		if (c != '/' || written == 0 || path[written - 1] != '/') { path[written++] = c; }
+	}
+	path[written] = '\0';
+	size_t rootLength = strlen(root);
+	/* Only remove an immediate child of the supplied library directory. */
+	if (rootLength == 0 || rootLength >= strlen(path) || strncmp(path, root, rootLength) != 0 || path[rootLength] != '/' ||
+	    strchr(path + rootLength + 1, '/') != path + strlen(path) - 1 ||
+	    strchr(path + rootLength + 1, '\\') != NULL || strcmp(path + rootLength + 1, "../") == 0 ||
+	    strcmp(path + rootLength + 1, "./") == 0) { return 0; }
+	path[strlen(path) - 1] = '\0';
+	int removed = SDL_EnumerateDirectory(path, NativeTrackLibrary_DeleteEntry, NULL) &&
+	              SDL_EnumerateDirectory(path, NativeTrackLibrary_DeleteEntry, path) && SDL_RemovePath(path);
+	int refreshed = NativeTrackLibrary_Refresh(directory, NULL);
+	return removed && refreshed;
 }
 
 void NativeTrackLibrary_Shutdown(void)

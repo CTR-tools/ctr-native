@@ -1,6 +1,8 @@
 #ifndef CTR_NATIVE_TRACK_IMPORT_VIEW_H
 #define CTR_NATIVE_TRACK_IMPORT_VIEW_H
 
+enum { TRACK_REVIEW_TEXT_CHARACTERS = 30 };
+
 enum TrackImportReviewRow
 {
 	TRACK_REVIEW_TRACK,
@@ -21,6 +23,7 @@ struct TrackImportReviewView
 	int musicIndex;
 	int index, count, row, editing;
 	int included, includedCount;
+	int installed;
 };
 
 void MM_TrackImport_Reset(void);

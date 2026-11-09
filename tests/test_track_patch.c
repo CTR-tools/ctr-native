@@ -122,7 +122,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	SDL_strlcpy(s_trackPatchJob.work, work, sizeof(s_trackPatchJob.work));
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetMusic("local:candidate", "local:discard") &&
 	               NativeTrackPatch_ReviewSetMusic("local:other", "local:candidate"),
-	               "review can select music from another candidate in both directions");
+	               "review can select music from other candidates");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:discard", 0) &&
 	               !NativeTrackPatch_ReviewIncluded("local:discard"), "a candidate can be excluded without deleting its files");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:candidate", 0) && NativeTrackPatch_ReviewSetIncluded("local:other", 0) &&
@@ -136,7 +136,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	size_t musicSize = 0;
 	char *musicBytes = SDL_LoadFile(sca, &musicSize);
 	CTR_TEST_CHECK(musicBytes != NULL && musicSize == 14 && memcmp(musicBytes, "excluded music", 14) == 0,
-	               "music from an excluded track is copied into the selected candidate directory");
+	               "music from an excluded candidate is copied into the installed track");
 	SDL_free(musicBytes);
 	TrackPatch_Path(sca, library, "discard");
 	CTR_TEST_CHECK(!SDL_GetPathInfo(sca, &info), "the excluded candidate is not published");
@@ -176,8 +176,8 @@ static void PatchTest_Review(const char *root, const char *source)
 	               "review can edit candidate title and attribution");
 	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
-	CTR_TEST_CHECK(track != NULL && track->music != NULL && strcmp(track->music, "custom") == 0,
-	               "editing metadata preserves the selected music");
+	CTR_TEST_CHECK(track != NULL && NativeTrackLibrary_Music(track) == NATIVE_TRACK_DEFAULT_RETAIL_MUSIC,
+	               "editing metadata repairs custom music when the candidate has no SCA");
 	CTR_TEST_CHECK(track != NULL && strcmp(track->identity, identity) == 0 && strcmp(track->title, "Edited Circuit") == 0 &&
 	               track->author != NULL && strcmp(track->author, "Example Author") == 0,
 	               "editing preserves identity and persists both values in the staged metadata");

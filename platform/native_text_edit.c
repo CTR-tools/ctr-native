@@ -1,4 +1,5 @@
 #include <platform/native_text_edit.h>
+#include <SDL3/SDL.h>
 #include <string.h>
 
 enum { NATIVE_TEXT_EDIT_MAX = 256 };
@@ -7,6 +8,7 @@ static struct
 	SDL_Window *window;
 	enum NativeTextEditResult result;
 	size_t limit;
+	size_t characterLimit;
 	char value[NATIVE_TEXT_EDIT_MAX];
 } s_nativeTextEdit;
 
@@ -26,6 +28,20 @@ int NativeTextEdit_Begin(SDL_Window *window, const char *initial, size_t maxByte
 	return 1;
 }
 
+void NativeTextEdit_LimitCharacters(size_t maxCharacters)
+{
+	if (s_nativeTextEdit.result != NATIVE_TEXT_EDIT_ACTIVE) { return; }
+	s_nativeTextEdit.characterLimit = maxCharacters;
+	char *p = s_nativeTextEdit.value;
+	while (*p != '\0' && maxCharacters > 0)
+	{
+		p++;
+		while (((unsigned char)*p & 0xc0) == 0x80) { p++; }
+		maxCharacters--;
+	}
+	*p = '\0';
+}
+
 int NativeTextEdit_HandleEvent(const SDL_Event *event)
 {
 	if (event == NULL || s_nativeTextEdit.result != NATIVE_TEXT_EDIT_ACTIVE) { return 0; }
@@ -35,7 +51,8 @@ int NativeTextEdit_HandleEvent(const SDL_Event *event)
 		if (text != NULL)
 		{
 			size_t used = strlen(s_nativeTextEdit.value), length = strlen(text);
-			if (length < s_nativeTextEdit.limit - used && strchr(text, '\n') == NULL && strchr(text, '\r') == NULL)
+			if (length < s_nativeTextEdit.limit - used && strchr(text, '\n') == NULL && strchr(text, '\r') == NULL &&
+			    (s_nativeTextEdit.characterLimit == 0 || SDL_utf8strlen(s_nativeTextEdit.value) + SDL_utf8strlen(text) <= s_nativeTextEdit.characterLimit))
 			{
 				memcpy(s_nativeTextEdit.value + used, text, length + 1);
 			}

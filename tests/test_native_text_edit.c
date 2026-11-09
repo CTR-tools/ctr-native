@@ -33,6 +33,23 @@ int main(void)
 	NativeTextEdit_HandleEvent(&event);
 	CTR_TEST_CHECK(NativeTextEdit_Result() == NATIVE_TEXT_EDIT_ACCEPTED, "enter accepts editing");
 	NativeTextEdit_Close();
+	CTR_TEST_CHECK(NativeTextEdit_Begin(window, "12345678901234567890123456789\xc3\xa8x", 64), "long existing text can be edited");
+	NativeTextEdit_LimitCharacters(30);
+	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 30 && strcmp(NativeTextEdit_Value(), "12345678901234567890123456789\xc3\xa8") == 0,
+	               "the character limit truncates existing text without splitting UTF-8");
+	event.type = SDL_EVENT_TEXT_INPUT;
+	event.text.text = "x";
+	NativeTextEdit_HandleEvent(&event);
+	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 30, "input cannot exceed the character limit");
+	event.type = SDL_EVENT_KEY_DOWN;
+	event.key.scancode = SDL_SCANCODE_BACKSPACE;
+	NativeTextEdit_HandleEvent(&event);
+	event.type = SDL_EVENT_TEXT_INPUT;
+	event.text.text = "\xc3\xa8";
+	NativeTextEdit_HandleEvent(&event);
+	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 30 && strstr(NativeTextEdit_Value(), "\xc3\xa8") != NULL,
+	               "a multibyte character fits into the final character slot");
+	NativeTextEdit_Close();
 	SDL_DestroyWindow(window);
 	SDL_Quit();
 	return CtrTest_Summary();

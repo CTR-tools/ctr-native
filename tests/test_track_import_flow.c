@@ -24,6 +24,7 @@ static int s_sound = -1;
 static const char *s_prepareError;
 static char s_lastTitle[256], s_lastAuthor[256];
 static enum NativeTextEditResult s_editResult;
+static size_t s_characterLimit;
 static const char *s_editValue;
 static int s_previewRetail, s_previewRestores;
 static char s_previewIdentity[256];
@@ -98,7 +99,7 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 {
 	(void)directory; (void)result;
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable ? "track.sca" : NULL, "Author", 0, 0, NULL};
+	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable == 1 ? "track.sca" : NULL, "Author", 0, 0, NULL};
 	NativeTrackRegistry_Add(registry, &track, NULL);
 	if (s_musicAvailable)
 	{
@@ -115,6 +116,7 @@ int NativeTextEdit_BeginForGame(const char *value, size_t maxBytes)
 {
 	(void)maxBytes; s_editValue = value; s_editResult = NATIVE_TEXT_EDIT_ACTIVE; return 1;
 }
+void NativeTextEdit_LimitCharacters(size_t maxCharacters) { s_characterLimit = maxCharacters; }
 enum NativeTextEditResult NativeTextEdit_Result(void) { return s_editResult; }
 const char *NativeTextEdit_Value(void) { return s_editValue; }
 void NativeTextEdit_Close(void) { s_editResult = NATIVE_TEXT_EDIT_IDLE; }
@@ -157,6 +159,7 @@ int main(void)
 	MM_TrackImport_Update(BTN_CROSS);
 	CTR_TEST_CHECK(s_trackReviewEditing && s_editResult == NATIVE_TEXT_EDIT_ACTIVE && s_sound == 1,
 	               "name opens the keyboard editor with the shared confirmation sound");
+	CTR_TEST_CHECK(s_characterLimit == TRACK_REVIEW_TEXT_CHARACTERS, "import review limits metadata to 30 characters");
 	s_editResult = NATIVE_TEXT_EDIT_CANCELLED;
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(!s_trackReviewEditing && s_trackImportState == TRACK_IMPORT_REVIEW, "escape cancels text editing only");
@@ -230,12 +233,24 @@ int main(void)
 	MM_TrackImport_Update(BTN_RIGHT);
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(view.musicIndex == 2 && strcmp(s_musicIdentity, "local:other") == 0,
-	               "custom music scrolls through imported songs and saves a stable identity");
-	CTR_TEST_CHECK(strcmp(s_previewIdentity, "local:other") == 0, "changing the custom song previews its staged audio");
+	               "custom music can select another track in the current import");
+	CTR_TEST_CHECK(strcmp(s_previewIdentity, "local:other") == 0, "the selected staged music is previewed");
 	MM_TrackImport_Update(BTN_RIGHT);
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(view.musicIndex == 1 && strcmp(s_musicIdentity, "local:track") == 0,
-	               "custom choices wrap within this import and exclude previously installed tracks");
+	               "custom choices wrap within this import and exclude installed tracks");
+	/* A candidate without its own SCA can still use another candidate's audio. */
+	NativeTrackRegistry_Destroy(s_trackReviewRegistry);
+	s_musicAvailable = 2;
+	s_trackReviewRegistry = NativeTrackLibrary_Scan("C:/staged", NULL);
+	s_musicIdentity[0] = '\0';
+	s_musicRetail = -1;
+	s_trackReviewRow = TRACK_REVIEW_MUSIC_SOURCE;
+	MM_TrackImport_Update(BTN_RIGHT);
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(strcmp(view.musicSource, "Custom") == 0 && strcmp(s_musicIdentity, "local:other") == 0 &&
+	               strcmp(s_previewIdentity, "local:other") == 0,
+	               "a track without local audio can select and preview another candidate's SCA");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);

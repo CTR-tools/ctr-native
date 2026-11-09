@@ -251,7 +251,9 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 		int direction = (buttons & BTN_LEFT) != 0 ? -1 : 1;
 		if (s_trackReviewRow == TRACK_REVIEW_MUSIC_SOURCE)
 		{
-			if (customCount > 0) { custom = !custom; choice = custom ? 0 : CRASH_COVE; }
+			if (customCount == 0) { return; }
+			custom = !custom;
+			choice = custom ? 0 : CRASH_COVE;
 		}
 		else
 		{
@@ -288,6 +290,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	{
 		const char *value = s_trackReviewRow == TRACK_REVIEW_TITLE ? track->title : track->author;
 		s_trackReviewEditing = NativeTextEdit_BeginForGame(value != NULL ? value : "", 256);
+		if (s_trackReviewEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
 	}
 	else if (confirm && s_trackReviewRow == TRACK_REVIEW_CONFIRM)
 	{

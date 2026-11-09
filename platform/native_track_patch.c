@@ -824,7 +824,7 @@ int NativeTrackPatch_ReviewSetIncluded(const char *identity, int included)
 int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
 {
 	struct TrackPatchJob *job = &s_trackPatchJob;
-	if (!job->reviewReady || identity == NULL || identity[0] == '\0' || strlen(identity) >= 256 ||
+	if (!job->reviewReady || job->thread != NULL || identity == NULL || identity[0] == '\0' || strlen(identity) >= 256 ||
 	    (source != NULL && (source[0] == '\0' || strlen(source) >= 256))) { return 0; }
 	int i = 0;
 	while (i < job->musicChoiceCount && strcmp(job->musicChoices[i].track, identity) != 0) { i++; }
@@ -870,7 +870,8 @@ const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *titl
 	}
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, level);
 	int retailMusic = NativeTrackLibrary_Music(track);
-	int custom = track->music != NULL && strcmp(track->music, "custom") == 0;
+	int custom = retailMusic < 0 && track->scaPath != NULL;
+	if (retailMusic < 0 && !custom && track->music != NULL) { retailMusic = NATIVE_TRACK_DEFAULT_RETAIL_MUSIC; }
 	int ok = NativeTrackLibrary_WriteMetadata(track, title, author, retailMusic, custom);
 	NativeTrackRegistry_Destroy(registry);
 	return ok ? NULL : "Cannot write track metadata";

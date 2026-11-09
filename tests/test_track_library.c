@@ -220,6 +220,53 @@ int main(void)
 	SDL_RemovePath(newTrack);
 	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, &result) && NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 1,
 	               "a refresh removes entries deleted from disk");
+	CTR_TEST_SECTION("installed track editing and deletion");
+	SDL_CreateDirectory(newTrack);
+	WriteFixture(newTrack, "track.lev", "not LEV");
+	WriteFixture(newTrack, "track.vrm", "not VRM");
+	WriteFixture(track, "track.ini", "title=Updated Track\nmusic=custom:local:aaa-new-track\n");
+	WriteFixture(newTrack, "track.ini", "title=Other\nmusic=custom:local:track\n");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, NULL), "invalid music selections are repaired during refresh");
+	int trackID = 0, sourceID = 0;
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:track", &trackID);
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:aaa-new-track", &sourceID);
+	metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackID);
+	const struct NativeTrackMetadata *source = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), sourceID);
+	CTR_TEST_CHECK(strcmp(metadata->music, "custom") == 0 && NativeTrackLibrary_Music(source) == NATIVE_TRACK_DEFAULT_RETAIL_MUSIC,
+	               "invalid references fall back to local SCA or Crash Cove");
+	struct NativeTrackRegistry *reloaded = NativeTrackLibrary_Scan(root, NULL);
+	int reloadedTrack, reloadedSource;
+	NativeTrackRegistry_Find(reloaded, "local:track", &reloadedTrack);
+	NativeTrackRegistry_Find(reloaded, "local:aaa-new-track", &reloadedSource);
+	CTR_TEST_CHECK(strcmp(NativeTrackRegistry_Get(reloaded, reloadedTrack)->music, "custom") == 0 &&
+	               NativeTrackLibrary_Music(NativeTrackRegistry_Get(reloaded, reloadedSource)) == NATIVE_TRACK_DEFAULT_RETAIL_MUSIC,
+	               "both fallback choices are persisted to the manifests");
+	NativeTrackRegistry_Destroy(reloaded);
+	CTR_TEST_CHECK(NativeTrackLibrary_SetDetails(metadata, "New Name", "New Author"), "name and author can be saved");
+	CTR_TEST_CHECK(!NativeTrackLibrary_SetDetails(metadata, " ", "Author"), "an empty name is rejected");
+	CTR_TEST_CHECK(NativeTrackLibrary_Refresh(root, NULL), "edited details can be reloaded");
+	NativeTrackRegistry_Find(NativeTrackLibrary_Current(), "local:track", &trackID);
+	metadata = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), trackID);
+	CTR_TEST_CHECK(strcmp(metadata->title, "New Name") == 0 && strcmp(metadata->author, "New Author") == 0 &&
+	               strcmp(metadata->music, "custom") == 0,
+	               "editing details preserves the custom music choice");
+	/* SDL's enumeration callback supplies a trailing separator; old scans could
+	   consequently have doubled or mixed separators in the stored LEV path. */
+	char oldPath[1200];
+	snprintf(oldPath, sizeof(oldPath), "%s\\/track/track.lev", root);
+	struct NativeTrackMetadata oldScan = *metadata;
+	oldScan.levPath = oldPath;
+	CTR_TEST_CHECK(NativeTrackLibrary_Delete(&oldScan, root), "a track from an older mixed-separator scan can be deleted");
+	SDL_PathInfo deletedInfo;
+	CTR_TEST_CHECK(!SDL_GetPathInfo(track, &deletedInfo) && NativeTrackRegistry_Count(NativeTrackLibrary_Current()) == 1,
+	               "deletion removes the directory and updates the published library");
+	const char *sourceFiles[] = {"track.lev", "track.vrm", "track.ini"};
+	for (size_t i = 0; i < SDL_arraysize(sourceFiles); i++)
+	{
+		snprintf(path, sizeof(path), "%s/%s", newTrack, sourceFiles[i]);
+		SDL_RemovePath(path);
+	}
+	SDL_RemovePath(newTrack);
 	NativeTrackLibrary_Shutdown();
 	CTR_TEST_CHECK(NativeTrackLibrary_Current() == NULL, "shutdown releases the published library");
 
