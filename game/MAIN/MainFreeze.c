@@ -11,6 +11,27 @@
 #ifndef MAIN_FREEZE_NAMCO_CENTER_Y
 #define MAIN_FREEZE_NAMCO_CENTER_Y ((u16)sdata->analogConfigY[1])
 #endif
+#ifndef MAIN_FREEZE_OPTIONS_HIGHLIGHTS
+#define MAIN_FREEZE_OPTIONS_HIGHLIGHTS data.Options_HighlightBar
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_PAD_LABELS
+#define MAIN_FREEZE_OPTIONS_PAD_LABELS data.Options_StringIDs_Gamepads
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_VIBRATION_MASKS
+#define MAIN_FREEZE_OPTIONS_VIBRATION_MASKS data.gGT_gameMode1_VibPerPlayer
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_SLIDER_COLORS
+#define MAIN_FREEZE_OPTIONS_SLIDER_COLORS data.Options_VolumeSlider_Colors
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_HOLD
+#define MAIN_FREEZE_OPTIONS_HOLD sdata->AnyPlayerHold
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_HIGHLIGHT_COLOR
+#define MAIN_FREEZE_OPTIONS_HIGHLIGHT_COLOR sdata->menuRowHighlight_Normal
+#endif
+#ifndef MAIN_FREEZE_OPTIONS_EDGE_COLOR
+#define MAIN_FREEZE_OPTIONS_EDGE_COLOR sdata->battleSetup_Color_UI_1
+#endif
 
 // NOTE(aalhendi): The resident build binds this table to its linked symbol;
 // native uses the shared runtime table directly.
@@ -875,191 +896,196 @@ void MainFreeze_ConfigSetupEntry(void)
 }
 
 
-typedef struct
+void MainFreeze_MenuPtrOptions(struct RectMenu *inputMenu)
 {
-	int numGamepads;
-	int numAnalogs;
-	int gamepadId[4];
-	int analogId[4];
-	int isGamepadAnalog[4];
-	int menuRowsToRemove;
-} GAMEPAD_MainFreeze_MenuPtrOptions;
+	s16 analogIDs[4];
+	s16 gamepadIDs[4];
+	b16 isAnalog[4];
+	RECT sliderRect;
+	s16 sliderTriangle[8];
+	RECT rect;
+	struct RectMenu *menu = inputMenu;
+	b16 exitMenu = false;
+	s16 rowPadding;
+	s16 analogRowOffset;
+	s16 numGamepads;
+	s16 numAnalogs;
+	s16 multitapOffset;
+	s16 innerY;
+	// NOTE(aalhendi): This spill home preserves retail's unused eight-byte frame gap.
+	s16 sliderWidth CTR_PSX_SPILL_HOME(120);
+	s16 maxLabelWidth = 0;
+	s16 i;
+	s16 selected;
+	s16 controller;
+	s16 labelX;
+	s32 controllerWidth;
+	s32 enabledWidth;
+	s32 disabledWidth;
+	s16 width;
+	s16 sliderLeft;
+	s16 sliderX;
+	s16 rowY;
+	b32 bothLabels;
+	b16 disconnected;
+	s32 volume;
+	s16 rowOffset;
+	s16 halfPadding;
+	s32 scaledVolume;
+	struct ControllerPacket *packet;
+	char **setting;
+	u8 slotControllerData;
 
-static void IDENTIFYGAMEPADS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPAD_MainFreeze_MenuPtrOptions *gamepad)
-{
-	struct GameTracker *gGT = sdata->gGT;
-	b32 areBothControllerLabelsNecessary;
-	int i;
-	(void)menu;
+	// NOTE(aalhendi): Retail writes this table, but drawing uses the compact lists.
+	(void)isAnalog;
 
-	// get number of ordinary gamepads and/or "analog controllers" connected, and which players are using which
-
-	for (i = 0; i < gGT->numPlyrCurrGame; i++)
+	slotControllerData = GAMEPADS->slotBuffer[0].controller.controllerData;
+	numGamepads = 0;
+	multitapOffset = (slotControllerData == (PAD_ID_MULTITAP << 4)) ? 2 : 0;
+	MainFreeze_SafeAdvDestroy();
+	numAnalogs = 0;
+	if (sdata->boolOpenWheelConfig != 0)
 	{
-		struct ControllerPacket *ptrControllerPacket = sdata->gGamepads->gamepad[i].ptrControllerPacket;
+		MainFreeze_ConfigSetupEntry();
+		return;
+	}
 
-		// if gamepad is not an "analog controller", as CTR uses to refer to jogcons and negcons
-		if (
-		    // this function needs to display menu graphics for digital controllers at all times,
-		    // even if they're unplugged; this is simply an additional check for if
-		    // an "analog controller" is connected or not
-		    ((ptrControllerPacket == 0) || (ptrControllerPacket->plugged != PLUGGED)) ||
-
-		    ((ptrControllerPacket->controllerData != ((PAD_ID_JOGCON << 4) | 3)) && (ptrControllerPacket->controllerData != ((PAD_ID_NEGCON << 4) | 3))))
+	// Unplugged controllers remain visible; JogCon and NegCon get a separate section.
+	for (i = 0; i < GAME_TRACKER->numPlyrCurrGame; i++)
+	{
+		packet = GAMEPADS->gamepad[i].ptrControllerPacket;
+		if (packet != 0 && packet->plugged == PLUGGED &&
+		    (packet->controllerData == ((PAD_ID_JOGCON << 4) | 3) || packet->controllerData == ((PAD_ID_NEGCON << 4) | 3)))
 		{
-			gamepad->gamepadId[gamepad->numGamepads] = i;
-			gamepad->isGamepadAnalog[i] = false;
-			gamepad->numGamepads++;
+			analogIDs[numAnalogs++] = i;
+			isAnalog[i] = true;
 		}
 		else
 		{
-			gamepad->analogId[gamepad->numAnalogs] = i;
-			gamepad->isGamepadAnalog[i] = true;
-			gamepad->numAnalogs++;
+			gamepadIDs[numGamepads++] = i;
+			isAnalog[i] = false;
 		}
 	}
 
-	// the menu buttons for configuring dualshocks and analog controllers are accompanied by labels each
-	// these labels can appear at once
-	areBothControllerLabelsNecessary = false;
-	if (gamepad->numGamepads != 0)
+	// Each controller section needs its own heading when both types are present.
+	bothLabels = false;
+	if (numGamepads != 0)
+		bothLabels = numAnalogs != 0;
+	rowPadding = 4 - bothLabels;
+	rowPadding = (rowPadding - GAME_TRACKER->numPlyrCurrGame) * 10;
+	if (numGamepads != 0)
+		analogRowOffset = (numGamepads + 1) * 10;
+	else
+		analogRowOffset = 0;
+	halfPadding = rowPadding >> 1;
+	MAIN_FREEZE_OPTIONS_HIGHLIGHTS[8].posY = 119 - rowPadding;
+	for (i = 0; i < numGamepads; i++)
+		MAIN_FREEZE_OPTIONS_HIGHLIGHTS[i + 4].posY = i * 10 + 79;
+	for (i = 0; i < numAnalogs; i++)
 	{
-		areBothControllerLabelsNecessary = (gamepad->numAnalogs != 0);
+		__typeof__(MAIN_FREEZE_OPTIONS_HIGHLIGHTS[0]) *rows = MAIN_FREEZE_OPTIONS_HIGHLIGHTS;
+		s32 highlightRow = i + 4;
+		u16 *position;
+		s32 playerRow;
+		b32 analogHeadingGap;
+		position = &rows[numGamepads + highlightRow].posY;
+		playerRow = i + numGamepads;
+		analogHeadingGap = false;
+		if (numGamepads != 0)
+			analogHeadingGap = numAnalogs != 0;
+		*position = (playerRow + analogHeadingGap) * 10 + 79;
 	}
-
-	// set amount of menu rows to hide/remove
-	// used for the dualshock and/or "analog" rows which are variable
-
-	// in singleplayer, regardless of gamepad, 2 of these rows are always visible
-	// (dualshock label + 1 gamepad)
-
-	// with 4 regular gamepads connected, in multiplayer, there's 5 rows visible
-	// (dualshock label + 4 gamepads)
-
-	// maximum amount of rows is 6, which happens if there's 4 controllers and one of them is analog
-	// (dualshock label + analog label + 4 gamepads)
-
-	// in the last scenario, menuRowsToRemove will equal -1
-	gamepad->menuRowsToRemove = (4 - areBothControllerLabelsNecessary) - gGT->numPlyrCurrGame;
-}
-
-static b32 PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPAD_MainFreeze_MenuPtrOptions *gamepad)
-{
-	struct GameTracker *gGT = sdata->gGT;
-	b32 exitMenu = false;
-
-	if (sdata->AnyPlayerTap & (BTN_UP | BTN_DOWN))
 	{
-		// play sound for when you're moving around in the menu
+		struct RectMenu *activeMenu = menu;
+		u16 style = activeMenu->drawStyle & ~RECTMENU_DRAW_STYLE_3P4P_LAYOUT;
+		activeMenu->drawStyle = style;
+		if (GAME_TRACKER->numPlyrCurrGame > 2)
+			activeMenu->drawStyle = style | RECTMENU_DRAW_STYLE_3P4P_LAYOUT;
+	}
+	if (GAME_ANY_PLAYER_TAP & BTN_UP)
+	{
+		s16 row;
 		OtherFX_Play(0, 1);
-
-		// there are only 9 rows total
-		if (sdata->AnyPlayerTap & BTN_UP)
-		{
-			menu->rowSelected = (menu->rowSelected + (9 - 1)) % 9;
-			if (menu->rowSelected == 7)
-			{
-				menu->rowSelected = gGT->numPlyrCurrGame + 3;
-			}
-		}
-		else if (sdata->AnyPlayerTap & BTN_DOWN)
-		{
-			menu->rowSelected = (menu->rowSelected + 1) % 9;
-			if (menu->rowSelected > (gGT->numPlyrCurrGame + 3))
-			{
-				menu->rowSelected = 8;
-			}
-		}
+		row = menu->rowSelected - 1;
+		menu->rowSelected = row;
+		if (row < 0)
+			menu->rowSelected = 8;
+		else if (row == 7)
+			menu->rowSelected = GAME_TRACKER->numPlyrCurrGame + 3;
+	}
+	else if (GAME_ANY_PLAYER_TAP & BTN_DOWN)
+	{
+		s16 row;
+		OtherFX_Play(0, 1);
+		row = menu->rowSelected + 1;
+		menu->rowSelected = row;
+		if (row >= 9)
+			menu->rowSelected = 0;
+		else if (row >= GAME_TRACKER->numPlyrCurrGame + 4)
+			menu->rowSelected = 8;
 	}
 	else
 	{
 		switch (menu->rowSelected)
 		{
-		// 0: FX slider
-		// 1: Music slider
-		// 2: Voice slider
 		case 0:
 		case 1:
 		case 2:
-			OptionsMenu_TestSound(menu->rowSelected, 1);
-			if (sdata->AnyPlayerHold & (BTN_LEFT | BTN_RIGHT))
+			selected = menu->rowSelected;
+			OptionsMenu_TestSound(selected, 1);
+			if (MAIN_FREEZE_OPTIONS_HOLD & BTN_LEFT)
 			{
-				int volume = howl_VolumeGet(menu->rowSelected) & 0xff;
-
-				if (sdata->AnyPlayerHold & BTN_LEFT)
-				{
-					volume -= 4;
-				}
-				else if (sdata->AnyPlayerHold & BTN_RIGHT)
-				{
-					volume += 4;
-				}
-
-				if (volume < 0)
-				{
-					volume = 0;
-				}
-				if (volume > 0xff)
-				{
-					volume = 0xff;
-				}
-
-				howl_VolumeSet(menu->rowSelected, volume);
+				s32 branchVolume;
+				branchVolume = (howl_VolumeGet(selected) & 0xff) - 4;
+				if (branchVolume < 0)
+					branchVolume = 0;
+				howl_VolumeSet(selected, branchVolume);
+			}
+			else if (MAIN_FREEZE_OPTIONS_HOLD & BTN_RIGHT)
+			{
+				s32 branchVolume;
+				branchVolume = howl_VolumeGet(selected);
+				branchVolume &= 0xff;
+				branchVolume += 4;
+				if (branchVolume > 255)
+					branchVolume = 255;
+				howl_VolumeSet(selected, branchVolume);
 			}
 			break;
-
-		// Mode	(Stereo/Mono)
 		case 3:
-			// clear test sound
 			OptionsMenu_TestSound(0, 0);
-
-			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
+			if (GAME_ANY_PLAYER_TAP & (BTN_CIRCLE | BTN_CROSS_one))
 			{
-				int mode;
 				OtherFX_Play(1, 1);
-				mode = howl_ModeGet();
-				howl_ModeSet(mode == 0);
+				howl_ModeSet((u8)howl_ModeGet() == 0);
 			}
 			break;
-
-		// DualShock/"Analog controller" settings
 		case 4:
 		case 5:
 		case 6:
 		case 7:
-			// clear test sound
 			OptionsMenu_TestSound(0, 0);
-
-			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
+			if (GAME_ANY_PLAYER_TAP & (BTN_CIRCLE | BTN_CROSS_one))
 			{
-				int gamepadRow;
+				selected = menu->rowSelected - 4;
 				OtherFX_Play(1, 1);
-
-				gamepadRow = menu->rowSelected - 4;
-
-				if (gamepadRow < gamepad->numGamepads)
+				if (selected >= numGamepads)
 				{
-					// selecting dualshock row
-					// toggle gamepad vibration
-					gGT->gameMode1 ^= data.gGT_gameMode1_VibPerPlayer[gamepad->gamepadId[gamepadRow]];
-				}
-				else
-				{
-					// selecting "analog controller" row
-					// this will open the analog controller config menu
-					sdata->gamepadID_OwnerRaceWheelConfig = gamepad->analogId[gamepadRow - gamepad->numGamepads];
+					s16 wheelOwner = analogIDs[selected - numGamepads];
 					sdata->boolOpenWheelConfig = true;
 					sdata->raceWheelConfigPageIndex = 0;
+					sdata->gamepadID_OwnerRaceWheelConfig = wheelOwner;
+					// NOTE(aalhendi): Keep the handoff's own reset before joining the draw pass.
+					i = 0;
+					goto MeasureAudioLabels;
 				}
+				else
+					GAME_TRACKER->gameMode1 ^= MAIN_FREEZE_OPTIONS_VIBRATION_MASKS[gamepadIDs[selected]];
 			}
 			break;
-
-		// Exit
 		case 8:
-			// clear test sound
 			OptionsMenu_TestSound(0, 0);
-
-			if (sdata->AnyPlayerTap & (BTN_CIRCLE | BTN_CROSS_one))
+			if (GAME_ANY_PLAYER_TAP & (BTN_CIRCLE | BTN_CROSS_one))
 			{
 				OtherFX_Play(1, 1);
 				exitMenu = true;
@@ -1068,273 +1094,130 @@ static b32 PROCESSINPUTS_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPA
 		}
 	}
 
-	return exitMenu;
-}
-
-// stuff is drawn last to first
-static void DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(struct RectMenu *menu, GAMEPAD_MainFreeze_MenuPtrOptions *gamepad)
-{
-	struct GameTracker *gGT = sdata->gGT;
-	int volumeSliderTriangleLeftMargin;
-	int volumeSliderWidth;
-	u32 *ot;
-	struct PrimMem *primMem;
-	Color color;
-	int mode;
-	int i;
-	RECT cursor;
-	RECT titleSeparatorLine;
-	RECT menuBG;
-
-	// note: multitap only works if it's connected to the P1 slot
-	int multitapStringOffset = (sdata->gGamepads->slotBuffer[0].controller.controllerData == (PAD_ID_MULTITAP << 4)) ? 2 : 0;
-
-	// a menu row is 10 pixels
-	int menuRowsNegativePadding = gamepad->menuRowsToRemove * 10;
-
-	int analogRowPosY = 0;
-	if (gamepad->numGamepads != 0)
+	i = 0;
+MeasureAudioLabels:
+	do
 	{
-		analogRowPosY = (gamepad->numGamepads + 1) * 10;
-	}
-
-	// cursor location for exit button, which will change depending on how many dualshock rows there need to be
-	data.Options_HighlightBar[8].posY = gamepad->menuRowsToRemove * -10 + 119;
-
-	// cursor location for dualshock rows
-	if (gamepad->numGamepads > 0)
-	{
-		for (i = 0; i < gamepad->numGamepads; i++)
-		{
-			data.Options_HighlightBar[i + 4].posY = (i * 10) + 79;
-		}
-	}
-
-	// cursor location for "analog" rows
-	if (gamepad->numAnalogs > 0)
-	{
-		for (i = 0; i < gamepad->numAnalogs; i++)
-		{
-			b32 areBothControllerLabelsNecessary = false;
-			if (gamepad->numGamepads != 0)
-			{
-				areBothControllerLabelsNecessary = (gamepad->numAnalogs != 0);
-			}
-
-			data.Options_HighlightBar[gamepad->numGamepads + i + 4].posY = ((gamepad->numGamepads + i + areBothControllerLabelsNecessary) * 10) + 79;
-		}
-	}
-
-	menu->drawStyle &= ~RECTMENU_DRAW_STYLE_3P4P_LAYOUT;
-	if (gGT->numPlyrCurrGame > 2)
-	{
-		menu->drawStyle |= RECTMENU_DRAW_STYLE_3P4P_LAYOUT;
-	}
-
-	volumeSliderTriangleLeftMargin = 0;
-
+		s16 *audioLabels = data.Options_StringIDs_Audio;
+		width = DecalFont_GetLineWidth(MAIN_FREEZE_LANGUAGE_STRINGS[audioLabels[i]], FONT_SMALL);
+		if (width > maxLabelWidth)
+			maxLabelWidth = width;
+		i++;
+	} while ((u16)i < 3);
+	DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_OPTIONS_TITLE], 256, halfPadding + 26, FONT_BIG, JUSTIFY_CENTER | ORANGE);
+	sliderLeft = maxLabelWidth + 30;
+	sliderWidth = 380 - sliderLeft;
 	for (i = 0; i < 3; i++)
 	{
-		//"FX:", "MUSIC:", "VOICE:"
-		int lineWidth = DecalFont_GetLineWidth(sdata->lngStrings[data.Options_StringIDs_Audio[i]], FONT_SMALL);
-		if (volumeSliderTriangleLeftMargin < lineWidth)
-		{
-			volumeSliderTriangleLeftMargin = lineWidth;
-		}
-	}
-
-	DecalFont_DrawLine(sdata->lngStrings[LNG_OPTIONS_TITLE], 256, 26 + (menuRowsNegativePadding / 2), FONT_BIG, (JUSTIFY_CENTER | ORANGE));
-
-	volumeSliderWidth = 380 - (30 + volumeSliderTriangleLeftMargin);
-
-	ot = gGT->backBuffer->otMem.uiOT;
-	primMem = &gGT->backBuffer->primMem;
-
-	// draw volume sliders
-	for (i = 0; i < 3; i++)
-	{
-		int volume;
-		int volumeSliderValue;
-		s16 volumeSliderPosY;
-		int volumeSliderTriangleLeftPosX;
-		int volumeSliderBarPosX;
-		s16 volumeSliderTriangle[8];
-		RECT volumeSliderBar;
-		RECT volumeSliderBarOutline;
-
+		RECT *sliderPtr = &sliderRect;
+		rowOffset = i * 10;
 		volume = howl_VolumeGet(i) & 0xff;
-		volumeSliderValue = volume * (volumeSliderWidth - 5);
-		volumeSliderPosY = (menuRowsNegativePadding / 2) + (i * 10);
-
-		if (volumeSliderValue < 0)
+		scaledVolume = volume * (sliderWidth - 5);
+		rowY = halfPadding + rowOffset;
+		sliderX = sliderLeft + 56 + scaledVolume / 256;
+		sliderRect.x = sliderX + 1;
+		sliderRect.y = rowY + 48;
+		sliderRect.w = 3;
+		sliderRect.h = 10;
+		CTR_Box_DrawSolidBox(sliderPtr, (Color *)(MAIN_FREEZE_OPTIONS_SLIDER_COLORS + 12), GAME_TRACKER->backBuffer->otMem.uiOT,
+		                     &GAME_TRACKER->backBuffer->primMem);
+		sliderRect.x = sliderX;
+		sliderRect.y = rowY + 47;
+		sliderRect.w = 5;
+		sliderRect.h = 12;
+		CTR_Box_DrawSolidBox(sliderPtr, (Color *)(MAIN_FREEZE_OPTIONS_SLIDER_COLORS + 16), GAME_TRACKER->backBuffer->otMem.uiOT,
+		                     &GAME_TRACKER->backBuffer->primMem);
+		sliderTriangle[0] = sliderLeft + 56;
+		sliderTriangle[1] = rowY + 58;
+		sliderTriangle[2] = sliderLeft + (s16)(sliderWidth + 56);
+		sliderTriangle[3] = rowY + 48;
+		sliderTriangle[4] = sliderTriangle[2];
+		sliderTriangle[5] = sliderTriangle[1];
+		RECTMENU_DrawRwdTriangle(sliderTriangle, MAIN_FREEZE_OPTIONS_SLIDER_COLORS, GAME_TRACKER->backBuffer->otMem.uiOT, &GAME_TRACKER->backBuffer->primMem);
 		{
-			volumeSliderValue += 0xff;
+			s16 *audioLabels = data.Options_StringIDs_Audio;
+			DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[audioLabels[i]], 76, rowOffset + (s16)(halfPadding + 50), FONT_SMALL, ORANGE);
 		}
-
-		volumeSliderTriangleLeftPosX = 30 + volumeSliderTriangleLeftMargin;
-		volumeSliderBarPosX = 0x38 + volumeSliderTriangleLeftPosX + (s16)((u32)volumeSliderValue >> 8);
-
-		volumeSliderTriangle[0] = volumeSliderTriangleLeftPosX + 56;
-		volumeSliderTriangle[1] = volumeSliderPosY + 58;
-		volumeSliderTriangle[2] = volumeSliderTriangleLeftPosX + volumeSliderWidth + 56;
-		volumeSliderTriangle[3] = volumeSliderPosY + 48;
-		volumeSliderTriangle[6] = 0;
-		volumeSliderTriangle[7] = 0;
-
-		volumeSliderTriangle[4] = volumeSliderTriangle[2];
-		volumeSliderTriangle[5] = volumeSliderTriangle[1];
-
-		volumeSliderBar.x = volumeSliderBarPosX + 1;
-		volumeSliderBar.y = volumeSliderPosY + 48;
-		volumeSliderBar.w = 3;
-		volumeSliderBar.h = 10;
-		color = *(Color *)(data.Options_VolumeSlider_Colors + 0xc);
-		CTR_Box_DrawSolidBox(&volumeSliderBar, &color, ot, primMem);
-
-		volumeSliderBarOutline.x = volumeSliderBarPosX;
-		volumeSliderBarOutline.y = volumeSliderPosY + 47;
-		volumeSliderBarOutline.w = 5;
-		volumeSliderBarOutline.h = 12;
-
-		color = *(Color *)(data.Options_VolumeSlider_Colors + 0x10);
-		CTR_Box_DrawSolidBox(&volumeSliderBarOutline, &color, ot, primMem);
-
-		RECTMENU_DrawRwdTriangle(volumeSliderTriangle, data.Options_VolumeSlider_Colors, ot, primMem);
-
-		// "FX:" "MUSIC:" "VOICE:"
-		DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Audio[i]], 76, 50 + (menuRowsNegativePadding / 2) + (i * 10), FONT_SMALL, ORANGE);
 	}
-
-	DecalFont_DrawLine(sdata->lngStrings[LNG_MODE], 76, 80 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
-
-	// 333: MONO
-	// 334: STEREO
-	mode = howl_ModeGet();
-
-	// "MONO", "STEREO"
-	DecalFont_DrawLine(sdata->lngStrings[333 + mode], 436, 80 + (menuRowsNegativePadding / 2), FONT_SMALL, (JUSTIFY_RIGHT | WHITE));
-
-	if (gamepad->numGamepads != 0)
+	DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_MODE], 76, halfPadding + 80, FONT_SMALL, ORANGE);
+	setting = &MAIN_FREEZE_LANGUAGE_STRINGS[(u8)howl_ModeGet() == 0 ? LNG_MONO : LNG_STEREO];
+	DecalFont_DrawLine(*setting, 436, halfPadding + 80, FONT_SMALL, JUSTIFY_RIGHT | WHITE);
+	if (numGamepads != 0)
 	{
-		int lineWidth_controller1A;
-		int lineWidth_vibrateOff;
-		int lineWidth_vibrateOn;
-		DecalFont_DrawLine(sdata->lngStrings[LNG_DUAL_SHOCK], 76, 90 + (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
-
-		lineWidth_controller1A = DecalFont_GetLineWidth(sdata->lngStrings[data.Options_StringIDs_Gamepads[2]], FONT_SMALL);
-
-		// width can change depending on language
-		lineWidth_vibrateOff = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_OFF], FONT_SMALL);
-		lineWidth_vibrateOn = DecalFont_GetLineWidth(sdata->lngStrings[LNG_VIBRATE_ON], FONT_SMALL);
-		if (lineWidth_vibrateOn < lineWidth_vibrateOff)
+		DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_DUAL_SHOCK], 76, halfPadding + 90, FONT_SMALL, ORANGE);
+		controllerWidth = DecalFont_GetLineWidth(MAIN_FREEZE_LANGUAGE_STRINGS[MAIN_FREEZE_OPTIONS_PAD_LABELS[2]], FONT_SMALL);
+		disabledWidth = DecalFont_GetLineWidth(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_VIBRATE_OFF], FONT_SMALL);
+		enabledWidth = DecalFont_GetLineWidth(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_VIBRATE_ON], FONT_SMALL);
+		if ((s16)enabledWidth < (s16)disabledWidth)
+			enabledWidth = disabledWidth;
+		// NOTE(aalhendi): Retail narrows the combined label span before centering.
+		labelX = 256 - (s16)(controllerWidth + enabledWidth + 10) / 2;
+		for (i = 0; i < numGamepads; i++)
 		{
-			lineWidth_vibrateOn = lineWidth_vibrateOff;
-		}
-
-		lineWidth_vibrateOn = (lineWidth_controller1A + lineWidth_vibrateOn + 10);
-		lineWidth_vibrateOn = 256 - (lineWidth_vibrateOn >> 1);
-
-		for (i = 0; i < gamepad->numGamepads; i++)
-		{
-			int dualShockRowColor = ORANGE;
-			int currPad = gamepad->gamepadId[i];
-			struct ControllerPacket *ptrControllerPacket = sdata->gGamepads->gamepad[currPad].ptrControllerPacket;
-			int rowY;
-			b32 boolDisabled;
-
-			if (ptrControllerPacket == 0 || ptrControllerPacket->plugged != PLUGGED)
+			controller = gamepadIDs[i];
+			selected = controller + multitapOffset;
 			{
-				dualShockRowColor = GRAY;
+				struct ControllerPacket *rowPacket = GAMEPADS->gamepad[controller].ptrControllerPacket;
+				disconnected = false;
+				if (rowPacket == 0 || rowPacket->plugged != PLUGGED)
+					disconnected = true;
 			}
-
-			rowY = 100 + (menuRowsNegativePadding / 2) + (i * 10);
-
-			// "CONTROLLER 1", "CONTROLLER 2",
-			// "CONTROLLER 1A", "CONTROLLER 1B",
-			// "CONTROLLER 1C", "CONTROLLER 1D"
-			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[currPad + multitapStringOffset]], lineWidth_vibrateOn, rowY, FONT_SMALL,
-			                   dualShockRowColor);
-
-			boolDisabled = (gGT->gameMode1 & data.gGT_gameMode1_VibPerPlayer[currPad]) != 0;
-
-			if (dualShockRowColor != GRAY)
-			{
-				dualShockRowColor = boolDisabled ? RED : WHITE;
-			}
-
-			// 325: "VIBRATE ON"
-			// 326: "VIBRATE OFF"
-
-			DecalFont_DrawLine(sdata->lngStrings[325 + boolDisabled], lineWidth_vibrateOn + lineWidth_controller1A + 10, rowY, FONT_SMALL, dualShockRowColor);
+			// NOTE(aalhendi): Form the offset first on both supported flat-address targets.
+			setting = (char **)((size_t)MAIN_FREEZE_OPTIONS_PAD_LABELS[selected] * sizeof(*setting) + (size_t)MAIN_FREEZE_LANGUAGE_STRINGS);
+			rowY = i * 10 + (s16)(halfPadding + 100);
+			DecalFont_DrawLine(*setting, labelX, rowY, FONT_SMALL, disconnected ? GRAY : ORANGE);
+			setting =
+			    &MAIN_FREEZE_LANGUAGE_STRINGS[(GAME_TRACKER->gameMode1 & MAIN_FREEZE_OPTIONS_VIBRATION_MASKS[controller]) ? LNG_VIBRATE_OFF : LNG_VIBRATE_ON];
+			DecalFont_DrawLine(*setting, labelX + controllerWidth + 10, i * 10 + (s16)(halfPadding + 100), FONT_SMALL,
+			                   disconnected                                                                  ? GRAY
+			                   : (GAME_TRACKER->gameMode1 & MAIN_FREEZE_OPTIONS_VIBRATION_MASKS[controller]) ? RED
+			                                                                                                 : WHITE);
 		}
 	}
-
-	if (gamepad->numAnalogs != 0)
+	if (numAnalogs != 0)
 	{
-		DecalFont_DrawLine(sdata->lngStrings[LNG_CONFIGURE_ANALOG], 76, 90 + (menuRowsNegativePadding / 2) + analogRowPosY, FONT_SMALL, ORANGE);
-
-		for (i = 0; i < gamepad->numAnalogs; i++)
+		DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_CONFIGURE_ANALOG], 76, analogRowOffset + (s16)(halfPadding + 90), FONT_SMALL, ORANGE);
+		for (i = 0; i < numAnalogs; i++)
 		{
-			DecalFont_DrawLine(sdata->lngStrings[data.Options_StringIDs_Gamepads[gamepad->analogId[i] + multitapStringOffset]], 256,
-			                   100 + (menuRowsNegativePadding / 2) + analogRowPosY + (i * 10), FONT_SMALL, (JUSTIFY_CENTER | ORANGE));
+			selected = analogIDs[i] + multitapOffset;
+			rowOffset = i * 10 + 100;
+			rowY = analogRowOffset + rowOffset;
+			DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[MAIN_FREEZE_OPTIONS_PAD_LABELS[selected]], 256, halfPadding + rowY, FONT_SMALL,
+			                   JUSTIFY_CENTER | ORANGE);
 		}
 	}
-
-	DecalFont_DrawLine(sdata->lngStrings[LNG_OPTIONS_EXIT], 76, 140 - (menuRowsNegativePadding / 2), FONT_SMALL, ORANGE);
-
-	cursor.x = 74;
-	cursor.y = data.Options_HighlightBar[menu->rowSelected].posY + (menuRowsNegativePadding / 2) + 20;
-	cursor.w = 364;
-	cursor.h = data.Options_HighlightBar[menu->rowSelected].sizeY;
-
-	CTR_Box_DrawClearBox(&cursor, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot, primMem);
-
-	titleSeparatorLine.x = 66;
-	titleSeparatorLine.y = (menuRowsNegativePadding / 2) + 43;
-	titleSeparatorLine.w = 380;
-	titleSeparatorLine.h = 2;
-
-	ColorCode_SetPacked(&color, sdata->battleSetup_Color_UI_1);
-	RECTMENU_DrawOuterRect_Edge(&titleSeparatorLine, &color, 0x20, ot);
-
-	menuBG.x = 56;
-	menuBG.y = (menuRowsNegativePadding / 2) + 20;
-	menuBG.w = 400;
-	menuBG.h = 135 - menuRowsNegativePadding;
-
-	RECTMENU_DrawInnerRect(&menuBG, 4, ot);
-}
-
-void MainFreeze_MenuPtrOptions(struct RectMenu *menu)
-{
-	MainFreeze_SafeAdvDestroy();
-
-	// open racing wheel config menu instead
-	if (sdata->boolOpenWheelConfig != 0)
+	DecalFont_DrawLine(MAIN_FREEZE_LANGUAGE_STRINGS[LNG_OPTIONS_EXIT], 76, (s16)(halfPadding + 140) - rowPadding, FONT_SMALL, ORANGE);
+	innerY = halfPadding + 20;
+	rect.x = 74;
+	rect.w = 364;
+	rect.y = MAIN_FREEZE_OPTIONS_HIGHLIGHTS[menu->rowSelected].posY + innerY;
+	rect.h = MAIN_FREEZE_OPTIONS_HIGHLIGHTS[menu->rowSelected].sizeY;
+	CTR_Box_DrawClearBox(&rect, &MAIN_FREEZE_OPTIONS_HIGHLIGHT_COLOR, TRANS_50_DECAL, GAME_TRACKER->backBuffer->otMem.uiOT, &GAME_TRACKER->backBuffer->primMem);
+	rect.x = 66;
+	rect.y = halfPadding + 43;
+	rect.w = 380;
+	rect.h = 2;
 	{
-		MainFreeze_ConfigSetupEntry();
-		return;
+#ifdef CTR_NATIVE
+		// NOTE(aalhendi): Stage packed storage as a real Color for native aliasing.
+		Color edgeColor = ColorCode_Load(&MAIN_FREEZE_OPTIONS_EDGE_COLOR);
+		const Color *edgeColorPtr = &edgeColor;
+#else
+		const Color *edgeColorPtr = (const Color *)&MAIN_FREEZE_OPTIONS_EDGE_COLOR;
+#endif
+		RECTMENU_DrawOuterRect_Edge(&rect, edgeColorPtr, 0x20, GAME_TRACKER->backBuffer->otMem.uiOT);
 	}
-
-	// the options menu has gamepad-related settings
-	// specificially for DualShock controllers
-	// as well as what CTR refers to as "analog controllers", which are jogcons and negcons
-	// this struct will be filled out in IDENTIFYGAMEPADS
+	rect.x = 56;
+	rect.y = innerY;
+	rect.w = 400;
+	rect.h = 135 - rowPadding;
+	RECTMENU_DrawInnerRect(&rect, 4, GAME_TRACKER->backBuffer->otMem.uiOT);
+	if (exitMenu || (GAME_ANY_PLAYER_TAP & (BTN_TRIANGLE | BTN_START | BTN_SQUARE_one)))
 	{
-		GAMEPAD_MainFreeze_MenuPtrOptions gamepad = {0, 0, {-1, -1, -1, -1}, {-1, -1, -1, -1}, {false, false, false, false}, 0};
-		b32 exitMenu;
-
-		IDENTIFYGAMEPADS_MainFreeze_MenuPtrOptions(menu, &gamepad);
-		exitMenu = PROCESSINPUTS_MainFreeze_MenuPtrOptions(menu, &gamepad);
-		DISPLAYRECTMENU_MainFreeze_MenuPtrOptions(menu, &gamepad);
-
-		if (exitMenu || (sdata->AnyPlayerTap & (BTN_TRIANGLE | BTN_START | BTN_SQUARE_one)))
-		{
-			OtherFX_Play(1, 1);
-			OptionsMenu_TestSound(0, 0);
-			RECTMENU_ClearInput();
-			sdata->ptrDesiredMenu = MainFreeze_GetMenuPtr();
-		}
+		OtherFX_Play(1, 1);
+		OptionsMenu_TestSound(0, 0);
+		RECTMENU_ClearInput();
+		GAME_DESIRED_MENU = MainFreeze_GetMenuPtr();
 	}
 }
 

@@ -496,7 +496,7 @@ retargeting; final validation rejects a broken installed contract.
 unsupported shapes/profiles, preceding volatile order, normal scheduling,
 default-off identity, option precedence and invalid values.
 
-## Current complete compiler tuple
+## Earlier complete compiler construction
 
 Two fresh clean constructions produced byte-identical complete five-export
 tuples, with all thirteen maintained smoke suites passing on both binaries. The
@@ -632,3 +632,101 @@ Two clean offline archive builds reproduce the pinned C cc1; other four tools
 are unchanged. Controls inspect finite assembly/RTL output, not executed MIPS,
 hardware/IRQ behavior or whole-program equivalence. Native stream backend
 selection is unchanged; application and provider checks remain separate.
+
+## Opt-in constants carried through unconditional continuations
+
+`generic-continuation-constants-2.8.1.patch` follows the target-first patch.
+SHA-256: `3ebceed3f5cb7fe7951c15bcfde4241d78b743f564975ae9d2fdc6f87eec397d`.
+The default-off `-fsched-continuation-constants` preference acts only after
+reload; `-fno-sched-continuation-constants` disables it and the last supplied
+value wins. It applies to the complete C translation unit, not a function-name
+or address selector. Disabling sched2 also disables its final-crossjump guard.
+
+Only a complete recognized one-instruction, ready-cost-one CONST_INT assignment
+to a nonfixed single hard register in the target's BASE_REG_CLASS can qualify,
+in QI, HI or SI mode. The real block tail must be a simple direct unconditional
+jump. A straight source scan must prove the value is not overwritten before
+that jump; a target scan must find an actual operand read before an overwrite,
+call, control split or unknown instruction. Inert target labels/notes and bare
+USE metadata can be skipped but do not establish a real read. Partial writes,
+read-modify-write ambiguity, ASM, memory destinations and unsupported shapes
+are refused. The proof uses actual lowered RTL, not source-literal cost claims.
+
+The backward scheduler prefers these ready constants early in its reverse
+selection, thereby late in forward order. Existing dataflow dependencies,
+register/memory hazards, eligibility, clocks and hardware latencies remain
+authoritative. Final crossjumping reuses the same proof to avoid merging away
+the protected materialization; unrelated tails can still merge. Delay slots
+remain governed by the existing resource and legality checks. The per-block
+temporary eligibility cache is cleared at the common scheduler exit.
+
+This is a continuation-state scheduling preference, not a claim of lower
+register pressure or improved performance. It adds84 C/header lines and one
+Makefile dependency replacement. `tests/check_continuation_constants.sh` uses
+two standalone C90 fixtures for actual constant slots, retained two-jump tail
+stores, ordinary sharing, default/OFF/precedence, disabled-sched2 inactivity
+and reached overwrite/call/control refusals. Pre-reload RTL comparison ignores
+only CODE_LABEL_NUMBER metadata, not RTL UIDs/operands; independent assembly
+comparison uses a bijective local-label rename preserving definitions and
+references. Expensive source materialization reaches an overwrite refusal
+after LUI/ORI splitting, not a reached cost refusal; the loop control reaches
+the direct-tail gate, not a special loop exclusion. These are finite compiler
+outputs, not MIPS execution or a complete eligibility/exclusion matrix.
+
+## Declaration-local optional spill homes
+
+`generic-spill-home-2.8.1.patch` follows the continuation-constants patch.
+SHA-256: `19826d695779c20b098da1d3b0b82f0a0ff096086bafccdaab1dcfb60abcf70f`.
+`__attribute__((spill_home(offset)))` gives an existing automatic single-word
+integer/pointer declaration a requested local-area home **if it actually
+spills**. It does not force a spill, bind a hard register, make source memory
+addressable or change the outward calling convention. Register-resident,
+constant and eliminated declarations retain the ordinary path.
+
+The offset is relative to the compiler's locals area, before the ABI outgoing
+argument area is added. Actual reload width and rounded slot extent determine
+size/alignment; forward unused space can be reserved without inventing a source
+variable. The request cannot overlap/backtrack across allocated locals, violate
+alignment or exceed the checked small extent. Real declaration/pseudo ownership
+is collected before pseudo renumbering; ambiguous/inline associations,
+memory/hard-ASM associations, late/shared or wide spill allocation are rejected.
+Unsupported targets and dynamic, exposed, debug/profile, inline/nested,
+variadic/nonlocal and other nonordinary frame contexts diagnose rather than
+silently assuming a home. The implementation is deliberately limited to the
+existing little-endian MIPS-I/ABI32 soft-float, non-PIC, eight-byte-stack target
+contract. It is not a general stack-layout, unwind or debugger API.
+
+The patch adds183 net C/header lines and one Makefile dependency replacement.
+`tests/check_spill_home.sh` checks real SI/HI homes and rounded extents, shifted
+outgoing areas, inactive declarations, old/default identity and actual checked
+alignment/overlap/origin/unsupported-context refusals. Its optional fourth
+argument runs an independent native ASan/UBSan snapshot control; it does not
+execute MIPS or establish application semantics. Both new checkers accept an
+optional retained old compiler prefix for genuine historical identity checks.
+
+## Current tested compiler tuple
+
+Two fresh offline GNU-archive constructions produce the same complete five
+exports. The maintained Dockerfile's preconfigure commands reconstruct the
+same complete1221-file source-content vector. Its deterministic path/mode/
+content fingerprint is
+`9a7b5dac3ce369e1683d5c344dd6f9879151ced89bcda506e8cc424607156fec`.
+The two patches above total267 net C/header lines, including the scheduler
+cache-exit clear, plus two Makefile dependency replacements. The replacement
+statically linked Linux i386 C compiler is:
+
+```text
+d847631b432b24673971461bbcc2df9b8f8530f47e67912736beebae2598ecb7  cc1
+93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572  cc1plus
+8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb  cpp
+a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd  g++
+451e6521d860fc6ff49000567d94d983125263bb0ae2149f89d95eaed34b3a02  gcc
+```
+
+The four companion exports remain unchanged; the C++ frontend does not gain
+these C contracts. Cached offline Ubuntu20.04/GCC9.4.0 builds are distinct from
+freshly executing the Dockerfile's mutable apt steps. Legacy host warnings are
+retained, not a warning-free-build claim. Compiler controls, actual assembler/
+link application ranges, native providers and whole-program coverage remain
+separate gates; no hardware timing or universal correctness claim follows from
+the compiler tuple.

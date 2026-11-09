@@ -1,0 +1,301 @@
+--- a/c-common.c
++++ b/c-common.c
+@@ -43,9 +43,11 @@
+ 
+ enum attrs {A_PACKED, A_NOCOMMON, A_COMMON, A_NORETURN, A_CONST, A_T_UNION,
+ 	    A_CONSTRUCTOR, A_DESTRUCTOR, A_MODE, A_SECTION, A_ALIGNED,
+-	    A_UNUSED, A_FORMAT, A_FORMAT_ARG, A_WEAK, A_ALIAS, A_LOCAL_REG_HINT};
++	    A_UNUSED, A_FORMAT, A_FORMAT_ARG, A_WEAK, A_ALIAS, A_LOCAL_REG_HINT,
++            A_SPILL_HOME};
+ 
+ extern int local_register_hint_value PROTO((tree, tree));
++extern int spill_home_value PROTO((tree, tree));
+ extern void push_obstacks PROTO((struct obstack *, struct obstack *));
+ 
+ static void declare_hidden_char_array	PROTO((char *, char *));
+@@ -339,6 +341,7 @@
+   add_attribute (A_WEAK, "weak", 0, 0, 1);
+   add_attribute (A_ALIAS, "alias", 1, 1, 1);
+   add_attribute (A_LOCAL_REG_HINT, "local_register_hint", 1, 1, 1);
++  add_attribute (A_SPILL_HOME, "spill_home", 1, 1, 1);
+ }
+ 
+ /* Process the attributes listed in ATTRIBUTES and PREFIX_ATTRIBUTES
+@@ -409,6 +412,22 @@
+       id = attrtab[i].id;
+       switch (id)
+ 	{
++	case A_SPILL_HOME:
++          {
++            int home = spill_home_value (decl, args);
++            if (lookup_attribute ("spill_home", DECL_MACHINE_ATTRIBUTES (decl)))
++              error ("duplicate spill_home attribute");
++            else if (home)
++              {
++                push_obstacks (&permanent_obstack, &permanent_obstack);
++                DECL_MACHINE_ATTRIBUTES (decl) = tree_cons (name,
++                  tree_cons (NULL_TREE, build_int_2 (home - 1, 0), NULL_TREE),
++                  DECL_MACHINE_ATTRIBUTES (decl));
++                pop_obstacks ();
++              }
++          }
++          break;
++
+ 	case A_LOCAL_REG_HINT:
+ 	  if (local_register_hint_value (decl, args))
+ 	    {
+--- a/function.c
++++ b/function.c
+@@ -677,11 +677,12 @@
+ 
+    We do not round to stack_boundary here.  */
+ 
+-rtx
+-assign_stack_local (mode, size, align)
++static rtx
++assign_stack_local_1 (mode, size, align, requested)
+      enum machine_mode mode;
+      HOST_WIDE_INT size;
+      int align;
++     HOST_WIDE_INT requested;
+ {
+   register rtx x, addr;
+   int bigend_correction = 0;
+@@ -704,6 +705,20 @@
+ #ifdef CHECK_STACK_SLOT_ALIGNMENT
+   CHECK_STACK_SLOT_ALIGNMENT (alignment);
+ #endif
++
++  /* Validate the full rounded extent before changing allocation state. */
++  if (requested >= 0)
++    {
++#ifdef FRAME_GROWS_DOWNWARD
++      fatal ("spill_home does not support downward local frames");
++#else
++      if (requested < frame_offset || alignment <= 0
++          || (requested & (alignment - 1)) != 0 || size <= 0
++          || size > 32767 || requested > 32767 - size)
++        fatal ("spill_home has backward/overlapping, misaligned or large extent");
++      frame_offset = requested;
++#endif
++    }
+ 
+   /* Round frame offset to that alignment.
+      We must be careful here, since FRAME_OFFSET might be negative and
+@@ -744,6 +759,24 @@
+   stack_slot_list = gen_rtx (EXPR_LIST, VOIDmode, x, stack_slot_list);
+ 
+   return x;
++}
++
++rtx
++assign_stack_local (mode, size, align)
++     enum machine_mode mode;
++     HOST_WIDE_INT size;
++     int align;
++{
++  return assign_stack_local_1 (mode, size, align, -1);
++}
++
++rtx
++assign_stack_local_at (mode, size, align, offset)
++     enum machine_mode mode;
++     HOST_WIDE_INT size, offset;
++     int align;
++{
++  return assign_stack_local_1 (mode, size, align, offset);
+ }
+ 
+ /* Assign a stack slot in a containing function.
+--- a/reload1.c
++++ b/reload1.c
+@@ -22,6 +22,7 @@
+ #include "config.h"
+ #include <stdio.h>
+ #include "rtl.h"
++#include "tree.h"
+ #include "obstack.h"
+ #include "insn-config.h"
+ #include "insn-flags.h"
+@@ -35,6 +36,94 @@
+ #include "basic-block.h"
+ #include "output.h"
+ #include "real.h"
++
++/* Declaration-local intent, collected before pseudo renumbering. */
++struct requested_spill_home { tree decl; int offset; };
++static struct requested_spill_home *requested_spill_homes;
++static int requested_spill_home_count;
++static int initial_spill_home_allocation;
++
++int
++spill_home_value (decl, args)
++     tree decl, args;
++{
++  tree value = args ? TREE_VALUE (args) : 0;
++  int target = 0;
++#ifdef TARGET_MIPS_REGCALL
++  target = TARGET_MIPS_REGCALL && mips_stack_align == 8;
++#endif
++  if (!target || !decl || TREE_CODE (decl) != VAR_DECL
++      || !current_function_decl || TREE_STATIC (decl) || DECL_EXTERNAL (decl)
++      || TREE_THIS_VOLATILE (decl) || TREE_ADDRESSABLE (decl)
++      || DECL_INLINE (current_function_decl)
++      || (!INTEGRAL_TYPE_P (TREE_TYPE (decl))
++          && !POINTER_TYPE_P (TREE_TYPE (decl)))
++      || GET_MODE_SIZE (TYPE_MODE (TREE_TYPE (decl))) > UNITS_PER_WORD
++      || !value || TREE_CHAIN (args) || TREE_CODE (value) != INTEGER_CST
++      || TREE_INT_CST_HIGH (value) != 0 || TREE_INT_CST_LOW (value) < 0
++      || TREE_INT_CST_LOW (value) > 32759)
++    {
++      error ("spill_home requires supported target, automatic scalar and constant local offset");
++      return 0;
++    }
++  return TREE_INT_CST_LOW (value) + 1;
++}
++
++static void
++collect_spill_homes (block, check_owners)
++     tree block;
++     int check_owners;
++{
++  tree decl, sub, attribute;
++  rtx reg;
++  int i, home;
++  if (!block || TREE_CODE (block) != BLOCK)
++    return;
++  for (decl = BLOCK_VARS (block); decl; decl = TREE_CHAIN (decl))
++    if (TREE_CODE (decl) == VAR_DECL)
++      {
++        reg = DECL_RTL (decl);
++        if (check_owners)
++          {
++            if (reg && GET_CODE (reg) == REG
++                && (i = REGNO (reg)) >= FIRST_PSEUDO_REGISTER && i < max_regno
++                && requested_spill_homes[i].offset
++                && requested_spill_homes[i].decl != decl)
++              fatal ("spill_home has ambiguous declaration/pseudo ownership");
++            continue;
++          }
++        attribute = lookup_attribute ("spill_home", DECL_MACHINE_ATTRIBUTES (decl));
++        if (!attribute)
++          continue;
++        home = spill_home_value (decl, TREE_VALUE (attribute));
++        if (!home)
++          fatal ("spill_home declaration became unsupported");
++        if (DECL_ABSTRACT_ORIGIN (decl))
++          fatal ("spill_home cannot apply to inline association");
++        if (!reg || CONSTANT_P (reg))
++          continue;
++        if (GET_CODE (reg) != REG
++            || REGNO (reg) < FIRST_PSEUDO_REGISTER || REGNO (reg) >= max_regno)
++          fatal ("spill_home cannot apply to inline, memory or hard-asm association");
++        i = REGNO (reg);
++        if (!REG_N_REFS (i))
++          continue;
++        if (!requested_spill_homes)
++          {
++            requested_spill_homes = (struct requested_spill_home *)
++              xmalloc (max_regno * sizeof (*requested_spill_homes));
++            requested_spill_home_count = max_regno;
++            bzero ((char *) requested_spill_homes,
++                   max_regno * sizeof (*requested_spill_homes));
++          }
++        if (requested_spill_homes[i].offset)
++          fatal ("spill_home has conflicting pseudo requests");
++        requested_spill_homes[i].decl = decl;
++        requested_spill_homes[i].offset = home;
++      }
++  for (sub = BLOCK_SUBBLOCKS (block); sub; sub = TREE_CHAIN (sub))
++    collect_spill_homes (sub, check_owners);
++}
+ 
+ /* This file contains the reload pass of the compiler, which is
+    run after register allocation has been done.  It checks that
+@@ -779,8 +868,29 @@
+      Assign stack slots to the pseudos that lack hard regs or equivalents.
+      Do not touch virtual registers.  */
+ 
++  requested_spill_homes = 0;
++  collect_spill_homes (DECL_INITIAL (current_function_decl), 0);
++  if (requested_spill_homes)
++    {
++      collect_spill_homes (DECL_INITIAL (current_function_decl), 1);
++      if (!optimize || write_symbols != NO_DEBUG || profile_flag
++          || profile_block_flag || profile_arc_flag || flag_test_coverage || flag_pic
++          || current_function_calls_alloca || current_function_calls_setjmp
++          || current_function_has_nonlocal_label || current_function_has_nonlocal_goto
++          || current_function_contains_functions || current_function_stdarg
++          || current_function_varargs || current_function_returns_struct
++          || current_function_returns_pcc_struct || frame_pointer_needed
++          || caller_save_needed || DECL_CONTEXT (current_function_decl)
++#ifdef MACHINE_FUNCTION_NO_INLINE_P
++          || MACHINE_FUNCTION_NO_INLINE_P (current_function_decl)
++#endif
++          )
++        fatal ("spill_home requires ordinary optimized fixed frame without debug/inline context");
++    }
++  initial_spill_home_allocation = 1;
+   for (i = LAST_VIRTUAL_REGISTER + 1; i < max_regno; i++)
+     alter_reg (i, -1);
++  initial_spill_home_allocation = 0;
+ 
+   /* If we have some registers we think can be eliminated, scan all insns to
+      see if there is an insn that sets one of these registers to something
+@@ -2176,6 +2286,9 @@
+   /* Indicate that we no longer have known memory locations or constants.  */
+   reg_equiv_constant = 0;
+   reg_equiv_memory_loc = 0;
++  if (requested_spill_homes)
++    free ((char *) requested_spill_homes);
++  requested_spill_homes = 0;
+ 
+   if (real_known_ptr)
+     free (real_known_ptr);
+@@ -2516,7 +2629,23 @@
+ 	 enough inherent space and enough total space.
+ 	 Otherwise, we allocate a new slot, making sure that it has no less
+ 	 inherent space, and no less total space, then the previous slot.  */
+-      if (from_reg == -1)
++      if (requested_spill_homes && i < requested_spill_home_count
++          && requested_spill_homes[i].offset)
++	{
++          struct requested_spill_home *home = &requested_spill_homes[i];
++          int align = inherent_size == total_size ? 0 : -1;
++          if (!initial_spill_home_allocation || from_reg != -1
++              || total_size > UNITS_PER_WORD || BYTES_BIG_ENDIAN)
++            fatal ("spill_home does not support late/shared or wide spill allocation");
++          x = assign_stack_local_at (GET_MODE (regno_reg_rtx[i]), total_size,
++                                    align, home->offset - 1);
++#ifdef RECORD_RELOAD_PRIVATE_SPILL
++          if (inherent_size == UNITS_PER_WORD && total_size == inherent_size)
++            RECORD_RELOAD_PRIVATE_SPILL (regno_reg_rtx[i]);
++#endif
++          RTX_UNCHANGING_P (x) = RTX_UNCHANGING_P (regno_reg_rtx[i]);
++	}
++      else if (from_reg == -1)
+ 	{
+ 	  /* No known place to spill from => no slot to reuse.  */
+ 	  x = assign_stack_local (GET_MODE (regno_reg_rtx[i]), total_size,
+--- a/rtl.h
++++ b/rtl.h
+@@ -735,6 +735,8 @@
+ extern rtx simplify_subtraction		PROTO((rtx));
+ extern rtx assign_stack_local		PROTO((enum machine_mode,
+ 					       HOST_WIDE_INT, int));
++extern rtx assign_stack_local_at PROTO((enum machine_mode, HOST_WIDE_INT,
++                                      int, HOST_WIDE_INT));
+ extern rtx assign_stack_temp		PROTO((enum machine_mode,
+ 					       HOST_WIDE_INT, int));
+ extern rtx assign_temp			PROTO((union tree_node *,
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1363,7 +1363,7 @@
+ 
+ reload.o : reload.c $(CONFIG_H) $(RTL_H) flags.h output.h expr.h\
+    reload.h $(RECOG_H) hard-reg-set.h insn-config.h insn-codes.h regs.h real.h
+-reload1.o : reload1.c $(CONFIG_H) $(RTL_H) real.h flags.h expr.h \
++reload1.o : reload1.c $(CONFIG_H) $(RTL_H) $(TREE_H) real.h flags.h expr.h \
+    reload.h regs.h hard-reg-set.h insn-config.h insn-flags.h insn-codes.h \
+    $(BASIC_BLOCK_H) $(RECOG_H) output.h
+ caller-save.o : caller-save.c $(CONFIG_H) $(RTL_H) flags.h \

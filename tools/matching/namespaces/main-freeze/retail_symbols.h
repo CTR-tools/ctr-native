@@ -9,6 +9,7 @@
 #define GAME_DESIRED_MENU                 ctr_mainFreezeDesiredMenu
 #define GAME_MAIN_MENU_STATE              ctr_mainFreezeMainMenuState
 #define GAME_FRAME_COUNTER_LOW            ctr_mainFreezeFrameCounterLow
+#define GAMEPADS                          ctr_mainFreezeGamepads
 
 // NOTE(aalhendi): The resident EXE links the shared trig table inside data.
 #define MAIN_FREEZE_TRIG_ASM_NAME         "data+15360"
@@ -50,6 +51,13 @@
 #define MAIN_FREEZE_DISPLAY_VALUE    ctr_mainFreezeDisplayValue
 #define MAIN_FREEZE_LANGUAGE_STRINGS ctr_mainFreezeLanguageStrings
 #define MAIN_FREEZE_NAMCO_CENTER_Y   ctr_mainFreezeNamcoCenterY
+#define MAIN_FREEZE_OPTIONS_HOLD            ctr_mainFreezeOptionsHold
+#define MAIN_FREEZE_OPTIONS_HIGHLIGHTS      ctr_mainFreezeOptionsHighlights
+#define MAIN_FREEZE_OPTIONS_PAD_LABELS      ctr_mainFreezeOptionsPadLabels
+#define MAIN_FREEZE_OPTIONS_VIBRATION_MASKS ctr_mainFreezeOptionsVibrationMasks
+#define MAIN_FREEZE_OPTIONS_SLIDER_COLORS   ctr_mainFreezeOptionsSliderColors
+#define MAIN_FREEZE_OPTIONS_HIGHLIGHT_COLOR ctr_mainFreezeOptionsHighlightColor
+#define MAIN_FREEZE_OPTIONS_EDGE_COLOR      ctr_mainFreezeOptionsEdgeColor
 #include <common.h>
 extern char **ctr_mainFreezeLanguageStrings;
 extern u16 ctr_mainFreezeNamcoCenterY;
@@ -64,6 +72,14 @@ extern s32 ctr_mainFreezeDisplayValue;
 #define GAME_ANY_PLAYER_TAP ctr_mainFreezeAnyPlayerTap
 
 extern struct GameTracker *ctr_mainFreezeGameTracker;
+extern struct GamepadSystem *ctr_mainFreezeGamepads;
+extern u32 ctr_mainFreezeOptionsHold asm("sdata_static+2568");
+extern __typeof__(data.Options_HighlightBar) ctr_mainFreezeOptionsHighlights asm("data+14756");
+extern __typeof__(data.Options_StringIDs_Gamepads) ctr_mainFreezeOptionsPadLabels asm("data+14716");
+extern __typeof__(data.gGT_gameMode1_VibPerPlayer) ctr_mainFreezeOptionsVibrationMasks asm("data+14700");
+extern __typeof__(data.Options_VolumeSlider_Colors) ctr_mainFreezeOptionsSliderColors asm("data+14736");
+extern Color ctr_mainFreezeOptionsHighlightColor asm("sdata_static+2528");
+extern u32 ctr_mainFreezeOptionsEdgeColor asm("sdata_static+1228");
 extern struct RectMenu *ctr_mainFreezeDesiredMenu asm("sdata_static+2488");
 extern MainMenuState ctr_mainFreezeMainMenuState asm("sdata_static+2576");
 extern u16 ctr_mainFreezeFrameCounterLow asm("sdata_static+2564");

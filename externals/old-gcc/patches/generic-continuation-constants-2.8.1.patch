@@ -1,0 +1,173 @@
+--- a/flags.h
++++ b/flags.h
+@@ -314,6 +314,9 @@
+ /* Restrict store-to-load motion in the first scheduling pass only.  */
+ extern int flag_schedule_store_load_order;
+ 
++/* Prefer cheap constants carried through direct continuations.  */
++extern int flag_sched_continuation_constants;
++
+ /* Preserve ready order among hazard-safe pre-reload priority ties.  */
+ extern int flag_sched_first_safe_pre_reload;
+ 
+--- a/toplev.c
++++ b/toplev.c
+@@ -598,6 +598,9 @@
+ 
+ /* Restrict store-to-load motion in the first scheduling pass only.  */
+ int flag_schedule_store_load_order = 0;
++
++/* Preserve stock scheduling unless continuation ordering is requested.  */
++int flag_sched_continuation_constants = 0;
+ 
+ /* Preserve ready order among hazard-safe pre-reload priority ties.  */
+ int flag_sched_first_safe_pre_reload = 0;
+@@ -702,6 +705,7 @@
+   {"schedule-insns", &flag_schedule_insns, 1},
+   {"schedule-insns2", &flag_schedule_insns_after_reload, 1},
+   {"schedule-store-load-order", &flag_schedule_store_load_order, 1},
++  {"sched-continuation-constants", &flag_sched_continuation_constants, 1},
+   {"sched-first-safe-pre-reload", &flag_sched_first_safe_pre_reload, 1},
+   {"sched2-late-inplace-at-call-setup", &flag_sched2_late_inplace_at_call_setup, 1},
+   {"sched-zero-empty-issue-after-reload", &flag_sched_zero_empty_issue_after_reload, 1},
+--- a/sched.c
++++ b/sched.c
+@@ -2568,6 +2568,50 @@
+   return 0;
+ }
+ 
++/* Original-chain proofs are cached before queue links reuse NEXT_INSN.  */
++static char *continuation_constants;
++int
++sched_continuation_constant_p (insn, jump)
++     rtx insn, jump;
++{
++#ifdef HAVE_ATTR_length
++  rtx pat = PATTERN (insn), reg, cursor;
++  enum machine_mode mode;
++  if (GET_CODE (pat) != SET || GET_CODE (SET_DEST (pat)) != REG
++      || GET_CODE (SET_SRC (pat)) != CONST_INT)
++    return 0;
++  reg = SET_DEST (pat);
++  mode = GET_MODE (reg);
++  if (REGNO (reg) >= FIRST_PSEUDO_REGISTER || fixed_regs[REGNO (reg)]
++      || ! TEST_HARD_REG_BIT (reg_class_contents[(int) BASE_REG_CLASS], REGNO (reg))
++      || (mode != QImode && mode != HImode && mode != SImode)
++      || HARD_REGNO_NREGS (REGNO (reg), mode) != 1
++      || recog_memoized (insn) < 0 || insn_default_length (insn) != 1
++      || result_ready_cost (insn) != 1)
++    return 0;
++  for (cursor = NEXT_INSN (insn); cursor != jump; cursor = NEXT_INSN (cursor))
++    {
++      if (! cursor) return 0;
++      if (GET_CODE (cursor) == NOTE) continue;
++      if (GET_CODE (cursor) != INSN || GET_CODE (PATTERN (cursor)) != SET
++          || asm_noperands (PATTERN (cursor)) >= 0 || recog_memoized (cursor) < 0
++          || reg_set_p (reg, cursor))
++        return 0;
++    }
++  for (cursor = NEXT_INSN (JUMP_LABEL (jump)); cursor; cursor = NEXT_INSN (cursor))
++    {
++      if (GET_CODE (cursor) == NOTE || GET_CODE (cursor) == CODE_LABEL) continue;
++      if (GET_CODE (cursor) == INSN && GET_CODE (PATTERN (cursor)) == USE) continue;
++      if (GET_CODE (cursor) != INSN || GET_CODE (PATTERN (cursor)) != SET
++          || asm_noperands (PATTERN (cursor)) >= 0 || recog_memoized (cursor) < 0
++          || insn_default_length (cursor) <= 0 || reg_set_p (reg, cursor))
++        return 0;
++      if (reg_referenced_p (reg, PATTERN (cursor))) return 1;
++    }
++#endif
++  return 0;
++}
++
+ /* PREV is an insn that is ready to execute.  Adjust its priority if that
+    will help shorten register lifetimes.  */
+ 
+@@ -2575,6 +2619,10 @@
+ adjust_priority (prev)
+      rtx prev;
+ {
++  if (reload_completed && continuation_constants
++      && continuation_constants[INSN_UID (prev)]
++      && max_priority > INSN_PRIORITY (prev))
++    INSN_PRIORITY (prev) = max_priority;
+   /* Trying to shorten register lives after reload has completed
+      is useless and wrong.  It gives inaccurate schedules.  */
+   if (reload_completed == 0)
+@@ -3839,6 +3887,19 @@
+     }
+ 
+   /* Inspect original neighbors before queue links reuse NEXT_INSN. */
++  continuation_constants = 0;
++  if (reload_completed && flag_sched_continuation_constants
++      && GET_CODE (tail) == JUMP_INSN && simplejump_p (tail)
++      && JUMP_LABEL (tail))
++    {
++      int size = get_max_uid () + 1;
++      continuation_constants = (char *) alloca (size);
++      bzero (continuation_constants, size);
++      for (insn = head; insn != next_tail; insn = NEXT_INSN (insn))
++        if (GET_CODE (insn) == INSN)
++          continuation_constants[INSN_UID (insn)] = sched_continuation_constant_p (insn, tail);
++    }
++
+   if (reload_completed && flag_sched_zero_empty_issue_after_reload)
+     {
+       int size = get_max_uid () + 1;
+@@ -4283,6 +4344,7 @@
+   free_pending_lists ();
+ 
+ ret:
++  continuation_constants = 0;
+   FREE_REG_SET (reg_pending_sets);
+   FREE_REG_SET (old_live_regs);
+ 
+--- a/jump.c
++++ b/jump.c
+@@ -58,6 +58,7 @@
+ #include "hard-reg-set.h"
+ #include "regs.h"
+ #include "insn-config.h"
++#include "insn-attr.h"
+ #include "insn-flags.h"
+ #include "recog.h"
+ #include "expr.h"
+@@ -106,6 +107,10 @@
+    case.  */
+ 
+ static int cross_jump_death_matters = 0;
++
++#ifdef INSN_SCHEDULING
++extern int sched_continuation_constant_p PROTO((rtx, rtx));
++#endif
+ 
+ static int duplicate_loop_exit_test	PROTO((rtx));
+ static void find_cross_jump		PROTO((rtx, rtx, int, rtx *, rtx *));
+@@ -2694,6 +2699,16 @@
+ 	}
+ 
+     win:
++#ifdef INSN_SCHEDULING
++      /* Keep the same continuation materialization that sched2 prefers late. */
++      if (reload_completed && flag_sched_continuation_constants
++          && flag_schedule_insns_after_reload
++          && GET_CODE (e1) == JUMP_INSN && simplejump_p (e1)
++          && JUMP_LABEL (e1) && GET_CODE (i1) == INSN
++          && sched_continuation_constant_p (i1, e1))
++        break;
++#endif
++
+       if (GET_CODE (p1) != USE && GET_CODE (p1) != CLOBBER)
+ 	{
+ 	  /* Ok, this insn is potentially includable in a cross-jump here.  */
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1344,7 +1344,7 @@
+    bytecode.h output.h $(RECOG_H) except.h
+ 
+ jump.o : jump.c $(CONFIG_H) $(RTL_H) flags.h hard-reg-set.h regs.h \
+-   insn-config.h insn-flags.h $(RECOG_H) expr.h real.h except.h
++   insn-config.h insn-attr.h insn-flags.h $(RECOG_H) expr.h real.h except.h
+ stupid.o : stupid.c $(CONFIG_H) $(RTL_H) regs.h hard-reg-set.h flags.h
+ 
+ cse.o : cse.c $(CONFIG_H) $(RTL_H) regs.h hard-reg-set.h flags.h real.h \

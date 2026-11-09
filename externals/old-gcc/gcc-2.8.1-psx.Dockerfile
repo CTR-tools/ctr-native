@@ -54,6 +54,11 @@ RUN chmod u+w config/mips/mips.c config/mips/mips.h && patch --batch --forward -
 RUN echo 'f34e266d526290cd9bcdc0c4080aa1069ad28e3cbd665bd384efc58aa74364eb  ../patches/generic-delay-slot-target-first-2.8.1.patch' | sha256sum -c -
 RUN chmod u+w flags.h toplev.c reorg.c && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-delay-slot-target-first-2.8.1.patch
 
+RUN echo '3ebceed3f5cb7fe7951c15bcfde4241d78b743f564975ae9d2fdc6f87eec397d  ../patches/generic-continuation-constants-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w flags.h toplev.c sched.c jump.c Makefile.in && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-continuation-constants-2.8.1.patch
+RUN echo '19826d695779c20b098da1d3b0b82f0a0ff096086bafccdaab1dcfb60abcf70f  ../patches/generic-spill-home-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w c-common.c function.c reload1.c rtl.h Makefile.in && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-spill-home-2.8.1.patch
+
 RUN ./configure \
     --target=mips-sony-psx \
     --prefix=/opt/cross \
@@ -93,6 +98,8 @@ RUN sh /work/tests/check_nonfaulting_sh_return.sh /work/gcc-${VERSION}/gcc /work
 RUN sh /work/tests/check_call_setup_ties.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_private_frame_sw_jump.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_delay_slot_target_first.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_continuation_constants.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_spill_home.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 
 FROM scratch AS export
 COPY prebuilt/linux-i386/2.8.1/ /
