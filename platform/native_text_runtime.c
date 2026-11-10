@@ -68,7 +68,7 @@ static void NativeTextRuntime_Load(const char *id, int shipped, struct NativeTex
 	fclose(file);
 	struct NativeTextCatalog catalog = {0};
 	int invalid = 0;
-	if (failed || !NativeTextCatalog_Parse(&catalog, bytes, (int)size, &invalid))
+	if (failed || !NativeTextCatalog_Parse(&catalog, NATIVE_TEXT_CATALOG_EXPANDED, bytes, (int)size, &invalid))
 	{
 		fprintf(stderr, "[Language] Cannot parse %s\n", path);
 		free(bytes);

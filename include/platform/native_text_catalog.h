@@ -8,16 +8,22 @@
 
 struct NativeTextCatalog
 {
-	char *values[LNG_EXPANDED_STRING_COUNT];
+	char *values[LNG_EXPANDED_STRING_END];
 };
 
-// The destination must initially be zeroed. On failure it is unchanged.
+enum NativeTextCatalogKind
+{
+	NATIVE_TEXT_CATALOG_RETAIL,
+	NATIVE_TEXT_CATALOG_EXPANDED,
+};
+
+// The destination must initially be zeroed. On failure it is unchanged. A
+// successful parse replaces only the selected kind, preserving the other.
 // Unknown keys and invalid individual values are counted and ignored.
 // This parser configures tomlc17's process-global options for UTF-8 checking.
-int NativeTextCatalog_Parse(struct NativeTextCatalog *catalog, const char *text, int length, int *invalidEntries);
+int NativeTextCatalog_Parse(struct NativeTextCatalog *catalog, enum NativeTextCatalogKind kind, const char *text, int length, int *invalidEntries);
 void NativeTextCatalog_Clear(struct NativeTextCatalog *catalog);
-// Keys are LNG_EXPANDED_* IDs. Returns NULL for a missing or invalid key; source fallback belongs to the
-// central game string resolver, not the catalog parser.
+// Keys are retail or Expanded IDs. Source fallback belongs to the resolver.
 const char *NativeTextCatalog_Get(const struct NativeTextCatalog *catalog, int key);
 const char *NativeTextCatalog_KeyName(int key);
 
