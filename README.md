@@ -244,6 +244,7 @@ See the [language player guide](docs/features/LANGUAGE.md) for setup and custom 
 | `bot_selection_mode`                  | `Vanilla` / `R. unlocked` / `R. all`                         | `Vanilla` | Choose the normal Arcade and Adventure bot roster; boss races and the Purple Gem Cup remain fixed |
 | `auto_end_race_when_others_finish`    | `true` / `false`                                             | `false`   | End the race once every other racer has arrived                                                  |
 | `extra_difficulty_levels`             | `true` / `false`                                             | `false`   | Offer Super Hard and Ultra Hard in Arcade and Adventure setup                                    |
+| `engine_selection`                    | `true` / `false`                                             | `false`   | Allow selecting an engine class independently of the character                                   |
 **Known limitation:** when race tracks are enabled in Battle mode, the turbo/invisibility
 weapon icons and battle points/lives icons will be missing on those tracks.
 
