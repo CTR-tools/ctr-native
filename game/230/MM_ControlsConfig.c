@@ -184,6 +184,12 @@ static void Controls_BuildChoices(void)
 	}
 }
 
+static const char *Controls_DeviceName(int device)
+{
+	return NativeControls_GetDeviceKind(device) == NATIVE_CONTROLS_DEVICE_KEYBOARD
+	           ? LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD) : NativeControls_GetDeviceName(device);
+}
+
 static const char *Controls_ChoiceName(const struct ControlsChoice *choice)
 {
 	if (choice->pref == NATIVE_CONTROLS_PREF_AUTO)
@@ -196,8 +202,7 @@ static const char *Controls_ChoiceName(const struct ControlsChoice *choice)
 		return LANG_GetString(LNG_EXPANDED_DISABLED);
 	}
 
-	return NativeControls_GetDeviceKind(choice->device) == NATIVE_CONTROLS_DEVICE_KEYBOARD
-	           ? LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD) : NativeControls_GetDeviceName(choice->device);
+	return Controls_DeviceName(choice->device);
 }
 
 // The retail font has no glyph for many ASCII characters and repurposes four of them
@@ -489,8 +494,7 @@ static void Controls_DrawValue(int device, const struct ControlsRow *row, int y,
 	}
 	else if (row->kind == CONTROLS_ROW_DEVICE)
 	{
-		text = NativeControls_GetDeviceKind(device) == NATIVE_CONTROLS_DEVICE_KEYBOARD
-		           ? LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD) : NativeControls_GetDeviceName(device);
+		text = Controls_DeviceName(device);
 		colour = WHITE;
 	}
 	else

@@ -13,8 +13,7 @@ int NativeTextRuntime_LanguageSlot(const char *id);
 void NativeTextRuntime_Reload(int languageSlot);
 // Stable catalog directory name for a supported language slot, or NULL.
 const char *NativeTextRuntime_LanguageId(int languageSlot);
-// True when a shipped or personal retail catalog can be opened.
-int NativeTextRuntime_HasRetail(int languageSlot);
+// True when a shipped or personal text catalog can be opened.
 int NativeTextRuntime_HasText(int languageSlot);
 // Cached, game-font-encoded self name from language.toml, or NULL.
 const char *NativeTextRuntime_LanguageSelfName(int languageSlot);

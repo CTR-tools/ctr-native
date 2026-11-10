@@ -142,7 +142,6 @@ void NativeControls_SetPlayerVibration(int player, bool enabled);
 s32 NativeControls_GetBinding(int device, int binding);
 
 // Row name for a binding, e.g. "Cross" or "Left Stick Y".
-const char *NativeControls_GetBindingName(int binding);
 
 // Display name of what a device currently has bound to a binding, e.g. "A" or
 // "Left Shift". Empty when nothing is bound. Writes into caller storage.

@@ -162,7 +162,6 @@ int NativeLanguageDisc_HasText(int slot) { return slot == 5; }
 int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
 enum NativeTextExportResult NativeTextExport_Active(int slot, NativeTextExport_GetString getString)
 { (void)slot; (void)getString; s_textExportCalls++; return NATIVE_TEXT_EXPORT_OK; }
-int NativeTextRuntime_HasRetail(int slot) { (void)slot; return 0; }
 static bool s_customLanguageAvailable;
 int NativeTextRuntime_HasText(int slot) { return s_customLanguageAvailable && slot == NATIVE_TEXT_CUSTOM_FIRST; }
 int NativeTextRuntime_LanguageCount(void) { return s_customLanguageAvailable ? 7 : 6; }

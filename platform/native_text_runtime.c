@@ -202,12 +202,6 @@ static int NativeTextRuntime_HasFile(const char *id, const char *fileName)
 	return 1;
 }
 
-int NativeTextRuntime_HasRetail(int languageSlot)
-{
-	const char *id = NativeTextRuntime_LanguageId(languageSlot);
-	return id != NULL && NativeTextRuntime_HasFile(id, "retail.toml");
-}
-
 int NativeTextRuntime_HasText(int languageSlot)
 {
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
@@ -262,25 +256,21 @@ const char *NativeTextRuntime_LanguageSelfName(int languageSlot)
 
 void NativeTextRuntime_Reload(int languageSlot)
 {
-	static struct NativeTextRuntimeValues next[NATIVE_TEXT_SOURCE_COUNT];
-	static struct NativeRetailTextRuntimeValues retailNext[2];
-	memset(next, 0, sizeof(next));
-	memset(retailNext, 0, sizeof(retailNext));
+	memset(s_nativeTextValues, 0, sizeof(s_nativeTextValues));
+	memset(s_nativeRetailText, 0, sizeof(s_nativeRetailText));
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
-	NativeTextRuntime_Load("en", 0, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_ENGLISH_OVERRIDE].values, next[NATIVE_TEXT_ENGLISH_OVERRIDE].present);
-	NativeTextRuntime_Load("en", 1, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_ENGLISH_SHIPPED].values, next[NATIVE_TEXT_ENGLISH_SHIPPED].present);
+	NativeTextRuntime_Load("en", 0, NATIVE_TEXT_CATALOG_EXPANDED, s_nativeTextValues[NATIVE_TEXT_ENGLISH_OVERRIDE].values, s_nativeTextValues[NATIVE_TEXT_ENGLISH_OVERRIDE].present);
+	NativeTextRuntime_Load("en", 1, NATIVE_TEXT_CATALOG_EXPANDED, s_nativeTextValues[NATIVE_TEXT_ENGLISH_SHIPPED].values, s_nativeTextValues[NATIVE_TEXT_ENGLISH_SHIPPED].present);
 	if (id != NULL && strcmp(id, "en") != 0)
 	{
-		NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_SELECTED_OVERRIDE].values, next[NATIVE_TEXT_SELECTED_OVERRIDE].present);
-		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_SELECTED_SHIPPED].values, next[NATIVE_TEXT_SELECTED_SHIPPED].present);
+		NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_EXPANDED, s_nativeTextValues[NATIVE_TEXT_SELECTED_OVERRIDE].values, s_nativeTextValues[NATIVE_TEXT_SELECTED_OVERRIDE].present);
+		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_EXPANDED, s_nativeTextValues[NATIVE_TEXT_SELECTED_SHIPPED].values, s_nativeTextValues[NATIVE_TEXT_SELECTED_SHIPPED].present);
 	}
 	if (id != NULL)
 	{
-		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, retailNext[1].values, retailNext[1].present);
-		NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_RETAIL, retailNext[0].values, retailNext[0].present);
+		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, s_nativeRetailText[1].values, s_nativeRetailText[1].present);
+		NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_RETAIL, s_nativeRetailText[0].values, s_nativeRetailText[0].present);
 	}
-	memcpy(s_nativeTextValues, next, sizeof(next));
-	memcpy(s_nativeRetailText, retailNext, sizeof(retailNext));
 }
 
 const char *NativeTextRuntime_Get(enum NativeTextSource source, int key)

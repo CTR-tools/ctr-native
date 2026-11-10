@@ -75,7 +75,6 @@ int NativeControls_SetPlayerPref(int player, int pref, int device)
 	s_preferenceChanges++;
 	return 1;
 }
-const char *NativeControls_GetBindingName(int binding) { (void)binding; return "Binding"; }
 void NativeControls_GetBindingLabel(int device, int binding, char *dst, size_t size)
 {
 	(void)device; (void)binding;

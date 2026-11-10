@@ -54,7 +54,6 @@ enum NativeControlsCapturePhase
 struct NativeControlsBindingInfo
 {
 	const char *key;
-	const char *label;
 };
 
 struct NativeControlsProfile
@@ -111,26 +110,26 @@ global_variable s32 s_capturePendingValue;
 // Defaults are carried over verbatim from the hardcoded mappings this module
 // replaces, so an unconfigured install feels exactly as it did before.
 local_persist const struct NativeControlsBindingInfo s_bindingInfo[NATIVE_CONTROLS_BIND_COUNT] = {
-	[NATIVE_CONTROLS_BIND_CROSS] = {"cross", "Cross"},
-	[NATIVE_CONTROLS_BIND_CIRCLE] = {"circle", "Circle"},
-	[NATIVE_CONTROLS_BIND_TRIANGLE] = {"triangle", "Triangle"},
-	[NATIVE_CONTROLS_BIND_SQUARE] = {"square", "Square"},
-	[NATIVE_CONTROLS_BIND_L1] = {"l1", "L1"},
-	[NATIVE_CONTROLS_BIND_L2] = {"l2", "L2"},
-	[NATIVE_CONTROLS_BIND_L3] = {"l3", "L3"},
-	[NATIVE_CONTROLS_BIND_R1] = {"r1", "R1"},
-	[NATIVE_CONTROLS_BIND_R2] = {"r2", "R2"},
-	[NATIVE_CONTROLS_BIND_R3] = {"r3", "R3"},
-	[NATIVE_CONTROLS_BIND_DPAD_UP] = {"dpad_up", "Up"},
-	[NATIVE_CONTROLS_BIND_DPAD_DOWN] = {"dpad_down", "Down"},
-	[NATIVE_CONTROLS_BIND_DPAD_LEFT] = {"dpad_left", "Left"},
-	[NATIVE_CONTROLS_BIND_DPAD_RIGHT] = {"dpad_right", "Right"},
-	[NATIVE_CONTROLS_BIND_START] = {"start", "Start"},
-	[NATIVE_CONTROLS_BIND_SELECT] = {"select", "Select"},
-	[NATIVE_CONTROLS_BIND_AXIS_LEFT_X] = {"axis_left_x", "Left Stick X"},
-	[NATIVE_CONTROLS_BIND_AXIS_LEFT_Y] = {"axis_left_y", "Left Stick Y"},
-	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_X] = {"axis_right_x", "Right Stick X"},
-	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_Y] = {"axis_right_y", "Right Stick Y"},
+	[NATIVE_CONTROLS_BIND_CROSS] = {"cross"},
+	[NATIVE_CONTROLS_BIND_CIRCLE] = {"circle"},
+	[NATIVE_CONTROLS_BIND_TRIANGLE] = {"triangle"},
+	[NATIVE_CONTROLS_BIND_SQUARE] = {"square"},
+	[NATIVE_CONTROLS_BIND_L1] = {"l1"},
+	[NATIVE_CONTROLS_BIND_L2] = {"l2"},
+	[NATIVE_CONTROLS_BIND_L3] = {"l3"},
+	[NATIVE_CONTROLS_BIND_R1] = {"r1"},
+	[NATIVE_CONTROLS_BIND_R2] = {"r2"},
+	[NATIVE_CONTROLS_BIND_R3] = {"r3"},
+	[NATIVE_CONTROLS_BIND_DPAD_UP] = {"dpad_up"},
+	[NATIVE_CONTROLS_BIND_DPAD_DOWN] = {"dpad_down"},
+	[NATIVE_CONTROLS_BIND_DPAD_LEFT] = {"dpad_left"},
+	[NATIVE_CONTROLS_BIND_DPAD_RIGHT] = {"dpad_right"},
+	[NATIVE_CONTROLS_BIND_START] = {"start"},
+	[NATIVE_CONTROLS_BIND_SELECT] = {"select"},
+	[NATIVE_CONTROLS_BIND_AXIS_LEFT_X] = {"axis_left_x"},
+	[NATIVE_CONTROLS_BIND_AXIS_LEFT_Y] = {"axis_left_y"},
+	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_X] = {"axis_right_x"},
+	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_Y] = {"axis_right_y"},
 };
 
 local_persist const s32 s_defaultKeyboard[NATIVE_CONTROLS_BIND_COUNT] = {
@@ -1259,16 +1258,6 @@ s32 NativeControls_GetBinding(int device, int binding)
 	}
 
 	return bindings[binding];
-}
-
-const char *NativeControls_GetBindingName(int binding)
-{
-	if (!NativeControls_IsValidBinding(binding))
-	{
-		return "";
-	}
-
-	return s_bindingInfo[binding].label;
 }
 
 void NativeControls_GetBindingLabel(int device, int binding, char *dst, size_t dstSize)
