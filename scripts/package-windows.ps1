@@ -76,7 +76,7 @@ try {
 
      # Shipped translations live beside the executable, not under assets.
     $catalogRoot = Join-Path $RepoRoot 'resources/text'
-    $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -File -Recurse | Where-Object { $_.Name -in @('expanded.toml', 'retail.toml') })
+    $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -File -Recurse | Where-Object { $_.Name -in @('expanded.toml', 'retail.toml', 'language.toml') })
     if (-not ($catalogs | Where-Object { $_.Name -eq 'expanded.toml' -and $_.Directory.Name -eq 'en' -and $_.Directory.Parent.FullName -eq $catalogRoot })) {
         throw "Missing English text catalog in $catalogRoot."
     }

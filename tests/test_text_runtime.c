@@ -14,6 +14,11 @@ static const char *s_englishOverride;
 static const char *s_italianOverride;
 static const char *s_italianRetail;
  static const char *s_italianRetailOverride;
+static const char *s_italianName;
+static const char *s_italianNameOverride;
+static const char *s_frenchName;
+static const char *s_frenchNameOverride;
+static int s_nameOpenCount;
 
 static FILE *TextTest_File(const char *text)
 {
@@ -47,6 +52,16 @@ static FILE *TextTest_OpenShipped(const char *path, const char *mode)
 	{
 		return TextTest_File(s_italianRetail);
 	}
+	if (strcmp(path, "fixture/resources/text/it/language.toml") == 0)
+	{
+		s_nameOpenCount++;
+		return TextTest_File(s_italianName);
+	}
+	if (strcmp(path, "fixture/resources/text/fr/language.toml") == 0)
+	{
+		s_nameOpenCount++;
+		return TextTest_File(s_frenchName);
+	}
 	return NULL;
 }
 
@@ -65,6 +80,16 @@ FILE *NativeAssets_OpenHost(const char *path, const char *mode)
 	else if (strcmp(path, "text/it/retail.toml") == 0)
 	{
 		text = s_italianRetailOverride;
+	}
+	else if (strcmp(path, "text/it/language.toml") == 0)
+	{
+		s_nameOpenCount++;
+		text = s_italianNameOverride;
+	}
+	else if (strcmp(path, "text/fr/language.toml") == 0)
+	{
+		s_nameOpenCount++;
+		text = s_frenchNameOverride;
 	}
 	return TextTest_File(text);
 }
@@ -89,6 +114,22 @@ static void TextTest_Reload(int slot)
 
 int main(void)
 {
+	CTR_TEST_SECTION("Language metadata");
+	s_italianName = "self_name = 'ITALIANO'\n";
+	s_italianNameOverride = "self_name = 'PERSONALE'\n";
+	CTR_TEST_CHECK(strcmp(NativeTextRuntime_LanguageSelfName(NATIVE_LANGUAGE_ITALIAN), "PERSONALE") == 0,
+	               "personal language metadata takes precedence over shipped metadata");
+	int nameOpenCount = s_nameOpenCount;
+	s_italianNameOverride = "self_name = 'CAMBIATO'\n";
+	CTR_TEST_CHECK(strcmp(NativeTextRuntime_LanguageSelfName(NATIVE_LANGUAGE_ITALIAN), "PERSONALE") == 0 && s_nameOpenCount == nameOpenCount,
+	               "language names are cached without opening files again");
+	s_frenchName = "self_name = 'FRANCAIS'\n";
+	s_frenchNameOverride = "self_name = 'INVALIDO \xc3\xa0'\n";
+	CTR_TEST_CHECK(strcmp(NativeTextRuntime_LanguageSelfName(NATIVE_LANGUAGE_FRENCH), "FRANCAIS") == 0,
+	               "unsupported personal names fall back to shipped metadata");
+	CTR_TEST_CHECK(NativeTextRuntime_LanguageSelfName(NATIVE_LANGUAGE_GERMAN) == NULL && NativeTextRuntime_LanguageSelfName(-1) == NULL,
+	               "missing metadata and unknown language slots have no name");
+
 	CTR_TEST_SECTION("Selected and English catalogs");
 	s_english = "MODE = 'Mode'\nCHAOS = 'Chaos'\n";
 	s_italian = "MODE = 'Modalita'\nCHAOS = 'Caos'\n";

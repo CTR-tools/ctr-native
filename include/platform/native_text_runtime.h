@@ -5,8 +5,10 @@
 void NativeTextRuntime_Reload(int languageSlot);
 // Stable catalog directory name for a supported language slot, or NULL.
 const char *NativeTextRuntime_LanguageId(int languageSlot);
-// True when a shipped retail catalog contains at least one usable entry.
+// True when a shipped or personal retail catalog can be opened.
 int NativeTextRuntime_HasRetail(int languageSlot);
+// Cached, game-font-encoded self name from language.toml, or NULL.
+const char *NativeTextRuntime_LanguageSelfName(int languageSlot);
 enum NativeTextSource
 {
 	NATIVE_TEXT_SELECTED_OVERRIDE,

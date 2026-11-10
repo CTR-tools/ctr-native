@@ -229,8 +229,9 @@ music as feedback. Audio settings use the game's normal memory-card save system.
 
 Place an optional European disc image at `assets/ctr-e.bin` to make its supported
 text and voice languages available under **Options > System > Language**. A
-language with a usable `resources/text/<language>/retail.toml` is also available
-for text without the European image. The base image supplies English; missing
+language with an openable `resources/text/<language>/retail.toml` or personal
+retail override is also offered for text without the European image. Catalog
+entries are validated when loaded. The base image supplies English; missing
 European voice tracks fall back to English. Text and voice selections are
 independent and apply when confirmed. 
 
@@ -247,6 +248,12 @@ for example `assets/text/it/retail.toml`. Keys are retail identifiers without th
 selected source. Text must use supported font characters and matching formatting
 directives. The game never writes or overwrites these user files.
 Expanded text can likewise be overridden with `assets/text/<language>/expanded.toml`.
+The language's own name in the picker comes from `resources/text/<language>/language.toml`.
+To override it, create `assets/text/<language>/language.toml` containing, for
+example, `self_name = "ITALIANO"`. The name must use supported game-font
+characters. Names are cached on first use; restart the game after changing one.
+If metadata is missing or invalid, the picker falls back to the disc name and
+then the built-in English label. Metadata does not add new language slots.
 
 **Export Active Language** in the Language menu creates both files as commented
 templates containing the currently displayed text, including active overrides.

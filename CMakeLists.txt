@@ -121,7 +121,8 @@ endif()
 add_executable(ctr_native_expanded main.c)
 file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml"
-    "${CMAKE_SOURCE_DIR}/resources/text/*/retail.toml")
+    "${CMAKE_SOURCE_DIR}/resources/text/*/retail.toml"
+    "${CMAKE_SOURCE_DIR}/resources/text/*/language.toml")
 set_property(TARGET ctr_native_expanded APPEND PROPERTY LINK_DEPENDS ${CTR_SHIPPED_TEXT_CATALOGS} "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake")
 add_custom_command(TARGET ctr_native_expanded POST_BUILD
     COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"

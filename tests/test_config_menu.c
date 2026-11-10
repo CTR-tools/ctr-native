@@ -163,12 +163,17 @@ int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
 enum NativeTextExportResult NativeTextExport_Active(int slot, NativeTextExport_GetString getString)
 { (void)slot; (void)getString; s_textExportCalls++; return NATIVE_TEXT_EXPORT_OK; }
 int NativeTextRuntime_HasRetail(int slot) { (void)slot; return 0; }
+const char *NativeTextRuntime_LanguageSelfName(int slot)
+{
+	return slot == NATIVE_LANGUAGE_FRENCH ? "FRANCAIS" : NULL;
+}
 int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
 const char *LOAD_LanguageSelfName(int slot)
 {
 	switch (slot)
 	{
 	case NATIVE_LANGUAGE_ENGLISH: return "English";
+	case NATIVE_LANGUAGE_FRENCH: return "DISC FRENCH";
 	case NATIVE_LANGUAGE_GERMAN: return "DISC GERMAN";
 	case NATIVE_LANGUAGE_ITALIAN: return "DISC ITALIAN";
 	default: return NULL;
@@ -804,8 +809,10 @@ static void TestEditing(enum ConfigMenuContext context)
 static void TestLanguagePicker(void)
 {
 	CTR_TEST_SECTION("independent language pickers");
-	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_FRENCH, "fallback"), "fallback") == 0,
-	               "an unavailable disc name falls back to the configured label");
+	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_FRENCH, "fallback"), "FRANCAIS") == 0,
+	               "language metadata takes precedence over the disc name");
+	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_SPANISH, "fallback"), "fallback") == 0,
+	               "missing metadata and disc names fall back to the configured label");
 	for (int row = 0; row < 2; row++)
 	{
 		int index = -1;

@@ -8,6 +8,7 @@
 #include <string.h>
 
 enum { NATIVE_TEXT_RUNTIME_MAX_FILE = 256 * 1024, NATIVE_TEXT_RUNTIME_VALUE_SIZE = 4097 };
+enum { NATIVE_LANGUAGE_NAME_FILE_MAX = 4096, NATIVE_LANGUAGE_NAME_SIZE = 128 };
 
 struct NativeTextRuntimeValues
 {
@@ -126,6 +127,65 @@ int NativeTextRuntime_HasRetail(int languageSlot)
 	if (file == NULL) { return 0; }
 	fclose(file);
 	return 1;
+}
+
+static int NativeTextRuntime_ReadLanguageName(const char *id, int shipped, char *output, size_t capacity)
+{
+	char path[1200];
+	int length;
+	FILE *file;
+	if (shipped)
+	{
+		length = snprintf(path, sizeof(path), "%s/resources/text/%s/language.toml", NativeAssets_GetExecutableDir(), id);
+		if (length < 0 || (size_t)length >= sizeof(path)) { return 0; }
+		file = fopen(path, "rb");
+	}
+	else
+	{
+		length = snprintf(path, sizeof(path), "text/%s/language.toml", id);
+		if (length < 0 || (size_t)length >= sizeof(path)) { return 0; }
+		file = NativeAssets_OpenHost(path, "rb");
+	}
+	if (file == NULL) { return 0; }
+	char bytes[NATIVE_LANGUAGE_NAME_FILE_MAX + 1];
+	size_t size = fread(bytes, 1, sizeof(bytes), file);
+	int failed = ferror(file) || size > NATIVE_LANGUAGE_NAME_FILE_MAX;
+	fclose(file);
+	if (failed) { return 0; }
+	toml_option_t options = toml_default_option();
+	options.check_utf8 = true;
+	toml_set_option(options);
+	toml_result_t result = toml_parse(bytes, (int)size);
+	if (!result.ok)
+	{
+		toml_free(result);
+		return 0;
+	}
+	toml_datum_t name = toml_get(result.toptab, "self_name");
+	int valid = name.type == TOML_STRING && name.u.str.len > 0 &&
+	            memchr(name.u.str.ptr, '\0', (size_t)name.u.str.len) == NULL &&
+	            memchr(name.u.str.ptr, '\r', (size_t)name.u.str.len) == NULL &&
+	            NativeTextCatalog_Encode(name.u.str.ptr, output, (unsigned int)capacity);
+	toml_free(result);
+	if (!valid) { output[0] = '\0'; }
+	return valid;
+}
+
+const char *NativeTextRuntime_LanguageSelfName(int languageSlot)
+{
+	static char names[NATIVE_LANGUAGE_DUTCH + 1][NATIVE_LANGUAGE_NAME_SIZE];
+	static unsigned char checked[NATIVE_LANGUAGE_DUTCH + 1];
+	const char *id = NativeTextRuntime_LanguageId(languageSlot);
+	if (id == NULL) { return NULL; }
+	if (!checked[languageSlot])
+	{
+		checked[languageSlot] = 1;
+		if (!NativeTextRuntime_ReadLanguageName(id, 0, names[languageSlot], sizeof(names[languageSlot])))
+		{
+			NativeTextRuntime_ReadLanguageName(id, 1, names[languageSlot], sizeof(names[languageSlot]));
+		}
+	}
+	return names[languageSlot][0] != '\0' ? names[languageSlot] : NULL;
 }
 
 void NativeTextRuntime_Reload(int languageSlot)

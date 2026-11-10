@@ -1,6 +1,7 @@
 # Shipped catalogs are managed resources. User overrides under assets are never touched.
 file(GLOB catalogs LIST_DIRECTORIES FALSE RELATIVE "${SOURCE}/resources/text"
-    "${SOURCE}/resources/text/*/expanded.toml" "${SOURCE}/resources/text/*/retail.toml")
+    "${SOURCE}/resources/text/*/expanded.toml" "${SOURCE}/resources/text/*/retail.toml"
+    "${SOURCE}/resources/text/*/language.toml")
 foreach(catalog IN LISTS catalogs)
     set(input "${SOURCE}/resources/text/${catalog}")
     set(output "${DESTINATION}/resources/text/${catalog}")

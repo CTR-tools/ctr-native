@@ -235,7 +235,11 @@ static bool Config_CanEdit(const ConfigEntry *entry)
 
 static const char *Config_LanguageLabel(int slot, const char *fallback)
 {
-	const char *name = LOAD_LanguageSelfName(slot);
+	const char *name = NativeTextRuntime_LanguageSelfName(slot);
+	if (name == NULL || name[0] == '\0')
+	{
+		name = LOAD_LanguageSelfName(slot);
+	}
 	return name != NULL && name[0] != '\0' ? name : fallback;
 }
 
