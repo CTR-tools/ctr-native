@@ -187,6 +187,15 @@ int NativeLanguageDisc_HasText(int slot)
 	return available;
 }
 
+int NativeLanguageDisc_HasAnyText(void)
+{
+	for (int slot = NATIVE_LANGUAGE_DISC_FIRST_SLOT; slot <= NATIVE_LANGUAGE_DISC_LAST_SLOT; slot++)
+	{
+		if (NativeLanguageDisc_HasText(slot)) { return 1; }
+	}
+	return 0;
+}
+
 const char *NativeLanguageDisc_TextString(const u8 *bytes, u32 size, int index)
 {
 	if (bytes == NULL || size < NATIVE_LANGUAGE_DISC_FILE_HEADER_SIZE || index < 0)

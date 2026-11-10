@@ -620,6 +620,7 @@ QueueLastPack:
 }
 
 #include <platform/native_language_disc.h>
+#include <platform/native_text_runtime.h>
 
 struct LngFile
 {
@@ -630,6 +631,9 @@ struct LngFile
 
 static u8 *s_languageEnglishRaw;
 static u32 s_languageEnglishSize;
+static int s_languageRetailDiscActive;
+
+int LOAD_RetailDiscActive(void) { return s_languageRetailDiscActive; }
 
 const char *LOAD_LanguageSelfName(int slot)
 {
@@ -717,6 +721,7 @@ int LOAD_ApplyLanguage(int slot)
 {
 	if (slot == 1)
 	{
+		s_languageRetailDiscActive = 0;
 		if (s_languageEnglishRaw == NULL || sdata->lngFile == NULL)
 		{
 			return LOAD_LangFile((int)sdata->ptrBigfile1, slot);
@@ -728,15 +733,19 @@ int LOAD_ApplyLanguage(int slot)
 
 	u8 *bytes;
 	u32 size;
-	if (sdata->lngFile == NULL || !NativeLanguageDisc_ReadText(slot, &bytes, &size))
+	if (sdata->lngFile == NULL)
 	{
 		return 0;
+	}
+	if (!NativeLanguageDisc_ReadText(slot, &bytes, &size))
+	{
+		return NativeTextRuntime_HasRetail(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
 	}
 	struct LngFile *source = (struct LngFile *)bytes;
 	if (size > (u32)sdata->langBufferSize || source->numStrings < LOAD_LANGUAGE_PAL_REQUIRED_COUNT)
 	{
 		free(bytes);
-		return 0;
+		return NativeTextRuntime_HasRetail(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
 	}
 	memcpy(sdata->lngFile, bytes, size);
 	free(bytes);
@@ -748,6 +757,7 @@ int LOAD_ApplyLanguage(int slot)
 	}
 	sdata->numLngStrings = LOAD_LANGUAGE_US_STRING_COUNT;
 	sdata->lngStrings = strings;
+	s_languageRetailDiscActive = 1;
 	return 1;
 }
 

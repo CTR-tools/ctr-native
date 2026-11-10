@@ -2,6 +2,8 @@
 #include <common.h>
 
 struct sData sdata_static;
+NativeConfig g_config;
+int LOAD_RetailDiscActive(void) { return 0; }
 
 #include <platform/native_text_runtime.h>
 void NativeTextRuntime_Reload(int slot) { (void)slot; }

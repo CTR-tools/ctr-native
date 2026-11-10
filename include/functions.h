@@ -365,6 +365,7 @@ void LOAD_ReadFileASyncCallback(u8 result, u8 *unk);
 #define LOAD_ReadFile(a, b, c, d) LOAD_ReadFile_ex(a, b, c, d, &data.currSlot.size_UNUSED, NULL)
 void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex, void *ptrDst, u32 *sizePtr, void (*callback)(struct LoadQueueSlot *));
 int LOAD_ApplyLanguage(int slot);
+int LOAD_RetailDiscActive(void);
 const char *LOAD_LanguageSelfName(int slot);
 // void* LOAD_ReadFile(struct BigHeader* bigfile, /*u32 loadType,*/ int subfileIndex, void* destination, /*int *size,*/ void * callback);
 

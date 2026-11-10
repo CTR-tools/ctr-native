@@ -202,6 +202,10 @@ int main(int argc, char *argv[])
 	}
 
 	NativeConfig_Load();
+	if (!NativeLanguageDisc_HasAnyText())
+	{
+		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
+	}
 	NativeControls_Init();
 
 #if defined(CTR_INTERNAL)

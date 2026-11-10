@@ -32,6 +32,7 @@ int NativeLanguageDisc_ReadText(int slot, u8 **bytesOut, u32 *sizeOut);
 const char *NativeLanguageDisc_TextString(const u8 *bytes, u32 size, int index);
 const char *NativeLanguageDisc_SelfName(int slot);
 int NativeLanguageDisc_HasText(int slot);
+int NativeLanguageDisc_HasAnyText(void);
 int NativeLanguageDisc_HasVoice(int slot);
 int NativeLanguageDisc_PalIndex(int usIndex);
 int NativeLanguageDisc_PalXaIndex(int category, int usIndex);

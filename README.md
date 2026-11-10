@@ -228,14 +228,18 @@ music as feedback. Audio settings use the game's normal memory-card save system.
 ### Language
 
 Place an optional European disc image at `assets/ctr-e.bin` to make its supported
-text and voice languages available under **Options > System > Language**. The
-base image supplies English; missing European voice tracks fall back to English.
-Text and voice selections are independent and apply when confirmed.
+text and voice languages available under **Options > System > Language**. A
+language with a usable `resources/text/<language>/retail.toml` is also available
+for text without the European image. The base image supplies English; missing
+European voice tracks fall back to English. Text and voice selections are
+independent and apply when confirmed. The Italian retail catalog currently
+contains only a few conspicuous test strings, not a complete translation.
 
-| Key | Values | Default | Description |
-|-----|--------|---------|-------------|
-| `audio` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Voice language |
-| `text` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Game text language |
+| Key | Values | Default | Description                                                                                         |
+|-----|--------|---------|-----------------------------------------------------------------------------------------------------|
+| `audio` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Voice language                                                                                      |
+| `text` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Game text language                                                                                  |
+| `retail_priority` | `EXPANDED`, `ISO EU` | `EXPANDED` | Preferred source of retail text; without the PAL European ISO available, only EXPANDED is available |
 
 ### General
 

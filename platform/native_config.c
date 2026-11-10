@@ -21,6 +21,10 @@ static const ConfigEnumValue kLanguageValues[] = {
     {"English", NATIVE_LANGUAGE_ENGLISH, 0}, {"French", NATIVE_LANGUAGE_FRENCH, 0}, {"German", NATIVE_LANGUAGE_GERMAN, 0},
     {"Italian", NATIVE_LANGUAGE_ITALIAN, 0}, {"Spanish", NATIVE_LANGUAGE_SPANISH, 0}, {"Dutch", NATIVE_LANGUAGE_DUTCH, 0},
 };
+static const ConfigEnumValue kRetailTextPriorityValues[] = {
+    {"EXPANDED", RETAIL_TEXT_PRIORITY_EXPANDED, 0},
+    {"ISO EU", RETAIL_TEXT_PRIORITY_ISO_EU, 0},
+};
 #define NUM_MASK_MODES (sizeof(kMaskModeValues) / sizeof(kMaskModeValues[0]))
 
 static const ConfigEnumValue kBotSelectionModeValues[] = {
@@ -64,6 +68,7 @@ static const ConfigEnumValue kPgxpModeValues[] = {
 NativeConfig g_config = {
   .textLanguage = NATIVE_LANGUAGE_ENGLISH,
   .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
+  .retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED,
   .skipIntro = false,
   .skipPodiumCeremonies = false,
   .showReservesMeter = false,
@@ -137,6 +142,12 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_LANGUAGE, .key = "text", .label = "Text", .lngKey = LNG_EXPANDED_CONFIG_TEXT,
         .type = CFG_ENUM, .valuePtr = &g_config.textLanguage,
         .enumValues = kLanguageValues, .numEnumValues = sizeof(kLanguageValues) / sizeof(kLanguageValues[0]),
+        .availableDuringPause = true,
+    },
+    {
+        .section = CONFIG_SECTION_LANGUAGE, .key = "retail_priority", .label = "Retail Priority", .lngKey = LNG_EXPANDED_CONFIG_RETAIL_PRIORITY,
+        .type = CFG_ENUM, .valuePtr = &g_config.retailTextPriority,
+        .enumValues = kRetailTextPriorityValues, .numEnumValues = sizeof(kRetailTextPriorityValues) / sizeof(kRetailTextPriorityValues[0]),
         .availableDuringPause = true,
     },
 

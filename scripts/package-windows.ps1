@@ -76,8 +76,8 @@ try {
 
      # Shipped translations live beside the executable, not under assets.
     $catalogRoot = Join-Path $RepoRoot 'resources/text'
-    $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -Filter 'expanded.toml' -File -Recurse)
-    if (-not ($catalogs | Where-Object { $_.Directory.Name -eq 'en' -and $_.Directory.Parent.FullName -eq $catalogRoot })) {
+    $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -File -Recurse | Where-Object { $_.Name -in @('expanded.toml', 'retail.toml') })
+    if (-not ($catalogs | Where-Object { $_.Name -eq 'expanded.toml' -and $_.Directory.Name -eq 'en' -and $_.Directory.Parent.FullName -eq $catalogRoot })) {
         throw "Missing English text catalog in $catalogRoot."
     }
     foreach ($catalog in $catalogs) {
@@ -86,7 +86,7 @@ try {
         }
         $destination = Join-Path (Join-Path $staging 'resources/text') $catalog.Directory.Name
         New-Item -ItemType Directory -Path $destination -Force | Out-Null
-        Copy-Item -LiteralPath $catalog.FullName -Destination (Join-Path $destination 'expanded.toml')
+        Copy-Item -LiteralPath $catalog.FullName -Destination (Join-Path $destination $catalog.Name)
     }
 
     # Explicit files only: never package the user's ROM, tracks or tool caches.

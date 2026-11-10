@@ -3,6 +3,7 @@
 #include <platform/native_controls.h>
 #include <platform/native_audio.h>
 #include <platform/native_language_disc.h>
+#include <platform/native_text_runtime.h>
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {
@@ -222,6 +223,10 @@ static void Config_UpdateSlider(const struct GamepadBuffer *pad, int *value,
 
 static bool Config_CanEdit(const ConfigEntry *entry)
 {
+	if (entry->valuePtr == &g_config.retailTextPriority && !NativeLanguageDisc_HasAnyText())
+	{
+		return false;
+	}
 	return s_configSession.context == CONFIG_MENU_MAIN || entry->availableDuringPause;
 }
 
@@ -284,7 +289,14 @@ static void Config_DrawRow(const void *context, int row, int y, bool selected, u
 {
 	const ConfigEntry *entries = context;
 	(void)selected;
-	FullScreenMenu_DrawRowLabel(Config_EntryLabel(&entries[row]), y, ot);
+	if (entries[row].valuePtr == &g_config.retailTextPriority && !Config_CanEdit(&entries[row]))
+	{
+		DecalFont_DrawLineOT((char *)Config_EntryLabel(&entries[row]), FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
+	}
+	else
+	{
+		FullScreenMenu_DrawRowLabel(Config_EntryLabel(&entries[row]), y, ot);
+	}
 	Config_DrawValue(&entries[row], y, ot);
 }
 
@@ -296,7 +308,8 @@ static void Config_OpenLanguagePicker(const ConfigEntry *entry)
 	{
 		int slot = entry->enumValues[i].value;
 		bool voice = entry->valuePtr == &g_config.voiceLanguage;
-		if (slot != 1 && !(voice ? NativeLanguageDisc_HasVoice(slot) : NativeLanguageDisc_HasText(slot)))
+		if (slot != 1 && !(voice ? NativeLanguageDisc_HasVoice(slot) :
+		                    (NativeLanguageDisc_HasText(slot) || NativeTextRuntime_HasRetail(slot))))
 		{
 			continue;
 		}
@@ -353,6 +366,11 @@ static void Config_LanguagePicker(const ConfigEntry *entry, struct GameTracker *
 
 static void MM_MenuProc_Config(struct RectMenu *menu)
 {
+	if (g_config.retailTextPriority != RETAIL_TEXT_PRIORITY_EXPANDED && !NativeLanguageDisc_HasAnyText())
+	{
+		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
+		LANG_Refresh(g_config.textLanguage);
+	}
 	struct GameTracker *gGT = sdata->gGT;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
@@ -457,7 +475,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 				}
 				else if (e->type == CFG_ENUM)
 				{
-					if (Config_IsSection(sec, CONFIG_SECTION_LANGUAGE))
+					if (e->valuePtr == &g_config.textLanguage || e->valuePtr == &g_config.voiceLanguage)
 					{
 						Config_OpenLanguagePicker(e);
 						Config_ClearInput();
@@ -466,6 +484,10 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 					{
 						int *val = (int *)e->valuePtr;
 						*val = (*val + 1) % e->numEnumValues;
+						if (e->valuePtr == &g_config.retailTextPriority)
+						{
+							LANG_Refresh(g_config.textLanguage);
+						}
 					}
 				}
 			}

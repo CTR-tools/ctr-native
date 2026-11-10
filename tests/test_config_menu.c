@@ -26,6 +26,7 @@ static int s_controlsSaves;
 static int s_languageApplied;
 static int s_textCatalogReloaded;
 static int s_voiceRefreshed;
+static int s_europeTextAvailable = 1;
 static bool s_recordLanguageDraw;
 static int s_languageDrawSequence;
 static int s_languagePopupDraw;
@@ -157,6 +158,8 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 }
 void NativeControls_Save(void) { s_controlsSaves++; }
 int NativeLanguageDisc_HasText(int slot) { return slot == 5; }
+int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
+int NativeTextRuntime_HasRetail(int slot) { (void)slot; return 0; }
 int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
 const char *LOAD_LanguageSelfName(int slot)
 {
@@ -701,7 +704,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "text", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "text", "retail_priority", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -849,6 +852,33 @@ static void TestLanguagePicker(void)
 			CTR_TEST_CHECK(s_textCatalogReloaded == 5, "text confirmation reloads the selected catalog");
 		}
 	}
+	g_config = s_initialConfig;
+}
+
+static void TestRetailDiscPreference(void)
+{
+	CTR_TEST_SECTION("retail disc preference availability");
+	int index = -1;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (g_configEntries[i].valuePtr == &g_config.retailTextPriority) { index = i; break; }
+	}
+	if (index < 0) { CtrTest_Bail("retail disc preference must exist"); }
+	g_config = s_initialConfig;
+	s_europeTextAvailable = 0;
+	OpenEntry(index, CONFIG_MENU_MAIN);
+	g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_ISO_EU;
+	s_textCatalogReloaded = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_EXPANDED && !Config_CanEdit(&g_configEntries[index]),
+	               "without European text the preference is forced off and cannot be edited");
+	CTR_TEST_CHECK(s_textCatalogReloaded == g_config.textLanguage, "forcing off refreshes the active text");
+	s_europeTextAvailable = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && Config_CanEdit(&g_configEntries[index]),
+	               "the preference becomes editable when European text is available");
 	g_config = s_initialConfig;
 }
 
@@ -1132,6 +1162,7 @@ int main(void)
 	CTR_TEST_SECTION("Pause availability policy");
 	TestAvailability();
 	TestLanguagePicker();
+	TestRetailDiscPreference();
 	CTR_TEST_SECTION("Main-menu editing and values");
 	TestEditing(CONFIG_MENU_MAIN);
 	CTR_TEST_SECTION("Paused editing, disabled values and colors");

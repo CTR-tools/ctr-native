@@ -3,6 +3,84 @@
 #include <platform/native_text_runtime.h>
 
 static const char *s_languageResolved[LNG_EXPANDED_STRING_BASE + LNG_EXPANDED_STRING_COUNT];
+static char *s_languageRetailOriginal[LNG_RETAIL_STRING_COUNT];
+
+// Compare complete printf directives in order. Unsupported directives are
+// rejected rather than guessing their argument types or positional semantics.
+static int LANG_NextFormat(const char **text, const char **start, size_t *length)
+{
+	const char *p = strchr(*text, '%');
+	if (p == NULL) { return 0; }
+	*start = p++;
+	if (*p == '%')
+	{
+		p++;
+	}
+	else
+	{
+		while (*p != '\0' && strchr("-+ #0", *p) != NULL) { p++; }
+		while (*p >= '0' && *p <= '9') { p++; }
+		if (*p == '.')
+		{
+			p++;
+			while (*p >= '0' && *p <= '9') { p++; }
+		}
+		if (*p != '\0' && strchr("hljztL", *p) != NULL)
+		{
+			char modifier = *p++;
+			if ((modifier == 'h' || modifier == 'l') && *p == modifier) { p++; }
+		}
+		if (*p == '\0' || strchr("diouxXfFeEgGaAcsp", *p) == NULL) { return -1; }
+		p++;
+	}
+	*length = (size_t)(p - *start);
+	*text = p;
+	return 1;
+}
+
+static bool LANG_FormatsMatch(const char *original, const char *replacement)
+{
+	for (;;)
+	{
+		const char *a, *b;
+		size_t aLength, bLength;
+		int aResult = LANG_NextFormat(&original, &a, &aLength);
+		int bResult = LANG_NextFormat(&replacement, &b, &bLength);
+		if (aResult < 0 || bResult < 0 || aResult != bResult) { return false; }
+		if (aResult == 0) { return true; }
+		if (aLength != bLength || memcmp(a, b, aLength) != 0) { return false; }
+	}
+}
+
+static void LANG_RestoreRetail(void)
+{
+	if (sdata->lngStrings == NULL) { return; }
+	for (int i = 0; i < LNG_RETAIL_STRING_COUNT && i < sdata->numLngStrings; i++)
+	{
+		const char *previous = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i);
+		if (previous != NULL && sdata->lngStrings[i] == previous)
+		{
+			sdata->lngStrings[i] = s_languageRetailOriginal[i];
+		}
+	}
+}
+
+static void LANG_ApplyRetail(int slot)
+{
+	if (sdata->lngStrings == NULL) { return; }
+	bool preferDisc = g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && LOAD_RetailDiscActive();
+	(void)slot;
+	for (int i = 0; i < LNG_RETAIL_STRING_COUNT && i < sdata->numLngStrings; i++)
+	{
+		char *original = sdata->lngStrings[i];
+		const char *replacement = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i);
+		s_languageRetailOriginal[i] = original;
+		if (!preferDisc && original != NULL && replacement != NULL && LANG_FormatsMatch(original, replacement))
+		{
+			sdata->lngStrings[i] = (char *)replacement;
+		}
+	}
+}
 
 static void LANG_Rebuild(void)
 {
@@ -32,7 +110,9 @@ static void LANG_Rebuild(void)
 
 void LANG_Refresh(int slot)
 {
+	LANG_RestoreRetail();
 	NativeTextRuntime_Reload(slot);
+	LANG_ApplyRetail(slot);
 	LANG_Rebuild();
 }
 

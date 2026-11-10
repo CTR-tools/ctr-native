@@ -104,9 +104,11 @@ int main(void)
 	s_europePresent = 0;
 	s_generation++;
 	CTR_TEST_CHECK(!NativeLanguageDisc_HasText(5), "a removed image is not reported as available after reinitialization");
+	CTR_TEST_CHECK(!NativeLanguageDisc_HasAnyText(), "a removed image has no available retail text");
 	s_europePresent = 1;
 	s_generation++;
 	CTR_TEST_CHECK(NativeLanguageDisc_HasText(5), "a restored image is detected after reinitialization");
+	CTR_TEST_CHECK(NativeLanguageDisc_HasAnyText(), "one valid language makes European retail text available");
 	CTR_TEST_CHECK(!NativeLanguageDisc_ReadText(1, &bytes, &size), "English is not sourced from the European image");
 	CTR_TEST_CHECK(strcmp(NativeLanguageDisc_TextString(s_text, 16, 0), "CIA") == 0 &&
 	               NativeLanguageDisc_TextString(s_text, 16, 1) == NULL,
