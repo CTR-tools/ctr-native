@@ -202,6 +202,7 @@ int main(int argc, char *argv[])
 		return NativeConsole_Return(1);
 	}
 
+	NativeTextRuntime_DiscoverLanguages();
 	NativeConfig_Load();
 	if (!NativeLanguageDisc_HasAnyText())
 	{

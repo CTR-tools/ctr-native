@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <SDL3/SDL_filesystem.h>
 
 enum { NATIVE_TEXT_RUNTIME_MAX_FILE = 256 * 1024, NATIVE_TEXT_RUNTIME_VALUE_SIZE = 4097 };
 enum { NATIVE_LANGUAGE_NAME_FILE_MAX = 4096, NATIVE_LANGUAGE_NAME_SIZE = 128 };
@@ -23,40 +24,120 @@ static struct NativeRetailTextRuntimeValues
 	unsigned char present[LNG_RETAIL_STRING_COUNT];
 } s_nativeRetailText[2];
 
+static const struct { int slot; const char *id; } s_discLanguages[] = {
+	{NATIVE_LANGUAGE_ENGLISH, "en"}, {NATIVE_LANGUAGE_FRENCH, "fr"},
+	{NATIVE_LANGUAGE_GERMAN, "de"}, {NATIVE_LANGUAGE_ITALIAN, "it"},
+	{NATIVE_LANGUAGE_SPANISH, "es"}, {NATIVE_LANGUAGE_DUTCH, "nl"},
+};
+static char s_customLanguageIds[NATIVE_TEXT_MAX_LANGUAGES][NATIVE_TEXT_LANGUAGE_ID_SIZE];
+static int s_customLanguageCount;
+static int s_languagesDiscovered;
+static int NativeTextRuntime_ReadLanguageName(const char *id, int shipped, char *output, size_t capacity);
+
+static FILE *NativeTextRuntime_Open(const char *id, int shipped, const char *fileName, char *path, size_t pathSize)
+{
+	int length = shipped ? snprintf(path, pathSize, "%s/resources/text/%s/%s", NativeAssets_GetExecutableDir(), id, fileName)
+	                     : snprintf(path, pathSize, "text/%s/%s", id, fileName);
+	if (length < 0 || (size_t)length >= pathSize)
+	{
+		return NULL;
+	}
+	return shipped ? fopen(path, "rb") : NativeAssets_OpenHost(path, "rb");
+}
+
 const char *NativeTextRuntime_LanguageId(int slot)
 {
-	switch (slot)
+	for (size_t i = 0; i < sizeof(s_discLanguages) / sizeof(s_discLanguages[0]); i++)
 	{
-	case NATIVE_LANGUAGE_ENGLISH: return "en";
-	case NATIVE_LANGUAGE_FRENCH: return "fr";
-	case NATIVE_LANGUAGE_GERMAN: return "de";
-	case NATIVE_LANGUAGE_ITALIAN: return "it";
-	case NATIVE_LANGUAGE_SPANISH: return "es";
-	case NATIVE_LANGUAGE_DUTCH: return "nl";
-	default: return NULL;
+		if (s_discLanguages[i].slot == slot) { return s_discLanguages[i].id; }
 	}
+	if (slot >= NATIVE_TEXT_CUSTOM_FIRST && slot - NATIVE_TEXT_CUSTOM_FIRST < s_customLanguageCount)
+	{
+		return s_customLanguageIds[slot - NATIVE_TEXT_CUSTOM_FIRST];
+	}
+	return NULL;
+}
+
+int NativeTextRuntime_LanguageCount(void)
+{
+	return (int)(sizeof(s_discLanguages) / sizeof(s_discLanguages[0])) + s_customLanguageCount;
+}
+
+int NativeTextRuntime_LanguageAt(int index)
+{
+	int builtinCount = (int)(sizeof(s_discLanguages) / sizeof(s_discLanguages[0]));
+	if (index < 0 || index >= builtinCount + s_customLanguageCount) { return -1; }
+	return index < builtinCount ? s_discLanguages[index].slot : NATIVE_TEXT_CUSTOM_FIRST + index - builtinCount;
+}
+
+int NativeTextRuntime_LanguageSlot(const char *id)
+{
+	if (id == NULL) { return -1; }
+	for (int i = 0; i < NativeTextRuntime_LanguageCount(); i++)
+	{
+		int slot = NativeTextRuntime_LanguageAt(i);
+		if (strcmp(id, NativeTextRuntime_LanguageId(slot)) == 0) { return slot; }
+	}
+	return -1;
+}
+
+static SDL_EnumerationResult SDLCALL NativeTextRuntime_CollectLanguage(void *context, const char *directory, const char *id)
+{
+	(void)context;
+	(void)directory;
+	size_t size = strlen(id);
+	int builtInCount = (int)(sizeof(s_discLanguages) / sizeof(s_discLanguages[0]));
+	if (size == 0 || size >= NATIVE_TEXT_LANGUAGE_ID_SIZE || s_customLanguageCount >= NATIVE_TEXT_MAX_LANGUAGES - builtInCount)
+	{
+		return SDL_ENUM_CONTINUE;
+	}
+	for (size_t i = 0; i < size; i++)
+	{
+		if (!((id[i] >= 'a' && id[i] <= 'z') || (id[i] >= '0' && id[i] <= '9') || id[i] == '-' || id[i] == '_'))
+		{
+			return SDL_ENUM_CONTINUE;
+		}
+	}
+	if (NativeTextRuntime_LanguageSlot(id) >= 0) { return SDL_ENUM_CONTINUE; }
+	char name[NATIVE_LANGUAGE_NAME_SIZE] = {0};
+	if (!NativeTextRuntime_ReadLanguageName(id, 0, name, sizeof(name)) &&
+	    !NativeTextRuntime_ReadLanguageName(id, 1, name, sizeof(name))) { return SDL_ENUM_CONTINUE; }
+	memcpy(s_customLanguageIds[s_customLanguageCount++], id, size + 1);
+	return SDL_ENUM_CONTINUE;
+}
+
+static void NativeTextRuntime_ScanLanguages(const char *base)
+{
+	char path[1200];
+	int n = snprintf(path, sizeof(path), "%s/text", base);
+	if (n >= 0 && (size_t)n < sizeof(path))
+	{
+		SDL_EnumerateDirectory(path, NativeTextRuntime_CollectLanguage, NULL);
+	}
+}
+
+static int NativeTextRuntime_CompareLanguageIds(const void *a, const void *b)
+{
+	return strcmp((const char *)a, (const char *)b);
+}
+
+void NativeTextRuntime_DiscoverLanguages(void)
+{
+	if (s_languagesDiscovered) { return; }
+	s_languagesDiscovered = 1;
+	char resources[1200];
+	int n = snprintf(resources, sizeof(resources), "%s/resources", NativeAssets_GetExecutableDir());
+	if (n >= 0 && (size_t)n < sizeof(resources)) { NativeTextRuntime_ScanLanguages(resources); }
+	NativeTextRuntime_ScanLanguages(NativeAssets_GetAssetDir());
+	qsort(s_customLanguageIds, (size_t)s_customLanguageCount, sizeof(s_customLanguageIds[0]), NativeTextRuntime_CompareLanguageIds);
 }
 
 static void NativeTextRuntime_Load(const char *id, int shipped, enum NativeTextCatalogKind kind,
                                    char values[][NATIVE_TEXT_RUNTIME_VALUE_SIZE], unsigned char *present)
 {
 	char path[1200];
-	FILE *file;
 	const char *fileName = kind == NATIVE_TEXT_CATALOG_RETAIL ? "retail.toml" : "expanded.toml";
-	if (shipped)
-	{
-		int length = snprintf(path, sizeof(path), "%s/resources/text/%s/%s", NativeAssets_GetExecutableDir(), id, fileName);
-		if (length < 0 || (size_t)length >= sizeof(path))
-		{
-			return;
-		}
-		file = fopen(path, "rb");
-	}
-	else
-	{
-		snprintf(path, sizeof(path), "text/%s/%s", id, fileName);
-		file = NativeAssets_OpenHost(path, "rb");
-	}
+	FILE *file = NativeTextRuntime_Open(id, shipped, fileName, path, sizeof(path));
 	if (file == NULL)
 	{
 		if (shipped && kind == NATIVE_TEXT_CATALOG_EXPANDED && strcmp(id, "en") == 0)
@@ -108,44 +189,35 @@ static void NativeTextRuntime_Load(const char *id, int shipped, enum NativeTextC
 	NativeTextCatalog_Clear(&catalog);
 }
 
-int NativeTextRuntime_HasRetail(int languageSlot)
+static int NativeTextRuntime_HasFile(const char *id, const char *fileName)
 {
-	const char *id = NativeTextRuntime_LanguageId(languageSlot);
-	if (id == NULL) { return 0; }
 	char path[1200];
-	int length = snprintf(path, sizeof(path), "%s/resources/text/%s/retail.toml", NativeAssets_GetExecutableDir(), id);
-	FILE *file = NULL;
-	if (length >= 0 && (size_t)length < sizeof(path))
-	{
-		file = fopen(path, "rb");
-	}
+	FILE *file = NativeTextRuntime_Open(id, 1, fileName, path, sizeof(path));
 	if (file == NULL)
 	{
-		snprintf(path, sizeof(path), "text/%s/retail.toml", id);
-		file = NativeAssets_OpenHost(path, "rb");
+		file = NativeTextRuntime_Open(id, 0, fileName, path, sizeof(path));
 	}
 	if (file == NULL) { return 0; }
 	fclose(file);
 	return 1;
 }
 
+int NativeTextRuntime_HasRetail(int languageSlot)
+{
+	const char *id = NativeTextRuntime_LanguageId(languageSlot);
+	return id != NULL && NativeTextRuntime_HasFile(id, "retail.toml");
+}
+
+int NativeTextRuntime_HasText(int languageSlot)
+{
+	const char *id = NativeTextRuntime_LanguageId(languageSlot);
+	return id != NULL && (NativeTextRuntime_HasFile(id, "retail.toml") || NativeTextRuntime_HasFile(id, "expanded.toml"));
+}
+
 static int NativeTextRuntime_ReadLanguageName(const char *id, int shipped, char *output, size_t capacity)
 {
 	char path[1200];
-	int length;
-	FILE *file;
-	if (shipped)
-	{
-		length = snprintf(path, sizeof(path), "%s/resources/text/%s/language.toml", NativeAssets_GetExecutableDir(), id);
-		if (length < 0 || (size_t)length >= sizeof(path)) { return 0; }
-		file = fopen(path, "rb");
-	}
-	else
-	{
-		length = snprintf(path, sizeof(path), "text/%s/language.toml", id);
-		if (length < 0 || (size_t)length >= sizeof(path)) { return 0; }
-		file = NativeAssets_OpenHost(path, "rb");
-	}
+	FILE *file = NativeTextRuntime_Open(id, shipped, "language.toml", path, sizeof(path));
 	if (file == NULL) { return 0; }
 	char bytes[NATIVE_LANGUAGE_NAME_FILE_MAX + 1];
 	size_t size = fread(bytes, 1, sizeof(bytes), file);
@@ -173,8 +245,8 @@ static int NativeTextRuntime_ReadLanguageName(const char *id, int shipped, char 
 
 const char *NativeTextRuntime_LanguageSelfName(int languageSlot)
 {
-	static char names[NATIVE_LANGUAGE_DUTCH + 1][NATIVE_LANGUAGE_NAME_SIZE];
-	static unsigned char checked[NATIVE_LANGUAGE_DUTCH + 1];
+	static char names[NATIVE_TEXT_MAX_LANGUAGES + 8][NATIVE_LANGUAGE_NAME_SIZE];
+	static unsigned char checked[NATIVE_TEXT_MAX_LANGUAGES + 8];
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
 	if (id == NULL) { return NULL; }
 	if (!checked[languageSlot])

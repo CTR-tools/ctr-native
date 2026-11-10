@@ -114,7 +114,7 @@ static const ConfigEntry *s_configGroup;
 static s16 s_configRootRow;
 static s16 s_configGroupRow;
 static bool s_languagePickerOpen;
-static int s_languageChoices[6];
+static int s_languageChoices[NATIVE_TEXT_MAX_LANGUAGES];
 static int s_languageChoiceCount;
 static int s_languageChoice;
 static int s_textExportStatus;
@@ -261,6 +261,11 @@ static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 	{
 		int val = *(int *)e->valuePtr;
 		const char *text = "?";
+		if (e->valuePtr == &g_config.textLanguage && val >= NATIVE_TEXT_CUSTOM_FIRST)
+		{
+			const char *id = NativeTextRuntime_LanguageId(val);
+			text = Config_LanguageLabel(val, id != NULL ? id : "?");
+		}
 		for (int j = 0; j < e->numEnumValues; j++)
 		{
 			if (e->enumValues[j].value == val)
@@ -318,12 +323,13 @@ static void Config_OpenLanguagePicker(const ConfigEntry *entry)
 {
 	s_languageChoiceCount = 0;
 	s_languageChoice = 0;
-	for (int i = 0; i < entry->numEnumValues; i++)
+	bool voice = entry->valuePtr == &g_config.voiceLanguage;
+	int count = voice ? entry->numEnumValues : NativeTextRuntime_LanguageCount();
+	for (int i = 0; i < count; i++)
 	{
-		int slot = entry->enumValues[i].value;
-		bool voice = entry->valuePtr == &g_config.voiceLanguage;
+		int slot = voice ? entry->enumValues[i].value : NativeTextRuntime_LanguageAt(i);
 		if (slot != 1 && !(voice ? NativeLanguageDisc_HasVoice(slot) :
-		                    (NativeLanguageDisc_HasText(slot) || NativeTextRuntime_HasRetail(slot))))
+		                    (NativeLanguageDisc_HasText(slot) || NativeTextRuntime_HasText(slot))))
 		{
 			continue;
 		}
@@ -331,7 +337,7 @@ static void Config_OpenLanguagePicker(const ConfigEntry *entry)
 		{
 			s_languageChoice = s_languageChoiceCount;
 		}
-		s_languageChoices[s_languageChoiceCount++] = i;
+		s_languageChoices[s_languageChoiceCount++] = slot;
 	}
 	s_languagePickerOpen = true;
 }
@@ -339,14 +345,19 @@ static void Config_OpenLanguagePicker(const ConfigEntry *entry)
 static const char *Config_LanguageChoiceLabel(const void *context, int index)
 {
 	const ConfigEntry *entry = context;
-	const ConfigEnumValue *value = &entry->enumValues[s_languageChoices[index]];
-	return Config_LanguageLabel(value->value, value->name);
+	int slot = s_languageChoices[index];
+	const char *fallback = NativeTextRuntime_LanguageId(slot);
+	for (int i = 0; i < entry->numEnumValues; i++)
+	{
+		if (entry->enumValues[i].value == slot) { fallback = entry->enumValues[i].name; break; }
+	}
+	return Config_LanguageLabel(slot, fallback != NULL ? fallback : "?");
 }
 
 static bool Config_ApplyLanguageChoice(const void *context, int selected)
 {
 	const ConfigEntry *entry = context;
-	int slot = entry->enumValues[s_languageChoices[selected]].value;
+	int slot = s_languageChoices[selected];
 	bool applied = true;
 	if (entry->valuePtr == &g_config.textLanguage)
 	{

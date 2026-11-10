@@ -83,7 +83,12 @@ ctr_add_test_suite(test_text_export
 
 ctr_add_test_suite(test_text_runtime
     SOURCES test_text_runtime.c
-    LIBRARIES tomlc17
+    LIBRARIES tomlc17 SDL3::SDL3
+)
+
+ctr_add_test_suite(test_language_discovery
+    SOURCES test_language_discovery.c
+    LIBRARIES tomlc17 SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_text

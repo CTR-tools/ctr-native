@@ -28,7 +28,7 @@ Status: implementation and validation plan for [issue #89](https://github.com/th
 
 ### Agreed text catalog structure
 
-Ship Expanded and independently authored retail catalogs in `resources/text/<language-id>/expanded.toml` and `retail.toml` next to the executable, so application updates can replace them without overwriting user files. Use optional `assets/text/<language-id>/retail.toml` and `expanded.toml` for user text overrides. Retail keys refer to existing retail string identifiers without the `LNG_` prefix; Expanded keys identify strings added by this fork. Catalogs may be partial, and a language may provide either or both overrides. The picker reads `self_name` from shipped `language.toml` metadata or a personal override, caching the result on first use. The supported language slots are currently fixed; additional language slots remain a separate task.
+Ship Expanded and independently authored retail catalogs in `resources/text/<language-id>/expanded.toml` and `retail.toml` next to the executable, so application updates can replace them without overwriting user files. Use optional `assets/text/<language-id>/retail.toml` and `expanded.toml` for user text overrides. Retail keys refer to existing retail string identifiers without the `LNG_` prefix; Expanded keys identify strings added by this fork. Catalogs may be partial, and a language may provide either or both overrides. The picker reads `self_name` from shipped `language.toml` metadata or a personal override, caching the result on first use. Additional text languages are discovered at startup from directories with valid metadata; their directory IDs are saved in configuration.
 
 The split identifies the origin of a key, not the game mode or screen where it is used. If Chaos and a retail screen request the same retail key, they share its translation. A context-specific wording requires a separate Expanded key and an explicit change to that consumer; any fallback to a retail key must be defined explicitly. Do not split retail catalogs by game mode for now.
 
@@ -48,5 +48,5 @@ Discover text and audio availability independently. The text picker checks wheth
 
 ## Work breakdown
 
-1. Add support for user-defined languages
+1. Validate user-defined language discovery and persistence across representative installations.
 2. Document catalog discovery, keys, encoding, supported font characters, formatting directives and placeholders, fallback, error handling and content ownership. Correct the README's implication that discovery validates a retail catalog.

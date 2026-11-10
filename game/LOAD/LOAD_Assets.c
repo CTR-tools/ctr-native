@@ -739,13 +739,13 @@ int LOAD_ApplyLanguage(int slot)
 	}
 	if (!NativeLanguageDisc_ReadText(slot, &bytes, &size))
 	{
-		return NativeTextRuntime_HasRetail(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
+		return NativeTextRuntime_HasText(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
 	}
 	struct LngFile *source = (struct LngFile *)bytes;
 	if (size > (u32)sdata->langBufferSize || source->numStrings < LOAD_LANGUAGE_PAL_REQUIRED_COUNT)
 	{
 		free(bytes);
-		return NativeTextRuntime_HasRetail(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
+		return NativeTextRuntime_HasText(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
 	}
 	memcpy(sdata->lngFile, bytes, size);
 	free(bytes);

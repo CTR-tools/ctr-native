@@ -7,6 +7,7 @@
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
 #include <platform/native_language_disc.h>
+#include <platform/native_text_runtime.h>
 #include <namespace_Lng.h>
 
 static const ConfigEnumValue kMaskModeValues[] = {
@@ -805,6 +806,15 @@ void NativeConfig_Load(void)
                 else if (e->type == CFG_ENUM)
                 {
                     int matched = 0;
+                    if (e->valuePtr == &g_config.textLanguage)
+                    {
+                        int slot = NativeTextRuntime_LanguageSlot(value);
+                        if (slot >= 0)
+                        {
+                            *(int *)e->valuePtr = slot;
+                            matched = 1;
+                        }
+                    }
                     for (int j = 0; j < e->numEnumValues; j++)
                     {
                         if (strcmp(value, e->enumValues[j].name) == 0)
@@ -815,7 +825,21 @@ void NativeConfig_Load(void)
                         }
                     }
                     if (!matched)
-                        *(int *)e->valuePtr = atoi(value);
+                    {
+                        if (e->valuePtr == &g_config.textLanguage)
+                        {
+                            char *end;
+                            long slot = strtol(value, &end, 10);
+                            *(int *)e->valuePtr = end != value && *end == '\0' &&
+                                                 slot >= 0 && slot < NATIVE_TEXT_CUSTOM_FIRST &&
+                                                 NativeTextRuntime_LanguageId((int)slot) != NULL
+                                                     ? (int)slot : NATIVE_LANGUAGE_ENGLISH;
+                        }
+                        else
+                        {
+                            *(int *)e->valuePtr = atoi(value);
+                        }
+                    }
                 }
                 else
                     *(int *)e->valuePtr = atoi(value);
@@ -870,6 +894,11 @@ void NativeConfig_Save(void)
         {
             int val = *(int *)e->valuePtr;
             const char *name = "?";
+            if (e->valuePtr == &g_config.textLanguage && val >= NATIVE_TEXT_CUSTOM_FIRST)
+            {
+                const char *id = NativeTextRuntime_LanguageId(val);
+                if (id != NULL) { name = id; }
+            }
             for (int j = 0; j < e->numEnumValues; j++)
             {
                 if (e->enumValues[j].value == val)

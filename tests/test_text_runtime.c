@@ -1,3 +1,4 @@
+#include <SDL3/SDL.h>
 #include <shared/ctr_test.h>
 #include <common.h>
 #include <platform/native_text_runtime.h>
@@ -36,6 +37,7 @@ static FILE *TextTest_File(const char *text)
 }
 
 const char *NativeAssets_GetExecutableDir(void) { return "fixture"; }
+const char *NativeAssets_GetAssetDir(void) { return "fixture-assets"; }
 
 static FILE *TextTest_OpenShipped(const char *path, const char *mode)
 {

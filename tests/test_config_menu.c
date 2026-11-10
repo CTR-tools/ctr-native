@@ -163,9 +163,41 @@ int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
 enum NativeTextExportResult NativeTextExport_Active(int slot, NativeTextExport_GetString getString)
 { (void)slot; (void)getString; s_textExportCalls++; return NATIVE_TEXT_EXPORT_OK; }
 int NativeTextRuntime_HasRetail(int slot) { (void)slot; return 0; }
+static bool s_customLanguageAvailable;
+int NativeTextRuntime_HasText(int slot) { return s_customLanguageAvailable && slot == NATIVE_TEXT_CUSTOM_FIRST; }
+int NativeTextRuntime_LanguageCount(void) { return s_customLanguageAvailable ? 7 : 6; }
+int NativeTextRuntime_LanguageAt(int index)
+{
+	static const int slots[] = {1, 3, 4, 5, 6, 7, NATIVE_TEXT_CUSTOM_FIRST};
+	return index >= 0 && index < NativeTextRuntime_LanguageCount() ? slots[index] : -1;
+}
+const char *NativeTextRuntime_LanguageId(int slot)
+{
+	switch (slot)
+	{
+	case 1: return "en";
+	case 3: return "fr";
+	case 4: return "de";
+	case 5: return "it";
+	case 6: return "es";
+	case 7: return "nl";
+	case NATIVE_TEXT_CUSTOM_FIRST: return "pt";
+	default: return NULL;
+	}
+}
+int NativeTextRuntime_LanguageSlot(const char *id)
+{
+	for (int i = 0; i < NativeTextRuntime_LanguageCount(); i++)
+	{
+		int slot = NativeTextRuntime_LanguageAt(i);
+		if (strcmp(id, NativeTextRuntime_LanguageId(slot)) == 0) { return slot; }
+	}
+	return -1;
+}
 const char *NativeTextRuntime_LanguageSelfName(int slot)
 {
-	return slot == NATIVE_LANGUAGE_FRENCH ? "FRANCAIS" : NULL;
+	if (slot == NATIVE_LANGUAGE_FRENCH) { return "FRANCAIS"; }
+	return slot == NATIVE_TEXT_CUSTOM_FIRST ? "PORTUGUES" : NULL;
 }
 int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
 const char *LOAD_LanguageSelfName(int slot)
@@ -862,6 +894,21 @@ static void TestLanguagePicker(void)
 			CTR_TEST_CHECK(s_textCatalogReloaded == 5, "text confirmation reloads the selected catalog");
 		}
 	}
+	s_customLanguageAvailable = true;
+	const ConfigEntry *textEntry = NULL;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (g_configEntries[i].valuePtr == &g_config.textLanguage) { textEntry = &g_configEntries[i]; break; }
+	}
+	if (textEntry == NULL) { CtrTest_Bail("text language row missing"); }
+	g_config = s_initialConfig;
+	Config_OpenLanguagePicker(textEntry);
+	CTR_TEST_CHECK(s_languageChoiceCount == 3 && strcmp(Config_LanguageChoiceLabel(textEntry, 2), "PORTUGUES") == 0,
+	               "the text picker offers a discovered custom language by its native name");
+	CTR_TEST_CHECK(Config_ApplyLanguageChoice(textEntry, 2) && g_config.textLanguage == NATIVE_TEXT_CUSTOM_FIRST &&
+	               s_languageApplied == NATIVE_TEXT_CUSTOM_FIRST && s_textCatalogReloaded == NATIVE_TEXT_CUSTOM_FIRST,
+	               "selecting a custom text language applies and reloads it");
+	s_customLanguageAvailable = false;
 	g_config = s_initialConfig;
 }
 
