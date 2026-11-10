@@ -227,50 +227,8 @@ music as feedback. Audio settings use the game's normal memory-card save system.
 
 ### Language
 
-Place an optional European disc image at `assets/ctr-e.bin` to make its supported
-text and voice languages available under **Options > System > Language**. A
-language with an openable `retail.toml` or `expanded.toml` is also offered for
-text without the European image. Catalog
-entries are validated when loaded. The base image supplies English; missing
-European voice tracks fall back to English. Text and voice selections are
-independent and apply when confirmed. 
-
-| Key | Values | Default | Description                                                                                         |
-|-----|--------|---------|-----------------------------------------------------------------------------------------------------|
-| `audio` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Voice language                                                                                      |
-| `text` | Built-in language name or custom language ID | `English` | Game text language |
-| `retail_priority` | `EXPANDED`, `ISO EU` | `EXPANDED` | Preferred source of retail text; without the PAL European ISO available, only EXPANDED is available |
-
-Personal overrides are applied automatically when present. Retail overrides are
-UTF-8 TOML files at `assets/text/<language>/retail.toml`,
-for example `assets/text/it/retail.toml`. Keys are retail identifiers without the
-`LNG_` prefix, such as `PAUSED = "PAUSA"`. Missing or invalid entries use the
-selected source. Text must use supported font characters and matching formatting
-directives. The game never writes or overwrites these user files.
-Expanded text can likewise be overridden with `assets/text/<language>/expanded.toml`.
-The language's own name in the picker comes from `resources/text/<language>/language.toml`.
-To override it, create `assets/text/<language>/language.toml` containing, for
-example, `self_name = "ITALIANO"`. The name must use supported game-font
-characters. Names are cached on first use; restart the game after changing one.
-If metadata is missing or invalid, the picker falls back to the disc name and
-then the built-in English label.
-
-To add a text language, create `assets/text/<id>/language.toml` with a valid
-`self_name` and at least one of `retail.toml` or `expanded.toml`. For example,
-`assets/text/pt/language.toml` can contain `self_name = "PORTUGUES"`.
-Directory IDs are 1–31 characters using lowercase ASCII letters, digits, `-`
-or `_`. Languages are discovered at startup; restart after adding a pack.
-Up to 64 languages, including the six built-in languages, are supported.
-Selections are saved by directory ID, not discovery order. Missing or invalid
-packs fall back to English; voice availability is unchanged and still depends
-on the disc. Translations may be partial and missing strings fall back to English.
-
-**Export Active Language** in the Language menu creates both files as commented
-templates containing the currently displayed text, including active overrides.
-Existing files are not overwritten. Uncomment only entries to change. Keep
-`\uE0XX` escapes intact: they preserve game-font bytes without a verified Unicode
-equivalent. An export reports `FILES EXIST` if either output already exists;
-any missing file is still created.
+Choose text and voice languages independently under **Options > System > Language**.
+See the [language player guide](docs/features/LANGUAGE.md) for setup and custom translations.
 
 ### General
 
