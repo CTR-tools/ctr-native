@@ -4,6 +4,7 @@
 #include <platform/native_audio.h>
 #include <platform/native_language_disc.h>
 #include <platform/native_text_runtime.h>
+#include <platform/native_text_export.h>
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {
@@ -116,6 +117,7 @@ static bool s_languagePickerOpen;
 static int s_languageChoices[6];
 static int s_languageChoiceCount;
 static int s_languageChoice;
+static int s_textExportStatus;
 
 static int Config_NavigationEntries(const ConfigEntry **entries)
 {
@@ -172,6 +174,7 @@ static void Config_ClearInput(void)
 
 void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext context)
 {
+	s_textExportStatus = 0;
 	s_languagePickerOpen = false;
 	if (Config_IsSection(s_currentSection, CONFIG_SECTION_AUDIO))
 	{
@@ -239,7 +242,14 @@ static const char *Config_LanguageLabel(int slot, const char *fallback)
 static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 {
 	const int color = Config_CanEdit(e) ? WHITE : GRAY;
-	if (e->type == CFG_BOOL)
+	if (e->type == CFG_ACTION)
+	{
+		if (s_textExportStatus != 0)
+		{
+			FullScreenMenu_DrawValueTextColored(LANG_GetString(s_textExportStatus), y, color, ot);
+		}
+	}
+	else if (e->type == CFG_BOOL)
 	{
 		FullScreenMenu_DrawOnOffColored(*(bool *)e->valuePtr, y, color, ot);
 	}
@@ -455,7 +465,13 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		{
 			if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 			{
-				if (e->type == CFG_BOOL)
+				if (e->type == CFG_ACTION && strcmp(e->key, "export_active_language") == 0)
+				{
+					enum NativeTextExportResult result = NativeTextExport_Active(g_config.textLanguage, LANG_GetString);
+					s_textExportStatus = result == NATIVE_TEXT_EXPORT_OK ? LNG_EXPANDED_EXPORT_DONE :
+					                     result == NATIVE_TEXT_EXPORT_EXISTS ? LNG_EXPANDED_EXPORT_EXISTS : LNG_EXPANDED_EXPORT_FAILED;
+				}
+				else if (e->type == CFG_BOOL)
 				{
 					*(bool *)e->valuePtr ^= 1;
 					NativeConfig_ApplyDependencies(e);

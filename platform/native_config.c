@@ -150,6 +150,10 @@ const ConfigEntry g_configEntries[] = {
         .enumValues = kRetailTextPriorityValues, .numEnumValues = sizeof(kRetailTextPriorityValues) / sizeof(kRetailTextPriorityValues[0]),
         .availableDuringPause = true,
     },
+    {
+        .section = CONFIG_SECTION_LANGUAGE, .key = "export_active_language", .label = "Export Active Language",
+        .lngKey = LNG_EXPANDED_EXPORT_ACTIVE_LANGUAGE, .type = CFG_ACTION, .availableDuringPause = true,
+    },
 
     {
         .section = CONFIG_SECTION_AUDIO,

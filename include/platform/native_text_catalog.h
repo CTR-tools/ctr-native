@@ -2,6 +2,7 @@
 #define NATIVE_TEXT_CATALOG_H
 
 #include <namespace_Lng.h>
+#include <stdio.h>
 
 // Catalog values are UTF-8, not game-font bytes. A caller must convert them
 // before passing them to the renderer.
@@ -30,5 +31,13 @@ const char *NativeTextCatalog_KeyName(int key);
 // Convert UTF-8 to the subset of the game's byte encoding that is verified.
 // Returns zero for unsupported characters, embedded NULs or insufficient space.
 int NativeTextCatalog_Encode(const char *text, char *output, unsigned int capacity);
+
+// Convert game-font bytes to UTF-8. Unverified bytes use U+E001..U+E0FF so
+// they round-trip without guessing their meaning.
+int NativeTextCatalog_Decode(const char *text, char *output, unsigned int capacity);
+
+// Write one commented TOML entry from a verified game-font string.
+// Returns zero for invalid arguments, insufficient memory or I/O errors.
+int NativeTextCatalog_WriteTemplateEntry(FILE *file, int key, const char *text);
 
 #endif

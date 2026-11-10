@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <limits.h>
 
 enum { NATIVE_TEXT_CATALOG_MAX_VALUE_BYTES = 4096 };
 
@@ -163,6 +165,12 @@ int NativeTextCatalog_Encode(const char *text, char *output, unsigned int capaci
 			bytes[0] = p[1] == 0xa1 ? '#' : '$';
 			p += 2;
 		}
+		else if (p[0] == 0xee && p[1] >= 0x80 && p[1] <= 0x83 && p[2] >= 0x80 && p[2] <= 0xbf)
+		{
+			bytes[0] = (unsigned char)(((p[1] - 0x80) << 6) | (p[2] - 0x80));
+			if (bytes[0] == 0) { return 0; }
+			p += 3;
+		}
 		else
 		{
 			return 0;
@@ -176,4 +184,78 @@ int NativeTextCatalog_Encode(const char *text, char *output, unsigned int capaci
 	}
 	output[used] = '\0';
 	return 1;
+}
+
+int NativeTextCatalog_Decode(const char *text, char *output, unsigned int capacity)
+{
+	if (text == NULL || output == NULL || capacity == 0) { return 0; }
+	const unsigned char *p = (const unsigned char *)text;
+	unsigned int used = 0;
+	while (*p != 0)
+	{
+		unsigned char bytes[3];
+		unsigned int count = 1;
+		if (*p == 3 && (p[1] == 'N' || p[1] == 'n'))
+		{
+			bytes[0] = 0xc3;
+			bytes[1] = p[1] == 'N' ? 0x91 : 0xb1;
+			count = 2;
+			p += 2;
+		}
+		else if ((*p >= 0x20 && *p <= 0x7e) || *p == '\r')
+		{
+			bytes[0] = *p++;
+		}
+		else
+		{
+			// Preserve unverified font bytes in the Unicode private-use area;
+			// exported TOML spells them as \uE0xx rather than invisible glyphs.
+			bytes[0] = 0xee;
+			bytes[1] = (unsigned char)(0x80 | (*p >> 6));
+			bytes[2] = (unsigned char)(0x80 | (*p & 0x3f));
+			count = 3;
+			p++;
+		}
+		if (used + count >= capacity)
+		{
+			output[0] = '\0';
+			return 0;
+		}
+		memcpy(output + used, bytes, count);
+		used += count;
+	}
+	output[used] = '\0';
+	return 1;
+}
+
+int NativeTextCatalog_WriteTemplateEntry(FILE *file, int key, const char *text)
+{
+	if (file == NULL || text == NULL || key < 0 || key >= LNG_EXPANDED_STRING_END) { return 0; }
+	const char *name = NativeTextCatalog_KeyName(key);
+	if (name[0] == '\0') { return 0; }
+	size_t length = strlen(text);
+	if (length > (SIZE_MAX - 1) / 3 || length * 3 + 1 > UINT_MAX) { return 0; }
+	char *decoded = malloc(length * 3 + 1);
+	if (decoded == NULL) { return 0; }
+	if (!NativeTextCatalog_Decode(text, decoded, (unsigned int)(length * 3 + 1)))
+	{
+		free(decoded);
+		return 0;
+	}
+	int ok = fprintf(file, "# %s = \"", name) >= 0;
+	for (const unsigned char *p = (const unsigned char *)decoded; ok && *p != 0; p++)
+	{
+		if (p[0] == 0xee && p[1] >= 0x80 && p[1] <= 0x83 && p[2] >= 0x80 && p[2] <= 0xbf)
+		{
+			unsigned int byte = (unsigned int)((p[1] - 0x80) << 6) | (unsigned int)(p[2] - 0x80);
+			ok = fprintf(file, "\\uE0%02X", byte) >= 0;
+			p += 2;
+		}
+		else if (*p == '"' || *p == '\\') { ok = fputc('\\', file) != EOF && fputc(*p, file) != EOF; }
+		else if (*p == '\r') { ok = fputs("\\r", file) >= 0; }
+		else { ok = fputc(*p, file) != EOF; }
+	}
+	if (ok) { ok = fputs("\"\n", file) >= 0; }
+	free(decoded);
+	return ok;
 }

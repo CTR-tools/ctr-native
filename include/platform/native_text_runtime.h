@@ -3,6 +3,8 @@
 
 // Refreshes fixed-address buffers. Previously returned pointers remain valid.
 void NativeTextRuntime_Reload(int languageSlot);
+// Stable catalog directory name for a supported language slot, or NULL.
+const char *NativeTextRuntime_LanguageId(int languageSlot);
 // True when a shipped retail catalog contains at least one usable entry.
 int NativeTextRuntime_HasRetail(int languageSlot);
 enum NativeTextSource

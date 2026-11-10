@@ -232,8 +232,7 @@ text and voice languages available under **Options > System > Language**. A
 language with a usable `resources/text/<language>/retail.toml` is also available
 for text without the European image. The base image supplies English; missing
 European voice tracks fall back to English. Text and voice selections are
-independent and apply when confirmed. The Italian retail catalog currently
-contains only a few conspicuous test strings, not a complete translation.
+independent and apply when confirmed. 
 
 | Key | Values | Default | Description                                                                                         |
 |-----|--------|---------|-----------------------------------------------------------------------------------------------------|
@@ -248,6 +247,13 @@ for example `assets/text/it/retail.toml`. Keys are retail identifiers without th
 selected source. Text must use supported font characters and matching formatting
 directives. The game never writes or overwrites these user files.
 Expanded text can likewise be overridden with `assets/text/<language>/expanded.toml`.
+
+**Export Active Language** in the Language menu creates both files as commented
+templates containing the currently displayed text, including active overrides.
+Existing files are not overwritten. Uncomment only entries to change. Keep
+`\uE0XX` escapes intact: they preserve game-font bytes without a verified Unicode
+equivalent. An export reports `FILES EXIST` if either output already exists;
+any missing file is still created.
 
 ### General
 

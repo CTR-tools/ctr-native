@@ -57,6 +57,43 @@ int main(void)
 	               "inverted exclamation uses the retail font byte");
 	CTR_TEST_CHECK(!NativeTextCatalog_Encode("Modalit\xc3\xa0", encoded, sizeof(encoded)), "unverified accented characters are rejected");
 	CTR_TEST_CHECK(!NativeTextCatalog_Encode("AB", encoded, 2), "output requires room for the terminator");
+	char decoded[32];
+	CTR_TEST_CHECK(NativeTextCatalog_Decode("ESPA\003NOL\r@", decoded, sizeof(decoded)) &&
+	               strcmp(decoded, "ESPA\xc3\x91OL\r@") == 0 &&
+	               NativeTextCatalog_Encode(decoded, encoded, sizeof(encoded)) && strcmp(encoded, "ESPA\003NOL\r@") == 0,
+	               "verified font bytes round-trip through UTF-8 without changing control glyphs");
+	CTR_TEST_CHECK(NativeTextCatalog_Decode("\001A", decoded, sizeof(decoded)) &&
+	               NativeTextCatalog_Encode(decoded, encoded, sizeof(encoded)) && strcmp(encoded, "\001A") == 0,
+	               "unverified font bytes survive a UTF-8 round trip");
+	CTR_TEST_CHECK(!NativeTextCatalog_Decode("AB", decoded, 2), "decoded output requires room for its terminator");
+	FILE *templateFile = tmpfile();
+	CTR_TEST_CHECK(templateFile != NULL, "a temporary stream is available for the template test");
+	if (templateFile != NULL)
+	{
+		CTR_TEST_CHECK(NativeTextCatalog_WriteTemplateEntry(templateFile, LNG_PAUSED, "A\"B\\C\r@"),
+		               "a template entry is written");
+		rewind(templateFile);
+		char templateLine[128];
+		CTR_TEST_CHECK(fgets(templateLine, sizeof(templateLine), templateFile) != NULL &&
+		               strcmp(templateLine, "# PAUSED = \"A\\\"B\\\\C\\r@\"\n") == 0,
+		               "TOML template entries are commented and escaped");
+		fseek(templateFile, 0, SEEK_END);
+		CTR_TEST_CHECK(NativeTextCatalog_WriteTemplateEntry(templateFile, LNG_PAUSED, "\001A"),
+		               "unknown font bytes are preserved in an export entry");
+		rewind(templateFile);
+		fgets(templateLine, sizeof(templateLine), templateFile);
+		CTR_TEST_CHECK(fgets(templateLine, sizeof(templateLine), templateFile) != NULL &&
+		               strcmp(templateLine, "# PAUSED = \"\\uE001A\"\n") == 0,
+		               "unknown font bytes use visible TOML escapes");
+		struct NativeTextCatalog roundTrip = {0};
+		CTR_TEST_CHECK(NativeTextCatalog_Parse(&roundTrip, NATIVE_TEXT_CATALOG_RETAIL, templateLine + 2,
+		                                      (int)strlen(templateLine + 2), NULL) &&
+		               NativeTextCatalog_Encode(NativeTextCatalog_Get(&roundTrip, LNG_PAUSED), encoded, sizeof(encoded)) &&
+		               strcmp(encoded, "\001A") == 0,
+		               "an uncommented export restores the original font byte");
+		NativeTextCatalog_Clear(&roundTrip);
+		fclose(templateFile);
+	}
 	CTR_TEST_SECTION("Named placeholders");
 	const char templates[] = "PATCH_IMPORTED_SKIPPED = '{skipped_music} / {tracks}'\n"
 	                         "TRACKS_REFRESH_SUMMARY = '{tracks} {unknown}'\n"

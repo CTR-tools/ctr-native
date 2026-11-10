@@ -22,7 +22,7 @@ static struct NativeRetailTextRuntimeValues
 	unsigned char present[LNG_RETAIL_STRING_COUNT];
 } s_nativeRetailText[2];
 
-static const char *NativeTextRuntime_LanguageId(int slot)
+const char *NativeTextRuntime_LanguageId(int slot)
 {
 	switch (slot)
 	{

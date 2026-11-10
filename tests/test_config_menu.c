@@ -26,6 +26,7 @@ static int s_controlsSaves;
 static int s_languageApplied;
 static int s_textCatalogReloaded;
 static int s_voiceRefreshed;
+static int s_textExportCalls;
 static int s_europeTextAvailable = 1;
 static bool s_recordLanguageDraw;
 static int s_languageDrawSequence;
@@ -159,6 +160,8 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 void NativeControls_Save(void) { s_controlsSaves++; }
 int NativeLanguageDisc_HasText(int slot) { return slot == 5; }
 int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
+enum NativeTextExportResult NativeTextExport_Active(int slot, NativeTextExport_GetString getString)
+{ (void)slot; (void)getString; s_textExportCalls++; return NATIVE_TEXT_EXPORT_OK; }
 int NativeTextRuntime_HasRetail(int slot) { (void)slot; return 0; }
 int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
 const char *LOAD_LanguageSelfName(int slot)
@@ -704,7 +707,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "text", "retail_priority", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "text", "retail_priority", "export_active_language", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -880,6 +883,23 @@ static void TestRetailDiscPreference(void)
 	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && Config_CanEdit(&g_configEntries[index]),
 	               "the preference becomes editable when European text is available");
 	g_config = s_initialConfig;
+}
+
+static void TestExportActiveLanguage(void)
+{
+	CTR_TEST_SECTION("export active language action");
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (strcmp(g_configEntries[i].key, "export_active_language") != 0) { continue; }
+		OpenEntry(i, CONFIG_MENU_MAIN);
+		s_textExportCalls = 0;
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
+		CTR_TEST_CHECK(s_textExportCalls == 1 && s_textExportStatus == LNG_EXPANDED_EXPORT_DONE,
+		               "confirm exports the active language and displays the result");
+		return;
+	}
+	CtrTest_Bail("export action must be present");
 }
 
 static void TestDeveloperGate(void)
@@ -1163,6 +1183,7 @@ int main(void)
 	TestAvailability();
 	TestLanguagePicker();
 	TestRetailDiscPreference();
+	TestExportActiveLanguage();
 	CTR_TEST_SECTION("Main-menu editing and values");
 	TestEditing(CONFIG_MENU_MAIN);
 	CTR_TEST_SECTION("Paused editing, disabled values and colors");
