@@ -37,6 +37,7 @@ void CDSYS_SpuGetMaxSampleAtOffset(int xaCurrOffset);
 int CDSYS_XAGetNumTracks(int categoryID);
 int CDSYS_XAGetTrackLength(int categoryID, int xaID);
 int CDSYS_XAPlay(int categoryID, int xaID);
+int CDSYS_XAPlayLocalized(int categoryID, int xaID);
 void CDSYS_XAPauseRequest(void);
 void CDSYS_XAPauseForce(void);
 void CDSYS_XAPauseAtEnd(void);
@@ -178,6 +179,9 @@ void Bank_Destroy(struct Bank *ptrLastBank);
 void Bank_ClearInRange(u16 min, u16 max);
 int Bank_Load(int bankID, struct Bank *ptrBank);
 bool Bank_EnsureOtherFX(u16 soundID);
+bool Bank_LocalizedVoice(u16 soundID, struct OtherFX *meta, u16 *spuAddr);
+void Bank_ClearLocalizedVoices(u16 min, u16 size);
+void Bank_InvalidateLocalizedVoices(void);
 int Bank_DestroyLast(void);
 void Bank_DestroyUntilIndex(int index);
 void Bank_DestroyAll(void);
@@ -360,6 +364,9 @@ void LOAD_ReadFileASyncCallback(u8 result, u8 *unk);
 // same hack as AppendQueue, see notes there
 #define LOAD_ReadFile(a, b, c, d) LOAD_ReadFile_ex(a, b, c, d, &data.currSlot.size_UNUSED, NULL)
 void *LOAD_ReadFile_ex(struct BigHeader *bigfile, u32 loadType, int subfileIndex, void *ptrDst, u32 *sizePtr, void (*callback)(struct LoadQueueSlot *));
+int LOAD_ApplyLanguage(int slot);
+int LOAD_RetailDiscActive(void);
+const char *LOAD_LanguageSelfName(int slot);
 // void* LOAD_ReadFile(struct BigHeader* bigfile, /*u32 loadType,*/ int subfileIndex, void* destination, /*int *size,*/ void * callback);
 
 
@@ -379,7 +386,7 @@ void MainLoadVLC_Callback(struct LoadQueueSlot *param_1);
 void LOAD_InitCD(void);
 int LOAD_InitCDvol(void);
 void LOAD_RunPtrMap(char *origin, int *patchArr, int numPtrs); // 1st param might be `struct Level*`, 2nd param might be `char*`
-void LOAD_LangFile(int bigfilePtr, int lang);
+int LOAD_LangFile(int bigfilePtr, int lang);
 
 void LOAD_NextQueuedFile(void);
 
@@ -590,7 +597,8 @@ void RECTMENU_DrawRwdBlueRect(RECT *rect, char *metas, u32 *ot, struct PrimMem *
 void RECTMENU_DrawRwdTriangle(s16 *position, char *color, u32 *otMem, struct PrimMem *primMem);
 void RECTMENU_GetHeight(struct RectMenu *m, s16 *height, b32 boolCheckSubmenu);
 void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu);
-const char *RECTMENU_GetString(s32 stringIndex);
+const char *LANG_GetString(s32 stringIndex);
+void LANG_Refresh(int slot);
 void RECTMENU_Hide(struct RectMenu *m);
 void RECTMENU_Show(struct RectMenu *m);
 

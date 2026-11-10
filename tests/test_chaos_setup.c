@@ -22,6 +22,18 @@ static int s_returns;
 static bool s_drewBeforeExit;
 static int s_testLevel;
 
+const char *LANG_GetString(s32 index)
+{
+	static char values[LNG_EXPANDED_STRING_COUNT][24];
+	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
+	{
+		return "";
+	}
+	char *value = values[index - LNG_EXPANDED_STRING_BASE];
+	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
+	return value;
+}
+
 void MM_Title_CameraReset(void) {}
 void MM_Title_KillThread(void) {}
 void MM_QuickRace_SetupRace(void) {}
@@ -91,17 +103,17 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 			s_drawnLabels[s_drawnRows] = text;
 		}
 		s_drawnRows++;
-		s_drewInterval |= strcmp(text, "Interval") == 0;
-		s_drewEffects |= strcmp(text, "Effects") == 0 || strcmp(text, "Active Effects") == 0;
-		s_drewConfirm |= strcmp(text, "Confirm") == 0;
-		if (strcmp(text, "Confirm") == 0)
+		s_drewInterval |= text == LANG_GetString(LNG_EXPANDED_INTERVAL);
+		s_drewEffects |= text == LANG_GetString(LNG_EXPANDED_EFFECTS) || text == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS);
+		s_drewConfirm |= text == LANG_GetString(LNG_EXPANDED_CONFIRM);
+		if (text == LANG_GetString(LNG_EXPANDED_CONFIRM))
 		{
 			s_confirmColor = flags;
 		}
 	}
 	else if (x == FULLSCREEN_MENU_VALUE_X)
 	{
-		s_drewOnOff |= strcmp(text, "ON") == 0 || strcmp(text, "OFF") == 0;
+		s_drewOnOff |= text == LANG_GetString(LNG_EXPANDED_ON) || text == LANG_GetString(LNG_EXPANDED_OFF);
 	}
 }
 
@@ -215,7 +227,7 @@ static void TestEffectsCommitAndPageTransitions(void)
 	EnterSetup();
 	MM_menuChaosConfig.rowSelected = 3;
 	Frame(BTN_CROSS, 0);
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "CHAOS EFFECTS") == 0, "opening Effects draws its title immediately");
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECTS_TITLE), "opening Effects draws its title immediately");
 	CTR_TEST_CHECK_EQ(s_drawnRows, FULLSCREEN_MENU_MAX_VISIBLE_ROWS, "Effects uses the shared visible-row limit");
 	CTR_TEST_CHECK(s_drewOnOff, "creation still shows the editable effect toggles");
 	MM_menuChaosConfig.rowSelected = CHAOS_EFFECT_FLY_ME_TO_THE_MOON;
@@ -223,7 +235,7 @@ static void TestEffectsCommitAndPageTransitions(void)
 	CTR_TEST_CHECK(!sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON], "Cross updates the stored effect without leaving its page");
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, CHAOS_EFFECT_COUNT - 1, "the cached count changes with the toggle");
 	Frame(BTN_TRIANGLE, 0);
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "CHAOS SETUP") == 0, "Back draws Settings immediately");
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_SETUP_TITLE), "Back draws Settings immediately");
 	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 3, "Back selects the Effects action");
 	CTR_TEST_CHECK_EQ(s_drawnRows, 5, "the return frame contains all settings rows");
 	CTR_TEST_CHECK_EQ(s_returns, 0, "Effects Back stays inside the setup screen");
@@ -312,7 +324,7 @@ static void TestResidentRestore(void)
 	MM_ChaosConfig_OnEnter();
 	memcpy(&sdata_static, &snapshot, sizeof(snapshot));
 	Frame(0, 0);
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "CHAOS EFFECTS") == 0,
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECTS_TITLE),
 	               "an idle frame resumes the saved page rather than the later visit");
 	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, CHAOS_EFFECT_COUNT - 1, "the saved cursor resumes on the last effect");
 	CTR_TEST_CHECK_EQ(sdata->chaosMenu.scroll[CHAOS_PAGE_EFFECTS].offset, savedScroll, "the saved scroll position survives the next frame");
@@ -369,7 +381,7 @@ static void TestPauseEntryVisibility(void)
 				CTR_TEST_CHECK((pause.rows == sdata->chaosPauseRows) == visible, "the action requires a Chaos Adventure file in hub, race or cup for either player count");
 				if (visible)
 				{
-					CTR_TEST_CHECK_EQ(pause.rows[3].stringIndex, LNG_PORT_CHAOS_RULES, "Chaos Rules is appended after Options");
+					CTR_TEST_CHECK_EQ(pause.rows[3].stringIndex, LNG_EXPANDED_CHAOS_RULES, "Chaos Rules is appended after Options");
 					CTR_TEST_CHECK_EQ(pause.rows[0].rowOnPressUp, 3, "Up from Resume wraps to Chaos Rules");
 					CTR_TEST_CHECK_EQ(pause.rows[2].rowOnPressDown, 3, "Down from Options reaches Chaos Rules");
 					CTR_TEST_CHECK_EQ(pause.rows[3].rowOnPressDown, 0, "Down from Chaos Rules wraps to Resume");
@@ -404,12 +416,12 @@ static void TestReadOnlyPauseView(void)
 		Frame(BTN_CROSS | BTN_CIRCLE, BTN_LEFT);
 		Frame(0, BTN_RIGHT);
 	}
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "CHAOS RULES") == 0, "pause uses the Chaos Rules title");
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_RULES), "pause uses the Chaos Rules title");
 	CTR_TEST_CHECK_EQ(s_drawnRows, 4, "the timed read-only page contains the values and Effects");
 	CTR_TEST_CHECK(!s_drewConfirm && s_drewInterval && s_drewEffects, "the pause view has no creation Confirm action");
 	MM_menuChaosConfig.rowSelected = 3;
 	Frame(BTN_CROSS, 0);
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "ACTIVE EFFECTS") == 0, "Active Effects draws immediately in the read-only view");
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "Active Effects draws immediately in the read-only view");
 	for (int effect = 0; effect < CHAOS_EFFECT_COUNT; effect++)
 	{
 		MM_menuChaosConfig.rowSelected = (s16)effect;
@@ -477,12 +489,12 @@ static void TestFilteredActiveEffects(void)
 	MM_ChaosConfig_OpenReadOnly(&pause);
 	MM_menuChaosConfig.rowSelected = 3;
 	Frame(0, 0);
-	CTR_TEST_CHECK(s_drawnLabels[3] != NULL && strcmp(s_drawnLabels[3], "Active Effects") == 0, "the Rules action names the filtered page");
+	CTR_TEST_CHECK(s_drawnLabels[3] == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "the Rules action names the filtered page");
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK_EQ(s_drawnRows, 3, "disabled effects do not leave rows or gaps");
-	CTR_TEST_CHECK(s_drawnLabels[0] != NULL && strcmp(s_drawnLabels[0], "Grounded") == 0, "the first visible row maps past the disabled first effect");
-	CTR_TEST_CHECK(s_drawnLabels[1] != NULL && strcmp(s_drawnLabels[1], "Fair Mode") == 0, "the next row skips disabled effects in the middle");
-	CTR_TEST_CHECK(s_drawnLabels[2] != NULL && strcmp(s_drawnLabels[2], "Big Kart Energy") == 0, "the final enabled effect is included");
+	CTR_TEST_CHECK(s_drawnLabels[0] == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + CHAOS_EFFECT_GROUNDED), "the first visible row maps past the disabled first effect");
+	CTR_TEST_CHECK(s_drawnLabels[1] == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + CHAOS_EFFECT_FAIR_MODE), "the next row skips disabled effects in the middle");
+	CTR_TEST_CHECK(s_drawnLabels[2] == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + CHAOS_EFFECT_BIG_KART_ENERGY), "the final enabled effect is included");
 	CTR_TEST_CHECK(!s_drewOnOff, "the read-only list has no ON/OFF column");
 	Frame(BTN_UP, 0);
 	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 2, "navigation wraps within the filtered list");
@@ -494,7 +506,7 @@ static void TestFilteredActiveEffects(void)
 	MM_ChaosConfig_OpenReadOnly(&pause);
 	MM_menuChaosConfig.rowSelected = 3;
 	Frame(BTN_CROSS, 0);
-	CTR_TEST_CHECK(s_drawnTitle != NULL && strcmp(s_drawnTitle, "ACTIVE EFFECTS") == 0, "an empty selection still opens Active Effects");
+	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "an empty selection still opens Active Effects");
 	CTR_TEST_CHECK_EQ(s_drawnRows, 0, "an empty selection draws no effect rows");
 	CTR_TEST_CHECK(!s_drewOnOff, "the empty page has no toggle column either");
 	Frame(BTN_DOWN | BTN_CROSS, 0);

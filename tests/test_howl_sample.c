@@ -3,6 +3,7 @@
 
 struct sData sdata_static;
 struct Data data;
+NativeConfig g_config;
 static struct HowlHeader s_header;
 static struct OtherFX s_effect;
 static struct SpuAddrEntry s_samples[2];
@@ -20,6 +21,8 @@ static struct GameTracker s_tracker;
 static bool s_freezeAudio;
 static bool s_previewHumanAudio;
 static int s_previewSound;
+static int s_localizedReads;
+static bool s_localizedAvailable;
 
 bool Chaos_SetHumanAudio(bool human)
 {
@@ -40,6 +43,16 @@ bool Chaos_ShouldFreezeAudioChannel(const struct ChannelStats *channel)
 #include <game/HOWL/HOWL_Settings.c>
 #include <game/HOWL/HOWL_Playback.c>
 #include <game/LIST.c>
+
+int NativeLanguageDisc_ReadVoiceSample(int language, int soundID, struct NativeLanguageVoiceSample *sample)
+{
+	s_localizedReads++;
+	if (!s_localizedAvailable || language != 5 || soundID != 28) { return 0; }
+	*sample = (struct NativeLanguageVoiceSample){.data = malloc(32), .size = 32, .pitch = 2048, .duration = 123, .flags = 4, .volume = 70};
+	if (sample->data == NULL) { CtrTest_Bail("sample allocation failed"); }
+	memset(sample->data, 0x5a, sample->size);
+	return 1;
+}
 
 // Demand loading must not borrow the retail CD chain or MEMPACK allocator.
 s32 MEMPACK_PushState(void) { CtrTest_Bail("sample cache must not use MEMPACK"); return 0; }
@@ -184,6 +197,10 @@ static void Reset(void)
 	s_reads = 0;
 	s_writtenCount = 0;
 	s_failRead = 0;
+	s_localizedReads = 0;
+	s_localizedAvailable = false;
+	g_config.voiceLanguage = 1;
+	Bank_InvalidateLocalizedVoices();
 }
 
 int main(void)
@@ -329,5 +346,40 @@ int main(void)
 	OptionsMenu_TestSound(HOWL_VOLUME_TYPE_VOICE, true);
 	CTR_TEST_CHECK(s_previewSound == COCO_BANDICOOT + 0x2c, "paused voice preview still follows the camera's racer and alternates clips");
 	OptionsMenu_TestSound(HOWL_VOLUME_TYPE_VOICE, false);
+	CTR_TEST_SECTION("localized sampled voices");
+	Reset();
+	struct OtherFX voiceEffects[60];
+	for (int i = 0; i < (int)len(voiceEffects); i++) { voiceEffects[i] = s_effect; }
+	s_header.numOtherFX = len(voiceEffects);
+	sdata->howl_metaOtherFX = voiceEffects;
+	s_samples[1].spuAddr = 0x101;
+	s_localizedAvailable = true;
+	g_config.voiceLanguage = 5;
+	CTR_TEST_CHECK(OtherFX_Play(28, 1) != 0, "localized impact voice starts");
+	CTR_TEST_CHECK_EQ(s_localizedReads, 1, "localized sample is loaded from the selected language");
+	CTR_TEST_CHECK_EQ((u32)sdata->channelAttrNew[0].spuStartAddr, s_expectedDestination, "playback uses the localized SPU address");
+	CTR_TEST_CHECK_EQ(sdata->channelAttrNew[0].pitch, 2048, "playback uses the localized pitch");
+	CTR_TEST_CHECK_EQ(s_channel.timeLeft, 123, "playback uses the localized duration");
+	s_samples[1].spuAddr = 0;
+	sdata->bankLoadStage = 2;
+	CTR_TEST_CHECK(OtherFX_Play(28, 1) != 0, "a cached localized voice plays even when the English sample cannot load");
+	sdata->bankLoadStage = 4;
+	s_samples[1].spuAddr = 0x101;
+	OtherFX_Play(28, 1);
+	CTR_TEST_CHECK_EQ(s_localizedReads, 1, "repeated playback reuses the localized sample");
+	s_tracker.gameMode1 = MAIN_MENU;
+	s_tracker.frameTimer_MainFrame_ResetDB = 0;
+	GAME_CHARACTER_IDS[0] = 0;
+	OptionsMenu_TestSound(HOWL_VOLUME_TYPE_VOICE, true);
+	CTR_TEST_CHECK_EQ((u32)sdata->channelAttrNew[0].spuStartAddr, s_expectedDestination, "voice-volume preview uses the localized sample");
+	OptionsMenu_TestSound(HOWL_VOLUME_TYPE_VOICE, false);
+	Bank_DestroyUntilIndex(0);
+	CTR_TEST_CHECK_EQ(sdata->audioAllocPtr, 0x106, "teardown releases localized SPU storage");
+	s_writtenCount = 0;
+	OtherFX_Play(28, 1);
+	CTR_TEST_CHECK_EQ(s_localizedReads, 2, "a later level reloads invalidated samples");
+	g_config.voiceLanguage = 1;
+	OtherFX_Play(28, 1);
+	CTR_TEST_CHECK_EQ((u32)sdata->channelAttrNew[0].spuStartAddr, CTR_SPU_BYTES_AT(0x101), "switching to English uses the original sample immediately");
 	return CtrTest_Summary();
 }

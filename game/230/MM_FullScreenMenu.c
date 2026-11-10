@@ -128,7 +128,7 @@ static inline void FullScreenMenu_DrawEditableValue(const char *text, int width,
 
 static void FullScreenMenu_DrawOnOffColored(bool on, int y, int color, uint32_t *ot)
 {
-	FullScreenMenu_DrawValueTextColored(on ? "ON" : "OFF", y, color, ot);
+	FullScreenMenu_DrawValueTextColored(LANG_GetString(on ? LNG_EXPANDED_ON : LNG_EXPANDED_OFF), y, color, ot);
 }
 
 static void FullScreenMenu_DrawOnOff(bool on, int y, uint32_t *ot)

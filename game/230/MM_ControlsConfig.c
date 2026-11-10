@@ -1,20 +1,12 @@
 #include <common.h>
+#include <text_format.h>
 
 #include <platform/native_controls.h>
 
 #include <stdio.h>
 #include <string.h>
 
-// Device picker popup. Width is measured from the longest entry rather than fixed,
-// bounded so a long controller name cannot push the box off screen or off the frame.
-// The frame itself spans 0x10 to 0x1F0, so this is the usable width minus a margin.
-#define CONTROLS_POPUP_ROW_SPACING  0x0E
-#define CONTROLS_POPUP_TITLE_H     0x0E
-#define CONTROLS_POPUP_PAD_TOP     0x08
-#define CONTROLS_POPUP_PAD_BOTTOM  0x08
-#define CONTROLS_POPUP_PAD_X       0x0C
-#define CONTROLS_POPUP_MAX_WIDTH   0x1A0
-#define CONTROLS_POPUP_CENTER_Y     0x7E
+#include "MM_ChoicePicker.c"
 
 enum ControlsRowKind
 {
@@ -192,19 +184,25 @@ static void Controls_BuildChoices(void)
 	}
 }
 
+static const char *Controls_DeviceName(int device)
+{
+	return NativeControls_GetDeviceKind(device) == NATIVE_CONTROLS_DEVICE_KEYBOARD
+	           ? LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD) : NativeControls_GetDeviceName(device);
+}
+
 static const char *Controls_ChoiceName(const struct ControlsChoice *choice)
 {
 	if (choice->pref == NATIVE_CONTROLS_PREF_AUTO)
 	{
-		return "Automatic";
+		return LANG_GetString(LNG_EXPANDED_AUTOMATIC);
 	}
 
 	if (choice->pref == NATIVE_CONTROLS_PREF_DISABLED)
 	{
-		return "Disabled";
+		return LANG_GetString(LNG_EXPANDED_DISABLED);
 	}
 
-	return NativeControls_GetDeviceName(choice->device);
+	return Controls_DeviceName(choice->device);
 }
 
 // The retail font has no glyph for many ASCII characters and repurposes four of them
@@ -271,86 +269,28 @@ static void Controls_ClosePicker(void)
 	s_pickerOpen = false;
 }
 
-static void Controls_ApplyChoice(void)
+static bool Controls_ApplyChoice(const void *context, int selected)
 {
-	const struct ControlsChoice *choice = &s_choices[s_choiceSelected];
+	const struct ControlsChoice *choice = &s_choices[selected];
 
+	(void)context;
 	NativeControls_SetPlayerPref(s_player, choice->pref, choice->device);
+	return true;
 }
 
 // One picker entry, filtered into the shared buffer. Measured after filtering, or the box
 // would be sized to characters that never reach the screen. Neither caller draws through
 // Controls_DrawSafeText, so the buffer can be shared.
-static char *Controls_FilteredChoiceName(int index)
+static const char *Controls_FilteredChoiceName(const void *context, int index)
 {
+	(void)context;
 	Controls_FilterText(Controls_ChoiceName(&s_choices[index]), s_safeBuffer, sizeof(s_safeBuffer));
 	return s_safeBuffer;
 }
 
-// Widest of the entry names, so the box hugs the list. Bounded because device names
-// come from the host and "Xbox 360 Controller" is not the longest thing SDL can
-// report.
-static int Controls_PickerContentWidth(void)
-{
-	int widest = DecalFont_GetLineWidth((char *)"SELECT DEVICE", FONT_SMALL);
-
-	for (int i = 0; i < s_choiceCount; i++)
-	{
-		const int width = DecalFont_GetLineWidth(Controls_FilteredChoiceName(i), FONT_SMALL);
-
-		if (width > widest)
-		{
-			widest = width;
-		}
-	}
-
-	return widest;
-}
-
 static void Controls_DrawPicker(struct GameTracker *gGT, uint32_t *ot)
 {
-	int contentWidth = Controls_PickerContentWidth();
-	const int maxContent = CONTROLS_POPUP_MAX_WIDTH - (CONTROLS_POPUP_PAD_X * 2);
-
-	if (contentWidth > maxContent)
-	{
-		// A host device name can be longer than the frame; the box stops growing and
-		// the entry is left to clip rather than pushing the popup off screen.
-		contentWidth = maxContent;
-	}
-
-	const int boxWidth = contentWidth + (CONTROLS_POPUP_PAD_X * 2);
-	const int boxHeight = CONTROLS_POPUP_PAD_TOP + CONTROLS_POPUP_TITLE_H + (s_choiceCount * CONTROLS_POPUP_ROW_SPACING) +
-	                      CONTROLS_POPUP_PAD_BOTTOM;
-	const int boxX = (0x200 - boxWidth) / 2;
-	const int boxY = CONTROLS_POPUP_CENTER_Y - (boxHeight / 2);
-
-	const int titleY = boxY + CONTROLS_POPUP_PAD_TOP;
-	const int firstRowY = titleY + CONTROLS_POPUP_TITLE_H;
-
-	// Labels first, background last. Later draws sit behind earlier ones, so the
-	// background lands behind its own contents while the whole popup still floats
-	// above the screen, which submits it before this runs.
-	DecalFont_DrawLineOT((char *)"SELECT DEVICE", boxX + (boxWidth / 2), titleY, FONT_SMALL,
-	                     JUSTIFY_CENTER | ORANGE, ot);
-
-	for (int i = 0; i < s_choiceCount; i++)
-	{
-		const int y = firstRowY + (i * CONTROLS_POPUP_ROW_SPACING);
-
-		DecalFont_DrawLineOT(Controls_FilteredChoiceName(i), boxX + CONTROLS_POPUP_PAD_X, y, FONT_SMALL, ORANGE, ot);
-
-		if (i == s_choiceSelected)
-		{
-			// Inset by less than the text padding so the bar frames the entry.
-			RECT sel = {boxX + 4, y - 2, boxWidth - 8, 0x0C};
-			CTR_Box_DrawClearBox(&sel, &sdata->menuRowHighlight_Normal, TRANS_50_DECAL, ot,
-			                     &gGT->backBuffer->primMem);
-		}
-	}
-
-	RECT popup = {boxX, boxY, boxWidth, boxHeight};
-	RECTMENU_DrawInnerRect(&popup, 4, ot);
+	ChoicePicker_Draw(LANG_GetString(LNG_EXPANDED_SELECT_DEVICE), s_choiceCount, s_choiceSelected, Controls_FilteredChoiceName, NULL, gGT, ot);
 }
 
 // Union of player 1's presses and the selected player's own, so the screen stays reachable
@@ -380,44 +320,6 @@ u32 MM_Controls_MenuHeld(void)
 	}
 
 	return held;
-}
-
-// Handles input while the picker is up. Cross applies the highlighted choice,
-// Circle and Triangle/Start back out without changing anything.
-static void Controls_UpdatePicker(u32 tapped)
-{
-	if ((tapped & BTN_UP) != 0)
-	{
-		s_choiceSelected = (s_choiceSelected > 0) ? s_choiceSelected - 1 : s_choiceCount - 1;
-		OtherFX_Play(0, 1);
-	}
-	else if ((tapped & BTN_DOWN) != 0)
-	{
-		s_choiceSelected = (s_choiceSelected < s_choiceCount - 1) ? s_choiceSelected + 1 : 0;
-		OtherFX_Play(0, 1);
-	}
-
-	// Back closes the picker before it backs out of the section.
-	if ((tapped & (BTN_TRIANGLE | BTN_START)) != 0)
-	{
-		Controls_ClosePicker();
-		OtherFX_Play(2, 1);
-		return;
-	}
-
-	if ((tapped & BTN_CIRCLE) != 0)
-	{
-		Controls_ClosePicker();
-		OtherFX_Play(2, 1);
-		return;
-	}
-
-	if ((tapped & BTN_CROSS) != 0)
-	{
-		Controls_ApplyChoice();
-		Controls_ClosePicker();
-		OtherFX_Play(1, 1);
-	}
 }
 
 static void Controls_SelectPlayer(int player)
@@ -536,6 +438,25 @@ static const char *const s_bindingGlyphs[NATIVE_CONTROLS_BIND_COUNT] = {
     [NATIVE_CONTROLS_BIND_SQUARE] = "[",
 };
 
+static const int s_bindingLabels[NATIVE_CONTROLS_BIND_COUNT] = {
+	[NATIVE_CONTROLS_BIND_L1] = LNG_EXPANDED_CONTROLS_L1,
+	[NATIVE_CONTROLS_BIND_L2] = LNG_EXPANDED_CONTROLS_L2,
+	[NATIVE_CONTROLS_BIND_L3] = LNG_EXPANDED_CONTROLS_L3,
+	[NATIVE_CONTROLS_BIND_R1] = LNG_EXPANDED_CONTROLS_R1,
+	[NATIVE_CONTROLS_BIND_R2] = LNG_EXPANDED_CONTROLS_R2,
+	[NATIVE_CONTROLS_BIND_R3] = LNG_EXPANDED_CONTROLS_R3,
+	[NATIVE_CONTROLS_BIND_DPAD_UP] = LNG_EXPANDED_CONTROLS_UP,
+	[NATIVE_CONTROLS_BIND_DPAD_DOWN] = LNG_EXPANDED_CONTROLS_DOWN,
+	[NATIVE_CONTROLS_BIND_DPAD_LEFT] = LNG_EXPANDED_CONTROLS_LEFT,
+	[NATIVE_CONTROLS_BIND_DPAD_RIGHT] = LNG_EXPANDED_CONTROLS_RIGHT,
+	[NATIVE_CONTROLS_BIND_START] = LNG_EXPANDED_CONTROLS_START,
+	[NATIVE_CONTROLS_BIND_SELECT] = LNG_EXPANDED_CONTROLS_SELECT,
+	[NATIVE_CONTROLS_BIND_AXIS_LEFT_X] = LNG_EXPANDED_CONTROLS_LEFT_STICK_X,
+	[NATIVE_CONTROLS_BIND_AXIS_LEFT_Y] = LNG_EXPANDED_CONTROLS_LEFT_STICK_Y,
+	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_X] = LNG_EXPANDED_CONTROLS_RIGHT_STICK_X,
+	[NATIVE_CONTROLS_BIND_AXIS_RIGHT_Y] = LNG_EXPANDED_CONTROLS_RIGHT_STICK_Y,
+};
+
 static void Controls_DrawSafeText(const char *text, int x, int y, int flags, uint32_t *ot)
 {
 	Controls_FilterText(text, s_safeBuffer, sizeof(s_safeBuffer));
@@ -568,18 +489,18 @@ static void Controls_DrawValue(int device, const struct ControlsRow *row, int y,
 
 	if (device == NATIVE_CONTROLS_NO_DEVICE)
 	{
-		text = (row->kind == CONTROLS_ROW_DEVICE) ? "Disabled" : "-";
+		text = (row->kind == CONTROLS_ROW_DEVICE) ? LANG_GetString(LNG_EXPANDED_DISABLED) : "-";
 		colour = GRAY;
 	}
 	else if (row->kind == CONTROLS_ROW_DEVICE)
 	{
-		text = NativeControls_GetDeviceName(device);
+		text = Controls_DeviceName(device);
 		colour = WHITE;
 	}
 	else
 	{
 		NativeControls_GetBindingLabel(device, row->binding, s_valueBuffer, sizeof(s_valueBuffer));
-		text = (s_valueBuffer[0] != '\0') ? s_valueBuffer : "None";
+		text = (s_valueBuffer[0] != '\0') ? s_valueBuffer : LANG_GetString(LNG_EXPANDED_NONE);
 		colour = WHITE;
 	}
 
@@ -596,23 +517,23 @@ static void Controls_DrawRow(const void *context, int index, int y, bool selecte
 	switch (row->kind)
 	{
 	case CONTROLS_ROW_DEVICE:
-		label = "DEVICE";
+		label = LANG_GetString(LNG_EXPANDED_DEVICE);
 		break;
 	case CONTROLS_ROW_VIBRATION:
-		label = "Vibration";
+		label = LANG_GetString(LNG_EXPANDED_VIBRATION);
 		break;
 	case CONTROLS_ROW_BINDING:
 		label = s_bindingGlyphs[row->binding];
 		if (label == NULL)
 		{
-			label = NativeControls_GetBindingName(row->binding);
+			label = LANG_GetString(s_bindingLabels[row->binding]);
 		}
 		break;
 	case CONTROLS_ROW_DEADZONE:
-		label = "Deadzone";
+		label = LANG_GetString(LNG_EXPANDED_DEADZONE);
 		break;
 	case CONTROLS_ROW_RESTORE:
-		label = "Restore Defaults";
+		label = LANG_GetString(LNG_EXPANDED_RESTORE_DEFAULTS);
 		break;
 	default:
 		break;
@@ -623,9 +544,8 @@ static void Controls_DrawRow(const void *context, int index, int y, bool selecte
 
 	if (capturing && row->kind == CONTROLS_ROW_BINDING && selected)
 	{
-		snprintf(s_valueBuffer, sizeof(s_valueBuffer), "%s",
-		         NativeControls_IsConfirming() ? "* to confirm" : "...");
-		DecalFont_DrawLineOT(s_valueBuffer, FULLSCREEN_MENU_VALUE_X, y, FONT_SMALL, JUSTIFY_RIGHT | RED, ot);
+		const char *prompt = NativeControls_IsConfirming() ? LANG_GetString(LNG_EXPANDED_CONTROLS_CONFIRM_BINDING) : "...";
+		DecalFont_DrawLineOT((char *)prompt, FULLSCREEN_MENU_VALUE_X, y, FONT_SMALL, JUSTIFY_RIGHT | RED, ot);
 	}
 	else
 	{
@@ -691,7 +611,7 @@ static void Controls_HandleInput(struct RectMenu *menu, u32 tapped, u32 held, in
 {
 	if (s_pickerOpen)
 	{
-		Controls_UpdatePicker(tapped);
+		ChoicePicker_UpdateAndApply(&s_pickerOpen, &s_choiceSelected, s_choiceCount, tapped, Controls_ApplyChoice, NULL);
 		return;
 	}
 
@@ -749,7 +669,13 @@ static void Controls_DrawTitle(uint32_t *ot)
 {
 	// Uppercase here, unlike the section name used in the options list: the retail
 	// titles this shares a font with are all caps.
-	snprintf(s_titleBuffer, sizeof(s_titleBuffer), "CONTROLS P%d", s_player + 1);
+	char player[16];
+	snprintf(player, sizeof(player), "%d", s_player + 1);
+	const struct TextFormatValue values[] = {{"player", player}};
+	if (!TextFormat_Apply(s_titleBuffer, sizeof(s_titleBuffer), LANG_GetString(LNG_EXPANDED_CONTROLS_PLAYER_TITLE), values, len(values)))
+	{
+		s_titleBuffer[0] = '\0';
+	}
 	FullScreenMenu_DrawTitle(s_titleBuffer, s_rowCount, 0, ot);
 }
 

@@ -3927,7 +3927,7 @@ static void TestInstantGifts(void)
 	s_tracker.gameMode1 &= ~PAUSE_1;
 	Tick(CHAOS_ACTIVATION_NOTICE_MS - 100);
 	DrawNotice();
-	CTR_TEST_CHECK(strcmp(s_noticeText, "Juiced Up") == 0, "the instant notice survives the requested effect duration");
+	CTR_TEST_CHECK(strcmp(s_noticeText, LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_JUICED_UP)) == 0, "the instant notice survives the requested effect duration");
 	CTR_TEST_CHECK_EQ(s_noticeFont, FONT_BIG, "the instant notice does not enter the compact docking animation");
 	Tick(100);
 	DrawNotice();

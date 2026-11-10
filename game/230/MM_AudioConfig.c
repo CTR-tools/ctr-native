@@ -89,6 +89,6 @@ void MM_MenuProc_Audio(struct RectMenu *menu)
 		}
 	}
 
-	FullScreenMenu_DrawScreen("AUDIO", 0, &scroll, AUDIO_CONFIG_ROW_COUNT, menu->rowSelected,
+	FullScreenMenu_DrawScreen(LANG_GetString(LNG_EXPANDED_CONFIG_AUDIO), 0, &scroll, AUDIO_CONFIG_ROW_COUNT, menu->rowSelected,
 	                          AudioConfig_DrawRow, NULL, gGT, gGT->backBuffer->otMem.uiOT);
 }

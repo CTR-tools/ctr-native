@@ -12,10 +12,10 @@ static const char *SelectProfile_DifficultyLabel(enum AdventureDifficulty diffic
 {
 	switch (difficulty)
 	{
-	case ADV_DIFFICULTY_EASY: return RECTMENU_GetString(LNG_EASY);
-	case ADV_DIFFICULTY_HARD: return RECTMENU_GetString(LNG_HARD);
-	case ADV_DIFFICULTY_SUPER_HARD: return RECTMENU_GetString(LNG_PORT_SUPER_HARD);
-	case ADV_DIFFICULTY_ULTRA_HARD: return RECTMENU_GetString(LNG_PORT_ULTRA_HARD);
+	case ADV_DIFFICULTY_EASY: return LANG_GetString(LNG_EASY);
+	case ADV_DIFFICULTY_HARD: return LANG_GetString(LNG_HARD);
+	case ADV_DIFFICULTY_SUPER_HARD: return LANG_GetString(LNG_EXPANDED_SUPER_HARD);
+	case ADV_DIFFICULTY_ULTRA_HARD: return LANG_GetString(LNG_EXPANDED_ULTRA_HARD);
 	case ADV_DIFFICULTY_NORMAL:
 	case ADV_DIFFICULTY_COUNT:
 	default: return NULL;
@@ -202,7 +202,7 @@ void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s
 		difficultyLabel = SelectProfile_DifficultyLabel(SelectProfile_AdvDifficultyToShow(adv, profileSlot));
 		if (isChaos)
 		{
-			chaosLabel = RECTMENU_GetString(LNG_PORT_CHAOS);
+		chaosLabel = LANG_GetString(LNG_EXPANDED_CHAOS);
 		}
 
 		int profileTextColor = JUSTIFY_RIGHT | numberColor;

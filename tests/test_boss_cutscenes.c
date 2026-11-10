@@ -13,6 +13,12 @@ static int s_prompts;
 static s16 s_promptX;
 static s16 s_promptY;
 
+const char *LANG_GetString(s32 index)
+{
+	(void)index;
+	return "PRESS START TO SKIP";
+}
+
 // Use the real scene catalogue and decoder: the skip path must find each
 // script's terminal action past animation, audio, and subtitle operands.
 #include <game/233/R233.c>

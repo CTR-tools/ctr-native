@@ -619,6 +619,9 @@ QueueLastPack:
 	return sdata->ptrMPK;
 }
 
+#include <platform/native_language_disc.h>
+#include <platform/native_text_runtime.h>
+
 struct LngFile
 {
 	int numStrings;
@@ -626,42 +629,136 @@ struct LngFile
 	char strings[1];
 };
 
+static u8 *s_languageEnglishRaw;
+static u32 s_languageEnglishSize;
+static int s_languageRetailDiscActive;
+
+int LOAD_RetailDiscActive(void) { return s_languageRetailDiscActive; }
+
+const char *LOAD_LanguageSelfName(int slot)
+{
+	if (slot == NATIVE_LANGUAGE_ENGLISH)
+	{
+		return NativeLanguageDisc_TextString(s_languageEnglishRaw, s_languageEnglishSize, LNG_ENGLISH);
+	}
+	return NativeLanguageDisc_SelfName(slot);
+}
+
+static void LOAD_InstallLanguageTable(void)
+{
+	struct LngFile *file = sdata->lngFile;
+	char **strings = (char **)((u8 *)file + file->offsetToPtrArr);
+	for (int i = 0; i < file->numStrings; i++)
+	{
+		strings[i] = (char *)((u32)strings[i] + (u32)file);
+	}
+	sdata->numLngStrings = file->numStrings;
+	sdata->lngStrings = strings;
+}
+
 // param_1 - Pointer to "cd position of bigfile"
 // param_2 - language index - 0 ja, 1 en, 2 en2, 3 fr, 4 de, 5 it, 6 es, 7 ne
-void LOAD_LangFile(int bigfilePtr, int lang)
+int LOAD_LangFile(int bigfilePtr, int lang)
 {
 	struct LngFile *lngFile;
+	struct BigHeader *bigfile = (struct BigHeader *)bigfilePtr;
 	u32 size;
 
-	int i;
-	int numStrings;
-	char **strArray;
-
-
+	if (bigfile == NULL || lang < 0 || lang >= 8 || BI_LANGUAGEFILE + lang >= bigfile->numEntry)
+	{
+		return 0;
+	}
+	struct BigEntry *entries = BIG_GETENTRY(bigfile);
+	int fileSize = entries[BI_LANGUAGEFILE + lang].size;
+	if (fileSize <= 0 || fileSize > sdata->langBufferSize)
+	{
+		return 0;
+	}
+	u32 allocation = ((u32)fileSize + LOAD_CD_DATA_SECTOR_ROUND_MASK) & ~(u32)LOAD_CD_DATA_SECTOR_ROUND_MASK;
+	void *readBuffer = malloc(allocation);
+	if (readBuffer == NULL)
+	{
+		return 0;
+	}
+	lngFile = LOAD_ReadFile_ex(bigfile, LT_SETADDR, BI_LANGUAGEFILE + lang, readBuffer, &size, NULL);
+	if (lngFile == NULL || size != (u32)fileSize)
+	{
+		free(readBuffer);
+		return 0;
+	}
+	if (lang == 1 && s_languageEnglishRaw == NULL)
+	{
+		s_languageEnglishRaw = malloc(size);
+		if (s_languageEnglishRaw != NULL)
+		{
+			memcpy(s_languageEnglishRaw, readBuffer, size);
+			s_languageEnglishSize = size;
+		}
+	}
 	if (sdata->lngFile == 0)
 	{
 		sdata->lngFile = MEMPACK_AllocMem(sdata->langBufferSize, NULL /* "lang buffer" */);
 	}
-
-	lngFile = sdata->lngFile;
-
-	lngFile = LOAD_ReadFile_ex((struct BigHeader *)bigfilePtr, LT_SETADDR, BI_LANGUAGEFILE + lang, lngFile, &size, NULL);
-	if (lngFile == NULL)
+	if (sdata->lngFile == NULL)
 	{
-		return;
+		free(readBuffer);
+		return 0;
+	}
+	memcpy(sdata->lngFile, readBuffer, size);
+	free(readBuffer);
+	LOAD_InstallLanguageTable();
+	return 1;
+}
+
+// Installs a validated European table or restores the cached base English table.
+enum
+{
+	LOAD_LANGUAGE_US_STRING_COUNT = LNG_RETAIL_STRING_COUNT,
+	LOAD_LANGUAGE_PAL_REQUIRED_COUNT = LOAD_LANGUAGE_US_STRING_COUNT + 3,
+};
+
+int LOAD_ApplyLanguage(int slot)
+{
+	if (slot == 1)
+	{
+		s_languageRetailDiscActive = 0;
+		if (s_languageEnglishRaw == NULL || sdata->lngFile == NULL)
+		{
+			return LOAD_LangFile((int)sdata->ptrBigfile1, slot);
+		}
+		memcpy(sdata->lngFile, s_languageEnglishRaw, s_languageEnglishSize);
+		LOAD_InstallLanguageTable();
+		return 1;
 	}
 
-	numStrings = lngFile->numStrings;
-	strArray = (char **)((u32)lngFile + lngFile->offsetToPtrArr);
-
-	sdata->numLngStrings = numStrings;
-	sdata->lngStrings = strArray;
-
-	for (i = 0; i < numStrings; i++)
+	u8 *bytes;
+	u32 size;
+	if (sdata->lngFile == NULL)
 	{
-		strArray[i] = (char *)((u32)strArray[i] + (u32)lngFile);
+		return 0;
 	}
-
+	if (!NativeLanguageDisc_ReadText(slot, &bytes, &size))
+	{
+		return NativeTextRuntime_HasText(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
+	}
+	struct LngFile *source = (struct LngFile *)bytes;
+	if (size > (u32)sdata->langBufferSize || source->numStrings < LOAD_LANGUAGE_PAL_REQUIRED_COUNT)
+	{
+		free(bytes);
+		return NativeTextRuntime_HasText(slot) && LOAD_ApplyLanguage(NATIVE_LANGUAGE_ENGLISH);
+	}
+	memcpy(sdata->lngFile, bytes, size);
+	free(bytes);
+	struct LngFile *loaded = sdata->lngFile;
+	char **strings = (char **)((u8 *)loaded + loaded->offsetToPtrArr);
+	for (int i = 0; i < LOAD_LANGUAGE_US_STRING_COUNT; i++)
+	{
+		strings[i] = (char *)((u32)strings[NativeLanguageDisc_PalIndex(i)] + (u32)loaded);
+	}
+	sdata->numLngStrings = LOAD_LANGUAGE_US_STRING_COUNT;
+	sdata->lngStrings = strings;
+	s_languageRetailDiscActive = 1;
+	return 1;
 }
 
 int LOAD_GetBigfileIndex(u32 levelID, int lod, int fileIndexInGroup)

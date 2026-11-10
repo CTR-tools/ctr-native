@@ -133,7 +133,7 @@ void CS_Camera_ThTick_Boss(struct Thread *t)
 		}
 
 		// Boss subtitles start at y=170 (their box at y=166).
-		DecalFont_DrawLine("PRESS START TO SKIP", CS_BOSS_SKIP_TEXT_X, CS_BOSS_SKIP_TEXT_Y, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+		DecalFont_DrawLine((char *)LANG_GetString(LNG_EXPANDED_PRESS_START_TO_SKIP), CS_BOSS_SKIP_TEXT_X, CS_BOSS_SKIP_TEXT_Y, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
 	}
 
 	switch (CS_PHASE)

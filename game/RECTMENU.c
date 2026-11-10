@@ -535,12 +535,12 @@ LAB_80045e94:
 			{
 				uVar5 = uVar8 | 0x8000;
 			}
-			titleString = RECTMENU_GetString(index);
+			titleString = LANG_GetString(index & MENU_ROW_LNG_MASK);
 		}
 		else
 		{
 			uVar5 = uVar8 | 0x8000;
-			titleString = RECTMENU_GetString(index);
+			titleString = LANG_GetString(index & MENU_ROW_LNG_MASK);
 			offsetX = (s16)(posX + menu->posX_prev + (menuWidth / 2));
 		}
 		DecalFont_DrawLine((char *)titleString, offsetX, posY_prev, sVar4, uVar5);
@@ -571,13 +571,13 @@ LAB_80045e94:
 						{
 							textFlags |= 0x8000;
 						}
-						titleString = RECTMENU_GetString(uVar5);
+						titleString = LANG_GetString(uVar5 & MENU_ROW_LNG_MASK);
 						index = local_2c;
 					}
 					else
 					{
 						textFlags |= 0x8000;
-						titleString = RECTMENU_GetString(uVar5);
+						titleString = LANG_GetString(uVar5 & MENU_ROW_LNG_MASK);
 						sVar4 = (s16)(posX + menu->posX_prev + local_30);
 						index = posX_prev;
 					}

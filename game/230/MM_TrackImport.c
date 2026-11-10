@@ -6,6 +6,7 @@
 #include <platform/native_track_patch.h>
 #include <platform/native_text_edit.h>
 #include <track_import_view.h>
+#include <text_format.h>
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"
@@ -13,7 +14,7 @@
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
 enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_DISCARD_FAILED, TRACK_IMPORT_RESULT };
 static enum TrackImportState s_trackImportState;
-static const char *s_trackImportMessage;
+static enum ExpandedLngString s_trackImportMessage;
 static bool s_trackImportIsPatch;
 static struct NativeTrackRegistry *s_trackReviewRegistry;
 static int s_trackReviewIndex, s_trackReviewRow, s_trackReviewEditing;
@@ -122,6 +123,27 @@ void MM_TrackImport_Reset(void)
 	s_trackImportState = TRACK_IMPORT_CLOSED;
 }
 
+static const char *MM_TrackImport_ResolveMessage(enum ExpandedLngString message)
+{
+	if (message == LNG_TRACK_RESULT_OK) { return NULL; }
+	if (message == LNG_EXPANDED_PATCH_READY_COUNT || message == LNG_EXPANDED_PATCH_IMPORTED_MUSIC_COUNT ||
+	    message == LNG_TRACK_RESULT_SKIPPED)
+	{
+		static char result[256];
+		char tracks[32], skipped[32];
+		snprintf(tracks, sizeof(tracks), "%d", NativeTrackPatch_ResultCount());
+		snprintf(skipped, sizeof(skipped), "%d", NativeTrackPatch_SkippedMusicCount());
+		const struct TextFormatValue values[] = {{"tracks", tracks}, {"skipped_music", skipped}};
+		int key = message == LNG_TRACK_RESULT_SKIPPED ? LNG_EXPANDED_PATCH_IMPORTED_SKIPPED : message;
+		if (!TextFormat_Apply(result, sizeof(result), LANG_GetString(key), values, len(values)))
+		{
+			return LANG_GetString(key);
+		}
+		return result;
+	}
+	return LANG_GetString(message);
+}
+
 int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 {
 	if (view == NULL || s_trackImportState != TRACK_IMPORT_REVIEW) { return 0; }
@@ -132,10 +154,10 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	*view = (struct TrackImportReviewView){
 	    .title = track->title, .author = track->author,
 	    .editingValue = s_trackReviewEditing ? NativeTextEdit_Value() : NULL,
-	    .message = s_trackImportMessage, .index = s_trackReviewIndex,
+	    .message = MM_TrackImport_ResolveMessage(s_trackImportMessage), .index = s_trackReviewIndex,
 	    .count = (int)NativeTrackRegistry_Count(s_trackReviewRegistry), .row = s_trackReviewRow,
 	    .editing = s_trackReviewEditing,
-	    .musicSource = custom ? "Custom" : "Retail",
+	    .musicSource = LANG_GetString(custom ? LNG_EXPANDED_TRACKS_CUSTOM : LNG_EXPANDED_TRACKS_RETAIL),
 	    .musicTrack = custom ? NULL : sdata->lngStrings[data.metaDataLEV[choice].name_LNG],
 	    .musicIndex = custom ? choice + 1 : 0,
 	    .included = NativeTrackPatch_ReviewIncluded(track->identity), .includedCount = MM_TrackImport_IncludedCount(),
@@ -151,14 +173,14 @@ static void MM_TrackImport_ReviewOpen(void)
 	{
 		MM_TrackImport_ReviewClose();
 		NativeTrackPatch_ReviewDiscard();
-		s_trackImportMessage = "Cannot review imported tracks";
+		s_trackImportMessage = LNG_EXPANDED_TRACKS_REVIEW_FAILED;
 		s_trackImportState = TRACK_IMPORT_RESULT;
 		return;
 	}
 	s_trackReviewIndex = 0;
 	s_trackReviewRow = 0;
 	s_trackReviewEditing = 0;
-	s_trackImportMessage = NULL;
+	s_trackImportMessage = LNG_TRACK_RESULT_OK;
 	s_trackImportState = TRACK_IMPORT_REVIEW;
 	MM_TrackImport_PreviewMusic();
 }
@@ -173,7 +195,7 @@ void MM_TrackImport_Open(void)
 	else
 	{
 		s_trackImportState = TRACK_IMPORT_RESULT;
-		s_trackImportMessage = "Cannot open folder dialog";
+		s_trackImportMessage = LNG_EXPANDED_TRACKS_FOLDER_DIALOG_FAILED;
 	}
 }
 
@@ -187,14 +209,14 @@ void MM_TrackImport_OpenPatch(void)
 	else
 	{
 		s_trackImportState = TRACK_IMPORT_RESULT;
-		s_trackImportMessage = "Cannot open patch dialog";
+		s_trackImportMessage = LNG_EXPANDED_TRACKS_PATCH_DIALOG_FAILED;
 	}
 }
 
 static void MM_TrackImport_PrepareFolder(const char *path)
 {
-	const char *error = NativeTrackPatch_PrepareFolder(NativeAssets_GetAssetDir(), path);
-	if (error == NULL) { MM_TrackImport_ReviewOpen(); }
+	enum ExpandedLngString error = NativeTrackPatch_PrepareFolder(NativeAssets_GetAssetDir(), path);
+	if (error == LNG_TRACK_RESULT_OK) { MM_TrackImport_ReviewOpen(); }
 	else { s_trackImportMessage = error; s_trackImportState = TRACK_IMPORT_RESULT; }
 }
 
@@ -209,12 +231,12 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 		if (result == NATIVE_TEXT_EDIT_ACCEPTED)
 		{
 			const char *value = NativeTextEdit_Value();
-			const char *error = NativeTrackPatch_ReviewUpdate(track->identity,
+			enum ExpandedLngString error = NativeTrackPatch_ReviewUpdate(track->identity,
 			    s_trackReviewRow == TRACK_REVIEW_TITLE ? value : track->title,
 			    s_trackReviewRow == TRACK_REVIEW_AUTHOR ? value : (track->author != NULL ? track->author : ""));
-			if (error == NULL)
+			if (error == LNG_TRACK_RESULT_OK)
 			{
-				if (!MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = "Cannot refresh review"; }
+				if (!MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = LNG_EXPANDED_TRACKS_REFRESH_REVIEW_FAILED; }
 			}
 			else { s_trackImportMessage = error; OtherFX_Play(2, 1); }
 		}
@@ -233,12 +255,12 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	{
 		if (!NativeTrackPatch_ReviewSetIncluded(track->identity, !NativeTrackPatch_ReviewIncluded(track->identity)))
 		{
-			s_trackImportMessage = "Cannot change track selection";
+			s_trackImportMessage = LNG_EXPANDED_TRACKS_SELECTION_FAILED;
 			OtherFX_Play(2, 1);
 		}
 		else
 		{
-			s_trackImportMessage = NULL;
+			s_trackImportMessage = LNG_TRACK_RESULT_OK;
 			if (!confirm) { OtherFX_Play(0, 1); }
 		}
 	}
@@ -269,10 +291,10 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 		    NativeTrackLibrary_SetMusic(track, choice, 0) && NativeTrackPatch_ReviewSetMusic(track->identity, NULL);
 		if (!saved)
 		{
-			s_trackImportMessage = "Cannot save music selection";
+			s_trackImportMessage = LNG_EXPANDED_TRACKS_MUSIC_FAILED;
 			OtherFX_Play(2, 1);
 		}
-		else if (!custom && !MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = "Cannot refresh review"; }
+		else if (!custom && !MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = LNG_EXPANDED_TRACKS_REFRESH_REVIEW_FAILED; }
 		else if (!confirm) { OtherFX_Play(0, 1); }
 	}
 	if (s_trackReviewRow == TRACK_REVIEW_TRACK && count > 0)
@@ -288,7 +310,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 			MM_TrackImport_ReviewClose();
 			s_trackImportState = TRACK_IMPORT_DISCARDING;
 		}
-		else { s_trackImportMessage = "Cannot discard import"; }
+		else { s_trackImportMessage = LNG_EXPANDED_TRACKS_DISCARD_FAILED; }
 	}
 	else if (confirm && (s_trackReviewRow == TRACK_REVIEW_TITLE || s_trackReviewRow == TRACK_REVIEW_AUTHOR))
 	{
@@ -300,7 +322,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	{
 		if (MM_TrackImport_IncludedCount() == 0)
 		{
-			s_trackImportMessage = "Select at least one track";
+			s_trackImportMessage = LNG_EXPANDED_TRACKS_SELECT_ONE;
 			OtherFX_Play(2, 1);
 		}
 		else if (NativeTrackPatch_ReviewCommitStart())
@@ -308,7 +330,7 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 			MusicPreview_Restore();
 			s_trackImportState = TRACK_IMPORT_INSTALLING;
 		}
-		else { s_trackImportMessage = "Cannot start import"; }
+		else { s_trackImportMessage = LNG_EXPANDED_TRACKS_START_FAILED; }
 	}
 }
 
@@ -332,7 +354,7 @@ int MM_TrackImport_Update(u32 buttons)
 				else
 				{
 					s_trackImportState = TRACK_IMPORT_RESULT;
-					s_trackImportMessage = "Cannot start xdelta import";
+					s_trackImportMessage = LNG_EXPANDED_TRACKS_START_PATCH_FAILED;
 				}
 			}
 			else
@@ -348,7 +370,7 @@ int MM_TrackImport_Update(u32 buttons)
 		else if (result == NATIVE_FOLDER_DIALOG_ERROR)
 		{
 			s_trackImportState = TRACK_IMPORT_RESULT;
-			s_trackImportMessage = "Folder dialog failed";
+			s_trackImportMessage = LNG_EXPANDED_TRACKS_DIALOG_FAILED;
 		}
 	}
 	else if (s_trackImportState == TRACK_IMPORT_PATCHING)
@@ -397,7 +419,7 @@ int MM_TrackImport_Update(u32 buttons)
 		int result = NativeTrackPatch_Poll();
 		if (result < 0 && NativeTrackPatch_ReviewDirectory() != NULL)
 		{
-			s_trackImportMessage = "Cleanup failed - confirm to retry";
+			s_trackImportMessage = LNG_EXPANDED_TRACKS_CLEANUP_FAILED;
 			s_trackImportState = TRACK_IMPORT_DISCARD_FAILED;
 		}
 		else if (result != 0)
@@ -423,7 +445,10 @@ int MM_TrackImport_Update(u32 buttons)
 
 const char *MM_TrackImport_Message(void)
 {
-	return s_trackImportState == TRACK_IMPORT_CHOOSING ? (s_trackImportIsPatch ? "Choose an xdelta patch" : "Choose a track folder") :
-	       (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING || s_trackImportState == TRACK_IMPORT_DISCARDING) ? NativeTrackPatch_Message() :
-	       (s_trackImportState == TRACK_IMPORT_RESULT || s_trackImportState == TRACK_IMPORT_DISCARD_FAILED) ? s_trackImportMessage : "";
+	if (s_trackImportState == TRACK_IMPORT_PATCHING || s_trackImportState == TRACK_IMPORT_INSTALLING || s_trackImportState == TRACK_IMPORT_DISCARDING)
+	{
+		return MM_TrackImport_ResolveMessage(NativeTrackPatch_Message());
+	}
+	return s_trackImportState == TRACK_IMPORT_CHOOSING ? LANG_GetString(s_trackImportIsPatch ? LNG_EXPANDED_TRACKS_CHOOSE_PATCH : LNG_EXPANDED_TRACKS_CHOOSE_FOLDER) :
+	       (s_trackImportState == TRACK_IMPORT_RESULT || s_trackImportState == TRACK_IMPORT_DISCARD_FAILED) ? MM_TrackImport_ResolveMessage(s_trackImportMessage) : "";
 }

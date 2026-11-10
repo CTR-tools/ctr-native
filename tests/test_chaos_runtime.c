@@ -482,7 +482,7 @@ static void TestActivationNotice(void)
 	CTR_TEST_CHECK((s_lastSoundFlags & HOWL_SFX_GAIN_DOUBLE_FLAG) != 0, "Chaos requests double gain for its notification");
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 1, "a successful activation submits its notice");
-	CTR_TEST_CHECK(strcmp(s_noticeText, "Mirror, Mirror") == 0, "the notice uses the catalogue effect name");
+	CTR_TEST_CHECK(strcmp(s_noticeText, LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR)) == 0, "the notice uses the catalogue effect name");
 	CTR_TEST_CHECK(s_noticeX >= SCREEN_WIDTH, "the activation name begins its entrance off the right edge");
 	Tick(320);
 	DrawNotice();
@@ -524,7 +524,7 @@ static void TestActivationNotice(void)
 	CTR_TEST_CHECK_EQ(LatestNoticeRemaining(), CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS, "a later activation starts its own announcement lifetime");
 	Tick(320);
 	DrawNotice();
-	CTR_TEST_CHECK(strcmp(s_noticeText, "Grounded") == 0, "the newest activation replaces the displayed name");
+	CTR_TEST_CHECK(strcmp(s_noticeText, LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_GROUNDED)) == 0, "the newest activation replaces the displayed name");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 2, "replacing the announcement preserves both running effects");
 	const struct ChaosRuntime beforeReject = sdata->chaosRuntime;
 	Chaos_Activate(CHAOS_EFFECT_FAIR_MODE, 1000);
@@ -571,7 +571,7 @@ static void TestActiveEffectList(void)
 	Tick(CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS);
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 2, "overlapping copies of one effect share a single row");
-	CTR_TEST_CHECK(strcmp(s_drawText[0], "Mirror, Mirror") == 0 && strcmp(s_drawText[1], "Grounded") == 0,
+	CTR_TEST_CHECK(strcmp(s_drawText[0], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR)) == 0 && strcmp(s_drawText[1], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_GROUNDED)) == 0,
 	               "distinct rows follow activation order");
 	CTR_TEST_CHECK_EQ(s_drawX[0], s_drawX[1], "all table rows use the same horizontal anchor");
 	CTR_TEST_CHECK_EQ(s_drawY[1] - s_drawY[0], UI_CHAOS_LIST_ROW_HEIGHT, "table rows use a fixed vertical spacing");
@@ -581,7 +581,7 @@ static void TestActiveEffectList(void)
 	Tick(5320);
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 1, "a fully expired effect no longer occupies a row");
-	CTR_TEST_CHECK(strcmp(s_noticeText, "Mirror, Mirror") == 0, "only the surviving effect remains listed");
+	CTR_TEST_CHECK(strcmp(s_noticeText, LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR)) == 0, "only the surviving effect remains listed");
 	CTR_TEST_CHECK_EQ(s_noticeY, UI_CHAOS_LIST_MULTIPLAYER_TOP, "the surviving 2P rows compact without gaps");
 	Tick(3000);
 	DrawNotice();
@@ -653,8 +653,8 @@ static void TestHudVisibilityAndDockLimit(void)
 	Tick(CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS);
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 4, "2P limits the docked list to four distinct effects");
-	CTR_TEST_CHECK(strcmp(s_drawText[0], "Mirror, Mirror") == 0, "reactivation moves the effect to the newest row");
-	CTR_TEST_CHECK(strcmp(s_drawText[1], "Fair Mode") == 0 && strcmp(s_drawText[3], "Grounded") == 0,
+	CTR_TEST_CHECK(strcmp(s_drawText[0], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR)) == 0, "reactivation moves the effect to the newest row");
+	CTR_TEST_CHECK(strcmp(s_drawText[1], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_FAIR_MODE)) == 0 && strcmp(s_drawText[3], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_GROUNDED)) == 0,
 	               "the docked list orders all four accepted effects by activation recency");
 	CTR_TEST_CHECK_EQ(s_drawY[0], UI_CHAOS_LIST_MULTIPLAYER_TOP, "the 2P docked list starts near the top edge");
 	const int firstPlayerLapCounterY = 71;
@@ -679,7 +679,7 @@ static void TestHudVisibilityAndDockLimit(void)
 	Tick(CHAOS_ACTIVATION_NOTICE_MS);
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 4, "1P uses the same four-effect docked limit");
-	CTR_TEST_CHECK(strcmp(s_drawText[0], "Sunday Driver") == 0, "the latest newly docked effect occupies the first row");
+	CTR_TEST_CHECK(strcmp(s_drawText[0], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_SUNDAY_DRIVER)) == 0, "the latest newly docked effect occupies the first row");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "the HUD preserves all four running activations");
 }
 
@@ -1012,9 +1012,35 @@ static void TestBodySwapPlayerCount(void)
 	CTR_TEST_CHECK(Chaos_PickEventEffect() == CHAOS_EFFECT_BODY_SWAP, "random selection includes Body Swap in multiplayer");
 }
 
+static void TestLocalizedVoiceFallback(void)
+{
+	CTR_TEST_SECTION("localized voice fallback preserves event");
+	SetupRace(CHAOS_TRIGGER_INTERVAL);
+	s16 original[] = {16};
+	s16 pal[] = {0, 1};
+	data.voiceID[21] = 8;
+	data.voiceData[0].voiceSet[8].ptr = original;
+	data.voiceData[0].voiceSet[8].num = 1;
+	data.voiceData[0].voiceSet[0].ptr = pal;
+	data.voiceData[0].voiceSet[0].num = 2;
+	struct VoicelineItem line = {.characterID = 0, .voiceID = 21};
+	g_config.voiceLanguage = 5;
+	s_testLocalizedVoiceID = -1;
+	s_testFallbackVoiceID = -1;
+	s_testLocalizedVoiceSucceeds = false;
+	Voiceline_StartPlay(&line.item);
+	CTR_TEST_CHECK(s_testLocalizedVoiceID == 0 || s_testLocalizedVoiceID == 1, "PAL set 0 is tried first");
+	CTR_TEST_CHECK_EQ(s_testFallbackVoiceID, 16, "unavailable PAL audio falls back to the original English event");
+	s_testFallbackVoiceID = -1;
+	s_testLocalizedVoiceSucceeds = true;
+	Voiceline_StartPlay(&line.item);
+	CTR_TEST_CHECK_EQ(s_testFallbackVoiceID, -1, "a playable PAL event does not start English audio");
+}
+
 int main(void)
 {
 	TestBodySwapPlayerCount();
+	TestLocalizedVoiceFallback();
 	TestBotEffectEventScope();
 	TestCataloguePublicationLifecycle();
 	TestExternalCommands();

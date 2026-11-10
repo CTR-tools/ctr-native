@@ -46,9 +46,9 @@ int main(void)
 	const char manifest[] = "id=example:1\ntitle=Example\nmusic=retail:7\n";
 	WriteImportFixture(source, "track.ini", manifest, sizeof(manifest) - 1);
 	CTR_TEST_SECTION("local track import");
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "../escape") != NULL, "destination traversal is refused");
-	const char *error = NativeTrackImport_Directory(library, source, "installed");
-	CTR_TEST_CHECK(error == NULL, "a valid directory is installed");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "../escape") == LNG_EXPANDED_IMPORT_INVALID_DESTINATION, "destination traversal is refused");
+	enum ExpandedLngString error = NativeTrackImport_Directory(library, source, "installed");
+	CTR_TEST_CHECK(error == LNG_TRACK_RESULT_OK, "a valid directory is installed");
 	struct NativeTrackScanResult result;
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(library, &result);
 	CTR_TEST_CHECK(registry != NULL && result.installed == 1 && NativeTrackRegistry_Find(registry, "example:1", NULL),
@@ -68,34 +68,34 @@ int main(void)
 	CTR_TEST_CHECK(installed != NULL && installed->detectionKnown && !(installed->detectedModes & NATIVE_TRACK_DETECTED_RELIC),
 	               "rescanning uses the current LEV instead of stale import results");
 	NativeTrackRegistry_Destroy(registry);
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "installed") != NULL, "existing tracks are not overwritten");
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "duplicate") != NULL, "duplicate identities are refused");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "installed") != LNG_TRACK_RESULT_OK, "existing tracks are not overwritten");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "duplicate") != LNG_TRACK_RESULT_OK, "duplicate identities are refused");
 	char otherSource[800], otherTarget[900];
 	snprintf(otherSource, sizeof(otherSource), "%s/other-source", root);
 	snprintf(otherTarget, sizeof(otherTarget), "%s/named-files", library);
 	SDL_CreateDirectory(otherSource);
 	WriteImportFixture(otherSource, "custom.LEV", lev, sizeof(lev));
 	WriteImportFixture(otherSource, "textures.VRM", vrm, sizeof(vrm));
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, otherSource, "named-files") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, otherSource, "named-files") == LNG_TRACK_RESULT_OK,
 	               "folder import accepts uniquely named files and case-insensitive extensions");
 	WriteImportFixture(otherSource, "second.lev", lev, sizeof(lev));
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, otherSource, "ambiguous") != NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, otherSource, "ambiguous") != LNG_TRACK_RESULT_OK,
 	               "a folder with multiple LEV files is refused rather than chosen arbitrarily");
  	const unsigned char emptyLev[8] = {0};
 	WriteImportFixture(source, "track.lev", emptyLev, sizeof(emptyLev));
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "empty") != NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "empty") != LNG_TRACK_RESULT_OK,
 	               "an empty LEV with a bounded pointer map cannot be imported");
 	snprintf(path, sizeof(path), "%s/empty", library);
 	SDL_PathInfo info;
 	CTR_TEST_CHECK(!SDL_GetPathInfo(path, &info), "a truncated LEV is not published");
 	lev[0] = 255;
 	WriteImportFixture(source, "track.lev", lev, sizeof(lev));
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "invalid") != NULL, "invalid LEV data is refused");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "invalid") != LNG_TRACK_RESULT_OK, "invalid LEV data is refused");
 	snprintf(path, sizeof(path), "%s/invalid", library);
 	CTR_TEST_CHECK(!SDL_GetPathInfo(path, &info), "a rejected import does not publish a track");
 	snprintf(path, sizeof(path), "%s/track.vrm", source);
 	SDL_RemovePath(path);
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "missing") != NULL, "a missing VRM is refused");
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "missing") != LNG_TRACK_RESULT_OK, "a missing VRM is refused");
 	const char *files[] = {"track.lev", "track.vrm", "track.ini"};
 	for (size_t i = 0; i < SDL_arraysize(files); i++)
 	{

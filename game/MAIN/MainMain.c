@@ -534,6 +534,15 @@ void StateZero()
 
 	// Bigfile language slot; English is 1.
 	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
+	if (g_config.textLanguage != 1 && !LOAD_ApplyLanguage(g_config.textLanguage))
+	{
+		g_config.textLanguage = 1;
+	}
+	LANG_Refresh(g_config.textLanguage);
+	if (g_config.voiceLanguage != 1 && !NativeLanguageDisc_HasVoice(g_config.voiceLanguage))
+	{
+		g_config.voiceLanguage = 1;
+	}
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
 

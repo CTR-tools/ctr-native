@@ -46,6 +46,9 @@ const char *NativeAssets_GetBaseDir(void)
 	return s_testBaseDir;
 }
 
+int NativeTextRuntime_LanguageSlot(const char *id) { (void)id; return -1; }
+const char *NativeTextRuntime_LanguageId(int slot) { (void)slot; return NULL; }
+
 // Owned by the game layer; native_input.c gates its update on it.
 s32 g_padCommEnable = 1;
 

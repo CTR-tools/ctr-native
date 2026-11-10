@@ -11,7 +11,6 @@
 enum { PATCH_PATH_BYTES = 1024, PATCH_NAME_BYTES = 200, PATCH_TRACK_COUNT = 18, PATCH_TRACK_LIMIT = 64,
        PATCH_TRACK_GROUPS = 25, PATCH_FILES_PER_GROUP = 8 };
 enum { PATCH_AUTHOR_BYTES = 256, PATCH_AUTHOR_FILE_LIMIT = 16 * 1024 * 1024 };
-enum PatchStage { PATCH_COPY, PATCH_APPLY, PATCH_EXTRACT, PATCH_COMPARE, PATCH_INSTALL, PATCH_CLEANUP };
 
 struct TrackPatchMusicChoice { char track[256], source[256]; };
 
@@ -21,11 +20,11 @@ struct TrackPatchJob
 	SDL_AtomicInt done, cancel, stage;
 	int succeeded;
 	int review, reviewReady;
-	int musicGenerated, musicSkipped;
+	int musicGenerated, musicSkipped, resultCount;
 	struct NativeTrackRegistry *replacement;
 	char assets[PATCH_PATH_BYTES], patch[PATCH_PATH_BYTES], name[PATCH_NAME_BYTES];
 	char work[PATCH_PATH_BYTES];
-	char result[256];
+	enum ExpandedLngString result;
 	struct TrackPatchMusicChoice musicChoices[PATCH_TRACK_LIMIT];
 	int musicChoiceCount;
 	char excluded[PATCH_TRACK_LIMIT][256];
@@ -142,9 +141,9 @@ static int TrackPatch_Copy(struct TrackPatchJob *job, const char *source, const 
 	return ok;
 }
 
-static const char *TrackPatch_Error(struct TrackPatchJob *job, const char *error)
+static enum ExpandedLngString TrackPatch_Error(struct TrackPatchJob *job, enum ExpandedLngString error)
 {
-	return SDL_GetAtomicInt(&job->cancel) ? "Import cancelled" : error;
+	return SDL_GetAtomicInt(&job->cancel) ? LNG_EXPANDED_PATCH_CANCELLED : error;
 }
 
 /* Return -1 for unreadable files rather than misidentifying them as changes. */
@@ -255,39 +254,39 @@ static int TrackPatch_ReadAuthorFile(const char *path, char author[PATCH_AUTHOR_
 	return ok;
 }
 
-static const char *TrackPatch_WriteAuthor(const char *prepared, const char *name, const struct PatchMusic *music)
+static enum ExpandedLngString TrackPatch_WriteAuthor(const char *prepared, const char *name, const struct PatchMusic *music)
 {
 	char author[PATCH_AUTHOR_BYTES] = {0};
 	char directory[PATCH_PATH_BYTES], path[PATCH_PATH_BYTES];
-	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(path, directory, "track.lev")) { return "Path is too long"; }
+	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(path, directory, "track.lev")) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 	if (!TrackPatch_FindAuthor(music->menu.data, music->menu.size, author) ||
 	    !TrackPatch_FindAuthor(music->exe.data, music->exe.size, author) || !TrackPatch_ReadAuthorFile(path, author) || author[0] == '\0')
 	{
-		return NULL;
+		return LNG_TRACK_RESULT_OK;
 	}
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
 	if (registry == NULL || !NativeTrackLibrary_ReadDirectory(registry, directory, name))
 	{
 		NativeTrackRegistry_Destroy(registry);
-		return "Cannot read track metadata";
+		return LNG_EXPANDED_PATCH_READ_METADATA_FAILED;
 	}
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	int ok = track->author != NULL || NativeTrackLibrary_SetDetails(track, track->title, author);
 	NativeTrackRegistry_Destroy(registry);
-	return ok ? NULL : "Cannot write track metadata";
+	return ok ? LNG_TRACK_RESULT_OK : LNG_EXPANDED_PATCH_WRITE_METADATA_FAILED;
 }
 
-static const char *TrackPatch_WriteTitle(const char *prepared, const char *name, const char *title)
+static enum ExpandedLngString TrackPatch_WriteTitle(const char *prepared, const char *name, const char *title)
 {
 	char directory[PATCH_PATH_BYTES], manifest[PATCH_PATH_BYTES];
-	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(manifest, directory, "track.ini")) { return "Path is too long"; }
+	if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(manifest, directory, "track.ini")) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 	SDL_PathInfo existing;
-	if (SDL_GetPathInfo(manifest, &existing)) { return NULL; }
+	if (SDL_GetPathInfo(manifest, &existing)) { return LNG_TRACK_RESULT_OK; }
 	FILE *file = fopen(manifest, "wb");
-	if (file == NULL) { return "Cannot write track metadata"; }
+	if (file == NULL) { return LNG_EXPANDED_PATCH_WRITE_METADATA_FAILED; }
 	int ok = fprintf(file, "title = %s\n", title) > 0;
 	if (fclose(file) != 0) { ok = 0; }
-	return ok ? NULL : "Cannot write track metadata";
+	return ok ? LNG_TRACK_RESULT_OK : LNG_EXPANDED_PATCH_WRITE_METADATA_FAILED;
 }
 
 static int TrackPatch_WriteRetailMusic(const char *directory, const char *name, int level)
@@ -305,14 +304,14 @@ static int TrackPatch_WriteRetailMusic(const char *directory, const char *name, 
 
 /* Generic strategy: compare bigtool's 18 named 1P pairs against retail. This
  * also handles single-track patches without knowing their custom loader. */
-static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
+static enum ExpandedLngString TrackPatch_Collect(struct TrackPatchJob *job, const char *work, int *count, struct PatchMusic *music)
 {
 	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
 	if (!TrackPatch_Path(original, work, "original/levels/tracks") ||
 	    !TrackPatch_Path(patched, work, "patched/levels/tracks") ||
 	    !TrackPatch_Path(prepared, work, "prepared"))
 	{
-		return "Path is too long";
+		return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 	}
 	*count = 0;
 	unsigned char adventureVrm[27], adventureLev[27];
@@ -321,18 +320,18 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 	char singleName[PATCH_NAME_BYTES] = {0};
 	for (int i = 0; i < PATCH_TRACK_COUNT; i++)
 	{
-		if (SDL_GetAtomicInt(&job->cancel)) { return "Import cancelled"; }
+		if (SDL_GetAtomicInt(&job->cancel)) { return LNG_EXPANDED_PATCH_CANCELLED; }
 		char relative[128], a[PATCH_PATH_BYTES], b[PATCH_PATH_BYTES];
 		SDL_snprintf(relative, sizeof(relative), "%s/1P/data.lev", s_patchTrackSlots[i]);
 		if (!TrackPatch_Path(a, original, relative) || !TrackPatch_Path(b, patched, relative))
 		{
-			return "Path is too long";
+			return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 		}
 		int changedLev = TrackPatch_Different(a, b);
 		SDL_snprintf(relative, sizeof(relative), "%s/1P/data.vrm", s_patchTrackSlots[i]);
 		if (!TrackPatch_Path(a, original, relative) || !TrackPatch_Path(b, patched, relative))
 		{
-			return "Path is too long";
+			return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 		}
 		int changedVrm = TrackPatch_Different(a, b);
 		if (changedLev < 0 || changedVrm < 0)
@@ -340,22 +339,21 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			/* A recognized adventure may not have a bigtool-compatible layout;
 			 * its explicitly referenced pairs are checked separately below. */
 			if (adventureLoader) { continue; }
-			return "Missing circuit files - unsupported BIGFILE layout";
+			return LNG_EXPANDED_PATCH_MISSING_CIRCUITS;
 		}
 		if (!changedLev && !changedVrm) { continue; }
 		int duplicate = TrackPatch_DuplicatePair(patched, i, accepted, *count);
-		if (duplicate < 0) { return "Cannot compare circuit files"; }
+		if (duplicate < 0) { return LNG_EXPANDED_PATCH_COMPARE_CIRCUITS_FAILED; }
 		if (duplicate) { continue; }
 		char source[PATCH_PATH_BYTES], name[PATCH_NAME_BYTES];
 		SDL_snprintf(relative, sizeof(relative), "%s/1P", s_patchTrackSlots[i]);
-		if (!TrackPatch_Path(source, patched, relative)) { return "Path is too long"; }
+		if (!TrackPatch_Path(source, patched, relative)) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 		SDL_snprintf(name, sizeof(name), "%s-%s", job->name, s_patchTrackSlots[i]);
 		SDL_strlcpy(singleName, name, sizeof(singleName));
-		const char *error = NativeTrackImport_Directory(prepared, source, name);
-		if (error != NULL)
+		enum ExpandedLngString error = NativeTrackImport_Directory(prepared, source, name);
+		if (error != LNG_TRACK_RESULT_OK)
 		{
-			if (adventureLoader && (strcmp(error, "Invalid LEV or VRM") == 0 ||
-			                        strcmp(error, "Invalid track metadata or files") == 0)) { continue; }
+			if (adventureLoader && (error == LNG_EXPANDED_IMPORT_INVALID_FILES || error == LNG_EXPANDED_IMPORT_INVALID_METADATA_FILES)) { continue; }
 			return error;
 		}
 		if (music != NULL)
@@ -363,19 +361,19 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 			char directory[PATCH_PATH_BYTES], sca[PATCH_PATH_BYTES];
 			if (!TrackPatch_Path(directory, prepared, name) || !TrackPatch_Path(sca, directory, "track.sca"))
 			{
-				return "Path is too long";
+				return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 			}
 			char title[256];
 			if (PatchMusic_AllBinTrack(&music->exe, &music->all, i, title, sizeof(title)) >= 0 && title[0] != '\0')
 			{
-				const char *titleError = TrackPatch_WriteTitle(prepared, name, title);
-				if (titleError != NULL) { return titleError; }
+				enum ExpandedLngString titleError = TrackPatch_WriteTitle(prepared, name, title);
+				if (titleError != LNG_TRACK_RESULT_OK) { return titleError; }
 			}
 			int level = PatchMusic_SelectLevel(music, i);
 			int retail = level >= 0 ? PatchMusic_RetailMatch(music, level) : -1;
 			if (retail >= 0)
 			{
-				if (!TrackPatch_WriteRetailMusic(directory, name, retail)) { return "Cannot save retail music"; }
+				if (!TrackPatch_WriteRetailMusic(directory, name, retail)) { return LNG_EXPANDED_PATCH_SAVE_RETAIL_MUSIC_FAILED; }
 			}
 			else if (level >= 0 && PatchMusic_WriteSca(music, level, sca)) { music->generated++; }
 			else { music->skipped++; }
@@ -386,11 +384,11 @@ static const char *TrackPatch_Collect(struct TrackPatchJob *job, const char *wor
 	{
 		if (!adventureLoader)
 		{
-			return "No modified single-player circuits found";
+			return LNG_EXPANDED_PATCH_NO_MODIFIED_CIRCUITS;
 		}
 	}
 	/* A global menu credit cannot be attributed to one of several circuits. */
-	return *count == 1 && music != NULL ? TrackPatch_WriteAuthor(prepared, singleName, music) : NULL;
+	return *count == 1 && music != NULL ? TrackPatch_WriteAuthor(prepared, singleName, music) : LNG_TRACK_RESULT_OK;
 }
 
 /* Extract a BIGFILE entry independently of bigtool's LOD directory names. */
@@ -441,11 +439,11 @@ static SDL_EnumerationResult SDLCALL TrackPatch_CheckPreparedPair(void *userdata
 /* Supplemental strategy: a recognized adventure loader names BIGFILE entries
  * directly. Different LODs of one retail slot can contain different tracks.
  * Unknown loaders return without adding anything, not a guessed LOD mapping. */
-static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const char *work, int *count,
+static enum ExpandedLngString TrackPatch_CollectAdventure(struct TrackPatchJob *job, const char *work, int *count,
                                                struct PatchMusic *music)
 {
 	unsigned char vrm[27], lev[27];
-	if (music == NULL || !PatchMusic_AdventureFiles(&music->exe, vrm, lev)) { return NULL; }
+	if (music == NULL || !PatchMusic_AdventureFiles(&music->exe, vrm, lev)) { return LNG_TRACK_RESULT_OK; }
 	char original[PATCH_PATH_BYTES], patched[PATCH_PATH_BYTES], prepared[PATCH_PATH_BYTES];
 	char oldDir[PATCH_PATH_BYTES], newDir[PATCH_PATH_BYTES], oldLev[PATCH_PATH_BYTES], oldVrm[PATCH_PATH_BYTES];
 	char newLev[PATCH_PATH_BYTES], newVrm[PATCH_PATH_BYTES];
@@ -456,11 +454,11 @@ static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const 
 	    !TrackPatch_Path(newVrm, newDir, "data.vrm") || !SDL_CreateDirectory(prepared) ||
 	    !SDL_CreateDirectory(oldDir) || !SDL_CreateDirectory(newDir))
 	{
-		return "Cannot prepare additional track files";
+		return LNG_EXPANDED_PATCH_PREPARE_EXTRA_FAILED;
 	}
 	for (int i = 0; i < 27; i++)
 	{
-		if (SDL_GetAtomicInt(&job->cancel)) { return "Import cancelled"; }
+		if (SDL_GetAtomicInt(&job->cancel)) { return LNG_EXPANDED_PATCH_CANCELLED; }
 		unsigned int id = vrm[i];
 		/* Adventure loaders also store tracks in the seven arena groups. Other
 		 * BIGFILE groups are not necessarily LEV/VRM track pairs. */
@@ -471,17 +469,17 @@ static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const 
 		if (!TrackPatch_BigEntry(original, id, oldVrm) || !TrackPatch_BigEntry(original, lev[i], oldLev) ||
 		    !TrackPatch_BigEntry(patched, id, newVrm) || !TrackPatch_BigEntry(patched, lev[i], newLev))
 		{
-			return "Cannot extract additional track files";
+			return LNG_EXPANDED_PATCH_EXTRACT_EXTRA_FAILED;
 		}
 		int changedLev = TrackPatch_Different(oldLev, newLev), changedVrm = TrackPatch_Different(oldVrm, newVrm);
-		if (changedLev < 0 || changedVrm < 0) { return "Cannot compare additional track files"; }
+		if (changedLev < 0 || changedVrm < 0) { return LNG_EXPANDED_PATCH_COMPARE_EXTRA_FAILED; }
 		if (!changedLev && !changedVrm) { continue; }
 		/* The generic 1P scan or another loader entry may already have installed
 		 * this exact pair in prepared; only merge duplicates within this patch. */
 		struct TrackPatchPairCheck check = {newLev, newVrm, 0, 0};
 		if (!SDL_EnumerateDirectory(prepared, TrackPatch_CheckPreparedPair, &check) || check.failed)
 		{
-			return "Cannot compare additional track files";
+			return LNG_EXPANDED_PATCH_COMPARE_EXTRA_FAILED;
 		}
 		if (check.duplicate) { continue; }
 		char name[PATCH_NAME_BYTES];
@@ -494,10 +492,10 @@ static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const 
 		{
 			SDL_snprintf(name, sizeof(name), "%s-slot%u-lod%u", job->name, group, id & 7);
 		}
-		const char *error = NativeTrackImport_Directory(prepared, newDir, name);
-		if (error != NULL)
+		enum ExpandedLngString error = NativeTrackImport_Directory(prepared, newDir, name);
+		if (error != LNG_TRACK_RESULT_OK)
 		{
-			if (strcmp(error, "Invalid LEV or VRM") == 0 || strcmp(error, "Invalid track metadata or files") == 0) { continue; }
+			if (error == LNG_EXPANDED_IMPORT_INVALID_FILES || error == LNG_EXPANDED_IMPORT_INVALID_METADATA_FILES) { continue; }
 			return error;
 		}
 		(*count)++;
@@ -506,11 +504,11 @@ static const char *TrackPatch_CollectAdventure(struct TrackPatchJob *job, const 
 		char title[256];
 		if (PatchMusic_AdventureTitle(&music->exe, &music->adventure, i, title, sizeof(title)))
 		{
-			const char *titleError = TrackPatch_WriteTitle(prepared, name, title);
-			if (titleError != NULL) { return titleError; }
+			enum ExpandedLngString titleError = TrackPatch_WriteTitle(prepared, name, title);
+			if (titleError != LNG_TRACK_RESULT_OK) { return titleError; }
 		}
 	}
-	return NULL;
+	return LNG_TRACK_RESULT_OK;
 }
 
 struct TrackPatchPublish
@@ -518,7 +516,7 @@ struct TrackPatchPublish
 	struct TrackPatchJob *job;
 	struct NativeTrackRegistry *prepared;
 	const char *library;
-	const char *error;
+	enum ExpandedLngString error;
 	char installed[PATCH_TRACK_LIMIT][PATCH_PATH_BYTES];
 	int count;
 };
@@ -529,12 +527,12 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 	char source[PATCH_PATH_BYTES], target[PATCH_PATH_BYTES];
 	if (SDL_GetAtomicInt(&publish->job->cancel))
 	{
-		publish->error = "Import cancelled";
+		publish->error = LNG_EXPANDED_PATCH_CANCELLED;
 	}
 	else if (publish->count == PATCH_TRACK_LIMIT || !TrackPatch_Path(source, directory, name) ||
 	         !TrackPatch_Path(target, publish->library, name))
 	{
-		publish->error = "Path is too long";
+		publish->error = LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 	}
 	else
 	{
@@ -548,16 +546,16 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 				if (track != NULL && strcmp(track->levPath, lev) == 0) { preparedTrack = track; break; }
 			}
 		}
-		if (preparedTrack == NULL) { publish->error = "Cannot read prepared track"; return SDL_ENUM_FAILURE; }
+		if (preparedTrack == NULL) { publish->error = LNG_EXPANDED_PATCH_READ_PREPARED_FAILED; return SDL_ENUM_FAILURE; }
 		if (!TrackPatch_Included(publish->job, preparedTrack->identity)) { return SDL_ENUM_CONTINUE; }
 		publish->error = NativeTrackImport_Directory(publish->library, source, name);
-		if (publish->error == NULL)
+		if (publish->error == LNG_TRACK_RESULT_OK)
 		{
 			SDL_strlcpy(publish->installed[publish->count++], target, PATCH_PATH_BYTES);
 			struct NativeTrackRegistry *candidate = NativeTrackRegistry_Create();
 			if (candidate == NULL || !NativeTrackLibrary_ReadDirectory(candidate, target, name))
 			{
-				publish->error = "Cannot read imported track";
+				publish->error = LNG_EXPANDED_PATCH_READ_IMPORTED_FAILED;
 			}
 			else
 			{
@@ -570,40 +568,40 @@ static SDL_EnumerationResult SDLCALL TrackPatch_Publish(void *userdata, const ch
 					    NativeTrackRegistry_Get(publish->prepared, level) : NULL;
 					char sca[PATCH_PATH_BYTES];
 					if (music == NULL || music->scaPath == NULL || !TrackPatch_Path(sca, target, "track.sca") ||
-					    !SDL_CopyFile(music->scaPath, sca)) { publish->error = "Cannot copy selected music"; }
+					    !SDL_CopyFile(music->scaPath, sca)) { publish->error = LNG_EXPANDED_PATCH_COPY_MUSIC_FAILED; }
 				}
-				if (publish->error == NULL && (selected != NULL || (track->music == NULL && track->scaPath != NULL)))
+				if (publish->error == LNG_TRACK_RESULT_OK && (selected != NULL || (track->music == NULL && track->scaPath != NULL)))
 				{
-					if (!NativeTrackLibrary_SetMusic(track, -1, 1)) { publish->error = "Cannot save selected music"; }
+					if (!NativeTrackLibrary_SetMusic(track, -1, 1)) { publish->error = LNG_EXPANDED_PATCH_SAVE_MUSIC_FAILED; }
 				}
 			}
 			NativeTrackRegistry_Destroy(candidate);
 		}
 	}
-	return publish->error == NULL ? SDL_ENUM_CONTINUE : SDL_ENUM_FAILURE;
+	return publish->error == LNG_TRACK_RESULT_OK ? SDL_ENUM_CONTINUE : SDL_ENUM_FAILURE;
 }
 
-static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const char *prepared, const char *library)
+static enum ExpandedLngString TrackPatch_InstallPrepared(struct TrackPatchJob *job, const char *prepared, const char *library)
 {
 	struct TrackPatchPublish publish = {.job = job, .library = library, .prepared = NativeTrackLibrary_Scan(prepared, NULL)};
-	if (publish.prepared == NULL) { return "Cannot read prepared tracks"; }
-	const char *error = NULL;
+	if (publish.prepared == NULL) { return LNG_EXPANDED_PATCH_READ_PREPARED_FAILED; }
+	enum ExpandedLngString error = LNG_TRACK_RESULT_OK;
 	if (!SDL_EnumerateDirectory(prepared, TrackPatch_Publish, &publish))
 	{
-		error = publish.error != NULL ? publish.error : "Cannot read prepared tracks";
+		error = publish.error != LNG_TRACK_RESULT_OK ? publish.error : LNG_EXPANDED_PATCH_READ_PREPARED_FAILED;
 	}
 	if (SDL_GetAtomicInt(&job->cancel))
 	{
-		error = "Import cancelled";
+		error = LNG_EXPANDED_PATCH_CANCELLED;
 	}
-	if (error == NULL && publish.count == 0) { error = "No tracks selected"; }
-	if (error != NULL)
+	if (error == LNG_TRACK_RESULT_OK && publish.count == 0) { error = LNG_EXPANDED_PATCH_NONE_SELECTED; }
+	if (error != LNG_TRACK_RESULT_OK)
 	{
 		for (int i = 0; i < publish.count; i++)
 		{
 			if (!TrackPatch_RemoveTree(publish.installed[i]))
 			{
-				error = "Import failed - cannot remove partial installation";
+				error = LNG_EXPANDED_PATCH_ROLLBACK_FAILED;
 			}
 		}
 	}
@@ -611,7 +609,7 @@ static const char *TrackPatch_InstallPrepared(struct TrackPatchJob *job, const c
 	return error;
 }
 
-static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, int *count)
+static enum ExpandedLngString TrackPatch_Run(struct TrackPatchJob *job, const char *work, int *count)
 {
 	/* Work only on temporary images: decode, extract both BIGFILEs, discover
 	 * and validate candidates in prepared, then publish the whole batch. */
@@ -623,7 +621,7 @@ static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, i
 	    !TrackPatch_Path(patchedBig, work, "patched.big") || !TrackPatch_Path(prepared, work, "prepared") ||
 	    !TrackPatch_Path(library, job->assets, "tracks"))
 	{
-		return "Path is too long";
+		return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 	}
 #if defined(_WIN32)
 	const char *xdelta = "tools/xdelta3.exe", *bigtool = "tools/bigtool.exe";
@@ -631,28 +629,28 @@ static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, i
 	const char *xdelta = "tools/xdelta3", *bigtool = "tools/bigtool";
 #endif
 	SDL_PathInfo toolInfo;
-	if (!TrackPatch_Path(tool, job->assets, bigtool)) { return "Path is too long"; }
+	if (!TrackPatch_Path(tool, job->assets, bigtool)) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 	if (!SDL_GetPathInfo(tool, &toolInfo) || toolInfo.type != SDL_PATHTYPE_FILE)
 	{
-		return "Missing assets/tools/bigtool";
+		return LNG_EXPANDED_PATCH_MISSING_BIGTOOL;
 	}
-	if (!TrackPatch_Path(tool, job->assets, xdelta)) { return "Path is too long"; }
+	if (!TrackPatch_Path(tool, job->assets, xdelta)) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 	if (!SDL_GetPathInfo(tool, &toolInfo) || toolInfo.type != SDL_PATHTYPE_FILE)
 	{
-		return "Missing assets/tools/xdelta3";
+		return LNG_EXPANDED_PATCH_MISSING_XDELTA;
 	}
-	SDL_SetAtomicInt(&job->stage, PATCH_COPY);
-	if (!TrackPatch_Copy(job, base, copy)) { return TrackPatch_Error(job, "Cannot copy assets/ctr-u.bin"); }
-	SDL_SetAtomicInt(&job->stage, PATCH_APPLY);
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_COPY);
+	if (!TrackPatch_Copy(job, base, copy)) { return TrackPatch_Error(job, LNG_EXPANDED_PATCH_COPY_ROM_FAILED); }
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_APPLY);
 	const char *decode[] = {tool, "-d", "-s", copy, job->patch, patched, NULL};
-	if (!TrackPatch_Process(job, decode)) { return TrackPatch_Error(job, "Xdelta failed - check patch and base ROM"); }
-	SDL_SetAtomicInt(&job->stage, PATCH_EXTRACT);
+	if (!TrackPatch_Process(job, decode)) { return TrackPatch_Error(job, LNG_EXPANDED_PATCH_APPLY_FAILED); }
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_EXTRACT);
 	if (!PatchDisc_ExtractBig(copy, originalBig, &job->cancel) ||
 	    !PatchDisc_ExtractBig(patched, patchedBig, &job->cancel))
 	{
-		return TrackPatch_Error(job, "Cannot extract BIGFILE.BIG from the ROM");
+		return TrackPatch_Error(job, LNG_EXPANDED_PATCH_EXTRACT_BIGFILE_FAILED);
 	}
-	if (!TrackPatch_Path(tool, job->assets, bigtool)) { return "Path is too long"; }
+	if (!TrackPatch_Path(tool, job->assets, bigtool)) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
 	const char *extractOriginal[] = {tool, originalBig, NULL};
 	const char *extractPatched[] = {tool, patchedBig, NULL};
 	struct PatchMusic music;
@@ -665,21 +663,21 @@ static const char *TrackPatch_Run(struct TrackPatchJob *job, const char *work, i
 	if (!extracted && (!adventureLoader || SDL_GetAtomicInt(&job->cancel)))
 	{
 		PatchMusic_Close(&music);
-		return TrackPatch_Error(job, "CTR-tools bigtool failed");
+		return TrackPatch_Error(job, LNG_EXPANDED_PATCH_BIGTOOL_FAILED);
 	}
-	SDL_SetAtomicInt(&job->stage, PATCH_COMPARE);
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_COMPARE);
 	*count = 0;
-	const char *error = extracted ? TrackPatch_Collect(job, work, count, &music) : NULL;
+	enum ExpandedLngString error = extracted ? TrackPatch_Collect(job, work, count, &music) : LNG_TRACK_RESULT_OK;
 	/* Try the loader-specific strategy in addition to the generic scan. Both
 	 * prepare validated pairs before publication; failures leave the library untouched. */
-	if (error == NULL) { error = TrackPatch_CollectAdventure(job, work, count, &music); }
-	if (error == NULL && *count == 0) { error = "No modified single-player circuits found"; }
+	if (error == LNG_TRACK_RESULT_OK) { error = TrackPatch_CollectAdventure(job, work, count, &music); }
+	if (error == LNG_TRACK_RESULT_OK && *count == 0) { error = LNG_EXPANDED_PATCH_NO_MODIFIED_CIRCUITS; }
 	job->musicGenerated = music.generated;
 	job->musicSkipped = music.skipped;
 	PatchMusic_Close(&music);
-	if (error != NULL) { return error; }
-	if (job->review) { return NULL; }
-	SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
+	if (error != LNG_TRACK_RESULT_OK) { return error; }
+	if (job->review) { return LNG_TRACK_RESULT_OK; }
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_INSTALL);
 	return TrackPatch_InstallPrepared(job, prepared, library);
 }
 
@@ -690,36 +688,36 @@ static int SDLCALL TrackPatch_Worker(void *userdata)
 	int length = SDL_snprintf(work, sizeof(work), "%s/.import-xdelta-%llu", job->assets,
 	                          (unsigned long long)SDL_GetTicksNS());
 	SDL_PathInfo info;
-	const char *error = "Cannot create temporary directory";
+	enum ExpandedLngString error = LNG_EXPANDED_IMPORT_CREATE_TEMP_FAILED;
 	int count = 0;
 	if (length >= 0 && length < (int)sizeof(work) && !SDL_GetPathInfo(work, &info) && SDL_CreateDirectory(work))
 	{
 		error = TrackPatch_Run(job, work, &count);
-		if (error == NULL && job->review && !SDL_GetAtomicInt(&job->cancel))
+		if (error == LNG_TRACK_RESULT_OK && job->review && !SDL_GetAtomicInt(&job->cancel))
 		{
 			SDL_strlcpy(job->work, work, sizeof(job->work));
 			job->reviewReady = 1;
 		}
 		else
 		{
-			if (error == NULL && job->review) { error = "Import cancelled"; }
-			SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
+			if (error == LNG_TRACK_RESULT_OK && job->review) { error = LNG_EXPANDED_PATCH_CANCELLED; }
+			SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_CLEANUP);
 			int removed = TrackPatch_RemoveTree(work);
-			if (!removed) { error = "Import ended - temporary cleanup failed"; }
+			if (!removed) { error = LNG_EXPANDED_PATCH_TEMP_CLEANUP_FAILED; }
 		}
 	}
-	job->succeeded = error == NULL;
-	if (error != NULL) { SDL_strlcpy(job->result, error, sizeof(job->result)); }
+	job->succeeded = error == LNG_TRACK_RESULT_OK;
+	job->resultCount = count;
+	if (error != LNG_TRACK_RESULT_OK) { job->result = error; }
 	else if (job->reviewReady)
 	{
-		SDL_snprintf(job->result, sizeof(job->result), "%d track%s ready for review", count, count == 1 ? "" : "s");
+		job->result = LNG_EXPANDED_PATCH_READY_COUNT;
 	}
 	else if (job->musicSkipped != 0)
 	{
-		SDL_snprintf(job->result, sizeof(job->result), "%d track%s imported; %d music skipped", count,
-		             count == 1 ? "" : "s", job->musicSkipped);
+		job->result = LNG_TRACK_RESULT_SKIPPED;
 	}
-	else { SDL_snprintf(job->result, sizeof(job->result), "%d track%s imported with music", count, count == 1 ? "" : "s"); }
+	else { job->result = LNG_EXPANDED_PATCH_IMPORTED_MUSIC_COUNT; }
 	SDL_SetAtomicInt(&job->done, 1);
 	return 0;
 }
@@ -766,13 +764,13 @@ int NativeTrackPatch_StartReview(const char *assets, const char *patch)
 	return TrackPatch_Start(assets, patch, 1);
 }
 
-const char *NativeTrackPatch_PrepareFolder(const char *assets, const char *source)
+enum ExpandedLngString NativeTrackPatch_PrepareFolder(const char *assets, const char *source)
 {
 	struct TrackPatchJob *job = &s_trackPatchJob;
-	if (job->thread != NULL || job->reviewReady) { return "Another import is active"; }
+	if (job->thread != NULL || job->reviewReady) { return LNG_EXPANDED_PATCH_ALREADY_ACTIVE; }
 	if (assets == NULL || source == NULL || strlen(assets) >= sizeof(job->assets) || strlen(source) >= PATCH_PATH_BYTES)
 	{
-		return "Invalid import path";
+		return LNG_EXPANDED_PATCH_INVALID_PATH;
 	}
 	char trimmed[PATCH_PATH_BYTES];
 	SDL_strlcpy(trimmed, source, sizeof(trimmed));
@@ -780,7 +778,7 @@ const char *NativeTrackPatch_PrepareFolder(const char *assets, const char *sourc
 	while (length > 0 && (trimmed[length - 1] == '/' || trimmed[length - 1] == '\\')) { trimmed[--length] = '\0'; }
 	const char *name = trimmed + length;
 	while (name > trimmed && name[-1] != '/' && name[-1] != '\\') { name--; }
-	if (*name == '\0') { return "Invalid source directory"; }
+	if (*name == '\0') { return LNG_EXPANDED_IMPORT_INVALID_SOURCE; }
 	memset(job, 0, sizeof(*job));
 	SDL_strlcpy(job->assets, assets, sizeof(job->assets));
 	int n = SDL_snprintf(job->work, sizeof(job->work), "%s/.import-folder-%llu", assets,
@@ -791,17 +789,17 @@ const char *NativeTrackPatch_PrepareFolder(const char *assets, const char *sourc
 	    SDL_GetPathInfo(job->work, &info) || !SDL_CreateDirectory(job->work))
 	{
 		job->work[0] = '\0';
-		return "Cannot create temporary directory";
+		return LNG_EXPANDED_IMPORT_CREATE_TEMP_FAILED;
 	}
-	const char *error = NativeTrackImport_Directory(prepared, trimmed, name);
-	if (error != NULL)
+	enum ExpandedLngString error = NativeTrackImport_Directory(prepared, trimmed, name);
+	if (error != LNG_TRACK_RESULT_OK)
 	{
-		if (!TrackPatch_RemoveTree(job->work)) { return "Import failed - temporary cleanup failed"; }
+		if (!TrackPatch_RemoveTree(job->work)) { return LNG_EXPANDED_PATCH_TEMP_CLEANUP_FAILED; }
 		job->work[0] = '\0';
 		return error;
 	}
 	job->reviewReady = 1;
-	return NULL;
+	return LNG_TRACK_RESULT_OK;
 }
 
 const char *NativeTrackPatch_ReviewDirectory(void)
@@ -863,18 +861,18 @@ int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
 	return 1;
 }
 
-const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
+enum ExpandedLngString NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
 {
 	const char *prepared = NativeTrackPatch_ReviewDirectory();
-	if (prepared == NULL) { return "No import to review"; }
+	if (prepared == NULL) { return LNG_EXPANDED_PATCH_NO_REVIEW; }
 	if (!NativeTrackLibrary_ValidText(identity, 0) || !NativeTrackLibrary_ValidText(title, 0) ||
-	    !NativeTrackLibrary_ValidText(author, 1)) { return "Invalid track metadata"; }
+	    !NativeTrackLibrary_ValidText(author, 1)) { return LNG_EXPANDED_PATCH_INVALID_METADATA; }
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(prepared, NULL);
 	int level;
 	if (registry == NULL || !NativeTrackRegistry_Find(registry, identity, &level))
 	{
 		NativeTrackRegistry_Destroy(registry);
-		return "Track not found";
+		return LNG_EXPANDED_PATCH_TRACK_NOT_FOUND;
 	}
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, level);
 	int retailMusic = NativeTrackLibrary_Music(track);
@@ -882,37 +880,37 @@ const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *titl
 	if (retailMusic < 0 && !custom && track->music != NULL) { retailMusic = NATIVE_TRACK_DEFAULT_RETAIL_MUSIC; }
 	int ok = NativeTrackLibrary_WriteMetadata(track, title, author, retailMusic, custom);
 	NativeTrackRegistry_Destroy(registry);
-	return ok ? NULL : "Cannot write track metadata";
+	return ok ? LNG_TRACK_RESULT_OK : LNG_EXPANDED_PATCH_WRITE_METADATA_FAILED;
 }
 
-static const char *TrackPatch_Commit(struct TrackPatchJob *job, int scan)
+static enum ExpandedLngString TrackPatch_Commit(struct TrackPatchJob *job, int scan)
 {
 	char prepared[PATCH_PATH_BYTES], library[PATCH_PATH_BYTES];
-	if (!TrackPatch_Path(prepared, job->work, "prepared") || !TrackPatch_Path(library, job->assets, "tracks")) { return "Path is too long"; }
-	SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
-	const char *error = TrackPatch_InstallPrepared(job, prepared, library);
-	if (error != NULL) { return error; }
+	if (!TrackPatch_Path(prepared, job->work, "prepared") || !TrackPatch_Path(library, job->assets, "tracks")) { return LNG_EXPANDED_IMPORT_PATH_TOO_LONG; }
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_INSTALL);
+	enum ExpandedLngString error = TrackPatch_InstallPrepared(job, prepared, library);
+	if (error != LNG_TRACK_RESULT_OK) { return error; }
 	job->reviewReady = 0;
 	if (scan) { job->replacement = NativeTrackLibrary_Scan(library, NULL); }
-	SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
-	if (!TrackPatch_RemoveTree(job->work)) { return "Imported - temporary cleanup failed"; }
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_CLEANUP);
+	if (!TrackPatch_RemoveTree(job->work)) { return LNG_EXPANDED_PATCH_IMPORTED_CLEANUP_FAILED; }
 	job->work[0] = '\0';
-	if (scan && job->replacement == NULL) { return "Imported - restart game"; }
-	return NULL;
+	if (scan && job->replacement == NULL) { return LNG_EXPANDED_PATCH_IMPORTED_RESTART; }
+	return LNG_TRACK_RESULT_OK;
 }
 
-const char *NativeTrackPatch_ReviewCommit(void)
+enum ExpandedLngString NativeTrackPatch_ReviewCommit(void)
 {
-	if (NativeTrackPatch_ReviewDirectory() == NULL) { return "No import to confirm"; }
+	if (NativeTrackPatch_ReviewDirectory() == NULL) { return LNG_EXPANDED_PATCH_NO_CONFIRM; }
 	return TrackPatch_Commit(&s_trackPatchJob, 0);
 }
 
 static int SDLCALL TrackPatch_CommitWorker(void *userdata)
 {
 	struct TrackPatchJob *job = userdata;
-	const char *error = TrackPatch_Commit(job, 1);
-	job->succeeded = error == NULL || !job->reviewReady;
-	SDL_strlcpy(job->result, error != NULL ? error : "Tracks imported", sizeof(job->result));
+	enum ExpandedLngString error = TrackPatch_Commit(job, 1);
+	job->succeeded = error == LNG_TRACK_RESULT_OK || !job->reviewReady;
+	job->result = error != LNG_TRACK_RESULT_OK ? error : LNG_EXPANDED_PATCH_IMPORTED;
 	SDL_SetAtomicInt(&job->done, 1);
 	return 0;
 }
@@ -923,7 +921,7 @@ int NativeTrackPatch_ReviewCommitStart(void)
 	if (job->thread != NULL || !job->reviewReady) { return 0; }
 	SDL_SetAtomicInt(&job->done, 0);
 	SDL_SetAtomicInt(&job->cancel, 0);
-	SDL_SetAtomicInt(&job->stage, PATCH_INSTALL);
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_INSTALL);
 	job->thread = SDL_CreateThread(TrackPatch_CommitWorker, "track-install", job);
 	return job->thread != NULL;
 }
@@ -955,7 +953,7 @@ static int SDLCALL TrackPatch_DiscardWorker(void *userdata)
 		job->reviewReady = 0;
 		job->work[0] = '\0';
 	}
-	SDL_strlcpy(job->result, job->succeeded ? "Import cancelled" : "Cannot discard import", sizeof(job->result));
+	job->result = job->succeeded ? LNG_EXPANDED_PATCH_CANCELLED : LNG_EXPANDED_TRACKS_DISCARD_FAILED;
 	SDL_SetAtomicInt(&job->done, 1);
 	return 0;
 }
@@ -966,7 +964,7 @@ int NativeTrackPatch_ReviewDiscardStart(void)
 	if (job->thread != NULL || !job->reviewReady) { return 0; }
 	SDL_SetAtomicInt(&job->done, 0);
 	SDL_SetAtomicInt(&job->cancel, 0);
-	SDL_SetAtomicInt(&job->stage, PATCH_CLEANUP);
+	SDL_SetAtomicInt(&job->stage, NATIVE_TRACK_PATCH_CLEANUP);
 	job->thread = SDL_CreateThread(TrackPatch_DiscardWorker, "track-discard", job);
 	return job->thread != NULL;
 }
@@ -980,14 +978,17 @@ int NativeTrackPatch_Poll(void)
 	return s_trackPatchJob.succeeded ? 1 : -1;
 }
 
-const char *NativeTrackPatch_Message(void)
+enum ExpandedLngString NativeTrackPatch_Message(void)
 {
-	static const char *const stages[] = {"Copying ROM", "Applying xdelta patch", "Extracting ROM with CTR-tools",
-	                                     "Finding custom circuits", "Installing custom circuits", "Removing temporary files"};
+	static const enum ExpandedLngString stages[] = {LNG_EXPANDED_TRACKS_COPY_ROM, LNG_EXPANDED_TRACKS_APPLY_PATCH, LNG_EXPANDED_TRACKS_EXTRACT_ROM,
+	                                     LNG_EXPANDED_TRACKS_FIND_CIRCUITS, LNG_EXPANDED_TRACKS_INSTALL_CIRCUITS, LNG_EXPANDED_TRACKS_REMOVE_TEMP};
 	if (SDL_GetAtomicInt(&s_trackPatchJob.done)) { return s_trackPatchJob.result; }
-	if (SDL_GetAtomicInt(&s_trackPatchJob.cancel)) { return "Cancelling import"; }
+	if (SDL_GetAtomicInt(&s_trackPatchJob.cancel)) { return LNG_EXPANDED_TRACKS_CANCELLING; }
 	return stages[SDL_GetAtomicInt(&s_trackPatchJob.stage)];
 }
+
+int NativeTrackPatch_ResultCount(void) { return s_trackPatchJob.resultCount; }
+int NativeTrackPatch_SkippedMusicCount(void) { return s_trackPatchJob.musicSkipped; }
 
 void NativeTrackPatch_Cancel(void)
 {

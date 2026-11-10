@@ -95,6 +95,12 @@ set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
 set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory(externals/SDL)
 
+# Keep the vendored parser in its own translation unit, separate from main.c's
+# game/platform unity build. The source revision and license are recorded there.
+add_library(tomlc17 STATIC externals/tomlc17/tomlc17.c)
+set_target_properties(tomlc17 PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(tomlc17 PUBLIC "${CMAKE_SOURCE_DIR}/externals/tomlc17")
+
 # Copy default config.ini to build directory if config.ini doesn't exist
 if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.ini")
     configure_file("${CMAKE_SOURCE_DIR}/default_config.ini"
@@ -113,6 +119,23 @@ endif()
 
 # CTR Native Expanded
 add_executable(ctr_native_expanded main.c)
+file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml"
+    "${CMAKE_SOURCE_DIR}/resources/text/*/retail.toml"
+    "${CMAKE_SOURCE_DIR}/resources/text/*/language.toml")
+set_property(TARGET ctr_native_expanded APPEND PROPERTY LINK_DEPENDS ${CTR_SHIPPED_TEXT_CATALOGS} "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake")
+add_custom_command(TARGET ctr_native_expanded POST_BUILD
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
+    VERBATIM
+)
+# Keep managed catalogs current on ordinary builds even when the executable did
+# not need relinking (notably with multi-configuration generators).
+add_custom_target(ctr_text_catalogs ALL
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
+    VERBATIM
+)
 set_target_properties(ctr_native_expanded PROPERTIES
     C_STANDARD 17
     C_STANDARD_REQUIRED ON
@@ -136,7 +159,7 @@ if(CTR_DIAGNOSTICS)
 endif()
 #TODO(aalhendi): fix warnings
 ctr_native_apply_common_options(ctr_native_expanded)
-target_link_libraries(ctr_native_expanded SDL3::SDL3)
+target_link_libraries(ctr_native_expanded SDL3::SDL3 tomlc17)
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeTrackTools.cmake")
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(ctr_native_expanded PRIVATE -static-libgcc)

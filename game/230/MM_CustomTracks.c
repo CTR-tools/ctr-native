@@ -4,6 +4,7 @@
 #include <platform/native_text_edit.h>
 #include <track_text.h>
 #include <track_import_view.h>
+ #include <text_format.h>
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"
@@ -89,7 +90,7 @@ static void CustomTracks_FormatText(char *out, size_t capacity, const char *sour
 static void CustomTracks_DrawDetail(const char *label, const char *value, int y, uint32_t *ot)
 {
 	char text[CUSTOM_TRACKS_DETAIL_BYTES], safe[CUSTOM_TRACKS_DETAIL_BYTES];
-	snprintf(text, sizeof(text), "%s: %s", label, value != NULL && value[0] != '\0' ? value : "Unknown");
+	snprintf(text, sizeof(text), "%s: %s", label, value != NULL && value[0] != '\0' ? value : LANG_GetString(LNG_EXPANDED_TRACKS_UNKNOWN));
 	CustomTracks_FormatText(safe, sizeof(safe), text, FULLSCREEN_MENU_CONTENT_W - 2 * CUSTOM_TRACKS_DETAIL_INDENT);
 	DecalFont_DrawLineOT(safe, FULLSCREEN_MENU_LABEL_X + CUSTOM_TRACKS_DETAIL_INDENT, y, FONT_SMALL, WHITE, ot);
 }
@@ -116,7 +117,7 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 		break;
 	}
 	case 1:
-		CustomTracks_DrawDetail("Author", track->author, y, ot);
+		CustomTracks_DrawDetail(LANG_GetString(LNG_EXPANDED_TRACKS_AUTHOR), track->author, y, ot);
 		break;
 	case 2:
 	{
@@ -132,7 +133,7 @@ static void CustomTracks_DrawRow(const void *context, int row, int y, bool selec
 				}
 			}
 		}
-		CustomTracks_DrawDetail("Modes", modes, y, ot);
+		CustomTracks_DrawDetail(LANG_GetString(LNG_EXPANDED_TRACKS_MODES), modes, y, ot);
 		break;
 	}
 	}
@@ -144,7 +145,7 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 	int count = (int)NativeTrackRegistry_Count(registry);
 	if (count == 0)
 	{
-		FullScreenMenu_DrawMessage("Available Tracks", "No tracks imported", gGT, ot);
+		FullScreenMenu_DrawMessage(LANG_GetString(LNG_EXPANDED_TRACKS_AVAILABLE), LANG_GetString(LNG_EXPANDED_TRACKS_NONE_IMPORTED), gGT, ot);
 		return;
 	}
 	FullScreenMenu_NavScroll(pad, &s_customTracksScroll, &menu->rowSelected, count);
@@ -154,7 +155,7 @@ static void CustomTracks_DrawAvailable(struct RectMenu *menu, struct GamepadBuff
 	int selectedEnd = selectedRow + CUSTOM_TRACKS_BASE_ROWS - 1;
 	struct FullScreenMenu_Scroll scroll = {0};
 	scroll.offset = FullScreenMenu_ScrollOffsetFor(&scroll, selectedEnd, totalRows);
-	FullScreenMenu_DrawScreen("Available Tracks", 0, &scroll, totalRows, selectedRow, CustomTracks_DrawRow, registry, gGT, ot);
+	FullScreenMenu_DrawScreen(LANG_GetString(LNG_EXPANDED_TRACKS_AVAILABLE), 0, &scroll, totalRows, selectedRow, CustomTracks_DrawRow, registry, gGT, ot);
 	if (track != NULL && FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 	{
 		s_customTracksIndex = menu->rowSelected;
@@ -169,14 +170,15 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 {
 	(void)selected;
 	const struct TrackImportReviewView *view = context;
-	static const char *const labels[] = {"Track", "Import", "Name", "Author", "Music source", "Music track", "Confirm import", "Cancel import"};
-	static const char *const installedLabels[] = {"Track", "Active", "Name", "Author", "Music source", "Music track", "Delete track", "Back"};
+	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
+	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
+	const char *label = LANG_GetString(view->installed ? installedLabels[row] : labels[row]);
 	if ((!view->installed && row == TRACK_REVIEW_CONFIRM && view->includedCount == 0) ||
 	    (view->installed && !s_customTracksImportEnabled && row >= TRACK_REVIEW_TITLE && row <= TRACK_REVIEW_CONFIRM))
 	{
-		DecalFont_DrawLineOT((char *)(view->installed ? installedLabels[row] : labels[row]), FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
+		DecalFont_DrawLineOT((char *)label, FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
 	}
-	else { FullScreenMenu_DrawRowLabel(view->installed ? installedLabels[row] : labels[row], y, ot); }
+	else { FullScreenMenu_DrawRowLabel(label, y, ot); }
 	char value[CUSTOM_TRACKS_DETAIL_BYTES];
 	if (row == TRACK_REVIEW_TRACK)
 	{
@@ -208,7 +210,7 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 	}
 	else if (row == TRACK_REVIEW_INCLUDE)
 	{
-		snprintf(value, sizeof(value), "%s", view->included ? "Yes" : "No");
+		snprintf(value, sizeof(value), "%s", LANG_GetString(view->included ? LNG_EXPANDED_TRACKS_YES : LNG_EXPANDED_TRACKS_NO));
 	}
 	else if (row == TRACK_REVIEW_CONFIRM && !view->installed)
 	{
@@ -231,13 +233,13 @@ static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *vi
 	struct FullScreenMenu_Scroll scroll = {0};
 	if (view->editing)
 	{
-		FullScreenMenu_DrawPrompt("Enter: save  Esc: cancel", ot);
+		FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_TRACKS_EDIT_PROMPT), ot);
 	}
 	else if (view->message != NULL)
 	{
 		FullScreenMenu_DrawPrompt(view->message, ot);
 	}
-	FullScreenMenu_DrawScreen(view->installed ? "Track Details" : "Review Import", 0, &scroll,
+	FullScreenMenu_DrawScreen(LANG_GetString(view->installed ? LNG_EXPANDED_TRACKS_DETAILS : LNG_EXPANDED_TRACKS_REVIEW_IMPORT), 0, &scroll,
 	                          TRACK_REVIEW_ROWS - view->installed, view->row - view->installed,
 	                          CustomTracks_DrawReviewRow, view, gGT, ot);
 }
@@ -288,8 +290,8 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 				const char *value = NativeTextEdit_Value();
 				if (!NativeTrackLibrary_SetDetails(track, menu->rowSelected == TRACK_REVIEW_TITLE ? value : track->title,
 				    menu->rowSelected == TRACK_REVIEW_AUTHOR ? value : (track->author != NULL ? track->author : "")))
-				{ s_customTracksMessage = "Cannot save track details"; OtherFX_Play(2, 1); }
-				else if (!CustomTracks_Rescan(track->identity)) { s_customTracksMessage = "Cannot refresh track details"; }
+				{ s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_SAVE_DETAILS_FAILED); OtherFX_Play(2, 1); }
+				else if (!CustomTracks_Rescan(track->identity)) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_DETAILS_FAILED); }
 				else { s_customTracksMessage = NULL; }
 			}
 			NativeTextEdit_Close();
@@ -314,7 +316,7 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 		}
 		if (menu->rowSelected == TRACK_REVIEW_INCLUDE && ((buttons & (BTN_LEFT | BTN_RIGHT)) || confirm))
 		{
-			if (!NativeTrackLibrary_SetEnabled(track, !NativeTrackLibrary_IsEnabled(track))) { s_customTracksMessage = "Cannot change track status"; OtherFX_Play(2, 1); }
+			if (!NativeTrackLibrary_SetEnabled(track, !NativeTrackLibrary_IsEnabled(track))) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_STATUS_FAILED); OtherFX_Play(2, 1); }
 			else { s_customTracksMessage = NULL; if (!confirm) { OtherFX_Play(0, 1); } }
 		}
 		else if (confirm && menu->rowSelected == TRACK_REVIEW_CONFIRM && s_customTracksImportEnabled)
@@ -327,7 +329,7 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 			const char *value = menu->rowSelected == TRACK_REVIEW_TITLE ? track->title : track->author;
 			s_customTracksEditing = NativeTextEdit_BeginForGame(value != NULL ? value : "", 256);
 			if (s_customTracksEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
-			if (!s_customTracksEditing) { s_customTracksMessage = "Cannot open text editor"; }
+			if (!s_customTracksEditing) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_EDITOR_FAILED); }
 		}
 		else if (s_customTracksImportEnabled && (menu->rowSelected == TRACK_REVIEW_MUSIC_SOURCE || menu->rowSelected == TRACK_REVIEW_MUSIC_TRACK) &&
 		         ((buttons & (BTN_LEFT | BTN_RIGHT)) || confirm))
@@ -346,8 +348,8 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 				choice = (choice + choices + ((buttons & BTN_LEFT) ? -1 : 1)) % choices;
 			}
 			int ok = NativeTrackLibrary_SetMusic(track, custom ? -1 : choice, custom);
-			if (!ok) { s_customTracksMessage = "Cannot save music selection"; OtherFX_Play(2, 1); }
-			else if (!CustomTracks_Rescan(track->identity)) { s_customTracksMessage = "Cannot refresh track details"; }
+			if (!ok) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_MUSIC_FAILED); OtherFX_Play(2, 1); }
+			else if (!CustomTracks_Rescan(track->identity)) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_DETAILS_FAILED); }
 			else
 			{
 				s_customTracksMessage = NULL;
@@ -369,8 +371,8 @@ draw:
 		.title = track->title, .author = track->author, .index = s_customTracksIndex, .count = count,
 		.row = menu->rowSelected, .included = NativeTrackLibrary_IsEnabled(track), .installed = 1,
 		.editing = s_customTracksEditing, .editingValue = s_customTracksEditing ? NativeTextEdit_Value() : NULL,
-		.message = s_customTracksMessage, .musicSource = custom ? "Custom" : "Retail",
-		.musicTrack = custom ? "Track audio" : sdata->lngStrings[data.metaDataLEV[music].name_LNG],
+		.message = s_customTracksMessage, .musicSource = LANG_GetString(custom ? LNG_EXPANDED_TRACKS_CUSTOM : LNG_EXPANDED_TRACKS_RETAIL),
+		.musicTrack = custom ? LANG_GetString(LNG_EXPANDED_TRACKS_AUDIO) : sdata->lngStrings[data.metaDataLEV[music].name_LNG],
 	};
 	CustomTracks_DrawImportReview(&view, gGT, ot);
 }
@@ -389,7 +391,7 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 	{
 		struct TrackImportReviewView view;
 		if (MM_TrackImport_GetReview(&view)) { CustomTracks_DrawImportReview(&view, gGT, ot); }
-		else { FullScreenMenu_DrawMessage("Import Track", MM_TrackImport_Message(), gGT, ot); }
+		else { FullScreenMenu_DrawMessage(LANG_GetString(LNG_EXPANDED_TRACKS_IMPORT_TITLE), MM_TrackImport_Message(), gGT, ot); }
 		return true;
 	}
 	if (s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT)
@@ -401,7 +403,7 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		}
 		else
 		{
-			FullScreenMenu_DrawMessage("Refresh", s_customTracksRefreshMessage, gGT, ot);
+			FullScreenMenu_DrawMessage(LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH), s_customTracksRefreshMessage, gGT, ot);
 		}
 		return true;
 	}
@@ -423,9 +425,9 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 			s_customTracksPage = CUSTOM_TRACKS_AVAILABLE;
 			int count = (int)NativeTrackRegistry_Count(NativeTrackLibrary_Current());
 			menu->rowSelected = count > 0 && s_customTracksIndex >= count ? count - 1 : s_customTracksIndex;
-			if (!ok) { OtherFX_Play(2, 1); s_customTracksPage = CUSTOM_TRACKS_REFRESH_RESULT; snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "Cannot delete track"); }
+			if (!ok) { OtherFX_Play(2, 1); s_customTracksPage = CUSTOM_TRACKS_REFRESH_RESULT; snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "%.*s", (int)sizeof(s_customTracksRefreshMessage) - 1, LANG_GetString(LNG_EXPANDED_TRACKS_DELETE_FAILED)); }
 		}
-		else { FullScreenMenu_DrawMessage("Delete Track", "Confirm: delete  Back: cancel", gGT, ot); }
+		else { FullScreenMenu_DrawMessage(LANG_GetString(LNG_EXPANDED_TRACKS_DELETE), LANG_GetString(LNG_EXPANDED_TRACKS_DELETE_PROMPT), gGT, ot); }
 		return true;
 	}
 	if (FullScreenMenu_Back((u32)pad->buttonsTapped))
@@ -448,13 +450,13 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 		CustomTracks_DrawAvailable(menu, pad, gGT, ot);
 		return true;
 	}
-	static const char *rootItems[] = {"Available Tracks", "Import", "Refresh"};
-	static const char *importItems[] = {"Folder", "Xdelta patch"};
+	const char *rootItems[] = {LANG_GetString(LNG_EXPANDED_TRACKS_AVAILABLE), LANG_GetString(LNG_EXPANDED_TRACKS_IMPORT), LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH)};
+	const char *importItems[] = {LANG_GetString(LNG_EXPANDED_TRACKS_FOLDER), LANG_GetString(LNG_EXPANDED_TRACKS_XDELTA_PATCH)};
 	const bool choosingImport = s_customTracksPage == CUSTOM_TRACKS_IMPORT;
 	const char *const *items = choosingImport ? importItems : rootItems;
 	const int count = choosingImport ? (int)len(importItems) : (int)len(rootItems);
 	FullScreenMenu_NavScroll(pad, &s_customTracksScroll, &menu->rowSelected, count);
-	FullScreenMenu_DrawScreen(choosingImport ? "Import" : "Custom Tracks", 0, &s_customTracksScroll, count,
+	FullScreenMenu_DrawScreen(LANG_GetString(choosingImport ? LNG_EXPANDED_TRACKS_IMPORT : LNG_EXPANDED_CONFIG_CUSTOM_TRACKS), 0, &s_customTracksScroll, count,
 	                          menu->rowSelected, CustomTracks_DrawMenuRow, items, gGT, ot);
 	const bool canOpen = choosingImport || menu->rowSelected == 0 || s_customTracksImportEnabled;
 	if (canOpen && FullScreenMenu_Confirm((u32)pad->buttonsTapped))
@@ -474,11 +476,19 @@ b32 MM_CustomTracks_Update(struct RectMenu *menu)
 			int length = snprintf(path, sizeof(path), "%s/tracks", NativeAssets_GetAssetDir());
 			if (length >= 0 && (size_t)length < sizeof(path) && NativeTrackLibrary_Refresh(path, &result))
 			{
-				snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "Tracks: %zu  Rejected: %zu", result.installed, result.rejected);
+				char tracks[32], rejected[32];
+				snprintf(tracks, sizeof(tracks), "%zu", result.installed);
+				snprintf(rejected, sizeof(rejected), "%zu", result.rejected);
+				const struct TextFormatValue values[] = {{"tracks", tracks}, {"rejected", rejected}};
+				if (!TextFormat_Apply(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage),
+				                      LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_SUMMARY), values, len(values)))
+				{
+					s_customTracksRefreshMessage[0] = '\0';
+				}
 			}
 			else
 			{
-				snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "Refresh failed");
+				snprintf(s_customTracksRefreshMessage, sizeof(s_customTracksRefreshMessage), "%.*s", (int)sizeof(s_customTracksRefreshMessage) - 1, LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_FAILED));
 			}
 			s_customTracksPage = CUSTOM_TRACKS_REFRESH_RESULT;
 		}

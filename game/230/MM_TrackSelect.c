@@ -387,7 +387,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 		}
 		if (!drawn)
 		{
-			DecalFont_DrawLine("NO PREVIEW", r->x + r->w / 2, r->y + r->h / 2, FONT_SMALL, JUSTIFY_CENTER | WHITE);
+			DecalFont_DrawLine((char *)LANG_GetString(LNG_EXPANDED_NO_PREVIEW), r->x + r->w / 2, r->y + r->h / 2, FONT_SMALL, JUSTIFY_CENTER | WHITE);
 		}
 		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
 		return;

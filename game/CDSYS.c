@@ -616,6 +616,39 @@ int CDSYS_XAGetTrackLength(int categoryID, int xaID)
 }
 
 
+static int CDSYS_XAPlayNative(int categoryID, int xaID, bool localizedOnly)
+{
+	int nativeVol = (categoryID == CDSYS_XA_TYPE_MUSIC) ? sdata->vol_Music : sdata->vol_Voice;
+	int volume = nativeVol << CDSYS_XA_VOLUME_SHIFT;
+	int played = localizedOnly ? NativeAudio_PlayLocalizedXATrack(categoryID, xaID, volume, volume) :
+	                             NativeAudio_PlayXATrack(categoryID, xaID, volume, volume);
+	if (!played)
+	{
+		return 0;
+	}
+	sdata->XA_State = XA_PLAYING;
+	sdata->chaosRuntime.humanXA = false;
+	sdata->XA_Playing_Index = xaID;
+	sdata->XA_Playing_Category = categoryID;
+	sdata->XA_VolumeBitshift = volume;
+	sdata->XA_boolFinished = 0;
+	sdata->XA_CurrOffset = 0;
+	sdata->XA_MaxSampleIndex = 0;
+	sdata->XA_MaxSampleNumSaved = 0;
+	for (int i = 0; i < CDSYS_XA_MAX_SAMPLE_WINDOW; i++)
+	{
+		sdata->XA_MaxSampleValArr[i] = 0;
+	}
+	sdata->XA_MaxSampleVal = 0;
+	sdata->XA_MaxSampleValInArr = 0;
+	return 1;
+}
+
+int CDSYS_XAPlayLocalized(int categoryID, int xaID)
+{
+	return sdata->boolUseDisc == 0 && CDSYS_XAPlayNative(categoryID, xaID, true);
+}
+
 int CDSYS_XAPlay(int categoryID, int xaID)
 {
 	u8 buf1[8];
@@ -623,32 +656,10 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 
 	if (sdata->boolUseDisc == 0)
 	{
-		int nativeVol = (categoryID == CDSYS_XA_TYPE_MUSIC) ? sdata->vol_Music : sdata->vol_Voice;
-
 		// NOTE(aalhendi): Native CD has no CD-XA IRQ stream. Feed extracted
 		// XA assets to the native audio backend and synthesize the minimal
 		// retail XA state gates.
-		if (NativeAudio_PlayXATrack(categoryID, xaID, nativeVol << CDSYS_XA_VOLUME_SHIFT, nativeVol << CDSYS_XA_VOLUME_SHIFT) == 0)
-		{
-			return 0;
-		}
-
-		sdata->XA_State = XA_PLAYING;
-		sdata->chaosRuntime.humanXA = false;
-		sdata->XA_Playing_Index = xaID;
-		sdata->XA_Playing_Category = categoryID;
-		sdata->XA_VolumeBitshift = nativeVol << CDSYS_XA_VOLUME_SHIFT;
-		sdata->XA_boolFinished = 0;
-		sdata->XA_CurrOffset = 0;
-		sdata->XA_MaxSampleIndex = 0;
-		sdata->XA_MaxSampleNumSaved = 0;
-		for (int i = 0; i < CDSYS_XA_MAX_SAMPLE_WINDOW; i++)
-		{
-			sdata->XA_MaxSampleValArr[i] = 0;
-		}
-		sdata->XA_MaxSampleVal = 0;
-		sdata->XA_MaxSampleValInArr = 0;
-		return 1;
+		return CDSYS_XAPlayNative(categoryID, xaID, false);
 	}
 
 	if (sdata->bool_XnfLoaded == 0)

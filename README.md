@@ -225,6 +225,11 @@ and mono/stereo setting. Left/Right adjusts volumes; confirm switches mono/stere
 Previews stop when leaving Audio. In the main menu, Music uses the menu's existing
 music as feedback. Audio settings use the game's normal memory-card save system.
 
+### Language
+
+Choose text and voice languages independently under **Options > System > Language**.
+See the [language player guide](docs/features/LANGUAGE.md) for setup and custom translations.
+
 ### General
 
 | Key                                   | Values                                                       | Default   | Description                                                                                      |

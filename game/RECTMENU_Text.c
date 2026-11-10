@@ -1,31 +1,5 @@
 #include <common.h>
 
-static const char *const s_menuPortStrings[LNG_PORT_STRING_COUNT] = {
-	[LNG_PORT_MODE - LNG_PORT_STRING_BASE] = "Mode",
-	[LNG_PORT_CHAOS - LNG_PORT_STRING_BASE] = "Chaos",
-	[LNG_PORT_REGULAR - LNG_PORT_STRING_BASE] = "Regular",
-	[LNG_PORT_CHAOS_RULES - LNG_PORT_STRING_BASE] = "Chaos Rules",
-	[LNG_PORT_SUPER_HARD - LNG_PORT_STRING_BASE] = "Super Hard",
-	[LNG_PORT_ULTRA_HARD - LNG_PORT_STRING_BASE] = "Ultra Hard",
-};
-
-CTR_STATIC_ASSERT(LNG_PORT_STRING_BASE + LNG_PORT_STRING_COUNT <= MENU_ROW_LNG_MASK);
-
-const char *RECTMENU_GetString(s32 stringIndex)
-{
-	const s32 index = stringIndex & MENU_ROW_LNG_MASK;
-	if (index >= LNG_PORT_STRING_BASE)
-	{
-		const s32 portIndex = index - LNG_PORT_STRING_BASE;
-		return portIndex < LNG_PORT_STRING_COUNT ? s_menuPortStrings[portIndex] : "";
-	}
-	if (sdata->lngStrings == NULL || index >= sdata->numLngStrings)
-	{
-		return "";
-	}
-	return sdata->lngStrings[index];
-}
-
 void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 {
 	int fontType = FONT_BIG;
@@ -36,7 +10,7 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 
 	for (struct MenuRow *row = m->rows; row->stringIndex != RECTMENU_STRING_NONE; row++)
 	{
-		const int lineWidth = DecalFont_GetLineWidth((char *)RECTMENU_GetString(row->stringIndex), fontType);
+		const int lineWidth = DecalFont_GetLineWidth((char *)LANG_GetString(row->stringIndex & MENU_ROW_LNG_MASK), fontType);
 		if (*width < lineWidth + 1)
 		{
 			*width = lineWidth + 1;
@@ -49,7 +23,7 @@ void RECTMENU_GetWidth(struct RectMenu *m, s16 *width, b32 boolCheckSubmenu)
 		{
 			fontType = FONT_BIG;
 		}
-		const int lineWidth = DecalFont_GetLineWidth((char *)RECTMENU_GetString(m->stringIndexTitle), fontType);
+		const int lineWidth = DecalFont_GetLineWidth((char *)LANG_GetString(m->stringIndexTitle & MENU_ROW_LNG_MASK), fontType);
 		if (*width < lineWidth + 1)
 		{
 			*width = lineWidth + 1;

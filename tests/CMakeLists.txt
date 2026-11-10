@@ -57,6 +57,40 @@ function(ctr_add_test_suite NAME)
 endfunction()
 
 # Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_disc_images
+    SOURCES test_disc_images.c
+    LIBRARIES SDL3::SDL3
+)
+
+ctr_add_test_suite(test_language_disc
+    SOURCES test_language_disc.c
+)
+
+ctr_add_test_suite(test_tomlc17
+    SOURCES test_tomlc17.c
+    LIBRARIES tomlc17
+)
+
+ctr_add_test_suite(test_text_catalog
+    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    LIBRARIES tomlc17
+)
+
+ctr_add_test_suite(test_text_export
+    SOURCES test_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    LIBRARIES tomlc17 SDL3::SDL3
+)
+
+ctr_add_test_suite(test_text_runtime
+    SOURCES test_text_runtime.c
+    LIBRARIES tomlc17 SDL3::SDL3
+)
+
+ctr_add_test_suite(test_language_discovery
+    SOURCES test_language_discovery.c
+    LIBRARIES tomlc17 SDL3::SDL3
+)
+
 ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )

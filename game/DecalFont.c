@@ -12,6 +12,35 @@
 #define FONT_INDENT_DIMENSIONS data.font_indentPixDimensions
 #define FONT_COLORS            data.ptrColor
 
+// PAL character semantics adapted from CTR-ModSDK's ExpandedFont module.
+enum
+{
+	FONT_PAL_TILDE = 3,
+	FONT_APOSTROPHE_ICON = 0x24,
+	FONT_EXCLAMATION_ICON = 0x25,
+	FONT_PERIOD_ICON = 0x2c,
+	FONT_QUESTION_ICON = 0x2e,
+	FONT_UNDERSCORE_ICON = 0x2f,
+};
+
+// SCES_021.05 PAL data at 0x80082948-0x8008299f.
+static const s16 s_palTilde[FONT_NUM][3] = {{0, 0, 0}, {2, -11, 0xc00}, {2, -5, 0xc00}, {2, -11, 0xc00}};
+static const s16 s_palQuoteOffset[FONT_NUM] = {0, -3, -2, -3};
+static const s16 s_palQuoteSpacing[FONT_NUM] = {0, 6, 4, 5};
+static const s16 s_palInvertedOffset[FONT_NUM][2] = {{0, 0}, {8, 7}, {5, 3}, {8, 7}};
+static const s16 s_palOrdinalOffset[FONT_NUM][2] = {{0, 0}, {-2, -8}, {-2, -3}, {0, -8}};
+
+static int DecalFont_InlineColor(const u8 *text, s16 len)
+{
+	if ((len >= 0 && len < 3) || text[0] != '~' || text[1] == 0 || text[2] == 0 ||
+	    text[1] < '0' || text[1] > '9' || text[2] < '0' || text[2] > '9')
+	{
+		return -1;
+	}
+	int color = (text[1] - '0') * 10 + text[2] - '0';
+	return color < NUM_COLORS ? color : -1;
+}
+
 #define FONT_DRAW_POLY_GT4(icon, x, y, primMem, ot, c0, c1, c2, c3, transparency, scale)                                                                \
 	DecalHUD_DrawPolyGT4((icon), (x), (y), (primMem), (ot), ColorCode_Load(&(c0)), ColorCode_Load(&(c1)), ColorCode_Load(&(c2)), ColorCode_Load(&(c3)), \
 	                     (transparency), (scale))
@@ -22,6 +51,12 @@ s32 DecalFont_GetLineWidthStrlen(char *str, s16 len, s16 fontType)
 	while (*str != 0 && len != 0)
 	{
 		u8 c = *str;
+		if (DecalFont_InlineColor((const u8 *)str, len) >= 0)
+		{
+			str += 3;
+			len -= 3;
+			continue;
+		}
 		if (c == '@' || c == '[' || c == '^' || c == '*')
 		{
 			// NOTE(aalhendi): @, [, ^ and * encode circle, square, triangle and cross.
@@ -31,7 +66,7 @@ s32 DecalFont_GetLineWidthStrlen(char *str, s16 len, s16 fontType)
 		{
 			width += FONT_PUNCT_WIDTH[fontType];
 		}
-		else if (c > 2)
+		else if (c > FONT_PAL_TILDE)
 		{
 			width += FONT_CHAR_WIDTH[fontType];
 		}
@@ -67,6 +102,14 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 	flags &= 0xfff;
 	for (character = (u8 *)str; *character != 0 && len != 0; character++, len--)
 	{
+		int inlineColor = DecalFont_InlineColor(character, len);
+		if (inlineColor >= 0)
+		{
+			flags = (s16)inlineColor;
+			character += 2;
+			len -= 2;
+			continue;
+		}
 		s16 extraX = 0;
 		u16 iconID = 0xff;
 		s16 extraY = 0;
@@ -74,6 +117,9 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 		Color *colors = (Color *)FONT_COLORS[flags];
 		s16 charWidth = FONT_CHAR_WIDTH[fontType];
 		s16 iconScale = FP(1.0);
+		int copies = 1;
+		int copyOffset = 0;
+		bool inverted = false;
 		s32 rawCode = *character;
 		// NOTE(aalhendi): Keep the raw byte separate from the classifier's retail scratch register.
 		register s32 c CTR_PSX_REGISTER("$3") = rawCode;
@@ -101,6 +147,35 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 			extraX = dimensions[0];
 			extraY = dimensions[1];
 			charWidth = 0;
+		}
+		else if (c == FONT_PAL_TILDE)
+		{
+			// PAL composes Ñ from a reduced underscore followed by N.
+			iconID = FONT_UNDERSCORE_ICON;
+			extraX = s_palTilde[fontType][0];
+			extraY = s_palTilde[fontType][1];
+			iconScale = s_palTilde[fontType][2];
+			charWidth = 0;
+		}
+		else if (c == '"')
+		{
+			iconID = FONT_APOSTROPHE_ICON;
+			extraX = s_palQuoteOffset[fontType];
+			copyOffset = s_palQuoteSpacing[fontType];
+			copies = 2;
+		}
+		else if (c == '#' || c == '$')
+		{
+			iconID = c == '#' ? FONT_EXCLAMATION_ICON : FONT_QUESTION_ICON;
+			extraX = s_palInvertedOffset[fontType][0];
+			extraY = s_palInvertedOffset[fontType][1];
+			inverted = true;
+		}
+		else if (c == '&')
+		{
+			iconID = FONT_PERIOD_ICON;
+			extraX = s_palOrdinalOffset[fontType][0];
+			extraY = s_palOrdinalOffset[fontType][1];
 		}
 		else if ((u32)(c - 0x21) < 0xdf && iconID == 0xff)
 		{
@@ -131,9 +206,23 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 				if (iconID < group->numIcons)
 				{
 					struct Icon **icons = ICONGROUP_GETICONS(group);
-					FONT_DRAW_POLY_GT4(icons[iconID], x + extraX * scale / FP(1.0), posY + extraY * scale / FP(1.0),
-					                   &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, colors[0], colors[1],
-					                   colors[2], colors[3], 0, iconScale * scale / FP(1.0));
+					for (int i = 0; i < copies; i++)
+					{
+						int glyphX = x + (extraX + i * copyOffset) * scale / FP(1.0);
+						int glyphY = posY + extraY * scale / FP(1.0);
+						if (inverted)
+						{
+							DecalHUD_Arrow2D(icons[iconID], glyphX, glyphY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
+							                 ColorCode_Load(&colors[2]), ColorCode_Load(&colors[3]), ColorCode_Load(&colors[0]),
+							                 ColorCode_Load(&colors[1]), 0, iconScale * scale / FP(1.0), 0x800);
+						}
+						else
+						{
+							FONT_DRAW_POLY_GT4(icons[iconID], glyphX, glyphY, &gGT->backBuffer->primMem,
+							                   gGT->pushBuffer_UI.ptrOT, colors[0], colors[1], colors[2], colors[3],
+							                   0, iconScale * scale / FP(1.0));
+						}
+					}
 				}
 			}
 		}

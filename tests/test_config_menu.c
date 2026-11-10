@@ -23,6 +23,15 @@ static struct GameTracker s_tracker;
 static struct DB s_buffer;
 static int s_configSaves;
 static int s_controlsSaves;
+static int s_languageApplied;
+static int s_textCatalogReloaded;
+static int s_voiceRefreshed;
+static int s_textExportCalls;
+static int s_europeTextAvailable = 1;
+static bool s_recordLanguageDraw;
+static int s_languageDrawSequence;
+static int s_languagePopupDraw;
+static int s_languageUnderlyingDraw;
 static bool s_capturing;
 static bool s_pickerOpen;
 static NativeConfig s_initialConfig;
@@ -51,6 +60,29 @@ static int s_backgroundDeactivations;
 static int s_trackImportOpened;
 static int s_trackRefreshCalls;
 static int s_trackRefreshSuccess = 1;
+
+const char *LANG_GetString(s32 index)
+{
+	switch (index)
+	{
+	case LNG_EXPANDED_TRACKS_REFRESH_SUMMARY: return "TRACKS: {tracks}  REJECTED: {rejected}";
+	case LNG_EXPANDED_TRACKS_IMPORT: return "Import";
+	case LNG_EXPANDED_TRACKS_AUTHOR: return "Author";
+	case LNG_EXPANDED_TRACKS_MODES: return "Modes";
+	case LNG_EXPANDED_TRACKS_UNKNOWN: return "Unknown";
+	case LNG_EXPANDED_TRACKS_NONE_IMPORTED: return "No tracks imported";
+	case LNG_EXPANDED_TRACKS_REFRESH_FAILED: return "Refresh failed";
+	default: break;
+	}
+	static char values[LNG_EXPANDED_STRING_COUNT][48];
+	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
+	{
+		return "";
+	}
+	char *value = values[index - LNG_EXPANDED_STRING_BASE];
+	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
+	return value;
+}
 static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
@@ -87,6 +119,7 @@ static void ConfigMenuTest_Save(void);
 // distinguish staying at the section list from accidentally reopening a page.
 
 static void ConfigMenuTest_Save(void) { s_configSaves++; }
+void LANG_Refresh(int slot) { s_textCatalogReloaded = slot; }
 const char *NativeAssets_GetBaseDir(void)
 {
 	CtrTest_Bail("menu tests must not access configuration files");
@@ -125,6 +158,60 @@ int NativeTrackLibrary_Refresh(const char *directory, struct NativeTrackScanResu
 	return s_trackRefreshSuccess;
 }
 void NativeControls_Save(void) { s_controlsSaves++; }
+int NativeLanguageDisc_HasText(int slot) { return slot == 5; }
+int NativeLanguageDisc_HasAnyText(void) { return s_europeTextAvailable; }
+enum NativeTextExportResult NativeTextExport_Active(int slot, NativeTextExport_GetString getString)
+{ (void)slot; (void)getString; s_textExportCalls++; return NATIVE_TEXT_EXPORT_OK; }
+static bool s_customLanguageAvailable;
+int NativeTextRuntime_HasText(int slot) { return s_customLanguageAvailable && slot == NATIVE_TEXT_CUSTOM_FIRST; }
+int NativeTextRuntime_LanguageCount(void) { return s_customLanguageAvailable ? 7 : 6; }
+int NativeTextRuntime_LanguageAt(int index)
+{
+	static const int slots[] = {1, 3, 4, 5, 6, 7, NATIVE_TEXT_CUSTOM_FIRST};
+	return index >= 0 && index < NativeTextRuntime_LanguageCount() ? slots[index] : -1;
+}
+const char *NativeTextRuntime_LanguageId(int slot)
+{
+	switch (slot)
+	{
+	case 1: return "en";
+	case 3: return "fr";
+	case 4: return "de";
+	case 5: return "it";
+	case 6: return "es";
+	case 7: return "nl";
+	case NATIVE_TEXT_CUSTOM_FIRST: return "pt";
+	default: return NULL;
+	}
+}
+int NativeTextRuntime_LanguageSlot(const char *id)
+{
+	for (int i = 0; i < NativeTextRuntime_LanguageCount(); i++)
+	{
+		int slot = NativeTextRuntime_LanguageAt(i);
+		if (strcmp(id, NativeTextRuntime_LanguageId(slot)) == 0) { return slot; }
+	}
+	return -1;
+}
+const char *NativeTextRuntime_LanguageSelfName(int slot)
+{
+	if (slot == NATIVE_LANGUAGE_FRENCH) { return "FRANCAIS"; }
+	return slot == NATIVE_TEXT_CUSTOM_FIRST ? "PORTUGUES" : NULL;
+}
+int NativeLanguageDisc_HasVoice(int slot) { return slot == 4; }
+const char *LOAD_LanguageSelfName(int slot)
+{
+	switch (slot)
+	{
+	case NATIVE_LANGUAGE_ENGLISH: return "English";
+	case NATIVE_LANGUAGE_FRENCH: return "DISC FRENCH";
+	case NATIVE_LANGUAGE_GERMAN: return "DISC GERMAN";
+	case NATIVE_LANGUAGE_ITALIAN: return "DISC ITALIAN";
+	default: return NULL;
+	}
+}
+int LOAD_ApplyLanguage(int slot) { s_languageApplied = slot; return 1; }
+void NativeAudio_RefreshVoiceLanguage(void) { s_voiceRefreshed++; }
 void GhostTape_Destroy(void) {}
 void MainRaceTrack_RequestLoad(s16 level) { (void)level; }
 b32 RaceFlag_IsFullyOnScreen(void) { return false; }
@@ -188,7 +275,15 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	(void)y; (void)font; (void)ot;
 	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
 	if (strcmp(text, "1 / 1") == 0) { s_trackNumberDraws++; }
-	if (strcmp(text, "System") == 0)
+	if (s_recordLanguageDraw && strcmp(text, "English") == 0 && s_languagePopupDraw == 0)
+	{
+		s_languagePopupDraw = ++s_languageDrawSequence;
+	}
+	if (s_recordLanguageDraw && strcmp(text, LANG_GetString(LNG_EXPANDED_CONFIG_AUDIO)) == 0 && s_languageUnderlyingDraw == 0)
+	{
+		s_languageUnderlyingDraw = ++s_languageDrawSequence;
+	}
+	if (strcmp(text, LANG_GetString(LNG_EXPANDED_CONFIG_SYSTEM)) == 0)
 	{
 		s_sectionFont = font;
 	}
@@ -318,8 +413,14 @@ static void TestNavigation(void)
 	{
 		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
 	}
-	const char *groups[][4] = {
-		{"System", "Audio", "Controls", "Graphics"},
+	CTR_TEST_CHECK(Config_EntryLabel(entries[0]) == LANG_GetString(LNG_EXPANDED_CONFIG_SYSTEM),
+	               "the System navigation label resolves through the catalog");
+	CTR_TEST_CHECK(Config_SectionLabel(CONFIG_SECTION_AUDIO) == LANG_GetString(LNG_EXPANDED_CONFIG_AUDIO),
+	               "the Audio section title uses the same catalog entry as its navigation row");
+	CTR_TEST_CHECK(strcmp(Config_SectionLabel("Unmigrated"), "Unmigrated") == 0,
+	               "an unmigrated section retains its existing label");
+	const char *groups[][5] = {
+		{"System", "Audio", "Language", "Controls", "Graphics"},
 		{"Game", "Adventure", "General", "Unlocks"},
 		{"Modifiers", "Vehicle", "Weapons", NULL},
 	};
@@ -327,7 +428,7 @@ static void TestNavigation(void)
 	{
 		SelectNavigation(groups[group][0]);
 		count = Config_NavigationEntries(entries);
-		int expected = groups[group][3] != NULL ? 3 : 2;
+		int expected = group == 0 ? 4 : (groups[group][3] != NULL ? 3 : 2);
 		CTR_TEST_CHECK(count == expected, "each group exposes its expected subsections");
 		for (int i = 0; i < count; i++)
 		{
@@ -459,7 +560,7 @@ static void TestTrackImportMenu(void)
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackRefreshCalls == 1 && s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT && s_trackFixtureCount == 2 &&
-	               strcmp(s_customTracksRefreshMessage, "Tracks: 2  Rejected: 1") == 0,
+	               strcmp(s_customTracksRefreshMessage, "TRACKS: 2  REJECTED: 1") == 0,
 	               "refresh scans the track directory and displays its result");
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
@@ -642,7 +743,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "text", "retail_priority", "export_active_language", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",
@@ -654,6 +755,8 @@ static void TestAvailability(void)
 	for (int i = 0; i < g_numConfigEntries; i++)
 	{
 		const ConfigEntry *entry = &g_configEntries[i];
+		CTR_TEST_CHECK(entry->lngKey >= LNG_EXPANDED_STRING_BASE && entry->lngKey < LNG_EXPANDED_STRING_END,
+		               "every configuration entry has a catalog label");
 		bool allowed = strcmp(entry->section, CONFIG_SECTION_DEVELOPER_HACKS) == 0;
 		for (int k = 0; k < (int)len(allowedKeys); k++)
 		{
@@ -668,33 +771,36 @@ static void TestEditing(enum ConfigMenuContext context)
 	for (int i = 0; i < g_numConfigEntries; i++)
 	{
 		const ConfigEntry *entry = &g_configEntries[i];
-		if (entry->type == CFG_ACTION || entry->valuePtr == &g_config.developerHacksEnabled)
+		if (entry->type == CFG_ACTION || entry->valuePtr == &g_config.developerHacksEnabled || strcmp(entry->section, CONFIG_SECTION_LANGUAGE) == 0)
 		{
 			continue;
 		}
 		g_config = s_initialConfig;
 		g_config.developerHacksEnabled = true;
 		// Non-default values prove disabled rows display the current value, not a placeholder.
-		char expectedText[64];
+		char expectedBuffer[64];
+		const char *expectedText;
 		if (entry->type == CFG_BOOL)
 		{
 			*(bool *)entry->valuePtr = true;
-			snprintf(expectedText, sizeof(expectedText), "ON");
+			expectedText = LANG_GetString(LNG_EXPANDED_ON);
 		}
 		else if (entry->type == CFG_ENUM)
 		{
 			*(int *)entry->valuePtr = entry->enumValues[1].value;
-			snprintf(expectedText, sizeof(expectedText), "%s", entry->enumValues[1].name);
+			const ConfigEnumValue *choice = &entry->enumValues[1];
+			expectedText = choice->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(choice->lngKey) : choice->name;
 		}
 		else
 		{
 			*(int *)entry->valuePtr = entry->min + entry->step;
-			snprintf(expectedText, sizeof(expectedText), "%d%%", EntryValue(entry));
+			snprintf(expectedBuffer, sizeof(expectedBuffer), "%d%%", EntryValue(entry));
+			expectedText = expectedBuffer;
 		}
 		const int before = EntryValue(entry);
 		const bool editable = context == CONFIG_MENU_MAIN || entry->availableDuringPause;
 		OpenEntry(i, context);
-		s_observedLabel = entry->label;
+		s_observedLabel = LANG_GetString(entry->lngKey);
 		s_valueDrawn = false;
 		SetInput(0, 0);
 		UpdateMenu();
@@ -729,6 +835,145 @@ static void TestEditing(enum ConfigMenuContext context)
 		}
 	}
 	s_observedLabel = NULL;
+}
+
+static void TestLanguagePicker(void)
+{
+	CTR_TEST_SECTION("independent language menus");
+	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_FRENCH, "fallback"), "FRANCAIS") == 0,
+	               "language metadata takes precedence over the disc name");
+	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_SPANISH, "fallback"), "fallback") == 0,
+	               "missing metadata and disc names fall back to the configured label");
+	for (int row = 0; row < 2; row++)
+	{
+		int index = -1;
+		for (int i = 0; i < g_numConfigEntries; i++)
+		{
+			if (g_configEntries[i].valuePtr == (row == 0 ? (void *)&g_config.voiceLanguage : (void *)&g_config.textLanguage))
+			{
+				index = i;
+				break;
+			}
+		}
+		if (index < 0) { CtrTest_Bail("language row missing"); }
+		g_config = s_initialConfig;
+		s_languageApplied = 0;
+		s_textCatalogReloaded = 0;
+		s_voiceRefreshed = 0;
+		OpenEntry(index, CONFIG_MENU_MAIN);
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw == 0,
+		               "opening draws the language menu in the same frame");
+		CTR_TEST_CHECK(s_languageMenuOpen && s_languageChoiceCount == 2, "menu includes only English and available resources");
+		CTR_TEST_CHECK(strcmp(Config_LanguageChoiceLabel(&g_configEntries[index], 1), row == 0 ? "DISC GERMAN" : "DISC ITALIAN") == 0,
+		               "menu displays the name supplied by the language resource");
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		SetInput(0, 0);
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw == 0,
+		               "language menu is drawn without the underlying settings");
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		SetInput(BTN_TRIANGLE, 0);
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languageUnderlyingDraw != 0,
+		               "cancelling draws the settings in the same frame");
+		CTR_TEST_CHECK(!s_languageMenuOpen && s_languageApplied == 0 && s_voiceRefreshed == 0,
+		               "back closes the language menu without applying");
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
+		SetInput(BTN_DOWN, 0);
+		UpdateMenu();
+		SetInput(BTN_CROSS, 0);
+		s_lastMenuSound = -1;
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languageUnderlyingDraw != 0,
+		               "confirming draws the settings in the same frame");
+		CTR_TEST_CHECK(!s_languageMenuOpen, "confirm closes the language menu");
+		CTR_TEST_CHECK(s_lastMenuSound == 1, "confirming a language plays the confirmation sound");
+		if (row == 0)
+		{
+			CTR_TEST_CHECK(g_config.voiceLanguage == 4 && g_config.textLanguage == 1 && s_voiceRefreshed == 1,
+			               "voice selection applies independently of text");
+			CTR_TEST_CHECK(s_textCatalogReloaded == 0, "voice changes do not reload text catalogs");
+		}
+		else
+		{
+			CTR_TEST_CHECK(g_config.textLanguage == 5 && g_config.voiceLanguage == 1 && s_languageApplied == 5,
+			               "text selection applies independently of voices");
+			CTR_TEST_CHECK(s_textCatalogReloaded == 5, "text confirmation reloads the selected catalog");
+		}
+	}
+	s_customLanguageAvailable = true;
+	const ConfigEntry *textEntry = NULL;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (g_configEntries[i].valuePtr == &g_config.textLanguage) { textEntry = &g_configEntries[i]; break; }
+	}
+	if (textEntry == NULL) { CtrTest_Bail("text language row missing"); }
+	g_config = s_initialConfig;
+	Config_OpenLanguageMenu(textEntry);
+	CTR_TEST_CHECK(s_languageChoiceCount == 3 && strcmp(Config_LanguageChoiceLabel(textEntry, 2), "PORTUGUES") == 0,
+	               "the text menu offers a discovered custom language by its native name");
+	CTR_TEST_CHECK(Config_ApplyLanguageChoice(textEntry, 2) && g_config.textLanguage == NATIVE_TEXT_CUSTOM_FIRST &&
+	               s_languageApplied == NATIVE_TEXT_CUSTOM_FIRST && s_textCatalogReloaded == NATIVE_TEXT_CUSTOM_FIRST,
+	               "selecting a custom text language applies and reloads it");
+	s_customLanguageAvailable = false;
+	g_config = s_initialConfig;
+}
+
+static void TestRetailDiscPreference(void)
+{
+	CTR_TEST_SECTION("retail disc preference availability");
+	int index = -1;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (g_configEntries[i].valuePtr == &g_config.retailTextPriority) { index = i; break; }
+	}
+	if (index < 0) { CtrTest_Bail("retail disc preference must exist"); }
+	g_config = s_initialConfig;
+	s_europeTextAvailable = 0;
+	OpenEntry(index, CONFIG_MENU_MAIN);
+	g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_ISO_EU;
+	s_textCatalogReloaded = 0;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_EXPANDED && !Config_CanEdit(&g_configEntries[index]),
+	               "without European text the preference is forced off and cannot be edited");
+	CTR_TEST_CHECK(s_textCatalogReloaded == g_config.textLanguage, "forcing off refreshes the active text");
+	s_europeTextAvailable = 1;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && Config_CanEdit(&g_configEntries[index]),
+	               "the preference becomes editable when European text is available");
+	g_config = s_initialConfig;
+}
+
+static void TestExportActiveLanguage(void)
+{
+	CTR_TEST_SECTION("export active language action");
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (strcmp(g_configEntries[i].key, "export_active_language") != 0) { continue; }
+		OpenEntry(i, CONFIG_MENU_MAIN);
+		s_textExportCalls = 0;
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
+		CTR_TEST_CHECK(s_textExportCalls == 1 && s_textExportStatus == LNG_EXPANDED_EXPORT_DONE,
+		               "confirm exports the active language and displays the result");
+		return;
+	}
+	CtrTest_Bail("export action must be present");
 }
 
 static void TestDeveloperGate(void)
@@ -1010,6 +1255,9 @@ int main(void)
 	               "a new session starts at the section list with reset scrolling");
 	CTR_TEST_SECTION("Pause availability policy");
 	TestAvailability();
+	TestLanguagePicker();
+	TestRetailDiscPreference();
+	TestExportActiveLanguage();
 	CTR_TEST_SECTION("Main-menu editing and values");
 	TestEditing(CONFIG_MENU_MAIN);
 	CTR_TEST_SECTION("Paused editing, disabled values and colors");

@@ -45,7 +45,11 @@
 #undef RECT
 
 #include "platform/native_disc_image.c"
+#include "platform/native_language_disc.c"
 #include "platform/native_assets.c"
+#include "platform/native_text_catalog.c"
+#include "platform/native_text_runtime.c"
+#include "platform/native_text_export.c"
 #include "platform/native_track_registry.c"
 #include "platform/native_track_library.c"
 #include "platform/native_track_file.c"
@@ -198,7 +202,12 @@ int main(int argc, char *argv[])
 		return NativeConsole_Return(1);
 	}
 
+	NativeTextRuntime_DiscoverLanguages();
 	NativeConfig_Load();
+	if (!NativeLanguageDisc_HasAnyText())
+	{
+		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
+	}
 	NativeControls_Init();
 
 #if defined(CTR_INTERNAL)

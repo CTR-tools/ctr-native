@@ -28,7 +28,7 @@ static int TrackImport_ValidateFile(const struct NativeTrackRegistry *registry, 
 	return valid;
 }
 
-static const char *TrackImport_Install(const char *library, const char *name, const char *sources[5])
+static enum ExpandedLngString TrackImport_Install(const char *library, const char *name, const char *sources[5])
 {
 	static const char *files[] = {"track.lev", "track.vrm", "track.sca", "preview.jpg", "track.ini"};
 	char target[TRACK_IMPORT_PATH_MAX], staging[TRACK_IMPORT_PATH_MAX];
@@ -38,79 +38,79 @@ static const char *TrackImport_Install(const char *library, const char *name, co
 	    strlen(name) > TRACK_IMPORT_NAME_MAX || strcmp(name, ".") == 0 || strcmp(name, "..") == 0 ||
 	    strpbrk(name, "/\\:<>\"|?*") != NULL || name[0] == '.')
 	{
-		return "Invalid destination name";
+		return LNG_EXPANDED_IMPORT_INVALID_DESTINATION;
 	}
 	if (!TrackImport_Path(target, sizeof(target), library, name) ||
 	    SDL_snprintf(staging, sizeof(staging), "%s/.import-%llu", library,
 	                 (unsigned long long)SDL_GetTicksNS()) >= (int)sizeof(staging))
 	{
-		return "Path is too long";
+		return LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 	}
 	if (!SDL_CreateDirectory(library))
 	{
-		return "Cannot create the track library";
+		return LNG_EXPANDED_IMPORT_CREATE_LIBRARY_FAILED;
 	}
 	if (SDL_GetPathInfo(target, &info))
 	{
-		return "Destination already exists";
+		return LNG_EXPANDED_IMPORT_DESTINATION_EXISTS;
 	}
 	if (SDL_GetPathInfo(staging, &info) || !SDL_CreateDirectory(staging))
 	{
-		return "Cannot create the temporary directory";
+		return LNG_EXPANDED_IMPORT_CREATE_TEMP_FAILED;
 	}
-	const char *error = NULL;
+	enum ExpandedLngString error = LNG_TRACK_RESULT_OK;
 	for (size_t i = 0; i < SDL_arraysize(files); i++)
 	{
 		if (!TrackImport_Path(to, sizeof(to), staging, files[i]))
 		{
-			error = "Path is too long";
+			error = LNG_EXPANDED_IMPORT_PATH_TOO_LONG;
 			break;
 		}
 		if (sources[i] == NULL || sources[i][0] == '\0')
 		{
 			if (i < 2)
 			{
-				error = "Missing track.lev or track.vrm";
+				error = LNG_EXPANDED_IMPORT_MISSING_FILES;
 				break;
 			}
 			continue;
 		}
 		if (!SDL_GetPathInfo(sources[i], &info) || info.type != SDL_PATHTYPE_FILE || !SDL_CopyFile(sources[i], to))
 		{
-			error = "Cannot copy track file";
+			error = LNG_EXPANDED_IMPORT_COPY_FAILED;
 			break;
 		}
 	}
 	struct NativeTrackRegistry *candidate = NativeTrackRegistry_Create();
-	if (error == NULL && (candidate == NULL || !NativeTrackLibrary_ReadDirectory(candidate, staging, name)))
+	if (error == LNG_TRACK_RESULT_OK && (candidate == NULL || !NativeTrackLibrary_ReadDirectory(candidate, staging, name)))
 	{
-		error = "Invalid track metadata or files";
+		error = LNG_EXPANDED_IMPORT_INVALID_METADATA_FILES;
 	}
-	if (error == NULL && (!TrackImport_ValidateFile(candidate, NATIVE_TRACK_FILE_LEV) ||
+	if (error == LNG_TRACK_RESULT_OK && (!TrackImport_ValidateFile(candidate, NATIVE_TRACK_FILE_LEV) ||
 	                      !TrackImport_ValidateFile(candidate, NATIVE_TRACK_FILE_VRM)))
 	{
-		error = "Invalid LEV or VRM";
+		error = LNG_EXPANDED_IMPORT_INVALID_FILES;
 	}
-	if (error == NULL)
+	if (error == LNG_TRACK_RESULT_OK)
 	{
 		struct NativeTrackRegistry *installed = NativeTrackLibrary_Scan(library, NULL);
 		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(candidate, NATIVE_TRACK_CUSTOM_ID_BASE);
 		if (installed == NULL)
 		{
-			error = "Cannot scan the track library";
+			error = LNG_EXPANDED_IMPORT_SCAN_FAILED;
 		}
 		else if (NativeTrackRegistry_Find(installed, track->identity, NULL))
 		{
-			error = "Track identity is already installed";
+			error = LNG_EXPANDED_IMPORT_DUPLICATE;
 		}
 		NativeTrackRegistry_Destroy(installed);
 	}
 	NativeTrackRegistry_Destroy(candidate);
-	if (error == NULL && (SDL_GetPathInfo(target, &info) || !SDL_RenamePath(staging, target)))
+	if (error == LNG_TRACK_RESULT_OK && (SDL_GetPathInfo(target, &info) || !SDL_RenamePath(staging, target)))
 	{
-		error = "Cannot publish the imported track";
+		error = LNG_EXPANDED_IMPORT_PUBLISH_FAILED;
 	}
-	if (error != NULL)
+	if (error != LNG_TRACK_RESULT_OK)
 	{
 		for (size_t i = 0; i < SDL_arraysize(files); i++)
 		{
@@ -165,16 +165,16 @@ static SDL_EnumerationResult SDLCALL TrackImport_Visit(void *userdata, const cha
 	return SDL_ENUM_CONTINUE;
 }
 
-const char *NativeTrackImport_Directory(const char *library, const char *source, const char *name)
+enum ExpandedLngString NativeTrackImport_Directory(const char *library, const char *source, const char *name)
 {
 	if (source == NULL)
 	{
-		return "Invalid source directory";
+		return LNG_EXPANDED_IMPORT_INVALID_SOURCE;
 	}
 	struct TrackImportDirectory scan = {0};
 	if (!SDL_EnumerateDirectory(source, TrackImport_Visit, &scan))
 	{
-		return scan.ambiguous ? "Multiple files of the same type" : scan.tooLong ? "Path is too long" : "Cannot read folder";
+		return scan.ambiguous ? LNG_EXPANDED_IMPORT_AMBIGUOUS_FILES : scan.tooLong ? LNG_EXPANDED_IMPORT_PATH_TOO_LONG : LNG_EXPANDED_IMPORT_READ_FOLDER_FAILED;
 	}
 	const char *sources[5];
 	for (size_t i = 0; i < SDL_arraysize(sources); i++)

@@ -6,9 +6,13 @@
 typedef struct {
     const char *name;
     int value;
+    int lngKey; // display text; name remains the stable INI representation
 } ConfigEnumValue;
 
 typedef struct {
+    int textLanguage;
+    int voiceLanguage;
+    int retailTextPriority;
     bool skipIntro;             // false = off (default), true = skip all intros
     bool skipPodiumCeremonies;  // false = off (default), true = automatically leave post-event podiums
     bool showReservesMeter;     // true = show the in-game reserves meter (default = false)
@@ -67,6 +71,12 @@ typedef struct {
 
 enum
 {
+    RETAIL_TEXT_PRIORITY_EXPANDED,
+    RETAIL_TEXT_PRIORITY_ISO_EU,
+};
+
+enum
+{
     MASK_MODE_NORMAL = 0,
     MASK_MODE_RANDOM = 1,
     MASK_MODE_INVERTED = 2,
@@ -106,12 +116,13 @@ typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION, CFG_SUBSECTION } ConfigT
 #define CONFIG_SECTION_DEVELOPER_HACKS "Developer Hacks"
 #define CONFIG_SECTION_CONTROLS      "Controls"
 #define CONFIG_SECTION_AUDIO         "Audio"
+#define CONFIG_SECTION_LANGUAGE      "Language"
 #define CONFIG_SECTION_CUSTOM_TRACKS "Custom Tracks"
 
 typedef struct {
     const char *section;
     const char *key;
-    const char *label;
+    int lngKey;                 // Expanded LNG ID for the menu label
     ConfigType type;
     void *valuePtr;             // points into g_config (e.g. &g_config.skipIntro)
     int min, max, step;         // slider bounds, ignored for CFG_BOOL/CFG_ENUM
