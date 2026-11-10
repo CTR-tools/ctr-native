@@ -839,7 +839,7 @@ static void TestEditing(enum ConfigMenuContext context)
 
 static void TestLanguagePicker(void)
 {
-	CTR_TEST_SECTION("independent language pickers");
+	CTR_TEST_SECTION("independent language menus");
 	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_FRENCH, "fallback"), "FRANCAIS") == 0,
 	               "language metadata takes precedence over the disc name");
 	CTR_TEST_CHECK(strcmp(Config_LanguageLabel(NATIVE_LANGUAGE_SPANISH, "fallback"), "fallback") == 0,
@@ -861,24 +861,45 @@ static void TestLanguagePicker(void)
 		s_textCatalogReloaded = 0;
 		s_voiceRefreshed = 0;
 		OpenEntry(index, CONFIG_MENU_MAIN);
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
 		SetInput(BTN_CROSS, 0);
 		UpdateMenu();
-		CTR_TEST_CHECK(s_languagePickerOpen && s_languageChoiceCount == 2, "picker includes only English and available resources");
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw == 0,
+		               "opening draws the language menu in the same frame");
+		CTR_TEST_CHECK(s_languageMenuOpen && s_languageChoiceCount == 2, "menu includes only English and available resources");
 		CTR_TEST_CHECK(strcmp(Config_LanguageChoiceLabel(&g_configEntries[index], 1), row == 0 ? "DISC GERMAN" : "DISC ITALIAN") == 0,
-		               "picker displays the name supplied by the language resource");
+		               "menu displays the name supplied by the language resource");
 		s_recordLanguageDraw = true;
 		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
 		SetInput(0, 0);
 		UpdateMenu();
 		s_recordLanguageDraw = false;
-		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw > s_languagePopupDraw,
-		               "popup primitives are submitted before the underlying menu so they appear above it");
+		CTR_TEST_CHECK(s_languagePopupDraw != 0 && s_languageUnderlyingDraw == 0,
+		               "language menu is drawn without the underlying settings");
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
+		SetInput(BTN_TRIANGLE, 0);
+		UpdateMenu();
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languageUnderlyingDraw != 0,
+		               "cancelling draws the settings in the same frame");
+		CTR_TEST_CHECK(!s_languageMenuOpen && s_languageApplied == 0 && s_voiceRefreshed == 0,
+		               "back closes the language menu without applying");
+		SetInput(BTN_CROSS, 0);
+		UpdateMenu();
 		SetInput(BTN_DOWN, 0);
 		UpdateMenu();
 		SetInput(BTN_CROSS, 0);
 		s_lastMenuSound = -1;
+		s_recordLanguageDraw = true;
+		s_languageDrawSequence = s_languagePopupDraw = s_languageUnderlyingDraw = 0;
 		UpdateMenu();
-		CTR_TEST_CHECK(!s_languagePickerOpen, "confirm closes the picker");
+		s_recordLanguageDraw = false;
+		CTR_TEST_CHECK(s_languageUnderlyingDraw != 0,
+		               "confirming draws the settings in the same frame");
+		CTR_TEST_CHECK(!s_languageMenuOpen, "confirm closes the language menu");
 		CTR_TEST_CHECK(s_lastMenuSound == 1, "confirming a language plays the confirmation sound");
 		if (row == 0)
 		{
@@ -901,9 +922,9 @@ static void TestLanguagePicker(void)
 	}
 	if (textEntry == NULL) { CtrTest_Bail("text language row missing"); }
 	g_config = s_initialConfig;
-	Config_OpenLanguagePicker(textEntry);
+	Config_OpenLanguageMenu(textEntry);
 	CTR_TEST_CHECK(s_languageChoiceCount == 3 && strcmp(Config_LanguageChoiceLabel(textEntry, 2), "PORTUGUES") == 0,
-	               "the text picker offers a discovered custom language by its native name");
+	               "the text menu offers a discovered custom language by its native name");
 	CTR_TEST_CHECK(Config_ApplyLanguageChoice(textEntry, 2) && g_config.textLanguage == NATIVE_TEXT_CUSTOM_FIRST &&
 	               s_languageApplied == NATIVE_TEXT_CUSTOM_FIRST && s_textCatalogReloaded == NATIVE_TEXT_CUSTOM_FIRST,
 	               "selecting a custom text language applies and reloads it");
