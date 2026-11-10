@@ -95,6 +95,11 @@ int main(void)
 	s_italianRetail = "PAUSED = 'PAUSA'\nRESTART = '\xc3\xa0'\nDRIVERS_CHUMP = 'TEST %s'\n";
 	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "a usable shipped retail catalog makes Italian available without a disc");
 	CTR_TEST_CHECK(!NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_FRENCH), "a missing retail catalog does not make a language available");
+	s_italianRetail = "";
+	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "an empty shipped catalog makes Italian available");
+	s_italianRetail = "invalid TOML";
+	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "a malformed shipped catalog makes Italian available without parsing");
+	s_italianRetail = "PAUSED = 'PAUSA'\nRESTART = '\xc3\xa0'\nDRIVERS_CHUMP = 'TEST %s'\n";
 	char *retailTable[LNG_RETAIL_STRING_COUNT] = {0};
 	retailTable[LNG_PAUSED] = "PAUSED";
 	retailTable[LNG_RESTART] = "RESTART";
@@ -127,6 +132,8 @@ int main(void)
 	               "personal overrides precede the shipped catalog and invalid overrides fall back per string");
 	s_italianRetail = NULL;
 	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "a personal catalog makes text available without a disc");
+	s_italianRetailOverride = "";
+	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "an empty personal catalog makes Italian available");
 	s_italianRetail = "PAUSED = 'PAUSA'\n";
 	s_italianRetailOverride = NULL;
 	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);

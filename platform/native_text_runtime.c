@@ -111,17 +111,21 @@ int NativeTextRuntime_HasRetail(int languageSlot)
 {
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
 	if (id == NULL) { return 0; }
-	struct NativeRetailTextRuntimeValues *probe = calloc(1, sizeof(*probe));
-	if (probe == NULL) { return 0; }
-	NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, probe->values, probe->present);
-	NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_RETAIL, probe->values, probe->present);
-	int found = 0;
-	for (int i = 0; i < LNG_RETAIL_STRING_COUNT; i++)
+	char path[1200];
+	int length = snprintf(path, sizeof(path), "%s/resources/text/%s/retail.toml", NativeAssets_GetExecutableDir(), id);
+	FILE *file = NULL;
+	if (length >= 0 && (size_t)length < sizeof(path))
 	{
-		if (probe->present[i]) { found = 1; break; }
+		file = fopen(path, "rb");
 	}
-	free(probe);
-	return found;
+	if (file == NULL)
+	{
+		snprintf(path, sizeof(path), "text/%s/retail.toml", id);
+		file = NativeAssets_OpenHost(path, "rb");
+	}
+	if (file == NULL) { return 0; }
+	fclose(file);
+	return 1;
 }
 
 void NativeTextRuntime_Reload(int languageSlot)
