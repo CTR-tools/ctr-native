@@ -654,6 +654,7 @@ void VehBirth_EngineAudio_AllPlayers(void)
 		driverID = d->driverID;
 		engine = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[driverID]].engineID;
 		engine = Chaos_EngineClassForDriver(d, engine);
+		engine = EngineClass_AudioClass(engine);
 		CTR_PSX_MEMORY_BARRIER();
 		engine = (engine * 4) + driverID;
 

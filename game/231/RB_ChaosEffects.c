@@ -497,7 +497,7 @@ bool Chaos_ShouldFreezeAudioChannel(const struct ChannelStats *channel)
 		{
 			const struct Driver *driver = GAME_TRACKER->drivers[i];
 			if (driver != NULL && (driver->actionsFlagSet & ACTION_BOT) == 0 &&
-			    channel->soundID == Chaos_EngineClassForDriver(driver, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[i]].engineID) *
+			    channel->soundID == EngineClass_AudioClass(Chaos_EngineClassForDriver(driver, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[i]].engineID)) *
 			        CHAOS_ENGINE_AUDIO_CLASS_STRIDE + i)
 			{
 				return false;
@@ -1106,6 +1106,8 @@ static void Chaos_ApplyClockCurse(struct Driver *driver, s32 durationMS)
 
 static void Chaos_ChangeEngineAudio(const struct Driver *driver, int previous, int next)
 {
+	previous = EngineClass_AudioClass(previous);
+	next = EngineClass_AudioClass(next);
 	EngineAudio_Stop(previous * CHAOS_ENGINE_AUDIO_CLASS_STRIDE + driver->driverID);
 	EngineAudio_InitOnce(next * CHAOS_ENGINE_AUDIO_CLASS_STRIDE + driver->driverID, HOWL_SFX_CENTER_NO_DISTORTION);
 }

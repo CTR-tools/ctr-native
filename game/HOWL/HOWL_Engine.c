@@ -140,6 +140,7 @@ void EngineSound_Player(struct Driver *driver)
 	u32 lr;
 	int engine = data.MetaDataCharacters[data.characterIDs[id]].engineID;
 	engine = Chaos_EngineClassForDriver(driver, engine);
+	engine = EngineClass_AudioClass(engine);
 
 	if (driver->engineSoundMode == ENGINE_SOUND_FADE_OUT)
 	{

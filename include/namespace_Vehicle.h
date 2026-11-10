@@ -574,8 +574,14 @@ enum EngineClass
 	// polar, pura, roo, penta
 	TURN,
 
+	CUSTOM_MAX,
 	NUM_CLASSES
 };
+
+static inline int EngineClass_AudioClass(int engineClass)
+{
+	return engineClass == CUSTOM_MAX ? SPEED : engineClass;
+}
 
 enum
 {
@@ -1983,7 +1989,7 @@ enum
 	DRIVER_NTSC_RETAIL_SIZE = 0x62c,
 };
 
-CTR_STATIC_ASSERT(sizeof(struct MetaPhys) == 0x1C);
+CTR_STATIC_ASSERT(sizeof(struct MetaPhys) == 0x20);
 CTR_STATIC_ASSERT(sizeof(DriverFunc) == sizeof(void *));
 CTR_STATIC_ASSERT(sizeof(struct DriverCheckpointState) == 0x2);
 CTR_STATIC_ASSERT(offsetof(struct DriverCheckpointState, branchChoiceIndex) == 0x0);

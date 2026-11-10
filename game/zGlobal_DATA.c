@@ -7100,11 +7100,12 @@ struct Data
                                           0x0100},
                 },
 
-#define PHYSWRAP(b, c, d, e, f, g) .unusedDebugStr = 0, .offset = b, .size = c, .value[0] = d, .value[1] = e, .value[2] = f, .value[3] = g
+#define PHYSWRAP_CUSTOM(b, c, d, e, f, g, h) .unusedDebugStr = 0, .offset = b, .size = c, .value = {d, e, f, g, h}
+#define PHYSWRAP(b, c, d, e, f, g) PHYSWRAP_CUSTOM(b, c, d, e, f, g, f)
 
 
-            // Each line is one stat with four engine-class values.
-            // Layout is: unused debug word, driver offset, size, BALANCED, ACCEL, SPEED, TURN.
+            // Custom Max uses Speed's values except for acceleration and steering.
+            // Layout: offset, size, BALANCED, ACCEL, SPEED, TURN, optional CUSTOM_MAX.
             .metaPhys =
                 {
                     {PHYSWRAP(GRAVITY_OFFSET, 2, 900, 900, 900, 900)},
@@ -7116,7 +7117,7 @@ struct Data
                     {PHYSWRAP(BRAKE_FRICTION_OFFSET, 2, 260, 260, 260, 260)},
                     {PHYSWRAP(DRIFT_CURVE_OFFSET, 2, 120, 120, 120, 120)},
                     {PHYSWRAP(DRIFT_FRICTION_OFFSET, 2, 120, 120, 120, 120)},
-                    {PHYSWRAP(ACCEL_CLASS_STAT_OFFSET, 2, 480, 544, 448, 512)},
+                    {PHYSWRAP_CUSTOM(ACCEL_CLASS_STAT_OFFSET, 2, 480, 544, 448, 512, 544)},
                     {PHYSWRAP(ACCEL_RESERVES_OFFSET, 2, 1152, 1152, 1152, 1152)},
                     {PHYSWRAP(SPEED_CLASS_STAT_OFFSET, 2, 13140, 13520, 13900, 12950)},
                     {PHYSWRAP(ACCEL_SPEED_CLASS_STAT_OFFSET, 2, 14640, 15020, 15400, 14450)},
@@ -7125,11 +7126,11 @@ struct Data
                     {PHYSWRAP(BACKWARD_SPEED_OFFSET, 2, 5120, 5120, 5120, 5120)},
                     {PHYSWRAP(MASK_SPEED_OFFSET, 2, 3900, 3900, 3900, 3900)},
                     {PHYSWRAP(DAMAGED_SPEED_OFFSET, 2, 4096, 4096, 4096, 4096)},
-                    {PHYSWRAP(TURN_RATE_OFFSET, 1, 28, 26, 24, 30)},
+                    {PHYSWRAP_CUSTOM(TURN_RATE_OFFSET, 1, 28, 26, 24, 30, 30)},
                     {PHYSWRAP(BACKWARD_TURN_RATE_OFFSET, 1, 48, 48, 48, 48)},
-                    {PHYSWRAP(TURN_DECREASE_RATE_OFFSET, 2, 4080, 9080, 5666, 7252)},
-                    {PHYSWRAP(TURN_INPUT_DELAY_OFFSET, 2, 5000, 4500, 4000, 5500)},
-                    {PHYSWRAP(PRE_TURBO_OFFSET, 2, 1000, 750, 500, 1250)},
+                    {PHYSWRAP_CUSTOM(TURN_DECREASE_RATE_OFFSET, 2, 4080, 9080, 5666, 7252, 7252)},
+                    {PHYSWRAP_CUSTOM(TURN_INPUT_DELAY_OFFSET, 2, 5000, 4500, 4000, 5500, 5500)},
+                    {PHYSWRAP_CUSTOM(PRE_TURBO_OFFSET, 2, 1000, 750, 500, 1250, 1250)},
                     {PHYSWRAP(TERMINAL_VELOCITY_OFFSET, 2, 20480, 20480, 20480, 20480)},
                     {PHYSWRAP(TERRAIN_FRICTION_BOOST_OFFSET, 2, 256, 256, 256, 256)},
                     {PHYSWRAP(STEER_ACCEL_STAGE4_FIRST_FRAME_OFFSET, 1, 64, 64, 64, 64)},
@@ -7149,7 +7150,7 @@ struct Data
                     {PHYSWRAP(TURN_RESIST_MAX_OFFSET, 1, 224, 224, 224, 224)},
                     {PHYSWRAP(STEER_VEL_DRIFT_SWITCH_WAY_OFFSET, 1, -10, -10, -10, -10)},
                     {PHYSWRAP(STEER_VEL_DRIFT_STANDARD_OFFSET, 1, 22, 22, 22, 22)},
-                    {PHYSWRAP(DRIFT_TURN_BASE_OFFSET, 1, 14, 10, 5, 18)},
+                    {PHYSWRAP_CUSTOM(DRIFT_TURN_BASE_OFFSET, 1, 14, 10, 5, 18, 18)},
                     {PHYSWRAP(DRIFT_TURN_STARTUP_SCALE_OFFSET, 1, 100, 100, 100, 100)},
                     {PHYSWRAP(DRIFT_TURN_RAMP_FRAMES_OFFSET, 1, 60, 60, 60, 60)},
                     {PHYSWRAP(DRIFT_FRAMES_TILL_SPINOUT_OFFSET, 1, 60, 60, 60, 60)},
