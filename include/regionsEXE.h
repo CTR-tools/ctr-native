@@ -4094,6 +4094,9 @@ struct sData
 	struct AdvMultiplayerSettings advMultiplayer;
 	enum AdventureDifficulty advDifficulty;
 
+	// Zero means the character's default; otherwise the engine class plus one.
+	u8 selectedEngineClass[4];
+
 	// Chaos settings of the profile in use. Initialised on New, configured at creation,
 	// and mirrored to/from the card extension on save/load.
 	struct ChaosSettings chaosSettings;

@@ -788,6 +788,12 @@ static void SelectProfile_LoadAdvMultiplayer(int slot)
 {
 	struct AdvMultiplayerSettings *saved = &SelectProfile_MemcardData()->extension.adventure[slot];
 	s16 characterID2 = SelectProfile_AdvMultiplayerPartner(saved);
+	for (int player = 0; player < 2; player++)
+	{
+		const u8 encoded = SelectProfile_MemcardData()->extension.engines[slot][player];
+		const u8 choice = encoded & 0x0f;
+		sdata->selectedEngineClass[player] = ((encoded & 0xf0) == 0xa0 && choice <= NUM_CLASSES) ? choice : 0;
+	}
 
 	GAMEPROG_ResetAdvMultiplayer(&sdata->advMultiplayer);
 
@@ -805,11 +811,16 @@ static void SelectProfile_SaveAdvMultiplayer(int slot)
 	struct AdvMultiplayerSettings *saved = &SelectProfile_MemcardData()->extension.adventure[slot];
 
 	*saved = sdata->advMultiplayer;
+	for (int player = 0; player < 2; player++)
+	{
+		SelectProfile_MemcardData()->extension.engines[slot][player] = 0xa0 | sdata->selectedEngineClass[player];
+	}
 }
 
 static void SelectProfile_ClearAdvMultiplayer(int slot)
 {
 	memset(&SelectProfile_MemcardData()->extension.adventure[slot], 0, sizeof(struct AdvMultiplayerSettings));
+	memset(SelectProfile_MemcardData()->extension.engines[slot], 0, sizeof(SelectProfile_MemcardData()->extension.engines[slot]));
 }
 
 // Whether the Adventure file sitting in this slot of the card was created with

@@ -113,6 +113,7 @@ HANDLE_EXITING:
 	case MM_EXIT_ROUTE_ADV_NEW:
 
 		GAMEPROG_NewProfile_InsideAdv(&GAME_ADV_PROGRESS);
+		memset(sdata->selectedEngineClass, 0, sizeof(sdata->selectedEngineClass));
 
 		// The 1P/2P choice happens before this route, but the profile screen that
 		// writes the new save runs later, after the main menu has already reset

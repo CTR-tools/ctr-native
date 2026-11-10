@@ -114,6 +114,15 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 	// Draw and accept input only while the selection camera is stationary.
 	if (CS_GARAGE_MOVE_FRAME == 0)
 	{
+		const int character = CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT];
+		int selectedEngine = VehBirth_EngineClassForPlayer(0, GAME_CHARACTER_METADATA[character].engineID);
+		if (g_config.engineSelection && CS_GARAGE_SELECTED == 0 && (GAME_ANY_PLAYER_TAP & (BTN_L1 | BTN_R1)) != 0)
+		{
+			selectedEngine = (selectedEngine + ((GAME_ANY_PLAYER_TAP & BTN_L1) != 0 ? NUM_CLASSES - 1 : 1)) % NUM_CLASSES;
+			sdata->selectedEngineClass[0] = selectedEngine + 1;
+			GAME_ANY_PLAYER_TAP &= ~(BTN_L1 | BTN_R1);
+			OtherFX_Play(0, 1);
+		}
 		// Retain the unused garage-frame counter.
 		CS_GARAGE_UNUSED_FRAMES++;
 
@@ -128,13 +137,15 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 
 				statBarLength = &CS_GARAGE_STAT_LENGTHS[i];
 
-				if (*statBarLength < *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase))
+				const int target = selectedEngine == CUSTOM_MAX ? 80 : *(s16 *)((selectedEngine * 6 + i * 2) + (u8 *)targetBase);
+				(void)selectedID;
+				if (*statBarLength < target)
 				{
 					*statBarLength = *statBarLength + GARAGE_STAT_BAR_RATE;
 				}
-				if (*statBarLength > *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase))
+				if (*statBarLength > target)
 				{
-					*statBarLength = *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase);
+					*statBarLength = target;
 				}
 			}
 		}
@@ -216,7 +227,7 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_ACCEL], statNamePosX, GARAGE_STAT_NAME_ACCEL_Y, FONT_BIG, JUSTIFY_RIGHT | LIME_GREEN);
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_TURN], statNamePosX, GARAGE_STAT_NAME_TURN_Y, FONT_BIG, JUSTIFY_RIGHT | BLUE);
 
-		engineID = GAME_CHARACTER_METADATA[CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT]].engineID;
+		engineID = selectedEngine;
 		if (engineID == 3)
 		{
 			classStringIndex = 0;
@@ -231,8 +242,16 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 		}
 
 		// Draw class name
-		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[classStringIndex]], classNamePosX, GARAGE_CLASS_NAME_Y, FONT_BIG,
-		                   (JUSTIFY_CENTER | ORANGE));
+		if (g_config.engineSelection)
+		{
+			static char *const names[NUM_CLASSES] = {"BALANCED", "ACCEL", "SPEED", "TURN", "CUSTOM MAX"};
+			DecalFont_DrawLine(names[engineID], classNamePosX, GARAGE_CLASS_NAME_Y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
+		}
+		else
+		{
+			DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[classStringIndex]], classNamePosX, GARAGE_CLASS_NAME_Y, FONT_BIG,
+			                   JUSTIFY_CENTER | ORANGE);
+		}
 
 		// NOTE(aalhendi): Keep the drawing row separate from the loop count so
 		// GCC advances the row coordinates before the length pointer, as in retail.
@@ -370,6 +389,7 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 
 		if ((CS_BUTTONS_HOLD & GARAGE_INPUT_HORIZONTAL) != 0)
 		{
+			sdata->selectedEngineClass[0] = 0;
 			// erase animated bars
 
 			for (i = 2; i > -1; i--)

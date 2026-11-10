@@ -737,6 +737,7 @@ void VehBirth_TeleportAll(struct GameTracker *gGT, u32 spawnFlags);
 struct Model *VehBirth_GetModelByName(char *searchName);
 void VehBirth_SetConsts(struct Driver *driver);
 void VehBirth_SetConstsForClass(struct Driver *driver, int engineID);
+int VehBirth_EngineClassForPlayer(int player, int defaultClass);
 void VehBirth_EngineAudio_AllPlayers(void);
 void VehBirth_TireSprites(struct Thread *t);
 void VehBirth_NonGhost(struct Thread *t, int index);

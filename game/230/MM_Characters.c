@@ -749,6 +749,8 @@ void MM_Characters_RestoreIDs(void)
 	s16 playerIndex;
 	s16 driverIndex;
 
+	memset(sdata->selectedEngineClass, 0, sizeof(sdata->selectedEngineClass));
+
 	// erase select bits
 	MM_CHARACTER_SELECT_FLAGS = 0;
 	MM_CHARACTER_SELECT_TRANSITION_FRAME = MM_CHARACTER_SELECT_TRANSITION_FRAMES;
@@ -860,6 +862,33 @@ void MM_Characters_HideDrivers(void)
 static inline u8 MM_Characters_ScaleColor(u8 color)
 {
 	return (u8)((int)((u32)color << 2) / 5);
+}
+
+static void MM_Characters_DrawEngineStats(int player, const RECT *window)
+{
+	static char *const names[NUM_CLASSES] = {"BALANCED", "ACCEL", "SPEED", "TURN", "CUSTOM MAX"};
+	static const u8 stats[NUM_CLASSES][3] = {
+		{55, 55, 55}, {48, 80, 32}, {80, 32, 10}, {28, 48, 80}, {80, 80, 80},
+	};
+	static const int labels[3] = {LNG_SPEED, LNG_ACCEL, LNG_TURN};
+	static const Color colors[3] = {{.r = 255, .g = 80, .b = 32}, {.r = 80, .g = 255, .b = 80}, {.r = 80, .g = 128, .b = 255}};
+	const int engine = VehBirth_EngineClassForPlayer(player, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[player]].engineID);
+	const int width = window->w < 120 ? window->w - 8 : 112;
+	if (width < 50 || window->h < 48 || engine < 0 || engine >= NUM_CLASSES)
+	{
+		return;
+	}
+	RECT box = {window->x + 4, window->y + window->h - 44, width, 40};
+	u32 *ot = GAME_TRACKER->backBuffer->otMem.uiOT;
+	DecalFont_DrawLineScaledOT(names[engine], box.x + box.w / 2, box.y + 1, FONT_SMALL, JUSTIFY_CENTER | ORANGE, 0x900, ot);
+	for (int row = 0; row < 3; row++)
+	{
+		const int y = box.y + 12 + row * 9;
+		DecalFont_DrawLineScaledOT(GAME_LANGUAGE_STRINGS[labels[row]], box.x + 3, y, FONT_SMALL, WHITE, 0x700, ot);
+		RECT bar = {box.x + box.w / 2, y + 2, (box.w / 2 - 5) * stats[engine][row] / 80, 4};
+		MM_DRAW_SOLID_BOX_WITH_PRIM_MEM(&bar, &colors[row], ot, &GAME_TRACKER->backBuffer->primMem);
+	}
+	RECTMENU_DrawInnerRect(&box, 4, &ot[2]);
 }
 
 void MM_Characters_MenuProc(struct RectMenu *unused)
@@ -1058,6 +1087,20 @@ dontDrawSelectCharacter:
 		MM_Characters_AnimateColors((u8 *)&playerColor, playerIndex, (int)(s16)(MM_CHARACTER_SELECT_FLAGS & (u16)(1 << playerIndex)));
 
 		preInputCharacterMeta = &MM_ACTIVE_CHARACTER_SELECT_META[(s16)candidateIcon];
+		if (g_config.engineSelection && MM_CHARACTER_SELECT_MENU_STATE == IN_MENU &&
+		    (MM_CHARACTER_SELECT_FLAGS & (1 << playerIndex)) == 0)
+		{
+			const u32 engineButtons = MM_GAME_BUTTON_TAPS[playerIndex] & (BTN_L1 | BTN_R1);
+			if (engineButtons != 0)
+			{
+				const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[playerIndex]].engineID;
+				int engineClass = VehBirth_EngineClassForPlayer(playerIndex, defaultClass);
+				engineClass = (engineClass + ((engineButtons & BTN_L1) != 0 ? NUM_CLASSES - 1 : 1)) % NUM_CLASSES;
+				sdata->selectedEngineClass[playerIndex] = engineClass + 1;
+				MM_GAME_BUTTON_TAPS[playerIndex] &= ~(BTN_L1 | BTN_R1);
+				OtherFX_Play(0, 1);
+			}
+		}
 
 		if ((MM_CHARACTER_SELECT_MENU_STATE == IN_MENU) &&
 		    // If you press the D-Pad, or Cross, Square, Triangle, Circle
@@ -1299,6 +1342,10 @@ dontDrawSelectCharacter:
 		}
 
 		candidateIconIndex = (s16)candidateIcon;
+		if (candidateIconIndex != iconPerPlayer[playerIndex])
+		{
+			sdata->selectedEngineClass[playerIndex] = 0;
+		}
 		iconPerPlayer[playerIndex] = candidateIcon;
 
 		// transition of each icon
@@ -1589,6 +1636,10 @@ outerPlayerLoopComplete:
 		windowRect.y = MM_CHARACTER_SELECT_TRANSITION_META[menuPlayerIndex + MM_CHARACTER_SELECT_DRIVER_WINDOW_TRANSITION_FIRST].currY + windowPos->y;
 		windowRect.w = MM_CHARACTER_SELECT_WINDOW_WIDTH;
 		windowRect.h = MM_CHARACTER_SELECT_WINDOW_HEIGHT;
+		if (g_config.engineSelection && MM_CHARACTER_SELECT_MENU_STATE == IN_MENU)
+		{
+			MM_Characters_DrawEngineStats(playerIndex, &windowRect);
+		}
 
 		MM_Characters_AnimateColors((u8 *)&animatedColor, menuPlayerIndex,
 

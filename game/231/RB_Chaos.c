@@ -185,7 +185,8 @@ void Chaos_Reset(void)
 				Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
 				if (i < (int)len(sdata->chaosRuntime.engineClassChanged) && sdata->chaosRuntime.engineClassChanged[i])
 				{
-					const int original = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[driver->driverID]].engineID;
+					const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[driver->driverID]].engineID;
+					const int original = VehBirth_EngineClassForPlayer(driver->driverID, defaultClass);
 					VehBirth_SetConstsForClass(driver, original);
 					if (i < sdata->gGT->numPlyrCurrGame)
 					{

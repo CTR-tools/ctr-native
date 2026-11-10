@@ -787,7 +787,15 @@ void VehBirth_NonGhost(struct Thread *t, int index)
 	// NOTE(aalhendi): Retail leaves terrainMeta2 unset until COLL_FIXED;
 	// native cannot dereference the PS1 low-memory null-space before then.
 	d->terrainMeta2 = d->terrainMeta1;
-	VehBirth_SetConsts(d);
+	if ((GAME_TRACKER->gameMode1 & GAME_MODE_MENU_OR_CUTSCENE_MASK) == 0 && playerIndex < GAME_TRACKER->numPlyrCurrGame)
+	{
+		const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[playerIndex]].engineID;
+		VehBirth_SetConstsForClass(d, VehBirth_EngineClassForPlayer(playerIndex, defaultClass));
+	}
+	else
+	{
+		VehBirth_SetConsts(d);
+	}
 
 	// if you are in cutscene or in main menu
 	if ((GAME_TRACKER->gameMode1 & GAME_MODE_MENU_OR_CUTSCENE_MASK) != 0)

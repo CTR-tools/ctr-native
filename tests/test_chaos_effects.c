@@ -534,6 +534,14 @@ static void TestTrySomethingNew(void)
 	s_tracker.drivers[0] = &human;
 	s_tracker.drivers[1] = &partner;
 	s_tracker.drivers[2] = &bot;
+	g_config.engineSelection = true;
+	sdata->selectedEngineClass[0] = CUSTOM_MAX + 1;
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(0, BALANCED), CUSTOM_MAX, "a player can request Custom Max independently of the character");
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(1, ACCEL), ACCEL, "another player without a selection retains the character class");
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(4, SPEED), SPEED, "non-player slots never use player selections");
+	g_config.engineSelection = false;
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(0, BALANCED), BALANCED, "disabling engine selection retains the character class");
+	sdata->selectedEngineClass[0] = 0;
 	VehBirth_SetConsts(&human);
 	VehBirth_SetConsts(&partner);
 	CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, 15000, "ordinary vehicle birth retains character-based class and configured multipliers");
@@ -662,7 +670,7 @@ static void TestIdentityCrisis(void)
 		               "the partner excludes their current character, the transformed human and bots");
 		CTR_TEST_CHECK(instances[0].model == sdata->chaosCharacterModels[character], "the existing instance uses the selected character model");
 		CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, data.metaPhys[0].value[engine], "the selected character supplies the driving class");
-		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(previousClass * 4), "transformation stops the live class engine");
+		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(EngineClass_AudioClass(previousClass) * 4), "transformation stops the live class engine");
 		CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(engine * 4), "transformation starts the selected character engine");
 		CTR_TEST_CHECK(sdata->chaosRuntime.identity[0].originalCharacter == CRASH_BANDICOOT &&
 		               sdata->chaosRuntime.identity[0].originalModel == &originalModels[0],

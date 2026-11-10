@@ -1143,6 +1143,11 @@ int Chaos_EngineClassForDriver(const struct Driver *driver, int engineClass)
 	{
 		return sdata->chaosRuntime.engineClass[driver->driverID];
 	}
+	if (driver != NULL && driver->driverID < sdata->gGT->numPlyrCurrGame &&
+	    sdata->gGT->drivers[driver->driverID] == driver)
+	{
+		return VehBirth_EngineClassForPlayer(driver->driverID, engineClass);
+	}
 	return engineClass;
 }
 
