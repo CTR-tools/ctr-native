@@ -206,6 +206,7 @@
 #include "UI/UI_DrawNum.c"
 #include "UI/UI_Speedometer.c"
 #include "UI/UI_Meter.c"
+#include "UI/UI_EngineStats.c"
 #include "UI/UI_VolumeSlider.c"
 #include "UI/UI_Rank.c"
 #include "UI/UI_RenderFrame.c"
