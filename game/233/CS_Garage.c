@@ -26,6 +26,10 @@ enum
 	GARAGE_STAT_BOX_Y = 11,
 	GARAGE_STAT_BOX_HEIGHT = 68,
 	GARAGE_STAT_BOX_PADDING_X = 6,
+	GARAGE_SCREEN_WIDTH = 512,
+	GARAGE_CLASS_COUNT = 3,
+	GARAGE_ENGINE_COUNT = 4,
+	GARAGE_STAT_COUNT = 3,
 	GARAGE_OSK_DELAY_FRAMES = 60,
 	GARAGE_CAMERA_FRAME_STEP = 30,
 	GARAGE_CAMERA_WRAP_RIGHT_FRAME = 240,
@@ -94,7 +98,6 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 
 	s32 rowIndex;
 	s32 statBarShadows_Y;
-	s16 classMaxLen;
 
 	s32 arrowColor;
 
@@ -151,6 +154,63 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 			classNamePosX = 128;
 			statBarPosX = 139;
 		}
+
+		// Keep the retail font size while fitting every class, label and stat bar.
+		int classWidth = DecalFont_GetLineWidth("INTERMEDIATE", FONT_BIG);
+		int statWidth = 0;
+		int barWidth = 0;
+		const int statStrings[] = {LNG_SPEED, LNG_ACCEL, LNG_TURN};
+		for (int j = 0; j < GARAGE_CLASS_COUNT; j++)
+		{
+			int width = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[j]], FONT_BIG);
+			if (width > classWidth)
+			{
+				classWidth = width;
+			}
+		}
+		for (int j = 0; j < GARAGE_STAT_COUNT; j++)
+		{
+			int width = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[statStrings[j]], FONT_BIG);
+			if (width > statWidth)
+			{
+				statWidth = width;
+			}
+		}
+		for (int j = 0; j < GARAGE_ENGINE_COUNT * GARAGE_STAT_COUNT; j++)
+		{
+			if (CS_GARAGE_STAT_TARGETS[j] > barWidth)
+			{
+				barWidth = CS_GARAGE_STAT_TARGETS[j];
+			}
+		}
+		int left = classNamePosX - (classWidth + 1) / 2;
+		int right = classNamePosX + (classWidth + 1) / 2;
+		int statLeft = (int)statNamePosX - statWidth;
+		int barRight = (int)statBarPosX + barWidth;
+		if (statLeft < left)
+		{
+			left = statLeft;
+		}
+		if (barRight > right)
+		{
+			right = barRight;
+		}
+		left -= GARAGE_STAT_BOX_PADDING_X;
+		right += GARAGE_STAT_BOX_PADDING_X;
+		int shift = 0;
+		if (left < 0)
+		{
+			shift = -left;
+		}
+		else if (right > GARAGE_SCREEN_WIDTH)
+		{
+			shift = GARAGE_SCREEN_WIDTH - right;
+		}
+		classNamePosX += shift;
+		statNamePosX += shift;
+		statBarPosX += shift;
+		r.x = left + shift;
+		r.w = right - left;
 
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_SPEED], statNamePosX, GARAGE_STAT_NAME_SPEED_Y, FONT_BIG, JUSTIFY_RIGHT | ORANGE_RED);
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_ACCEL], statNamePosX, GARAGE_STAT_NAME_ACCEL_Y, FONT_BIG, JUSTIFY_RIGHT | LIME_GREEN);
@@ -276,12 +336,8 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 			}
 		}
 
-		classMaxLen = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_INTERMEDIATE], FONT_BIG);
-
 		// Stats box
-		r.x = (classNamePosX - (classMaxLen >> 1)) - GARAGE_STAT_BOX_PADDING_X;
 		r.y = GARAGE_STAT_BOX_Y;
-		r.w = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_INTERMEDIATE], FONT_BIG) + GARAGE_STAT_BOX_PADDING_X * 2;
 		r.h = GARAGE_STAT_BOX_HEIGHT;
 
 		// Draw 2D Menu rectangle background
