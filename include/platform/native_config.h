@@ -122,8 +122,7 @@ typedef enum { CFG_BOOL, CFG_INT, CFG_ENUM, CFG_ACTION, CFG_SUBSECTION } ConfigT
 typedef struct {
     const char *section;
     const char *key;
-    const char *label;          // fallback when lngKey is zero
-    int lngKey;                 // Expanded LNG ID, or zero for the fallback label
+    int lngKey;                 // Expanded LNG ID for the menu label
     ConfigType type;
     void *valuePtr;             // points into g_config (e.g. &g_config.skipIntro)
     int min, max, step;         // slider bounds, ignored for CFG_BOOL/CFG_ENUM

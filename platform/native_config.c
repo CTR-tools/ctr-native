@@ -133,32 +133,32 @@ NativeConfig g_config = {
 const ConfigEntry g_configEntries[] = {
 
     {
-        .section = CONFIG_SECTION_LANGUAGE, .key = "audio", .label = "Audio", .lngKey = LNG_EXPANDED_CONFIG_AUDIO,
+        .section = CONFIG_SECTION_LANGUAGE, .key = "audio", .lngKey = LNG_EXPANDED_CONFIG_AUDIO,
         .type = CFG_ENUM, .valuePtr = &g_config.voiceLanguage,
         .enumValues = kLanguageValues, .numEnumValues = sizeof(kLanguageValues) / sizeof(kLanguageValues[0]),
         .availableDuringPause = true,
     },
     {
-        .section = CONFIG_SECTION_LANGUAGE, .key = "text", .label = "Text", .lngKey = LNG_EXPANDED_CONFIG_TEXT,
+        .section = CONFIG_SECTION_LANGUAGE, .key = "text", .lngKey = LNG_EXPANDED_CONFIG_TEXT,
         .type = CFG_ENUM, .valuePtr = &g_config.textLanguage,
         .enumValues = kLanguageValues, .numEnumValues = sizeof(kLanguageValues) / sizeof(kLanguageValues[0]),
         .availableDuringPause = true,
     },
     {
-        .section = CONFIG_SECTION_LANGUAGE, .key = "retail_priority", .label = "Retail Priority", .lngKey = LNG_EXPANDED_CONFIG_RETAIL_PRIORITY,
+        .section = CONFIG_SECTION_LANGUAGE, .key = "retail_priority", .lngKey = LNG_EXPANDED_CONFIG_RETAIL_PRIORITY,
         .type = CFG_ENUM, .valuePtr = &g_config.retailTextPriority,
         .enumValues = kRetailTextPriorityValues, .numEnumValues = sizeof(kRetailTextPriorityValues) / sizeof(kRetailTextPriorityValues[0]),
         .availableDuringPause = true,
     },
     {
-        .section = CONFIG_SECTION_LANGUAGE, .key = "export_active_language", .label = "Export Active Language",
+        .section = CONFIG_SECTION_LANGUAGE, .key = "export_active_language",
         .lngKey = LNG_EXPANDED_EXPORT_ACTIVE_LANGUAGE, .type = CFG_ACTION, .availableDuringPause = true,
     },
 
     {
         .section = CONFIG_SECTION_AUDIO,
         .key = "audio",
-        .label = "Audio", .lngKey = LNG_EXPANDED_CONFIG_AUDIO,
+        .lngKey = LNG_EXPANDED_CONFIG_AUDIO,
         .type = CFG_ACTION,
         .availableDuringPause = true,
     },
@@ -170,21 +170,21 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_CONTROLS,
         .key = "controls",
         .availableDuringPause = true,
-        .label = "Controls", .lngKey = LNG_EXPANDED_CONFIG_CONTROLS,
+        .lngKey = LNG_EXPANDED_CONFIG_CONTROLS,
         .type = CFG_ACTION,
     },
     {
         .section = CONFIG_SECTION_CUSTOM_TRACKS,
         .key = "custom_tracks",
         .availableDuringPause = true,
-        .label = "Custom Tracks", .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS,
+        .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS,
         .type = CFG_ACTION,
     },
     {
         .section = "General",
         .key = "skip_intro",
         .availableDuringPause = true,
-        .label = "Skip Intros", .lngKey = LNG_EXPANDED_CONFIG_SKIP_INTROS,
+        .lngKey = LNG_EXPANDED_CONFIG_SKIP_INTROS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipIntro
     },
@@ -192,7 +192,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "skip_podium_ceremonies",
         .availableDuringPause = true,
-        .label = "Skip Podium Ceremonies", .lngKey = LNG_EXPANDED_CONFIG_SKIP_PODIUM,
+        .lngKey = LNG_EXPANDED_CONFIG_SKIP_PODIUM,
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipPodiumCeremonies
     },
@@ -200,7 +200,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "show_reserves_meter",
         .availableDuringPause = true,
-        .label = "Show Reserves Meter", .lngKey = LNG_EXPANDED_CONFIG_SHOW_RESERVES,
+        .lngKey = LNG_EXPANDED_CONFIG_SHOW_RESERVES,
         .type = CFG_BOOL,
         .valuePtr = &g_config.showReservesMeter
     },
@@ -208,7 +208,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "allow_oxide_station_multiplayer",
     	.availableDuringPause = true,
-        .label = "Oxide Station Multiplayer", .lngKey = LNG_EXPANDED_CONFIG_OXIDE_MULTIPLAYER,
+        .lngKey = LNG_EXPANDED_CONFIG_OXIDE_MULTIPLAYER,
         .type = CFG_BOOL,
         .valuePtr = &g_config.allowOxideStationMultiplayer
     },
@@ -216,7 +216,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "allow_race_tracks_in_battle",
     	.availableDuringPause = true,
-        .label = "Race Tracks in Battle", .lngKey = LNG_EXPANDED_CONFIG_RACE_TRACKS_BATTLE,
+        .lngKey = LNG_EXPANDED_CONFIG_RACE_TRACKS_BATTLE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.allowRaceTracksInBattle
     },
@@ -224,7 +224,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "extended_multiplayer",
     	.availableDuringPause = true,
-        .label = "Extended Multiplayer", .lngKey = LNG_EXPANDED_CONFIG_EXTENDED_MULTIPLAYER,
+        .lngKey = LNG_EXPANDED_CONFIG_EXTENDED_MULTIPLAYER,
         .type = CFG_BOOL,
         .valuePtr = &g_config.extendedMultiplayer
     },
@@ -232,7 +232,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "bot_selection_mode",
     	.availableDuringPause = true,
-        .label = "Bot Selection Mode", .lngKey = LNG_EXPANDED_CONFIG_BOT_SELECTION,
+        .lngKey = LNG_EXPANDED_CONFIG_BOT_SELECTION,
         .type = CFG_ENUM,
         .valuePtr = &g_config.botSelectionMode,
         .enumValues = kBotSelectionModeValues,
@@ -242,7 +242,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "General",
         .key = "mask_mode",
       	.availableDuringPause = true,
-        .label = "Mask Mode", .lngKey = LNG_EXPANDED_CONFIG_MASK_MODE,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_MODE,
         .type = CFG_ENUM,
         .valuePtr = &g_config.maskMode,
         .enumValues = kMaskModeValues,
@@ -251,14 +251,14 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "General",
         .key = "auto_end_race_when_others_finish",
-        .label = "Auto-End Races", .lngKey = LNG_EXPANDED_CONFIG_AUTO_END_RACES,
+        .lngKey = LNG_EXPANDED_CONFIG_AUTO_END_RACES,
         .type = CFG_BOOL,
         .valuePtr = &g_config.autoEndRaceWhenOthersFinish
     },
     {
         .section = "General",
         .key = "extra_difficulty_levels",
-        .label = "Extra Difficulty Levels", .lngKey = LNG_EXPANDED_CONFIG_EXTRA_DIFFICULTY,
+        .lngKey = LNG_EXPANDED_CONFIG_EXTRA_DIFFICULTY,
         .type = CFG_BOOL,
         .valuePtr = &g_config.extraDifficultyLevels
     },
@@ -266,7 +266,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Adventure",
         .key = "skip_hints",
         .availableDuringPause = true,
-        .label = "Skip Mask Hints", .lngKey = LNG_EXPANDED_CONFIG_SKIP_HINTS,
+        .lngKey = LNG_EXPANDED_CONFIG_SKIP_HINTS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipHints
     },
@@ -274,7 +274,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Adventure",
         .key = "boss_cutscenes",
         .availableDuringPause = true,
-        .label = "Boss Cutscenes", .lngKey = LNG_EXPANDED_CONFIG_BOSS_CUTSCENES,
+        .lngKey = LNG_EXPANDED_CONFIG_BOSS_CUTSCENES,
         .type = CFG_ENUM,
         .valuePtr = &g_config.bossCutscenes,
         .enumValues = kBossCutsceneValues,
@@ -284,7 +284,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Adventure",
         .key = "expanded_options",
     	.availableDuringPause = true,
-        .label = "Expanded Options", .lngKey = LNG_EXPANDED_CONFIG_EXPANDED_OPTIONS,
+        .lngKey = LNG_EXPANDED_CONFIG_EXPANDED_OPTIONS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.expandedAdventureOptions
     },
@@ -292,28 +292,28 @@ const ConfigEntry g_configEntries[] = {
         .section = "Adventure",
         .key = "save_anywhere",
     	.availableDuringPause = true,
-        .label = "Save Anywhere", .lngKey = LNG_EXPANDED_CONFIG_SAVE_ANYWHERE,
+        .lngKey = LNG_EXPANDED_CONFIG_SAVE_ANYWHERE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.saveAnywhere
     },
     {
         .section = "Adventure",
         .key = "unlock_all_gates",
-        .label = "Open All Gates", .lngKey = LNG_EXPANDED_CONFIG_OPEN_GATES,
+        .lngKey = LNG_EXPANDED_CONFIG_OPEN_GATES,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockAllGates
     },
     {
         .section = "Adventure",
         .key = "unlock_all_portals",
-        .label = "Open All Portals", .lngKey = LNG_EXPANDED_CONFIG_OPEN_PORTALS,
+        .lngKey = LNG_EXPANDED_CONFIG_OPEN_PORTALS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockAllPortals
     },
     {
         .section = "Vehicle",
         .key = "speed_stat_multiplier",
-        .label = "Kart Speed Multiplier", .lngKey = LNG_EXPANDED_CONFIG_SPEED_MULTIPLIER,
+        .lngKey = LNG_EXPANDED_CONFIG_SPEED_MULTIPLIER,
         .type = CFG_INT,
         .valuePtr = &g_config.speedMultiplier,
         .min = 10,
@@ -323,7 +323,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Vehicle",
         .key = "gravity_stat_multiplier",
-        .label = "Gravity Multiplier", .lngKey = LNG_EXPANDED_CONFIG_GRAVITY_MULTIPLIER,
+        .lngKey = LNG_EXPANDED_CONFIG_GRAVITY_MULTIPLIER,
         .type = CFG_INT,
         .valuePtr = &g_config.gravityMultiplier,
         .min = 10,
@@ -333,7 +333,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Vehicle",
         .key = "turn_stat_multiplier",
-        .label = "Kart Turn Multiplier", .lngKey = LNG_EXPANDED_CONFIG_TURN_MULTIPLIER,
+        .lngKey = LNG_EXPANDED_CONFIG_TURN_MULTIPLIER,
         .type = CFG_INT,
         .valuePtr = &g_config.turnMultiplier,
         .min = 10,
@@ -343,7 +343,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Vehicle",
         .key = "jump_stat_multiplier",
-        .label = "Kart Jump Multiplier", .lngKey = LNG_EXPANDED_CONFIG_JUMP_MULTIPLIER,
+        .lngKey = LNG_EXPANDED_CONFIG_JUMP_MULTIPLIER,
         .type = CFG_INT,
         .valuePtr = &g_config.jumpMultiplier,
         .min = 10,
@@ -353,7 +353,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Vehicle",
         .key = "turbo_reserves_multiplier",
-        .label = "Turbo Reserves Multiplier", .lngKey = LNG_EXPANDED_CONFIG_RESERVE_MULTIPLIER,
+        .lngKey = LNG_EXPANDED_CONFIG_RESERVE_MULTIPLIER,
         .type = CFG_INT,
         .valuePtr = &g_config.reserveMultiplier,
         .min = 0,
@@ -363,7 +363,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "missile_speed_multiplier",
-        .label = "Missile Speed Multiplier", .lngKey = LNG_EXPANDED_CONFIG_MISSILE_SPEED,
+        .lngKey = LNG_EXPANDED_CONFIG_MISSILE_SPEED,
         .type = CFG_INT,
         .valuePtr = &g_config.missileSpeedMultiplier,
         .min = 20,
@@ -373,7 +373,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "bomb_speed_multiplier",
-        .label = "Bomb Speed Multiplier", .lngKey = LNG_EXPANDED_CONFIG_BOMB_SPEED,
+        .lngKey = LNG_EXPANDED_CONFIG_BOMB_SPEED,
         .type = CFG_INT,
         .valuePtr = &g_config.bombSpeedMultiplier,
         .min = 20,
@@ -383,7 +383,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "warpball_speed_multiplier",
-        .label = "Warpball Speed Multiplier", .lngKey = LNG_EXPANDED_CONFIG_WARPBALL_SPEED,
+        .lngKey = LNG_EXPANDED_CONFIG_WARPBALL_SPEED,
         .type = CFG_INT,
         .valuePtr = &g_config.warpballSpeedMultiplier,
         .min = 20,
@@ -393,7 +393,7 @@ const ConfigEntry g_configEntries[] = {
     {
       .section = "Weapons",
       .key = "tnt_explosion_radius",
-      .label = "TNT/Nitro Explosion Radius", .lngKey = LNG_EXPANDED_CONFIG_TNT_RADIUS,
+      .lngKey = LNG_EXPANDED_CONFIG_TNT_RADIUS,
       .type = CFG_INT,
       .valuePtr = &g_config.tntExplosionRadiusMultiplier,
       .min = 50,
@@ -403,7 +403,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "bomb_explosion_radius_multiplier",
-        .label = "Bomb Explosion Radius", .lngKey = LNG_EXPANDED_CONFIG_BOMB_RADIUS,
+        .lngKey = LNG_EXPANDED_CONFIG_BOMB_RADIUS,
         .type = CFG_INT,
         .valuePtr = &g_config.bombExplosionRadiusMultiplier,
         .min = 50,
@@ -413,28 +413,28 @@ const ConfigEntry g_configEntries[] = {
       {
         .section = "Weapons",
         .key = "mask_protects_from_damage",
-        .label = "Mask Protects From Damage", .lngKey = LNG_EXPANDED_CONFIG_MASK_PROTECTION,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_PROTECTION,
         .type = CFG_BOOL,
         .valuePtr = &g_config.maskProtectsFromDamage
       },
       {
         .section = "Weapons",
         .key = "mask_damages_others",
-        .label = "Mask Damages Others", .lngKey = LNG_EXPANDED_CONFIG_MASK_DAMAGE,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_DAMAGE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.maskDamagesOthers
       },
     {
         .section = "Weapons",
         .key = "mask_persists_after_oob",
-        .label = "Mask Persists After OOB", .lngKey = LNG_EXPANDED_CONFIG_MASK_PERSISTENCE,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_PERSISTENCE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.maskPersistsAfterOOB
     },
     {
         .section = "Weapons",
         .key = "mask_duration_multiplier",
-        .label = "Mask Duration", .lngKey = LNG_EXPANDED_CONFIG_MASK_DURATION,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_DURATION,
         .type = CFG_INT,
         .valuePtr = &g_config.maskDurationMultiplier,
         .min = 20,
@@ -444,7 +444,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "mask_extra_speed_multiplier",
-        .label = "Mask Extra Speed", .lngKey = LNG_EXPANDED_CONFIG_MASK_SPEED,
+        .lngKey = LNG_EXPANDED_CONFIG_MASK_SPEED,
         .type = CFG_INT,
         .valuePtr = &g_config.maskExtraSpeedMultiplier,
         .min = 0,
@@ -454,7 +454,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "clock_duration_multiplier",
-        .label = "Clock Duration", .lngKey = LNG_EXPANDED_CONFIG_CLOCK_DURATION,
+        .lngKey = LNG_EXPANDED_CONFIG_CLOCK_DURATION,
         .type = CFG_INT,
         .valuePtr = &g_config.clockDurationMultiplier,
         .min = 20,
@@ -464,7 +464,7 @@ const ConfigEntry g_configEntries[] = {
     {
         .section = "Weapons",
         .key = "allow_weapons_during_clock",
-        .label = "Weapons During Clock", .lngKey = LNG_EXPANDED_CONFIG_CLOCK_WEAPONS,
+        .lngKey = LNG_EXPANDED_CONFIG_CLOCK_WEAPONS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.allowWeaponsDuringClock
     },
@@ -472,7 +472,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Unlocks",
         .key = "unlock_all_characters",
     	.availableDuringPause = true,
-        .label = "Unlock All Characters", .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_CHARACTERS,
+        .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_CHARACTERS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockAllCharacters
     },
@@ -480,7 +480,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Unlocks",
         .key = "unlock_nitros_oxide",
     	.availableDuringPause = true,
-        .label = "Unlock Nitros Oxide", .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_OXIDE,
+        .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_OXIDE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockNitrosOxide
     },
@@ -488,7 +488,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "increase_draw_distance",
         .availableDuringPause = true,
-        .label = "Increase Draw Distance", .lngKey = LNG_EXPANDED_CONFIG_DRAW_DISTANCE,
+        .lngKey = LNG_EXPANDED_CONFIG_DRAW_DISTANCE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.increaseDrawDistance
     },
@@ -496,7 +496,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "disable_split_screen_lod",
     	.availableDuringPause = true,
-        .label = "High Quality Multiplayer", .lngKey = LNG_EXPANDED_CONFIG_MULTIPLAYER_QUALITY,
+        .lngKey = LNG_EXPANDED_CONFIG_MULTIPLAYER_QUALITY,
         .type = CFG_BOOL,
         .valuePtr = &g_config.disableSplitScreenLod
     },
@@ -504,7 +504,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "dithering",
         .availableDuringPause = true,
-        .label = "Dithering", .lngKey = LNG_EXPANDED_CONFIG_DITHERING,
+        .lngKey = LNG_EXPANDED_CONFIG_DITHERING,
         .type = CFG_BOOL,
         .valuePtr = &g_config.dithering
     },
@@ -512,7 +512,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "fullscreen",
         .availableDuringPause = true,
-        .label = "Fullscreen", .lngKey = LNG_EXPANDED_CONFIG_FULLSCREEN,
+        .lngKey = LNG_EXPANDED_CONFIG_FULLSCREEN,
         .type = CFG_BOOL,
         .valuePtr = &g_config.fullscreen
     },
@@ -520,7 +520,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "vsync",
         .availableDuringPause = true,
-        .label = "VSync", .lngKey = LNG_EXPANDED_CONFIG_VSYNC,
+        .lngKey = LNG_EXPANDED_CONFIG_VSYNC,
         .type = CFG_BOOL,
         .valuePtr = &g_config.vsync
     },
@@ -528,7 +528,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "aspect_ratio",
         .availableDuringPause = true,
-        .label = "Aspect Ratio", .lngKey = LNG_EXPANDED_CONFIG_ASPECT_RATIO,
+        .lngKey = LNG_EXPANDED_CONFIG_ASPECT_RATIO,
         .type = CFG_ENUM,
         .valuePtr = &g_config.aspectRatio,
         .enumValues = kAspectRatioValues,
@@ -538,7 +538,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "render_scale",
         .availableDuringPause = true,
-        .label = "Render Scale", .lngKey = LNG_EXPANDED_CONFIG_RENDER_SCALE,
+        .lngKey = LNG_EXPANDED_CONFIG_RENDER_SCALE,
         .type = CFG_ENUM,
         .valuePtr = &g_config.renderScale,
         .enumValues = kRenderScaleValues,
@@ -548,7 +548,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "smooth_scaling",
         .availableDuringPause = true,
-        .label = "Smooth Scaling", .lngKey = LNG_EXPANDED_CONFIG_SMOOTH_SCALING,
+        .lngKey = LNG_EXPANDED_CONFIG_SMOOTH_SCALING,
         .type = CFG_BOOL,
         .valuePtr = &g_config.smoothScaling
     },
@@ -556,7 +556,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "fxaa",
         .availableDuringPause = true,
-        .label = "FXAA Antialiasing", .lngKey = LNG_EXPANDED_CONFIG_FXAA,
+        .lngKey = LNG_EXPANDED_CONFIG_FXAA,
         .type = CFG_BOOL,
         .valuePtr = &g_config.fxaa
     },
@@ -564,7 +564,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "texture_filtering",
         .availableDuringPause = true,
-        .label = "Texture Filtering", .lngKey = LNG_EXPANDED_CONFIG_TEXTURE_FILTERING,
+        .lngKey = LNG_EXPANDED_CONFIG_TEXTURE_FILTERING,
         .type = CFG_BOOL,
         .valuePtr = &g_config.textureFiltering
     },
@@ -572,7 +572,7 @@ const ConfigEntry g_configEntries[] = {
         .section = "Graphics",
         .key = "pgxp",
         .availableDuringPause = true,
-        .label = "Sub-Pixel Precision", .lngKey = LNG_EXPANDED_CONFIG_SUBPIXEL,
+        .lngKey = LNG_EXPANDED_CONFIG_SUBPIXEL,
         .type = CFG_ENUM,
         .valuePtr = &g_config.pgxpMode,
         .enumValues = kPgxpModeValues,
@@ -582,7 +582,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "developer_hacks_enabled",
         .availableDuringPause = true,
-        .label = "Enable Developer Hacks", .lngKey = LNG_EXPANDED_CONFIG_ENABLE_DEVELOPER,
+        .lngKey = LNG_EXPANDED_CONFIG_ENABLE_DEVELOPER,
         .type = CFG_BOOL,
         .valuePtr = &g_config.developerHacksEnabled,
     },
@@ -590,7 +590,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "omni_controller",
         .availableDuringPause = true,
-        .label = "Omni Controller", .lngKey = LNG_EXPANDED_CONFIG_OMNI_CONTROLLER,
+        .lngKey = LNG_EXPANDED_CONFIG_OMNI_CONTROLLER,
         .type = CFG_BOOL,
         .valuePtr = &g_config.omniController,
     },
@@ -598,7 +598,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "one_lap_races",
         .availableDuringPause = true,
-        .label = "One Lap Races", .lngKey = LNG_EXPANDED_CONFIG_ONE_LAP,
+        .lngKey = LNG_EXPANDED_CONFIG_ONE_LAP,
         .type = CFG_BOOL,
         .valuePtr = &g_config.oneLapRaces,
     },
@@ -606,7 +606,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "tow_player_2",
         .availableDuringPause = true,
-        .label = "Tow Player 2", .lngKey = LNG_EXPANDED_CONFIG_TOW_PLAYER,
+        .lngKey = LNG_EXPANDED_CONFIG_TOW_PLAYER,
         .type = CFG_BOOL,
         .valuePtr = &g_config.towPlayer2,
     },
@@ -614,7 +614,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "quick_race",
         .availableDuringPause = true,
-        .label = "Quick Race With R3", .lngKey = LNG_EXPANDED_CONFIG_QUICK_RACE,
+        .lngKey = LNG_EXPANDED_CONFIG_QUICK_RACE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.quickRace,
     },
@@ -622,7 +622,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "chaos_quick_race",
         .availableDuringPause = true,
-        .label = "Chaos Test With Start", .lngKey = LNG_EXPANDED_CONFIG_CHAOS_TEST,
+        .lngKey = LNG_EXPANDED_CONFIG_CHAOS_TEST,
         .type = CFG_BOOL,
         .valuePtr = &g_config.chaosQuickRace,
     },
@@ -630,7 +630,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "skip_start_countdown",
         .availableDuringPause = true,
-        .label = "Skip Start Countdown", .lngKey = LNG_EXPANDED_CONFIG_SKIP_COUNTDOWN,
+        .lngKey = LNG_EXPANDED_CONFIG_SKIP_COUNTDOWN,
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipStartCountdown,
     },
@@ -638,7 +638,7 @@ const ConfigEntry g_configEntries[] = {
         .section = CONFIG_SECTION_DEVELOPER_HACKS,
         .key = "end_race_with_l3",
         .availableDuringPause = true,
-        .label = "End Race With L3", .lngKey = LNG_EXPANDED_CONFIG_END_RACE,
+        .lngKey = LNG_EXPANDED_CONFIG_END_RACE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.endRaceWithL3,
     },

@@ -764,7 +764,7 @@ static void TestEditing(enum ConfigMenuContext context)
 		const int before = EntryValue(entry);
 		const bool editable = context == CONFIG_MENU_MAIN || entry->availableDuringPause;
 		OpenEntry(i, context);
-		s_observedLabel = entry->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(entry->lngKey) : entry->label;
+		s_observedLabel = LANG_GetString(entry->lngKey);
 		s_valueDrawn = false;
 		SetInput(0, 0);
 		UpdateMenu();

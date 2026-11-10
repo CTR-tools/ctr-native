@@ -95,20 +95,20 @@ static int s_currentSection = -1; // -1 = section selector, 0+ = submenu
 
 // Menu-only entries: key names the destination, section names the parent.
 static const ConfigEntry s_configNavigation[] = {
-	{.section = "", .key = "System", .label = "System", .lngKey = LNG_EXPANDED_CONFIG_SYSTEM, .type = CFG_SUBSECTION},
-	{.section = "", .key = "Game", .label = "Game", .lngKey = LNG_EXPANDED_CONFIG_GAME, .type = CFG_SUBSECTION},
-	{.section = "", .key = "Modifiers", .label = "Modifiers", .lngKey = LNG_EXPANDED_CONFIG_MODIFIERS, .type = CFG_SUBSECTION},
-	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .label = CONFIG_SECTION_CUSTOM_TRACKS, .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS, .type = CFG_ACTION},
-	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .label = CONFIG_SECTION_DEVELOPER_HACKS, .lngKey = LNG_EXPANDED_CONFIG_DEVELOPER_HACKS, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_AUDIO, .label = CONFIG_SECTION_AUDIO, .lngKey = LNG_EXPANDED_CONFIG_AUDIO, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .label = CONFIG_SECTION_LANGUAGE, .lngKey = LNG_EXPANDED_CONFIG_LANGUAGE, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .label = CONFIG_SECTION_CONTROLS, .lngKey = LNG_EXPANDED_CONFIG_CONTROLS, .type = CFG_ACTION},
-	{.section = "System", .key = "Graphics", .label = "Graphics", .lngKey = LNG_EXPANDED_CONFIG_GRAPHICS, .type = CFG_ACTION},
-	{.section = "Game", .key = "Adventure", .label = "Adventure", .lngKey = LNG_EXPANDED_CONFIG_ADVENTURE, .type = CFG_ACTION},
-	{.section = "Game", .key = "General", .label = "General", .lngKey = LNG_EXPANDED_CONFIG_GENERAL, .type = CFG_ACTION},
-	{.section = "Game", .key = "Unlocks", .label = "Unlocks", .lngKey = LNG_EXPANDED_CONFIG_UNLOCKS, .type = CFG_ACTION},
-	{.section = "Modifiers", .key = "Vehicle", .label = "Vehicle", .lngKey = LNG_EXPANDED_CONFIG_VEHICLE, .type = CFG_ACTION},
-	{.section = "Modifiers", .key = "Weapons", .label = "Weapons", .lngKey = LNG_EXPANDED_CONFIG_WEAPONS, .type = CFG_ACTION},
+	{.section = "", .key = "System", .lngKey = LNG_EXPANDED_CONFIG_SYSTEM, .type = CFG_SUBSECTION},
+	{.section = "", .key = "Game", .lngKey = LNG_EXPANDED_CONFIG_GAME, .type = CFG_SUBSECTION},
+	{.section = "", .key = "Modifiers", .lngKey = LNG_EXPANDED_CONFIG_MODIFIERS, .type = CFG_SUBSECTION},
+	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS, .type = CFG_ACTION},
+	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .lngKey = LNG_EXPANDED_CONFIG_DEVELOPER_HACKS, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_AUDIO, .lngKey = LNG_EXPANDED_CONFIG_AUDIO, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .lngKey = LNG_EXPANDED_CONFIG_LANGUAGE, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .lngKey = LNG_EXPANDED_CONFIG_CONTROLS, .type = CFG_ACTION},
+	{.section = "System", .key = "Graphics", .lngKey = LNG_EXPANDED_CONFIG_GRAPHICS, .type = CFG_ACTION},
+	{.section = "Game", .key = "Adventure", .lngKey = LNG_EXPANDED_CONFIG_ADVENTURE, .type = CFG_ACTION},
+	{.section = "Game", .key = "General", .lngKey = LNG_EXPANDED_CONFIG_GENERAL, .type = CFG_ACTION},
+	{.section = "Game", .key = "Unlocks", .lngKey = LNG_EXPANDED_CONFIG_UNLOCKS, .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Vehicle", .lngKey = LNG_EXPANDED_CONFIG_VEHICLE, .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Weapons", .lngKey = LNG_EXPANDED_CONFIG_WEAPONS, .type = CFG_ACTION},
 };
 static const ConfigEntry *s_configGroup;
 static s16 s_configRootRow;
@@ -280,7 +280,7 @@ static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 
 static const char *Config_EntryLabel(const ConfigEntry *entry)
 {
-	return entry->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(entry->lngKey) : entry->label;
+	return LANG_GetString(entry->lngKey);
 }
 
 static const char *Config_SectionLabel(const char *section)
