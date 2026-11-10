@@ -93,20 +93,20 @@ static int s_currentSection = -1; // -1 = section selector, 0+ = submenu
 
 // Menu-only entries: key names the destination, section names the parent.
 static const ConfigEntry s_configNavigation[] = {
-	{.section = "", .key = "System", .label = "System", .type = CFG_SUBSECTION},
-	{.section = "", .key = "Game", .label = "Game", .type = CFG_SUBSECTION},
-	{.section = "", .key = "Modifiers", .label = "Modifiers", .type = CFG_SUBSECTION},
-	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .label = CONFIG_SECTION_CUSTOM_TRACKS, .type = CFG_ACTION},
-	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .label = CONFIG_SECTION_DEVELOPER_HACKS, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_AUDIO, .label = CONFIG_SECTION_AUDIO, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .label = CONFIG_SECTION_LANGUAGE, .type = CFG_ACTION},
-	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .label = CONFIG_SECTION_CONTROLS, .type = CFG_ACTION},
-	{.section = "System", .key = "Graphics", .label = "Graphics", .type = CFG_ACTION},
-	{.section = "Game", .key = "Adventure", .label = "Adventure", .type = CFG_ACTION},
-	{.section = "Game", .key = "General", .label = "General", .type = CFG_ACTION},
-	{.section = "Game", .key = "Unlocks", .label = "Unlocks", .type = CFG_ACTION},
-	{.section = "Modifiers", .key = "Vehicle", .label = "Vehicle", .type = CFG_ACTION},
-	{.section = "Modifiers", .key = "Weapons", .label = "Weapons", .type = CFG_ACTION},
+	{.section = "", .key = "System", .label = "System", .lngKey = LNG_EXPANDED_CONFIG_SYSTEM, .type = CFG_SUBSECTION},
+	{.section = "", .key = "Game", .label = "Game", .lngKey = LNG_EXPANDED_CONFIG_GAME, .type = CFG_SUBSECTION},
+	{.section = "", .key = "Modifiers", .label = "Modifiers", .lngKey = LNG_EXPANDED_CONFIG_MODIFIERS, .type = CFG_SUBSECTION},
+	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .label = CONFIG_SECTION_CUSTOM_TRACKS, .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS, .type = CFG_ACTION},
+	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .label = CONFIG_SECTION_DEVELOPER_HACKS, .lngKey = LNG_EXPANDED_CONFIG_DEVELOPER_HACKS, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_AUDIO, .label = CONFIG_SECTION_AUDIO, .lngKey = LNG_EXPANDED_CONFIG_AUDIO, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .label = CONFIG_SECTION_LANGUAGE, .lngKey = LNG_EXPANDED_CONFIG_LANGUAGE, .type = CFG_ACTION},
+	{.section = "System", .key = CONFIG_SECTION_CONTROLS, .label = CONFIG_SECTION_CONTROLS, .lngKey = LNG_EXPANDED_CONFIG_CONTROLS, .type = CFG_ACTION},
+	{.section = "System", .key = "Graphics", .label = "Graphics", .lngKey = LNG_EXPANDED_CONFIG_GRAPHICS, .type = CFG_ACTION},
+	{.section = "Game", .key = "Adventure", .label = "Adventure", .lngKey = LNG_EXPANDED_CONFIG_ADVENTURE, .type = CFG_ACTION},
+	{.section = "Game", .key = "General", .label = "General", .lngKey = LNG_EXPANDED_CONFIG_GENERAL, .type = CFG_ACTION},
+	{.section = "Game", .key = "Unlocks", .label = "Unlocks", .lngKey = LNG_EXPANDED_CONFIG_UNLOCKS, .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Vehicle", .label = "Vehicle", .lngKey = LNG_EXPANDED_CONFIG_VEHICLE, .type = CFG_ACTION},
+	{.section = "Modifiers", .key = "Weapons", .label = "Weapons", .lngKey = LNG_EXPANDED_CONFIG_WEAPONS, .type = CFG_ACTION},
 };
 static const ConfigEntry *s_configGroup;
 static s16 s_configRootRow;
@@ -246,7 +246,8 @@ static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 		{
 			if (e->enumValues[j].value == val)
 			{
-				text = e->enumValues[j].name;
+				text = e->enumValues[j].lngKey >= LNG_EXPANDED_STRING_BASE
+				           ? LANG_GetString(e->enumValues[j].lngKey) : e->enumValues[j].name;
 				if (e->valuePtr == &g_config.textLanguage || e->valuePtr == &g_config.voiceLanguage)
 				{
 					text = Config_LanguageLabel(val, text);
@@ -262,11 +263,28 @@ static void Config_DrawValue(const ConfigEntry *e, int y, uint32_t *ot)
 	}
 }
 
+static const char *Config_EntryLabel(const ConfigEntry *entry)
+{
+	return entry->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(entry->lngKey) : entry->label;
+}
+
+static const char *Config_SectionLabel(const char *section)
+{
+	for (size_t i = 0; i < len(s_configNavigation); i++)
+	{
+		if (strcmp(section, s_configNavigation[i].key) == 0)
+		{
+			return Config_EntryLabel(&s_configNavigation[i]);
+		}
+	}
+	return section;
+}
+
 static void Config_DrawRow(const void *context, int row, int y, bool selected, uint32_t *ot)
 {
 	const ConfigEntry *entries = context;
 	(void)selected;
-	FullScreenMenu_DrawRowLabel(entries[row].label, y, ot);
+	FullScreenMenu_DrawRowLabel(Config_EntryLabel(&entries[row]), y, ot);
 	Config_DrawValue(&entries[row], y, ot);
 }
 
@@ -330,7 +348,7 @@ static void Config_LanguagePicker(const ConfigEntry *entry, struct GameTracker *
 		Config_ClearInput();
 		return;
 	}
-	ChoicePicker_Draw("SELECT LANGUAGE", s_languageChoiceCount, s_languageChoice, Config_LanguageChoiceLabel, entry, gGT, ot);
+	ChoicePicker_Draw(LANG_GetString(LNG_EXPANDED_SELECT_LANGUAGE), s_languageChoiceCount, s_languageChoice, Config_LanguageChoiceLabel, entry, gGT, ot);
 }
 
 static void MM_MenuProc_Config(struct RectMenu *menu)
@@ -407,7 +425,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		if (Config_IsSection(sec, CONFIG_SECTION_LANGUAGE) && s_languagePickerOpen)
 		{
 			Config_LanguagePicker(&g_configEntries[firstEntry + menu->rowSelected], gGT, ot, (u32)pad->buttonsTapped);
-			FullScreenMenu_DrawScreen(g_configEntries[firstEntry].section, 0, &s_configScroll, numRows, menu->rowSelected,
+			FullScreenMenu_DrawScreen(Config_SectionLabel(g_configEntries[firstEntry].section), 0, &s_configScroll, numRows, menu->rowSelected,
 			                          Config_DrawRow, &g_configEntries[firstEntry], gGT, ot);
 			return;
 		}
@@ -458,7 +476,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 			}
 		}
 
-		FullScreenMenu_DrawScreen(g_configEntries[firstEntry].section, 0, &s_configScroll,
+		FullScreenMenu_DrawScreen(Config_SectionLabel(g_configEntries[firstEntry].section), 0, &s_configScroll,
 		                          numRows, menu->rowSelected, Config_DrawRow,
 		                          &g_configEntries[firstEntry], gGT, ot);
 	}
@@ -506,10 +524,10 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 
 		for (int section = 0; section < count; section++)
 		{
-			sections[section] = entries[section]->label;
+			sections[section] = Config_EntryLabel(entries[section]);
 		}
 		const int columnX = s_configSession.context == CONFIG_MENU_MAIN ? FULLSCREEN_MENU_MAIN_X : FULLSCREEN_MENU_TITLE_X;
-		FullScreenMenu_DrawSectionScreen(s_configGroup != NULL ? s_configGroup->label : sdata->lngStrings[LNG_OPTIONS],
+		FullScreenMenu_DrawSectionScreen(s_configGroup != NULL ? Config_EntryLabel(s_configGroup) : sdata->lngStrings[LNG_OPTIONS],
 		                                 sections, &s_configScroll, count, menu->rowSelected, columnX, gGT, ot);
 	}
 }

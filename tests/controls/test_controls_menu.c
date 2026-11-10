@@ -11,11 +11,26 @@ static int s_devices[PLATFORM_INPUT_PAD_COUNT];
 static bool s_rumble[PLATFORM_INPUT_PAD_COUNT];
 static bool s_vibration[PLATFORM_INPUT_PAD_COUNT];
 static bool s_capturing;
+static bool s_confirming;
+static char s_lastLabel[128], s_lastValue[128];
 static bool s_drawingVibration;
 static int s_vibrationColor;
 static char s_vibrationValue[2 * NATIVE_CONTROLS_NAME_LENGTH];
 static int s_restores;
 static int s_preferenceChanges;
+
+const char *LANG_GetString(s32 index)
+{
+	if (index == LNG_EXPANDED_CONTROLS_PLAYER_TITLE) { return "CONTROLS P{player}"; }
+	static char values[LNG_EXPANDED_STRING_COUNT][24];
+	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
+	{
+		return "";
+	}
+	char *value = values[index - LNG_EXPANDED_STRING_BASE];
+	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
+	return value;
+}
 
 #include <game/230/MM_FullScreenMenu.c>
 #include <game/230/MM_ControlsConfig.c>
@@ -71,7 +86,7 @@ void NativeControls_SetDeadzone(int device, s32 value) { (void)device; (void)val
 void NativeControls_RestoreDeviceDefaults(int device) { (void)device; s_restores++; }
 void NativeControls_BeginCapture(int device, int binding) { (void)device; (void)binding; s_capturing = true; }
 int NativeControls_IsCapturing(void) { return s_capturing; }
-int NativeControls_IsConfirming(void) { return 0; }
+int NativeControls_IsConfirming(void) { return s_confirming; }
 int NativeControls_PollCapture(void) { return 0; }
 void NativeControls_CancelCapture(void) { s_capturing = false; }
 s32 howl_VolumeGet(s32 type) { (void)type; return 255; }
@@ -85,12 +100,17 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	(void)y; (void)font; (void)ot;
 	if (x == FULLSCREEN_MENU_LABEL_X)
 	{
-		s_drawingVibration = strcmp(text, "Vibration") == 0;
+		snprintf(s_lastLabel, sizeof(s_lastLabel), "%.*s", (int)sizeof(s_lastLabel) - 1, text);
+		s_drawingVibration = strcmp(text, LANG_GetString(LNG_EXPANDED_VIBRATION)) == 0;
 	}
-	else if (x == FULLSCREEN_MENU_VALUE_X && s_drawingVibration)
+	else if (x == FULLSCREEN_MENU_VALUE_X)
 	{
-		s_vibrationColor = flags;
-		snprintf(s_vibrationValue, sizeof(s_vibrationValue), "%s", text);
+		snprintf(s_lastValue, sizeof(s_lastValue), "%.*s", (int)sizeof(s_lastValue) - 1, text);
+		if (s_drawingVibration)
+		{
+			s_vibrationColor = flags;
+			snprintf(s_vibrationValue, sizeof(s_vibrationValue), "%.*s", (int)sizeof(s_vibrationValue) - 1, text);
+		}
 	}
 }
 void RECTMENU_DrawInnerRect(RECT *rect, int inset, u32 *ot) { (void)rect; (void)inset; (void)ot; }
@@ -137,7 +157,7 @@ static void TestPlayers(int mode)
 		               "Vibration is directly below Device for each selected player");
 		const int before = s_tracker.gameMode1;
 		const bool enabled = s_vibration[player];
-		CTR_TEST_CHECK(strcmp(s_vibrationValue, enabled ? "ON" : "OFF") == 0,
+		CTR_TEST_CHECK(strcmp(s_vibrationValue, LANG_GetString(enabled ? LNG_EXPANDED_ON : LNG_EXPANDED_OFF)) == 0,
 		               "the displayed value follows the player's Controls preference");
 		CTR_TEST_CHECK(s_vibrationColor == (JUSTIFY_RIGHT | WHITE), "rumble-capable devices can edit Vibration");
 		Press(BTN_CROSS);
@@ -147,11 +167,47 @@ static void TestPlayers(int mode)
 			               "confirm changes only the selected player's Controls preference");
 		}
 		CTR_TEST_CHECK(s_tracker.gameMode1 == before, "vibration editing is independent of legacy game-mode bits");
-		CTR_TEST_CHECK(strcmp(s_vibrationValue, enabled ? "OFF" : "ON") == 0,
+		CTR_TEST_CHECK(strcmp(s_vibrationValue, LANG_GetString(enabled ? LNG_EXPANDED_OFF : LNG_EXPANDED_ON)) == 0,
 		               "the displayed value updates immediately after toggling");
 		Press(BTN_CROSS);
 		CTR_TEST_CHECK(s_vibration[player] == enabled, "toggling back restores the initial Controls preference");
 	}
+}
+
+static void TestLocalizedLabels(void)
+{
+	struct ControlsChoice choice = {.pref = NATIVE_CONTROLS_PREF_PINNED, .device = TEST_KEYBOARD_DEVICE};
+	CTR_TEST_CHECK(strcmp(Controls_ChoiceName(&choice), LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD)) == 0,
+	               "the keyboard choice uses its localized name");
+	choice.device = 0;
+	CTR_TEST_CHECK(strcmp(Controls_ChoiceName(&choice), "Gamepad") == 0, "controller names remain device-provided");
+	int device = TEST_KEYBOARD_DEVICE;
+	s_rows[0] = (struct ControlsRow){.kind = CONTROLS_ROW_DEVICE, .binding = -1};
+	Controls_DrawRow(&device, 0, 0, false, NULL);
+	CTR_TEST_CHECK(strcmp(s_lastValue, LANG_GetString(LNG_EXPANDED_CONTROLS_KEYBOARD)) == 0,
+	               "the selected keyboard uses its localized name");
+	for (int binding = 0; binding < NATIVE_CONTROLS_BIND_COUNT; binding++)
+	{
+		s_rows[0] = (struct ControlsRow){.kind = CONTROLS_ROW_BINDING, .binding = binding};
+		Controls_DrawRow(&device, 0, 0, false, NULL);
+		if (s_bindingGlyphs[binding] == NULL)
+		{
+			CTR_TEST_CHECK(s_bindingLabels[binding] >= LNG_EXPANDED_STRING_BASE &&
+			               strcmp(s_lastLabel, LANG_GetString(s_bindingLabels[binding])) == 0,
+			               "each non-glyph binding uses a localized label");
+		}
+		else
+		{
+			CTR_TEST_CHECK(strcmp(s_lastLabel, s_bindingGlyphs[binding]) == 0, "face buttons retain their glyphs");
+		}
+	}
+	s_capturing = true;
+	s_confirming = true;
+	Controls_DrawRow(&device, 0, 0, true, NULL);
+	CTR_TEST_CHECK(strcmp(s_lastValue, LANG_GetString(LNG_EXPANDED_CONTROLS_CONFIRM_BINDING)) == 0,
+	               "binding confirmation uses the localized prompt");
+	s_capturing = false;
+	s_confirming = false;
 }
 
 static void TestUnavailableDevices(void)
@@ -188,7 +244,7 @@ static void TestDeviceChanges(void)
 	Press(BTN_CROSS);
 	CTR_TEST_CHECK(s_preferenceChanges == 1 && s_devices[0] == 1, "the picker changes player 1 to another available device");
 	Press(BTN_DOWN);
-	CTR_TEST_CHECK(!s_vibration[0] && strcmp(s_vibrationValue, "OFF") == 0,
+	CTR_TEST_CHECK(!s_vibration[0] && strcmp(s_vibrationValue, LANG_GetString(LNG_EXPANDED_OFF)) == 0,
 	               "changing devices retains the player's disabled vibration preference");
 	for (int row = 0; row < s_rowCount; row++)
 	{
@@ -206,7 +262,7 @@ static void TestDeviceChanges(void)
 	Press(0);
 	s_devices[0] = 1;
 	Press(0);
-	CTR_TEST_CHECK(s_vibrationColor == (JUSTIFY_RIGHT | WHITE) && strcmp(s_vibrationValue, "OFF") == 0,
+	CTR_TEST_CHECK(s_vibrationColor == (JUSTIFY_RIGHT | WHITE) && strcmp(s_vibrationValue, LANG_GetString(LNG_EXPANDED_OFF)) == 0,
 	               "hotplug restores editability without resetting the vibration preference");
 }
 
@@ -266,6 +322,8 @@ int main(void)
 	sdata->gGT = &s_tracker;
 	sdata->gGamepads = &sdata->gamepadSystem;
 	s_tracker.backBuffer = &s_buffer;
+	CTR_TEST_SECTION("Localized controls labels");
+	TestLocalizedLabels();
 	CTR_TEST_SECTION("Per-player vibration in the main menu");
 	TestPlayers(MAIN_MENU);
 	CTR_TEST_SECTION("Per-player vibration while paused");

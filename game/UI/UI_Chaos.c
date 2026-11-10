@@ -141,7 +141,7 @@ static s16 UI_Chaos_LayoutNotices(struct GameTracker *gGT, const struct ChaosAct
 static void UI_Chaos_DrawNotice(struct GameTracker *gGT, const struct ChaosActivation *entry,
                                int bannerY, s16 bannerFont)
 {
-	const ChaosEffectDef *effect = ChaosEffect_Def(entry->effect);
+	const char *effectLabel = LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + entry->effect);
 	const bool instant = ChaosEffect_IsInstant(entry->effect);
 	const int elapsedMS = CHAOS_ACTIVATION_NOTICE_MS + (instant ? 0 : CHAOS_ACTIVATION_DOCK_MS) - entry->noticeRemainingMS;
 	const int centerX = SCREEN_WIDTH / 2;
@@ -155,7 +155,7 @@ static void UI_Chaos_DrawNotice(struct GameTracker *gGT, const struct ChaosActiv
 	u16 flags = JUSTIFY_CENTER | ORANGE;
 	if (elapsedMS < UI_CHAOS_NOTICE_SLIDE_MS)
 	{
-		startX = SCREEN_WIDTH + DecalFont_GetLineWidth((char *)effect->label, font) / 2;
+		startX = SCREEN_WIDTH + DecalFont_GetLineWidth((char *)effectLabel, font) / 2;
 		slideMS = elapsedMS;
 	}
 	else if (!instant && entry->noticeRemainingMS <= CHAOS_ACTIVATION_DOCK_MS)
@@ -164,7 +164,7 @@ static void UI_Chaos_DrawNotice(struct GameTracker *gGT, const struct ChaosActiv
 		scale = UI_CHAOS_LIST_SCALE;
 		ot += UI_HUD_ORDERING_SLOT_BEHIND_HUD;
 		flags = JUSTIFY_RIGHT | ORANGE;
-		startX = centerX + DecalFont_GetLineWidth((char *)effect->label, font) * scale / FP(1.0) / 2;
+		startX = centerX + DecalFont_GetLineWidth((char *)effectLabel, font) * scale / FP(1.0) / 2;
 		endX = UI_CHAOS_LIST_RIGHT;
 		slideMS = CHAOS_ACTIVATION_DOCK_MS - entry->noticeRemainingMS;
 		slideDurationMS = CHAOS_ACTIVATION_DOCK_MS;
@@ -172,7 +172,7 @@ static void UI_Chaos_DrawNotice(struct GameTracker *gGT, const struct ChaosActiv
 	SVec2 pos;
 	UI_Lerp2D_Linear(CTR_VECTOR_DATA(&pos), (s16)startX, (s16)bannerY, (s16)endX, (s16)bannerY,
 	                 slideMS, (s16)slideDurationMS);
-	DecalFont_DrawLineScaledOT((char *)effect->label, pos.x, pos.y, font, (s16)flags, scale,
+	DecalFont_DrawLineScaledOT((char *)effectLabel, pos.x, pos.y, font, (s16)flags, scale,
 	                           ot);
 }
 
@@ -217,7 +217,7 @@ void UI_Chaos_DrawActivation(struct GameTracker *gGT)
 		}
 		else
 		{
-			DecalFont_DrawLineScaledOT((char *)g_chaosEffectDefs[entry->effect].label, UI_CHAOS_LIST_RIGHT, (s16)rowY[docked[row]],
+			DecalFont_DrawLineScaledOT((char *)LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + entry->effect), UI_CHAOS_LIST_RIGHT, (s16)rowY[docked[row]],
 			                           FONT_SMALL, JUSTIFY_RIGHT | ORANGE, UI_CHAOS_LIST_SCALE,
 			                           &gGT->backBuffer->otMem.uiOT[UI_HUD_ORDERING_SLOT_BEHIND_HUD]);
 		}

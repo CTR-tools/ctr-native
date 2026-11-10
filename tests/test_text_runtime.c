@@ -106,6 +106,11 @@ int main(void)
 	s_englishOverride = NULL;
 	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
 	CTR_TEST_CHECK(strcmp(LANG_GetString(LNG_EXPANDED_CHAOS), "Chaos") == 0, "English shipped text is the final fallback");
+	s_english = "PATCH_IMPORTED_SKIPPED = '{tracks} TRACKS {skipped_music} SKIPPED'\n";
+	s_italian = "PATCH_IMPORTED_SKIPPED = '{tracks} PISTE'\n";
+	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
+	CTR_TEST_CHECK(strcmp(LANG_GetString(LNG_EXPANDED_PATCH_IMPORTED_SKIPPED), "{tracks} TRACKS {skipped_music} SKIPPED") == 0,
+	               "a translation missing a placeholder falls back to English");
 	TextTest_Reload(NATIVE_LANGUAGE_ENGLISH);
 	CTR_TEST_CHECK(NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, LNG_EXPANDED_MODE) == NULL, "English selection does not reuse old translations");
 	s_english = NULL;

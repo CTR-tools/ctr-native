@@ -1,6 +1,9 @@
 #include <common.h>
 #include "MM_FullScreenMenu.c"
 
+_Static_assert(LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
+               "Chaos effect text IDs must match effect IDs");
+
 // Shared full-screen settings: editable during creation, read-only from pause.
 // Page changes draw immediately; leaving the screen happens after drawing.
 static void MM_MenuProc_ChaosConfig(struct RectMenu *menu);
@@ -17,11 +20,11 @@ enum
 	CHAOS_TEST_INTERVAL_SECONDS = 10,
 };
 
-static const char *const s_chaosTriggerNames[CHAOS_TRIGGER_COUNT] = {
-	[CHAOS_TRIGGER_RANDOM] = "Random",
-	[CHAOS_TRIGGER_PICKUP] = "Pickup",
-	[CHAOS_TRIGGER_INTERVAL] = "Interval",
-	[CHAOS_TRIGGER_EXTERNAL] = "External",
+static const int s_chaosTriggerNames[CHAOS_TRIGGER_COUNT] = {
+	[CHAOS_TRIGGER_RANDOM] = LNG_EXPANDED_RANDOM,
+	[CHAOS_TRIGGER_PICKUP] = LNG_EXPANDED_PICKUP,
+	[CHAOS_TRIGGER_INTERVAL] = LNG_EXPANDED_INTERVAL,
+	[CHAOS_TRIGGER_EXTERNAL] = LNG_EXPANDED_EXTERNAL,
 };
 
 static bool Chaos_TriggerIsTimed(int trigger)
@@ -31,28 +34,35 @@ static bool Chaos_TriggerIsTimed(int trigger)
 
 static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 	[CHAOS_SETTING_DURATION] = {
-		.label = "Duration", .kind = FULLSCREEN_ROW_STEP,
+		.kind = FULLSCREEN_ROW_STEP,
 		.min = CHAOS_DURATION_MIN_SECONDS, .max = CHAOS_DURATION_MAX_SECONDS,
 		.step = CHAOS_DURATION_STEP_SECONDS, .suffix = "s"},
 	[CHAOS_SETTING_TRIGGER] = {
-		.label = "Trigger", .kind = FULLSCREEN_ROW_CHOICE,
-		.choices = s_chaosTriggerNames, .numChoices = CHAOS_TRIGGER_COUNT},
+		.kind = FULLSCREEN_ROW_CHOICE, .numChoices = CHAOS_TRIGGER_COUNT},
 	[CHAOS_SETTING_INTERVAL] = {
-		.label = "Interval", .kind = FULLSCREEN_ROW_STEP,
+		.kind = FULLSCREEN_ROW_STEP,
 		.min = CHAOS_INTERVAL_MIN_SECONDS, .max = CHAOS_INTERVAL_MAX_SECONDS,
 		.step = CHAOS_INTERVAL_STEP_SECONDS, .suffix = "s"},
-	[CHAOS_SETTING_EFFECTS] = {.label = "Effects", .kind = FULLSCREEN_ROW_ACTION},
-	[CHAOS_SETTING_CONFIRM] = {.label = "Confirm", .kind = FULLSCREEN_ROW_ACTION},
+	[CHAOS_SETTING_EFFECTS] = {.kind = FULLSCREEN_ROW_ACTION},
+	[CHAOS_SETTING_CONFIRM] = {.kind = FULLSCREEN_ROW_ACTION},
 };
 
-static const char *const s_chaosPageTitles[CHAOS_PAGE_COUNT] = {
-	[CHAOS_PAGE_SETTINGS] = "CHAOS SETUP",
-	[CHAOS_PAGE_EFFECTS] = "CHAOS EFFECTS",
+static const int s_chaosSettingLabels[CHAOS_SETTING_COUNT] = {
+	[CHAOS_SETTING_DURATION] = LNG_EXPANDED_DURATION,
+	[CHAOS_SETTING_TRIGGER] = LNG_EXPANDED_TRIGGER,
+	[CHAOS_SETTING_INTERVAL] = LNG_EXPANDED_INTERVAL,
+	[CHAOS_SETTING_EFFECTS] = LNG_EXPANDED_EFFECTS,
+	[CHAOS_SETTING_CONFIRM] = LNG_EXPANDED_CONFIRM,
 };
 
-static const char *const s_chaosReadOnlyPageTitles[CHAOS_PAGE_COUNT] = {
-	[CHAOS_PAGE_SETTINGS] = "CHAOS RULES",
-	[CHAOS_PAGE_EFFECTS] = "ACTIVE EFFECTS",
+static const int s_chaosPageTitles[CHAOS_PAGE_COUNT] = {
+	[CHAOS_PAGE_SETTINGS] = LNG_EXPANDED_CHAOS_SETUP_TITLE,
+	[CHAOS_PAGE_EFFECTS] = LNG_EXPANDED_CHAOS_EFFECTS_TITLE,
+};
+
+static const int s_chaosReadOnlyPageTitles[CHAOS_PAGE_COUNT] = {
+	[CHAOS_PAGE_SETTINGS] = LNG_EXPANDED_CHAOS_RULES,
+	[CHAOS_PAGE_EFFECTS] = LNG_EXPANDED_ACTIVE_EFFECTS,
 };
 
 static void Chaos_BuildSettingRows(void)
@@ -197,7 +207,7 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 	if (sdata->chaosMenu.page == CHAOS_PAGE_EFFECTS)
 	{
 		const ChaosEffectId effect = Chaos_EffectForRow(row);
-		FullScreenMenu_DrawRowLabel(ChaosEffect_Def(effect)->label, y, ot);
+		FullScreenMenu_DrawRowLabel(LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + effect), y, ot);
 		if (sdata->chaosMenu.returnMenu == NULL)
 		{
 			FullScreenMenu_DrawOnOff(ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect), y, ot);
@@ -206,9 +216,18 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 	else
 	{
 		const enum ChaosSetting setting = sdata->chaosMenu.visibleSettings[row];
-		const struct FullScreenMenu_Row *spec = &s_chaosSettings[setting];
-		const char *label = setting == CHAOS_SETTING_EFFECTS && sdata->chaosMenu.returnMenu != NULL
-		                        ? "Active Effects" : spec->label;
+		struct FullScreenMenu_Row spec = s_chaosSettings[setting];
+		const char *choices[CHAOS_TRIGGER_COUNT];
+		if (setting == CHAOS_SETTING_TRIGGER)
+		{
+			for (int i = 0; i < CHAOS_TRIGGER_COUNT; i++)
+			{
+				choices[i] = LANG_GetString(s_chaosTriggerNames[i]);
+			}
+			spec.choices = choices;
+		}
+		const char *label = LANG_GetString(setting == CHAOS_SETTING_EFFECTS && sdata->chaosMenu.returnMenu != NULL
+		                                       ? LNG_EXPANDED_ACTIVE_EFFECTS : s_chaosSettingLabels[setting]);
 		if (setting == CHAOS_SETTING_CONFIRM && !Chaos_CanConfirm())
 		{
 			DecalFont_DrawLineOT((char *)label, FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
@@ -217,7 +236,7 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 		{
 			FullScreenMenu_DrawRowLabel(label, y, ot);
 		}
-		FullScreenMenu_DrawRowValue(spec, Chaos_SettingValue(setting), y, ot);
+		FullScreenMenu_DrawRowValue(&spec, Chaos_SettingValue(setting), y, ot);
 	}
 }
 
@@ -366,7 +385,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	const int numRows = Chaos_PageRowCount(state);
 	FullScreenMenu_FollowScroll(scroll, &selected, numRows);
 	menu->rowSelected = selected;
-	const char *title = readOnly ? s_chaosReadOnlyPageTitles[state->page] : s_chaosPageTitles[state->page];
+	const char *title = LANG_GetString(readOnly ? s_chaosReadOnlyPageTitles[state->page] : s_chaosPageTitles[state->page]);
 	FullScreenMenu_DrawScreen(title, 0, scroll, numRows, selected,
 	                          Chaos_DrawRow, NULL, gGT, ot);
 

@@ -3,12 +3,22 @@
 #include <common.h>
 #include <platform/native_folder_dialog.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_patch.h>
 #include <platform/native_text_edit.h>
 #include <track_import_view.h>
 #include <platform/native_track_registry.c>
 
 struct sData sdata_static;
 struct Data data;
+const char *LANG_GetString(s32 key)
+{
+	if (key == LNG_EXPANDED_TRACKS_CUSTOM) { return "Custom"; }
+	if (key == LNG_EXPANDED_TRACKS_CLEANUP_FAILED) { return "CLEANUP FAILED"; }
+	if (key == LNG_EXPANDED_TRACKS_APPLY_PATCH) { return "LOCALIZED PATCH STAGE"; }
+	if (key == LNG_EXPANDED_IMPORT_INVALID_SOURCE) { return "LOCALIZED SOURCE ERROR"; }
+	if (key == LNG_EXPANDED_PATCH_IMPORTED_SKIPPED) { return "{skipped_music} SKIPPED; {tracks} IMPORTED"; }
+	return "Retail";
+}
 void RECTMENU_DrawFullRect(struct RectMenu *menu, RECT *rect) { (void)menu; (void)rect; }
 void CTR_Box_DrawClearBox(const RECT *rect, const Color *color, s32 transparency, u32 *ot, struct PrimMem *prims)
 {
@@ -21,7 +31,7 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 static enum NativeFolderDialogResult s_dialogResult;
 static int s_prepared, s_commits, s_discards, s_refresh, s_patchResult, s_cancel;
 static int s_sound = -1;
-static const char *s_prepareError;
+static enum ExpandedLngString s_prepareError;
 static char s_lastTitle[256], s_lastAuthor[256];
 static enum NativeTextEditResult s_editResult;
 static size_t s_characterLimit;
@@ -75,25 +85,28 @@ int NativeFileDialog_OpenPatch(void) { return NativeFolderDialog_Open(); }
 enum NativeFolderDialogResult NativeFolderDialog_Result(void) { return s_dialogResult; }
 const char *NativeFolderDialog_Path(void) { return "C:/source"; }
 const char *NativeAssets_GetAssetDir(void) { return "C:/assets"; }
-const char *NativeTrackPatch_PrepareFolder(const char *assets, const char *source) { (void)assets; (void)source; s_prepared++; return s_prepareError; }
+enum ExpandedLngString NativeTrackPatch_PrepareFolder(const char *assets, const char *source) { (void)assets; (void)source; s_prepared++; return s_prepareError; }
 int NativeTrackPatch_StartReview(const char *assets, const char *patch) { (void)assets; (void)patch; s_patchResult = 0; return 1; }
 int NativeTrackPatch_Poll(void) { return s_patchResult; }
-const char *NativeTrackPatch_Message(void) { return "Patch result"; }
+static enum ExpandedLngString s_patchMessage = LNG_EXPANDED_IMPORT_INVALID_SOURCE;
+enum ExpandedLngString NativeTrackPatch_Message(void) { return s_patchMessage; }
+int NativeTrackPatch_ResultCount(void) { return 3; }
+int NativeTrackPatch_SkippedMusicCount(void) { return 2; }
 void NativeTrackPatch_Cancel(void) { s_cancel++; }
 void NativeTrackPatch_Shutdown(void) { s_cancel++; }
 const char *NativeTrackPatch_ReviewDirectory(void) { return "C:/staged"; }
-const char *NativeTrackPatch_ReviewCommit(void) { s_commits++; return NULL; }
+enum ExpandedLngString NativeTrackPatch_ReviewCommit(void) { s_commits++; return LNG_TRACK_RESULT_OK; }
 int NativeTrackPatch_ReviewCommitStart(void) { s_commits++; s_patchResult = 0; return 1; }
 struct NativeTrackRegistry *NativeTrackPatch_TakeRegistry(void) { return NativeTrackRegistry_Create(); }
 void NativeTrackLibrary_Replace(struct NativeTrackRegistry *registry) { s_refresh++; NativeTrackRegistry_Destroy(registry); }
 int NativeTrackPatch_ReviewDiscard(void) { s_discards++; return 1; }
 int NativeTrackPatch_ReviewDiscardStart(void) { s_discards++; s_patchResult = 0; return 1; }
-const char *NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
+enum ExpandedLngString NativeTrackPatch_ReviewUpdate(const char *identity, const char *title, const char *author)
 {
 	(void)identity;
 	snprintf(s_lastTitle, sizeof(s_lastTitle), "%s", title);
 	snprintf(s_lastAuthor, sizeof(s_lastAuthor), "%s", author);
-	return NULL;
+	return LNG_TRACK_RESULT_OK;
 }
 struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struct NativeTrackScanResult *result)
 {
@@ -131,6 +144,17 @@ int main(void)
 	data.metaDataLEV[CRASH_COVE].name_LNG = 0;
 	data.metaDataLEV[BLIZZARD_BLUFF].name_LNG = 1;
 	MM_TrackImport_Reset();
+	s_trackImportState = TRACK_IMPORT_PATCHING;
+	s_patchMessage = LNG_EXPANDED_TRACKS_APPLY_PATCH;
+	CTR_TEST_CHECK(strcmp(MM_TrackImport_Message(), "LOCALIZED PATCH STAGE") == 0, "a running stage resolves its localization key");
+	s_patchMessage = LNG_EXPANDED_IMPORT_INVALID_SOURCE;
+	CTR_TEST_CHECK(strcmp(MM_TrackImport_Message(), "LOCALIZED SOURCE ERROR") == 0, "a finished job shows its result before the next poll");
+	s_trackImportState = TRACK_IMPORT_RESULT;
+	s_trackImportMessage = LNG_EXPANDED_IMPORT_INVALID_SOURCE;
+	CTR_TEST_CHECK(strcmp(MM_TrackImport_Message(), "LOCALIZED SOURCE ERROR") == 0, "platform error keys are localized when displayed");
+	s_trackImportMessage = LNG_TRACK_RESULT_SKIPPED;
+	CTR_TEST_CHECK(strcmp(MM_TrackImport_Message(), "2 SKIPPED; 3 IMPORTED") == 0, "translations can reorder import counts");
+	s_trackImportState = TRACK_IMPORT_CLOSED;
 	CTR_TEST_SECTION("folder review and cancellation");
 	MM_TrackImport_Open();
 	s_dialogResult = NATIVE_FOLDER_DIALOG_SELECTED;
@@ -178,7 +202,7 @@ int main(void)
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARDING, "review cleanup remains responsive while pending");
 	s_patchResult = -1;
 	MM_TrackImport_Update(0);
-	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARD_FAILED && strcmp(s_trackImportMessage, "Cleanup failed - confirm to retry") == 0,
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARD_FAILED && s_trackImportMessage == LNG_EXPANDED_TRACKS_CLEANUP_FAILED,
 	               "failed cleanup offers a retry even if staged files were partially removed");
 	MM_TrackImport_Update(BTN_CROSS);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_DISCARDING && s_discards == 2, "cleanup can be retried after a failure");
@@ -186,14 +210,14 @@ int main(void)
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_RESULT, "completed cleanup displays its result");
 	MM_TrackImport_Update(BTN_CROSS);
-	s_prepareError = "Invalid LEV or VRM";
+	s_prepareError = LNG_EXPANDED_IMPORT_INVALID_FILES;
 	MM_TrackImport_Open();
 	s_dialogResult = NATIVE_FOLDER_DIALOG_SELECTED;
 	MM_TrackImport_Update(0);
-	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_RESULT && strcmp(MM_TrackImport_Message(), s_prepareError) == 0 &&
+	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_RESULT && s_trackImportMessage == s_prepareError &&
 	               s_commits == 0 && s_refresh == 0, "an invalid folder reports its error without publishing");
 	MM_TrackImport_Update(BTN_CROSS);
-	s_prepareError = NULL;
+	s_prepareError = LNG_TRACK_RESULT_OK;
 	s_musicAvailable = 1;
 	s_musicRetail = -1;
 	s_musicIdentity[0] = '\0';

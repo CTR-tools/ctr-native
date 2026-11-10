@@ -5,10 +5,17 @@ struct sData sdata_static;
 
 #include <platform/native_text_runtime.h>
 void NativeTextRuntime_Reload(int slot) { (void)slot; }
-static const char *const s_testExpanded[] = {"Mode", "Chaos", "Regular", "Chaos Rules", "Super Hard", "Ultra Hard"};
+static const char *const s_testExpanded[] = {"Mode", "Chaos", "Regular", "Chaos Rules", "Super Hard", "Ultra Hard",
+                                             "PRESS START TO SKIP", "NO PREVIEW", "CHAOS SETUP", "CHAOS EFFECTS",
+	                                             "Duration", "Trigger", "Interval",
+	                                             "Effects", "Confirm", "Active Effects", "Random", "Pickup", "External",
+	                                             "Automatic", "Disabled", "SELECT DEVICE", "DEVICE", "Vibration",
+	                                             "Deadzone", "Restore Defaults", "None"};
 const char *NativeTextRuntime_Get(enum NativeTextSource source, int key)
 {
-	return source == NATIVE_TEXT_ENGLISH_SHIPPED ? s_testExpanded[key - LNG_EXPANDED_STRING_BASE] : NULL;
+	int index = key - LNG_EXPANDED_STRING_BASE;
+	return source == NATIVE_TEXT_ENGLISH_SHIPPED && index >= 0 && index < (int)len(s_testExpanded)
+	           ? s_testExpanded[index] : NULL;
 }
 const char *NativeTextCatalog_KeyName(int key) { (void)key; return ""; }
 

@@ -9,6 +9,18 @@
 struct sData sdata_static;
 struct Data data;
 NativeConfig g_config;
+
+const char *LANG_GetString(s32 index)
+{
+	static char values[LNG_EXPANDED_STRING_COUNT][24];
+	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
+	{
+		return "";
+	}
+	char *value = values[index - LNG_EXPANDED_STRING_BASE];
+	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
+	return value;
+}
 // VehBirth.c precedes Chaos in the game unity build; this fixture doubles birth.
 enum { VEH_BIRTH_WHEEL_SIZE = 0xccc };
 static struct GameTracker s_tracker;

@@ -93,7 +93,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	TrackPatch_Path(prepared, work, "prepared");
 	TrackPatch_Path(library, assets, "tracks");
 	SDL_CreateDirectory(prepared);
-	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == LNG_TRACK_RESULT_OK,
 	               "a validated candidate can be prepared outside the live library");
 	memset(&s_trackPatchJob, 0, sizeof(s_trackPatchJob));
 	s_trackPatchJob.reviewReady = 1;
@@ -105,11 +105,11 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscard() && !SDL_GetPathInfo(work, &info) && !SDL_GetPathInfo(library, &info),
 	               "discard removes only the temporary import and does not create the library");
 	SDL_CreateDirectory(prepared);
-	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "candidate") == LNG_TRACK_RESULT_OK,
 	               "a second candidate can be prepared after discard");
-	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "other") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "other") == LNG_TRACK_RESULT_OK,
 	               "a second candidate is available for music exchange");
-	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "discard") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(prepared, source, "discard") == LNG_TRACK_RESULT_OK,
 	               "a third candidate can be excluded while retaining its music");
 	char sca[PATCH_PATH_BYTES];
 	TrackPatch_Path(sca, prepared, "candidate/track.sca");
@@ -126,11 +126,11 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:discard", 0) &&
 	               !NativeTrackPatch_ReviewIncluded("local:discard"), "a candidate can be excluded without deleting its files");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:candidate", 0) && NativeTrackPatch_ReviewSetIncluded("local:other", 0) &&
-	               NativeTrackPatch_ReviewCommit() != NULL && NativeTrackPatch_ReviewDirectory() != NULL,
+	               NativeTrackPatch_ReviewCommit() != LNG_TRACK_RESULT_OK && NativeTrackPatch_ReviewDirectory() != NULL,
 	               "publishing no tracks fails while retaining the review");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewSetIncluded("local:candidate", 1) && NativeTrackPatch_ReviewSetIncluded("local:other", 1),
 	               "excluded candidates can be reselected");
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommit() == NULL && SDL_GetPathInfo(library, &info) && !SDL_GetPathInfo(work, &info),
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommit() == LNG_TRACK_RESULT_OK && SDL_GetPathInfo(library, &info) && !SDL_GetPathInfo(work, &info),
 	               "confirm publishes the candidate and removes the temporary import");
 	TrackPatch_Path(sca, library, "candidate/track.sca");
 	size_t musicSize = 0;
@@ -157,7 +157,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	TrackPatch_Path(assets, root, "folder-review-assets");
 	SDL_CreateDirectory(assets);
 	TrackPatch_Path(library, assets, "tracks");
-	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL && NativeTrackPatch_ReviewDirectory() != NULL &&
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == LNG_TRACK_RESULT_OK && NativeTrackPatch_ReviewDirectory() != NULL &&
 	               !SDL_GetPathInfo(library, &info), "folder imports also prepare without publishing");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewDiscardStart(), "discarding a folder import starts background cleanup");
 	int discardResult;
@@ -165,14 +165,14 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(discardResult == 1 && NativeTrackPatch_ReviewDirectory() == NULL &&
 	               SDL_GetPathInfo(source, &info) && !SDL_GetPathInfo(library, &info),
 	               "background cleanup removes the review and preserves the user's source");
-	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL, "a discarded folder can be prepared again");
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == LNG_TRACK_RESULT_OK, "a discarded folder can be prepared again");
 	struct NativeTrackRegistry *registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	CTR_TEST_CHECK(NativeTrackLibrary_SetMusic(track, -1, 1), "review saves music in the candidate manifest");
 	char identity[256];
 	SDL_strlcpy(identity, track != NULL ? track->identity : "", sizeof(identity));
 	NativeTrackRegistry_Destroy(registry);
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Edited Circuit", "Example Author") == NULL,
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Edited Circuit", "Example Author") == LNG_TRACK_RESULT_OK,
 	               "review can edit candidate title and attribution");
 	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
@@ -182,16 +182,16 @@ static void PatchTest_Review(const char *root, const char *source)
 	               track->author != NULL && strcmp(track->author, "Example Author") == 0,
 	               "editing preserves identity and persists both values in the staged metadata");
 	NativeTrackRegistry_Destroy(registry);
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Renamed Circuit", "") == NULL,
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Renamed Circuit", "") == LNG_TRACK_RESULT_OK,
 	               "editing again replaces the staged metadata and may clear the author");
 	registry = NativeTrackLibrary_Scan(NativeTrackPatch_ReviewDirectory(), NULL);
 	track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
 	CTR_TEST_CHECK(track != NULL && strcmp(track->title, "Renamed Circuit") == 0 && track->author == NULL,
 	               "replacement keeps the manifest readable without an author");
 	NativeTrackRegistry_Destroy(registry);
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Invalid\nTitle", "") != NULL,
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Invalid\nTitle", "") != LNG_TRACK_RESULT_OK,
 	               "metadata cannot inject extra manifest lines");
-	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Title", "   ") != NULL,
+	CTR_TEST_CHECK(NativeTrackPatch_ReviewUpdate(identity, "Title", "   ") != LNG_TRACK_RESULT_OK,
 	               "whitespace-only attribution cannot produce an invalid manifest");
 	CTR_TEST_CHECK(NativeTrackPatch_ReviewCommitStart(), "confirmation starts a background installation");
 	int result;
@@ -200,7 +200,7 @@ static void PatchTest_Review(const char *root, const char *source)
 	CTR_TEST_CHECK(result == 1 && installed != NULL && NativeTrackRegistry_Count(installed) == 1 &&
 	               SDL_GetPathInfo(library, &info), "background confirmation publishes and scans the folder import");
 	NativeTrackRegistry_Destroy(installed);
-	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == NULL,
+	CTR_TEST_CHECK(NativeTrackPatch_PrepareFolder(assets, source) == LNG_TRACK_RESULT_OK,
 	               "another folder import can be reviewed after installation");
 	const char *reviewDirectory = NativeTrackPatch_ReviewDirectory();
 	registry = NativeTrackLibrary_Scan(reviewDirectory, NULL);
@@ -263,9 +263,9 @@ static void PatchTest_Collect(const char *root)
 	int count = 0;
 	unsigned char credits[] = "created by Example Author";
 	struct PatchMusic music = {.menu = {credits, sizeof(credits)}};
-	const char *error = TrackPatch_Collect(&job, root, &count, &music);
-	if (error != NULL) { printf("Discovery error: %s\n", error); }
-	CTR_TEST_CHECK(error == NULL && count == 2, "identical LEV/VRM pairs are imported once while distinct pairs remain separate");
+	enum ExpandedLngString error = TrackPatch_Collect(&job, root, &count, &music);
+	if (error != LNG_TRACK_RESULT_OK) { printf("Discovery error: %d\n", error); }
+	CTR_TEST_CHECK(error == LNG_TRACK_RESULT_OK && count == 2, "identical LEV/VRM pairs are imported once while distinct pairs remain separate");
 	char prepared[PATCH_PATH_BYTES];
 	TrackPatch_Path(prepared, root, "prepared");
 	char reviewSource[PATCH_PATH_BYTES];
@@ -283,9 +283,9 @@ static void PatchTest_Collect(const char *root)
 	char library[PATCH_PATH_BYTES], source[PATCH_PATH_BYTES];
 	TrackPatch_Path(library, root, "installed");
 	TrackPatch_Path(source, prepared, "Example-proto9");
-	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "Example-proto9") == NULL,
+	CTR_TEST_CHECK(NativeTrackImport_Directory(library, source, "Example-proto9") == LNG_TRACK_RESULT_OK,
 	               "the publication conflict fixture is installed");
-	CTR_TEST_CHECK(TrackPatch_InstallPrepared(&job, prepared, library) != NULL,
+	CTR_TEST_CHECK(TrackPatch_InstallPrepared(&job, prepared, library) != LNG_TRACK_RESULT_OK,
 	               "an import cannot overwrite an installed circuit");
 	registry = NativeTrackLibrary_Scan(library, &scan);
 	CTR_TEST_CHECK(registry != NULL && scan.installed == 1 &&
@@ -293,7 +293,7 @@ static void PatchTest_Collect(const char *root)
 	               "a multi-circuit conflict preserves existing content and rolls back newly published tracks");
 	NativeTrackRegistry_Destroy(registry);
 	SDL_SetAtomicInt(&job.cancel, 1);
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "cancellation stops circuit discovery");
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) == LNG_EXPANDED_PATCH_CANCELLED, "cancellation stops circuit discovery");
 	SDL_SetAtomicInt(&job.cancel, 0);
 	TrackPatch_RemoveTree(prepared);
 	for (int i = 0; i < 3; i++)
@@ -305,12 +305,12 @@ static void PatchTest_Collect(const char *root)
 		TrackPatch_Path(patched, root, relative);
 		SDL_CopyFile(original, patched);
 	}
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL && count == 0,
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != LNG_TRACK_RESULT_OK && count == 0,
 	               "an unchanged ROM never installs retail circuits as custom content");
 	char missing[PATCH_PATH_BYTES];
 	TrackPatch_Path(missing, root, "patched/levels/tracks/proto8/1P/data.vrm");
 	SDL_RemovePath(missing);
-	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != NULL, "an incomplete extracted pair is an error, not a guessed match");
+	CTR_TEST_CHECK(TrackPatch_Collect(&job, root, &count, NULL) != LNG_TRACK_RESULT_OK, "an incomplete extracted pair is an error, not a guessed match");
 }
 
 static void PatchTest_Author(const char *root)
@@ -342,23 +342,23 @@ static void PatchTest_Author(const char *root)
 	TrackPatch_Path(manifest, directory, "track.ini");
 	struct PatchMusic noCredit = {.menu = {(unsigned char *)absent, sizeof(absent)}};
 	SDL_PathInfo info;
-	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &noCredit) == NULL && !SDL_GetPathInfo(manifest, &info),
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &noCredit) == LNG_TRACK_RESULT_OK && !SDL_GetPathInfo(manifest, &info),
 	               "an absent credit does not create a manifest or set an author");
 	struct PatchMusic music = {.menu = {(unsigned char *)credit, sizeof(credit)}};
-	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "a valid credit can be saved in track metadata");
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == LNG_TRACK_RESULT_OK, "a valid credit can be saved in track metadata");
 	size_t size = 0;
 	char *content = SDL_LoadFile(manifest, &size);
 	CTR_TEST_CHECK(content != NULL && strstr(content, "author = Example Author\n") != NULL,
 	               "the generated manifest contains the detected author");
 	SDL_free(content);
 	PatchTest_Write(manifest, "title = Detected Title\n", strlen("title = Detected Title\n"));
-	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "a detected author can be added to a detected title");
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == LNG_TRACK_RESULT_OK, "a detected author can be added to a detected title");
 	content = SDL_LoadFile(manifest, &size);
 	CTR_TEST_CHECK(content != NULL && strstr(content, "title = Detected Title\n") != NULL &&
 	               strstr(content, "author = Example Author\n") != NULL, "both detected metadata fields survive");
 	SDL_free(content);
 	PatchTest_Write(manifest, "author = Existing\n", strlen("author = Existing\n"));
-	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == NULL, "existing metadata is preserved");
+	CTR_TEST_CHECK(TrackPatch_WriteAuthor(root, "author-track", &music) == LNG_TRACK_RESULT_OK, "existing metadata is preserved");
 	content = SDL_LoadFile(manifest, &size);
 	CTR_TEST_CHECK(content != NULL && strcmp(content, "author = Existing\n") == 0,
 	               "a pre-existing author is not overwritten");
@@ -382,7 +382,7 @@ static void PatchTest_Worker(const char *root)
 	CTR_TEST_CHECK(!NativeTrackPatch_Start(root, patch), "a second job cannot overwrite an active job");
 	int result;
 	do { result = NativeTrackPatch_Poll(); if (result == 0) { SDL_Delay(1); } } while (result == 0);
-	CTR_TEST_CHECK(result < 0 && strstr(NativeTrackPatch_Message(), "Missing") != NULL,
+	CTR_TEST_CHECK(result < 0 && NativeTrackPatch_Message() == LNG_EXPANDED_PATCH_MISSING_BIGTOOL,
 	               "missing local tool dependencies are reported");
 	int cleaned = 1;
 	SDL_EnumerateDirectory(root, PatchTest_NoTemporary, &cleaned);
@@ -617,7 +617,7 @@ static void PatchTest_ImportAudioLive(const char *root, const char *assets, cons
 	CTR_TEST_CHECK(NativeTrackPatch_Start(root, patch), "the local patch starts");
 	int result;
 	do { result = NativeTrackPatch_Poll(); if (result == 0) { SDL_Delay(20); } } while (result == 0);
-	printf("%s\n", NativeTrackPatch_Message());
+	printf("%d\n", NativeTrackPatch_Message());
 	CTR_TEST_CHECK(result > 0 && s_trackPatchJob.musicGenerated == 1 && s_trackPatchJob.musicSkipped == 0,
 	               "the complete import generates a custom music file");
 	char relative[PATCH_NAME_BYTES + 40];
@@ -711,7 +711,7 @@ static void PatchTest_RetailLive(const char *root, const char *assets)
 	CTR_TEST_CHECK(NativeTrackPatch_Start(root, patch), "a patch generated entirely from retail tracks starts");
 	int result;
 	do { result = NativeTrackPatch_Poll(); if (result == 0) { SDL_Delay(20); } } while (result == 0);
-	printf("%s\n", NativeTrackPatch_Message());
+	printf("%d\n", NativeTrackPatch_Message());
 	CTR_TEST_CHECK(result > 0, "the generated retail patch is applied, extracted and installed");
 	TrackPatch_Path(to, root, "tracks");
 	struct NativeTrackScanResult scan;
@@ -813,9 +813,9 @@ int main(int argc, char **argv)
 		SDL_strlcpy(job.patch, argv[3], sizeof(job.patch));
 		SDL_strlcpy(job.name, "live", sizeof(job.name));
 		int count = 0;
-		const char *error = TrackPatch_Run(&job, work, &count);
-		printf("imported=%d music=%d skipped=%d error=%s\n", count, job.musicGenerated, job.musicSkipped, error ? error : "none");
-		CTR_TEST_CHECK(error == NULL && count > 0, "a supplied patch imports into a disposable library");
+		enum ExpandedLngString error = TrackPatch_Run(&job, work, &count);
+		printf("imported=%d music=%d skipped=%d error=%d\n", count, job.musicGenerated, job.musicSkipped, error);
+		CTR_TEST_CHECK(error == LNG_TRACK_RESULT_OK && count > 0, "a supplied patch imports into a disposable library");
 		if (argc == 6)
 		{
 			char relative[PATCH_PATH_BYTES];

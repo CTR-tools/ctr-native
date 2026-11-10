@@ -100,7 +100,8 @@ static void NativeTextRuntime_Load(const char *id, int shipped, struct NativeTex
 
 void NativeTextRuntime_Reload(int languageSlot)
 {
-	struct NativeTextRuntimeValues next[NATIVE_TEXT_SOURCE_COUNT] = {0};
+	static struct NativeTextRuntimeValues next[NATIVE_TEXT_SOURCE_COUNT];
+	memset(next, 0, sizeof(next));
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
 	NativeTextRuntime_Load("en", 0, &next[NATIVE_TEXT_ENGLISH_OVERRIDE]);
 	NativeTextRuntime_Load("en", 1, &next[NATIVE_TEXT_ENGLISH_SHIPPED]);

@@ -58,6 +58,29 @@ static int s_backgroundDeactivations;
 static int s_trackImportOpened;
 static int s_trackRefreshCalls;
 static int s_trackRefreshSuccess = 1;
+
+const char *LANG_GetString(s32 index)
+{
+	switch (index)
+	{
+	case LNG_EXPANDED_TRACKS_REFRESH_SUMMARY: return "TRACKS: {tracks}  REJECTED: {rejected}";
+	case LNG_EXPANDED_TRACKS_IMPORT: return "Import";
+	case LNG_EXPANDED_TRACKS_AUTHOR: return "Author";
+	case LNG_EXPANDED_TRACKS_MODES: return "Modes";
+	case LNG_EXPANDED_TRACKS_UNKNOWN: return "Unknown";
+	case LNG_EXPANDED_TRACKS_NONE_IMPORTED: return "No tracks imported";
+	case LNG_EXPANDED_TRACKS_REFRESH_FAILED: return "Refresh failed";
+	default: break;
+	}
+	static char values[LNG_EXPANDED_STRING_COUNT][48];
+	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
+	{
+		return "";
+	}
+	char *value = values[index - LNG_EXPANDED_STRING_BASE];
+	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
+	return value;
+}
 static int s_lastMenuSound = -1;
 static int s_sectionFont = -1;
 static int s_trackFixtureCount;
@@ -214,11 +237,11 @@ void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot
 	{
 		s_languagePopupDraw = ++s_languageDrawSequence;
 	}
-	if (s_recordLanguageDraw && strcmp(text, "Audio") == 0 && s_languageUnderlyingDraw == 0)
+	if (s_recordLanguageDraw && strcmp(text, LANG_GetString(LNG_EXPANDED_CONFIG_AUDIO)) == 0 && s_languageUnderlyingDraw == 0)
 	{
 		s_languageUnderlyingDraw = ++s_languageDrawSequence;
 	}
-	if (strcmp(text, "System") == 0)
+	if (strcmp(text, LANG_GetString(LNG_EXPANDED_CONFIG_SYSTEM)) == 0)
 	{
 		s_sectionFont = font;
 	}
@@ -348,6 +371,12 @@ static void TestNavigation(void)
 	{
 		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
 	}
+	CTR_TEST_CHECK(Config_EntryLabel(entries[0]) == LANG_GetString(LNG_EXPANDED_CONFIG_SYSTEM),
+	               "the System navigation label resolves through the catalog");
+	CTR_TEST_CHECK(Config_SectionLabel(CONFIG_SECTION_AUDIO) == LANG_GetString(LNG_EXPANDED_CONFIG_AUDIO),
+	               "the Audio section title uses the same catalog entry as its navigation row");
+	CTR_TEST_CHECK(strcmp(Config_SectionLabel("Unmigrated"), "Unmigrated") == 0,
+	               "an unmigrated section retains its existing label");
 	const char *groups[][5] = {
 		{"System", "Audio", "Language", "Controls", "Graphics"},
 		{"Game", "Adventure", "General", "Unlocks"},
@@ -489,7 +518,7 @@ static void TestTrackImportMenu(void)
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
 	CTR_TEST_CHECK(s_trackRefreshCalls == 1 && s_customTracksPage == CUSTOM_TRACKS_REFRESH_RESULT && s_trackFixtureCount == 2 &&
-	               strcmp(s_customTracksRefreshMessage, "Tracks: 2  Rejected: 1") == 0,
+	               strcmp(s_customTracksRefreshMessage, "TRACKS: 2  REJECTED: 1") == 0,
 	               "refresh scans the track directory and displays its result");
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
@@ -684,6 +713,8 @@ static void TestAvailability(void)
 	for (int i = 0; i < g_numConfigEntries; i++)
 	{
 		const ConfigEntry *entry = &g_configEntries[i];
+		CTR_TEST_CHECK(entry->lngKey >= LNG_EXPANDED_STRING_BASE && entry->lngKey < LNG_EXPANDED_STRING_END,
+		               "every configuration entry has a catalog label");
 		bool allowed = strcmp(entry->section, CONFIG_SECTION_DEVELOPER_HACKS) == 0;
 		for (int k = 0; k < (int)len(allowedKeys); k++)
 		{
@@ -705,26 +736,29 @@ static void TestEditing(enum ConfigMenuContext context)
 		g_config = s_initialConfig;
 		g_config.developerHacksEnabled = true;
 		// Non-default values prove disabled rows display the current value, not a placeholder.
-		char expectedText[64];
+		char expectedBuffer[64];
+		const char *expectedText;
 		if (entry->type == CFG_BOOL)
 		{
 			*(bool *)entry->valuePtr = true;
-			snprintf(expectedText, sizeof(expectedText), "ON");
+			expectedText = LANG_GetString(LNG_EXPANDED_ON);
 		}
 		else if (entry->type == CFG_ENUM)
 		{
 			*(int *)entry->valuePtr = entry->enumValues[1].value;
-			snprintf(expectedText, sizeof(expectedText), "%s", entry->enumValues[1].name);
+			const ConfigEnumValue *choice = &entry->enumValues[1];
+			expectedText = choice->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(choice->lngKey) : choice->name;
 		}
 		else
 		{
 			*(int *)entry->valuePtr = entry->min + entry->step;
-			snprintf(expectedText, sizeof(expectedText), "%d%%", EntryValue(entry));
+			snprintf(expectedBuffer, sizeof(expectedBuffer), "%d%%", EntryValue(entry));
+			expectedText = expectedBuffer;
 		}
 		const int before = EntryValue(entry);
 		const bool editable = context == CONFIG_MENU_MAIN || entry->availableDuringPause;
 		OpenEntry(i, context);
-		s_observedLabel = entry->label;
+		s_observedLabel = entry->lngKey >= LNG_EXPANDED_STRING_BASE ? LANG_GetString(entry->lngKey) : entry->label;
 		s_valueDrawn = false;
 		SetInput(0, 0);
 		UpdateMenu();
