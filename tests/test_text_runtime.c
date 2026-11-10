@@ -13,6 +13,7 @@ static const char *s_italian;
 static const char *s_englishOverride;
 static const char *s_italianOverride;
 static const char *s_italianRetail;
+ static const char *s_italianRetailOverride;
 
 static FILE *TextTest_File(const char *text)
 {
@@ -60,6 +61,10 @@ FILE *NativeAssets_OpenHost(const char *path, const char *mode)
 	else if (strcmp(path, "text/it/expanded.toml") == 0)
 	{
 		text = s_italianOverride;
+	}
+	else if (strcmp(path, "text/it/retail.toml") == 0)
+	{
+		text = s_italianRetailOverride;
 	}
 	return TextTest_File(text);
 }
@@ -112,13 +117,28 @@ int main(void)
 	g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_ISO_EU;
 	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
 	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PAUSED") == 0, "disc preference restores disc text");
+	s_italianRetailOverride = "PAUSED = 'PERSONALE'\nDRIVERS_CHUMP = 'ERRATO %d'\n";
+	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
+	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PERSONALE") == 0 && strcmp(retailTable[LNG_DRIVERS_CHUMP], "%s CHUMP") == 0,
+	               "valid personal overrides precede disc text, while invalid format strings fall back");
 	s_discActive = 0;
 	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
-	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PAUSA") == 0, "disc preference falls back to the catalog when the disc is unavailable");
+	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PERSONALE") == 0 && strcmp(retailTable[LNG_DRIVERS_CHUMP], "TEST %s") == 0,
+	               "personal overrides precede the shipped catalog and invalid overrides fall back per string");
+	s_italianRetail = NULL;
+	CTR_TEST_CHECK(NativeTextRuntime_HasRetail(NATIVE_LANGUAGE_ITALIAN), "a personal catalog makes text available without a disc");
+	s_italianRetail = "PAUSED = 'PAUSA'\n";
+	s_italianRetailOverride = NULL;
+	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
+	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PAUSA") == 0, "removing personal overrides restores the shipped catalog");
 	g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
 	s_italianRetail = NULL;
 	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
 	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PAUSED") == 0, "removing a translation restores the original retail value");
+	s_italianRetailOverride = "PAUSED = \"broken\n";
+	TextTest_Reload(NATIVE_LANGUAGE_ITALIAN);
+	CTR_TEST_CHECK(strcmp(retailTable[LNG_PAUSED], "PAUSED") == 0, "a malformed personal catalog falls back to the original");
+	s_italianRetailOverride = NULL;
 	sdata->lngStrings = NULL;
 	sdata->numLngStrings = 0;
 	const char *stable = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, LNG_EXPANDED_MODE);

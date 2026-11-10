@@ -241,6 +241,14 @@ contains only a few conspicuous test strings, not a complete translation.
 | `text` | `English`, `French`, `German`, `Italian`, `Spanish`, `Dutch` | `English` | Game text language                                                                                  |
 | `retail_priority` | `EXPANDED`, `ISO EU` | `EXPANDED` | Preferred source of retail text; without the PAL European ISO available, only EXPANDED is available |
 
+Personal overrides are applied automatically when present. Retail overrides are
+UTF-8 TOML files at `assets/text/<language>/retail.toml`,
+for example `assets/text/it/retail.toml`. Keys are retail identifiers without the
+`LNG_` prefix, such as `PAUSED = "PAUSA"`. Missing or invalid entries use the
+selected source. Text must use supported font characters and matching formatting
+directives. The game never writes or overwrites these user files.
+Expanded text can likewise be overridden with `assets/text/<language>/expanded.toml`.
+
 ### General
 
 | Key                                   | Values                                                       | Default   | Description                                                                                      |

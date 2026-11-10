@@ -16,11 +16,11 @@ struct NativeTextRuntimeValues
 };
 
 static struct NativeTextRuntimeValues s_nativeTextValues[NATIVE_TEXT_SOURCE_COUNT];
-static struct
+static struct NativeRetailTextRuntimeValues
 {
 	char values[LNG_RETAIL_STRING_COUNT][NATIVE_TEXT_RUNTIME_VALUE_SIZE];
 	unsigned char present[LNG_RETAIL_STRING_COUNT];
-} s_nativeRetailText;
+} s_nativeRetailText[2];
 
 static const char *NativeTextRuntime_LanguageId(int slot)
 {
@@ -111,14 +111,10 @@ int NativeTextRuntime_HasRetail(int languageSlot)
 {
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
 	if (id == NULL) { return 0; }
-	struct NativeRetailProbe
-	{
-		char values[LNG_RETAIL_STRING_COUNT][NATIVE_TEXT_RUNTIME_VALUE_SIZE];
-		unsigned char present[LNG_RETAIL_STRING_COUNT];
-	};
-	struct NativeRetailProbe *probe = calloc(1, sizeof(*probe));
+	struct NativeRetailTextRuntimeValues *probe = calloc(1, sizeof(*probe));
 	if (probe == NULL) { return 0; }
 	NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, probe->values, probe->present);
+	NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_RETAIL, probe->values, probe->present);
 	int found = 0;
 	for (int i = 0; i < LNG_RETAIL_STRING_COUNT; i++)
 	{
@@ -131,11 +127,9 @@ int NativeTextRuntime_HasRetail(int languageSlot)
 void NativeTextRuntime_Reload(int languageSlot)
 {
 	static struct NativeTextRuntimeValues next[NATIVE_TEXT_SOURCE_COUNT];
-	static char retailValues[LNG_RETAIL_STRING_COUNT][NATIVE_TEXT_RUNTIME_VALUE_SIZE];
-	static unsigned char retailPresent[LNG_RETAIL_STRING_COUNT];
+	static struct NativeRetailTextRuntimeValues retailNext[2];
 	memset(next, 0, sizeof(next));
-	memset(retailValues, 0, sizeof(retailValues));
-	memset(retailPresent, 0, sizeof(retailPresent));
+	memset(retailNext, 0, sizeof(retailNext));
 	const char *id = NativeTextRuntime_LanguageId(languageSlot);
 	NativeTextRuntime_Load("en", 0, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_ENGLISH_OVERRIDE].values, next[NATIVE_TEXT_ENGLISH_OVERRIDE].present);
 	NativeTextRuntime_Load("en", 1, NATIVE_TEXT_CATALOG_EXPANDED, next[NATIVE_TEXT_ENGLISH_SHIPPED].values, next[NATIVE_TEXT_ENGLISH_SHIPPED].present);
@@ -146,18 +140,19 @@ void NativeTextRuntime_Reload(int languageSlot)
 	}
 	if (id != NULL)
 	{
-		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, retailValues, retailPresent);
+		NativeTextRuntime_Load(id, 1, NATIVE_TEXT_CATALOG_RETAIL, retailNext[1].values, retailNext[1].present);
+		NativeTextRuntime_Load(id, 0, NATIVE_TEXT_CATALOG_RETAIL, retailNext[0].values, retailNext[0].present);
 	}
 	memcpy(s_nativeTextValues, next, sizeof(next));
-	memcpy(s_nativeRetailText.values, retailValues, sizeof(retailValues));
-	memcpy(s_nativeRetailText.present, retailPresent, sizeof(retailPresent));
+	memcpy(s_nativeRetailText, retailNext, sizeof(retailNext));
 }
 
 const char *NativeTextRuntime_Get(enum NativeTextSource source, int key)
 {
-	if (source == NATIVE_TEXT_SELECTED_SHIPPED && key >= 0 && key < LNG_RETAIL_STRING_COUNT)
+	if ((source == NATIVE_TEXT_SELECTED_SHIPPED || source == NATIVE_TEXT_SELECTED_OVERRIDE) && key >= 0 && key < LNG_RETAIL_STRING_COUNT)
 	{
-		return s_nativeRetailText.present[key] ? s_nativeRetailText.values[key] : NULL;
+		int index = source == NATIVE_TEXT_SELECTED_SHIPPED ? 1 : 0;
+		return s_nativeRetailText[index].present[key] ? s_nativeRetailText[index].values[key] : NULL;
 	}
 	if (source < 0 || source >= NATIVE_TEXT_SOURCE_COUNT || key < LNG_EXPANDED_STRING_BASE || key >= LNG_EXPANDED_STRING_BASE + LNG_EXPANDED_STRING_COUNT)
 	{

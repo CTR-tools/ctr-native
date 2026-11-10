@@ -57,8 +57,9 @@ static void LANG_RestoreRetail(void)
 	if (sdata->lngStrings == NULL) { return; }
 	for (int i = 0; i < LNG_RETAIL_STRING_COUNT && i < sdata->numLngStrings; i++)
 	{
-		const char *previous = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i);
-		if (previous != NULL && sdata->lngStrings[i] == previous)
+		const char *shipped = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i);
+		const char *override = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_OVERRIDE, i);
+		if ((shipped != NULL && sdata->lngStrings[i] == shipped) || (override != NULL && sdata->lngStrings[i] == override))
 		{
 			sdata->lngStrings[i] = s_languageRetailOriginal[i];
 		}
@@ -73,11 +74,16 @@ static void LANG_ApplyRetail(int slot)
 	for (int i = 0; i < LNG_RETAIL_STRING_COUNT && i < sdata->numLngStrings; i++)
 	{
 		char *original = sdata->lngStrings[i];
-		const char *replacement = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i);
 		s_languageRetailOriginal[i] = original;
-		if (!preferDisc && original != NULL && replacement != NULL && LANG_FormatsMatch(original, replacement))
+		const char *override = NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_OVERRIDE, i);
+		const char *shipped = !preferDisc ? NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_SHIPPED, i) : NULL;
+		if (original != NULL && override != NULL && LANG_FormatsMatch(original, override))
 		{
-			sdata->lngStrings[i] = (char *)replacement;
+			sdata->lngStrings[i] = (char *)override;
+		}
+		else if (original != NULL && shipped != NULL && LANG_FormatsMatch(original, shipped))
+		{
+			sdata->lngStrings[i] = (char *)shipped;
 		}
 	}
 }

@@ -13,8 +13,8 @@ enum NativeTextSource
 	NATIVE_TEXT_ENGLISH_SHIPPED,
 	NATIVE_TEXT_SOURCE_COUNT,
 };
-// Retail IDs are available from NATIVE_TEXT_SELECTED_SHIPPED; Expanded IDs
-// can be read from any source. Retail values are not installed by this API.
+// Retail IDs are available from selected shipped and override sources;
+// Expanded IDs can be read from any source. This API does not install them.
 const char *NativeTextRuntime_Get(enum NativeTextSource source, int key);
 
 #endif
