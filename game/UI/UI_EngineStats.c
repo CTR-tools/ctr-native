@@ -14,12 +14,35 @@ static const int kEngineStatsNames[NUM_CLASSES] = {
 	LNG_EXPANDED_ENGINE_SPEED, LNG_EXPANDED_ENGINE_TURN, LNG_EXPANDED_ENGINE_MAXED_OUT,
 };
 
+static const int kEngineStatsAbbreviations[NUM_CLASSES] = {
+	LNG_EXPANDED_ENGINE_BALANCED_SHORT, LNG_EXPANDED_ENGINE_ACCELERATION_SHORT,
+	LNG_EXPANDED_ENGINE_SPEED_SHORT, LNG_EXPANDED_ENGINE_TURN_SHORT, LNG_EXPANDED_ENGINE_MAXED_OUT_SHORT,
+};
+
 static const u8 kEngineStatsValues[NUM_CLASSES][3] = {
 	{55, 55, 55}, {48, 80, 32}, {80, 32, 10}, {28, 48, 80}, {80, 80, 80},
 };
 
 static const int kEngineStatsLabels[3] = {LNG_SPEED, LNG_ACCEL, LNG_TURN};
 static const int kEngineStatsColors[3] = {ORANGE_RED, LIME_GREEN, BLUE};
+
+const char *UI_EngineStats_ClassName(int engine)
+{
+	if (engine < 0 || engine >= NUM_CLASSES)
+	{
+		return NULL;
+	}
+	return LANG_GetString(kEngineStatsNames[engine]);
+}
+
+const char *UI_EngineStats_ClassAbbreviation(int engine)
+{
+	if (engine < 0 || engine >= NUM_CLASSES)
+	{
+		return NULL;
+	}
+	return LANG_GetString(kEngineStatsAbbreviations[engine]);
+}
 
 static void UI_EngineStats_DrawBar(int x, int y, int length, int scale)
 {
@@ -76,7 +99,7 @@ void UI_EngineStats_Draw(int x, int y, int engine, enum EngineStatsFormat format
 		return;
 	}
 	const int classStringIndex = engine == TURN ? 0 : (engine < SPEED ? 1 : 2);
-	const char *className = retailClassNames ? GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[classStringIndex]] : LANG_GetString(kEngineStatsNames[engine]);
+	const char *className = retailClassNames ? GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[classStringIndex]] : UI_EngineStats_ClassName(engine);
 	u32 *ot = GAME_TRACKER->backBuffer->otMem.uiOT;
 	const bool large = format == ENGINE_STATS_LARGE;
 	const int font = large ? FONT_BIG : FONT_SMALL;

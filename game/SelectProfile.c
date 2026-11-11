@@ -7,6 +7,7 @@ static void SelectProfile_ApplyAdvMultiplayerCharacter(void);
 static const struct AdvMultiplayerSettings *SelectProfile_AdvSettingsToShow(const struct AdvProgress *adv, int slot);
 static b32 SelectProfile_CardSlotIsChaos(int slot);
 static enum AdventureDifficulty SelectProfile_AdvDifficultyToShow(const struct AdvProgress *adv, int slot);
+static int SelectProfile_EngineToShow(const struct AdvProgress *adv, int slot, int player, int character);
 
 static const char *SelectProfile_DifficultyLabel(enum AdventureDifficulty difficulty)
 {
@@ -136,6 +137,28 @@ static void SelectProfile_DrawRacerIcon(struct GameTracker *gGT, int characterID
 		color, color, color, color, 1, 0x1000);
 }
 
+static void SelectProfile_DrawEngineLabel(const struct AdvProgress *adv, int slot, int player, int character, int x, int y, int color)
+{
+	if (!g_config.engineSelection || character < 0 || character >= GAME_CHARACTER_COUNT)
+	{
+		return;
+	}
+	const int engine = SelectProfile_EngineToShow(adv, slot, player, character);
+	if (engine == GAME_CHARACTER_METADATA[character].engineID)
+	{
+		return;
+	}
+	const char *name = UI_EngineStats_ClassAbbreviation(engine);
+	const struct Icon *icon = sdata->gGT->ptrIcons[GAME_CHARACTER_METADATA[character].iconID];
+	if (name != NULL && icon != NULL)
+	{
+		const int width = icon->texLayout.u1 - icon->texLayout.u0;
+		const int height = icon->texLayout.v2 - icon->texLayout.v0;
+		DecalFont_DrawLine((char *)name, x + width / 2, y + (height - data.font_charPixHeight[FONT_SMALL]) / 2,
+		                   FONT_SMALL, JUSTIFY_CENTER | color);
+	}
+}
+
 void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s16 isHighlighted, s16 slotIndex, b32 isChaos, u16 menuFlag)
 {
 	struct GameTracker *gGT = sdata->gGT;
@@ -191,10 +214,12 @@ void SelectProfile_DrawAdvProfile(struct AdvProgress *adv, int posX, int posY, s
 			firstIconX -= 8;
 			firstIconY -= 2;
 			int characterID2 = SelectProfile_AdvMultiplayerPartner(SelectProfile_AdvSettingsToShow(adv, profileSlot));
+			SelectProfile_DrawEngineLabel(adv, profileSlot, 1, characterID2, firstIconX, firstIconY + 28, numberColor);
 			SelectProfile_DrawRacerIcon(gGT, characterID2, iconColor, firstIconX, firstIconY + 28);
 		}
 
 		int characterID = adv->characterID;
+		SelectProfile_DrawEngineLabel(adv, profileSlot, 0, characterID, firstIconX, firstIconY, numberColor);
 		SelectProfile_DrawRacerIcon(gGT, characterID, iconColor, firstIconX, firstIconY);
 
 		DecalFont_DrawLine(adv->name, posX + 0x6c, posY + 0x29, FONT_BIG, JUSTIFY_CENTER | nameColor);
@@ -701,6 +726,24 @@ static s16 *SelectProfile_AllProfiles_TimerSaveComplete(void)
 static struct MemcardData *SelectProfile_MemcardData(void)
 {
 	return (struct MemcardData *)sdata->ptrToMemcardBuffer2;
+}
+
+static int SelectProfile_EngineToShow(const struct AdvProgress *adv, int slot, int player, int character)
+{
+	u8 choice = 0;
+	if (adv == &sdata->advProgress || slot == sdata->advProfileIndex)
+	{
+		choice = sdata->selectedEngineClass[player];
+	}
+	else if (slot >= 0 && slot < MEMCARD_ADV_PROFILE_COUNT)
+	{
+		const u8 encoded = SelectProfile_MemcardData()->extension.engines[slot][player];
+		if ((encoded & 0xf0) == 0xa0)
+		{
+			choice = encoded & 0x0f;
+		}
+	}
+	return choice > 0 && choice <= NUM_CLASSES ? choice - 1 : GAME_CHARACTER_METADATA[character].engineID;
 }
 
 static struct MemcardProfile *SelectProfile_MemcardProfile(void)

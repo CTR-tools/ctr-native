@@ -1268,6 +1268,8 @@ void DecalFont_DrawLineOT(char *str, s16 posX, s16 posY, s16 fontType, s16 flags
 void DecalFont_DrawLineScaledOT(char *str, s16 posX, s16 posY, s16 fontType, s16 flags, s32 scale, u32 *ot);
 enum EngineStatsFormat { ENGINE_STATS_SMALL, ENGINE_STATS_LARGE };
 void UI_EngineStats_Draw(int x, int y, int engine, enum EngineStatsFormat format, bool retailClassNames);
+const char *UI_EngineStats_ClassName(int engine);
+const char *UI_EngineStats_ClassAbbreviation(int engine);
 void DecalHUD_Arrow2D(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, Color color0, Color color1, Color color2, Color color3,
                       u8 transparency, s16 scale, u16 rot);
 void RaceFlag_SetDrawOrder(b32 drawAfterFlag);
