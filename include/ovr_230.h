@@ -1245,6 +1245,7 @@ CTR_STATIC_ASSERT(offsetof(struct TrackSelectRuntimeState, videoStatePrev) == 0x
 CTR_STATIC_ASSERT(sizeof(struct TransitionMeta) == 0xA);
 CTR_STATIC_ASSERT(sizeof(struct TitleMenuPositionLayout) == 0x1c);
 CTR_STATIC_ASSERT(sizeof(struct TitleTransitionLayout) == 0x84);
+CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_230, menuMainMenu) == 0x5c);
 CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_230, characterSelectWindowPos) == 0x860);
 CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_230, characterSelectWindowPosByLayout) == 0x894);
 CTR_STATIC_ASSERT(offsetof(struct OverlayDATA_230, characterSelectMeta1P2PLimited) == 0x8e8);

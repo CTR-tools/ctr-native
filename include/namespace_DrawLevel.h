@@ -191,14 +191,14 @@ struct DrawLevelOvr1PUvScratch
 
 struct DrawLevelOvr1PStableScratch
 {
-	union
+	struct
 	{
-		struct MainRenderLevelGeometryScratch render;
 		struct
 		{
 			u32 playerClipCursorPtr32[4];
 			u32 clipCursorPtr32;
 		} clip;
+		struct MainRenderLevelGeometryScratch render;
 	} entry;
 	u32 primMemEndPtr32;
 	u32 currentBucketOffset;
@@ -256,7 +256,8 @@ CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PUvScratch, uv2.halves.high) == 0
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PUvScratch, savedUv0) == 0x0c);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PUvScratch, savedUv1) == 0x10);
 CTR_STATIC_ASSERT(sizeof(struct DrawLevelOvr1PStableScratch) == 0x1b4);
-CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PStableScratch, entry.render) == 0x00);
+CTR_STATIC_ASSERT(sizeof(((struct DrawLevelOvr1PStableScratch *)0)->entry) == 0x30);
+CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PStableScratch, entry.render) == MAIN_RENDER_LEVEL_GEOMETRY_SCRATCH_OFFSET);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PStableScratch, entry.clip.playerClipCursorPtr32) == 0x00);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PStableScratch, entry.clip.clipCursorPtr32) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct DrawLevelOvr1PStableScratch, primMemEndPtr32) == 0x30);

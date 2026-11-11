@@ -730,3 +730,27 @@ retained, not a warning-free-build claim. Compiler controls, actual assembler/
 link application ranges, native providers and whole-program coverage remain
 separate gates; no hardware timing or universal correctness claim follows from
 the compiler tuple.
+
+## Soft GLOBAL register preferences
+
+`generic-global-register-hint-2.8.1.patch` adds
+`global_register_hint("$N")` for automatic, nonvolatile, single-word integral
+or pointer declarations. Unlike a fixed register variable, it requests a legal
+GLOBAL allocation and priority; it cannot evict a LOCAL home or override fixed,
+call-clobber, class, mode, frame or reload-forbidden constraints. Dead, SUBREG-only or
+already-LOCAL values are ignored; address-exposed and hard-asm variables are
+diagnosed.
+Duplicate and mixed LOCAL/GLOBAL attributes are rejected. Conflicting requests
+on one allocation group cancel rather than selecting an arbitrary declaration.
+Without annotations, the original comparator and allocation route are retained.
+Native's CTR_PSX_GLOBAL_REGISTER_HINT wrapper is empty.
+
+The patch follows generic-spill-home and adds 172 net compiler C lines plus a
+TREE_H dependency. Its SHA-256 is `cf385b414f34db40396f8025c9132156616a5a2f2731bb1faa536b614ac5bd47`.
+Finite controls cover valid owners/inline scopes, rejected forms, ordinary
+legality/fallback and default-output identity; they do not prove every C input
+or all possible grouped/reload graphs.
+
+`tests/check_global_register_hint.sh` checks actual allocation dumps, ordinary
+OFF output identity, nested/inline owners, legality fallback and rejected forms.
+It accepts an optional old compiler prefix for a cross-compiler OFF comparison.

@@ -140,6 +140,16 @@ if(BUILD_TESTING)
     add_test(NAME ctr_native_version COMMAND $<TARGET_FILE:ctr_native> --version)
     set_tests_properties(ctr_native_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native ")
 
+    add_executable(ctr_visibility_raw_copy_regression tests/visibility_raw_copy_regression.c)
+    set_target_properties(ctr_visibility_raw_copy_regression PROPERTIES
+        C_STANDARD 17
+        C_STANDARD_REQUIRED ON
+        C_EXTENSIONS OFF
+    )
+    target_include_directories(ctr_visibility_raw_copy_regression PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_compile_definitions(ctr_visibility_raw_copy_regression PRIVATE CTR_NATIVE)
+    add_test(NAME ctr_visibility_raw_copy_regression COMMAND $<TARGET_FILE:ctr_visibility_raw_copy_regression>)
+
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     add_test(
         NAME ctr_match_unit

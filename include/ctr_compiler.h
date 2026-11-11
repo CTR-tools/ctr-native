@@ -62,6 +62,7 @@
 #endif
 #define CTR_PSX_BIND_VALUE_CLOBBER(value, registerName) ((void)(value))
 #define CTR_PSX_LOCAL_REGISTER_HINT(registerName)
+#define CTR_PSX_GLOBAL_REGISTER_HINT(registerName)
 #define CTR_PSX_SPILL_HOME(localByteOffset)
 #define CTR_PSX_DEPEND_VALUE(value, dependency)         ((void)(value), (void)(dependency))
 #define CTR_PSX_DEPEND_COPY(result, value, dependency) ((result) = (value), (void)(dependency))
@@ -227,6 +228,8 @@
 #define CTR_PSX_REGISTER(registerName)                                          __asm__(registerName)
 // NOTE(aalhendi): A best-effort LOCAL preference, not a fixed register or ABI contract.
 #define CTR_PSX_LOCAL_REGISTER_HINT(registerName)                                __attribute__((local_register_hint(registerName)))
+// NOTE(aalhendi): Prefer a legal GLOBAL allocation; never bind a register or displace LOCAL homes.
+#define CTR_PSX_GLOBAL_REGISTER_HINT(registerName)                               __attribute__((global_register_hint(registerName)))
 // NOTE(aalhendi): Local-area byte offset, excluding outgoing arguments; no forced spill.
 #define CTR_PSX_SPILL_HOME(localByteOffset)                                      __attribute__((spill_home(localByteOffset)))
 #define CTR_PSX_BIND_VALUE_CLOBBER(value, registerName)                         __asm__("" : "+r"(value) : : registerName)

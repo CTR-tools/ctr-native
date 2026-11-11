@@ -9,7 +9,7 @@
       "directory": "externals/old-gcc/prebuilt/linux-i386/2.8.1",
       "executable": "gcc",
       "sha256": {
-        "cc1": "d847631b432b24673971461bbcc2df9b8f8530f47e67912736beebae2598ecb7",
+        "cc1": "edb0b76a3b4e9b323ccbb519e98576c6e405752aa74b1336a9737d85335807c1",
         "cc1plus": "93e7b36546532deec58cbc221df4d2c2894d444b5685b31a439c46cc597a9572",
         "cpp": "8d7f4e90f995089a6c2d62214b607fc77acf43b61f60a871d130d713d9ac96bb",
         "g++": "a2cf0a5f0a21fcd4836c6f7ac66f346ba5594c1e4d4ab9d88c48c73c77f876fd",
@@ -3743,6 +3743,39 @@
       "forced_includes": [
         "tools/matching/namespaces/main-frame/retail_symbols.h"
       ]
+    },
+    {
+      "artifact": "exe",
+      "aspsx_version": "2.77",
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "end_symbol": "MainFreeze_ConfigDrawNPC105",
+      "forced_includes": [
+        "tools/matching/namespaces/main-frame/retail_symbols.h"
+      ],
+      "include_directories": [
+        "include"
+      ],
+      "kind": "resident",
+      "link_symbols": {
+        "D230": "0x800b44e4",
+        "_gp": "0x8008cf6c",
+        "ctr_mainFrameGameTracker": "0x8008d2ac",
+        "ctr_mainFrameGamepads": "0x8008d2b0",
+        "ctr_mainFrameLanguageStrings": "0x8008d878",
+        "ctr_mainFrameVideoDstX": "0x8008d89c",
+        "ctr_mainFrameVideoDstY": "0x8008d8a0"
+      },
+      "linked_block": {},
+      "name": "main-frame-render",
+      "small_data_limit": 8,
+      "source": "game/MAIN/MainFrame_RenderFrame.c",
+      "start_symbol": "MainFrame_RenderFrame",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "MainFrame_RenderFrame"
     },
     {
       "name": "main-frame-reset-db",

@@ -99,7 +99,8 @@ static void RenderLists_InitScratch(struct PushBuffer *pb, u8 numPlyr)
 	if (numPlyr <= 2)
 	{
 		*CTR_SCRATCHPAD_PTR(s32, RENDER_LISTS_LOD_OFFSET) =
-		    (numPlyr == 1) ? CTR_SCRATCHPAD_PTR(struct MainRenderLevelGeometryScratch, 0)->bspLodDistanceThreshold : 0x1540;
+		    (numPlyr == 1) ? CTR_SCRATCHPAD_PTR(struct MainRenderLevelGeometryScratch, MAIN_RENDER_LEVEL_GEOMETRY_SCRATCH_OFFSET)->bspLodDistanceThreshold
+		                   : 0x1540;
 		selectedCorners[5] = cornerTable[pb->RenderListJmpIndex[5]];
 	}
 }
@@ -349,7 +350,8 @@ static int RenderLists_Walk(struct BSP *bspRoot, const int *visLeafList, struct 
 	struct RenderListsScratchRecord *stackEnd = CTR_SCRATCHPAD_PTR(struct RenderListsScratchRecord, CTR_SCRATCHPAD_SIZE);
 	struct RenderListsScratchRecord *stack = stackBase;
 	struct BSP *branch = bspRoot;
-	int lodDistanceThreshold = (numPlyr == 1) ? CTR_SCRATCHPAD_PTR(struct MainRenderLevelGeometryScratch, 0)->bspLodDistanceThreshold : 0x1540;
+	int lodDistanceThreshold =
+	    (numPlyr == 1) ? CTR_SCRATCHPAD_PTR(struct MainRenderLevelGeometryScratch, MAIN_RENDER_LEVEL_GEOMETRY_SCRATCH_OFFSET)->bspLodDistanceThreshold : 0x1540;
 	int count = 0;
 
 	if (bspRoot == 0 || pb == 0)

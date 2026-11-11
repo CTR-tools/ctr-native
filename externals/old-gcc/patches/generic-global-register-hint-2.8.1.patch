@@ -1,0 +1,317 @@
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -1359,7 +1359,7 @@
+    regs.h hard-reg-set.h insn-config.h $(RECOG_H) output.h $(TREE_H)
+ bitmap.o : bitmap.c $(CONFIG_H) $(RTL_H) flags.h $(BASIC_BLOCK_H) regs.h
+ global.o : global.c $(CONFIG_H) $(RTL_H) flags.h  \
+-   $(BASIC_BLOCK_H) regs.h hard-reg-set.h insn-config.h output.h
++   $(BASIC_BLOCK_H) regs.h hard-reg-set.h insn-config.h output.h $(TREE_H)
+ 
+ reload.o : reload.c $(CONFIG_H) $(RTL_H) flags.h output.h expr.h\
+    reload.h $(RECOG_H) hard-reg-set.h insn-config.h insn-codes.h regs.h real.h
+--- a/c-common.c
++++ b/c-common.c
+@@ -44,9 +44,10 @@
+ enum attrs {A_PACKED, A_NOCOMMON, A_COMMON, A_NORETURN, A_CONST, A_T_UNION,
+ 	    A_CONSTRUCTOR, A_DESTRUCTOR, A_MODE, A_SECTION, A_ALIGNED,
+ 	    A_UNUSED, A_FORMAT, A_FORMAT_ARG, A_WEAK, A_ALIAS, A_LOCAL_REG_HINT,
+-            A_SPILL_HOME};
++            A_SPILL_HOME, A_GLOBAL_REG_HINT};
+ 
+ extern int local_register_hint_value PROTO((tree, tree));
++extern int global_register_hint_value PROTO((tree, tree));
+ extern int spill_home_value PROTO((tree, tree));
+ extern void push_obstacks PROTO((struct obstack *, struct obstack *));
+ 
+@@ -341,6 +342,7 @@
+   add_attribute (A_WEAK, "weak", 0, 0, 1);
+   add_attribute (A_ALIAS, "alias", 1, 1, 1);
+   add_attribute (A_LOCAL_REG_HINT, "local_register_hint", 1, 1, 1);
++  add_attribute (A_GLOBAL_REG_HINT, "global_register_hint", 1, 1, 1);
+   add_attribute (A_SPILL_HOME, "spill_home", 1, 1, 1);
+ }
+ 
+@@ -428,11 +430,19 @@
+           }
+           break;
+ 
++	case A_GLOBAL_REG_HINT:
+ 	case A_LOCAL_REG_HINT:
+-	  if (local_register_hint_value (decl, args))
++        {
++          int global = id == A_GLOBAL_REG_HINT;
++          char *kind = global ? "global_register_hint" : "local_register_hint";
++          char *other = global ? "local_register_hint" : "global_register_hint";
++	  if ((global ? global_register_hint_value (decl, args)
++                       : local_register_hint_value (decl, args)))
+ 	    {
+-	      if (lookup_attribute ("local_register_hint", DECL_MACHINE_ATTRIBUTES (decl)))
+-		error ("duplicate local_register_hint attribute");
++	      if (lookup_attribute (kind, DECL_MACHINE_ATTRIBUTES (decl)))
++		error ("duplicate %s attribute", kind);
++              else if (lookup_attribute (other, DECL_MACHINE_ATTRIBUTES (decl)))
++                error ("local_register_hint and global_register_hint cannot be combined");
+ 	      else
+ 		{
+ 		  tree old = TREE_VALUE (args), value;
+@@ -446,6 +456,7 @@
+ 		  pop_obstacks ();
+ 		}
+ 	    }
++	}
+ 	  break;
+ 
+ 	case A_PACKED:
+--- a/global.c
++++ b/global.c
+@@ -22,6 +22,7 @@
+ #include "config.h"
+ #include <stdio.h>
+ #include "rtl.h"
++#include "tree.h"
+ #include "flags.h"
+ #include "basic-block.h"
+ #include "hard-reg-set.h"
+@@ -85,6 +86,12 @@
+    sorted in the order of first-to-be-allocated first.  */
+ 
+ static int *allocno_order;
++
++/* Declaration-only GLOBAL preferences; never hard RTL or reload reservations.
++   Zero means absent, -1 is a sticky conflict, positive is hard reg plus one. */
++static short *allocno_decl_hints;
++static FILE *decl_hint_dump;
++extern int global_register_hint_value PROTO((tree, tree));
+ 
+ /* Indexed by an allocno, gives the number of consecutive
+    hard registers needed by that pseudo reg.  */
+@@ -252,6 +259,9 @@
+ static HARD_REG_SET eliminable_regset;
+ 
+ static int allocno_compare	PROTO((const GENERIC_PTR, const GENERIC_PTR));
++static int hinted_allocno_compare PROTO((const GENERIC_PTR, const GENERIC_PTR));
++static void collect_global_register_hints PROTO((tree));
++static int global_hint_reg PROTO((int, HARD_REG_SET));
+ static void global_conflicts	PROTO((void));
+ static void expand_preferences	PROTO((void));
+ static void prune_preferences	PROTO((void));
+@@ -292,6 +302,8 @@
+   rtx x;
+ 
+   max_allocno = 0;
++  allocno_decl_hints = 0;
++  decl_hint_dump = file;
+ 
+   /* A machine may have certain hard registers that
+      are safe to use only within a basic block.  */
+@@ -526,6 +538,36 @@
+ 
+       expand_preferences ();
+ 
++      allocno_decl_hints = (short *) alloca (max_allocno * sizeof (short));
++      bzero ((char *) allocno_decl_hints, max_allocno * sizeof (short));
++      collect_global_register_hints (DECL_INITIAL (current_function_decl));
++      /* Do not promote requests excluded by ordinary initial hard/local,
++         class, call or frame restrictions. Recheck at actual allocation. */
++      for (i = 0; i < max_allocno; i++)
++        if (allocno_decl_hints[i] > 0)
++          {
++            HARD_REG_SET excluded;
++            COPY_HARD_REG_SET (excluded, hard_reg_conflicts[i]);
++            IOR_HARD_REG_SET (excluded, no_global_alloc_regs);
++            if (allocno_calls_crossed[i])
++              IOR_HARD_REG_SET (excluded, call_used_reg_set);
++            else
++              IOR_HARD_REG_SET (excluded, fixed_reg_set);
++            IOR_COMPL_HARD_REG_SET (excluded, reg_class_contents[(int)
++              reg_preferred_class (allocno_reg[i])]);
++#ifdef CLASS_CANNOT_CHANGE_SIZE
++            if (REG_CHANGES_SIZE (allocno_reg[i]))
++              IOR_HARD_REG_SET (excluded,
++                reg_class_contents[(int) CLASS_CANNOT_CHANGE_SIZE]);
++#endif
++            if (global_hint_reg (i, excluded) < 0)
++              {
++                if (decl_hint_dump)
++                  fprintf (decl_hint_dump, ";; Global hint allocno %d unavailable %d.\n", i, allocno_decl_hints[i] - 1);
++                allocno_decl_hints[i] = 0;
++              }
++          }
++
+       /* Determine the order to allocate the remaining pseudo registers.  */
+ 
+       allocno_order = (int *) alloca (max_allocno * sizeof (int));
+@@ -547,7 +589,10 @@
+ 	    allocno_live_length[i] = -1;
+ 	}
+ 
+-      qsort (allocno_order, max_allocno, sizeof (int), allocno_compare);
++      for (i = 0; i < max_allocno && allocno_decl_hints[i] <= 0; i++)
++        ;
++      qsort (allocno_order, max_allocno, sizeof (int),
++             i < max_allocno ? hinted_allocno_compare : allocno_compare);
+       
+       prune_preferences ();
+ 
+@@ -574,6 +619,9 @@
+ 	  }
+     }
+ 
++  if (max_allocno == 0)
++    collect_global_register_hints (DECL_INITIAL (current_function_decl));
++
+   /* Do the reloads now while the allocno data still exist, so that we can
+      try to assign new hard regs to any pseudo regs that are spilled.  */
+ 
+@@ -584,7 +632,94 @@
+     retval = reload (get_insns (), 1, file);
+ 
+   free (conflicts);
++  allocno_decl_hints = 0;
++  decl_hint_dump = 0;
+   return retval;
++}
++
++/* Current declarations after ordinary optimization and LOCAL allocation.
++   Lost/dead declarations and already-LOCAL pseudos have no GLOBAL hint. */
++static void
++collect_global_register_hints (block)
++     tree block;
++{
++  tree decl, sub, attribute;
++  if (!block || TREE_CODE (block) != BLOCK)
++    return;
++  for (decl = BLOCK_VARS (block); decl; decl = TREE_CHAIN (decl))
++    if (TREE_CODE (decl) == VAR_DECL
++        && (attribute = lookup_attribute ("global_register_hint",
++                                          DECL_MACHINE_ATTRIBUTES (decl))))
++      {
++        rtx reg = DECL_RTL (decl);
++        int pseudo, allocno, hint;
++        if (TREE_ADDRESSABLE (decl)
++            || (reg && GET_CODE (reg) == REG
++                && REGNO (reg) < FIRST_PSEUDO_REGISTER))
++          {
++            error ("global_register_hint cannot apply to address-exposed or hard-asm variables");
++            continue;
++          }
++        if (!reg || GET_CODE (reg) != REG)
++          continue;
++        pseudo = REGNO (reg);
++        if (pseudo >= max_regno || !REG_N_REFS (pseudo)
++            || (allocno = reg_allocno[pseudo]) < 0)
++          continue;
++        hint = global_register_hint_value (decl, TREE_VALUE (attribute));
++        if (!hint)
++          continue;
++        if (decl_hint_dump)
++          fprintf (decl_hint_dump, ";; Global hint pseudo %d allocno %d register %d.\n", pseudo, allocno, hint - 1);
++        if (allocno_decl_hints[allocno] < 0)
++          continue;
++        if (allocno_decl_hints[allocno]
++            && allocno_decl_hints[allocno] != hint)
++          {
++            allocno_decl_hints[allocno] = -1;
++            if (decl_hint_dump)
++              fprintf (decl_hint_dump, ";; Global hint allocno %d canceled: conflicting declarations.\n", allocno);
++          }
++        else
++          allocno_decl_hints[allocno] = hint;
++      }
++  for (sub = BLOCK_SUBBLOCKS (block); sub; sub = TREE_CHAIN (sub))
++    collect_global_register_hints (sub);
++}
++
++static int
++hinted_allocno_compare (p1, p2)
++     const GENERIC_PTR p1;
++     const GENERIC_PTR p2;
++{
++  int a = *(int *) p1, b = *(int *) p2;
++  int ah = allocno_decl_hints && allocno_decl_hints[a] > 0;
++  int bh = allocno_decl_hints && allocno_decl_hints[b] > 0;
++  if (ah != bh)
++    return bh - ah;
++  return allocno_compare (p1, p2);
++}
++
++/* USED is built by ordinary allocation, including retry losers. A request
++   for a call-clobbered color does not itself induce caller saves. */
++static int
++global_hint_reg (allocno, used)
++     int allocno;
++     HARD_REG_SET used;
++{
++  int regno;
++  enum machine_mode mode = PSEUDO_REGNO_MODE (allocno_reg[allocno]);
++  if (!allocno_decl_hints || allocno_decl_hints[allocno] <= 0
++      || allocno_size[allocno] != 1)
++    return -1;
++  regno = allocno_decl_hints[allocno] - 1;
++  if (fixed_regs[regno] || global_regs[regno]
++      || (allocno_calls_crossed[allocno] && call_used_regs[regno])
++      || TEST_HARD_REG_BIT (used, regno)
++      || !HARD_REGNO_MODE_OK (regno, mode)
++      || HARD_REGNO_NREGS (regno, mode) != 1)
++    return -1;
++  return regno;
+ }
+ 
+ /* Sort predicate for ordering the allocnos.
+@@ -943,6 +1078,17 @@
+      to give it a better chance of getting one of those registers.  Only if
+      we can't get a register when excluding those do we take one of them.
+      However, we never allocate a register for the first time in pass 0.  */
++
++  best_reg = global_hint_reg (allocno, used1);
++  if (best_reg >= 0)
++    {
++      if (decl_hint_dump)
++        fprintf (decl_hint_dump, ";; Global hint allocno %d chose %d.\n", allocno, best_reg);
++      goto no_prefs;
++    }
++  if (decl_hint_dump && allocno_decl_hints
++      && allocno_decl_hints[allocno] > 0)
++    fprintf (decl_hint_dump, ";; Global hint allocno %d unavailable %d.\n", allocno, allocno_decl_hints[allocno] - 1);
+ 
+   COPY_HARD_REG_SET (used, used1);
+   IOR_COMPL_HARD_REG_SET (used, regs_used_so_far);
+--- a/local-alloc.c
++++ b/local-alloc.c
+@@ -79,9 +79,10 @@
+ static short *local_reg_hints;
+ 
+ /* Soft, declaration-local preferences never create hard-register RTL.  */
+-int
+-local_register_hint_value (decl, args)
++static int
++automatic_register_hint_value (decl, args, name)
+      tree decl, args;
++     const char *name;
+ {
+   tree value = args ? TREE_VALUE (args) : 0;
+   int regno;
+@@ -104,8 +105,22 @@
+     goto invalid;
+   return regno + 1;
+ invalid:
+-  error ("local_register_hint requires an automatic scalar/pointer and a valid nonfixed single-word register");
++  error ("%s requires an automatic scalar/pointer and a valid nonfixed single-word register", name);
+   return 0;
++}
++
++int
++local_register_hint_value (decl, args)
++     tree decl, args;
++{
++  return automatic_register_hint_value (decl, args, "local_register_hint");
++}
++
++int
++global_register_hint_value (decl, args)
++     tree decl, args;
++{
++  return automatic_register_hint_value (decl, args, "global_register_hint");
+ }
+ 
+ static void

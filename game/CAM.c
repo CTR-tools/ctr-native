@@ -28,7 +28,9 @@ static u32 CAM_SkyboxGlow_LerpColor(u32 from, u32 to, s32 ratio)
 
 static s32 CAM_SkyboxGlow_FixedRatio(s32 numerator, s32 denominator)
 {
-	return (numerator << 12) / denominator;
+	// NOTE(aalhendi): Clipping can have negative numerators; preserve the
+	// CPU's wrapping shift without signed-left-shift undefined behavior.
+	return CTR_MipsSll(numerator, 12) / denominator;
 }
 
 static s32 CAM_SkyboxGlow_ScreenX(s32 screenWidth, s32 ratio)
@@ -64,7 +66,7 @@ static s32 CAM_SkyboxGlow_CalcTilt(struct PushBuffer *pb)
 	}
 
 	{
-		s32 ratio = (MATH_Sin(pb->rot.z) << 12) / cosine;
+		s32 ratio = CTR_MipsSll(MATH_Sin(pb->rot.z), 12) / cosine;
 		s32 shifted = (s32)((u32)ratio << 8);
 		shifted >>= 12;
 

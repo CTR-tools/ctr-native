@@ -1,7 +1,7 @@
 FROM ubuntu:focal@sha256:c664f8f86ed5a386b0a340d981b8f81714e21a8b9c73f658c4bea56aa179d54a AS build
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update
-RUN apt-get install -y build-essential gcc gcc-multilib
+RUN apt-get install -y build-essential gcc gcc-multilib python3
 
 ENV VERSION=2.8.1
 WORKDIR /work
@@ -59,6 +59,9 @@ RUN chmod u+w flags.h toplev.c sched.c jump.c Makefile.in && patch --batch --for
 RUN echo '19826d695779c20b098da1d3b0b82f0a0ff096086bafccdaab1dcfb60abcf70f  ../patches/generic-spill-home-2.8.1.patch' | sha256sum -c -
 RUN chmod u+w c-common.c function.c reload1.c rtl.h Makefile.in && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-spill-home-2.8.1.patch
 
+RUN echo 'cf385b414f34db40396f8025c9132156616a5a2f2731bb1faa536b614ac5bd47  ../patches/generic-global-register-hint-2.8.1.patch' | sha256sum -c -
+RUN chmod u+w c-common.c local-alloc.c global.c Makefile.in && patch --batch --forward --fuzz=0 --no-backup-if-mismatch -u -p1 < ../patches/generic-global-register-hint-2.8.1.patch
+
 RUN ./configure \
     --target=mips-sony-psx \
     --prefix=/opt/cross \
@@ -94,6 +97,7 @@ RUN sh /work/tests/check_mips_t9.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION
 RUN sh /work/tests/check_mips_static_frame_alias.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_generic_scheduler.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_local_register_hint.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
+RUN sh /work/tests/check_global_register_hint.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_nonfaulting_sh_return.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_call_setup_ties.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}
 RUN sh /work/tests/check_private_frame_sw_jump.sh /work/gcc-${VERSION}/gcc /work/gcc-${VERSION}

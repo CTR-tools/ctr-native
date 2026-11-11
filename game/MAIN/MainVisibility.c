@@ -1,6 +1,14 @@
 #include <common.h>
 
 #ifdef CTR_NATIVE
+static void MainFrame_CopyRawVisList(void *dst, const void *src, u32 byteCount)
+{
+	// NOTE(aalhendi): Empty optional lists have no native storage; even a
+	// zero-byte libc copy requires valid pointers. Keep nonempty copies strict.
+	if (byteCount != 0)
+		memcpy(dst, src, byteCount);
+}
+
 static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_info *mesh)
 {
 	if (mesh == NULL || mesh->bspRoot == NULL)
@@ -25,6 +33,8 @@ static void MainInit_InitVisMemBspListNodes(struct VisMem *visMem, struct mesh_i
 		}
 	}
 }
+#else
+#define MainFrame_CopyRawVisList memcpy
 #endif
 
 void MainInit_VisMem(struct GameTracker *gGT)
@@ -63,7 +73,7 @@ static inline void MainFrame_ReplacePackedVisList(struct GameTracker *tracker, i
 		return;
 	}
 
-	memcpy(*(int **)((u8 *)tracker->visMem1 + (playerIndex << 2) + listOffset), src, ((*bitCount + 0x1f) >> 5) << 2);
+	MainFrame_CopyRawVisList(*(int **)((u8 *)tracker->visMem1 + (playerIndex << 2) + listOffset), src, ((*bitCount + 0x1f) >> 5) << 2);
 }
 
 #define MainFrame_OrPackedVisList(dst, src, byteCount)                   \
@@ -208,7 +218,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 			CTR_unknownMaybeThunk1(gGT->visMem1->visLeafList[playerIndex], (void *)((u32)leafSource & ~(u32)3));
 			goto leafDone;
 		leafRaw:
-			memcpy(gGT->visMem1->visLeafList[playerIndex], leafSource, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
+			MainFrame_CopyRawVisList(gGT->visMem1->visLeafList[playerIndex], leafSource, ((mesh->numBspNodes + 0x1f) >> 5) << 2);
 		}
 
 	leafDone:;
@@ -224,7 +234,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 				CTR_unknownMaybeThunk1(gGT->visMem1->visFaceList[playerIndex], (void *)((u32)faceSource & ~(u32)3));
 				goto faceDone;
 			faceFallbackRaw:
-				memcpy(gGT->visMem1->visFaceList[playerIndex], faceSource, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
+				MainFrame_CopyRawVisList(gGT->visMem1->visFaceList[playerIndex], faceSource, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 				goto faceDone;
 			}
 		}
@@ -237,7 +247,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 			CTR_unknownMaybeThunk1(gGT->visMem1->visFaceList[playerIndex], (void *)((u32)faceSource & ~(u32)3));
 			goto faceChangedDone;
 		faceChangedRaw:
-			memcpy(gGT->visMem1->visFaceList[playerIndex], faceSource, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
+			MainFrame_CopyRawVisList(gGT->visMem1->visFaceList[playerIndex], faceSource, ((mesh->numQuadBlock + 0x1f) >> 5) << 2);
 		faceChangedDone:;
 
 			if (((driver->underDriver != NULL) && (driver->underDriver->pvs != NULL)) && (driver->underDriver->pvs->visLeafSrc != NULL) &&
@@ -280,7 +290,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 			}
 			else if (gGT->visMem1->visOVertSrc[playerIndex] == NULL)
 			{
-				memcpy(gGT->visMem1->visOVertList[playerIndex], level->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
+				MainFrame_CopyRawVisList(gGT->visMem1->visOVertList[playerIndex], level->visOVertSrc, ((level->numWaterVertices + 0x1f) >> 5) << 2);
 			}
 		}
 		else
@@ -292,7 +302,7 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 			}
 			else if (gGT->visMem1->visSCVertSrc[playerIndex] == NULL)
 			{
-				memcpy(gGT->visMem1->visSCVertList[playerIndex], level->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
+				MainFrame_CopyRawVisList(gGT->visMem1->visSCVertList[playerIndex], level->visSCVertSrc, ((level->numSCVert + 0x1f) >> 5) << 2);
 			}
 		}
 		playerIndex++;
@@ -301,3 +311,4 @@ void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *suppliedLe
 
 #undef MAIN_FRAME_REPLACE_FIELD
 #undef MAIN_FRAME_QUAD_MESH
+#undef MainFrame_CopyRawVisList

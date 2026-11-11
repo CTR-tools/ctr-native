@@ -376,25 +376,6 @@ void MainDrawCb_DrawSync(void);
 
 void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepads);
 void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamepads);
-void DrawUnpluggedMsg(struct GameTracker *gGT, struct GamepadSystem *gGamepads);
-void DrawFinalLap(struct GameTracker *gGT);
-void RainLogic(struct GameTracker *gGT);
-void MenuHighlight(void);
-void RenderAllWeather(struct GameTracker *gGT);
-void RenderAllConfetti(struct GameTracker *gGT);
-void RenderAllHUD(struct GameTracker *gGT);
-void RenderAllBeakerRain(struct GameTracker *gGT);
-void RenderAllBoxSceneSplitLines(struct GameTracker *gGT);
-void RenderBucket_QueueAllInstances(struct GameTracker *gGT);
-void RenderAllNormalParticles(struct GameTracker *gGT);
-void RenderDispEnv_World(struct GameTracker *gGT);
-void RenderAllFlag0x40(struct GameTracker *gGT);
-void RenderAllTitleDPP(struct GameTracker *gGT);
-void RenderBucket_ExecuteAllInstances(struct GameTracker *gGT);
-void RenderAllTires(struct GameTracker *gGT);
-void RenderAllShadows(struct GameTracker *gGT);
-void RenderAllHeatParticles(struct GameTracker *gGT);
-void RenderAllLevelGeometry(struct GameTracker *gGT, struct Level *level1, struct mesh_info *ptr_mesh_info);
 void RenderStars(struct PushBuffer *pb, struct PrimMem *primMem, struct Stars *stars, u8 numPlyr);
 void RenderWeather(struct PushBuffer *pb, struct PrimMem *primMem, struct RainBuffer *rainBuffer, u8 numPlyr, int gameMode1);
 void DrawConfetti(struct PushBuffer *pb, struct PrimMem *primMem, struct GameTrackerConfetti *confetti, int frameTimer, int gameMode1);
@@ -418,12 +399,6 @@ void CTR_PSX_REGCALL_SBANK(0x38c0) CTR_PSX_PRESERVES_AT44 AnimateWaterVertex(voi
 #endif
 void RenderLists_PreInit(void);
 void RenderBucket_InitDepthGTE(void);
-void WindowBoxLines(struct GameTracker *gGT);
-void WindowDivsionLines(struct GameTracker *gGT);
-void RenderDispEnv_UI(struct GameTracker *gGT);
-void RenderVSYNC(struct GameTracker *gGT);
-void RenderFMV(void);
-void RenderSubmit(struct GameTracker *gGT);
 void MainFrame_ResetDB(struct GameTracker *gGT);
 void MainFrame_InitVideoSTR(u32 boolPlayVideoStr, RECT *r, s16 posX, s16 posY);
 void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level);
@@ -1080,7 +1055,7 @@ void AH_Pause_Update(void);
 void AH_HintMenu_FiveArrows(int posY, s16 rotation);
 void AH_HintMenu_MaskPosRot(void);
 void AH_HintMenu_MenuProc(struct RectMenu *menu);
-void AH_MaskHint_Start(s16 hintId, u16 bool_interruptWarppad);
+void AH_MaskHint_Start(s16 hintId, b16 bool_interruptWarppad);
 b32 AH_MaskHint_boolCanSpawn(void);
 void AH_MaskHint_SetAnim(int scale);
 

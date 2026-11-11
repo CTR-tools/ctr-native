@@ -4707,7 +4707,7 @@ static int RenderBucket_PrepareDrawContext(struct RenderBucketDrawContext *ctx, 
 	{
 		scratch->frameOrigin.xy.x = mf->pos.x + nextFrame->pos.x;
 		scratch->frameOrigin.xy.y = mf->pos.y + nextFrame->pos.y;
-		scratch->frameOrigin.z = (s32)(mf->pos.z + nextFrame->pos.z) << 1;
+		scratch->frameOrigin.z = RenderBucket_MipsSll(mf->pos.z + nextFrame->pos.z, 1);
 	}
 	else
 	{

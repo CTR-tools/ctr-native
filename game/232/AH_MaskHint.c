@@ -1,7 +1,7 @@
 #include <common.h>
 #include <ctr_gte_transfer.h>
 
-void AH_MaskHint_Start(s16 hintId, u16 bool_interruptWarppad)
+void AH_MaskHint_Start(s16 hintId, b16 bool_interruptWarppad)
 {
 	struct AdvProgress *adv;
 	int bitIndex;
