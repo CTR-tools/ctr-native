@@ -10,6 +10,7 @@ enum
 	CUSTOM_CUP_NAME_MAX_CHARACTERS = 30,
 	CUSTOM_CUP_NAME_BYTES = CUSTOM_CUP_NAME_MAX_CHARACTERS * 4 + 1,
 	CUSTOM_CUP_VISIBLE_NAME_CHARACTERS = 14,
+	CUSTOM_CUP_DEFAULT_LAPS = 3,
 };
 
 /* The kind is separate from retail cup indices: custom cups must never be
@@ -27,14 +28,18 @@ struct CustomCup
 	int trackCount;
 	/* Owned, prefixed stable identities in race order; never borrowed from the registry. */
 	char *tracks[CUSTOM_CUP_MAX_TRACKS];
+	/* Lap counts belong to positions, not track identities. */
+	int laps[CUSTOM_CUP_MAX_TRACKS];
 };
 
 struct NativeTrackRegistry;
 
 /* Initialize cups to zero. Do not copy them by assignment; use Copy and Clear. */
 void CustomCup_Clear(struct CustomCup *cup);
+/* Only valid cups can be copied; the destination is unchanged on failure. */
 bool CustomCup_Copy(struct CustomCup *destination, const struct CustomCup *source);
-bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity);
+bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity, int laps);
+bool CustomCup_SetLaps(struct CustomCup *cup, int index, int laps);
 /* Checks structure and identity syntax, not current track availability. */
 bool CustomCup_IsValid(const struct CustomCup *cup);
 /* Resolves a single identity against the current registry. Availability and

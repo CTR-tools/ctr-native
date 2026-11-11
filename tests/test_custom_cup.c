@@ -15,20 +15,30 @@ int main(void)
 	struct CustomCup cup = {0};
 	strcpy(cup.name, "Cup");
 	cup.trackCount = 2;
-	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 0, "retail:crash-cove"), "retail identity can be stored");
-	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 1, "retail:crash-cove"), "a track may be repeated");
+	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 0, "retail:crash-cove", 1), "retail identity and laps can be stored together");
+	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 1, "retail:crash-cove", 7), "a repeated track can have a different lap count");
+	CTR_TEST_CHECK(!CustomCup_SetTrack(&cup, 0, "retail:other", 0) &&
+	               strcmp(cup.tracks[0], "retail:crash-cove") == 0 && cup.laps[0] == 1,
+	               "an invalid lap count leaves the entire position unchanged");
+	CTR_TEST_CHECK(!CustomCup_SetLaps(&cup, 0, 0) && !CustomCup_SetLaps(&cup, 0, 100), "out-of-range lap counts are rejected");
+	CTR_TEST_CHECK(!CustomCup_SetLaps(NULL, 0, 3) && !CustomCup_SetLaps(&cup, -1, 3) &&
+	               !CustomCup_SetLaps(&cup, CUSTOM_CUP_MAX_TRACKS, 3), "invalid lap count destinations are rejected");
+	CTR_TEST_CHECK(CustomCup_SetLaps(&cup, 0, 5) && cup.laps[1] == 7, "changing one position leaves the other unchanged");
 	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "two repeated tracks form a valid cup");
+	cup.laps[0] = 0;
+	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "validation rejects an unsupported stored lap count");
+	cup.laps[0] = 5;
 	CTR_TEST_CHECK(!CustomCup_IsValid(NULL), "a missing cup is invalid");
 	cup.trackCount = 1;
 	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "a cup needs at least two tracks");
 	cup.trackCount = CUSTOM_CUP_MAX_TRACKS;
-	for (int i = 0; i < cup.trackCount; i++) { CustomCup_SetTrack(&cup, i, "custom:track"); }
+	for (int i = 0; i < cup.trackCount; i++) { CustomCup_SetTrack(&cup, i, "custom:track", i == 0 ? 5 : i == 1 ? 7 : CUSTOM_CUP_DEFAULT_LAPS); }
 	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "ten custom identities are accepted structurally");
 	cup.trackCount++;
 	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "more than ten tracks are rejected before reading the array");
 	cup.trackCount = 2;
-	CTR_TEST_CHECK(!CustomCup_SetTrack(&cup, 1, "custom:"), "an empty identity is rejected");
-	CTR_TEST_CHECK(!CustomCup_SetTrack(&cup, 1, "track"), "an unprefixed identity is rejected");
+	CTR_TEST_CHECK(!CustomCup_SetTrack(&cup, 1, "custom:", 3), "an empty identity is rejected");
+	CTR_TEST_CHECK(!CustomCup_SetTrack(&cup, 1, "track", 3) && cup.laps[1] == 7, "an invalid identity leaves the lap count unchanged");
 	memset(cup.name, 'A', 30);
 	cup.name[30] = '\0';
 	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "a thirty-character name is accepted");
@@ -64,10 +74,15 @@ int main(void)
 		               "every retail race track round-trips through its identity");
 		free(retailIdentity);
 	}
-	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 0, identity), "the cup owns a copy of the identity");
+	CTR_TEST_CHECK(CustomCup_SetTrack(&cup, 0, identity, cup.laps[0]), "the cup owns a copy of the identity and preserves chosen laps");
 	free(identity);
 	struct CustomCup copy = {0};
+	CTR_TEST_CHECK(!CustomCup_Copy(&copy, &cup), "an invalid cup cannot be copied");
+	strcpy(cup.name, "Cup");
 	CTR_TEST_CHECK(CustomCup_Copy(&copy, &cup), "a cup can be copied deeply");
+	cup.laps[0] = 0;
+	CTR_TEST_CHECK(!CustomCup_Copy(&copy, &cup) && copy.laps[0] == 5, "a failed copy leaves the destination unchanged");
+	CTR_TEST_CHECK(copy.laps[0] == 5 && copy.laps[1] == 7, "copy preserves the lap count of each position");
 	CustomCup_Clear(&cup);
 	CTR_TEST_CHECK(strcmp(copy.tracks[0], "custom:crash-cove") == 0, "the copy survives clearing the original");
 	NativeTrackRegistry_Destroy(registry);

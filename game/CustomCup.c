@@ -51,9 +51,15 @@ void CustomCup_Clear(struct CustomCup *cup)
 	memset(cup, 0, sizeof(*cup));
 }
 
-bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity)
+static bool CustomCup_LapsAreValid(int laps)
+{
+	return laps > 0 & laps <= 99;
+}
+
+bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity, int laps)
 {
 	if (cup == NULL || index < 0 || index >= CUSTOM_CUP_MAX_TRACKS ||
+	    !CustomCup_LapsAreValid(laps) ||
 	    (!CustomCup_HasPrefix(identity, s_customCupRetailPrefix) && !CustomCup_HasPrefix(identity, s_customCupCustomPrefix)))
 	{
 		return false;
@@ -62,19 +68,30 @@ bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity)
 	if (copy == NULL) { return false; }
 	free(cup->tracks[index]);
 	cup->tracks[index] = copy;
+	cup->laps[index] = laps;
+	return true;
+}
+
+bool CustomCup_SetLaps(struct CustomCup *cup, int index, int laps)
+{
+	if (cup == NULL || index < 0 || index >= CUSTOM_CUP_MAX_TRACKS || !CustomCup_LapsAreValid(laps))
+	{
+		return false;
+	}
+	cup->laps[index] = laps;
 	return true;
 }
 
 bool CustomCup_Copy(struct CustomCup *destination, const struct CustomCup *source)
 {
-	if (destination == NULL || source == NULL) { return false; }
+	if (destination == NULL || !CustomCup_IsValid(source)) { return false; }
 	if (destination == source) { return true; }
 	struct CustomCup copy = {0};
 	memcpy(copy.name, source->name, sizeof(copy.name));
 	copy.trackCount = source->trackCount;
-	for (int i = 0; i < CUSTOM_CUP_MAX_TRACKS; i++)
+	for (int i = 0; i < source->trackCount; i++)
 	{
-		if (source->tracks[i] != NULL && !CustomCup_SetTrack(&copy, i, source->tracks[i]))
+		if (!CustomCup_SetTrack(&copy, i, source->tracks[i], source->laps[i]))
 		{
 			CustomCup_Clear(&copy);
 			return false;
@@ -180,8 +197,9 @@ bool CustomCup_IsValid(const struct CustomCup *cup)
 	}
 	for (int i = 0; i < cup->trackCount; i++)
 	{
-		if (!CustomCup_HasPrefix(cup->tracks[i], s_customCupRetailPrefix) &&
-		    !CustomCup_HasPrefix(cup->tracks[i], s_customCupCustomPrefix))
+		if ((!CustomCup_HasPrefix(cup->tracks[i], s_customCupRetailPrefix) &&
+		     !CustomCup_HasPrefix(cup->tracks[i], s_customCupCustomPrefix)) ||
+		    !CustomCup_LapsAreValid(cup->laps[i]))
 		{
 			return false;
 		}
