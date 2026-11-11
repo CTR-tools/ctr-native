@@ -107,10 +107,10 @@ void UI_EngineStats_Draw(int x, int y, int engine, enum EngineStatsFormat format
 		left -= 6;
 		right += 6;
 		int shift = left < 0 ? -left : (right > 512 ? 512 - right : 0);
-		titleX += shift;
 		labelX += shift;
 		barX += shift;
 		box = (RECT){left + shift, y, right - left, 68};
+		titleX = box.x + box.w / 2;
 	}
 	DecalFont_DrawLineScaledOT(className, titleX, y + (large ? 4 : 1), font, JUSTIFY_CENTER | ORANGE, titleScale, ot);
 	for (int row = 0; row < 3; row++)
