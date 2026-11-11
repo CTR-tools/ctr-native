@@ -56,15 +56,24 @@ static bool CustomCup_LapsAreValid(int laps)
 	return laps > 0 & laps <= 99;
 }
 
-bool CustomCup_SetTrack(struct CustomCup *cup, int index, const char *identity, int laps)
+static char *CustomCup_CopyTrack(const char *identity, int laps)
 {
-	if (cup == NULL || index < 0 || index >= CUSTOM_CUP_MAX_TRACKS ||
-	    !CustomCup_LapsAreValid(laps) ||
+	if (!CustomCup_LapsAreValid(laps) ||
 	    (!CustomCup_HasPrefix(identity, s_customCupRetailPrefix) && !CustomCup_HasPrefix(identity, s_customCupCustomPrefix)))
+	{
+		return NULL;
+	}
+	return CustomCup_Join("", identity);
+}
+
+bool CustomCup_ReplaceTrack(struct CustomCup *cup, int index, const char *identity, int laps)
+{
+	if (cup == NULL || cup->trackCount < 0 || cup->trackCount > CUSTOM_CUP_MAX_TRACKS ||
+	    index < 0 || index >= cup->trackCount || cup->tracks[index] == NULL)
 	{
 		return false;
 	}
-	char *copy = CustomCup_Join("", identity);
+	char *copy = CustomCup_CopyTrack(identity, laps);
 	if (copy == NULL) { return false; }
 	free(cup->tracks[index]);
 	cup->tracks[index] = copy;
@@ -82,16 +91,78 @@ bool CustomCup_SetLaps(struct CustomCup *cup, int index, int laps)
 	return true;
 }
 
+bool CustomCup_InsertTrack(struct CustomCup *cup, int index, const char *identity, int laps)
+{
+	if (cup == NULL || cup->trackCount < 0 || cup->trackCount >= CUSTOM_CUP_MAX_TRACKS ||
+	    index < 0 || index > cup->trackCount || cup->tracks[cup->trackCount] != NULL)
+	{
+		return false;
+	}
+	/* Copy before shifting: identity may already belong to this cup. */
+	char *copy = CustomCup_CopyTrack(identity, laps);
+	if (copy == NULL)
+	{
+		return false;
+	}
+	for (int i = cup->trackCount; i > index; i--)
+	{
+		cup->tracks[i] = cup->tracks[i - 1];
+		cup->laps[i] = cup->laps[i - 1];
+	}
+	cup->tracks[index] = copy;
+	cup->laps[index] = laps;
+	cup->trackCount++;
+	return true;
+}
+
+bool CustomCup_RemoveTrack(struct CustomCup *cup, int index)
+{
+	if (cup == NULL || cup->trackCount <= CUSTOM_CUP_MIN_TRACKS ||
+	    cup->trackCount > CUSTOM_CUP_MAX_TRACKS || index < 0 || index >= cup->trackCount)
+	{
+		return false;
+	}
+	free(cup->tracks[index]);
+	for (int i = index; i < cup->trackCount - 1; i++)
+	{
+		cup->tracks[i] = cup->tracks[i + 1];
+		cup->laps[i] = cup->laps[i + 1];
+	}
+	cup->trackCount--;
+	cup->tracks[cup->trackCount] = NULL;
+	cup->laps[cup->trackCount] = 0;
+	return true;
+}
+
+bool CustomCup_MoveTrack(struct CustomCup *cup, int from, int to)
+{
+	if (cup == NULL || cup->trackCount < 0 || cup->trackCount > CUSTOM_CUP_MAX_TRACKS ||
+	    from < 0 || from >= cup->trackCount || to < 0 || to >= cup->trackCount)
+	{
+		return false;
+	}
+	char *track = cup->tracks[from];
+	int laps = cup->laps[from];
+	int step = from < to ? 1 : -1;
+	for (int i = from; i != to; i += step)
+	{
+		cup->tracks[i] = cup->tracks[i + step];
+		cup->laps[i] = cup->laps[i + step];
+	}
+	cup->tracks[to] = track;
+	cup->laps[to] = laps;
+	return true;
+}
+
 bool CustomCup_Copy(struct CustomCup *destination, const struct CustomCup *source)
 {
 	if (destination == NULL || !CustomCup_IsValid(source)) { return false; }
 	if (destination == source) { return true; }
 	struct CustomCup copy = {0};
 	memcpy(copy.name, source->name, sizeof(copy.name));
-	copy.trackCount = source->trackCount;
 	for (int i = 0; i < source->trackCount; i++)
 	{
-		if (!CustomCup_SetTrack(&copy, i, source->tracks[i], source->laps[i]))
+		if (!CustomCup_InsertTrack(&copy, i, source->tracks[i], source->laps[i]))
 		{
 			CustomCup_Clear(&copy);
 			return false;
