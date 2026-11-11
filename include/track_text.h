@@ -36,4 +36,39 @@ static inline void TrackText_Trim(char *text, int width, s16 font)
 	}
 }
 
+enum
+{
+	TRACK_TEXT_SCROLL_PAUSE_FRAMES = 45,
+	TRACK_TEXT_SCROLL_STEP_FRAMES = 8,
+};
+
+// Scroll long text horizontally and clip it to the available pixel width.
+static inline void TrackText_Scroll(char *text, int available, s16 font, u32 frame)
+{
+	if (DecalFont_GetLineWidth(text, font) <= available)
+	{
+		return;
+	}
+	size_t length = strlen(text);
+	size_t lastStart = 0;
+	while (lastStart < length && DecalFont_GetLineWidth(text + lastStart, font) > available)
+	{
+		lastStart++;
+	}
+	u32 travelFrames = (u32)lastStart * TRACK_TEXT_SCROLL_STEP_FRAMES;
+	u32 cycle = travelFrames + 2 * TRACK_TEXT_SCROLL_PAUSE_FRAMES;
+	u32 position = frame % cycle;
+	size_t start = 0;
+	if (position >= TRACK_TEXT_SCROLL_PAUSE_FRAMES)
+	{
+		start = (position - TRACK_TEXT_SCROLL_PAUSE_FRAMES) / TRACK_TEXT_SCROLL_STEP_FRAMES;
+		if (start > lastStart)
+		{
+			start = lastStart;
+		}
+	}
+	memmove(text, text + start, length - start + 1);
+	TrackText_Trim(text, available, font);
+}
+
 #endif

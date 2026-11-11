@@ -95,6 +95,10 @@ ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
 )
 
+ctr_add_test_suite(test_custom_cup
+    SOURCES test_custom_cup.c
+)
+
 ctr_add_test_suite(test_native_text_edit
     SOURCES test_native_text_edit.c
     LIBRARIES SDL3::SDL3

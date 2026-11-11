@@ -4,6 +4,7 @@
 #include <common.h>
 
 #include "LevelInfo.c"
+#include "CustomCup.c"
 
 #include "226/R226.c"
 #include "227/R227.c"
