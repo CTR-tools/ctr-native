@@ -99,6 +99,11 @@ ctr_add_test_suite(test_custom_cup
     SOURCES test_custom_cup.c
 )
 
+ctr_add_test_suite(test_custom_cup_storage
+    SOURCES test_custom_cup_storage.c
+    LIBRARIES SDL3::SDL3
+)
+
 ctr_add_test_suite(test_native_text_edit
     SOURCES test_native_text_edit.c
     LIBRARIES SDL3::SDL3
