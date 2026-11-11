@@ -1,6 +1,7 @@
 #include <common.h>
 #include <custom_cup.h>
 #include <platform/native_track_registry.h>
+#include <platform/native_track_library.h>
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -192,6 +193,33 @@ bool CustomCup_ResolveTrack(const char *identity, const struct NativeTrackRegist
 		return NativeTrackRegistry_Find(registry, identity + sizeof(s_customCupCustomPrefix) - 1, levelID) != 0;
 	}
 	return false;
+}
+
+int CustomCup_FirstUnresolvedTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry)
+{
+	if (!CustomCup_IsValid(cup)) { return CUSTOM_CUP_INVALID; }
+	for (int i = 0; i < cup->trackCount; i++)
+	{
+		if (!CustomCup_ResolveTrack(cup->tracks[i], registry, NULL)) { return i; }
+	}
+	return CUSTOM_CUP_TRACKS_RESOLVED;
+}
+
+int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry)
+{
+	if (!CustomCup_IsValid(cup)) { return CUSTOM_CUP_INVALID; }
+	for (int i = 0; i < cup->trackCount; i++)
+	{
+		int levelID;
+		if (!CustomCup_ResolveTrack(cup->tracks[i], registry, &levelID)) { return i; }
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
+		if (track != NULL && (!NativeTrackLibrary_IsEnabled(track) ||
+		                     !NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_ARCADE)))
+		{
+			return i;
+		}
+	}
+	return CUSTOM_CUP_TRACKS_RESOLVED;
 }
 
 char *CustomCup_TrackIdentity(int levelID, const struct NativeTrackRegistry *registry)

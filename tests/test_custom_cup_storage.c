@@ -3,10 +3,18 @@
 #include <common.h>
 #include <platform/native_custom_cup_storage.h>
 #include <platform/native_assets.h>
+#include <platform/native_track_library.h>
 
 static char s_base[512];
 const char *NativeAssets_GetBaseDir(void) { return s_base; }
 struct sData sdata_static;
+int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track) { return track != NULL; }
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
+{
+	(void)track;
+	(void)mode;
+	return 1;
+}
 
 #include <platform/native_track_registry.c>
 #include <game/CustomCup.c>
@@ -80,6 +88,16 @@ int main(void)
 	char thirdID[NATIVE_CUSTOM_CUP_ID_SIZE] = {0};
 	CTR_TEST_CHECK(NativeCustomCup_Save(thirdID, &cup) == NATIVE_CUSTOM_CUP_OK,
 	               "a corrupt file does not prevent saving an unrelated cup");
+	CTR_TEST_CHECK(NativeCustomCup_Delete(id) == NATIVE_CUSTOM_CUP_INVALID,
+	               "a malformed cup file is not deleted implicitly");
+	CTR_TEST_CHECK(NativeCustomCup_Delete("../invalid") == NATIVE_CUSTOM_CUP_INVALID,
+	               "deletion cannot escape the cup directory");
+	CTR_TEST_CHECK(NativeCustomCup_Delete(thirdID) == NATIVE_CUSTOM_CUP_OK &&
+	               NativeCustomCup_Load(thirdID, &loaded) == NATIVE_CUSTOM_CUP_NOT_FOUND,
+	               "deleting a cup removes its file");
+	CTR_TEST_CHECK(NativeCustomCup_Delete(thirdID) == NATIVE_CUSTOM_CUP_NOT_FOUND &&
+	               NativeCustomCup_Load(secondID, &loaded) == NATIVE_CUSTOM_CUP_OK,
+	               "deleting a missing cup leaves other files intact");
 	CTR_TEST_CHECK(NativeCustomCup_Load("../invalid", &loaded) == NATIVE_CUSTOM_CUP_INVALID,
 	               "file identifiers cannot escape the cup directory");
 	CustomCup_Clear(&cup);

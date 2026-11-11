@@ -27,5 +27,7 @@ enum NativeCustomCupStorageResult NativeCustomCup_Load(const char *id, struct Cu
    an existing valid file. Names must be unique (exact UTF-8 match). The input
    cup and ID are unchanged on failure. */
 enum NativeCustomCupStorageResult NativeCustomCup_Save(char id[NATIVE_CUSTOM_CUP_ID_SIZE], const struct CustomCup *cup);
+/* Deletes only an existing valid cup file; callers are responsible for confirmation. */
+enum NativeCustomCupStorageResult NativeCustomCup_Delete(const char *id);
 
 #endif

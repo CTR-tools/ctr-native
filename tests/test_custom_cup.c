@@ -6,6 +6,13 @@
 
 struct sData sdata_static;
 
+static int s_trackEnabled = 1;
+int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track) { return track != NULL && s_trackEnabled; }
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
+{
+	return track != NULL && track->detectionKnown && (track->detectedModes & mode) != 0;
+}
+
 #include <platform/native_track_registry.c>
 #include <game/CustomCup.c>
 
@@ -83,10 +90,31 @@ int main(void)
 	cup.laps[0] = 0;
 	CTR_TEST_CHECK(!CustomCup_Copy(&copy, &cup) && copy.laps[0] == 5, "a failed copy leaves the destination unchanged");
 	CTR_TEST_CHECK(copy.laps[0] == 5 && copy.laps[1] == 7, "copy preserves the lap count of each position");
+	CTR_TEST_CHECK(CustomCup_FirstUnresolvedTrack(&copy, registry) == CUSTOM_CUP_TRACKS_RESOLVED,
+	               "all registered custom and retail identities resolve");
+	CTR_TEST_CHECK(CustomCup_FirstUnavailableArcadeTrack(&copy, registry) == 0,
+	               "a custom track with unknown Arcade support is unavailable");
+	struct NativeTrackRegistry *arcadeRegistry = NativeTrackRegistry_Create();
+	struct NativeTrackMetadata arcade = {"crash-cove", "Custom", "track.lev", "track.vrm", NULL, NULL,
+	                                     NATIVE_TRACK_DETECTED_ARCADE, 1, NULL};
+	CTR_TEST_CHECK(arcadeRegistry != NULL && NativeTrackRegistry_Add(arcadeRegistry, &arcade, NULL) &&
+	               CustomCup_FirstUnavailableArcadeTrack(&copy, arcadeRegistry) == CUSTOM_CUP_TRACKS_RESOLVED,
+	               "enabled Arcade-compatible custom and retail tracks are available");
+	s_trackEnabled = 0;
+	CTR_TEST_CHECK(CustomCup_FirstUnavailableArcadeTrack(&copy, arcadeRegistry) == 0,
+	               "a disabled custom track is unavailable even when it supports Arcade");
+	s_trackEnabled = 1;
+	NativeTrackRegistry_Destroy(arcadeRegistry);
+	CTR_TEST_CHECK(CustomCup_FirstUnresolvedTrack(&cup, registry) == CUSTOM_CUP_INVALID,
+	               "an invalid cup is not reported as resolved");
 	CustomCup_Clear(&cup);
 	CTR_TEST_CHECK(strcmp(copy.tracks[0], "custom:crash-cove") == 0, "the copy survives clearing the original");
 	NativeTrackRegistry_Destroy(registry);
 	CTR_TEST_CHECK(!CustomCup_ResolveTrack(copy.tracks[0], NULL, &resolved), "a removed registry cannot resolve an old identity");
+	CTR_TEST_CHECK(CustomCup_FirstUnresolvedTrack(&copy, NULL) == 0,
+	               "the first missing position is reported without modifying the cup");
+	CTR_TEST_CHECK(CustomCup_FirstUnavailableArcadeTrack(&copy, NULL) == 0,
+	               "a missing custom track is unavailable in Arcade");
 	registry = NativeTrackRegistry_Create();
 	struct NativeTrackMetadata other = {"other", "Other", "other.lev", "other.vrm", NULL, NULL, 0, 0, NULL};
 	int newID = -1;

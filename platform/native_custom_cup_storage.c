@@ -140,6 +140,18 @@ enum NativeCustomCupStorageResult NativeCustomCup_Load(const char *id, struct Cu
 	return result;
 }
 
+enum NativeCustomCupStorageResult NativeCustomCup_Delete(const char *id)
+{
+	char path[NATIVE_CUP_PATH_SIZE];
+	if (!NativeCup_Path(path, sizeof(path), id)) { return NATIVE_CUSTOM_CUP_INVALID; }
+	struct CustomCup cup = {0};
+	enum NativeCustomCupStorageResult result = NativeCustomCup_Load(id, &cup);
+	CustomCup_Clear(&cup);
+	if (result != NATIVE_CUSTOM_CUP_OK) { return result; }
+	if (remove(path) != 0) { return errno == ENOENT ? NATIVE_CUSTOM_CUP_NOT_FOUND : NATIVE_CUSTOM_CUP_IO_ERROR; }
+	return NATIVE_CUSTOM_CUP_OK;
+}
+
 struct NativeCupScan
 {
 	NativeCustomCupVisitor visitor;
