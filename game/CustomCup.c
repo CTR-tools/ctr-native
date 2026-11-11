@@ -305,3 +305,53 @@ bool CustomCup_IsValid(const struct CustomCup *cup)
 	}
 	return true;
 }
+
+void CustomCupSession_Clear(struct CustomCupSession *session)
+{
+	if (session == NULL) { return; }
+	CustomCup_Clear(&session->cup);
+	session->trackIndex = 0;
+	session->active = false;
+}
+
+bool CustomCupSession_Start(struct CustomCupSession *session, const struct CustomCup *cup,
+                            const struct NativeTrackRegistry *registry)
+{
+	if (session == NULL || CustomCup_FirstUnavailableArcadeTrack(cup, registry) != CUSTOM_CUP_TRACKS_RESOLVED)
+	{
+		return false;
+	}
+	struct CustomCup copy = {0};
+	if (!CustomCup_Copy(&copy, cup)) { return false; }
+	CustomCupSession_Clear(session);
+	session->cup = copy;
+	session->active = true;
+	return true;
+}
+
+bool CustomCupSession_Current(const struct CustomCupSession *session, const struct NativeTrackRegistry *registry,
+                              int *levelID, int *laps)
+{
+	if (session == NULL || !session->active || session->trackIndex < 0 ||
+	    session->trackIndex >= session->cup.trackCount || session->trackIndex >= CUSTOM_CUP_MAX_TRACKS)
+	{
+		return false;
+	}
+	int resolved;
+	if (!CustomCup_ResolveTrack(session->cup.tracks[session->trackIndex], registry, &resolved)) { return false; }
+	if (levelID != NULL) { *levelID = resolved; }
+	if (laps != NULL) { *laps = session->cup.laps[session->trackIndex]; }
+	return true;
+}
+
+enum CustomCupAdvanceResult CustomCupSession_Advance(struct CustomCupSession *session)
+{
+	if (session == NULL || !session->active || session->trackIndex < 0 ||
+	    session->trackIndex >= session->cup.trackCount || session->cup.trackCount > CUSTOM_CUP_MAX_TRACKS)
+	{
+		return CUSTOM_CUP_ADVANCE_INVALID;
+	}
+	if (session->trackIndex + 1 == session->cup.trackCount) { return CUSTOM_CUP_ADVANCE_FINISHED; }
+	session->trackIndex++;
+	return CUSTOM_CUP_ADVANCE_NEXT;
+}

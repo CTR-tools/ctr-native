@@ -34,6 +34,21 @@ struct CustomCup
 	int laps[CUSTOM_CUP_MAX_TRACKS];
 };
 
+/* A running championship owns a snapshot, independent of the editable cup. */
+struct CustomCupSession
+{
+	struct CustomCup cup;
+	int trackIndex;
+	bool active;
+};
+
+enum CustomCupAdvanceResult
+{
+	CUSTOM_CUP_ADVANCE_INVALID,
+	CUSTOM_CUP_ADVANCE_NEXT,
+	CUSTOM_CUP_ADVANCE_FINISHED,
+};
+
 struct NativeTrackRegistry;
 
 /* Initialize cups to zero. Do not copy them by assignment; use Copy and Clear. */
@@ -60,5 +75,16 @@ int CustomCup_FirstUnresolvedTrack(const struct CustomCup *cup, const struct Nat
 int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry);
 /* Returns an owned prefixed identity for a runtime ID, or NULL on failure. */
 char *CustomCup_TrackIdentity(int levelID, const struct NativeTrackRegistry *registry);
+
+/* Initialize sessions to zero and clear them when leaving the championship.
+   Starting checks Arcade availability and leaves the old session intact on failure. */
+bool CustomCupSession_Start(struct CustomCupSession *session, const struct CustomCup *cup,
+                            const struct NativeTrackRegistry *registry);
+void CustomCupSession_Clear(struct CustomCupSession *session);
+/* Resolve again against the current registry, which may have been rebuilt. */
+bool CustomCupSession_Current(const struct CustomCupSession *session, const struct NativeTrackRegistry *registry,
+                              int *levelID, int *laps);
+/* On the final race, retain its position until the session is explicitly cleared. */
+enum CustomCupAdvanceResult CustomCupSession_Advance(struct CustomCupSession *session);
 
 #endif

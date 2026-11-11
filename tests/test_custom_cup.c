@@ -176,5 +176,39 @@ int main(void)
 	CTR_TEST_CHECK(!CustomCup_InsertTrack(&edit, 0, "retail:crash-cove", 3) && CustomCup_IsValid(&edit),
 	               "insertion beyond the maximum leaves a valid cup unchanged");
 	CustomCup_Clear(&edit);
+
+	CTR_TEST_SECTION("Championship session");
+	struct CustomCupSession session = {0};
+	struct CustomCup championship = {0};
+	strcpy(championship.name, "Championship");
+	for (int count = 2; count <= CUSTOM_CUP_MAX_TRACKS; count += count == 2 ? 2 : 6)
+	{
+		while (championship.trackCount < count)
+		{
+			int position = championship.trackCount;
+			CTR_TEST_CHECK(CustomCup_InsertTrack(&championship, position, "retail:crash-cove", position + 1),
+			               "a race can be appended to the championship");
+		}
+		CTR_TEST_CHECK(CustomCupSession_Start(&session, &championship, NULL), "a valid championship can be started");
+		for (int i = 0; i < count; i++)
+		{
+			int level = -1, laps = -1;
+			CTR_TEST_CHECK(CustomCupSession_Current(&session, NULL, &level, &laps) && level == CRASH_COVE && laps == i + 1,
+			               "the current race retains its position and lap count");
+			CTR_TEST_CHECK(CustomCupSession_Advance(&session) == (i + 1 == count ? CUSTOM_CUP_ADVANCE_FINISHED : CUSTOM_CUP_ADVANCE_NEXT),
+			               "the championship advances until its final race");
+		}
+		CTR_TEST_CHECK(session.trackIndex == count - 1, "finishing retains the final race until cleanup");
+	}
+	CTR_TEST_CHECK(CustomCup_SetLaps(&championship, 0, 99) && session.cup.laps[0] == 1,
+	               "editing the source cup does not alter the running championship");
+	CTR_TEST_CHECK(CustomCup_ReplaceTrack(&championship, 0, "retail:missing", 3) &&
+	               !CustomCupSession_Start(&session, &championship, NULL) && session.active && session.trackIndex == 9,
+	               "an unavailable race cannot replace an active championship");
+	CustomCupSession_Clear(&session);
+	CTR_TEST_CHECK(!CustomCupSession_Current(&session, NULL, NULL, NULL) &&
+	               CustomCupSession_Advance(&session) == CUSTOM_CUP_ADVANCE_INVALID,
+	               "clearing a championship prevents further progression");
+	CustomCup_Clear(&championship);
 	return CtrTest_Summary();
 }
