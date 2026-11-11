@@ -245,6 +245,7 @@ See the [language player guide](docs/features/LANGUAGE.md) for setup and custom 
 | `auto_end_race_when_others_finish`    | `true` / `false`                                             | `false`   | End the race once every other racer has arrived                                                  |
 | `extra_difficulty_levels`             | `true` / `false`                                             | `false`   | Offer Super Hard and Ultra Hard in Arcade and Adventure setup                                    |
 | `engine_selection`                    | `true` / `false`                                             | `false`   | Choose an engine class independently of the character with L1/R1 during character selection. Available classes are Balanced, Acceleration, Speed, Turn and Maxed Out; Adventure profiles save each player's selection. |
+| `custom_cups`                         | `true` / `false`                                             | `false`   | Reserved for custom Arcade Cups; currently has no gameplay effect. |
 **Known limitation:** when race tracks are enabled in Battle mode, the turbo/invisibility
 weapon icons and battle points/lives icons will be missing on those tracks.
 
