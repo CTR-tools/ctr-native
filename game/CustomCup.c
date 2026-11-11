@@ -54,7 +54,7 @@ void CustomCup_Clear(struct CustomCup *cup)
 
 static bool CustomCup_LapsAreValid(int laps)
 {
-	return laps > 0 & laps <= 99;
+	return laps > 0 && laps <= 99;
 }
 
 static char *CustomCup_CopyTrack(const char *identity, int laps)
