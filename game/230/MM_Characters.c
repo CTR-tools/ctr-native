@@ -1615,7 +1615,10 @@ outerPlayerLoopComplete:
 			const int engine = VehBirth_EngineClassForPlayer(playerIndex, defaultClass);
 			if (windowRect.w >= 120 && windowRect.h >= 48)
 			{
-				UI_EngineStats_Draw(windowRect.x + 4, windowRect.y + 2, engine, ENGINE_STATS_SMALL, false);
+				const int overlayY = MM_CHARACTER_SELECT_LAYOUT_INDEX == MM_CHARACTER_SELECT_LAYOUT_4P && playerIndex >= 2
+				                         ? windowRect.y + windowRect.h - 36
+				                         : windowRect.y + 2;
+				UI_EngineStats_Draw(windowRect.x + 4, overlayY, engine, ENGINE_STATS_SMALL, false);
 			}
 		}
 
