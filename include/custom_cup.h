@@ -61,6 +61,7 @@ void CustomCup_Clear(struct CustomCup *cup);
 /* Only valid cups can be copied; the destination is unchanged on failure. */
 bool CustomCup_Copy(struct CustomCup *destination, const struct CustomCup *source);
 bool CustomCup_ReplaceTrack(struct CustomCup *cup, int index, const char *identity, int laps);
+/* Only an existing race position can have its laps changed. */
 bool CustomCup_SetLaps(struct CustomCup *cup, int index, int laps);
 /* Editing operations move identities and lap counts together; failures leave the cup unchanged. */
 bool CustomCup_InsertTrack(struct CustomCup *cup, int index, const char *identity, int laps);

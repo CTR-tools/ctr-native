@@ -44,6 +44,8 @@ int main(void)
 	CTR_TEST_CHECK(!CustomCup_SetLaps(&cup, 0, 0) && !CustomCup_SetLaps(&cup, 0, 100), "out-of-range lap counts are rejected");
 	CTR_TEST_CHECK(!CustomCup_SetLaps(NULL, 0, 3) && !CustomCup_SetLaps(&cup, -1, 3) &&
 	               !CustomCup_SetLaps(&cup, CUSTOM_CUP_MAX_TRACKS, 3), "invalid lap count destinations are rejected");
+	CTR_TEST_CHECK(!CustomCup_SetLaps(&cup, cup.trackCount, 9) && cup.laps[cup.trackCount] == 0,
+	               "laps cannot be assigned to a race that does not exist");
 	CTR_TEST_CHECK(CustomCup_SetLaps(&cup, 0, 5) && cup.laps[1] == 7, "changing one position leaves the other unchanged");
 	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "two repeated tracks form a valid cup");
 	cup.laps[0] = 0;

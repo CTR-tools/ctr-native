@@ -84,7 +84,8 @@ bool CustomCup_ReplaceTrack(struct CustomCup *cup, int index, const char *identi
 
 bool CustomCup_SetLaps(struct CustomCup *cup, int index, int laps)
 {
-	if (cup == NULL || index < 0 || index >= CUSTOM_CUP_MAX_TRACKS || !CustomCup_LapsAreValid(laps))
+	if (cup == NULL || cup->trackCount < 0 || cup->trackCount > CUSTOM_CUP_MAX_TRACKS ||
+	    index < 0 || index >= cup->trackCount || cup->tracks[index] == NULL || !CustomCup_LapsAreValid(laps))
 	{
 		return false;
 	}
