@@ -115,10 +115,14 @@ void UI_EngineStats_Draw(int x, int y, int engine, enum EngineStatsFormat format
 	DecalFont_DrawLineScaledOT(className, titleX, y + (large ? 4 : 1), font, JUSTIFY_CENTER | ORANGE, titleScale, ot);
 	for (int row = 0; row < 3; row++)
 	{
-		const int rowY = y + (large ? 19 : 12) + row * rowStep;
+		const int rowY = y + (large ? 19 : 9) + row * rowStep;
+		const int barY = rowY + (large ? 3 : -2);
 		DecalFont_DrawLineScaledOT(GAME_LANGUAGE_STRINGS[labels[row]], labelX, rowY, font, JUSTIFY_RIGHT | colors[row], labelScale, ot);
 		const int length = large ? CS_GARAGE_STAT_LENGTHS[row] : stats[engine][row];
-		UI_EngineStats_DrawBar(barX, rowY + (large ? 3 : 1), length, barScale);
+		UI_EngineStats_DrawBar(barX, barY, length, barScale);
 	}
-	RECTMENU_DrawInnerRect(&box, 4, large ? ot : &ot[2]);
+	if (large)
+	{
+		RECTMENU_DrawInnerRect(&box, 4, ot);
+	}
 }
