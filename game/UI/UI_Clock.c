@@ -1,4 +1,5 @@
 #include <common.h>
+#include <extended_lap_times.h>
 
 enum
 {
@@ -91,7 +92,7 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 	// Race timer units elapsed.
 	timeElapsed = driver->timeElapsedInRace;
 
-	if (gGT->numLaps == UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT)
+	if (gGT->numLaps >= UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT)
 	{
 		// less than 99:59:99
 		if (timeElapsed / UI_RACE_CLOCK_TICKS_PER_TEN_MINUTES < UI_RACE_CLOCK_MAX_DISPLAY_DIGIT)
@@ -112,8 +113,8 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 			minutesOnes = (char)(timeElapsed / UI_RACE_CLOCK_TICKS_PER_MINUTE) % UI_RACE_CLOCK_DECIMAL_BASE;
 			secondsTens = (char)((timeElapsed / UI_RACE_CLOCK_TICKS_PER_TEN_SECONDS) % UI_RACE_CLOCK_SECONDS_TENS_MOD);
 			secondsOnes = (char)((timeElapsed / UI_RACE_CLOCK_TICKS_PER_SECOND) % UI_RACE_CLOCK_DECIMAL_BASE);
-			msTens = (char)(((timeElapsed * UI_RACE_CLOCK_DECIMAL_BASE) / UI_RACE_CLOCK_TICKS_PER_SECOND) % UI_RACE_CLOCK_DECIMAL_BASE);
-			msOnes = (char)(((timeElapsed * UI_RACE_CLOCK_CENTISECOND_SCALE) / UI_RACE_CLOCK_TICKS_PER_SECOND) % UI_RACE_CLOCK_DECIMAL_BASE);
+			msTens = (char)((((s64)timeElapsed * UI_RACE_CLOCK_DECIMAL_BASE) / UI_RACE_CLOCK_TICKS_PER_SECOND) % UI_RACE_CLOCK_DECIMAL_BASE);
+			msOnes = (char)((((s64)timeElapsed * UI_RACE_CLOCK_CENTISECOND_SCALE) / UI_RACE_CLOCK_TICKS_PER_SECOND) % UI_RACE_CLOCK_DECIMAL_BASE);
 		}
 	}
 
@@ -183,12 +184,12 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 	{
 		// Match the fixed-width field used by the lap rows.
 		totalTimeString = compactTotalTimeString;
-		totalTimeString[0] = (gGT->numLaps != UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT || timeElapsed < UI_RACE_CLOCK_TICKS_PER_TEN_MINUTES)
+		totalTimeString[0] = (gGT->numLaps < UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT || timeElapsed < UI_RACE_CLOCK_TICKS_PER_TEN_MINUTES)
 		                             ? ' '
 		                             : minutesTens + '0';
 		strOffset = 1;
 	}
-	else if (gGT->numLaps == UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT)
+	else if (gGT->numLaps >= UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT)
 	{
 		// String for amount of time in total race
 		totalTimeString = rdata.s_timeString_empty;
@@ -238,10 +239,14 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 	// Draw String
 	DecalFont_DrawLine(totalTimeString, posX, numParamY >> 0x10,
 	                   compactResults ? FONT_SMALL : FONT_BIG, timeColor);
+	if (gGT->numLaps > EXTENDED_LAP_HISTORY_CAPACITY && (gGT->gameMode1 & RELIC_RACE) == 0)
+	{
+		return;
+	}
 
-	if (
+	if (gGT->numLaps <= EXTENDED_LAP_HISTORY_CAPACITY && (
 	    // If you're not in a Relic Race
-	    ((gGT->gameMode1 & RELIC_RACE) == 0) || ((flags & UI_RACE_CLOCK_DRAW_LAPS_IN_RELIC) != 0))
+	    ((gGT->gameMode1 & RELIC_RACE) == 0) || ((flags & UI_RACE_CLOCK_DRAW_LAPS_IN_RELIC) != 0)))
 	{
 		// If you're not in Arcade mode,
 		// nor Time Trial, nor adventure mode
@@ -265,7 +270,10 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 		{
 			if ((numLaps <= (int)lapIndex) && (numLaps < gGT->numLaps))
 			{
-				UI_SaveLapTime(lapIndex, gGT->elapsedEventTime - driver->lapTime, (u32)driver->driverID);
+				if ((int)lapIndex < gGT->numLaps)
+				{
+					UI_SaveLapTime(lapIndex, gGT->elapsedEventTime - driver->lapTime, (u32)driver->driverID);
+				}
 
 				// custom code for optimization using this unrelated variable
 				iVar5 = (u32)driver->driverID * UI_RACE_CLOCK_LAP_TIME_SLOTS_PER_PLAYER + numLaps;

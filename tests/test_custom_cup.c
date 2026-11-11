@@ -3,6 +3,7 @@
 #include <custom_cup.h>
 #include <platform/native_track_registry.h>
 #include <string.h>
+#include <extended_lap_times.h>
 
 struct sData sdata_static;
 
@@ -18,6 +19,20 @@ int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *trac
 
 int main(void)
 {
+	CTR_TEST_SECTION("Best lap without history");
+	ExtendedLapTimes_RecordBest(0, 0, 500);
+	ExtendedLapTimes_RecordBest(1, 0, 600);
+	ExtendedLapTimes_RecordBest(0, 7, 400);
+	ExtendedLapTimes_RecordBest(0, 98, 450);
+	CTR_TEST_CHECK(ExtendedLapTimes_PlayerSlots(0)[0] == 400 && ExtendedLapTimes_PlayerSlots(0)[1] == 7,
+	               "the best lap and its index survive later slower laps");
+	CTR_TEST_CHECK(ExtendedLapTimes_PlayerSlots(1)[0] == 600 && ExtendedLapTimes_PlayerSlots(1)[1] == 0,
+	               "each player has an independent best lap");
+	ExtendedLapTimes_RecordBest(0, 0, 700);
+	CTR_TEST_CHECK(ExtendedLapTimes_PlayerSlots(0)[0] == 700 && ExtendedLapTimes_PlayerSlots(0)[1] == 0,
+	               "the first lap resets the best on a new race or retry");
+	CTR_TEST_CHECK(ExtendedLapTimes_PlayerSlots(-1) == NULL && ExtendedLapTimes_PlayerSlots(4) == NULL,
+	               "invalid player slots are rejected");
 	CTR_TEST_SECTION("Custom cup rules");
 	struct CustomCup cup = {0};
 	strcpy(cup.name, "Cup");

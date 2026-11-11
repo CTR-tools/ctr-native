@@ -1,4 +1,5 @@
 #include <common.h>
+#include <extended_lap_times.h>
 
 enum PlayLevelConstants
 {
@@ -138,8 +139,16 @@ void PlayLevel_CrossFinishLine(struct Driver *driver, bool leadingHuman, bool co
 	{
 		if ((tracker->gameMode1 & GAME_MODE_SAVE_LAP_TIME_MASK) != 0 && driver->instSelf->thread->modelIndex == DYNAMIC_PLAYER)
 		{
-			UI_SaveLapTime(driver->lapIndex, tracker->elapsedEventTime - driver->lapTime, driver->driverID);
-			tracker->lapTime[driver->lapIndex] = tracker->elapsedEventTime - driver->lapTime;
+			int lapTime = tracker->elapsedEventTime - driver->lapTime;
+			if (tracker->numLaps > EXTENDED_LAP_HISTORY_CAPACITY)
+			{
+				ExtendedLapTimes_RecordBest(driver->driverID, driver->lapIndex, lapTime);
+			}
+			else
+			{
+				UI_SaveLapTime(driver->lapIndex, lapTime, driver->driverID);
+				tracker->lapTime[driver->lapIndex] = lapTime;
+			}
 		}
 		driver->lapTime = tracker->elapsedEventTime;
 		driver->lapIndex++;

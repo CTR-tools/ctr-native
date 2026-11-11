@@ -1,4 +1,5 @@
 #include <common.h>
+#include <extended_lap_times.h>
 #include <platform/native_track_library.h>
 
 enum
@@ -42,13 +43,26 @@ void MainGameEnd_SoloRaceGetReward(int subtractTimeCrateBonus)
 
 	gGT->bestLapTime = sdata->ptrActiveHighScoreEntry[0].time;
 
-	for (s16 i = 0; i < gGT->numLaps; i++)
+	if (gGT->numLaps > EXTENDED_LAP_HISTORY_CAPACITY)
 	{
-		if (gGT->lapTime[i] < gGT->bestLapTime)
+		int *best = ExtendedLapTimes_PlayerSlots(driver->driverID);
+		if (best != NULL && driver->lapIndex > 0 && best[0] < gGT->bestLapTime)
 		{
-			gGT->bestLapTime = gGT->lapTime[i];
-			gGT->lapIndexNewBest = i;
+			gGT->bestLapTime = best[0];
+			gGT->lapIndexNewBest = best[1];
 			gGT->gameModeEnd |= 0x8c000000;
+		}
+	}
+	else
+	{
+		for (s16 i = 0; i < gGT->numLaps; i++)
+		{
+			if (gGT->lapTime[i] < gGT->bestLapTime)
+			{
+				gGT->bestLapTime = gGT->lapTime[i];
+				gGT->lapIndexNewBest = i;
+				gGT->gameModeEnd |= 0x8c000000;
+			}
 		}
 	}
 
