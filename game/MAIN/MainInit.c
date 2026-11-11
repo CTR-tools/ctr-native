@@ -503,6 +503,13 @@ void MainInit_FinalizeInit(struct GameTracker *gGT)
 
 	MainInit_JitPoolsReset(gGT);
 
+	int customLaps;
+	if (CustomCupRace_IsCustomCup(&sdata->customCupRace, gGT) &&
+	    CustomCupRace_Current(&sdata->customCupRace, NULL, &customLaps))
+	{
+		gGT->numLaps = customLaps;
+	}
+
 	// Developer hack: force every race down to a single lap, with no exception
 	// for mode. Applied here because this runs on the first frame after a level
 	// loads.

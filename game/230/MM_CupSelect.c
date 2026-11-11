@@ -86,6 +86,7 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 			// if cup selected
 			if (MM_CUP_TRANSITION_START_AFTER_EXIT != 0)
 			{
+				CustomCupRace_Clear(&sdata->customCupRace);
 				// set cupID to the cup selected
 				GAME_TRACKER->cup.cupID = menuState->rowSelected;
 

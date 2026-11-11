@@ -34,11 +34,15 @@ struct CustomCup
 	int laps[CUSTOM_CUP_MAX_TRACKS];
 };
 
-/* A running championship owns a snapshot, independent of the editable cup. */
-struct CustomCupSession
+/* Pointer-free race snapshot, suitable for resident checkpoints. Runtime track
+   IDs are resolved together when the championship starts. */
+struct CustomCupRaceState
 {
-	struct CustomCup cup;
+	char name[CUSTOM_CUP_NAME_BYTES];
+	int trackCount;
 	int trackIndex;
+	int levelIDs[CUSTOM_CUP_MAX_TRACKS];
+	int laps[CUSTOM_CUP_MAX_TRACKS];
 	bool active;
 };
 
@@ -50,6 +54,7 @@ enum CustomCupAdvanceResult
 };
 
 struct NativeTrackRegistry;
+struct GameTracker;
 
 /* Initialize cups to zero. Do not copy them by assignment; use Copy and Clear. */
 void CustomCup_Clear(struct CustomCup *cup);
@@ -76,15 +81,14 @@ int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const str
 /* Returns an owned prefixed identity for a runtime ID, or NULL on failure. */
 char *CustomCup_TrackIdentity(int levelID, const struct NativeTrackRegistry *registry);
 
-/* Initialize sessions to zero and clear them when leaving the championship.
-   Starting checks Arcade availability and leaves the old session intact on failure. */
-bool CustomCupSession_Start(struct CustomCupSession *session, const struct CustomCup *cup,
-                            const struct NativeTrackRegistry *registry);
-void CustomCupSession_Clear(struct CustomCupSession *session);
-/* Resolve again against the current registry, which may have been rebuilt. */
-bool CustomCupSession_Current(const struct CustomCupSession *session, const struct NativeTrackRegistry *registry,
-                              int *levelID, int *laps);
-/* On the final race, retain its position until the session is explicitly cleared. */
-enum CustomCupAdvanceResult CustomCupSession_Advance(struct CustomCupSession *session);
+/* Initialize race state to zero. Starting validates Arcade availability and
+   leaves the previous state intact on failure. The final race remains current
+   until the state is explicitly cleared. */
+bool CustomCupRace_Start(struct CustomCupRaceState *state, const struct CustomCup *cup,
+                         const struct NativeTrackRegistry *registry);
+bool CustomCupRace_Current(const struct CustomCupRaceState *state, int *levelID, int *laps);
+bool CustomCupRace_IsCustomCup(const struct CustomCupRaceState *state, const struct GameTracker *tracker);
+enum CustomCupAdvanceResult CustomCupRace_Advance(struct CustomCupRaceState *state);
+void CustomCupRace_Clear(struct CustomCupRaceState *state);
 
 #endif

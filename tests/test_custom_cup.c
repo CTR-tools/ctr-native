@@ -178,7 +178,7 @@ int main(void)
 	CustomCup_Clear(&edit);
 
 	CTR_TEST_SECTION("Championship session");
-	struct CustomCupSession session = {0};
+	struct CustomCupRaceState race = {0};
 	struct CustomCup championship = {0};
 	strcpy(championship.name, "Championship");
 	for (int count = 2; count <= CUSTOM_CUP_MAX_TRACKS; count += count == 2 ? 2 : 6)
@@ -189,25 +189,61 @@ int main(void)
 			CTR_TEST_CHECK(CustomCup_InsertTrack(&championship, position, "retail:crash-cove", position + 1),
 			               "a race can be appended to the championship");
 		}
-		CTR_TEST_CHECK(CustomCupSession_Start(&session, &championship, NULL), "a valid championship can be started");
+		CTR_TEST_CHECK(CustomCupRace_Start(&race, &championship, NULL), "a valid championship can be started");
 		for (int i = 0; i < count; i++)
 		{
 			int level = -1, laps = -1;
-			CTR_TEST_CHECK(CustomCupSession_Current(&session, NULL, &level, &laps) && level == CRASH_COVE && laps == i + 1,
+			CTR_TEST_CHECK(CustomCupRace_Current(&race, &level, &laps) && level == CRASH_COVE && laps == i + 1,
 			               "the current race retains its position and lap count");
-			CTR_TEST_CHECK(CustomCupSession_Advance(&session) == (i + 1 == count ? CUSTOM_CUP_ADVANCE_FINISHED : CUSTOM_CUP_ADVANCE_NEXT),
+			CTR_TEST_CHECK(CustomCupRace_Advance(&race) == (i + 1 == count ? CUSTOM_CUP_ADVANCE_FINISHED : CUSTOM_CUP_ADVANCE_NEXT),
 			               "the championship advances until its final race");
 		}
-		CTR_TEST_CHECK(session.trackIndex == count - 1, "finishing retains the final race until cleanup");
+		CTR_TEST_CHECK(race.trackIndex == count - 1, "finishing retains the final race until cleanup");
 	}
-	CTR_TEST_CHECK(CustomCup_SetLaps(&championship, 0, 99) && session.cup.laps[0] == 1,
+	CTR_TEST_CHECK(CustomCup_SetLaps(&championship, 0, 99) && race.laps[0] == 1,
 	               "editing the source cup does not alter the running championship");
-	CTR_TEST_CHECK(CustomCup_ReplaceTrack(&championship, 0, "retail:missing", 3) &&
-	               !CustomCupSession_Start(&session, &championship, NULL) && session.active && session.trackIndex == 9,
-	               "an unavailable race cannot replace an active championship");
-	CustomCupSession_Clear(&session);
-	CTR_TEST_CHECK(!CustomCupSession_Current(&session, NULL, NULL, NULL) &&
-	               CustomCupSession_Advance(&session) == CUSTOM_CUP_ADVANCE_INVALID,
+	CTR_TEST_CHECK(CustomCupRace_Start(&race, &championship, NULL), "a pointer-free race snapshot can be created");
+	struct CustomCupRaceState checkpoint = race;
+	int level = -1, laps = -1;
+	CTR_TEST_CHECK(CustomCupRace_Current(&race, &level, &laps) && level == CRASH_COVE && laps == 99,
+	               "the race snapshot starts with the configured track and laps");
+	struct GameTracker tracker = {0};
+	tracker.gameMode2 = CUP_ANY_KIND;
+	tracker.levelID = CRASH_COVE;
+	laps = 0;
+	CTR_TEST_CHECK(CustomCupRace_IsCustomCup(&race, &tracker) &&
+	               CustomCupRace_Current(&race, NULL, &laps) && laps == 99,
+	               "an active custom cup supplies its configured laps");
+	tracker.levelID = GEM_STONE_VALLEY;
+	laps = 42;
+	CTR_TEST_CHECK(CustomCupRace_IsCustomCup(&race, &tracker),
+	               "the championship remains active at the podium");
+	tracker.levelID = CRASH_COVE;
+	tracker.gameMode2 = 0;
+	CTR_TEST_CHECK(!CustomCupRace_IsCustomCup(&race, &tracker) &&
+	               !CustomCupRace_IsCustomCup(&race, NULL) && !CustomCupRace_IsCustomCup(NULL, &tracker),
+	               "a matching level outside a cup is not a custom cup race");
+	CTR_TEST_CHECK(CustomCupRace_Advance(&race) == CUSTOM_CUP_ADVANCE_NEXT &&
+	               CustomCupRace_Current(&race, &level, &laps) && laps == 2,
+	               "advancing the snapshot selects the next position's laps");
+	race = checkpoint;
+	CTR_TEST_CHECK(CustomCupRace_Current(&race, &level, &laps) && laps == 99,
+	               "restoring a copied snapshot restores the previous race");
+	for (int i = 0; i < CUSTOM_CUP_MAX_TRACKS; i++)
+	{
+		CTR_TEST_CHECK(CustomCupRace_Current(&race, &level, &laps) && level == CRASH_COVE && laps == (i == 0 ? 99 : i + 1),
+		               "the snapshot preserves the order and laps of every race");
+		CTR_TEST_CHECK(CustomCupRace_Advance(&race) == (i + 1 == CUSTOM_CUP_MAX_TRACKS ? CUSTOM_CUP_ADVANCE_FINISHED : CUSTOM_CUP_ADVANCE_NEXT),
+		               "the snapshot finishes only after its final race");
+	}
+	race = checkpoint;
+	CTR_TEST_CHECK(CustomCup_ReplaceTrack(&championship, 0, "retail:missing", 3), "an unavailable track can be prepared");
+	CTR_TEST_CHECK(!CustomCupRace_Start(&race, &championship, NULL) &&
+	               CustomCupRace_Current(&race, NULL, &laps) && laps == 99,
+	               "an unavailable cup does not replace the running race snapshot");
+	CustomCupRace_Clear(&race);
+	CTR_TEST_CHECK(!CustomCupRace_Current(&race, NULL, NULL), "clearing the race snapshot ends the championship");
+	CTR_TEST_CHECK(CustomCupRace_Advance(&race) == CUSTOM_CUP_ADVANCE_INVALID,
 	               "clearing a championship prevents further progression");
 	CustomCup_Clear(&championship);
 	return CtrTest_Summary();

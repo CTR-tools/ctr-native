@@ -159,6 +159,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 		return;
 	}
 	// clear flags from game mode
+	CustomCupRace_Clear(&sdata->customCupRace);
 	GAME_TRACKER->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP);
 
 	// clear more game mode flags
