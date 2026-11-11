@@ -81,6 +81,7 @@ NativeConfig g_config = {
   .bossCutscenes = BOSS_CUTSCENES_UNSKIPPABLE,
   .expandedAdventureOptions = false,
   .extraDifficultyLevels = false,
+  .engineSelection = false,
 
   .speedMultiplier = 100,
   .gravityMultiplier = 100,
@@ -262,6 +263,13 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_EXTRA_DIFFICULTY,
         .type = CFG_BOOL,
         .valuePtr = &g_config.extraDifficultyLevels
+    },
+    {
+        .section = "General",
+        .key = "engine_selection",
+        .lngKey = LNG_EXPANDED_CONFIG_ENGINE_SELECTION,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.engineSelection
     },
     {
         .section = "Adventure",

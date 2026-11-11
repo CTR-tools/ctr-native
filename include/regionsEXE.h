@@ -2187,7 +2187,7 @@ struct Data
 	struct Terrain MetaDataTerrain[0x15];
 
 	// 0x80088A0C
-	struct MetaPhys metaPhys[65]; // 0x71C bytes total
+	struct MetaPhys metaPhys[65]; // 0x820 bytes total in the native build
 
 	// 80089128, nullify to remove Player bubble exhaust underwater in 1P mode
 	struct ParticleEmitter emSet_Exhaust_Water[7];
@@ -4093,6 +4093,9 @@ struct sData
 	// extension on load and written back on save.
 	struct AdvMultiplayerSettings advMultiplayer;
 	enum AdventureDifficulty advDifficulty;
+
+	// Zero means the character's default; otherwise the engine class plus one.
+	u8 selectedEngineClass[4];
 
 	// Chaos settings of the profile in use. Initialised on New, configured at creation,
 	// and mirrored to/from the card extension on save/load.

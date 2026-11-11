@@ -749,6 +749,8 @@ void MM_Characters_RestoreIDs(void)
 	s16 playerIndex;
 	s16 driverIndex;
 
+	memset(sdata->selectedEngineClass, 0, sizeof(sdata->selectedEngineClass));
+
 	// erase select bits
 	MM_CHARACTER_SELECT_FLAGS = 0;
 	MM_CHARACTER_SELECT_TRANSITION_FRAME = MM_CHARACTER_SELECT_TRANSITION_FRAMES;
@@ -1058,6 +1060,20 @@ dontDrawSelectCharacter:
 		MM_Characters_AnimateColors((u8 *)&playerColor, playerIndex, (int)(s16)(MM_CHARACTER_SELECT_FLAGS & (u16)(1 << playerIndex)));
 
 		preInputCharacterMeta = &MM_ACTIVE_CHARACTER_SELECT_META[(s16)candidateIcon];
+		if (g_config.engineSelection && MM_CHARACTER_SELECT_MENU_STATE == IN_MENU &&
+		    (MM_CHARACTER_SELECT_FLAGS & (1 << playerIndex)) == 0)
+		{
+			const u32 engineButtons = MM_GAME_BUTTON_TAPS[playerIndex] & (BTN_L1 | BTN_R1);
+			if (engineButtons != 0)
+			{
+				const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[playerIndex]].engineID;
+				int engineClass = VehBirth_EngineClassForPlayer(playerIndex, defaultClass);
+				engineClass = (engineClass + ((engineButtons & BTN_L1) != 0 ? NUM_CLASSES - 1 : 1)) % NUM_CLASSES;
+				sdata->selectedEngineClass[playerIndex] = engineClass + 1;
+				MM_GAME_BUTTON_TAPS[playerIndex] &= ~(BTN_L1 | BTN_R1);
+				OtherFX_Play(0, 1);
+			}
+		}
 
 		if ((MM_CHARACTER_SELECT_MENU_STATE == IN_MENU) &&
 		    // If you press the D-Pad, or Cross, Square, Triangle, Circle
@@ -1299,6 +1315,10 @@ dontDrawSelectCharacter:
 		}
 
 		candidateIconIndex = (s16)candidateIcon;
+		if (candidateIconIndex != iconPerPlayer[playerIndex])
+		{
+			sdata->selectedEngineClass[playerIndex] = 0;
+		}
 		iconPerPlayer[playerIndex] = candidateIcon;
 
 		// transition of each icon
@@ -1589,6 +1609,18 @@ outerPlayerLoopComplete:
 		windowRect.y = MM_CHARACTER_SELECT_TRANSITION_META[menuPlayerIndex + MM_CHARACTER_SELECT_DRIVER_WINDOW_TRANSITION_FIRST].currY + windowPos->y;
 		windowRect.w = MM_CHARACTER_SELECT_WINDOW_WIDTH;
 		windowRect.h = MM_CHARACTER_SELECT_WINDOW_HEIGHT;
+		if (g_config.engineSelection && MM_CHARACTER_SELECT_MENU_STATE == IN_MENU)
+		{
+			const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[playerIndex]].engineID;
+			const int engine = VehBirth_EngineClassForPlayer(playerIndex, defaultClass);
+			if (windowRect.w >= 120 && windowRect.h >= 48)
+			{
+				const int overlayY = MM_CHARACTER_SELECT_LAYOUT_INDEX == MM_CHARACTER_SELECT_LAYOUT_4P && playerIndex >= 2
+				                         ? windowRect.y + windowRect.h - 36
+				                         : windowRect.y + 2;
+				UI_EngineStats_Draw(windowRect.x + 4, overlayY, engine, ENGINE_STATS_SMALL, false);
+			}
+		}
 
 		MM_Characters_AnimateColors((u8 *)&animatedColor, menuPlayerIndex,
 

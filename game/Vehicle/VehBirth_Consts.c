@@ -5,6 +5,19 @@ enum { VEH_BIRTH_META_PHYS_COUNT = len(data.metaPhys) };
 typedef u16 VehBirthHalfword CTR_MAY_ALIAS;
 typedef u32 VehBirthWord CTR_MAY_ALIAS;
 
+int VehBirth_EngineClassForPlayer(int player, int defaultClass)
+{
+	if (g_config.engineSelection && player >= 0 && player < (int)len(sdata->selectedEngineClass))
+	{
+		const int selected = sdata->selectedEngineClass[player];
+		if (selected > 0 && selected <= NUM_CLASSES)
+		{
+			return selected - 1;
+		}
+	}
+	return defaultClass;
+}
+
 void VehBirth_SetConstsForClass(struct Driver *driver, int engineID)
 {
 	for (int i = 0; i < VEH_BIRTH_META_PHYS_COUNT; i++)

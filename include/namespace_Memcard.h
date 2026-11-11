@@ -691,6 +691,8 @@ struct MemcardExtension
 	struct AdvMultiplayerSettings adventure[MEMCARD_ADV_PROFILE_COUNT];
 	struct ChaosSettingsSaved chaos[MEMCARD_ADV_PROFILE_COUNT];
 	u8 difficulty[MEMCARD_ADV_PROFILE_COUNT];
+	// Tagged engine choices: high nibble 0xa, low nibble class plus one.
+	u8 engines[MEMCARD_ADV_PROFILE_COUNT][2];
 };
 
 // The whole SLOTS file payload: the retail profile followed by this port's
@@ -727,9 +729,9 @@ CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, format) == 0x16);
 CTR_STATIC_ASSERT(sizeof(struct ChaosSettingsSaved) == 0x18);
 CTR_STATIC_ASSERT(OFFSETOF(struct MemcardExtension, chaos) == 0x10);
 CTR_STATIC_ASSERT(CTR_OFFSET_OF_ARRAY(struct MemcardExtension, chaos, 1) == 0x28);
-CTR_STATIC_ASSERT(sizeof(struct MemcardExtension) == 0x74);
+CTR_STATIC_ASSERT(sizeof(struct MemcardExtension) == 0x7c);
 CTR_STATIC_ASSERT(OFFSETOF(struct MemcardData, extension) == sizeof(struct MemcardProfile));
-CTR_STATIC_ASSERT(sizeof(struct MemcardData) == 0x1674);
+CTR_STATIC_ASSERT(sizeof(struct MemcardData) == 0x167c);
 CTR_STATIC_ASSERT(sizeof(struct MemcardData) <= (MEMCARD_FILE_DATA_SIZE - MEMCARD_FILE_CHECKSUM_SIZE));
 CTR_STATIC_ASSERT(sizeof(struct GhostProfile) == 0x34);
 CTR_STATIC_ASSERT(OFFSETOF(struct GameOptions, rwd) == 0x6);

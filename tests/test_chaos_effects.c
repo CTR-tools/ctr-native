@@ -515,11 +515,11 @@ static void TestTrySomethingNew(void)
 	data.MetaDataCharacters[COCO_BANDICOOT].engineID = ACCEL;
 	const struct MetaDataCHAR crashMetadata = data.MetaDataCharacters[CRASH_BANDICOOT];
 	const struct MetaDataCHAR cocoMetadata = data.MetaDataCharacters[COCO_BANDICOOT];
-	data.metaPhys[0] = (struct MetaPhys){.offset = SPEED_CLASS_STAT_OFFSET, .size = 2, .value = {10000, 12000, 14000, 8000}};
-	data.metaPhys[1] = (struct MetaPhys){.offset = TURN_RATE_OFFSET, .size = 1, .value = {28, 26, 24, 48}};
-	data.metaPhys[2] = (struct MetaPhys){.offset = GRAVITY_OFFSET, .size = 2, .value = {900, 900, 900, 900}};
-	data.metaPhys[3] = (struct MetaPhys){.offset = JUMP_OFFSET, .size = 2, .value = {4596, 4596, 4596, 4596}};
-	data.metaPhys[4] = (struct MetaPhys){.offset = TURBO_FULL_BAR_RESERVE_GAIN_OFFSET, .size = 1, .value = {10, 20, 30, 40}};
+	data.metaPhys[0] = (struct MetaPhys){.offset = SPEED_CLASS_STAT_OFFSET, .size = 2, .value = {10000, 12000, 14000, 8000, 14000}};
+	data.metaPhys[1] = (struct MetaPhys){.offset = TURN_RATE_OFFSET, .size = 1, .value = {28, 26, 24, 48, 48}};
+	data.metaPhys[2] = (struct MetaPhys){.offset = GRAVITY_OFFSET, .size = 2, .value = {900, 900, 900, 900, 900}};
+	data.metaPhys[3] = (struct MetaPhys){.offset = JUMP_OFFSET, .size = 2, .value = {4596, 4596, 4596, 4596, 4596}};
+	data.metaPhys[4] = (struct MetaPhys){.offset = TURBO_FULL_BAR_RESERVE_GAIN_OFFSET, .size = 1, .value = {10, 20, 30, 40, 30}};
 	g_config.speedMultiplier = 150;
 	g_config.turnMultiplier = 100;
 	g_config.gravityMultiplier = 200;
@@ -534,6 +534,14 @@ static void TestTrySomethingNew(void)
 	s_tracker.drivers[0] = &human;
 	s_tracker.drivers[1] = &partner;
 	s_tracker.drivers[2] = &bot;
+	g_config.engineSelection = true;
+	sdata->selectedEngineClass[0] = CUSTOM_MAX + 1;
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(0, BALANCED), CUSTOM_MAX, "a player can request Custom Max independently of the character");
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(1, ACCEL), ACCEL, "another player without a selection retains the character class");
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(4, SPEED), SPEED, "non-player slots never use player selections");
+	g_config.engineSelection = false;
+	CTR_TEST_CHECK_EQ(VehBirth_EngineClassForPlayer(0, BALANCED), BALANCED, "disabling engine selection retains the character class");
+	sdata->selectedEngineClass[0] = 0;
 	VehBirth_SetConsts(&human);
 	VehBirth_SetConsts(&partner);
 	CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, 15000, "ordinary vehicle birth retains character-based class and configured multipliers");
@@ -541,9 +549,9 @@ static void TestTrySomethingNew(void)
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_TRY_SOMETHING_NEW, 1000), "the class change activates as a one-off effect");
 	int current = sdata->chaosRuntime.engineClass[0];
 	CTR_TEST_CHECK_EQ(s_engineStopped[0], BALANCED * 4, "the old engine loop stops at the class change");
-	CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(current * 4), "the new class engine loop starts immediately");
+	CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(EngineClass_AudioClass(current) * 4), "the new class engine loop starts immediately");
 	CTR_TEST_CHECK_EQ(Chaos_EngineClassForDriver(&human, BALANCED), current, "ongoing engine updates resolve the selected class");
-	CTR_TEST_CHECK_EQ(s_engineStarted[1], (u32)(sdata->chaosRuntime.engineClass[1] * 4 + 1), "each human uses their own engine audio slot");
+	CTR_TEST_CHECK_EQ(s_engineStarted[1], (u32)(EngineClass_AudioClass(sdata->chaosRuntime.engineClass[1]) * 4 + 1), "each human uses their own engine audio slot");
 	struct Driver ghost = {.driverID = 0};
 	CTR_TEST_CHECK_EQ(Chaos_EngineClassForDriver(&ghost, BALANCED), BALANCED, "a ghost sharing a driver ID retains its own engine class");
 	CTR_TEST_CHECK(current != BALANCED && current < NUM_CLASSES, "the first class change excludes the character's current standard class");
@@ -566,18 +574,21 @@ static void TestTrySomethingNew(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "the class change takes no timed slot and preserves Low Gravity");
 	Tick(4000);
 	CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, data.metaPhys[0].value[current] * 150 / 100, "notice expiry does not restore the old class");
-	for (int i = 0; i < 20; i++)
+	bool sawCustomMax = current == CUSTOM_MAX;
+	for (int i = 0; i < 100; i++)
 	{
 		Chaos_Activate(CHAOS_EFFECT_TRY_SOMETHING_NEW, 1000);
 		const int next = sdata->chaosRuntime.engineClass[0];
 		CTR_TEST_CHECK(next != current && next < NUM_CLASSES, "repeat activations exclude the live Chaos class rather than the character baseline");
-		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(current * 4), "repeat changes stop the currently playing class loop");
-		CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(next * 4), "repeat changes start the newly selected engine loop");
+		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(EngineClass_AudioClass(current) * 4), "repeat changes stop the currently playing class loop");
+		CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(EngineClass_AudioClass(next) * 4), "repeat changes start the newly selected engine loop");
+		sawCustomMax |= next == CUSTOM_MAX;
 		current = next;
 	}
+	CTR_TEST_CHECK(sawCustomMax, "random class changes can select Custom Max");
 	const struct ChaosRuntime saved = sdata->chaosRuntime;
 	Chaos_Reset();
-	CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(current * 4), "teardown stops the changed engine loop");
+	CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(EngineClass_AudioClass(current) * 4), "teardown stops the changed engine loop");
 	CTR_TEST_CHECK_EQ(s_engineStarted[0], BALANCED * 4, "teardown restores the character engine for post-race updates");
 	CTR_TEST_CHECK_EQ(Chaos_EngineClassForDriver(&human, BALANCED), BALANCED, "teardown clears the audio class override");
 	CTR_TEST_CHECK(!sdata->chaosRuntime.engineClassChanged[0], "race teardown clears class-selection bookkeeping");
@@ -622,7 +633,7 @@ static void TestIdentityCrisis(void)
 	{
 		CTR_TEST_CHECK(sdata->chaosCharacterModels[i] == &s_characterModelFiles[i].model,
 		               "the resident model excludes the relocatable file header");
-		data.MetaDataCharacters[i].engineID = i % NUM_CLASSES;
+		data.MetaDataCharacters[i].engineID = i % CUSTOM_MAX;
 	}
 	data.metaPhys[0] = (struct MetaPhys){.offset = SPEED_CLASS_STAT_OFFSET, .size = 2, .value = {10000, 12000, 14000, 8000}};
 	g_config.speedMultiplier = 100;
@@ -659,7 +670,7 @@ static void TestIdentityCrisis(void)
 		               "the partner excludes their current character, the transformed human and bots");
 		CTR_TEST_CHECK(instances[0].model == sdata->chaosCharacterModels[character], "the existing instance uses the selected character model");
 		CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, data.metaPhys[0].value[engine], "the selected character supplies the driving class");
-		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(previousClass * 4), "transformation stops the live class engine");
+		CTR_TEST_CHECK_EQ(s_engineStopped[0], (u32)(EngineClass_AudioClass(previousClass) * 4), "transformation stops the live class engine");
 		CTR_TEST_CHECK_EQ(s_engineStarted[0], (u32)(engine * 4), "transformation starts the selected character engine");
 		CTR_TEST_CHECK(sdata->chaosRuntime.identity[0].originalCharacter == CRASH_BANDICOOT &&
 		               sdata->chaosRuntime.identity[0].originalModel == &originalModels[0],
@@ -753,7 +764,7 @@ static void SetupBodySwap(struct BodySwapWorld *world, int humans, int bots)
 		s_tracker.threadBuckets[bucket].thread = &world->threads[i];
 		s_tracker.drivers[i] = &world->drivers[i];
 		data.characterIDs[i] = i;
-		data.MetaDataCharacters[i].engineID = i % NUM_CLASSES;
+		data.MetaDataCharacters[i].engineID = i % CUSTOM_MAX;
 		if (!human)
 		{
 			LIST_AddFront(&sdata->navBotList[0], &world->drivers[i].botData.item);

@@ -80,24 +80,10 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 	s32 garageFrames;
 	s32 i;
 	s16 *statBarLength;
-	u16 classNamePosX;
-	u32 statNamePosX;
-	u32 statBarPosX;
 
 	struct PushBuffer *pushBuffer;
 
-	RECT r;
-	RECT barRect;
-	union
-	{
-		RECT rect;
-		Color color;
-	} scratch;
-	s32 engineID;
-	s16 classStringIndex;
 
-	s32 rowIndex;
-	s32 statBarShadows_Y;
 
 	s32 arrowColor;
 
@@ -114,6 +100,15 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 	// Draw and accept input only while the selection camera is stationary.
 	if (CS_GARAGE_MOVE_FRAME == 0)
 	{
+		const int character = CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT];
+		int selectedEngine = VehBirth_EngineClassForPlayer(0, GAME_CHARACTER_METADATA[character].engineID);
+		if (g_config.engineSelection && CS_GARAGE_SELECTED == 0 && (GAME_ANY_PLAYER_TAP & (BTN_L1 | BTN_R1)) != 0)
+		{
+			selectedEngine = (selectedEngine + ((GAME_ANY_PLAYER_TAP & BTN_L1) != 0 ? NUM_CLASSES - 1 : 1)) % NUM_CLASSES;
+			sdata->selectedEngineClass[0] = selectedEngine + 1;
+			GAME_ANY_PLAYER_TAP &= ~(BTN_L1 | BTN_R1);
+			OtherFX_Play(0, 1);
+		}
 		// Retain the unused garage-frame counter.
 		CS_GARAGE_UNUSED_FRAMES++;
 
@@ -128,220 +123,21 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 
 				statBarLength = &CS_GARAGE_STAT_LENGTHS[i];
 
-				if (*statBarLength < *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase))
+				const int target = selectedEngine == CUSTOM_MAX ? 80 : *(s16 *)((selectedEngine * 6 + i * 2) + (u8 *)targetBase);
+				(void)selectedID;
+				if (*statBarLength < target)
 				{
 					*statBarLength = *statBarLength + GARAGE_STAT_BAR_RATE;
 				}
-				if (*statBarLength > *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase))
+				if (*statBarLength > target)
 				{
-					*statBarLength = *(s16 *)((GAME_CHARACTER_METADATA[*selectedID].engineID * 6 + i * 2) + (u8 *)targetBase);
+					*statBarLength = target;
 				}
 			}
 		}
 
-		if ((GAME_CHARACTER_METADATA[CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT]].name_LNG_long != LNG_TINY_TIGER) &&
-
-		    (statNamePosX = 383,
-
-		     GAME_CHARACTER_METADATA[CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT]].name_LNG_long != LNG_PURA_FULL))
-		{
-			classNamePosX = 384;
-			statBarPosX = 393;
-		}
-		else
-		{
-			statNamePosX = 129;
-			classNamePosX = 128;
-			statBarPosX = 139;
-		}
-
-		// Keep the retail font size while fitting every class, label and stat bar.
-		int classWidth = DecalFont_GetLineWidth("INTERMEDIATE", FONT_BIG);
-		int statWidth = 0;
-		int barWidth = 0;
-		const int statStrings[] = {LNG_SPEED, LNG_ACCEL, LNG_TURN};
-		for (int j = 0; j < GARAGE_CLASS_COUNT; j++)
-		{
-			int width = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[j]], FONT_BIG);
-			if (width > classWidth)
-			{
-				classWidth = width;
-			}
-		}
-		for (int j = 0; j < GARAGE_STAT_COUNT; j++)
-		{
-			int width = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[statStrings[j]], FONT_BIG);
-			if (width > statWidth)
-			{
-				statWidth = width;
-			}
-		}
-		for (int j = 0; j < GARAGE_ENGINE_COUNT * GARAGE_STAT_COUNT; j++)
-		{
-			if (CS_GARAGE_STAT_TARGETS[j] > barWidth)
-			{
-				barWidth = CS_GARAGE_STAT_TARGETS[j];
-			}
-		}
-		int left = classNamePosX - (classWidth + 1) / 2;
-		int right = classNamePosX + (classWidth + 1) / 2;
-		int statLeft = (int)statNamePosX - statWidth;
-		int barRight = (int)statBarPosX + barWidth;
-		if (statLeft < left)
-		{
-			left = statLeft;
-		}
-		if (barRight > right)
-		{
-			right = barRight;
-		}
-		left -= GARAGE_STAT_BOX_PADDING_X;
-		right += GARAGE_STAT_BOX_PADDING_X;
-		int shift = 0;
-		if (left < 0)
-		{
-			shift = -left;
-		}
-		else if (right > GARAGE_SCREEN_WIDTH)
-		{
-			shift = GARAGE_SCREEN_WIDTH - right;
-		}
-		classNamePosX += shift;
-		statNamePosX += shift;
-		statBarPosX += shift;
-		r.x = left + shift;
-		r.w = right - left;
-
-		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_SPEED], statNamePosX, GARAGE_STAT_NAME_SPEED_Y, FONT_BIG, JUSTIFY_RIGHT | ORANGE_RED);
-		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_ACCEL], statNamePosX, GARAGE_STAT_NAME_ACCEL_Y, FONT_BIG, JUSTIFY_RIGHT | LIME_GREEN);
-		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_TURN], statNamePosX, GARAGE_STAT_NAME_TURN_Y, FONT_BIG, JUSTIFY_RIGHT | BLUE);
-
-		engineID = GAME_CHARACTER_METADATA[CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT]].engineID;
-		if (engineID == 3)
-		{
-			classStringIndex = 0;
-		}
-		else if ((u32)engineID < 2)
-		{
-			classStringIndex = 1;
-		}
-		else
-		{
-			classStringIndex = 2;
-		}
-
-		// Draw class name
-		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[CS_GARAGE_CLASS_STRINGS[classStringIndex]], classNamePosX, GARAGE_CLASS_NAME_Y, FONT_BIG,
-		                   (JUSTIFY_CENTER | ORANGE));
-
-		// NOTE(aalhendi): Keep the drawing row separate from the loop count so
-		// GCC advances the row coordinates before the length pointer, as in retail.
-		i = 0;
-		rowIndex = 0;
-		for (statBarLength = CS_GARAGE_STAT_LENGTHS; i < 3; rowIndex++, statBarLength++, i++)
-		{
-			s32 segmentStart;
-			s32 segmentEnd;
-
-			statBarShadows_Y = GARAGE_STAT_BAR_SHADOW_Y + GARAGE_STAT_BAR_ROW_STEP * rowIndex;
-			scratch.rect.x = statBarPosX;
-			scratch.rect.y = statBarShadows_Y - 1;
-			scratch.rect.w = *statBarLength;
-			scratch.rect.h = GARAGE_STAT_BAR_HEIGHT;
-
-			// Copy the white template before reusing the scratch color for shadows.
-			barRect = scratch.rect;
-			scratch.color = csGarageWhite;
-			CTR_Box_DrawWireBox(&barRect, &scratch.color, GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
-
-			// bar shadows
-			barRect.x = statBarPosX + 1;
-			barRect.y = statBarShadows_Y;
-			barRect.w = *statBarLength - 2;
-			barRect.h = GARAGE_STAT_BAR_SHADOW_HEIGHT;
-
-			// The shadow has the same code byte and black RGB.
-			scratch.color.r = 0;
-			scratch.color.g = 0;
-			scratch.color.b = 0;
-			CTR_Box_DrawWireBox(&barRect, &scratch.color, GAME_TRACKER->pushBuffer_UI.ptrOT, &GAME_TRACKER->backBuffer->primMem);
-
-			{
-				s16 *length;
-				s32 top, bottom;
-				s32 segmentIndex = 0;
-				length = statBarLength;
-
-				for (; segmentIndex < GARAGE_STAT_BAR_SEGMENT_COUNT; segmentIndex++)
-				{
-					// Each segment blends adjacent colors in the seven-color ramp.
-					u32 *barColor = &CS_GARAGE_STAT_COLORS[segmentIndex];
-					s32 segmentWidth = GARAGE_STAT_BAR_SEGMENT_WIDTH;
-					s16 currSegmentLen;
-					s32 primitiveColorCode = GARAGE_STAT_BAR_POLY_G4_COLOR_CODE;
-					top = statBarShadows_Y - 1;
-					bottom = statBarShadows_Y + 6;
-					segmentEnd = segmentWidth + segmentWidth * segmentIndex;
-					segmentStart = segmentEnd - GARAGE_STAT_BAR_SEGMENT_WIDTH;
-					if (*length <= segmentEnd)
-					{
-						currSegmentLen = *length - segmentStart;
-					}
-					else
-					{
-						currSegmentLen = GARAGE_STAT_BAR_SEGMENT_WIDTH;
-					}
-					if ((s32)((u32)currSegmentLen << 16) < 0)
-					{
-						currSegmentLen = 0;
-					}
-					if (segmentStart + currSegmentLen <= *length)
-					{
-						// The guard reserves space for one complete primitive.
-						struct DB *buffer = GAME_TRACKER->backBuffer;
-						POLY_G4 *p = NULL;
-						if (buffer->primMem.cursor <= buffer->primMem.guardEnd)
-						{
-							p = buffer->primMem.cursor;
-							buffer->primMem.cursor = p + 1;
-						}
-						if (!p)
-						{
-							return;
-						}
-						// color data
-						CtrGpu_WriteColorCode(&p->r0, barColor[0] | primitiveColorCode);
-						CtrGpu_WriteColorCode(&p->r1, CS_GARAGE_STAT_COLORS[segmentIndex + 1] | primitiveColorCode);
-						CtrGpu_WriteColorCode(&p->r2, barColor[0] | primitiveColorCode);
-						CtrGpu_WriteColorCode(&p->r3, CS_GARAGE_STAT_COLORS[segmentIndex + 1] | primitiveColorCode);
-
-						// NOTE(aalhendi): Narrow the signed offset before packing X; this keeps
-						// GCC from creating a second, absolute-X induction counter.
-						p->x0 = statBarPosX - (s16)-segmentStart;
-						p->x2 = p->x0;
-						p->x1 = p->x0 + currSegmentLen;
-						p->y0 = top;
-						p->y1 = top;
-						p->y2 = bottom;
-						p->y3 = bottom;
-						p->x3 = p->x2 + currSegmentLen;
-						{
-							u32 *ot = GAME_TRACKER->pushBuffer_UI.ptrOT;
-							u32 link = CtrGpu_PrimToOTLink24(p);
-							p->tag = *ot | 0x08000000;
-							*ot = link;
-						}
-					}
-				}
-			}
-		}
-
-		// Stats box
-		r.y = GARAGE_STAT_BOX_Y;
-		r.h = GARAGE_STAT_BOX_HEIGHT;
-
-		// Draw 2D Menu rectangle background
-		RECTMENU_DrawInnerRect(&r, 4, GAME_TRACKER->backBuffer->otMem.uiOT);
+		const int panelX = character == TINY_TIGER || character == PURA ? 128 : 384;
+		UI_EngineStats_Draw(panelX, GARAGE_STAT_BOX_Y, selectedEngine, ENGINE_STATS_LARGE, !g_config.engineSelection);
 
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[GAME_CHARACTER_METADATA[CS_GARAGE_CHARACTERS[CS_GARAGE_CURRENT]].name_LNG_long], GARAGE_CHARACTER_NAME_X,
 		                   GARAGE_CHARACTER_NAME_Y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
@@ -370,6 +166,7 @@ void CS_Garage_MenuProc(struct RectMenu *menu)
 
 		if ((CS_BUTTONS_HOLD & GARAGE_INPUT_HORIZONTAL) != 0)
 		{
+			sdata->selectedEngineClass[0] = 0;
 			// erase animated bars
 
 			for (i = 2; i > -1; i--)
