@@ -1,4 +1,5 @@
 #include <common.h>
+#include <level_info.h>
 
 enum
 {
@@ -53,6 +54,7 @@ enum
 	UI_CUP_STANDINGS_ARCADE_DIFFICULTY_DIVISOR = 0x50,
 	UI_CUP_STANDINGS_MAX_ARCADE_DIFFICULTY = 2,
 	UI_CUP_STANDINGS_MAX_CUP_LOSSES = 10,
+	UI_CUP_STANDINGS_CUSTOM_TITLE_BYTES = 128,
 };
 
 
@@ -256,14 +258,10 @@ void UI_CupStandings_InputAndDraw(void)
 	// "FINAL"
 	int titleString = LNG_FINAL;
 	int cupID = gGT->cup.cupID;
+	char customTitle[UI_CUP_STANDINGS_CUSTOM_TITLE_BYTES];
 
-	if ((sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) == 0)
-	{
-		// Level ID
-		titleString = data.metaDataLEV[gGT->levelID].name_LNG;
-	}
-
-	else if (gGT->cup.trackIndex != UI_CUP_STANDINGS_TRACKS_PER_CUP - 1)
+	if ((sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) != 0 &&
+	    gGT->cup.trackIndex != UI_CUP_STANDINGS_TRACKS_PER_CUP - 1)
 	{
 		// If not in Arcade or VS cup
 		if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
@@ -279,7 +277,10 @@ void UI_CupStandings_InputAndDraw(void)
 	}
 
 	// title text
-	DecalFont_DrawLine(sdata->lngStrings[titleString], drawPos.x, drawPos.y + UI_CUP_STANDINGS_TITLE_Y_OFFSET, FONT_BIG, JUSTIFY_CENTER | ORANGE);
+	const char *title = (sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) == 0
+	                        ? LevelInfo_DisplayTitle(gGT->levelID, sdata->lngStrings, customTitle, sizeof(customTitle))
+	                        : sdata->lngStrings[titleString];
+	DecalFont_DrawLine((char *)title, drawPos.x, drawPos.y + UI_CUP_STANDINGS_TITLE_Y_OFFSET, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_STANDINGS], drawPos.x, drawPos.y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 

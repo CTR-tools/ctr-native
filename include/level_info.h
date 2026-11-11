@@ -1,6 +1,8 @@
 #ifndef CTR_LEVEL_INFO_H
 #define CTR_LEVEL_INFO_H
 
+#include <stddef.h>
+
 struct MetaDataLEV;
 struct NativeTrackMetadata;
 
@@ -21,5 +23,7 @@ struct LevelInfo
 
 struct LevelInfo LevelInfo_Lookup(int levelID);
 const char *LevelInfo_Title(const struct LevelInfo *info, char *const *languageStrings);
+/* Retail titles are borrowed; custom titles are converted into buffer. */
+const char *LevelInfo_DisplayTitle(int levelID, char *const *languageStrings, char *buffer, size_t capacity);
 
 #endif

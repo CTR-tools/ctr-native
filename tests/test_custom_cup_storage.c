@@ -100,6 +100,39 @@ int main(void)
 	               "deleting a missing cup leaves other files intact");
 	CTR_TEST_CHECK(NativeCustomCup_Load("../invalid", &loaded) == NATIVE_CUSTOM_CUP_INVALID,
 	               "file identifiers cannot escape the cup directory");
+
+	CTR_TEST_SECTION("Race count boundaries and malformed files");
+	struct CustomCup maximum = {0};
+	strcpy(maximum.name, "Ten races");
+	for (int i = 0; i < CUSTOM_CUP_MAX_TRACKS; i++)
+	{
+		CTR_TEST_CHECK(CustomCup_InsertTrack(&maximum, i, i % 2 == 0 ? "retail:crash-cove" : "retail:roo-tubes", i + 1),
+		               "each race can be added up to the maximum");
+	}
+	char maximumID[NATIVE_CUSTOM_CUP_ID_SIZE] = {0};
+	CTR_TEST_CHECK(NativeCustomCup_Save(maximumID, &maximum) == NATIVE_CUSTOM_CUP_OK &&
+	               NativeCustomCup_Load(maximumID, &loaded) == NATIVE_CUSTOM_CUP_OK && loaded.trackCount == CUSTOM_CUP_MAX_TRACKS,
+	               "a ten-race cup survives a file round-trip");
+	for (int i = 0; i < CUSTOM_CUP_MAX_TRACKS; i++)
+	{
+		CTR_TEST_CHECK(loaded.laps[i] == i + 1 && strcmp(loaded.tracks[i], maximum.tracks[i]) == 0,
+		               "every repeated identity and its lap count retain their position");
+	}
+	char maximumPath[1100];
+	snprintf(maximumPath, sizeof(maximumPath), "%s/%s.ini", directory, maximumID);
+	file = fopen(maximumPath, "ab");
+	if (file == NULL) { CtrTest_Bail("cannot extend cup fixture"); }
+	fputs("track=retail:crash-cove|3\n", file);
+	fclose(file);
+	CTR_TEST_CHECK(NativeCustomCup_Load(maximumID, &loaded) == NATIVE_CUSTOM_CUP_INVALID && loaded.trackCount == CUSTOM_CUP_MAX_TRACKS,
+	               "an eleventh race is rejected without replacing the loaded cup");
+	file = fopen(maximumPath, "wb");
+	if (file == NULL) { CtrTest_Bail("cannot write incomplete cup fixture"); }
+	fputs("[cup]\nname=One race\ntrack=retail:crash-cove|3\n", file);
+	fclose(file);
+	CTR_TEST_CHECK(NativeCustomCup_Load(maximumID, &loaded) == NATIVE_CUSTOM_CUP_INVALID && loaded.trackCount == CUSTOM_CUP_MAX_TRACKS,
+	               "a one-race file is rejected without replacing the loaded cup");
+	CustomCup_Clear(&maximum);
 	CustomCup_Clear(&cup);
 	CustomCup_Clear(&loaded);
 	SDL_RemovePath(path);
@@ -107,6 +140,7 @@ int main(void)
 	SDL_RemovePath(path);
 	snprintf(path, sizeof(path), "%s/%s.ini", directory, thirdID);
 	SDL_RemovePath(path);
+	SDL_RemovePath(maximumPath);
 	SDL_RemovePath(directory);
 	CtrTestScratch_Remove("custom-cup-storage", NULL);
 	return CtrTest_Summary();

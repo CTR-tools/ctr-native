@@ -283,18 +283,11 @@ LAB_80055930:
 
 		// Print the name of the level
 		// Crash Cove, Roos Tubes, etc
-		struct LevelInfo levelInfo = LevelInfo_Lookup(gGT->levelID);
-		const char *title = LevelInfo_Title(&levelInfo, sdata->lngStrings);
 		char customTitle[UI_RACE_START_CUSTOM_TITLE_BYTES];
-		if (title == NULL)
+		const char *title = LevelInfo_DisplayTitle(gGT->levelID, sdata->lngStrings, customTitle, sizeof(customTitle));
+		if (title == customTitle)
 		{
-			title = "";
-		}
-		if (levelInfo.kind == LEVEL_INFO_CUSTOM)
-		{
-			TrackText_Copy(customTitle, sizeof(customTitle), title);
 			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
-			title = customTitle;
 		}
 		DecalFont_DrawLine(
 		    (char *)title,
