@@ -441,7 +441,10 @@ b16 MM_TrackSelect_boolTrackOpen(struct MainMenu_LevelRow *menuSelect)
       ((flag == MM_TRACK_UNLOCK_1P_ONLY) &&
       ((GAME_TRACKER->numPlyrNextGame == 1) ||
       g_config.allowOxideStationMultiplayer)) ||
-      ((flag >= 0) && CHECK_ADV_BIT(GAME_PROGRESS.unlocks, flag)))
+      ((flag >= 0) && (CHECK_ADV_BIT(GAME_PROGRESS.unlocks, flag) ||
+       (g_config.unlockTurboTrack && menuSelect->levID == TURBO_TRACK) ||
+       (g_config.unlockAllBattleArenas &&
+        menuSelect->levID >= NITRO_COURT && menuSelect->levID <= LAB_BASEMENT))))
 	{
 		unlocked = true;
 	}
