@@ -93,13 +93,13 @@ static void MM_CustomCupEdit_DrawRow(const void *context, int row, int y, bool s
 	if (row < s_editCup.trackCount)
 	{
 		int level;
-		char title[128], text[160], label[176], laps[20];
+		char title[128], text[160], label[176], laps[128];
 		const char *name = CustomCup_ResolveTrack(s_editCup.tracks[row], NativeTrackLibrary_Current(), &level)
-		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : "TRACK UNAVAILABLE";
+		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : LANG_GetString(LNG_EXPANDED_CUPS_TRACK_UNAVAILABLE);
 		snprintf(text, sizeof(text), "%s", name);
 		TrackText_Scroll(text, FULLSCREEN_MENU_CONTENT_W - 120, FONT_SMALL, selected ? GAME_TRACKER->timer : 0);
 		snprintf(label, sizeof(label), "%d. %s", row + 1, text);
-		snprintf(laps, sizeof(laps), "%d LAPS", s_editCup.laps[row]);
+		snprintf(laps, sizeof(laps), "%d %s", s_editCup.laps[row], LANG_GetString(LNG_LAPS));
 		FullScreenMenu_DrawRowLabel(label, y, ot);
 		FullScreenMenu_DrawValueText(laps, y, ot);
 		return;
@@ -107,7 +107,7 @@ static void MM_CustomCupEdit_DrawRow(const void *context, int row, int y, bool s
 	int action = row - s_editCup.trackCount;
 	bool enabled = action == 0 ? s_editCup.trackCount < CUSTOM_CUP_MAX_TRACKS :
 	               action == 1 || s_editCup.trackCount >= CUSTOM_CUP_MIN_TRACKS;
-	const char *label = action == 0 ? "ADD TRACK" : action == 1 ? "RENAME CUP" : "SAVE";
+	const char *label = LANG_GetString(action == 0 ? LNG_EXPANDED_CUPS_ADD_TRACK : action == 1 ? LNG_EXPANDED_CUPS_RENAME : LNG_MEMCARD_SAVE_ACTION);
 	DecalFont_DrawLineOT((char *)label, FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL,
 	                     enabled ? ORANGE : PERIWINKLE, ot);
 }
@@ -115,16 +115,16 @@ static void MM_CustomCupEdit_DrawRow(const void *context, int row, int y, bool s
 static void MM_CustomCupEdit_DrawList(struct GameTracker *gGT)
 {
 	char title[CUSTOM_CUP_NAME_BYTES];
-	TrackText_Copy(title, sizeof(title), s_editCup.name[0] != '\0' ? s_editCup.name : "NEW CUP");
+	TrackText_Copy(title, sizeof(title), s_editCup.name[0] != '\0' ? s_editCup.name : LANG_GetString(LNG_EXPANDED_CUPS_NEW));
 	TrackText_Scroll(title, FULLSCREEN_MENU_CONTENT_W - 2 * FULLSCREEN_MENU_ROW_PADDING, FONT_BIG, gGT->timer);
 	bool shaded = s_frameDrawStyle == FULLSCREEN_MENU_DRAW_STYLE_SHADED;
 	FullScreenMenu_SetShadedFrame(true);
 	FullScreenMenu_DrawScreen(title, 0, &s_editScroll, s_editCup.trackCount + 3, s_editRow,
 	                          MM_CustomCupEdit_DrawRow, NULL, gGT, gGT->backBuffer->otMem.uiOT);
 	FullScreenMenu_SetShadedFrame(shaded);
-	if (s_editPage == CUP_EDIT_MOVE) { FullScreenMenu_DrawPrompt("UP / DOWN: MOVE", gGT->backBuffer->otMem.uiOT); }
+	if (s_editPage == CUP_EDIT_MOVE) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_MOVE_HINT), gGT->backBuffer->otMem.uiOT); }
 	else if (s_editMessage != NULL) { FullScreenMenu_DrawPrompt(s_editMessage, gGT->backBuffer->otMem.uiOT); }
-	else if (s_editError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR", gGT->backBuffer->otMem.uiOT); }
+	else if (s_editError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_ERROR), gGT->backBuffer->otMem.uiOT); }
 }
 
 static void MM_CustomCupEdit_DrawActionRow(const void *context, int row, int y, bool selected, uint32_t *ot)
@@ -142,7 +142,7 @@ static void MM_CustomCupEdit_DrawNameRow(const void *context, int row, int y, bo
 	(void)context;
 	(void)row;
 	(void)selected;
-	FullScreenMenu_DrawRowLabel("NAME", y, ot);
+	FullScreenMenu_DrawRowLabel(LANG_GetString(LNG_EXPANDED_TRACKS_NAME), y, ot);
 	char text[CUSTOM_CUP_NAME_BYTES];
 	TrackText_Copy(text, sizeof(text), NativeTextEdit_Value());
 	FullScreenMenu_DrawEditableValue(text, FULLSCREEN_MENU_CONTENT_W - 100, y, ot);
@@ -162,8 +162,8 @@ static bool MM_CustomCupEdit_Save(void)
 		if (!s_editCreating) { MM_CustomCupSelect_Preview(s_cupCarousel.selected); }
 		return true;
 	}
-	s_editMessage = result == NATIVE_CUSTOM_CUP_DUPLICATE ? "CUP NAME ALREADY EXISTS" :
-	                result == NATIVE_CUSTOM_CUP_INVALID ? "INVALID CUP NAME" : "CUP FILE ERROR";
+	s_editMessage = LANG_GetString(result == NATIVE_CUSTOM_CUP_DUPLICATE ? LNG_EXPANDED_CUPS_DUPLICATE_NAME :
+	                               result == NATIVE_CUSTOM_CUP_INVALID ? LNG_EXPANDED_CUPS_INVALID_NAME : LNG_EXPANDED_CUPS_FILE_ERROR);
 	return false;
 }
 
@@ -175,14 +175,15 @@ static void MM_CustomCupEdit_OpenName(bool saveAfterName)
 		s_editSaveAfterName = saveAfterName;
 		s_editPage = CUP_EDIT_NAME;
 	}
-	else { s_editMessage = "NAME EDITOR UNAVAILABLE"; }
+	else { s_editMessage = LANG_GetString(LNG_EXPANDED_TRACKS_EDITOR_FAILED); }
 }
 
 /* Returns true when the editor has closed. */
 static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 {
-	static const char *const actionLabels[] = {"REPLACE", "LAPS", "MOVE", "REMOVE"};
-	static const char *const discardLabels[] = {"NO", "YES"};
+	const char *const actionLabels[] = {LANG_GetString(LNG_EXPANDED_CUPS_REPLACE), LANG_GetString(LNG_LAPS),
+	                                   LANG_GetString(LNG_EXPANDED_CUPS_MOVE), LANG_GetString(LNG_EXPANDED_CUPS_REMOVE)};
+	const char *const discardLabels[] = {LANG_GetString(LNG_EXPANDED_TRACKS_NO), LANG_GetString(LNG_EXPANDED_TRACKS_YES)};
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	if (s_editPage == CUP_EDIT_NAME)
 	{
@@ -205,7 +206,7 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 					s_editMessage = NULL;
 					if (s_editSaveAfterName && MM_CustomCupEdit_Save()) { return true; }
 				}
-				else { s_editMessage = "INVALID CUP NAME"; }
+				else { s_editMessage = LANG_GetString(LNG_EXPANDED_CUPS_INVALID_NAME); }
 			}
 			else
 			{
@@ -217,7 +218,7 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 			return false;
 		}
 		struct FullScreenMenu_Scroll scroll = {0};
-		FullScreenMenu_DrawScreen("CUP NAME", 0, &scroll, 1, 0, MM_CustomCupEdit_DrawNameRow, NULL, gGT, ot);
+		FullScreenMenu_DrawScreen(LANG_GetString(LNG_EXPANDED_CUPS_NAME), 0, &scroll, 1, 0, MM_CustomCupEdit_DrawNameRow, NULL, gGT, ot);
 		return false;
 	}
 	if (s_editPage == CUP_EDIT_PICK_TRACK)
@@ -293,14 +294,14 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 		if (s_editPage != CUP_EDIT_TRACK_ACTIONS && s_editPage != CUP_EDIT_DISCARD) { return MM_CustomCupEdit_Update(0, gGT); }
 		if (discard)
 		{
-			FullScreenMenu_DrawSectionScreen("DISCARD CHANGES?", discardLabels, scroll, count, *row, SCREEN_WIDTH / 2, gGT, ot);
+			FullScreenMenu_DrawSectionScreen(LANG_GetString(LNG_EXPANDED_CUPS_DISCARD), discardLabels, scroll, count, *row, SCREEN_WIDTH / 2, gGT, ot);
 		}
 		else
 		{
 			int level;
 			char title[160];
 			const char *name = CustomCup_ResolveTrack(s_editCup.tracks[s_editRow], NativeTrackLibrary_Current(), &level)
-			                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : "TRACK UNAVAILABLE";
+			                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : LANG_GetString(LNG_EXPANDED_CUPS_TRACK_UNAVAILABLE);
 			char display[160];
 			snprintf(display, sizeof(display), "%s", name);
 			TrackText_Scroll(display, FULLSCREEN_MENU_CONTENT_W - 2 * FULLSCREEN_MENU_ROW_PADDING, FONT_BIG, gGT->timer);

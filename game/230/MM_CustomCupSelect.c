@@ -96,7 +96,7 @@ static const char *MM_CustomCupSelect_Label(void *context, int index, char *buff
 	(void)context;
 	(void)buffer;
 	(void)capacity;
-	return index == 0 ? "CREATE NEW" : s_cupSelectEntries[index - 1].name;
+	return index == 0 ? LANG_GetString(LNG_EXPANDED_CUPS_CREATE_NEW) : s_cupSelectEntries[index - 1].name;
 }
 
 static struct MM_CarouselSource MM_CustomCupSelect_Source(void)
@@ -221,7 +221,8 @@ static bool MM_CustomCupSelect_TracksOpen(const struct CustomCup *cup)
 
 static bool MM_CustomCupSelect_UpdateKind(struct RectMenu *menu, u32 tapped)
 {
-	static const char *const labels[CUSTOM_CUP_SELECT_KIND_COUNT] = {"STANDARD", "CUSTOM"};
+	const char *const labels[CUSTOM_CUP_SELECT_KIND_COUNT] = {LANG_GetString(LNG_STANDARD),
+	                                                           LANG_GetString(LNG_EXPANDED_TRACKS_CUSTOM)};
 	struct GameTracker *gGT = GAME_TRACKER;
 	if (s_cupKindTransition != CUSTOM_CUP_KIND_READY)
 	{
@@ -277,7 +278,7 @@ static bool MM_CustomCupSelect_UpdateKind(struct RectMenu *menu, u32 tapped)
 
 	bool wasShaded = s_frameDrawStyle == FULLSCREEN_MENU_DRAW_STYLE_SHADED;
 	FullScreenMenu_SetShadedFrame(true);
-	FullScreenMenu_DrawSectionScreen("SELECT CUP TYPE", labels, &s_cupKindScroll,
+	FullScreenMenu_DrawSectionScreen(LANG_GetString(LNG_EXPANDED_CUPS_SELECT_TYPE), labels, &s_cupKindScroll,
 	                                 CUSTOM_CUP_SELECT_KIND_COUNT, selected, SCREEN_WIDTH / 2 + s_cupKindTransitions[0].currX,
 	                                 gGT, gGT->backBuffer->otMem.uiOT);
 	FullScreenMenu_SetShadedFrame(wasShaded);
@@ -297,7 +298,7 @@ static void MM_CustomCupSelect_DrawPreview(struct GameTracker *gGT, int offsetY)
 		int level;
 		char title[128], text[128], position[12], laps[12];
 		const char *name = CustomCup_ResolveTrack(s_cupSelectPreview.tracks[i], NativeTrackLibrary_Current(), &level)
-		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : "TRACK UNAVAILABLE";
+		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : LANG_GetString(LNG_EXPANDED_CUPS_TRACK_UNAVAILABLE);
 		snprintf(text, sizeof(text), "%s", name);
 		snprintf(position, sizeof(position), "%d", i + 1);
 		snprintf(laps, sizeof(laps), "%d", s_cupSelectPreview.laps[i]);
@@ -311,9 +312,9 @@ static void MM_CustomCupSelect_DrawPreview(struct GameTracker *gGT, int offsetY)
 	{
 		int headerTop = CUSTOM_CUP_SELECT_PREVIEW_TOP + CUSTOM_CUP_SELECT_PREVIEW_BORDER_HEIGHT;
 		int headerY = headerTop + (CUSTOM_CUP_SELECT_PREVIEW_SEPARATOR_Y - headerTop - data.font_charPixHeight[FONT_SMALL]) / 2 + offsetY;
-		DecalFont_DrawLineOT("N.", positionX, headerY, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT("TRACK", titleX, headerY, FONT_SMALL, ORANGE, ot);
-		DecalFont_DrawLineOT("L.", lapsX, headerY, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT((char *)LANG_GetString(LNG_EXPANDED_CUPS_NUMBER_SHORT), positionX, headerY, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT((char *)LANG_GetString(LNG_EXPANDED_TRACKS_TRACK), titleX, headerY, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT((char *)LANG_GetString(LNG_EXPANDED_CUPS_LAPS_SHORT), lapsX, headerY, FONT_SMALL, ORANGE, ot);
 		RECT separator = {CUSTOM_CUP_SELECT_PREVIEW_X - CUSTOM_CUP_SELECT_PREVIEW_PADDING + 3,
 		                  CUSTOM_CUP_SELECT_PREVIEW_SEPARATOR_Y + offsetY,
 		                  CUSTOM_CUP_SELECT_PREVIEW_WIDTH + 2 * CUSTOM_CUP_SELECT_PREVIEW_PADDING - 6,
@@ -337,7 +338,7 @@ static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT)
 	MM_Carousel_Draw(&s_cupCarousel, &source, gGT, CUSTOM_CUP_SELECT_CAROUSEL_X + s_cupListTransitions[0].currX,
 	                 CUSTOM_CUP_SELECT_CAROUSEL_Y, (u32)MM_FRAME_COUNTER);
 	MM_CustomCupSelect_DrawPreview(gGT, s_cupListTransitions[1].currY);
-	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
+	if (s_cupSelectError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_OR_TRACK_ERROR), ot); }
 }
 
 static void MM_CustomCupSelect_OnConfirm(void *context, int index)
@@ -402,7 +403,7 @@ static void MM_CustomCupSelect_DrawActions(struct GameTracker *gGT, const char *
 	DecalFont_DrawLineOT(title, centerX, menuY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 	if (deleting)
 	{
-		DecalFont_DrawLineOT("DELETE", centerX, actionY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		DecalFont_DrawLineOT((char *)LANG_GetString(LNG_DELETE), centerX, actionY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 	}
 	for (int i = 0; i < count; i++)
 	{
@@ -427,8 +428,8 @@ static void MM_CustomCupSelect_DrawActions(struct GameTracker *gGT, const char *
 
 static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT)
 {
-	static const char *const actions[] = {"PLAY", "EDIT", "DELETE"};
-	static const char *const confirmation[] = {"NO", "YES"};
+	const char *const actions[] = {LANG_GetString(LNG_EXPANDED_CUPS_PLAY), LANG_GetString(LNG_EXPANDED_CUPS_EDIT), LANG_GetString(LNG_DELETE)};
+	const char *const confirmation[] = {LANG_GetString(LNG_EXPANDED_TRACKS_NO), LANG_GetString(LNG_EXPANDED_TRACKS_YES)};
 	bool deleting = s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE;
 	s16 *row = deleting ? &s_cupDeleteRow : &s_cupActionRow;
 	struct FullScreenMenu_Scroll *scroll = deleting ? &s_cupDeleteScroll : &s_cupActionScroll;
@@ -490,7 +491,7 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 	}
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	MM_CustomCupSelect_DrawActions(gGT, deleting ? confirmation : actions, count, *row, deleting);
-	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
+	if (s_cupSelectError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_OR_TRACK_ERROR), ot); }
 }
 
 /* Returns false once the original cup selector should take over. */

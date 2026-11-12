@@ -549,8 +549,9 @@ static void MM_TrackCarousel_Decorate(void *context, int index, const RECT16 *ro
 	if (info.custom != NULL && info.custom->author != NULL)
 	{
 		char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
-		memcpy(author, "by ", 3);
-		TrackText_Copy(author + 3, sizeof(author) - 3, info.custom->author);
+		snprintf(author, sizeof(author), "%s: ", LANG_GetString(LNG_EXPANDED_TRACKS_AUTHOR));
+		size_t prefixLength = strlen(author);
+		TrackText_Copy(author + prefixLength, sizeof(author) - prefixLength, info.custom->author);
 		TrackText_Scroll(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL, scrollFrame);
 		MM_DRAW_LINE_WIDE_FLAGS(author, row->x + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X,
 		                        row->y - data.font_charPixHeight[FONT_SMALL] + row->h -
