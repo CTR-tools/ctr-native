@@ -115,6 +115,7 @@ void UI_RaceStart_IntroText1P(void)
 	int textID;
 	int titleTransition;
 	char trackText[24];
+	char customCupTitle[CUSTOM_CUP_NAME_BYTES];
 	RECT rect;
 	int colors[2];
 
@@ -125,6 +126,7 @@ void UI_RaceStart_IntroText1P(void)
 	titleTransition = 0;
 
 	gameMode = gGT->gameMode1;
+	bool customCup = CustomCupRace_IsCustomCup(&sdata->customCupRace, gGT);
 
 	// If you are not in a relic race
 	if ((gameMode & RELIC_RACE) == 0)
@@ -179,6 +181,11 @@ void UI_RaceStart_IntroText1P(void)
 				else
 				{
 					// Get Cup ID
+					if (customCup)
+					{
+						textID = LNG_ARCADE;
+						goto LAB_80055930;
+					}
 					textArrayIndex = gGT->cup.cupID;
 					txtArray = &data.arcadeVsCupStringIndex[0];
 				}
@@ -250,7 +257,14 @@ LAB_80055930:
 			// Name of Cup
 
 			// uVar9 * 4
-			DecalFont_DrawLine(sdata->lngStrings[textID],
+			char *cupTitle = sdata->lngStrings[textID];
+			if (customCup)
+			{
+				TrackText_Copy(customCupTitle, sizeof(customCupTitle), sdata->customCupRace.name);
+				TrackText_Scroll(customCupTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG, gGT->timer);
+				cupTitle = customCupTitle;
+			}
+			DecalFont_DrawLine(cupTitle,
 
 			                   gGT->pushBuffer[0].rect.x + ((gGT->pushBuffer[0].rect.w << 0x10) >> 0x11),
 
@@ -258,12 +272,12 @@ LAB_80055930:
 			                   (JUSTIFY_CENTER | ORANGE));
 
 			// Track 1/4, 2/4, 3/4, 4/4 in cup
-			sprintf(trackText, "%s %ld/4",
+			snprintf(trackText, sizeof(trackText), "%s %ld/%d",
 
 			        sdata->lngStrings[LNG_TRACK],
 
 			        // Track Index (0, 1, 2, 3) + 1
-			        CTR_PRINTF_PSX_LONG((gGT->cup.trackIndex) + 1));
+			        CTR_PRINTF_PSX_LONG((gGT->cup.trackIndex) + 1), customCup ? sdata->customCupRace.trackCount : 4);
 
 			// string of top title bar
 			titleText = trackText;
@@ -283,18 +297,11 @@ LAB_80055930:
 
 		// Print the name of the level
 		// Crash Cove, Roos Tubes, etc
-		struct LevelInfo levelInfo = LevelInfo_Lookup(gGT->levelID);
-		const char *title = LevelInfo_Title(&levelInfo, sdata->lngStrings);
 		char customTitle[UI_RACE_START_CUSTOM_TITLE_BYTES];
-		if (title == NULL)
+		const char *title = LevelInfo_DisplayTitle(gGT->levelID, sdata->lngStrings, customTitle, sizeof(customTitle));
+		if (title == customTitle)
 		{
-			title = "";
-		}
-		if (levelInfo.kind == LEVEL_INFO_CUSTOM)
-		{
-			TrackText_Copy(customTitle, sizeof(customTitle), title);
 			TrackText_Trim(customTitle, gGT->pushBuffer[0].rect.w - UI_RACE_START_CUSTOM_TITLE_MARGIN, FONT_BIG);
-			title = customTitle;
 		}
 		DecalFont_DrawLine(
 		    (char *)title,

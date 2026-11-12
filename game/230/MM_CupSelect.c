@@ -1,4 +1,5 @@
 #include <common.h>
+#include "MM_CustomCupSelect.c"
 
 // NOTE(aalhendi): Keeping this shared lookup visible at the call site lets
 // GCC reuse $v1 after storing the ordering-table argument.
@@ -14,6 +15,7 @@ static inline s32 MM_CupSelect_GetStarY(s16 starIndex, s32 startY)
 
 void MM_CupSelect_Init(void)
 {
+	MM_CustomCupSelect_Init();
 	// reset transition data
 	MM_CUP_TRANSITION_FRAME = MM_CUP_SELECT_INITIAL_TRANSITION_FRAMES;
 	MM_CUP_TRANSITION_STATE = ENTERING_MENU;
@@ -26,6 +28,7 @@ void MM_CupSelect_Init(void)
 
 void MM_CupSelect_MenuProc(struct RectMenu *menu)
 {
+	if (MM_CustomCupSelect_Update(menu)) { return; }
 	// NOTE(aalhendi): Register-shaped intermediates preserve GCC 2.8.1's
 	// retail schedule while CTR_PSX_* keeps the native path semantic.
 	register struct RectMenu *menuState CTR_PSX_REGISTER("$23") = menu;
@@ -86,6 +89,7 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 			// if cup selected
 			if (MM_CUP_TRANSITION_START_AFTER_EXIT != 0)
 			{
+				CustomCupRace_Clear(&sdata->customCupRace);
 				// set cupID to the cup selected
 				GAME_TRACKER->cup.cupID = menuState->rowSelected;
 
@@ -104,6 +108,13 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 				// passthrough Menu for the function
 				MM_DESIRED_MENU = &MM_MENU_QUEUE_LOAD_TRACK;
+				return;
+			}
+
+			if (g_config.customCups && (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0)
+			{
+				MM_CustomCupSelect_EnterKind(0);
+				RECTMENU_ClearInput();
 				return;
 			}
 

@@ -1,5 +1,6 @@
 #include <common.h>
 #include <level_info.h>
+#include <track_text.h>
 #include <platform/native_track_library.h>
 
 struct LevelInfo LevelInfo_Lookup(int levelID)
@@ -33,4 +34,15 @@ const char *LevelInfo_Title(const struct LevelInfo *info, char *const *languageS
 		return languageStrings[info->retail->name_LNG];
 	}
 	return NULL;
+}
+
+const char *LevelInfo_DisplayTitle(int levelID, char *const *languageStrings, char *buffer, size_t capacity)
+{
+	struct LevelInfo info = LevelInfo_Lookup(levelID);
+	const char *title = LevelInfo_Title(&info, languageStrings);
+	if (title == NULL) { return ""; }
+	if (info.kind != LEVEL_INFO_CUSTOM) { return title; }
+	if (buffer == NULL || capacity == 0) { return ""; }
+	TrackText_Copy(buffer, capacity, title);
+	return buffer;
 }

@@ -1,4 +1,6 @@
 #include <common.h>
+#include <level_info.h>
+#include <track_text.h>
 
 enum
 {
@@ -53,6 +55,7 @@ enum
 	UI_CUP_STANDINGS_ARCADE_DIFFICULTY_DIVISOR = 0x50,
 	UI_CUP_STANDINGS_MAX_ARCADE_DIFFICULTY = 2,
 	UI_CUP_STANDINGS_MAX_CUP_LOSSES = 10,
+	UI_CUP_STANDINGS_CUSTOM_TITLE_BYTES = 128,
 };
 
 
@@ -256,14 +259,13 @@ void UI_CupStandings_InputAndDraw(void)
 	// "FINAL"
 	int titleString = LNG_FINAL;
 	int cupID = gGT->cup.cupID;
+	char customTitle[UI_CUP_STANDINGS_CUSTOM_TITLE_BYTES];
+	char cupTitle[CUSTOM_CUP_NAME_BYTES];
+	bool customCup = CustomCupRace_IsCustomCup(&sdata->customCupRace, gGT);
+	int trackCount = customCup ? sdata->customCupRace.trackCount : UI_CUP_STANDINGS_TRACKS_PER_CUP;
 
-	if ((sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) == 0)
-	{
-		// Level ID
-		titleString = data.metaDataLEV[gGT->levelID].name_LNG;
-	}
-
-	else if (gGT->cup.trackIndex != UI_CUP_STANDINGS_TRACKS_PER_CUP - 1)
+	if ((sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) != 0 &&
+	    gGT->cup.trackIndex != trackCount - 1 && !customCup)
 	{
 		// If not in Arcade or VS cup
 		if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
@@ -279,7 +281,17 @@ void UI_CupStandings_InputAndDraw(void)
 	}
 
 	// title text
-	DecalFont_DrawLine(sdata->lngStrings[titleString], drawPos.x, drawPos.y + UI_CUP_STANDINGS_TITLE_Y_OFFSET, FONT_BIG, JUSTIFY_CENTER | ORANGE);
+	const char *title = (sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) == 0
+	                        ? LevelInfo_DisplayTitle(gGT->levelID, sdata->lngStrings, customTitle, sizeof(customTitle))
+	                        : sdata->lngStrings[titleString];
+	if (customCup && (sdata->menuReadyToPass & UI_CUP_STANDINGS_PAGE_TRACK_POINTS) != 0 &&
+	    gGT->cup.trackIndex != trackCount - 1)
+	{
+		TrackText_Copy(cupTitle, sizeof(cupTitle), sdata->customCupRace.name);
+		TrackText_Scroll(cupTitle, gGT->pushBuffer_UI.rect.w - 32, FONT_BIG, gGT->timer);
+		title = cupTitle;
+	}
+	DecalFont_DrawLine((char *)title, drawPos.x, drawPos.y + UI_CUP_STANDINGS_TITLE_Y_OFFSET, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_STANDINGS], drawPos.x, drawPos.y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
@@ -288,12 +300,12 @@ void UI_CupStandings_InputAndDraw(void)
 	char text[24];
 
 	// TRACK 1/4, 2/4, 3/4, 4/4
-	sprintf(text, "%s %ld/4",
+	snprintf(text, sizeof(text), "%s %ld/%d",
 
 	        sdata->lngStrings[LNG_TRACK],
 
 	        // Track Index (0, 1, 2, 3) + 1
-	        CTR_PRINTF_PSX_LONG(gGT->cup.trackIndex + 1));
+	        CTR_PRINTF_PSX_LONG(gGT->cup.trackIndex + 1), trackCount);
 
 	DecalFont_DrawLine(text, drawPos.x, drawPos.y + UI_CUP_STANDINGS_TRACK_TEXT_Y_OFFSET, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
 
@@ -314,7 +326,7 @@ void UI_CupStandings_InputAndDraw(void)
 		s16 iconTargetY;
 		iconColumnOffset = (s16)i;
 		// If you are in Purple Gem Cup with retail's five-racer lineup
-		if ((gGT->cup.cupID == CUP_ID_PURPLE_GEM) && (numDrivers == UI_CUP_STANDINGS_PURPLE_GEM_RETAIL_DRIVERS))
+		if (!customCup && (gGT->cup.cupID == CUP_ID_PURPLE_GEM) && (numDrivers == UI_CUP_STANDINGS_PURPLE_GEM_RETAIL_DRIVERS))
 		{
 			iconTargetY = UI_CUP_STANDINGS_ICON_PURPLE_GEM_ROW_Y;
 			iconTargetX = rectX;
@@ -578,12 +590,22 @@ void UI_CupStandings_InputAndDraw(void)
 			int cupTrack = gGT->cup.trackIndex;
 
 			// If this is not the last race in the cup
-			if (cupTrack < UI_CUP_STANDINGS_TRACKS_PER_CUP)
+			if (cupTrack < trackCount)
 			{
 				int nextLevelID;
 
 				// If not in Arcade or VS cup
-				if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
+				if (customCup)
+				{
+					int laps;
+					if (CustomCupRace_Advance(&sdata->customCupRace) != CUSTOM_CUP_ADVANCE_NEXT ||
+					    !CustomCupRace_Current(&sdata->customCupRace, &nextLevelID, &laps))
+					{
+						return;
+					}
+					gGT->numLaps = laps;
+				}
+				else if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
 				{
 					nextLevelID = data.advCupTrackIDs[(UI_CUP_STANDINGS_TRACKS_PER_CUP * cupID) + cupTrack];
 				}
@@ -686,10 +708,10 @@ void UI_CupStandings_InputAndDraw(void)
 					// then you still get completion credit
 
 					// If Player 1 or Player 2 won the cup
-					if ((gGT->drivers[0]->driverRank == 0) || ((gGT->drivers[1]->driverRank == 0) &&
+					if (!customCup && ((gGT->drivers[0]->driverRank == 0) || ((gGT->drivers[1]->driverRank == 0) &&
 
 					                                           // If you're in Arcade Mode
-					                                           ((gGT->gameMode1 & ARCADE_MODE) != 0)))
+					                                           ((gGT->gameMode1 & ARCADE_MODE) != 0))))
 					{
 						int difficulty = (gGT->arcadeDifficulty / UI_CUP_STANDINGS_ARCADE_DIFFICULTY_DIVISOR) - 1;
 						if (difficulty > UI_CUP_STANDINGS_MAX_ARCADE_DIFFICULTY)

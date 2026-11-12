@@ -613,9 +613,8 @@ void UI_DrawLapCount(s16 posX, int posY, int unusedScale, struct Driver *d)
 	}
 	else
 	{
-		str = &sdata->s_printDividing[0];
-		str[0] = currLap + '0';
-		str[2] = (u8)numLaps + '0';
+		snprintf(message, sizeof(message), "%d/%d", currLap, numLaps);
+		str = message;
 
 		type = FONT_SMALL;
 		flags = PERIWINKLE;

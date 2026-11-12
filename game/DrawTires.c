@@ -240,7 +240,7 @@ static void DrawTiresSolid_BuildWheelAxes(struct DrawTiresScratch *scratch)
 
 		gte_lcv1_b();
 		wheelLocal->center.z.word = centerZ;
-		int invLen = -(0x10000 / len);
+		int invLen = len != 0 ? -(0x10000 / len) : 0;
 
 		int rimX = MFC2_S(9);
 		int rimY = MFC2_S(10);
@@ -269,7 +269,7 @@ static void DrawTiresSolid_BuildWheelAxes(struct DrawTiresScratch *scratch)
 
 		gte_sqr0_b();
 		len = Unknown_8006ef98(MFC2_S(25) + MFC2_S(26) + MFC2_S(27));
-		invLen = 0x10000 / len;
+		invLen = len != 0 ? 0x10000 / len : 0;
 
 		axisX = (axisX * invLen) >> 4;
 		MTC2(axisX, 9);
@@ -291,7 +291,7 @@ static void DrawTiresSolid_BuildWheelAxes(struct DrawTiresScratch *scratch)
 
 		gte_sqr0_b();
 		len = Unknown_8006ef98(MFC2_S(25) + MFC2_S(26) + MFC2_S(27));
-		invLen = (wheelSize * -(0x10000 / len)) >> 12;
+		invLen = len != 0 ? (wheelSize * -(0x10000 / len)) >> 12 : 0;
 
 		axisB->x = (axisX * invLen) >> 10;
 		axisB->y = (axisY * invLen) >> 10;

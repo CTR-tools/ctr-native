@@ -57,6 +57,8 @@ function(ctr_add_test_suite NAME)
 endfunction()
 
 # Header-only, so it needs none of the platform unit.
+ctr_add_test_suite(test_carousel SOURCES test_carousel.c)
+
 ctr_add_test_suite(test_disc_images
     SOURCES test_disc_images.c
     LIBRARIES SDL3::SDL3
@@ -93,6 +95,15 @@ ctr_add_test_suite(test_language_discovery
 
 ctr_add_test_suite(test_track_text
     SOURCES test_track_text.c
+)
+
+ctr_add_test_suite(test_custom_cup
+    SOURCES test_custom_cup.c
+)
+
+ctr_add_test_suite(test_custom_cup_storage
+    SOURCES test_custom_cup_storage.c
+    LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_native_text_edit

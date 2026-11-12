@@ -252,6 +252,7 @@
 #include "230/MM_CheatCodes.c"
 #include "230/MM_OxideModel.c"
 #include "230/MM_Characters.c"
+#include "230/MM_Carousel.c"
 #include "230/MM_TrackSelect.c"
 #include "230/MM_CupSelect.c"
 #include "230/MM_HighScore.c"

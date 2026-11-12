@@ -83,6 +83,31 @@ static void FullScreenMenu_DrawTitle(const char *title, int numRows, int nudgeY,
 	DecalFont_DrawLineOT((char *)title, FULLSCREEN_MENU_TITLE_X, FullScreenMenu_TitleY(numRows) + nudgeY, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
 }
 
+/* Keep the end of the edited text visible and underline its last character. */
+static inline void FullScreenMenu_DrawEditableText(const char *text, int width, int x, int y,
+                                                  int font, int justify, int color, uint32_t *ot)
+{
+	while (*text != '\0' && DecalFont_GetLineWidth((char *)text, font) > width)
+	{
+		text++;
+	}
+	int cursorX = x;
+	if (justify == JUSTIFY_CENTER) { cursorX += DecalFont_GetLineWidth((char *)text, font) / 2; }
+	DecalFont_DrawLineOT((char *)text, x, y, font, justify | color, ot);
+	enum { CURSOR_PERIOD = 30, CURSOR_VISIBLE = 15, CURSOR_OFFSET_Y = 3 };
+	if ((unsigned int)sdata->frameCounter % CURSOR_PERIOD < CURSOR_VISIBLE)
+	{
+		DecalFont_DrawLineOT("_", cursorX, y + CURSOR_OFFSET_Y, font, JUSTIFY_RIGHT | ORANGE, ot);
+	}
+}
+
+static inline void FullScreenMenu_DrawEditableTitle(const char *text, int numRows, uint32_t *ot)
+{
+	FullScreenMenu_DrawEditableText(text, FULLSCREEN_MENU_CONTENT_W - 2 * FULLSCREEN_MENU_ROW_PADDING,
+	                                FULLSCREEN_MENU_TITLE_X, FullScreenMenu_TitleY(numRows),
+	                                FONT_BIG, JUSTIFY_CENTER, ORANGE, ot);
+}
+
 // A row's label, in the left column. Shared so a row looks the same whichever screen it is
 // on; the value beside it is left to the caller, because what a value looks like is what
 // separates one kind of row from another.
@@ -110,20 +135,9 @@ static void FullScreenMenu_DrawValueText(const char *text, int y, uint32_t *ot)
 	FullScreenMenu_DrawValueTextColored(text, y, WHITE, ot);
 }
 
-/* The keyboard editor appends at the end. Keep that end visible and underline
- * its current character using the font's underscore glyph. */
 static inline void FullScreenMenu_DrawEditableValue(const char *text, int width, int y, uint32_t *ot)
 {
-	while (*text != '\0' && DecalFont_GetLineWidth((char *)text, FONT_SMALL) > width)
-	{
-		text++;
-	}
-	FullScreenMenu_DrawValueText(text, y, ot);
-	enum { FULLSCREEN_MENU_CURSOR_PERIOD = 30, FULLSCREEN_MENU_CURSOR_VISIBLE = 15, FULLSCREEN_MENU_CURSOR_OFFSET_Y = 3 };
-	if ((unsigned int)sdata->frameCounter % FULLSCREEN_MENU_CURSOR_PERIOD < FULLSCREEN_MENU_CURSOR_VISIBLE)
-	{
-		DecalFont_DrawLineOT("_", FULLSCREEN_MENU_VALUE_X, y + FULLSCREEN_MENU_CURSOR_OFFSET_Y, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, ot);
-	}
+	FullScreenMenu_DrawEditableText(text, width, FULLSCREEN_MENU_VALUE_X, y, FONT_SMALL, JUSTIFY_RIGHT, WHITE, ot);
 }
 
 static void FullScreenMenu_DrawOnOffColored(bool on, int y, int color, uint32_t *ot)
@@ -453,6 +467,7 @@ static inline void FullScreenMenu_NavScroll(struct GamepadBuffer *pad, struct Fu
 	FullScreenMenu_NavTapped((u32)pad->buttonsTapped, scroll, selected, numRows);
 }
 
+// Submit prompts before other menu primitives so they appear in front of them.
 static inline void FullScreenMenu_DrawPrompt(const char *text, uint32_t *ot)
 {
 	int y = SCREEN_HEIGHT - data.font_charPixHeight[FONT_SMALL] - 4;

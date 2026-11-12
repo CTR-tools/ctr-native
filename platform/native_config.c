@@ -82,6 +82,7 @@ NativeConfig g_config = {
   .expandedAdventureOptions = false,
   .extraDifficultyLevels = false,
   .engineSelection = false,
+  .customCups = false,
 
   .speedMultiplier = 100,
   .gravityMultiplier = 100,
@@ -270,6 +271,13 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_ENGINE_SELECTION,
         .type = CFG_BOOL,
         .valuePtr = &g_config.engineSelection
+    },
+    {
+        .section = "General",
+        .key = "custom_cups",
+        .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_CUPS,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.customCups
     },
     {
         .section = "Adventure",

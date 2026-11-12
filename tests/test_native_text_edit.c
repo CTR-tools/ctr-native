@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <SDL3/SDL.h>
+#include <custom_cup.h>
 #include <platform/native_text_edit.c>
 
 int main(void)
@@ -49,6 +50,16 @@ int main(void)
 	NativeTextEdit_HandleEvent(&event);
 	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 30 && strstr(NativeTextEdit_Value(), "\xc3\xa8") != NULL,
 	               "a multibyte character fits into the final character slot");
+	NativeTextEdit_Close();
+	CTR_TEST_CHECK(NativeTextEdit_Begin(window, "1234567890123", 64), "a cup name can be edited");
+	NativeTextEdit_LimitCharacters(CUSTOM_CUP_NAME_MAX_CHARACTERS);
+	event.type = SDL_EVENT_TEXT_INPUT;
+	event.text.text = "\xc3\xa8";
+	NativeTextEdit_HandleEvent(&event);
+	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 14, "a multibyte character can fill the fourteenth cup name position");
+	event.text.text = "x";
+	NativeTextEdit_HandleEvent(&event);
+	CTR_TEST_CHECK(SDL_utf8strlen(NativeTextEdit_Value()) == 14, "a cup name cannot exceed fourteen characters");
 	NativeTextEdit_Close();
 	SDL_DestroyWindow(window);
 	SDL_Quit();
