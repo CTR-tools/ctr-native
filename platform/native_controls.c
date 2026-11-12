@@ -694,12 +694,6 @@ void NativeControls_Save(void)
 		return;
 	}
 
-	fprintf(file, "; CTR Native Expanded control configuration.\n");
-	fprintf(file, "; Player assignment is automatic unless a player is pinned to a device\n");
-	fprintf(file, "; key: auto, disabled, or the name of a device section below.\n");
-	fprintf(file, "; P1 takes the first gamepad and can never be disabled. The keyboard is the\n");
-	fprintf(file, "; last fallback, and lands on P1 whenever nothing else is available.\n\n");
-
 	fprintf(file, "[%s]\n", NATIVE_CONTROLS_SECTION_ASSIGNMENT);
 	for (int player = 0; player < PLATFORM_INPUT_PAD_COUNT; player++)
 	{

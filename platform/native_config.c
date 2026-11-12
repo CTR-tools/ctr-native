@@ -409,7 +409,7 @@ const ConfigEntry g_configEntries[] = {
     },
     {
       .section = "Weapons",
-      .key = "tnt_explosion_radius",
+      .key = "tnt_explosion_radius_multiplier",
       .lngKey = LNG_EXPANDED_CONFIG_TNT_RADIUS,
       .type = CFG_INT,
       .valuePtr = &g_config.tntExplosionRadiusMultiplier,
