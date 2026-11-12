@@ -1,5 +1,6 @@
 #include <common.h>
 #include <text_format.h>
+#include <track_text.h>
 
 #include <platform/native_controls.h>
 
@@ -54,6 +55,8 @@ static char s_titleBuffer[32];
 // Filtering never grows a string, but a device name is driver-supplied and up to
 // NATIVE_CONTROLS_NAME_LENGTH, so this is sized well past the longest label it carries.
 static char s_safeBuffer[2 * NATIVE_CONTROLS_NAME_LENGTH];
+
+enum { CONTROLS_DEVICE_VISIBLE_CHARS = 13 };
 
 // The keyboard has no analog axes, so those rows are hidden for it rather than
 // shown as unbound. Listed explicitly instead of testing the enum range, so
@@ -502,6 +505,24 @@ static void Controls_DrawValue(int device, const struct ControlsRow *row, int y,
 		NativeControls_GetBindingLabel(device, row->binding, s_valueBuffer, sizeof(s_valueBuffer));
 		text = (s_valueBuffer[0] != '\0') ? s_valueBuffer : LANG_GetString(LNG_EXPANDED_NONE);
 		colour = WHITE;
+	}
+
+	if (row->kind == CONTROLS_ROW_DEVICE)
+	{
+		Controls_FilterText(text, s_safeBuffer, sizeof(s_safeBuffer));
+		size_t length = strlen(s_safeBuffer);
+		if (length > CONTROLS_DEVICE_VISIBLE_CHARS)
+		{
+			// Use the width of the final window so scrolling can always reveal the end.
+			int width = DecalFont_GetLineWidth(s_safeBuffer + length - CONTROLS_DEVICE_VISIBLE_CHARS, FONT_SMALL);
+			TrackText_Scroll(s_safeBuffer, width, FONT_SMALL, GAME_TRACKER->timer);
+			if (strlen(s_safeBuffer) > CONTROLS_DEVICE_VISIBLE_CHARS)
+			{
+				s_safeBuffer[CONTROLS_DEVICE_VISIBLE_CHARS] = '\0';
+			}
+		}
+		DecalFont_DrawLineOT(s_safeBuffer, FULLSCREEN_MENU_VALUE_X, y, FONT_SMALL, JUSTIFY_RIGHT | colour, ot);
+		return;
 	}
 
 	Controls_DrawSafeText(text, FULLSCREEN_MENU_VALUE_X, y, JUSTIFY_RIGHT | colour, ot);

@@ -18,6 +18,7 @@ static int s_vibrationColor;
 static char s_vibrationValue[2 * NATIVE_CONTROLS_NAME_LENGTH];
 static int s_restores;
 static int s_preferenceChanges;
+static const char *s_gamepadName = "Gamepad";
 
 const char *LANG_GetString(s32 index)
 {
@@ -51,7 +52,7 @@ bool NativeControls_CanVibrate(int device)
 }
 bool NativeControls_GetPlayerVibration(int player) { return s_vibration[player]; }
 void NativeControls_SetPlayerVibration(int player, bool enabled) { s_vibration[player] = enabled; }
-const char *NativeControls_GetDeviceName(int device) { return device == TEST_KEYBOARD_DEVICE ? "Keyboard" : "Gamepad"; }
+const char *NativeControls_GetDeviceName(int device) { return device == TEST_KEYBOARD_DEVICE ? "Keyboard" : s_gamepadName; }
 int NativeControls_GetAvailableDevices(int player, int *dst, int max)
 {
 	int count = 0;
@@ -209,6 +210,25 @@ static void TestLocalizedLabels(void)
 	s_confirming = false;
 }
 
+static void TestDeviceNameScroll(void)
+{
+	int device = 0;
+	s_rows[0] = (struct ControlsRow){.kind = CONTROLS_ROW_DEVICE, .binding = -1};
+	s_gamepadName = "1234567890123";
+	s_tracker.timer = 100;
+	Controls_DrawRow(&device, 0, 0, false, NULL);
+	CTR_TEST_CHECK(strcmp(s_lastValue, s_gamepadName) == 0, "a thirteen-character device name stays unchanged");
+	s_gamepadName = "1234567890123456";
+	s_tracker.timer = 0;
+	Controls_DrawRow(&device, 0, 0, false, NULL);
+	CTR_TEST_CHECK(strcmp(s_lastValue, "1234567890123") == 0, "a long device name starts with at most thirteen characters");
+	s_tracker.timer = TRACK_TEXT_SCROLL_PAUSE_FRAMES + 3 * TRACK_TEXT_SCROLL_STEP_FRAMES;
+	Controls_DrawRow(&device, 0, 0, false, NULL);
+	CTR_TEST_CHECK(strcmp(s_lastValue, "4567890123456") == 0, "scrolling reveals the end of the device name");
+	s_gamepadName = "Gamepad";
+	s_tracker.timer = 0;
+}
+
 static void TestUnavailableDevices(void)
 {
 	s_player = 0;
@@ -323,6 +343,8 @@ int main(void)
 	s_tracker.backBuffer = &s_buffer;
 	CTR_TEST_SECTION("Localized controls labels");
 	TestLocalizedLabels();
+	CTR_TEST_SECTION("Device name scrolling");
+	TestDeviceNameScroll();
 	CTR_TEST_SECTION("Per-player vibration in the main menu");
 	TestPlayers(MAIN_MENU);
 	CTR_TEST_SECTION("Per-player vibration while paused");
