@@ -239,14 +239,12 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 	// Draw String
 	DecalFont_DrawLine(totalTimeString, posX, numParamY >> 0x10,
 	                   compactResults ? FONT_SMALL : FONT_BIG, timeColor);
-	if (gGT->numLaps > EXTENDED_LAP_HISTORY_CAPACITY && (gGT->gameMode1 & RELIC_RACE) == 0)
-	{
-		return;
-	}
+	bool relicRace = (gGT->gameMode1 & RELIC_RACE) != 0;
+	bool showLapRows = gGT->numLaps <= EXTENDED_LAP_HISTORY_CAPACITY &&
+	                   (!relicRace || (flags & UI_RACE_CLOCK_DRAW_LAPS_IN_RELIC) != 0);
+	if (!showLapRows && !relicRace) { return; }
 
-	if (gGT->numLaps <= EXTENDED_LAP_HISTORY_CAPACITY && (
-	    // If you're not in a Relic Race
-	    ((gGT->gameMode1 & RELIC_RACE) == 0) || ((flags & UI_RACE_CLOCK_DRAW_LAPS_IN_RELIC) != 0)))
+	if (showLapRows)
 	{
 		// If you're not in Arcade mode,
 		// nor Time Trial, nor adventure mode

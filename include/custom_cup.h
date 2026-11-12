@@ -73,11 +73,8 @@ bool CustomCup_NameIsValid(const char *name);
 /* Resolves a single identity against the current registry. Availability and
    mode restrictions are checked separately by the caller. */
 bool CustomCup_ResolveTrack(const char *identity, const struct NativeTrackRegistry *registry, int *levelID);
-/* Returns the first unresolved position, CUSTOM_CUP_TRACKS_RESOLVED, or
-   CUSTOM_CUP_INVALID if the cup is invalid.
-   This does not check whether a resolved track is enabled or supports a mode. */
-int CustomCup_FirstUnresolvedTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry);
-/* As above, also rejects disabled custom tracks and tracks without Arcade support.
+/* Returns the first unresolved or unavailable position, CUSTOM_CUP_TRACKS_RESOLVED,
+   or CUSTOM_CUP_INVALID if the cup is invalid. Rejects disabled custom tracks and tracks without Arcade support.
    Player-count and retail unlock restrictions are checked separately. */
 int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry);
 /* Returns an owned prefixed identity for a runtime ID, or NULL on failure. */

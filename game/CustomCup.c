@@ -196,17 +196,7 @@ bool CustomCup_ResolveTrack(const char *identity, const struct NativeTrackRegist
 	return false;
 }
 
-int CustomCup_FirstUnresolvedTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry)
-{
-	if (!CustomCup_IsValid(cup)) { return CUSTOM_CUP_INVALID; }
-	for (int i = 0; i < cup->trackCount; i++)
-	{
-		if (!CustomCup_ResolveTrack(cup->tracks[i], registry, NULL)) { return i; }
-	}
-	return CUSTOM_CUP_TRACKS_RESOLVED;
-}
-
-int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry)
+static int CustomCup_ResolveArcadeTracks(const struct CustomCup *cup, const struct NativeTrackRegistry *registry, int *levelIDs)
 {
 	if (!CustomCup_IsValid(cup)) { return CUSTOM_CUP_INVALID; }
 	for (int i = 0; i < cup->trackCount; i++)
@@ -219,6 +209,7 @@ int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const str
 		{
 			return i;
 		}
+		if (levelIDs != NULL) { levelIDs[i] = levelID; }
 	}
 	return CUSTOM_CUP_TRACKS_RESOLVED;
 }
@@ -289,6 +280,11 @@ bool CustomCup_NameIsValid(const char *name)
 	return characters > 0 && i < CUSTOM_CUP_NAME_BYTES;
 }
 
+int CustomCup_FirstUnavailableArcadeTrack(const struct CustomCup *cup, const struct NativeTrackRegistry *registry)
+{
+	return CustomCup_ResolveArcadeTracks(cup, registry, NULL);
+}
+
 bool CustomCup_IsValid(const struct CustomCup *cup)
 {
 	if (cup == NULL || !CustomCup_NameIsValid(cup->name) ||
@@ -316,16 +312,15 @@ void CustomCupRace_Clear(struct CustomCupRaceState *state)
 bool CustomCupRace_Start(struct CustomCupRaceState *state, const struct CustomCup *cup,
                          const struct NativeTrackRegistry *registry)
 {
-	if (state == NULL || CustomCup_FirstUnavailableArcadeTrack(cup, registry) != CUSTOM_CUP_TRACKS_RESOLVED)
+	struct CustomCupRaceState next = {0};
+	if (state == NULL || CustomCup_ResolveArcadeTracks(cup, registry, next.levelIDs) != CUSTOM_CUP_TRACKS_RESOLVED)
 	{
 		return false;
 	}
-	struct CustomCupRaceState next = {0};
 	memcpy(next.name, cup->name, sizeof(next.name));
 	next.trackCount = cup->trackCount;
 	for (int i = 0; i < cup->trackCount; i++)
 	{
-		if (!CustomCup_ResolveTrack(cup->tracks[i], registry, &next.levelIDs[i])) { return false; }
 		next.laps[i] = cup->laps[i];
 	}
 	next.active = true;

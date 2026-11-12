@@ -193,13 +193,19 @@ struct NativeCupNameCheck
 	const char *id;
 	bool duplicate;
 	bool ioError;
+	enum NativeCustomCupStorageResult targetResult;
 };
 
 static void NativeCup_CheckName(void *context, const char *id, enum NativeCustomCupStorageResult result, const struct CustomCup *cup)
 {
 	struct NativeCupNameCheck *check = context;
+	if (strcmp(id, check->id) == 0)
+	{
+		check->targetResult = result;
+		return;
+	}
 	if (result == NATIVE_CUSTOM_CUP_IO_ERROR || result == NATIVE_CUSTOM_CUP_NOT_FOUND) { check->ioError = true; }
-	if (result == NATIVE_CUSTOM_CUP_OK && strcmp(id, check->id) != 0 && strcmp(cup->name, check->name) == 0)
+	if (result == NATIVE_CUSTOM_CUP_OK && strcmp(cup->name, check->name) == 0)
 	{
 		check->duplicate = true;
 	}
@@ -213,15 +219,14 @@ enum NativeCustomCupStorageResult NativeCustomCup_Save(char id[NATIVE_CUSTOM_CUP
 	if (!NativeCup_Directory(directory, sizeof(directory)) || !SDL_CreateDirectory(directory)) { return NATIVE_CUSTOM_CUP_IO_ERROR; }
 	if (id[0] != '\0')
 	{
-		struct CustomCup existing = {0};
-		enum NativeCustomCupStorageResult result = NativeCustomCup_Load(id, &existing);
-		CustomCup_Clear(&existing);
-		if (result != NATIVE_CUSTOM_CUP_OK) { return result; }
+		if (!NativeCup_Path(path, sizeof(path), id)) { return NATIVE_CUSTOM_CUP_INVALID; }
 		memcpy(target, id, sizeof(target));
 	}
-	struct NativeCupNameCheck check = {cup->name, id, false, false};
+	struct NativeCupNameCheck check = {cup->name, id, false, false, NATIVE_CUSTOM_CUP_NOT_FOUND};
 	enum NativeCustomCupStorageResult scanResult = NativeCustomCup_Scan(NativeCup_CheckName, &check);
-	if (scanResult != NATIVE_CUSTOM_CUP_OK || check.ioError) { return NATIVE_CUSTOM_CUP_IO_ERROR; }
+	if (scanResult != NATIVE_CUSTOM_CUP_OK) { return NATIVE_CUSTOM_CUP_IO_ERROR; }
+	if (id[0] != '\0' && check.targetResult != NATIVE_CUSTOM_CUP_OK) { return check.targetResult; }
+	if (check.ioError) { return NATIVE_CUSTOM_CUP_IO_ERROR; }
 	if (check.duplicate) { return NATIVE_CUSTOM_CUP_DUPLICATE; }
 	if (id[0] == '\0')
 	{

@@ -98,6 +98,11 @@ int main(void)
 	CTR_TEST_CHECK(NativeCustomCup_Delete(thirdID) == NATIVE_CUSTOM_CUP_NOT_FOUND &&
 	               NativeCustomCup_Load(secondID, &loaded) == NATIVE_CUSTOM_CUP_OK,
 	               "deleting a missing cup leaves other files intact");
+	CTR_TEST_CHECK(NativeCustomCup_Save(thirdID, &cup) == NATIVE_CUSTOM_CUP_NOT_FOUND,
+	               "saving an existing ID refuses to recreate a missing cup");
+	char invalidID[NATIVE_CUSTOM_CUP_ID_SIZE] = "../invalid";
+	CTR_TEST_CHECK(NativeCustomCup_Save(invalidID, &cup) == NATIVE_CUSTOM_CUP_INVALID,
+	               "saving rejects invalid file identifiers");
 	CTR_TEST_CHECK(NativeCustomCup_Load("../invalid", &loaded) == NATIVE_CUSTOM_CUP_INVALID,
 	               "file identifiers cannot escape the cup directory");
 

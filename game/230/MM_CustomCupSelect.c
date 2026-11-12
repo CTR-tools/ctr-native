@@ -48,7 +48,7 @@ enum
 struct CustomCupSelectEntry
 {
 	char id[NATIVE_CUSTOM_CUP_ID_SIZE];
-	char name[CUSTOM_CUP_NAME_BYTES];
+	struct CustomCup cup;
 };
 
 static enum CustomCupSelectPage s_cupSelectPage;
@@ -71,7 +71,7 @@ static struct TransitionMeta s_cupListTransitions[] = {
 static int s_cupListTransitionFrame;
 static enum { CUSTOM_CUP_LIST_ENTERING, CUSTOM_CUP_LIST_READY, CUSTOM_CUP_LIST_EXITING } s_cupListTransition;
 static bool s_cupSelectError;
-static struct CustomCup s_cupSelectPreview;
+static struct CustomCup *s_cupSelectPreview;
 
 static void MM_CustomCupSelect_OnSelected(void *context, int index);
 static void MM_CustomCupSelect_OnConfirm(void *context, int index);
@@ -96,7 +96,7 @@ static const char *MM_CustomCupSelect_Label(void *context, int index, char *buff
 	(void)context;
 	(void)buffer;
 	(void)capacity;
-	return index == 0 ? LANG_GetString(LNG_EXPANDED_CUPS_CREATE_NEW) : s_cupSelectEntries[index - 1].name;
+	return index == 0 ? LANG_GetString(LNG_EXPANDED_CUPS_CREATE_NEW) : s_cupSelectEntries[index - 1].cup.name;
 }
 
 static struct MM_CarouselSource MM_CustomCupSelect_Source(void)
@@ -112,10 +112,11 @@ static struct MM_CarouselSource MM_CustomCupSelect_Source(void)
 
 static void MM_CustomCupSelect_Clear(void)
 {
+	for (size_t i = 0; i < s_cupSelectCount; i++) { CustomCup_Clear(&s_cupSelectEntries[i].cup); }
 	free(s_cupSelectEntries);
 	s_cupSelectEntries = NULL;
 	s_cupSelectCount = 0;
-	CustomCup_Clear(&s_cupSelectPreview);
+	s_cupSelectPreview = NULL;
 }
 
 static void MM_CustomCupSelect_Visit(void *context, const char *id,
@@ -139,19 +140,16 @@ static void MM_CustomCupSelect_Visit(void *context, const char *id,
 		return;
 	}
 	s_cupSelectEntries = entries;
-	struct CustomCupSelectEntry *entry = &entries[s_cupSelectCount++];
+	struct CustomCupSelectEntry *entry = &entries[s_cupSelectCount];
+	memset(entry, 0, sizeof(*entry));
+	if (!CustomCup_Copy(&entry->cup, cup)) { s_cupSelectError = true; return; }
 	memcpy(entry->id, id, sizeof(entry->id));
-	memcpy(entry->name, cup->name, sizeof(entry->name));
+	s_cupSelectCount++;
 }
 
 static void MM_CustomCupSelect_Preview(int index)
 {
-	CustomCup_Clear(&s_cupSelectPreview);
-	if (index > 0 && (size_t)index <= s_cupSelectCount &&
-	    NativeCustomCup_Load(s_cupSelectEntries[index - 1].id, &s_cupSelectPreview) != NATIVE_CUSTOM_CUP_OK)
-	{
-		s_cupSelectError = true;
-	}
+	s_cupSelectPreview = index > 0 && (size_t)index <= s_cupSelectCount ? &s_cupSelectEntries[index - 1].cup : NULL;
 }
 
 static void MM_CustomCupSelect_OnSelected(void *context, int index)
@@ -202,12 +200,11 @@ static void MM_CustomCupSelect_Init(void)
 	}
 }
 
-static bool MM_CustomCupSelect_TracksOpen(const struct CustomCup *cup)
+static bool MM_CustomCupSelect_TracksOpen(const struct CustomCupRaceState *race)
 {
-	for (int i = 0; i < cup->trackCount; i++)
+	for (int i = 0; i < race->trackCount; i++)
 	{
-		int level;
-		if (!CustomCup_ResolveTrack(cup->tracks[i], NativeTrackLibrary_Current(), &level)) { return false; }
+		int level = race->levelIDs[i];
 		for (int j = 0; j < CUSTOM_CUP_SELECT_RETAIL_TRACK_COUNT; j++)
 		{
 			if (MM_ARCADE_TRACKS[j].levID == level && !MM_TrackSelect_boolTrackOpen(&MM_ARCADE_TRACKS[j]))
@@ -293,15 +290,15 @@ static void MM_CustomCupSelect_DrawPreview(struct GameTracker *gGT, int offsetY)
 	int titleX = positionX + numberWidth + CUSTOM_CUP_SELECT_PREVIEW_COLUMN_GAP;
 	int lapsX = CUSTOM_CUP_SELECT_PREVIEW_X + CUSTOM_CUP_SELECT_PREVIEW_WIDTH - numberWidth;
 	int titleWidth = lapsX - CUSTOM_CUP_SELECT_PREVIEW_COLUMN_GAP - titleX;
-	for (int i = 0; i < s_cupSelectPreview.trackCount; i++)
+	for (int i = 0; s_cupSelectPreview != NULL && i < s_cupSelectPreview->trackCount; i++)
 	{
 		int level;
 		char title[128], text[128], position[12], laps[12];
-		const char *name = CustomCup_ResolveTrack(s_cupSelectPreview.tracks[i], NativeTrackLibrary_Current(), &level)
+		const char *name = CustomCup_ResolveTrack(s_cupSelectPreview->tracks[i], NativeTrackLibrary_Current(), &level)
 		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : LANG_GetString(LNG_EXPANDED_CUPS_TRACK_UNAVAILABLE);
 		snprintf(text, sizeof(text), "%s", name);
 		snprintf(position, sizeof(position), "%d", i + 1);
-		snprintf(laps, sizeof(laps), "%d", s_cupSelectPreview.laps[i]);
+		snprintf(laps, sizeof(laps), "%d", s_cupSelectPreview->laps[i]);
 		TrackText_Scroll(text, titleWidth, FONT_SMALL, gGT->timer);
 		int y = CUSTOM_CUP_SELECT_PREVIEW_Y + offsetY + i * CUSTOM_CUP_SELECT_PREVIEW_STEP;
 		DecalFont_DrawLineOT(position, positionX + numberWidth, y, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, ot);
@@ -350,7 +347,8 @@ static void MM_CustomCupSelect_OnConfirm(void *context, int index)
 		else { s_cupSelectError = true; }
 		return;
 	}
-	if (index < 1 || (size_t)index > s_cupSelectCount || !CustomCup_IsValid(&s_cupSelectPreview))
+	if (index < 1 || (size_t)index > s_cupSelectCount ||
+	    NativeCustomCup_Load(s_cupSelectEntries[index - 1].id, &s_cupSelectEntries[index - 1].cup) != NATIVE_CUSTOM_CUP_OK)
 	{
 		s_cupSelectError = true;
 		return;
@@ -365,10 +363,11 @@ static void MM_CustomCupSelect_Play(void)
 {
 	struct GameTracker *gGT = GAME_TRACKER;
 	int level, laps;
-	if (MM_CustomCupSelect_TracksOpen(&s_cupSelectPreview) &&
-	    CustomCupRace_Start(&sdata->customCupRace, &s_cupSelectPreview, NativeTrackLibrary_Current()) &&
-	    CustomCupRace_Current(&sdata->customCupRace, &level, &laps))
+	struct CustomCupRaceState race = {0};
+	if (CustomCupRace_Start(&race, s_cupSelectPreview, NativeTrackLibrary_Current()) &&
+	    MM_CustomCupSelect_TracksOpen(&race) && CustomCupRace_Current(&race, &level, &laps))
 	{
+		sdata->customCupRace = race;
 		gGT->cup.cupID = 0;
 		gGT->cup.trackIndex = 0;
 		memset(gGT->cup.points, 0, sizeof(gGT->cup.points));
@@ -397,7 +396,7 @@ static void MM_CustomCupSelect_DrawActions(struct GameTracker *gGT, const char *
 	int rowsY = deleting ? actionY + rowHeight + 12 : actionY;
 	int centerX = CUSTOM_CUP_SELECT_MENU_X + CUSTOM_CUP_SELECT_MENU_WIDTH / 2;
 	char title[CUSTOM_CUP_NAME_BYTES];
-	TrackText_Copy(title, sizeof(title), s_cupSelectPreview.name);
+	TrackText_Copy(title, sizeof(title), s_cupSelectPreview->name);
 	TrackText_Scroll(title, CUSTOM_CUP_SELECT_MENU_WIDTH - 2 * CUSTOM_CUP_SELECT_MENU_PADDING,
 	                 FONT_BIG, gGT->timer);
 	DecalFont_DrawLineOT(title, centerX, menuY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);

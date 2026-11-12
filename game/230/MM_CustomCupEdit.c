@@ -36,12 +36,12 @@ static const char *s_editMessage;
 static bool MM_CustomCupEdit_Dirty(void)
 {
 	if (s_editCreating) { return s_editCup.trackCount != 0 || s_editCup.name[0] != '\0'; }
-	if (strcmp(s_editCup.name, s_cupSelectPreview.name) != 0) { return true; }
-	if (s_editCup.trackCount != s_cupSelectPreview.trackCount) { return true; }
+	if (strcmp(s_editCup.name, s_cupSelectPreview->name) != 0) { return true; }
+	if (s_editCup.trackCount != s_cupSelectPreview->trackCount) { return true; }
 	for (int i = 0; i < s_editCup.trackCount; i++)
 	{
-		if (s_editCup.laps[i] != s_cupSelectPreview.laps[i] ||
-		    strcmp(s_editCup.tracks[i], s_cupSelectPreview.tracks[i]) != 0) { return true; }
+		if (s_editCup.laps[i] != s_cupSelectPreview->laps[i] ||
+		    strcmp(s_editCup.tracks[i], s_cupSelectPreview->tracks[i]) != 0) { return true; }
 	}
 	return false;
 }
@@ -49,7 +49,7 @@ static bool MM_CustomCupEdit_Dirty(void)
 static bool MM_CustomCupEdit_Open(bool creating)
 {
 	CustomCup_Clear(&s_editCup);
-	if (!creating && !CustomCup_Copy(&s_editCup, &s_cupSelectPreview)) { return false; }
+	if (!creating && !CustomCup_Copy(&s_editCup, s_cupSelectPreview)) { return false; }
 	s_editCreating = creating;
 	s_editSavedID[0] = '\0';
 	s_editMessage = NULL;
@@ -153,10 +153,11 @@ static bool MM_CustomCupEdit_Save(void)
 	{
 		if (!s_editCreating)
 		{
-			memcpy(s_cupSelectEntries[s_cupCarousel.selected - 1].name, s_editCup.name, sizeof(s_editCup.name));
+			CustomCup_Clear(s_cupSelectPreview);
+			*s_cupSelectPreview = s_editCup;
+			memset(&s_editCup, 0, sizeof(s_editCup));
 		}
 		CustomCup_Clear(&s_editCup);
-		if (!s_editCreating) { MM_CustomCupSelect_Preview(s_cupCarousel.selected); }
 		return true;
 	}
 	s_editMessage = LANG_GetString(result == NATIVE_CUSTOM_CUP_DUPLICATE ? LNG_EXPANDED_CUPS_DUPLICATE_NAME :
