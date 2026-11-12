@@ -113,9 +113,7 @@ void MM_CupSelect_MenuProc(struct RectMenu *menu)
 
 			if (g_config.customCups && (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0)
 			{
-				s_cupSelectPage = CUSTOM_CUP_SELECT_KIND;
-				s_cupKindRow = 0;
-				s_cupKindScroll.offset = 0;
+				MM_CustomCupSelect_EnterKind(0);
 				RECTMENU_ClearInput();
 				return;
 			}
