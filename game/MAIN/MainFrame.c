@@ -173,10 +173,7 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 			else
 			{
 				DISPLAY_Blur_Main(pushBuffer, -uVar3);
-				if (!Chaos_IsTimeStopped())
-				{
-					psVar9->clockFlash--;
-				}
+				psVar9->clockFlash--;
 			}
 		LAB_80034e74:
 			pushBuffer = pushBuffer + 1;
