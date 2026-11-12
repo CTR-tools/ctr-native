@@ -10,14 +10,26 @@ enum CustomCupSelectPage
 	CUSTOM_CUP_SELECT_STANDARD,
 	CUSTOM_CUP_SELECT_KIND,
 	CUSTOM_CUP_SELECT_LIST,
+	CUSTOM_CUP_SELECT_ACTIONS,
+	CUSTOM_CUP_SELECT_DELETE,
 };
 
 enum
 {
+	CUSTOM_CUP_ACTION_PLAY,
+	CUSTOM_CUP_ACTION_EDIT,
+	CUSTOM_CUP_ACTION_DELETE,
+	CUSTOM_CUP_ACTION_COUNT,
+	CUSTOM_CUP_DELETE_NO = 0,
+	CUSTOM_CUP_DELETE_YES,
+	CUSTOM_CUP_DELETE_COUNT,
 	CUSTOM_CUP_SELECT_RETAIL_TRACK_COUNT = 18,
 	CUSTOM_CUP_SELECT_KIND_COUNT = 2,
 	CUSTOM_CUP_SELECT_CAROUSEL_X = 0,
 	CUSTOM_CUP_SELECT_CAROUSEL_Y = 0,
+	CUSTOM_CUP_SELECT_MENU_X = 16,
+	CUSTOM_CUP_SELECT_MENU_WIDTH = 256,
+	CUSTOM_CUP_SELECT_MENU_PADDING = 8,
 	CUSTOM_CUP_SELECT_PREVIEW_WIDTH = 204,
 	CUSTOM_CUP_SELECT_PREVIEW_X = 298,
 	CUSTOM_CUP_SELECT_PREVIEW_Y = 34,
@@ -41,13 +53,19 @@ static struct CustomCupSelectEntry *s_cupSelectEntries;
 static size_t s_cupSelectCount;
 static int s_cupKindRow;
 static struct FullScreenMenu_Scroll s_cupKindScroll;
+static s16 s_cupActionRow;
+static s16 s_cupDeleteRow;
+static struct FullScreenMenu_Scroll s_cupActionScroll;
+static struct FullScreenMenu_Scroll s_cupDeleteScroll;
 static struct MM_Carousel s_cupCarousel;
 static bool s_cupSelectError;
 static bool s_cupCreateUnavailable;
+static bool s_cupEditUnavailable;
 static struct CustomCup s_cupSelectPreview;
 
 static void MM_CustomCupSelect_OnSelected(void *context, int index);
 static void MM_CustomCupSelect_OnConfirm(void *context, int index);
+static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT);
 
 static const char *MM_CustomCupSelect_Label(void *context, int index, char *buffer, size_t capacity)
 {
@@ -119,7 +137,7 @@ static void MM_CustomCupSelect_OnSelected(void *context, int index)
 	MM_CustomCupSelect_Preview(index);
 }
 
-static void MM_CustomCupSelect_OpenList(void)
+static void MM_CustomCupSelect_OpenList(int selected)
 {
 	MM_CustomCupSelect_Clear();
 	s_cupSelectError = false;
@@ -129,7 +147,8 @@ static void MM_CustomCupSelect_OpenList(void)
 		s_cupSelectError = true;
 	}
 	struct MM_CarouselSource source = MM_CustomCupSelect_Source();
-	MM_Carousel_Init(&s_cupCarousel, &source, 0, (u32)MM_FRAME_COUNTER);
+	if (selected > (int)s_cupSelectCount) { selected = (int)s_cupSelectCount; }
+	MM_Carousel_Init(&s_cupCarousel, &source, selected, (u32)MM_FRAME_COUNTER);
 	s_cupSelectPage = CUSTOM_CUP_SELECT_LIST;
 }
 
@@ -188,7 +207,8 @@ static bool MM_CustomCupSelect_UpdateKind(struct RectMenu *menu, u32 tapped)
 			menu->rowSelected = 0;
 			return false;
 		}
-		MM_CustomCupSelect_OpenList();
+		MM_CustomCupSelect_OpenList(0);
+		MM_CustomCupSelect_DrawScreen(gGT);
 		return true;
 	}
 
@@ -266,6 +286,20 @@ static void MM_CustomCupSelect_OnConfirm(void *context, int index)
 		s_cupCreateUnavailable = true;
 		return;
 	}
+	if (index < 1 || (size_t)index > s_cupSelectCount || !CustomCup_IsValid(&s_cupSelectPreview))
+	{
+		s_cupSelectError = true;
+		return;
+	}
+	s_cupSelectError = false;
+	s_cupEditUnavailable = false;
+	s_cupActionRow = CUSTOM_CUP_ACTION_PLAY;
+	s_cupActionScroll.offset = 0;
+	s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
+}
+
+static void MM_CustomCupSelect_Play(void)
+{
 	struct GameTracker *gGT = GAME_TRACKER;
 	int level, laps;
 	if (MM_CustomCupSelect_TracksOpen(&s_cupSelectPreview) &&
@@ -284,6 +318,111 @@ static void MM_CustomCupSelect_OnConfirm(void *context, int index)
 	s_cupSelectError = true;
 }
 
+static void MM_CustomCupSelect_DrawActions(struct GameTracker *gGT, const char *const *labels,
+                                           int count, int selected, bool deleting)
+{
+	static struct MenuRow headerRows[] = {{.stringIndex = 0}, {.stringIndex = -1}};
+	static struct MenuRow actionRows[] = {{.stringIndex = 0}, {.stringIndex = 0}, {.stringIndex = 0}, {.stringIndex = -1}};
+	static struct MenuRow confirmRows[] = {{.stringIndex = 0}, {.stringIndex = 0}, {.stringIndex = -1}};
+	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	int rowHeight = data.font_charPixHeight[FONT_BIG] + 3;
+	int previewHeight = CUSTOM_CUP_MAX_TRACKS * CUSTOM_CUP_SELECT_PREVIEW_STEP + CUSTOM_CUP_SELECT_PREVIEW_PADDING +
+	                    CUSTOM_CUP_SELECT_PREVIEW_Y - CUSTOM_CUP_SELECT_PREVIEW_TOP;
+	int menuHeight = (1 + count + (deleting ? 1 : 0)) * rowHeight + (deleting ? 24 : 12) + 8;
+	int menuY = CUSTOM_CUP_SELECT_PREVIEW_TOP + (previewHeight - menuHeight) / 2 + 4;
+	int actionY = menuY + rowHeight + 12;
+	int rowsY = deleting ? actionY + rowHeight + 12 : actionY;
+	int centerX = CUSTOM_CUP_SELECT_MENU_X + CUSTOM_CUP_SELECT_MENU_WIDTH / 2;
+	char title[CUSTOM_CUP_NAME_BYTES];
+	TrackText_Copy(title, sizeof(title), s_cupSelectPreview.name);
+	TrackText_Scroll(title, CUSTOM_CUP_SELECT_MENU_WIDTH - 2 * CUSTOM_CUP_SELECT_MENU_PADDING,
+	                 FONT_BIG, gGT->timer);
+	DecalFont_DrawLineOT(title, centerX, menuY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+	if (deleting)
+	{
+		DecalFont_DrawLineOT("DELETE", centerX, actionY + 2, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+	}
+	for (int i = 0; i < count; i++)
+	{
+		int y = rowsY + 2 + i * rowHeight;
+		DecalFont_DrawLineOT((char *)labels[i], centerX, y, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+	}
+	struct RectMenu confirmation = {.stringIndexTitle = -1, .rows = confirmRows, .rowSelected = selected};
+	struct RectMenu actions = {.stringIndexTitle = -1, .rows = actionRows, .rowSelected = deleting ? CUSTOM_CUP_ACTION_DELETE : selected};
+	struct RectMenu header = {.stringIndexTitle = -1, .rows = headerRows,
+	                          .state = HIDE_ROW_HIGHLIGHT | DRAW_NEXT_MENU_IN_HIERARCHY,
+	                          .ptrNextBox_InHierarchy = &actions};
+	if (deleting)
+	{
+		actions.state = SHOW_ONLY_HIGHLIT_ROW | HIDE_ROW_HIGHLIGHT | DRAW_NEXT_MENU_IN_HIERARCHY;
+		actions.ptrNextBox_InHierarchy = &confirmation;
+	}
+	RECTMENU_DrawSelf(&header, CUSTOM_CUP_SELECT_MENU_X, menuY, CUSTOM_CUP_SELECT_MENU_WIDTH);
+	MM_CustomCupSelect_DrawPreview(gGT);
+}
+
+static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT)
+{
+	static const char *const actions[] = {"PLAY", "EDIT", "DELETE"};
+	static const char *const confirmation[] = {"NO", "YES"};
+	bool deleting = s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE;
+	s16 *row = deleting ? &s_cupDeleteRow : &s_cupActionRow;
+	struct FullScreenMenu_Scroll *scroll = deleting ? &s_cupDeleteScroll : &s_cupActionScroll;
+	int count = deleting ? CUSTOM_CUP_DELETE_COUNT : CUSTOM_CUP_ACTION_COUNT;
+	if (FullScreenMenu_Back(tapped))
+	{
+		RECTMENU_ClearInput();
+		s_cupSelectPage = deleting ? CUSTOM_CUP_SELECT_ACTIONS : CUSTOM_CUP_SELECT_LIST;
+		s_cupSelectError = false;
+		s_cupEditUnavailable = false;
+		if (deleting) { MM_CustomCupSelect_UpdateActions(0, gGT); }
+		else { MM_CustomCupSelect_DrawScreen(gGT); }
+		return;
+	}
+	FullScreenMenu_NavTapped(tapped, scroll, row, count);
+	if (FullScreenMenu_Confirm(tapped))
+	{
+		RECTMENU_ClearInput();
+		if (deleting)
+		{
+			if (*row == CUSTOM_CUP_DELETE_YES)
+			{
+				int selected = s_cupCarousel.selected;
+				if (NativeCustomCup_Delete(s_cupSelectEntries[selected - 1].id) == NATIVE_CUSTOM_CUP_OK)
+				{
+					MM_CustomCupSelect_OpenList(selected);
+					MM_CustomCupSelect_DrawScreen(gGT);
+					return;
+				}
+				s_cupSelectError = true;
+			}
+			s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
+			MM_CustomCupSelect_UpdateActions(0, gGT);
+			return;
+		}
+		s_cupSelectError = false;
+		s_cupEditUnavailable = false;
+		if (*row == CUSTOM_CUP_ACTION_PLAY)
+		{
+			MM_CustomCupSelect_Play();
+			if (MM_DESIRED_MENU == &MM_MENU_QUEUE_LOAD_TRACK) { return; }
+		}
+		else if (*row == CUSTOM_CUP_ACTION_EDIT) { s_cupEditUnavailable = true; }
+		else if (*row == CUSTOM_CUP_ACTION_DELETE)
+		{
+			s_cupDeleteRow = CUSTOM_CUP_DELETE_NO;
+			s_cupDeleteScroll.offset = 0;
+			s_cupSelectPage = CUSTOM_CUP_SELECT_DELETE;
+			MM_CustomCupSelect_UpdateActions(0, gGT);
+			return;
+		}
+	}
+	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	MM_CustomCupSelect_DrawActions(gGT, deleting ? confirmation : actions, count, *row, deleting);
+	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
+	else if (s_cupEditUnavailable) { FullScreenMenu_DrawPrompt("CUP EDITING IS NOT YET AVAILABLE", ot); }
+}
+
 /* Returns false once the original cup selector should take over. */
 static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 {
@@ -291,6 +430,11 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 	struct GameTracker *gGT = GAME_TRACKER;
 	u32 tapped = (u32)sdata->gGamepads->gamepad[0].buttonsTapped;
 	if (s_cupSelectPage == CUSTOM_CUP_SELECT_KIND) { return MM_CustomCupSelect_UpdateKind(menu, tapped); }
+	if (s_cupSelectPage == CUSTOM_CUP_SELECT_ACTIONS || s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE)
+	{
+		MM_CustomCupSelect_UpdateActions(tapped, gGT);
+		return true;
+	}
 	if (s_cupSelectPage == CUSTOM_CUP_SELECT_LIST)
 	{
 		struct MM_CarouselSource source = MM_CustomCupSelect_Source();
@@ -299,6 +443,11 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 		{
 			RECTMENU_ClearInput();
 			if (MM_DESIRED_MENU == &MM_MENU_QUEUE_LOAD_TRACK) { return true; }
+			if (s_cupSelectPage != CUSTOM_CUP_SELECT_LIST)
+			{
+				MM_CustomCupSelect_UpdateActions(0, gGT);
+				return true;
+			}
 			tapped = 0;
 		}
 		if (moving) { tapped = 0; }
@@ -311,6 +460,7 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 			MM_CustomCupSelect_Clear();
 			s_cupSelectPage = CUSTOM_CUP_SELECT_KIND;
 			s_cupKindRow = 1;
+			MM_CustomCupSelect_UpdateKind(menu, 0);
 		}
 		return true;
 	}
