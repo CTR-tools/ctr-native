@@ -456,6 +456,17 @@ struct TrackCarouselContext
 };
 
 static struct MM_Carousel s_trackCarousel;
+static struct
+{
+	bool active;
+	bool done;
+	bool confirmed;
+	int result;
+	int previousLevel;
+	int previousSelection;
+	int previousMenuRow;
+	int previousErrorPosition;
+} s_trackPicker;
 
 static bool MM_TrackCarousel_Enabled(void *context, int index)
 {
@@ -490,6 +501,12 @@ static void MM_TrackCarousel_Confirm(void *context, int index)
 {
 	(void)context;
 	(void)index;
+	if (s_trackPicker.active)
+	{
+		MM_TRACK_TRANSITION_START_AFTER_EXIT = 1;
+		MM_TRACK_TRANSITION_STATE = EXITING_MENU;
+		return;
+	}
 	if ((GAME_TRACKER->gameMode1 & (BATTLE_MODE | TIME_TRIAL)) != 0)
 	{
 		MM_TRACK_TRANSITION_START_AFTER_EXIT = 1;
@@ -595,6 +612,46 @@ void MM_TrackSelect_Init(void)
 	MM_TrackSelect_Video_SetDefaults();
 }
 
+static void MM_TrackSelect_OpenPicker(int initialLevel)
+{
+	s_trackPicker.previousLevel = GAME_TRACKER->currLEV;
+	s_trackPicker.previousSelection = MM_TRACK_SEL_BACKUP;
+	s_trackPicker.previousMenuRow = MM_MENU_TRACK_SELECT.rowSelected;
+	s_trackPicker.previousErrorPosition = MM_ERROR_MESSAGE_POS_INDEX;
+	s_trackPicker.active = true;
+	s_trackPicker.done = false;
+	MM_TRACK_SEL_BACKUP = 0;
+	MM_TrackSelect_Init();
+	struct MainMenu_LevelRow *tracks = s_raceTracks != NULL ? s_raceTracks : MM_ARCADE_TRACKS;
+	int selected = 0;
+	for (int i = 0; i < s_raceTrackCount; i++)
+	{
+		if (tracks[i].levID == initialLevel) { selected = i; break; }
+	}
+	struct TrackCarouselContext context = {tracks, &MM_MENU_TRACK_SELECT};
+	struct MM_CarouselSource source = MM_TrackCarousel_Source(&context, s_raceTrackCount);
+	MM_Carousel_Init(&s_trackCarousel, &source, selected, (u32)MM_FRAME_COUNTER);
+	RECTMENU_ClearInput();
+}
+
+static void MM_TrackSelect_FinishPicker(bool confirmed)
+{
+	s_trackPicker.result = GAME_TRACKER->currLEV;
+	s_trackPicker.confirmed = confirmed;
+	s_trackPicker.done = true;
+	s_trackPicker.active = false;
+	if (MM_TRACK_VIDEO_MEM_ALLOCATED != 0) { NativeSTR_Stop(); }
+	MM_TrackSelect_Video_SetDefaults();
+	GAME_TRACKER->currLEV = s_trackPicker.previousLevel;
+	MM_TRACK_SEL_BACKUP = s_trackPicker.previousSelection;
+	MM_MENU_TRACK_SELECT.rowSelected = s_trackPicker.previousMenuRow;
+	MM_ERROR_MESSAGE_POS_INDEX = s_trackPicker.previousErrorPosition;
+	RECTMENU_ClearInput();
+}
+
+static void MM_TrackSelect_DrawPreview(struct MainMenu_LevelRow *selectMenu, struct RectMenu *menuLocal,
+                                       struct TransitionMeta *transitions, int next, bool lapOpen, bool exiting);
+
 // GCC 2.8.1 is sensitive to the lifetimes in this menu. This
 // body states the same operations without relying on PSX pages or MIPS
 // register contents.
@@ -605,7 +662,6 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 	s16 currTrack;
 	u16 numTracks;
 	u32 trackCountWork;
-	register struct TransitionMeta *levelTitleTransition CTR_PSX_REGISTER("$16");
 	register b32 resetPreviewVideo CTR_PSX_REGISTER("$4");
 	(void)trackCountWork;
 	menuLocal = menu;
@@ -648,6 +704,11 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 		MM_TRACK_TRANSITION_FRAME++;
 		if (MM_TRACK_TRANSITION_FRAME > MM_TRACK_SELECT_TRANSITION_FRAMES)
 		{
+			if (s_trackPicker.active)
+			{
+				MM_TrackSelect_FinishPicker(MM_TRACK_TRANSITION_START_AFTER_EXIT != 0);
+				return;
+			}
 			MM_ERROR_MESSAGE_POS_INDEX = 0;
 			if (MM_TRACK_TRANSITION_START_AFTER_EXIT != 0)
 			{
@@ -794,6 +855,14 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 	MM_TrackSelect_Video_State(resetPreviewVideo);
 	MM_Carousel_Draw(&s_trackCarousel, &carouselSource, GAME_TRACKER, MM_TRACK_TRANSITIONS[0].currX,
 	                 MM_TRACK_TRANSITIONS[0].currY, (u32)MM_FRAME_COUNTER);
+	MM_TrackSelect_DrawPreview(selectMenu, menuLocal, MM_TRACK_TRANSITIONS, s_trackCarousel.next,
+	                           MM_TRACK_LAP_BOX_OPEN != 0, MM_TRACK_TRANSITION_STATE == EXITING_MENU);
+}
+
+static void MM_TrackSelect_DrawPreview(struct MainMenu_LevelRow *selectMenu, struct RectMenu *menuLocal,
+                                       struct TransitionMeta *transitions, int next, bool lapOpen, bool exiting)
+{
+	register struct TransitionMeta *levelTitleTransition CTR_PSX_REGISTER("$16");
 	{
 				// The preview, title, and minimap are drawn after the row list.
 				register s32 previewX CTR_PSX_REGISTER("$3");
@@ -802,8 +871,8 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 				int customMap = MM_TrackSelect_CustomMap(selectMenu[menuLocal->rowSelected].levID);
 				previewRect.w = MM_TRACK_VIDEO_WIDTH;
 				previewRect.h = MM_TRACK_VIDEO_HEIGHT;
-				previewX = MM_TRACK_TRANSITIONS[1].currX;
-				previewY = MM_TRACK_TRANSITIONS[1].currY;
+				previewX = transitions[1].currX;
+				previewY = transitions[1].currY;
 				previewRect.x = previewX + MM_TRACK_SELECT_PREVIEW_X;
 				previewRect.y = previewY + MM_TRACK_SELECT_PREVIEW_Y_NO_MAP;
 				CTR_PSX_MEMORY_BARRIER();
@@ -813,18 +882,16 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 					CTR_PSX_KEEP_VALUE(previewMenu);
 					if (customMap || (-1) < selectMenu[previewMenu->rowSelected].mapTextureID)
 					{
-						previewRect.y = MM_TRACK_PREVIEW_Y + MM_TRACK_SELECT_PREVIEW_Y_WITH_MAP;
+						previewRect.y = transitions[1].currY + MM_TRACK_SELECT_PREVIEW_Y_WITH_MAP;
 					}
 				}
 				{
-					register u32 previewLapPage CTR_PSX_REGISTER("$19");
 					register s32 titleFont CTR_PSX_REGISTER("$7");
-					previewLapPage = 0;
 					titleFont = FONT_BIG;
 					(void)titleFont;
-					if (CTR_PSX_PAGE_LVALUE(s16, previewLapPage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0)
+					if (!lapOpen)
 					{
-						levelTitleTransition = MM_TRACK_TRANSITIONS;
+						levelTitleTransition = transitions;
 						DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_SELECT_LEVEL_SELECT], levelTitleTransition[3].currX + MM_TRACK_SELECT_TITLE_X,
 						                   levelTitleTransition[3].currY + (u16)previewRect.y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 						DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[LNG_LEVEL], levelTitleTransition[3].currX + MM_TRACK_SELECT_TITLE_X,
@@ -832,10 +899,10 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 						                   JUSTIFY_CENTER | ORANGE);
 					}
 					previewRect.y += MM_TRACK_SELECT_TITLE_TO_MAP_Y;
-					if (customMap && CTR_PSX_PAGE_LVALUE(s16, previewLapPage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0)
+					if (customMap && !lapOpen)
 					{
-						int mapX = previewRect.x + MM_TRACK_TRANSITIONS[2].currX - MM_TRACK_TRANSITIONS[1].currX;
-						int mapY = previewRect.y + MM_TRACK_TRANSITIONS[2].currY - MM_TRACK_TRANSITIONS[1].currY;
+						int mapX = previewRect.x + transitions[2].currX - transitions[1].currX;
+						int mapY = previewRect.y + transitions[2].currY - transitions[1].currY;
 						MM_TrackSelect_DrawCustomMap(mapX + previewRect.w / 2,
 						                             mapY + MM_TRACK_SELECT_MAP_CENTER_Y_OFFSET + MM_TRACK_SELECT_MAP_BOX_H / 2);
 					}
@@ -844,7 +911,7 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 						mapCheckMenu = menuLocal;
 						CTR_PSX_KEEP_VALUE(mapCheckMenu);
 						if (((-1) < selectMenu[mapCheckMenu->rowSelected].mapTextureID) &&
-						    (CTR_PSX_PAGE_LVALUE(s16, previewLapPage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0))
+						    !lapOpen)
 						{
 							register struct TransitionMeta *mapTransitions CTR_PSX_REGISTER("$4");
 							s32 mapID;
@@ -860,7 +927,7 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 							struct TextureLayout *mapLayout;
 							RECT16 mapRect;
 							mapBoxHeight = MM_TRACK_SELECT_MAP_BOX_H;
-							mapTransitions = MM_TRACK_TRANSITIONS;
+							mapTransitions = transitions;
 							mapRect = previewRect;
 							mapRect.h = mapBoxHeight;
 							{
@@ -917,7 +984,7 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 						}
 					}
 				}
-				MM_TrackSelect_Video_Draw(&previewRect, selectMenu, (s16)s_trackCarousel.next, (u32)(MM_TRACK_TRANSITION_STATE == EXITING_MENU), 0);
+				MM_TrackSelect_Video_Draw(&previewRect, selectMenu, (s16)next, exiting, 0);
 				return;
 	}
 

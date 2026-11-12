@@ -12,6 +12,7 @@ enum CustomCupSelectPage
 	CUSTOM_CUP_SELECT_LIST,
 	CUSTOM_CUP_SELECT_ACTIONS,
 	CUSTOM_CUP_SELECT_DELETE,
+	CUSTOM_CUP_SELECT_EDIT,
 };
 
 enum
@@ -71,7 +72,6 @@ static int s_cupListTransitionFrame;
 static enum { CUSTOM_CUP_LIST_ENTERING, CUSTOM_CUP_LIST_READY, CUSTOM_CUP_LIST_EXITING } s_cupListTransition;
 static bool s_cupSelectError;
 static bool s_cupCreateUnavailable;
-static bool s_cupEditUnavailable;
 static struct CustomCup s_cupSelectPreview;
 
 static void MM_CustomCupSelect_OnSelected(void *context, int index);
@@ -356,7 +356,6 @@ static void MM_CustomCupSelect_OnConfirm(void *context, int index)
 		return;
 	}
 	s_cupSelectError = false;
-	s_cupEditUnavailable = false;
 	s_cupActionRow = CUSTOM_CUP_ACTION_PLAY;
 	s_cupActionScroll.offset = 0;
 	s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
@@ -425,6 +424,8 @@ static void MM_CustomCupSelect_DrawActions(struct GameTracker *gGT, const char *
 	MM_CustomCupSelect_DrawPreview(gGT, 0);
 }
 
+#include "MM_CustomCupEdit.c"
+
 static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT)
 {
 	static const char *const actions[] = {"PLAY", "EDIT", "DELETE"};
@@ -438,7 +439,6 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 		RECTMENU_ClearInput();
 		s_cupSelectPage = deleting ? CUSTOM_CUP_SELECT_ACTIONS : CUSTOM_CUP_SELECT_LIST;
 		s_cupSelectError = false;
-		s_cupEditUnavailable = false;
 		if (deleting) { MM_CustomCupSelect_UpdateActions(0, gGT); }
 		else { MM_CustomCupSelect_DrawScreen(gGT); }
 		return;
@@ -465,13 +465,21 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 			return;
 		}
 		s_cupSelectError = false;
-		s_cupEditUnavailable = false;
 		if (*row == CUSTOM_CUP_ACTION_PLAY)
 		{
 			MM_CustomCupSelect_Play();
 			if (MM_DESIRED_MENU == &MM_MENU_QUEUE_LOAD_TRACK) { return; }
 		}
-		else if (*row == CUSTOM_CUP_ACTION_EDIT) { s_cupEditUnavailable = true; }
+		else if (*row == CUSTOM_CUP_ACTION_EDIT)
+		{
+			if (MM_CustomCupEdit_Open())
+			{
+				s_cupSelectPage = CUSTOM_CUP_SELECT_EDIT;
+				MM_CustomCupEdit_Update(0, gGT);
+				return;
+			}
+			s_cupSelectError = true;
+		}
 		else if (*row == CUSTOM_CUP_ACTION_DELETE)
 		{
 			s_cupDeleteRow = CUSTOM_CUP_DELETE_NO;
@@ -484,7 +492,6 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	MM_CustomCupSelect_DrawActions(gGT, deleting ? confirmation : actions, count, *row, deleting);
 	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
-	else if (s_cupEditUnavailable) { FullScreenMenu_DrawPrompt("CUP EDITING IS NOT YET AVAILABLE", ot); }
 }
 
 /* Returns false once the original cup selector should take over. */
@@ -494,6 +501,15 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 	struct GameTracker *gGT = GAME_TRACKER;
 	u32 tapped = (u32)sdata->gGamepads->gamepad[0].buttonsTapped;
 	if (s_cupSelectPage == CUSTOM_CUP_SELECT_KIND) { return MM_CustomCupSelect_UpdateKind(menu, tapped); }
+	if (s_cupSelectPage == CUSTOM_CUP_SELECT_EDIT)
+	{
+		if (MM_CustomCupEdit_Update(tapped, gGT))
+		{
+			s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
+			MM_CustomCupSelect_UpdateActions(0, gGT);
+		}
+		return true;
+	}
 	if (s_cupSelectPage == CUSTOM_CUP_SELECT_ACTIONS || s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE)
 	{
 		MM_CustomCupSelect_UpdateActions(tapped, gGT);
