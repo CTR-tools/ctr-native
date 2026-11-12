@@ -25,6 +25,7 @@ typedef struct {
     bool expandedAdventureOptions; // expose the additional new-Adventure choices
     bool extraDifficultyLevels; // offer Super Hard and Ultra Hard in Arcade
     bool engineSelection;       // allow players to choose their driving class
+    bool customCups;            // false = original Arcade Cup selection
     int speedMultiplier;        // percent, 10%..200%, 100 = 1.0x (default)
     int gravityMultiplier;      // percent, 10%..300%, 100 = 1.0x (default)
     int turnMultiplier;         // percent, 10%..400%, 100 = 1.0x (default)

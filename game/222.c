@@ -1,4 +1,5 @@
 #include <common.h>
+#include <extended_lap_times.h>
 
 enum ArcadeAdventureEndMenuConstants
 {
@@ -774,7 +775,8 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 
 	if (compactResults)
 	{
-		timeBoxHeight = hudGT->numLaps * data.font_charPixHeight[FONT_SMALL] + AA_COMPACT_RESULT_TIME_BOX_PADDING;
+		int displayedLaps = hudGT->numLaps > EXTENDED_LAP_HISTORY_CAPACITY ? 0 : hudGT->numLaps;
+		timeBoxHeight = displayedLaps * data.font_charPixHeight[FONT_SMALL] + AA_COMPACT_RESULT_TIME_BOX_PADDING;
 		rankX = (driverId & 1) ? AA_COMPACT_RESULT_RANK_X_RIGHT : AA_COMPACT_RESULT_RANK_X_LEFT;
 		rankY = (driverId < 2) ? AA_COMPACT_RESULT_RANK_Y_TOP : AA_COMPACT_RESULT_RANK_Y_BOTTOM;
 		timeX = (driverId & 1) ? AA_COMPACT_RESULT_TIME_X_RIGHT : AA_COMPACT_RESULT_TIME_X_LEFT;

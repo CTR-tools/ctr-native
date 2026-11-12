@@ -1,5 +1,6 @@
 #ifndef CTR_NATIVE_REGIONSEXE_H
 #define CTR_NATIVE_REGIONSEXE_H
+#include <custom_cup.h>
 
 
 enum
@@ -4110,6 +4111,7 @@ struct sData
 	struct NewLoadState newLoad;
 	struct ChaosMenuState chaosMenu;
 	struct MenuRow chaosPauseRows[CHAOS_PAUSE_ROW_CAPACITY];
+	struct CustomCupRaceState customCupRace;
 
 	// after dataLibFiller is 8009AE58,
 	// where psyq allocates globals

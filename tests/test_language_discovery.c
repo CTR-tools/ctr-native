@@ -83,10 +83,14 @@ int main(void)
 	CTR_TEST_CHECK(strcmp(NativeTextRuntime_Get(NATIVE_TEXT_SELECTED_OVERRIDE, LNG_EXPANDED_MODE), "AA MODE") == 0,
 	               "a discovered language loads its Expanded override");
 	g_config.textLanguage = pt;
+	CTR_TEST_CHECK(!g_config.customCups, "custom cups are disabled by default");
+	g_config.customCups = true;
 	NativeConfig_Save();
 	g_config.textLanguage = NATIVE_LANGUAGE_ENGLISH;
+	g_config.customCups = false;
 	NativeConfig_Load();
 	CTR_TEST_CHECK(g_config.textLanguage == pt, "a custom language persists by directory ID");
+	CTR_TEST_CHECK(g_config.customCups, "the custom cups option persists across reloads");
 	WriteFile("config.ini", "[Language]\ntext = missing\n");
 	NativeConfig_Load();
 	CTR_TEST_CHECK(g_config.textLanguage == NATIVE_LANGUAGE_ENGLISH, "an unavailable custom language falls back to English");

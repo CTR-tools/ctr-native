@@ -23,5 +23,15 @@ int main(void)
 	char untouched = 'x';
 	TrackText_Copy(&untouched, 0, "hello");
 	CTR_TEST_CHECK(untouched == 'x', "zero capacity does not write to the destination");
+	char scrolling[32];
+	strcpy(scrolling, "1234567890123456");
+	TrackText_Scroll(scrolling, 14, FONT_SMALL, 0);
+	CTR_TEST_CHECK(strcmp(scrolling, "12345678901234") == 0, "long names start clipped at fourteen visible characters");
+	strcpy(scrolling, "1234567890123456");
+	TrackText_Scroll(scrolling, 14, FONT_SMALL, TRACK_TEXT_SCROLL_PAUSE_FRAMES + 2 * TRACK_TEXT_SCROLL_STEP_FRAMES);
+	CTR_TEST_CHECK(strcmp(scrolling, "34567890123456") == 0, "long names scroll to reveal the end");
+	strcpy(scrolling, "short");
+	TrackText_Scroll(scrolling, 14, FONT_SMALL, 100);
+	CTR_TEST_CHECK(strcmp(scrolling, "short") == 0, "short names do not scroll");
 	return CtrTest_Summary();
 }
