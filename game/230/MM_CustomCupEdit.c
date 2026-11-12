@@ -123,15 +123,16 @@ static void MM_CustomCupEdit_DrawList(struct GameTracker *gGT)
 	FullScreenMenu_SetShadedFrame(true);
 	int rows = s_editCup.trackCount + 3;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	// Prompts must be submitted before the menu to appear above it in the UI OT.
+	if (editingName) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_TRACKS_EDIT_PROMPT), ot); }
+	else if (s_editPage == CUP_EDIT_MOVE) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_MOVE_HINT), ot); }
+	else if (s_editMessage != NULL) { FullScreenMenu_DrawPrompt(s_editMessage, ot); }
+	else if (s_editError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_ERROR), ot); }
 	if (editingName) { FullScreenMenu_DrawEditableTitle(title, rows, ot); }
 	else { FullScreenMenu_DrawTitle(title, rows, 0, ot); }
 	FullScreenMenu_DrawRows(&s_editScroll, rows, s_editRow, MM_CustomCupEdit_DrawRow, NULL, gGT, ot);
 	FullScreenMenu_DrawFrame(rows);
 	FullScreenMenu_SetShadedFrame(shaded);
-	if (editingName) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_TRACKS_EDIT_PROMPT), ot); }
-	else if (s_editPage == CUP_EDIT_MOVE) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_MOVE_HINT), gGT->backBuffer->otMem.uiOT); }
-	else if (s_editMessage != NULL) { FullScreenMenu_DrawPrompt(s_editMessage, gGT->backBuffer->otMem.uiOT); }
-	else if (s_editError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_ERROR), gGT->backBuffer->otMem.uiOT); }
 }
 
 static void MM_CustomCupEdit_DrawActionRow(const void *context, int row, int y, bool selected, uint32_t *ot)

@@ -467,6 +467,7 @@ static inline void FullScreenMenu_NavScroll(struct GamepadBuffer *pad, struct Fu
 	FullScreenMenu_NavTapped((u32)pad->buttonsTapped, scroll, selected, numRows);
 }
 
+// Submit prompts before other menu primitives so they appear in front of them.
 static inline void FullScreenMenu_DrawPrompt(const char *text, uint32_t *ot)
 {
 	int y = SCREEN_HEIGHT - data.font_charPixHeight[FONT_SMALL] - 4;

@@ -334,11 +334,11 @@ static void MM_CustomCupSelect_DrawPreview(struct GameTracker *gGT, int offsetY)
 static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT)
 {
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	if (s_cupSelectError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_OR_TRACK_ERROR), ot); }
 	struct MM_CarouselSource source = MM_CustomCupSelect_Source();
 	MM_Carousel_Draw(&s_cupCarousel, &source, gGT, CUSTOM_CUP_SELECT_CAROUSEL_X + s_cupListTransitions[0].currX,
 	                 CUSTOM_CUP_SELECT_CAROUSEL_Y, (u32)MM_FRAME_COUNTER);
 	MM_CustomCupSelect_DrawPreview(gGT, s_cupListTransitions[1].currY);
-	if (s_cupSelectError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_OR_TRACK_ERROR), ot); }
 }
 
 static void MM_CustomCupSelect_OnConfirm(void *context, int index)
@@ -490,8 +490,8 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 		}
 	}
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
-	MM_CustomCupSelect_DrawActions(gGT, deleting ? confirmation : actions, count, *row, deleting);
 	if (s_cupSelectError) { FullScreenMenu_DrawPrompt(LANG_GetString(LNG_EXPANDED_CUPS_FILE_OR_TRACK_ERROR), ot); }
+	MM_CustomCupSelect_DrawActions(gGT, deleting ? confirmation : actions, count, *row, deleting);
 }
 
 /* Returns false once the original cup selector should take over. */
