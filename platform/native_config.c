@@ -105,6 +105,7 @@ NativeConfig g_config = {
   .unlockAllCharacters = false,
   .unlockNitrosOxide = false,
   .unlockCupDifficulties = false,
+  .unlockTurboTrack = false,
   .unlockAllGates = false,
   .unlockAllPortals = false,
 
@@ -525,6 +526,14 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_CUP_DIFFICULTIES,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockCupDifficulties
+    },
+    {
+        .section = "Unlocks",
+        .key = "unlock_turbo_track",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_TURBO_TRACK,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.unlockTurboTrack
     },
     {
         .section = "Graphics",
