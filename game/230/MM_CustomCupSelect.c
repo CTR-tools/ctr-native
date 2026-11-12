@@ -10,7 +10,6 @@ enum CustomCupSelectPage
 	CUSTOM_CUP_SELECT_STANDARD,
 	CUSTOM_CUP_SELECT_KIND,
 	CUSTOM_CUP_SELECT_LIST,
-	CUSTOM_CUP_SELECT_DELETE,
 };
 
 enum
@@ -257,7 +256,6 @@ static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT)
 	MM_CustomCupSelect_DrawPreview(gGT);
 	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
 	else if (s_cupCreateUnavailable) { FullScreenMenu_DrawPrompt("CUP CREATION IS NOT YET AVAILABLE", ot); }
-	else if (s_cupCarousel.selected > 0) { FullScreenMenu_DrawPrompt("SQUARE: DELETE", ot); }
 }
 
 static void MM_CustomCupSelect_OnConfirm(void *context, int index)
@@ -308,11 +306,7 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 	if (FullScreenMenu_Back(tapped))
 	{
 		RECTMENU_ClearInput();
-		if (s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE)
-		{
-			s_cupSelectPage = CUSTOM_CUP_SELECT_LIST;
-		}
-		else if (s_cupSelectPage == CUSTOM_CUP_SELECT_LIST)
+		if (s_cupSelectPage == CUSTOM_CUP_SELECT_LIST)
 		{
 			MM_CustomCupSelect_Clear();
 			s_cupSelectPage = CUSTOM_CUP_SELECT_KIND;
@@ -320,34 +314,6 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 		}
 		return true;
 	}
-	if (s_cupSelectPage == CUSTOM_CUP_SELECT_LIST && s_cupCarousel.selected > 0 && (tapped & BTN_SQUARE_one) != 0)
-	{
-		s_cupSelectPage = CUSTOM_CUP_SELECT_DELETE;
-		RECTMENU_ClearInput();
-	}
-	else if (s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE && FullScreenMenu_Confirm(tapped))
-	{
-		RECTMENU_ClearInput();
-		if (NativeCustomCup_Delete(s_cupSelectEntries[s_cupCarousel.selected - 1].id) == NATIVE_CUSTOM_CUP_OK)
-		{
-			MM_CustomCupSelect_OpenList();
-		}
-		else
-		{
-			s_cupSelectError = true;
-			s_cupSelectPage = CUSTOM_CUP_SELECT_LIST;
-		}
-	}
-	if (s_cupSelectPage == CUSTOM_CUP_SELECT_DELETE)
-	{
-		bool wasShaded = s_frameDrawStyle == FULLSCREEN_MENU_DRAW_STYLE_SHADED;
-		FullScreenMenu_SetShadedFrame(true);
-		FullScreenMenu_DrawMessage("CUSTOM CUPS", "DELETE? CONFIRM OR BACK", gGT, gGT->backBuffer->otMem.uiOT);
-		FullScreenMenu_SetShadedFrame(wasShaded);
-	}
-	else
-	{
-		MM_CustomCupSelect_DrawScreen(gGT);
-	}
+	MM_CustomCupSelect_DrawScreen(gGT);
 	return true;
 }
