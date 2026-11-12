@@ -63,8 +63,8 @@ try {
     $copies = @(
         @{ From = $Executable; To = $executableName }
         @{ From = 'THIRD_PARTY_NOTICES.md'; To = 'THIRD_PARTY_NOTICES.md' }
-        @{ From = 'default_config.ini'; To = 'config.ini' }
-        @{ From = 'default_controls.ini'; To = 'controls.ini' }
+        @{ From = 'resources/config/default_config.ini'; To = 'config.ini' }
+        @{ From = 'resources/config/default_controls.ini'; To = 'controls.ini' }
     )
     foreach ($copy in $copies) {
         $source = Join-Path $RepoRoot $copy.From
