@@ -214,7 +214,7 @@ the pause menu.
 
 Configuration changes apply at runtime and are saved when leaving Options.
 They are persisted to `build/config.ini` (standard INI format). An example
-template is at `default_config.ini` in the project root.
+template is at `resources/config/default_config.ini`.
 
 Input bindings, deadzones, player assignment and per-player vibration are kept
 separately in `build/controls.ini` and edited from **Options > System > Controls**. See
