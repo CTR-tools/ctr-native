@@ -58,6 +58,7 @@ endfunction()
 
 # Header-only, so it needs none of the platform unit.
 ctr_add_test_suite(test_carousel SOURCES test_carousel.c)
+ctr_add_test_suite(test_lap_clock SOURCES test_lap_clock.c)
 
 ctr_add_test_suite(test_disc_images
     SOURCES test_disc_images.c
