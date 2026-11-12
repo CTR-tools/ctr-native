@@ -71,12 +71,13 @@ static struct TransitionMeta s_cupListTransitions[] = {
 static int s_cupListTransitionFrame;
 static enum { CUSTOM_CUP_LIST_ENTERING, CUSTOM_CUP_LIST_READY, CUSTOM_CUP_LIST_EXITING } s_cupListTransition;
 static bool s_cupSelectError;
-static bool s_cupCreateUnavailable;
 static struct CustomCup s_cupSelectPreview;
 
 static void MM_CustomCupSelect_OnSelected(void *context, int index);
 static void MM_CustomCupSelect_OnConfirm(void *context, int index);
 static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT);
+static bool MM_CustomCupEdit_Open(bool creating);
+static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT);
 
 static bool MM_CustomCupSelect_StepTransition(struct TransitionMeta *transitions, int *frame, bool entering)
 {
@@ -156,7 +157,6 @@ static void MM_CustomCupSelect_Preview(int index)
 static void MM_CustomCupSelect_OnSelected(void *context, int index)
 {
 	(void)context;
-	s_cupCreateUnavailable = false;
 	MM_CustomCupSelect_Preview(index);
 }
 
@@ -164,7 +164,6 @@ static void MM_CustomCupSelect_OpenList(int selected)
 {
 	MM_CustomCupSelect_Clear();
 	s_cupSelectError = false;
-	s_cupCreateUnavailable = false;
 	if (NativeCustomCup_Scan(MM_CustomCupSelect_Visit, NULL) != NATIVE_CUSTOM_CUP_OK)
 	{
 		s_cupSelectError = true;
@@ -339,7 +338,6 @@ static void MM_CustomCupSelect_DrawScreen(struct GameTracker *gGT)
 	                 CUSTOM_CUP_SELECT_CAROUSEL_Y, (u32)MM_FRAME_COUNTER);
 	MM_CustomCupSelect_DrawPreview(gGT, s_cupListTransitions[1].currY);
 	if (s_cupSelectError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR OR TRACK UNAVAILABLE", ot); }
-	else if (s_cupCreateUnavailable) { FullScreenMenu_DrawPrompt("CUP CREATION IS NOT YET AVAILABLE", ot); }
 }
 
 static void MM_CustomCupSelect_OnConfirm(void *context, int index)
@@ -347,7 +345,8 @@ static void MM_CustomCupSelect_OnConfirm(void *context, int index)
 	(void)context;
 	if (index == 0)
 	{
-		s_cupCreateUnavailable = true;
+		if (MM_CustomCupEdit_Open(true)) { s_cupSelectPage = CUSTOM_CUP_SELECT_EDIT; }
+		else { s_cupSelectError = true; }
 		return;
 	}
 	if (index < 1 || (size_t)index > s_cupSelectCount || !CustomCup_IsValid(&s_cupSelectPreview))
@@ -472,7 +471,7 @@ static void MM_CustomCupSelect_UpdateActions(u32 tapped, struct GameTracker *gGT
 		}
 		else if (*row == CUSTOM_CUP_ACTION_EDIT)
 		{
-			if (MM_CustomCupEdit_Open())
+			if (MM_CustomCupEdit_Open(false))
 			{
 				s_cupSelectPage = CUSTOM_CUP_SELECT_EDIT;
 				MM_CustomCupEdit_Update(0, gGT);
@@ -505,8 +504,28 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 	{
 		if (MM_CustomCupEdit_Update(tapped, gGT))
 		{
-			s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
-			MM_CustomCupSelect_UpdateActions(0, gGT);
+			if (s_editCreating)
+			{
+				MM_CustomCupSelect_OpenList(0);
+				if (s_editSavedID[0] != '\0')
+				{
+					for (size_t i = 0; i < s_cupSelectCount; i++)
+					{
+						if (strcmp(s_cupSelectEntries[i].id, s_editSavedID) == 0)
+						{
+							struct MM_CarouselSource source = MM_CustomCupSelect_Source();
+							MM_Carousel_Init(&s_cupCarousel, &source, (int)i + 1, (u32)MM_FRAME_COUNTER);
+							break;
+						}
+					}
+				}
+				MM_CustomCupSelect_DrawScreen(gGT);
+			}
+			else
+			{
+				s_cupSelectPage = CUSTOM_CUP_SELECT_ACTIONS;
+				MM_CustomCupSelect_UpdateActions(0, gGT);
+			}
 		}
 		return true;
 	}
@@ -543,7 +562,8 @@ static bool MM_CustomCupSelect_Update(struct RectMenu *menu)
 			if (MM_DESIRED_MENU == &MM_MENU_QUEUE_LOAD_TRACK) { return true; }
 			if (s_cupSelectPage != CUSTOM_CUP_SELECT_LIST)
 			{
-				MM_CustomCupSelect_UpdateActions(0, gGT);
+				if (s_cupSelectPage == CUSTOM_CUP_SELECT_EDIT) { MM_CustomCupEdit_Update(0, gGT); }
+				else { MM_CustomCupSelect_UpdateActions(0, gGT); }
 				return true;
 			}
 			tapped = 0;

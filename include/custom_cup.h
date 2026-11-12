@@ -69,6 +69,8 @@ bool CustomCup_RemoveTrack(struct CustomCup *cup, int index);
 bool CustomCup_MoveTrack(struct CustomCup *cup, int from, int to);
 /* Checks structure and identity syntax, not current track availability. */
 bool CustomCup_IsValid(const struct CustomCup *cup);
+/* The name buffer must have CUSTOM_CUP_NAME_BYTES bytes available. */
+bool CustomCup_NameIsValid(const char *name);
 /* Resolves a single identity against the current registry. Availability and
    mode restrictions are checked separately by the caller. */
 bool CustomCup_ResolveTrack(const char *identity, const struct NativeTrackRegistry *registry, int *levelID);

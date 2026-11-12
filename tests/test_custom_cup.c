@@ -72,6 +72,8 @@ int main(void)
 	memset(cup.name, 0, sizeof(cup.name));
 	for (int i = 0; i < 30; i++) { memcpy(cup.name + i * 4, "\xf0\x9f\x8f\x81", 4); }
 	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "thirty four-byte UTF-8 characters fit in the name");
+	CTR_TEST_CHECK(CustomCup_NameIsValid(cup.name), "the name validator accepts thirty UTF-8 characters independently of the tracks");
+	CTR_TEST_CHECK(!CustomCup_NameIsValid(NULL), "the name validator rejects a missing name");
 	cup.name[0] = (char)0xff;
 	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "invalid UTF-8 is rejected");
 	memset(cup.name, 'A', sizeof(cup.name));

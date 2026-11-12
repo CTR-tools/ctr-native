@@ -1,4 +1,5 @@
 #include "MM_FullScreenMenu.c"
+#include <platform/native_text_edit.h>
 
 enum CustomCupEditPage
 {
@@ -7,6 +8,7 @@ enum CustomCupEditPage
 	CUP_EDIT_MOVE,
 	CUP_EDIT_DISCARD,
 	CUP_EDIT_PICK_TRACK,
+	CUP_EDIT_NAME,
 };
 
 enum
@@ -26,9 +28,15 @@ static s16 s_editRow, s_editActionRow, s_editConfirmRow;
 static int s_editMoveOrigin;
 static struct FullScreenMenu_Scroll s_editScroll, s_editActionScroll, s_editConfirmScroll;
 static bool s_editAdding, s_editError;
+static bool s_editCreating;
+static bool s_editSaveAfterName;
+static char s_editSavedID[NATIVE_CUSTOM_CUP_ID_SIZE];
+static const char *s_editMessage;
 
 static bool MM_CustomCupEdit_Dirty(void)
 {
+	if (s_editCreating) { return s_editCup.trackCount != 0 || s_editCup.name[0] != '\0'; }
+	if (strcmp(s_editCup.name, s_cupSelectPreview.name) != 0) { return true; }
 	if (s_editCup.trackCount != s_cupSelectPreview.trackCount) { return true; }
 	for (int i = 0; i < s_editCup.trackCount; i++)
 	{
@@ -38,10 +46,13 @@ static bool MM_CustomCupEdit_Dirty(void)
 	return false;
 }
 
-static bool MM_CustomCupEdit_Open(void)
+static bool MM_CustomCupEdit_Open(bool creating)
 {
 	CustomCup_Clear(&s_editCup);
-	if (!CustomCup_Copy(&s_editCup, &s_cupSelectPreview)) { return false; }
+	if (!creating && !CustomCup_Copy(&s_editCup, &s_cupSelectPreview)) { return false; }
+	s_editCreating = creating;
+	s_editSavedID[0] = '\0';
+	s_editMessage = NULL;
 	s_editPage = CUP_EDIT_LIST;
 	s_editRow = 0;
 	s_editScroll.offset = 0;
@@ -93,23 +104,26 @@ static void MM_CustomCupEdit_DrawRow(const void *context, int row, int y, bool s
 		FullScreenMenu_DrawValueText(laps, y, ot);
 		return;
 	}
-	bool adding = row == s_editCup.trackCount;
-	bool enabled = adding ? s_editCup.trackCount < CUSTOM_CUP_MAX_TRACKS : s_editCup.trackCount >= CUSTOM_CUP_MIN_TRACKS;
-	DecalFont_DrawLineOT(adding ? "ADD TRACK" : "SAVE", FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL,
+	int action = row - s_editCup.trackCount;
+	bool enabled = action == 0 ? s_editCup.trackCount < CUSTOM_CUP_MAX_TRACKS :
+	               action == 1 || s_editCup.trackCount >= CUSTOM_CUP_MIN_TRACKS;
+	const char *label = action == 0 ? "ADD TRACK" : action == 1 ? "RENAME CUP" : "SAVE";
+	DecalFont_DrawLineOT((char *)label, FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL,
 	                     enabled ? ORANGE : PERIWINKLE, ot);
 }
 
 static void MM_CustomCupEdit_DrawList(struct GameTracker *gGT)
 {
 	char title[CUSTOM_CUP_NAME_BYTES];
-	TrackText_Copy(title, sizeof(title), s_editCup.name);
+	TrackText_Copy(title, sizeof(title), s_editCup.name[0] != '\0' ? s_editCup.name : "NEW CUP");
 	TrackText_Scroll(title, FULLSCREEN_MENU_CONTENT_W - 2 * FULLSCREEN_MENU_ROW_PADDING, FONT_BIG, gGT->timer);
 	bool shaded = s_frameDrawStyle == FULLSCREEN_MENU_DRAW_STYLE_SHADED;
 	FullScreenMenu_SetShadedFrame(true);
-	FullScreenMenu_DrawScreen(title, 0, &s_editScroll, s_editCup.trackCount + 2, s_editRow,
+	FullScreenMenu_DrawScreen(title, 0, &s_editScroll, s_editCup.trackCount + 3, s_editRow,
 	                          MM_CustomCupEdit_DrawRow, NULL, gGT, gGT->backBuffer->otMem.uiOT);
 	FullScreenMenu_SetShadedFrame(shaded);
 	if (s_editPage == CUP_EDIT_MOVE) { FullScreenMenu_DrawPrompt("UP / DOWN: MOVE", gGT->backBuffer->otMem.uiOT); }
+	else if (s_editMessage != NULL) { FullScreenMenu_DrawPrompt(s_editMessage, gGT->backBuffer->otMem.uiOT); }
 	else if (s_editError) { FullScreenMenu_DrawPrompt("CUP FILE ERROR", gGT->backBuffer->otMem.uiOT); }
 }
 
@@ -123,12 +137,89 @@ static void MM_CustomCupEdit_DrawActionRow(const void *context, int row, int y, 
 	if (row == CUP_EDIT_LAPS_ACTION) { FullScreenMenu_DrawValueWithSuffix(s_editCup.laps[s_editRow], "", y, ot); }
 }
 
+static void MM_CustomCupEdit_DrawNameRow(const void *context, int row, int y, bool selected, uint32_t *ot)
+{
+	(void)context;
+	(void)row;
+	(void)selected;
+	FullScreenMenu_DrawRowLabel("NAME", y, ot);
+	char text[CUSTOM_CUP_NAME_BYTES];
+	TrackText_Copy(text, sizeof(text), NativeTextEdit_Value());
+	FullScreenMenu_DrawEditableValue(text, FULLSCREEN_MENU_CONTENT_W - 100, y, ot);
+}
+
+static bool MM_CustomCupEdit_Save(void)
+{
+	char *id = s_editCreating ? s_editSavedID : s_cupSelectEntries[s_cupCarousel.selected - 1].id;
+	enum NativeCustomCupStorageResult result = NativeCustomCup_Save(id, &s_editCup);
+	if (result == NATIVE_CUSTOM_CUP_OK)
+	{
+		if (!s_editCreating)
+		{
+			memcpy(s_cupSelectEntries[s_cupCarousel.selected - 1].name, s_editCup.name, sizeof(s_editCup.name));
+		}
+		CustomCup_Clear(&s_editCup);
+		if (!s_editCreating) { MM_CustomCupSelect_Preview(s_cupCarousel.selected); }
+		return true;
+	}
+	s_editMessage = result == NATIVE_CUSTOM_CUP_DUPLICATE ? "CUP NAME ALREADY EXISTS" :
+	                result == NATIVE_CUSTOM_CUP_INVALID ? "INVALID CUP NAME" : "CUP FILE ERROR";
+	return false;
+}
+
+static void MM_CustomCupEdit_OpenName(bool saveAfterName)
+{
+	if (NativeTextEdit_BeginForGame(s_editCup.name, sizeof(s_editCup.name)))
+	{
+		NativeTextEdit_LimitCharacters(CUSTOM_CUP_NAME_MAX_CHARACTERS);
+		s_editSaveAfterName = saveAfterName;
+		s_editPage = CUP_EDIT_NAME;
+	}
+	else { s_editMessage = "NAME EDITOR UNAVAILABLE"; }
+}
+
 /* Returns true when the editor has closed. */
 static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 {
 	static const char *const actionLabels[] = {"REPLACE", "LAPS", "MOVE", "REMOVE"};
 	static const char *const discardLabels[] = {"NO", "YES"};
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	if (s_editPage == CUP_EDIT_NAME)
+	{
+		enum NativeTextEditResult result = NativeTextEdit_Result();
+		if (result != NATIVE_TEXT_EDIT_ACTIVE)
+		{
+			if (result == NATIVE_TEXT_EDIT_ACCEPTED)
+			{
+				char name[CUSTOM_CUP_NAME_BYTES];
+				const char *value = NativeTextEdit_Value();
+				size_t length = strlen(value);
+				bool fits = length < sizeof(name);
+				if (fits) { memcpy(name, value, length + 1); }
+				NativeTextEdit_Close();
+				s_editPage = CUP_EDIT_LIST;
+				RECTMENU_ClearInput();
+				if (fits && CustomCup_NameIsValid(name))
+				{
+					snprintf(s_editCup.name, sizeof(s_editCup.name), "%s", name);
+					s_editMessage = NULL;
+					if (s_editSaveAfterName && MM_CustomCupEdit_Save()) { return true; }
+				}
+				else { s_editMessage = "INVALID CUP NAME"; }
+			}
+			else
+			{
+				NativeTextEdit_Close();
+				s_editPage = CUP_EDIT_LIST;
+				RECTMENU_ClearInput();
+			}
+			MM_CustomCupEdit_DrawList(gGT);
+			return false;
+		}
+		struct FullScreenMenu_Scroll scroll = {0};
+		FullScreenMenu_DrawScreen("CUP NAME", 0, &scroll, 1, 0, MM_CustomCupEdit_DrawNameRow, NULL, gGT, ot);
+		return false;
+	}
 	if (s_editPage == CUP_EDIT_PICK_TRACK)
 	{
 		MM_TrackSelect_MenuProc(&MM_MENU_TRACK_SELECT);
@@ -160,7 +251,7 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 				OtherFX_Play(0, 1);
 			}
 		}
-		FullScreenMenu_FollowScroll(&s_editScroll, &s_editRow, s_editCup.trackCount + 2);
+		FullScreenMenu_FollowScroll(&s_editScroll, &s_editRow, s_editCup.trackCount + 3);
 		MM_CustomCupEdit_DrawList(gGT);
 		return false;
 	}
@@ -226,11 +317,12 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 		s_editPage = CUP_EDIT_DISCARD;
 		return MM_CustomCupEdit_Update(0, gGT);
 	}
-	FullScreenMenu_NavTapped(tapped, &s_editScroll, &s_editRow, s_editCup.trackCount + 2);
+	FullScreenMenu_NavTapped(tapped, &s_editScroll, &s_editRow, s_editCup.trackCount + 3);
 	if (FullScreenMenu_Confirm(tapped))
 	{
 		RECTMENU_ClearInput();
 		s_editError = false;
+		s_editMessage = NULL;
 		if (s_editRow < s_editCup.trackCount)
 		{
 			s_editActionRow = 0;
@@ -238,16 +330,11 @@ static bool MM_CustomCupEdit_Update(u32 tapped, struct GameTracker *gGT)
 			s_editPage = CUP_EDIT_TRACK_ACTIONS;
 		}
 		else if (s_editRow == s_editCup.trackCount && s_editCup.trackCount < CUSTOM_CUP_MAX_TRACKS) { MM_CustomCupEdit_OpenPicker(true); }
-		else if (s_editRow == s_editCup.trackCount + 1 && s_editCup.trackCount >= CUSTOM_CUP_MIN_TRACKS)
+		else if (s_editRow == s_editCup.trackCount + 1) { MM_CustomCupEdit_OpenName(false); }
+		else if (s_editRow == s_editCup.trackCount + 2 && s_editCup.trackCount >= CUSTOM_CUP_MIN_TRACKS)
 		{
-			char *id = s_cupSelectEntries[s_cupCarousel.selected - 1].id;
-			if (NativeCustomCup_Save(id, &s_editCup) == NATIVE_CUSTOM_CUP_OK)
-			{
-				CustomCup_Clear(&s_editCup);
-				MM_CustomCupSelect_Preview(s_cupCarousel.selected);
-				return true;
-			}
-			s_editError = true;
+			if (s_editCreating && s_editCup.name[0] == '\0') { MM_CustomCupEdit_OpenName(true); }
+			else if (MM_CustomCupEdit_Save()) { return true; }
 		}
 		if (s_editPage != CUP_EDIT_LIST) { return MM_CustomCupEdit_Update(0, gGT); }
 	}

@@ -236,8 +236,9 @@ char *CustomCup_TrackIdentity(int levelID, const struct NativeTrackRegistry *reg
 	return track != NULL ? CustomCup_Join(s_customCupCustomPrefix, track->identity) : NULL;
 }
 
-static bool CustomCup_NameIsValid(const char *name)
+bool CustomCup_NameIsValid(const char *name)
 {
+	if (name == NULL) { return false; }
 	size_t characters = 0;
 	size_t i = 0;
 	while (i < CUSTOM_CUP_NAME_BYTES && name[i] != '\0')
