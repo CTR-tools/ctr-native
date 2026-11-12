@@ -106,6 +106,7 @@ NativeConfig g_config = {
   .unlockNitrosOxide = false,
   .unlockCupDifficulties = false,
   .unlockTurboTrack = false,
+  .unlockAllBattleArenas = false,
   .unlockAllGates = false,
   .unlockAllPortals = false,
 
@@ -534,6 +535,14 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_TURBO_TRACK,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockTurboTrack
+    },
+    {
+        .section = "Unlocks",
+        .key = "unlock_all_battle_arenas",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_BATTLE_ARENAS,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.unlockAllBattleArenas
     },
     {
         .section = "Graphics",

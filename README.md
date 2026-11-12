@@ -270,6 +270,7 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 | `unlock_nitros_oxide`    | `true` / `false` | `false` | Add Nitros Oxide to the character select menu   |
 | `unlock_cup_difficulties` | `true` / `false` | `false` | Unlock all available cup difficulties without changing save progress |
 | `unlock_turbo_track`      | `true` / `false` | `false` | Unlock Turbo Track without changing save progress |
+| `unlock_all_battle_arenas` | `true` / `false` | `false` | Unlock all battle arenas without changing save progress |
 
 ### Vehicle
 
