@@ -63,16 +63,16 @@ int main(void)
 	while (cup.trackCount > 2) { CustomCup_RemoveTrack(&cup, cup.trackCount - 1); }
 	CTR_TEST_CHECK(!CustomCup_ReplaceTrack(&cup, 1, "custom:", 3), "an empty identity is rejected");
 	CTR_TEST_CHECK(!CustomCup_ReplaceTrack(&cup, 1, "track", 3) && cup.laps[1] == 7, "an invalid identity leaves the lap count unchanged");
-	memset(cup.name, 'A', 30);
-	cup.name[30] = '\0';
-	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "a thirty-character name is accepted");
-	cup.name[30] = 'A';
-	cup.name[31] = '\0';
-	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "a thirty-one-character name is rejected");
+	memset(cup.name, 'A', 14);
+	cup.name[14] = '\0';
+	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "a fourteen-character name is accepted");
+	cup.name[14] = 'A';
+	cup.name[15] = '\0';
+	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "a fifteen-character name is rejected");
 	memset(cup.name, 0, sizeof(cup.name));
-	for (int i = 0; i < 30; i++) { memcpy(cup.name + i * 4, "\xf0\x9f\x8f\x81", 4); }
-	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "thirty four-byte UTF-8 characters fit in the name");
-	CTR_TEST_CHECK(CustomCup_NameIsValid(cup.name), "the name validator accepts thirty UTF-8 characters independently of the tracks");
+	for (int i = 0; i < 14; i++) { memcpy(cup.name + i * 4, "\xf0\x9f\x8f\x81", 4); }
+	CTR_TEST_CHECK(CustomCup_IsValid(&cup), "fourteen four-byte UTF-8 characters fit in the name");
+	CTR_TEST_CHECK(CustomCup_NameIsValid(cup.name), "the name validator accepts fourteen UTF-8 characters independently of the tracks");
 	CTR_TEST_CHECK(!CustomCup_NameIsValid(NULL), "the name validator rejects a missing name");
 	cup.name[0] = (char)0xff;
 	CTR_TEST_CHECK(!CustomCup_IsValid(&cup), "invalid UTF-8 is rejected");

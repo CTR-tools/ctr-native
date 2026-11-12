@@ -167,7 +167,7 @@ static void MM_CustomCupEdit_OpenName(bool saveAfterName)
 {
 	if (NativeTextEdit_BeginForGame(s_editCup.name, sizeof(s_editCup.name)))
 	{
-		NativeTextEdit_LimitCharacters(CUSTOM_CUP_VISIBLE_NAME_CHARACTERS);
+		NativeTextEdit_LimitCharacters(CUSTOM_CUP_NAME_MAX_CHARACTERS);
 		s_editSaveAfterName = saveAfterName;
 		s_editPage = CUP_EDIT_NAME;
 	}
