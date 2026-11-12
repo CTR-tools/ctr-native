@@ -104,6 +104,7 @@ NativeConfig g_config = {
 
   .unlockAllCharacters = false,
   .unlockNitrosOxide = false,
+  .unlockCupDifficulties = false,
   .unlockAllGates = false,
   .unlockAllPortals = false,
 
@@ -516,6 +517,14 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_OXIDE,
         .type = CFG_BOOL,
         .valuePtr = &g_config.unlockNitrosOxide
+    },
+    {
+        .section = "Unlocks",
+        .key = "unlock_cup_difficulties",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_UNLOCK_CUP_DIFFICULTIES,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.unlockCupDifficulties
     },
     {
         .section = "Graphics",

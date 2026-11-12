@@ -556,6 +556,7 @@ void MM_ToggleRows_Difficulty(void)
 		if (
 		// if locked
 		    ((u32)(u16)finalUnlockState == isUnlocked) &&
+		    !g_config.unlockCupDifficulties &&
 
 		    // If you're in Arcade mode
 		    ((gGT->gameMode1 & ARCADE_MODE) != isUnlocked) &&

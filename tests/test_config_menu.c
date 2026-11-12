@@ -749,7 +749,7 @@ static void TestAvailability(void)
 		"fxaa", "texture_filtering", "pgxp",
 		"allow_oxide_station_multiplayer", "allow_race_tracks_in_battle",
 		"extended_multiplayer", "bot_selection_mode", "mask_mode",
-		"expanded_options", "save_anywhere", "unlock_all_characters", "unlock_nitros_oxide",
+		"expanded_options", "save_anywhere", "unlock_all_characters", "unlock_nitros_oxide", "unlock_cup_difficulties",
 		"disable_split_screen_lod",
 	};
 	for (int i = 0; i < g_numConfigEntries; i++)

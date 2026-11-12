@@ -268,6 +268,7 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 |--------------------------|------------------|---------|-------------------------------------------------|
 | `unlock_all_characters`  | `true` / `false` | `false` | Unlock all standard characters                  |
 | `unlock_nitros_oxide`    | `true` / `false` | `false` | Add Nitros Oxide to the character select menu   |
+| `unlock_cup_difficulties` | `true` / `false` | `false` | Unlock all available cup difficulties without changing save progress |
 
 ### Vehicle
 
