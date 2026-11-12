@@ -654,6 +654,7 @@ void TakeCupProgress_Activate(s16 stringIndex);
 void RaceFlag_SetCanDraw(s16 canDraw);
 void RaceFlag_BeginTransition(s32 direction);
 void RaceFlag_SetFullyOnScreen(void);
+void RaceFlag_BeginMenuFade(void);
 void RaceFlag_SetFullyOffScreen(void);
 void RaceFlag_ResetTextAnim(void);
 void RaceFlag_DrawSelf(void);

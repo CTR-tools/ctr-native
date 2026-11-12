@@ -12,6 +12,18 @@
 
 #define RACE_FLAG_LOADING_STAGE sdata->Loading.stage
 
+static b32 s_raceFlagLoadingFadeActive;
+static s32 s_raceFlagMenuFadeElapsed;
+
+void RaceFlag_BeginMenuFade(void)
+{
+	if (g_config.loadingScreen == LOADING_SCREEN_FADE)
+	{
+		s_raceFlagLoadingFadeActive = 1;
+		s_raceFlagMenuFadeElapsed = 0;
+	}
+}
+
 enum RaceFlagScratchConstants
 {
 	RACE_FLAG_SCREEN_ROWS = 10,
@@ -40,6 +52,7 @@ enum RaceFlagConstants
 	RACE_FLAG_TRANSITION_ONSCREEN_POSITION_SHIFT = 3,
 	RACE_FLAG_TRANSITION_OFFSCREEN_POSITION_SHIFT = 2,
 	RACE_FLAG_TRANSITION_TIME_SHIFT = 5,
+	RACE_FLAG_LOADING_FADE_DURATION_MS = 100,
 	RACE_FLAG_LOADING_IDLE_SLIDE_LIMIT = -1000,
 	RACE_FLAG_LOADING_IDLE_SLIDE_STEP = 0x28,
 	RACE_FLAG_LOADING_OFFSCREEN_X = 0x23c,
@@ -64,6 +77,16 @@ enum RaceFlagConstants
 	RACE_FLAG_TRIG_HIGH_HALF_MASK = 0x400,
 	RACE_FLAG_TRIG_NEGATE_MASK = 0x800,
 };
+
+static s32 RaceFlag_LoadingFadeStep(s32 remaining)
+{
+	s32 step = RACE_FLAG_POSITION_OFFSCREEN * GAME_TRACKER->elapsedTimeMS / RACE_FLAG_LOADING_FADE_DURATION_MS;
+	if (step < 1)
+	{
+		step = 1;
+	}
+	return step < remaining ? step : remaining;
+}
 
 
 s32 RaceFlag_MoveModels(s32 frameIndex, s32 numFrames)
@@ -244,6 +267,10 @@ u32 *RaceFlag_GetOT(void)
 			else
 			{
 				s32 step = (((s16)position >> RACE_FLAG_TRANSITION_ONSCREEN_POSITION_SHIFT) * GAME_TRACKER->elapsedTimeMS) >> RACE_FLAG_TRANSITION_TIME_SHIFT;
+				if (g_config.loadingScreen == LOADING_SCREEN_FADE && s_raceFlagLoadingFadeActive)
+				{
+					step = RaceFlag_LoadingFadeStep((s16)position);
+				}
 				if (step <= 0)
 					step = 1;
 				sdata->RaceFlag_Position = position - step;
@@ -285,9 +312,13 @@ u32 *RaceFlag_GetOT(void)
 		if (position > RACE_FLAG_POSITION_OFFSCREEN_LEFT)
 		{
 			u16 nextSpeed = sdata->RaceFlag_TransitionSpeed;
+			s32 step = (((s16)nextSpeed >> RACE_FLAG_TRANSITION_OFFSCREEN_POSITION_SHIFT) * GAME_TRACKER->elapsedTimeMS) >> RACE_FLAG_TRANSITION_TIME_SHIFT;
+			if (g_config.loadingScreen == LOADING_SCREEN_FADE && s_raceFlagLoadingFadeActive)
+			{
+				step = RaceFlag_LoadingFadeStep(position - RACE_FLAG_POSITION_OFFSCREEN_LEFT);
+			}
 			*(volatile s16 *)&sdata->RaceFlag_Position =
-			    rawPosition -
-			    ((((s16)nextSpeed >> RACE_FLAG_TRANSITION_OFFSCREEN_POSITION_SHIFT) * GAME_TRACKER->elapsedTimeMS) >> RACE_FLAG_TRANSITION_TIME_SHIFT);
+			    rawPosition - step;
 		}
 		else
 		{
@@ -409,7 +440,7 @@ void RaceFlag_DrawLoadingString(void)
 
 				glyphByteCount = 2;
 			}
-			if ((s16)letterX != RACE_FLAG_LOADING_OFFSCREEN_X)
+			if ((s16)letterX != RACE_FLAG_LOADING_OFFSCREEN_X && g_config.loadingScreen != LOADING_SCREEN_NO_TEXT)
 			{
 				DecalFont_DrawLineStrlen((char *)glyph, glyphByteCount, (s16)(drawX + letterX), RACE_FLAG_LOADING_Y, RACE_FLAG_LOADING_FONT_SIZE,
 				                         RACE_FLAG_LOADING_TEXT_FLAGS);
@@ -528,7 +559,51 @@ static inline u32 RaceFlag_ScreenSignMask(void)
 	return 0x80008000u;
 }
 
-void RaceFlag_DrawSelf(void)
+static void RaceFlag_DrawFade(u32 *ot, s32 position)
+{
+	typedef struct
+	{
+		u32 tag;
+		u32 tpage;
+		POLY_F4 quad;
+	} RaceFlagFadePacket;
+	struct PrimMem *primMem = &GAME_TRACKER->backBuffer->primMem;
+	RaceFlagFadePacket *packet = primMem->cursor;
+	int strength;
+
+	if (position < 0)
+	{
+		position = -position;
+	}
+	if (position >= RACE_FLAG_POSITION_OFFSCREEN)
+	{
+		return;
+	}
+	if ((u8 *)(packet + 1) > (u8 *)primMem->guardEnd)
+	{
+		return;
+	}
+	strength = (RACE_FLAG_POSITION_OFFSCREEN - position) * 255 / RACE_FLAG_POSITION_OFFSCREEN;
+	setlen(packet, 7);
+	packet->tpage = 0xe1000e40;
+	packet->quad.tag = 0;
+	packet->quad.code = 0x2a;
+	packet->quad.r0 = strength;
+	packet->quad.g0 = strength;
+	packet->quad.b0 = strength;
+	packet->quad.x0 = 0;
+	packet->quad.y0 = 0;
+	packet->quad.x1 = 512;
+	packet->quad.y1 = 0;
+	packet->quad.x2 = 0;
+	packet->quad.y2 = 240;
+	packet->quad.x3 = 512;
+	packet->quad.y3 = 240;
+	AddPrim(ot, packet);
+	primMem->cursor = packet + 1;
+}
+
+static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 {
 	SVECTOR positions[3];
 	s32 columnWave[5];
@@ -549,35 +624,10 @@ void RaceFlag_DrawSelf(void)
 	s32 height;
 	register s32 rightLight CTR_PSX_REGISTER("$25");
 	u32 rippleAngle;
-	u32 *ot;
 	register u32 *writeScreen CTR_PSX_REGISTER("$9");
 	u32 *readScreen;
 	s32 packedRight;
 	register POLY_G4 *poly CTR_PSX_REGISTER("$8");
-	s16 flagPosition;
-	if (!RACE_FLAG_CAN_DRAW)
-	{
-		return;
-	}
-	if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
-	{
-		s32 stage = RACE_FLAG_LOADING_STAGE;
-		b32 tooEarly = stage < 6;
-
-		if ((!tooEarly) && (stage < 8))
-		{
-			sdata->RaceFlag_LoadingTextAnimFrame = 0;
-		}
-		if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
-		{
-			goto SkipText;
-		}
-	}
-	RaceFlag_DrawLoadingString();
-SkipText:
-	*((volatile s32 *)(&sdata->RaceFlag_CopyLoadStage)) = RACE_FLAG_LOADING_STAGE;
-
-	ot = RaceFlag_GetOT();
 	CTR_GteSetRotMatrix(&RACE_FLAG_MATRIX);
 	CTR_GteSetTransMatrix(&RACE_FLAG_MATRIX);
 	CTR_GteSetGeomOffset(256, 120);
@@ -591,7 +641,6 @@ SkipText:
 	height = RaceFlag_StepWave(firstWave, firstWave[3] * GAME_TRACKER->elapsedTimeMS, &leftLight);
 	depth = ((height * RACE_FLAG_WAVE[1]) >> 13) + 640;
 	positions[0].vy = -910;
-	flagPosition = sdata->RaceFlag_Position;
 	positions[1].vy = -816;
 	positions[2].vy = -722;
 	flagPosition = (-3006) - flagPosition;
@@ -773,4 +822,75 @@ SkipText:
 	}
 
 	sdata->RaceFlag_ElapsedTime = (s32)(((u32)sdata->RaceFlag_ElapsedTime) + (GAME_TRACKER->elapsedTimeMS * 100));
+}
+
+void RaceFlag_DrawSelf(void)
+{
+	u32 *ot;
+	if (!RACE_FLAG_CAN_DRAW)
+	{
+		return;
+	}
+	if (RACE_FLAG_LOADING_STAGE != LOAD_IDLE)
+	{
+		s_raceFlagLoadingFadeActive = 1;
+		s_raceFlagMenuFadeElapsed = 0;
+	}
+	else if (g_config.loadingScreen == LOADING_SCREEN_FADE && s_raceFlagLoadingFadeActive &&
+	         GAME_TRACKER->levelID == MAIN_MENU_LEVEL)
+	{
+		s_raceFlagMenuFadeElapsed += GAME_TRACKER->elapsedTimeMS;
+		if (s_raceFlagMenuFadeElapsed >= RACE_FLAG_LOADING_FADE_DURATION_MS)
+		{
+			s_raceFlagLoadingFadeActive = 0;
+		}
+		else
+		{
+			RaceFlag_DrawFade(GAME_TRACKER->otSwapchainDB[GAME_TRACKER->swapchainIndex],
+			                  s_raceFlagMenuFadeElapsed * RACE_FLAG_POSITION_OFFSCREEN / RACE_FLAG_LOADING_FADE_DURATION_MS);
+			RaceFlag_DrawFlag(GAME_TRACKER->pushBuffer[0].ptrOT + 0x3ff, RACE_FLAG_POSITION_ONSCREEN);
+			return;
+		}
+	}
+	else if (sdata->RaceFlag_AnimationType != RACE_FLAG_TRANSITION_OFFSCREEN &&
+	         !((sdata->mainGameState == 1 || sdata->mainGameState == 2) && GAME_TRACKER->levelID != MAIN_MENU_LEVEL))
+	{
+		s_raceFlagLoadingFadeActive = 0;
+	}
+	if (g_config.loadingScreen == LOADING_SCREEN_FADE && s_raceFlagLoadingFadeActive)
+	{
+		// Advance the transition, but always draw the fade in front of the UI.
+		RaceFlag_GetOT();
+		RaceFlag_DrawFade(GAME_TRACKER->otSwapchainDB[GAME_TRACKER->swapchainIndex], sdata->RaceFlag_Position);
+		// The main menu uses the flag as its background.
+		if (RACE_FLAG_LOADING_STAGE == LOAD_REQUESTED && (GAME_TRACKER->gameMode1 & MAIN_MENU) != 0)
+		{
+			RaceFlag_DrawFlag(GAME_TRACKER->pushBuffer[0].ptrOT + 0x3ff, RACE_FLAG_POSITION_ONSCREEN);
+		}
+		if (RACE_FLAG_LOADING_STAGE == LOAD_IDLE && RaceFlag_IsFullyOffScreen())
+		{
+			s_raceFlagLoadingFadeActive = 0;
+		}
+		return;
+	}
+	if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
+	{
+		s32 stage = RACE_FLAG_LOADING_STAGE;
+		b32 tooEarly = stage < 6;
+
+		if ((!tooEarly) && (stage < 8))
+		{
+			sdata->RaceFlag_LoadingTextAnimFrame = 0;
+		}
+		if (sdata->RaceFlag_LoadingTextAnimFrame < 0)
+		{
+			goto SkipText;
+		}
+	}
+	RaceFlag_DrawLoadingString();
+SkipText:
+	*((volatile s32 *)(&sdata->RaceFlag_CopyLoadStage)) = RACE_FLAG_LOADING_STAGE;
+
+	ot = RaceFlag_GetOT();
+	RaceFlag_DrawFlag(ot, sdata->RaceFlag_Position);
 }

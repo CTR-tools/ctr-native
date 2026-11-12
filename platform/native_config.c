@@ -33,6 +33,11 @@ static const ConfigEnumValue kBotSelectionModeValues[] = {
     {"R. unlocked", BOT_SELECTION_RANDOM_UNLOCKED, LNG_EXPANDED_CONFIG_RANDOM_UNLOCKED},
     {"R. all", BOT_SELECTION_RANDOM_ALL, LNG_EXPANDED_CONFIG_RANDOM_ALL},
 };
+static const ConfigEnumValue kLoadingScreenValues[] = {
+    {"Vanilla", LOADING_SCREEN_VANILLA, LNG_EXPANDED_CONFIG_VANILLA},
+    {"No text", LOADING_SCREEN_NO_TEXT, LNG_EXPANDED_CONFIG_NO_TEXT},
+    {"Fade", LOADING_SCREEN_FADE, LNG_EXPANDED_CONFIG_FADE},
+};
 #define NUM_BOT_SELECTION_MODES (sizeof(kBotSelectionModeValues) / sizeof(kBotSelectionModeValues[0]))
 
 static const ConfigEnumValue kBossCutsceneValues[] = {
@@ -71,6 +76,7 @@ NativeConfig g_config = {
   .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
   .retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED,
   .skipIntro = false,
+  .loadingScreen = LOADING_SCREEN_VANILLA,
   .skipPodiumCeremonies = false,
   .showReservesMeter = false,
   .allowOxideStationMultiplayer = false,
@@ -198,6 +204,16 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_SKIP_PODIUM,
         .type = CFG_BOOL,
         .valuePtr = &g_config.skipPodiumCeremonies
+    },
+    {
+        .section = "General",
+        .key = "loading_screen",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_LOADING_SCREEN,
+        .type = CFG_ENUM,
+        .valuePtr = &g_config.loadingScreen,
+        .enumValues = kLoadingScreenValues,
+        .numEnumValues = sizeof(kLoadingScreenValues) / sizeof(kLoadingScreenValues[0]),
     },
     {
         .section = "General",

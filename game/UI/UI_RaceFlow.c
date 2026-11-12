@@ -434,7 +434,7 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		// Turn off HUD
 		gGT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK;
 
-		if (RaceFlag_IsFullyOffScreen())
+		if (g_config.loadingScreen == LOADING_SCREEN_FADE || RaceFlag_IsFullyOffScreen())
 		{
 			RaceFlag_BeginTransition(1);
 		}

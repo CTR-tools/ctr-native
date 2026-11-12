@@ -99,6 +99,7 @@ u32 CTR_Main(void)
 				{
 					RaceFlag_SetFullyOnScreen();
 				}
+				RaceFlag_BeginMenuFade();
 			}
 
 			else

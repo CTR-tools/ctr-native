@@ -14,6 +14,7 @@ typedef struct {
     int voiceLanguage;
     int retailTextPriority;
     bool skipIntro;             // false = off (default), true = skip all intros
+    int loadingScreen;          // LOADING_SCREEN_VANILLA, NO_TEXT, or FADE
     bool skipPodiumCeremonies;  // false = off (default), true = automatically leave post-event podiums
     bool showReservesMeter;     // true = show the in-game reserves meter (default = false)
     bool allowOxideStationMultiplayer; // false = retail 1P-only restriction, true = allow multiplayer
@@ -70,6 +71,13 @@ typedef struct {
     bool skipStartCountdown; // false = off (default), true = skip the traffic light countdown and the start-line fly-in
     bool endRaceWithL3; // false = off (default), true = L3 in-race ends the race on the placings the field is standing on
 } NativeConfig;
+
+enum
+{
+    LOADING_SCREEN_VANILLA,
+    LOADING_SCREEN_NO_TEXT,
+    LOADING_SCREEN_FADE,
+};
 
 enum
 {
