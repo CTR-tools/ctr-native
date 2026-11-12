@@ -32,17 +32,7 @@ enum
 	MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT = MM_TRACK_SELECT_BATTLE_TRACK_COUNT + MM_TRACK_SELECT_ARCADE_TRACK_COUNT,
 	MM_TRACK_SELECT_TRANSITION_FRAMES = 12,
 	MM_TRACK_SELECT_SLIDE_FRAMES = 8,
-	MM_TRACK_SELECT_TRACK_CHANGE_FRAMES = 3,
-	MM_TRACK_SELECT_CENTER_ROW = 4,
-	MM_TRACK_SELECT_VISIBLE_ROWS = 9,
-	MM_TRACK_SELECT_ROW_ANGLE_STEP = 0x73,
 	MM_TRACK_SELECT_ROW_W = 0x100,
-	MM_TRACK_SELECT_ROW_H = 0x19,
-	MM_TRACK_SELECT_ROW_X_RADIUS = 0x19,
-	MM_TRACK_SELECT_ROW_X_SHIFT = 9,
-	MM_TRACK_SELECT_ROW_X_OFFSET = -0xb4,
-	MM_TRACK_SELECT_ROW_Y_RADIUS = 200,
-	MM_TRACK_SELECT_ROW_Y_SHIFT = 0xc,
 	MM_TRACK_SELECT_ROW_Y_OFFSET = 0x60,
 	MM_TRACK_SELECT_TT_STAR_COUNT = 2,
 	MM_TRACK_SELECT_TT_STAR_ICON_GROUP = 5,
@@ -56,27 +46,19 @@ enum
 	MM_TRACK_SELECT_GHOST_TAPE_ALLOC_SIZE = 0x3e00,
 	MM_TRACK_SELECT_GHOST_TAPE_CLEAR_SIZE = 0x28,
 	MM_TRACK_SELECT_TIME_TRIAL_FLAGS_OFFSET = 0x12c,
-	MM_TRACK_SELECT_ROW_PHASE_UNIT = 0x10000,
 	MM_TRACK_SELECT_ROW_NAME_X_OFFSET = 8,
 	MM_TRACK_SELECT_CUSTOM_TITLE_BYTES = 256,
 	MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN = 16,
-	MM_TRACK_SELECT_ROW_NAME_Y_OFFSET = 0x65,
 	MM_TRACK_SELECT_STAR_X_OFFSET = 4,
 	MM_TRACK_SELECT_STAR_Y_OFFSET = 4,
 	MM_TRACK_SELECT_STAR_Y_STEP = 8,
 	MM_TRACK_SELECT_GHOST_FLASH_FRAME_BIT = 4,
 	MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X = 0x78,
 	MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET = 0x76,
-	MM_TRACK_SELECT_HIGHLIGHT_INSET_X = 6,
-	MM_TRACK_SELECT_HIGHLIGHT_INSET_Y = 4,
-	MM_TRACK_SELECT_HIGHLIGHT_W_SHRINK = 12,
-	MM_TRACK_SELECT_HIGHLIGHT_H_SHRINK = 8,
 	MM_TRACK_SELECT_TITLE_X = 0x18c,
 	MM_TRACK_SELECT_LEVEL_TEXT_Y_STEP = 0x10,
 	MM_TRACK_SELECT_TITLE_TO_MAP_Y = 0x22,
 	MM_TRACK_SELECT_MAP_CENTER_Y_OFFSET = 0x49,
-	MM_TRACK_SELECT_INPUT = BTN_UP | BTN_DOWN | BTN_LEFT | BTN_RIGHT | BTN_TRIANGLE | BTN_SQUARE_one | BTN_CROSS_one | BTN_CIRCLE,
-	MM_TRACK_SELECT_INPUT_CONFIRM = BTN_CROSS_one | BTN_CIRCLE,
 	MM_TRACK_SELECT_INPUT_BACK = BTN_TRIANGLE | BTN_SQUARE_one,
 };
 
@@ -85,8 +67,6 @@ enum
 static struct MainMenu_LevelRow s_combinedBattleTracks[MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT];
 static struct MainMenu_LevelRow *s_raceTracks;
 static s16 s_raceTrackCount;
-static s16 s_titleScrollSelectedRow = -1;
-static u32 s_titleScrollStartFrame;
 static int s_previewTrackID = -1;
 static int s_previewLoaded;
 static int s_previewAspectFactor;
@@ -469,12 +449,121 @@ b16 MM_TrackSelect_boolTrackOpen(struct MainMenu_LevelRow *menuSelect)
 	return unlocked;
 }
 
+struct TrackCarouselContext
+{
+	struct MainMenu_LevelRow *tracks;
+	struct RectMenu *menu;
+};
+
+static struct MM_Carousel s_trackCarousel;
+
+static bool MM_TrackCarousel_Enabled(void *context, int index)
+{
+	struct TrackCarouselContext *track = context;
+	return MM_TrackSelect_boolTrackOpen(&track->tracks[index]);
+}
+
+static const char *MM_TrackCarousel_Label(void *context, int index, char *buffer, size_t capacity)
+{
+	(void)buffer;
+	(void)capacity;
+	struct TrackCarouselContext *track = context;
+	struct LevelInfo info = LevelInfo_Lookup(track->tracks[index].levID);
+	return LevelInfo_Title(&info, GAME_LANGUAGE_STRINGS);
+}
+
+static bool MM_TrackCarousel_IsRetail(void *context, int index)
+{
+	struct TrackCarouselContext *track = context;
+	return LevelInfo_Lookup(track->tracks[index].levID).custom == NULL;
+}
+
+static void MM_TrackCarousel_Selected(void *context, int index)
+{
+	struct TrackCarouselContext *track = context;
+	track->menu->rowSelected = index;
+	GAME_TRACKER->currLEV = track->tracks[index].levID;
+	MM_TRACK_SEL_BACKUP = index;
+}
+
+static void MM_TrackCarousel_Confirm(void *context, int index)
+{
+	(void)context;
+	(void)index;
+	if ((GAME_TRACKER->gameMode1 & (BATTLE_MODE | TIME_TRIAL)) != 0)
+	{
+		MM_TRACK_TRANSITION_START_AFTER_EXIT = 1;
+		MM_TRACK_TRANSITION_STATE = EXITING_MENU;
+	}
+	else
+	{
+		MM_TRACK_LAP_BOX_OPEN = 1;
+	}
+}
+
+static void MM_TrackCarousel_Decorate(void *context, int index, const RECT16 *row, bool selected, u32 scrollFrame)
+{
+	struct TrackCarouselContext *track = context;
+	struct GameTracker *gGT = GAME_TRACKER;
+	int levelID = track->tracks[index].levID;
+	struct LevelInfo info = LevelInfo_Lookup(levelID);
+	if ((gGT->gameMode1 & TIME_TRIAL) != 0 && info.kind == LEVEL_INFO_RETAIL)
+	{
+		int previous = gGT->levelID;
+		gGT->levelID = levelID;
+		GAMEPROG_GetPtrHighScoreTrack();
+		for (int i = 0; i < MM_TRACK_SELECT_TT_STAR_COUNT; i++)
+		{
+			if ((GAME_PROGRESS.highScoreTracks[gGT->levelID].timeTrialFlags & (1u << MM_TIME_TRIAL_STAR_FLAGS[i])) != 0)
+			{
+				Color *colors = (Color *)MM_COLOR_POINTERS[MM_TIME_TRIAL_STAR_COLORS[i]];
+				struct Icon **icons = (struct Icon **)((u32)gGT->iconGroup[MM_TRACK_SELECT_TT_STAR_ICON_GROUP] + sizeof(struct IconGroup));
+				MM_DECALHUD_DRAW_POLY_GT4(icons[MM_TRACK_SELECT_TT_STAR_ICON],
+				                          row->x + MM_TRACK_SELECT_ROW_W + MM_TRACK_SELECT_STAR_X_OFFSET,
+				                          row->y + MM_TRACK_SELECT_STAR_Y_OFFSET + i * MM_TRACK_SELECT_STAR_Y_STEP,
+				                          &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
+				                          colors[0], colors[1], colors[2], colors[3], 0, FP(1.0));
+			}
+		}
+		gGT->levelID = previous;
+		GAMEPROG_GetPtrHighScoreTrack();
+	}
+	if (!selected) { return; }
+	if (info.custom != NULL && info.custom->author != NULL)
+	{
+		char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
+		memcpy(author, "by ", 3);
+		TrackText_Copy(author + 3, sizeof(author) - 3, info.custom->author);
+		TrackText_Scroll(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL, scrollFrame);
+		MM_DRAW_LINE_WIDE_FLAGS(author, row->x + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X,
+		                        row->y - data.font_charPixHeight[FONT_SMALL] + row->h -
+		                            (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET),
+		                        FONT_SMALL, JUSTIFY_CENTER | PERIWINKLE);
+	}
+	if ((gGT->gameMode1 & TIME_TRIAL) != 0 && info.kind == LEVEL_INFO_RETAIL && RefreshCard_CountGhostProfilesForLEV(levelID) != 0)
+	{
+		int flags = (MM_FRAME_COUNTER & MM_TRACK_SELECT_GHOST_FLASH_FRAME_BIT) != 0 ? -0x7fff : -0x7ffc;
+		MM_DRAW_LINE_WIDE_FLAGS(GAME_LANGUAGE_STRINGS[LNG_GHOST_DATA_EXISTS],
+		                        row->x + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X,
+		                        row->y + MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET, FONT_SMALL, flags);
+	}
+}
+
+static struct MM_CarouselSource MM_TrackCarousel_Source(struct TrackCarouselContext *context, int count)
+{
+	struct MM_CarouselSource source = {
+		.context = context, .count = count, .enabled = MM_TrackCarousel_Enabled,
+		.label = MM_TrackCarousel_Label, .labelIsFontEncoded = MM_TrackCarousel_IsRetail,
+		.decorate = MM_TrackCarousel_Decorate, .selected = MM_TrackCarousel_Selected, .confirm = MM_TrackCarousel_Confirm,
+	};
+	return source;
+}
+
 void MM_TrackSelect_Init(void)
 {
 	struct MainMenu_LevelRow *selectMenu;
 	s16 numTracks;
 
-	s_titleScrollSelectedRow = -1;
 	s_previewTrackID = -1;
 	s_customMapTrackID = -1;
 	MM_TrackSelect_BuildRaceTracks();
@@ -499,25 +588,9 @@ void MM_TrackSelect_Init(void)
 		numTracks = s_raceTrackCount;
 	}
 
-	// If you scroll past the max number of tracks, go back to the first track
-	if (numTracks <= MM_MENU_TRACK_SELECT.rowSelected)
-	{
-		MM_MENU_TRACK_SELECT.rowSelected = 0;
-	}
-
-	// Loop through all tracks until an unlocked track is found
-	while (!MM_TrackSelect_boolTrackOpen(&selectMenu[MM_MENU_TRACK_SELECT.rowSelected]))
-	{
-		MM_MENU_TRACK_SELECT.rowSelected++;
-
-		// If track index goes too high, reset to zero
-		if (numTracks <= MM_MENU_TRACK_SELECT.rowSelected)
-		{
-			MM_MENU_TRACK_SELECT.rowSelected = 0;
-		}
-	}
-
-	MM_TRACK_CURRENT_TRACK = MM_MENU_TRACK_SELECT.rowSelected;
+	struct TrackCarouselContext carouselContext = {selectMenu, &MM_MENU_TRACK_SELECT};
+	struct MM_CarouselSource carouselSource = MM_TrackCarousel_Source(&carouselContext, numTracks);
+	MM_Carousel_Init(&s_trackCarousel, &carouselSource, MM_MENU_TRACK_SELECT.rowSelected, (u32)MM_FRAME_COUNTER);
 
 	MM_TrackSelect_Video_SetDefaults();
 }
@@ -532,10 +605,8 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 	s16 currTrack;
 	u16 numTracks;
 	u32 trackCountWork;
-	register s32 trackChangeFrames CTR_PSX_REGISTER("$2");
 	register struct TransitionMeta *levelTitleTransition CTR_PSX_REGISTER("$16");
 	register b32 resetPreviewVideo CTR_PSX_REGISTER("$4");
-	s16 rowIndex;
 	(void)trackCountWork;
 	menuLocal = menu;
 	switch (MM_TRACK_TRANSITION_STATE)
@@ -656,145 +727,28 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 		CTR_PSX_KEEP_VALUE_RELAXED(trackCountValue);
 		numTracks = trackCountValue;
 	}
+	struct TrackCarouselContext carouselContext = {selectMenu, menuLocal};
+	struct MM_CarouselSource carouselSource = MM_TrackCarousel_Source(&carouselContext, numTracks);
+	bool carouselHandled = false;
+	if (MM_TRACK_LAP_BOX_OPEN == 0 && MM_TRACK_TRANSITION_STATE == IN_MENU)
 	{
-		register u32 trackStatePage CTR_PSX_REGISTER("$2");
-		register struct RectMenu *menuView CTR_PSX_REGISTER("$14");
-		register s32 trackChangeValue CTR_PSX_REGISTER("$3");
-		trackStatePage = 0;
-		trackChangeValue = MM_TRACK_CHANGE_FRAMES;
-		menuView = menuLocal;
-		currTrack = menuView->rowSelected;
-		MM_TRACK_SEL_BACKUP = currTrack;
-		// Ignore navigation while the selected row is still moving.
-		if (trackChangeValue == 0)
+		u32 buttons = MM_GAME_BUTTON_TAPS[0];
+		if (s_trackCarousel.changeFrames == 0 && (buttons & MM_TRACK_SELECT_INPUT_BACK) != 0)
 		{
-			register u32 lapStatePage CTR_PSX_REGISTER("$19");
-			lapStatePage = MM_OVERLAY_PAGE_VALUE;
-			CTR_PSX_KEEP_VALUE(lapStatePage);
-			if (CTR_PSX_PAGE_LVALUE(s16, lapStatePage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) == 0)
-			{
-				register u32 transitionStatePage CTR_PSX_REGISTER("$18");
-				register s32 transitionState CTR_PSX_REGISTER("$16");
-				transitionStatePage = MM_OVERLAY_PAGE_VALUE;
-				CTR_PSX_KEEP_VALUE(transitionStatePage);
-				transitionState = CTR_PSX_PAGE_LVALUE(s16, transitionStatePage, MM_TRACK_TRANSITION_STATE_PAGE_OFFSET, MM_TRACK_TRANSITION_STATE);
-				if (transitionState == IN_MENU)
-				{
-					register s32 buttonTap CTR_PSX_REGISTER("$4");
-					register u32 inputMask CTR_PSX_REGISTER("$3");
-					inputMask = MM_OVERLAY_PAGE_VALUE;
-					CTR_PSX_KEEP_VALUE(inputMask);
-					inputMask = MM_TRACK_SELECT_INPUT;
-					buttonTap = MM_GAME_BUTTON_TAPS[0];
-					{
-						u32 downPressed = buttonTap & BTN_DOWN;
-						if ((buttonTap & inputMask) != 0)
-						{
-							CTR_PSX_KEEP_VALUE(transitionState);
-							do
-							{
-								if (downPressed != 0)
-								{
-									register u32 wrapTrackCountLoad CTR_PSX_REGISTER("$15");
-									register s32 wrapTrackCount CTR_PSX_REGISTER("$16");
-									OtherFX_Play(0, 1);
-									wrapTrackCountLoad = numTracks;
-									CTR_PSX_KEEP_VALUE_RELAXED(wrapTrackCountLoad);
-									wrapTrackCount = wrapTrackCountLoad;
-									CTR_PSX_KEEP_VALUE_RELAXED(wrapTrackCount);
-									do
-									{
-										currTrack++;
-										if (currTrack >= wrapTrackCount)
-										{
-											currTrack = 0;
-										}
-									} while (!MM_TrackSelect_boolTrackOpen(&selectMenu[currTrack]));
-									MM_TRACK_CHANGE_FRAMES = MM_TRACK_SELECT_TRACK_CHANGE_FRAMES;
-									MM_TRACK_CHANGE_DIRECTION = -1;
-									MM_TRACK_CURRENT_TRACK = currTrack;
-									break;
-								}
-								else if ((buttonTap & BTN_UP) != 0)
-								{
-									register u32 wrapTrackCount CTR_PSX_REGISTER("$12");
-									register s32 wrapLastTrack CTR_PSX_REGISTER("$16");
-									OtherFX_Play(0, 1);
-									wrapTrackCount = numTracks;
-									CTR_PSX_KEEP_VALUE_RELAXED(wrapTrackCount);
-									wrapLastTrack = wrapTrackCount - 1;
-									CTR_PSX_KEEP_VALUE_RELAXED(wrapLastTrack);
-									do
-									{
-										currTrack--;
-										if (currTrack < 0)
-										{
-											currTrack = wrapLastTrack;
-										}
-									} while (!MM_TrackSelect_boolTrackOpen(&selectMenu[currTrack]));
-									MM_TRACK_CHANGE_FRAMES = MM_TRACK_SELECT_TRACK_CHANGE_FRAMES;
-									MM_TRACK_CHANGE_DIRECTION = 1;
-									MM_TRACK_CURRENT_TRACK = currTrack;
-									break;
-								}
-								else if ((buttonTap & MM_TRACK_SELECT_INPUT_CONFIRM) != 0)
-								{
-									OtherFX_Play(1, 1);
-									{
-										u32 gameMode = GAME_TRACKER->gameMode1;
-										if ((gameMode & BATTLE_MODE) != 0)
-										{
-											register u32 startAfterPage CTR_PSX_REGISTER("$2");
-											startAfterPage = MM_OVERLAY_PAGE_VALUE;
-											CTR_PSX_KEEP_VALUE(startAfterPage);
-											CTR_PSX_PAGE_LVALUE(s16, startAfterPage, MM_TRACK_TRANSITION_START_AFTER_EXIT_PAGE_OFFSET,
-											                    MM_TRACK_TRANSITION_START_AFTER_EXIT) = transitionState;
-										}
-										else if ((gameMode & TIME_TRIAL) != 0)
-										{
-											MM_TRACK_TRANSITION_START_AFTER_EXIT = transitionState;
-										}
-										else
-										{
-											CTR_PSX_PAGE_LVALUE(s16, lapStatePage, MM_TRACK_LAP_BOX_OPEN_PAGE_OFFSET, MM_TRACK_LAP_BOX_OPEN) = transitionState;
-											break;
-										}
-									}
-								}
-								else
-								{
-									register u32 backPressed CTR_PSX_REGISTER("$2");
-									backPressed = buttonTap & MM_TRACK_SELECT_INPUT_BACK;
-									CTR_PSX_KEEP_VALUE_RELAXED(backPressed);
-									if (backPressed == 0)
-									{
-										goto trackClearInput;
-									}
-									OtherFX_Play(2, 1);
-									MM_TRACK_TRANSITION_START_AFTER_EXIT = 0;
-								}
-								CTR_PSX_PAGE_LVALUE(s16, transitionStatePage, MM_TRACK_TRANSITION_STATE_PAGE_OFFSET, MM_TRACK_TRANSITION_STATE) = EXITING_MENU;
-							} while (0);
-						trackClearInput:
-							RECTMENU_ClearInput();
-							goto trackSelectionMenuDone;
-						}
-						else
-						{
-							goto trackSelectionMenuDone;
-						}
-					}
-				}
-				else
-				{
-					goto trackSelectionMenuDone;
-				}
-			}
-			else
-			{
-				goto trackLapMenu;
-			}
+			OtherFX_Play(2, 1);
+			MM_TRACK_TRANSITION_START_AFTER_EXIT = 0;
+			MM_TRACK_TRANSITION_STATE = EXITING_MENU;
+			RECTMENU_ClearInput();
 		}
+		else if (MM_Carousel_Update(&s_trackCarousel, &carouselSource, buttons, (u32)MM_FRAME_COUNTER))
+		{
+			carouselHandled = true;
+			RECTMENU_ClearInput();
+		}
+	}
+	else if (s_trackCarousel.changeFrames > 0)
+	{
+		MM_Carousel_Update(&s_trackCarousel, &carouselSource, 0, (u32)MM_FRAME_COUNTER);
 	}
 	// The lap menu is drawn on top of Track Select when it is open.
 	{
@@ -808,10 +762,9 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 				lapMenuPage = MM_OVERLAY_PAGE_VALUE;
 				CTR_PSX_KEEP_VALUE(lapMenuPage);
 			}
-		trackLapMenu:
 			lapSelTransitionState = 0;
 			MM_MENU_LAP_SELECT.rowSelected = MM_USELESS_LAP_ROW_COPY;
-			if (MM_TRACK_TRANSITION_STATE == IN_MENU)
+			if (MM_TRACK_TRANSITION_STATE == IN_MENU && !carouselHandled)
 			{
 				lapSelTransitionState = RECTMENU_ProcessInput(&MM_MENU_LAP_SELECT);
 			}
@@ -837,354 +790,11 @@ void MM_TrackSelect_MenuProc(struct RectMenu *menu)
 			}
 		}
 	}
-trackSelectionMenuDone:
-	// Finish a row transition by publishing the selected track to the menu.
-	{
-		register u32 trackChangePage CTR_PSX_REGISTER("$3");
-		trackChangePage = MM_OVERLAY_PAGE_VALUE;
-		CTR_PSX_KEEP_VALUE(trackChangePage);
-		trackChangeFrames = CTR_PSX_PAGE_LVALUE(s32, trackChangePage, MM_TRACK_CHANGE_FRAMES_PAGE_OFFSET, MM_TRACK_CHANGE_FRAMES);
-		if (0 < trackChangeFrames)
-		{
-			trackChangeFrames--;
-			CTR_PSX_PAGE_LVALUE(s32, trackChangePage, MM_TRACK_CHANGE_FRAMES_PAGE_OFFSET, MM_TRACK_CHANGE_FRAMES) = trackChangeFrames;
-			if (trackChangeFrames == 0)
-			{
-				register u32 currentTrack CTR_PSX_REGISTER("$2");
-				register struct RectMenu *menuUpdate CTR_PSX_REGISTER("$13");
-				currentTrack = MM_TRACK_CURRENT_TRACK;
-				menuUpdate = menuLocal;
-				menuUpdate->rowSelected = currentTrack;
-			}
-		}
-	}
-
-	if (MM_TRACK_CHANGE_FRAMES != 0 || s_titleScrollSelectedRow != menuLocal->rowSelected)
-	{
-		s_titleScrollSelectedRow = menuLocal->rowSelected;
-		s_titleScrollStartFrame = (u32)MM_FRAME_COUNTER;
-	}
-
-	resetPreviewVideo = 0;
-	if ((MM_TRACK_CHANGE_FRAMES != 0) || (MM_TRACK_TRANSITION_STATE == EXITING_MENU))
-	{
-		resetPreviewVideo = 1;
-	}
-	rowIndex = 0;
+	resetPreviewVideo = s_trackCarousel.changeFrames != 0 || MM_TRACK_TRANSITION_STATE == EXITING_MENU;
 	MM_TrackSelect_Video_State(resetPreviewVideo);
-	// Find the first visible row before drawing the nine-row carousel.
+	MM_Carousel_Draw(&s_trackCarousel, &carouselSource, GAME_TRACKER, MM_TRACK_TRANSITIONS[0].currX,
+	                 MM_TRACK_TRANSITIONS[0].currY, (u32)MM_FRAME_COUNTER);
 	{
-		register s16 lastTrack CTR_PSX_REGISTER("$16");
-		register s16 nextRowIndex CTR_PSX_REGISTER("$2");
-		register s16 trackCount CTR_PSX_REGISTER("$14");
-		register struct RectMenu *scanMenu CTR_PSX_REGISTER("$15");
-		register struct GameTracker *scanTracker CTR_PSX_REGISTER("$3");
-		register s32 selectedTrack CTR_PSX_REGISTER("$4");
-		scanTracker = GAME_TRACKER;
-		trackCount = numTracks;
-		scanMenu = menuLocal;
-		selectedTrack = (s16)scanMenu->rowSelected;
-		lastTrack = trackCount - 1;
-		scanTracker->currLEV = selectMenu[selectedTrack].levID;
-		currTrack = selectedTrack;
-		do
-		{
-			b32 trackOpen;
-			do
-			{
-				currTrack--;
-				if (currTrack < 0)
-				{
-					currTrack = lastTrack;
-				}
-				trackOpen = MM_TrackSelect_boolTrackOpen(&selectMenu[currTrack]);
-			} while (!trackOpen);
-			nextRowIndex = rowIndex + 1;
-			rowIndex = nextRowIndex;
-		} while (nextRowIndex < MM_TRACK_SELECT_CENTER_ROW);
-	}
-	rowIndex = 0;
-	{
-		register u32 gameTrackerPage CTR_PSX_REGISTER("$23");
-		gameTrackerPage = 0;
-		// Draw each visible row, wrapping past locked and final tracks.
-		do
-		{
-			register s32 rowBaseY CTR_PSX_REGISTER("$3");
-			register s16 rowY CTR_PSX_REGISTER("$20");
-			b32 trackOpen;
-			register u32 rowAngle CTR_PSX_REGISTER("$4");
-			register u32 packedTrig CTR_PSX_REGISTER("$16");
-			register struct TrigTable *trigTable CTR_PSX_REGISTER("$12");
-			register u32 trigIndex CTR_PSX_REGISTER("$2");
-			s32 rowCos;
-			s32 rowSin;
-			RECT16 rowRect;
-			RECT16 *rowDrawRectArg;
-			register s32 rowX CTR_PSX_REGISTER("$19");
-			register s32 rowBaseAngle CTR_PSX_REGISTER("$5");
-			register s32 rowBaseIndex CTR_PSX_REGISTER("$2");
-			register s32 rowPhaseTemp CTR_PSX_REGISTER("$3");
-			register s32 changeFrames CTR_PSX_REGISTER("$2");
-			register s32 rowCalc CTR_PSX_REGISTER("$2");
-			register s32 rowBaseX CTR_PSX_REGISTER("$4");
-			register struct TransitionMeta *rowTransition CTR_PSX_REGISTER("$13");
-			register struct GameTracker *rowTracker CTR_PSX_REGISTER("$4");
-			register struct GameTracker *rowDrawTracker CTR_PSX_REGISTER("$2");
-			register s32 rowDrawZero CTR_PSX_REGISTER("$5");
-			register u32 *rowDrawOt CTR_PSX_REGISTER("$6");
-			register u16 rowDrawTrackCount CTR_PSX_REGISTER("$15");
-			register s32 rowLoopTrackCount CTR_PSX_REGISTER("$16");
-			rowBaseIndex = ((s16)rowIndex) - MM_TRACK_SELECT_CENTER_ROW;
-			rowPhaseTemp = rowBaseIndex * (MM_TRACK_SELECT_ROW_ANGLE_STEP + 1);
-			CTR_PSX_KEEP_VALUE_RELAXED(rowPhaseTemp);
-			rowBaseAngle = rowPhaseTemp - rowBaseIndex;
-			CTR_PSX_KEEP_VALUE_RELAXED(rowBaseAngle);
-			changeFrames = MM_TRACK_CHANGE_FRAMES;
-			rowAngle = rowBaseAngle;
-			if (changeFrames <= 0)
-			{
-				goto trackRowAngleReady;
-			}
-			{
-				s32 angleStep;
-				s32 angleOffset;
-				angleStep = ((MM_TRACK_SELECT_TRACK_CHANGE_FRAMES - changeFrames) * MM_TRACK_SELECT_ROW_ANGLE_STEP) / MM_TRACK_SELECT_TRACK_CHANGE_FRAMES;
-				angleOffset = angleStep * MM_TRACK_CHANGE_DIRECTION;
-				rowAngle = rowBaseAngle + angleOffset;
-			}
-		trackRowAngleReady:
-			trigIndex = (rowAngle & (((0x1000 / 2) / 2) - 1)) * (sizeof(*trigTable));
-
-			trigTable = MM_TRIG_APPROX;
-			packedTrig = CTR_ReadU32AlignedLE((u32 *)(trigIndex + ((u32)trigTable)));
-			if ((rowAngle & ((0x1000 / 2) / 2)) != 0)
-			{
-				register u32 signTest CTR_PSX_REGISTER("$2");
-				rowCos = (s16)packedTrig;
-				rowSin = (s16)(packedTrig >> 16);
-				signTest = rowAngle & (0x1000 / 2);
-				if (signTest != 0)
-				{
-					rowSin = -rowSin;
-				}
-				else
-				{
-					rowCos = -rowCos;
-				}
-			}
-			else
-			{
-				register u32 signTest CTR_PSX_REGISTER("$2");
-				rowCos = (s16)(packedTrig >> 16);
-				rowSin = (s16)packedTrig;
-				signTest = rowAngle & (0x1000 / 2);
-				if (signTest != 0)
-				{
-					rowCos = -rowCos;
-					rowSin = -rowSin;
-				}
-			}
-			rowRect.w = MM_TRACK_SELECT_ROW_W;
-			rowRect.h = MM_TRACK_SELECT_ROW_H;
-			CTR_PSX_MEMORY_BARRIER();
-			rowCalc = (rowCos * MM_TRACK_SELECT_ROW_X_RADIUS) >> MM_TRACK_SELECT_ROW_X_SHIFT;
-			rowTransition = MM_TRACK_TRANSITIONS;
-			rowBaseX = (u16)rowTransition->currX;
-			rowCalc += MM_TRACK_SELECT_ROW_X_OFFSET;
-			rowBaseX += rowCalc;
-			rowCalc = (rowSin * (MM_TRACK_SELECT_ROW_Y_RADIUS >> 3)) << 3;
-			CTR_PSX_KEEP_VALUE(rowCalc);
-			rowCalc >>= MM_TRACK_SELECT_ROW_Y_SHIFT;
-			CTR_PSX_COPY_VALUE(rowX, rowBaseX);
-			rowRect.x = (s16)rowBaseX;
-			CTR_PSX_MEMORY_BARRIER();
-			rowBaseY = (u16)rowTransition->currY;
-			rowTracker = CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER);
-			CTR_PSX_KEEP_VALUE(rowTracker);
-			rowBaseY += rowCalc;
-			rowBaseY += MM_TRACK_SELECT_ROW_Y_OFFSET;
-			CTR_PSX_COPY_VALUE(rowY, rowBaseY);
-			rowRect.y = (s16)rowBaseY;
-			if ((rowTracker->gameMode1 & TIME_TRIAL) != 0 &&
-			    LevelInfo_Lookup(selectMenu[currTrack].levID).kind == LEVEL_INFO_RETAIL)
-			{
-				// Draw the N. Tropy and Oxide stars earned for this track.
-				register s32 timeTrialTrackOffset CTR_PSX_REGISTER("$2");
-				register struct MainMenu_LevelRow *timeTrialTrack CTR_PSX_REGISTER("$21");
-				s16 previousLevelID;
-				s32 starIndex;
-				starIndex = 0;
-				previousLevelID = rowTracker->levelID;
-				timeTrialTrackOffset = ((s16)currTrack) << 4;
-				timeTrialTrack = (struct MainMenu_LevelRow *)(timeTrialTrackOffset + ((u32)selectMenu));
-				CTR_PSX_KEEP_VALUE_RELAXED(timeTrialTrack);
-				for (; starIndex < MM_TRACK_SELECT_TT_STAR_COUNT; starIndex++)
-				{
-					s16 beatenFlagBit;
-					u32 timeTrialFlags;
-					CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->levelID = timeTrialTrack->levID;
-					GAMEPROG_GetPtrHighScoreTrack();
-					beatenFlagBit = MM_TIME_TRIAL_STAR_FLAGS[starIndex];
-					timeTrialFlags = GAME_PROGRESS.highScoreTracks[rowTracker->levelID].timeTrialFlags;
-					if (((timeTrialFlags >> (beatenFlagBit & 0x1f)) & 1) != 0)
-					{
-						register s32 starX CTR_PSX_REGISTER("$5");
-						register s32 starY CTR_PSX_REGISTER("$6");
-						struct Icon **iconPtrArray;
-						struct GameTracker *starTracker;
-						u32 *starOt;
-						struct IconGroup *starIconGroup;
-						struct DB *starBackBuffer;
-						u32 **colorPtr;
-						register s16 starColorIndex CTR_PSX_REGISTER("$3");
-						{
-							register u16 *starColors CTR_PSX_REGISTER("$2");
-							starColors = MM_TIME_TRIAL_STAR_COLORS;
-							starColorIndex = starColors[starIndex];
-						}
-						starX = (s16)rowX;
-						starX += MM_TRACK_SELECT_ROW_W + MM_TRACK_SELECT_STAR_X_OFFSET;
-						starY = starIndex * MM_TRACK_SELECT_STAR_Y_STEP;
-						starY += MM_TRACK_SELECT_STAR_Y_OFFSET;
-						starTracker = CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER);
-						starOt = starTracker->pushBuffer_UI.ptrOT;
-						starIconGroup = starTracker->iconGroup[MM_TRACK_SELECT_TT_STAR_ICON_GROUP];
-						starBackBuffer = starTracker->backBuffer;
-						iconPtrArray = (struct Icon **)(((u32)starIconGroup) + (sizeof(struct IconGroup)));
-						colorPtr = &MM_COLOR_POINTERS[starColorIndex];
-						MM_DECALHUD_DRAW_POLY_GT4(iconPtrArray[MM_TRACK_SELECT_TT_STAR_ICON], starX, ((s16)rowY) + starY, &starBackBuffer->primMem, starOt,
-						                          ((Color *)(*colorPtr))[0], ((Color *)(*colorPtr))[1], ((Color *)(*colorPtr))[2], ((Color *)(*colorPtr))[3], 0,
-						                          (int)(((float)1.0) * (1 << 12)));
-					}
-				}
-
-				CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->levelID = previousLevelID;
-				GAMEPROG_GetPtrHighScoreTrack();
-			}
-			{
-				register u32 uiPage CTR_PSX_REGISTER("$21");
-				struct MainMenu_LevelRow *trackEntry;
-				register s32 trackLevelID CTR_PSX_REGISTER("$3");
-				register s32 rowNameX CTR_PSX_REGISTER("$5");
-				register s32 rowNameY CTR_PSX_REGISTER("$6");
-				uiPage = 0;
-				rowNameX = (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET);
-				trackEntry = &selectMenu[currTrack];
-				rowNameY = (s16)(rowY + MM_TRACK_SELECT_ROW_NAME_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET);
-				trackLevelID = trackEntry->levID;
-				struct LevelInfo levelInfo = LevelInfo_Lookup(trackLevelID);
-				const struct NativeTrackMetadata *customTrack = levelInfo.custom;
-				const char *titleText = LevelInfo_Title(&levelInfo, CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS));
-				if (titleText == NULL) { titleText = ""; }
-				if (customTrack != NULL)
-				{
-					char title[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
-					TrackText_Copy(title, sizeof(title), titleText);
-					u32 scrollFrame = 0;
-					if (MM_TRACK_CHANGE_FRAMES == 0 && (s16)rowIndex == MM_TRACK_SELECT_CENTER_ROW)
-					{
-						scrollFrame = (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame;
-					}
-					TrackText_Scroll(title, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_BIG, scrollFrame);
-					MM_DRAW_LINE_WIDE_FLAGS(title, rowNameX, rowNameY, FONT_BIG, ORANGE);
-				}
-				else
-				{
-					MM_DRAW_LINE_WIDE_FLAGS((char *)titleText, rowNameX, rowNameY, FONT_BIG, ORANGE);
-				}
-				rowDrawRectArg = &rowRect;
-				if ((MM_TRACK_CHANGE_FRAMES == 0) && (((s16)rowIndex) == MM_TRACK_SELECT_CENTER_ROW))
-				{
-					RECT16 highlightRect;
-					register RECT16 *clearRectArg CTR_PSX_REGISTER("$4");
-					register u32 highlightColorPage CTR_PSX_REGISTER("$5");
-					register struct GameTracker *highlightTracker CTR_PSX_REGISTER("$2");
-					if (customTrack != NULL && customTrack->author != NULL)
-					{
-						char author[MM_TRACK_SELECT_CUSTOM_TITLE_BYTES];
-						memcpy(author, "by ", sizeof("by ") - 1);
-						TrackText_Copy(author + sizeof("by ") - 1, sizeof(author) - (sizeof("by ") - 1), customTrack->author);
-						TrackText_Scroll(author, MM_TRACK_SELECT_ROW_W - MM_TRACK_SELECT_CUSTOM_TITLE_MARGIN, FONT_SMALL,
-						                          (u32)MM_FRAME_COUNTER - s_titleScrollStartFrame);
-						MM_DRAW_LINE_WIDE_FLAGS(author, (s16)(rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X),
-						                        (s16)(rowRect.y - data.font_charPixHeight[FONT_SMALL] + rowRect.h -
-						                              (MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET)),
-						                        FONT_SMALL, JUSTIFY_CENTER | PERIWINKLE);
-					}
-					if ((CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->gameMode1 & TIME_TRIAL) != 0 &&
-					    levelInfo.kind == LEVEL_INFO_RETAIL)
-					{
-						s16 ghostProfileCount = RefreshCard_CountGhostProfilesForLEV(trackEntry->levID);
-						if (ghostProfileCount != 0)
-						{
-							register s32 ghostTextX CTR_PSX_REGISTER("$5");
-							register s32 ghostTextY CTR_PSX_REGISTER("$6");
-							register s32 ghostTextFlags CTR_PSX_REGISTER("$2");
-							register char **ghostStrings CTR_PSX_REGISTER("$4");
-							{
-								register s32 ghostTextXCalc CTR_PSX_REGISTER("$2");
-								ghostTextXCalc = (rowX + MM_TRACK_SELECT_ROW_NAME_X_OFFSET) + MM_TRACK_SELECT_GHOST_TEXT_FROM_NAME_X;
-								CTR_PSX_KEEP_VALUE_RELAXED(ghostTextXCalc);
-								ghostTextX = (s16)ghostTextXCalc;
-							}
-							{
-								register s32 ghostTextYCalc CTR_PSX_REGISTER("$3");
-								ghostTextYCalc = rowY + MM_TRACK_SELECT_GHOST_TEXT_Y_OFFSET - MM_TRACK_SELECT_ROW_Y_OFFSET;
-								CTR_PSX_KEEP_VALUE_RELAXED(ghostTextYCalc);
-								ghostTextY = (s16)ghostTextYCalc;
-							}
-							ghostTextFlags = MM_FRAME_COUNTER;
-							ghostStrings = CTR_PSX_PAGE_LVALUE(char **, uiPage, MM_LANGUAGE_STRINGS_PAGE_OFFSET, GAME_LANGUAGE_STRINGS);
-							ghostTextFlags &= MM_TRACK_SELECT_GHOST_FLASH_FRAME_BIT;
-							if (ghostTextFlags != 0)
-							{
-								ghostTextFlags = -0x7fff;
-							}
-							else
-							{
-								ghostTextFlags = -0x7ffc;
-							}
-							MM_DRAW_LINE_WIDE_FLAGS(ghostStrings[LNG_GHOST_DATA_EXISTS], ghostTextX, ghostTextY, FONT_SMALL, ghostTextFlags);
-						}
-					}
-					clearRectArg = &highlightRect;
-					CTR_PSX_KEEP_VALUE(clearRectArg);
-					highlightColorPage = MM_GAME_TRACKER_PAGE_VALUE;
-					CTR_PSX_KEEP_VALUE(highlightColorPage);
-					highlightRect.x = rowRect.x + MM_TRACK_SELECT_HIGHLIGHT_INSET_X;
-					highlightRect.w = rowRect.w - MM_TRACK_SELECT_HIGHLIGHT_W_SHRINK;
-					highlightRect.y = rowRect.y + MM_TRACK_SELECT_HIGHLIGHT_INSET_Y;
-					highlightTracker = CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER);
-					highlightRect.h = rowRect.h - MM_TRACK_SELECT_HIGHLIGHT_H_SHRINK;
-					MM_DRAW_CLEAR_BOX(clearRectArg,
-					                  &CTR_PSX_PAGE_LVALUE(Color, highlightColorPage, MM_MENU_ROW_HIGHLIGHT_NORMAL_PAGE_OFFSET, GAME_MENU_HIGHLIGHT),
-					                  TRANS_50_DECAL, highlightTracker->backBuffer->otMem.uiOT, &highlightTracker->backBuffer->primMem);
-					rowDrawRectArg = &rowRect;
-				}
-				rowDrawTracker = CTR_PSX_PAGE_LVALUE(struct GameTracker *, gameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER);
-				rowDrawZero = 0;
-				rowDrawTrackCount = *((volatile u16 *)&numTracks);
-				rowDrawOt = rowDrawTracker->backBuffer->otMem.uiOT;
-				rowLoopTrackCount = rowDrawTrackCount;
-				RECTMENU_DrawInnerRect(rowDrawRectArg, rowDrawZero, rowDrawOt);
-			}
-			do
-			{
-				currTrack++;
-				if (rowLoopTrackCount <= currTrack)
-				{
-					currTrack = 0;
-				}
-				trackOpen = MM_TrackSelect_boolTrackOpen(&selectMenu[currTrack]);
-			} while (!trackOpen);
-			{
-				register s16 nextRowIndex CTR_PSX_REGISTER("$2");
-				nextRowIndex = rowIndex + 1;
-				rowIndex = nextRowIndex;
-			}
-			if (MM_TRACK_SELECT_VISIBLE_ROWS <= rowIndex)
-			{
 				// The preview, title, and minimap are drawn after the row list.
 				register s32 previewX CTR_PSX_REGISTER("$3");
 				register s32 previewY CTR_PSX_REGISTER("$2");
@@ -1307,11 +917,10 @@ trackSelectionMenuDone:
 						}
 					}
 				}
-				MM_TrackSelect_Video_Draw(&previewRect, selectMenu, (int)((s16)MM_TRACK_CURRENT_TRACK), (u32)(MM_TRACK_TRANSITION_STATE == EXITING_MENU), 0);
+				MM_TrackSelect_Video_Draw(&previewRect, selectMenu, (s16)s_trackCarousel.next, (u32)(MM_TRACK_TRANSITION_STATE == EXITING_MENU), 0);
 				return;
-			}
-		} while (1);
 	}
+
 }
 
 struct RectMenu *MM_TrackSelect_GetMenuPtr(void)
