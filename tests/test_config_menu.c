@@ -743,7 +743,7 @@ static void OpenEntry(int index, enum ConfigMenuContext context)
 static void TestAvailability(void)
 {
 	const char *const allowedKeys[] = {
-		"audio", "text", "retail_priority", "export_active_language", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "show_reserves_meter",
+		"audio", "text", "retail_priority", "export_active_language", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "loading_screen", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
 		"fxaa", "texture_filtering", "pgxp",

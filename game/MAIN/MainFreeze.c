@@ -171,7 +171,7 @@ void MainFreeze_MenuPtrDefault(struct RectMenu *menu)
 		// get rid of pause flag
 		gGT->gameMode1 &= ~PAUSE_1;
 
-		if (RaceFlag_IsFullyOffScreen())
+		if (g_config.loadingScreen == LOADING_SCREEN_FADE || RaceFlag_IsFullyOffScreen())
 		{
 			// checkered flag, begin transition on-screen
 			RaceFlag_BeginTransition(1);
