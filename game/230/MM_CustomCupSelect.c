@@ -19,10 +19,16 @@ enum
 	CUSTOM_CUP_SELECT_KIND_COUNT = 2,
 	CUSTOM_CUP_SELECT_CAROUSEL_X = 0,
 	CUSTOM_CUP_SELECT_CAROUSEL_Y = 0,
-	CUSTOM_CUP_SELECT_PREVIEW_WIDTH = 200,
-	CUSTOM_CUP_SELECT_PREVIEW_X = 300,
+	CUSTOM_CUP_SELECT_PREVIEW_WIDTH = 204,
+	CUSTOM_CUP_SELECT_PREVIEW_X = 298,
 	CUSTOM_CUP_SELECT_PREVIEW_Y = 34,
+	CUSTOM_CUP_SELECT_PREVIEW_TOP = 15,
+	CUSTOM_CUP_SELECT_PREVIEW_SEPARATOR_Y = 29,
+	CUSTOM_CUP_SELECT_PREVIEW_BORDER_HEIGHT = 2,
 	CUSTOM_CUP_SELECT_PREVIEW_STEP = 15,
+	CUSTOM_CUP_SELECT_PREVIEW_COLUMN_GAP = 4,
+	CUSTOM_CUP_SELECT_PREVIEW_PADDING = 3,
+	CUSTOM_CUP_SELECT_PREVIEW_LEFT_INSET = 2,
 };
 
 struct CustomCupSelectEntry
@@ -199,21 +205,45 @@ static bool MM_CustomCupSelect_UpdateKind(struct RectMenu *menu, u32 tapped)
 static void MM_CustomCupSelect_DrawPreview(struct GameTracker *gGT)
 {
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
+	int numberWidth = DecalFont_GetLineWidth("99", FONT_SMALL);
+	int positionX = CUSTOM_CUP_SELECT_PREVIEW_X - CUSTOM_CUP_SELECT_PREVIEW_PADDING + CUSTOM_CUP_SELECT_PREVIEW_LEFT_INSET;
+	int titleX = positionX + numberWidth + CUSTOM_CUP_SELECT_PREVIEW_COLUMN_GAP;
+	int lapsX = CUSTOM_CUP_SELECT_PREVIEW_X + CUSTOM_CUP_SELECT_PREVIEW_WIDTH - numberWidth;
+	int titleWidth = lapsX - CUSTOM_CUP_SELECT_PREVIEW_COLUMN_GAP - titleX;
 	for (int i = 0; i < s_cupSelectPreview.trackCount; i++)
 	{
 		int level;
-		char title[128], text[160];
+		char title[128], text[128], position[12], laps[12];
 		const char *name = CustomCup_ResolveTrack(s_cupSelectPreview.tracks[i], NativeTrackLibrary_Current(), &level)
 		                       ? LevelInfo_DisplayTitle(level, sdata->lngStrings, title, sizeof(title)) : "TRACK UNAVAILABLE";
-		snprintf(text, sizeof(text), "%d. %s (%d)", i + 1, name, s_cupSelectPreview.laps[i]);
-		TrackText_Scroll(text, CUSTOM_CUP_SELECT_PREVIEW_WIDTH, FONT_SMALL, gGT->timer);
-		DecalFont_DrawLineOT(text, CUSTOM_CUP_SELECT_PREVIEW_X, CUSTOM_CUP_SELECT_PREVIEW_Y + i * CUSTOM_CUP_SELECT_PREVIEW_STEP,
-		                     FONT_SMALL, ORANGE, ot);
+		snprintf(text, sizeof(text), "%s", name);
+		snprintf(position, sizeof(position), "%d", i + 1);
+		snprintf(laps, sizeof(laps), "%d", s_cupSelectPreview.laps[i]);
+		TrackText_Scroll(text, titleWidth, FONT_SMALL, gGT->timer);
+		int y = CUSTOM_CUP_SELECT_PREVIEW_Y + i * CUSTOM_CUP_SELECT_PREVIEW_STEP;
+		DecalFont_DrawLineOT(position, positionX + numberWidth, y, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, ot);
+		DecalFont_DrawLineOT(text, titleX, y, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT(laps, lapsX + numberWidth, y, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, ot);
 	}
 	if (s_cupCarousel.selected > 0)
 	{
-		RECT preview = {CUSTOM_CUP_SELECT_PREVIEW_X - 6, CUSTOM_CUP_SELECT_PREVIEW_Y - 6,
-		                CUSTOM_CUP_SELECT_PREVIEW_WIDTH + 12, CUSTOM_CUP_MAX_TRACKS * CUSTOM_CUP_SELECT_PREVIEW_STEP + 12};
+		int headerTop = CUSTOM_CUP_SELECT_PREVIEW_TOP + CUSTOM_CUP_SELECT_PREVIEW_BORDER_HEIGHT;
+		int headerY = headerTop + (CUSTOM_CUP_SELECT_PREVIEW_SEPARATOR_Y - headerTop - data.font_charPixHeight[FONT_SMALL]) / 2;
+		DecalFont_DrawLineOT("N.", positionX, headerY, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT("TRACK", titleX, headerY, FONT_SMALL, ORANGE, ot);
+		DecalFont_DrawLineOT("L.", lapsX, headerY, FONT_SMALL, ORANGE, ot);
+		RECT separator = {CUSTOM_CUP_SELECT_PREVIEW_X - CUSTOM_CUP_SELECT_PREVIEW_PADDING + 3,
+		                  CUSTOM_CUP_SELECT_PREVIEW_SEPARATOR_Y,
+		                  CUSTOM_CUP_SELECT_PREVIEW_WIDTH + 2 * CUSTOM_CUP_SELECT_PREVIEW_PADDING - 6,
+		                  CUSTOM_CUP_SELECT_PREVIEW_BORDER_HEIGHT};
+		Color borderColor;
+		memcpy(&borderColor, &sdata->battleSetup_Color_UI_1, sizeof(borderColor));
+		RECTMENU_DrawOuterRect_Edge(&separator, &borderColor, 0x20, ot);
+		RECT preview = {CUSTOM_CUP_SELECT_PREVIEW_X - CUSTOM_CUP_SELECT_PREVIEW_PADDING,
+		                CUSTOM_CUP_SELECT_PREVIEW_TOP,
+		                CUSTOM_CUP_SELECT_PREVIEW_WIDTH + 2 * CUSTOM_CUP_SELECT_PREVIEW_PADDING,
+		                CUSTOM_CUP_MAX_TRACKS * CUSTOM_CUP_SELECT_PREVIEW_STEP + CUSTOM_CUP_SELECT_PREVIEW_PADDING +
+		                    CUSTOM_CUP_SELECT_PREVIEW_Y - CUSTOM_CUP_SELECT_PREVIEW_TOP};
 		RECTMENU_DrawInnerRect(&preview, 0, ot);
 	}
 }
