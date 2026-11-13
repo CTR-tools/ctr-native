@@ -765,8 +765,21 @@ void UI_CupStandings_InputAndDraw(void)
 					gGT->podiumRewardID = STATIC_BIG1;
 				}
 
-				// Level ID for Gemstone Valley (podiums)
-				MainRaceTrack_RequestLoad(GEM_STONE_VALLEY);
+				if (customCup && g_config.skipPodiumCeremonies)
+				{
+					// Custom cups have no completion rewards or save prompt to process at the podium.
+					sdata->mainMenuState = MAIN_MENU_TITLE;
+					gGT->gameMode1 = (gGT->gameMode1 | MAIN_MENU) & ~ADVENTURE_ARENA;
+					gGT->gameMode2 &= ~VEH_FREEZE_PODIUM;
+					gGT->podiumRewardID = NOFUNC;
+					RaceFlag_SetDrawOrder(0);
+					MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+				}
+				else
+				{
+					// Standard cups still need the podium's progress-save prompt.
+					MainRaceTrack_RequestLoad(GEM_STONE_VALLEY);
+				}
 			}
 		}
 	}
