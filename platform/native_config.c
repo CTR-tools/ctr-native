@@ -89,6 +89,7 @@ NativeConfig g_config = {
   .extraDifficultyLevels = false,
   .engineSelection = false,
   .customCups = false,
+  .expandedArcade = false,
 
   .speedMultiplier = 100,
   .gravityMultiplier = 100,
@@ -297,6 +298,13 @@ const ConfigEntry g_configEntries[] = {
         .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_CUPS,
         .type = CFG_BOOL,
         .valuePtr = &g_config.customCups
+    },
+    {
+        .section = "General",
+        .key = "expanded_arcade",
+        .lngKey = LNG_EXPANDED_CONFIG_EXPANDED_ARCADE,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.expandedArcade
     },
     {
         .section = "Adventure",
