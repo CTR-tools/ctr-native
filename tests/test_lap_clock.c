@@ -8,6 +8,7 @@ struct GameTracker tracker;
 static int savedCalls;
 static int savedLap;
 static int savedDriver;
+static unsigned int relicTargetsDrawn;
 
 void UI_SaveLapTime(int lap, int time, s16 driverID)
 {
@@ -23,6 +24,9 @@ void DecalFont_DrawLine(char *str, s16 x, s16 y, s16 font, s16 flags)
 }
 
 int GAMEPROG_AdventureTimeLimit(int time) { return time; }
+int GAMEPROG_RelicTargetTime(int levelID, int tier) { (void)levelID; relicTargetsDrawn |= 1u << tier; return 1000; }
+b32 MainGameEnd_GotAllTimeCrates(struct GameTracker *gGT) { (void)gGT; return false; }
+int MainGameEnd_RelicTier(struct GameTracker *gGT, struct Driver *driver) { (void)gGT; (void)driver; return -1; }
 char *RECTMENU_DrawTime(int time) { (void)time; return ""; }
 void MainGameEnd_Initialize(void) {}
 
@@ -58,6 +62,20 @@ int main(void)
 	driver.lapIndex = 3;
 	UI_DrawRaceClock(0, 0, UI_RACE_CLOCK_SHOW_RESULTS, &driver);
 	CTR_TEST_CHECK(savedCalls == 0, "ordinary finished races also leave recorded laps unchanged");
+
+	CTR_TEST_SECTION("Relic race targets");
+	const u32 relicModes[] = {ADVENTURE_MODE | RELIC_RACE, ARCADE_MODE | RELIC_RACE};
+	for (int i = 0; i < (int)len(relicModes); i++)
+	{
+		tracker.gameMode1 = relicModes[i];
+		relicTargetsDrawn = 0;
+		UI_DrawRaceClock(0, 0, UI_RACE_CLOCK_SHOW_CURRENT_TIME, &driver);
+		CTR_TEST_CHECK_EQ(relicTargetsDrawn, 7, "the race HUD displays all three relic targets");
+	}
+	tracker.gameMode1 = ADVENTURE_MODE | RELIC_RACE;
+	relicTargetsDrawn = 0;
+	UI_DrawRaceClock(0, 0, UI_RACE_CLOCK_SHOW_RESULTS, &driver);
+	CTR_TEST_CHECK_EQ(relicTargetsDrawn, 0, "Adventure results retain their existing reward display");
 
 	return CtrTest_Summary();
 }

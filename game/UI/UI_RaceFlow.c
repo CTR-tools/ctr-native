@@ -145,6 +145,11 @@ void UI_RaceStart_IntroText1P(void)
 				{
 					// ARCADE
 					textID = LNG_ARCADE;
+					if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+					{
+						textID = LNG_CTR_CHALLENGE_TITLE;
+						goto LAB_80055930;
+					}
 
 					if (
 					    // If you're in Arcade Mode
@@ -421,6 +426,12 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 		// Erase ghost of previous race from RAM
 		GhostTape_Destroy();
 
+	ArcadeQuit:
+		if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+		{
+			sdata->Loading.OnBegin.RemBitsConfig0 |= CRYSTAL_CHALLENGE | RELIC_RACE;
+			sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
+		}
 		// go back to main menu
 		sdata->mainMenuState = MAIN_MENU_TITLE;
 
@@ -518,6 +529,10 @@ void UI_RaceEnd_MenuProc(struct RectMenu *menu)
 	// Exit To Map
 	case UI_RACE_END_OPTION_EXIT_TO_MAP:
 	{
+		if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+		{
+			goto ArcadeQuit;
+		}
 		sdata->Loading.OnBegin.AddBitsConfig0 |= ADVENTURE_ARENA;
 		sdata->Loading.OnBegin.RemBitsConfig8 |= TOKEN_RACE;
 

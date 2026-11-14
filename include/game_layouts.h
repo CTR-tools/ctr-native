@@ -2,6 +2,7 @@
 #define GAME_LAYOUTS_H
 
 // Game layout and namespace headers.
+#include <difficulty.h>
 #include <namespace_Bots.h>
 #include <namespace_Camera.h>
 #include <namespace_Cdsys.h>

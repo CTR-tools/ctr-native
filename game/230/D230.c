@@ -304,7 +304,7 @@ struct OverlayDATA_230 D230 CTR_PSX_MATCH_SECTION(".D230") =
             {
                 .firstUnlockBit = {-1, 0xC, 0x10, 0},
                 .stringIndex = {0x15A, 0x15B, 0x15C, 0},
-                .speed = {0x50, 0xA0, 0xF0},
+                .speed = {ARCADE_DIFFICULTY_EASY, ARCADE_DIFFICULTY_NORMAL, ARCADE_DIFFICULTY_HARD},
             },
 
         // CHARACTER SELECT CONSTS

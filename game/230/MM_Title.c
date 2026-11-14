@@ -286,6 +286,8 @@ END_FUNCTION:
 	MM_MENU_ADVENTURE.posY_curr = menuPos[TITLE_MENU_POS_ADVENTURE].y + transition[TITLE_TRANSITION_ADVENTURE].currY;
 	MM_MENU_RACE_TYPE.posX_curr = menuPos[TITLE_MENU_POS_RACE_TYPE].x + transition[TITLE_TRANSITION_RACE_TYPE].currX;
 	MM_MENU_RACE_TYPE.posY_curr = menuPos[TITLE_MENU_POS_RACE_TYPE].y + transition[TITLE_TRANSITION_RACE_TYPE].currY;
+	s_expandedArcadeMenu.posX_curr = MM_MENU_RACE_TYPE.posX_curr;
+	s_expandedArcadeMenu.posY_curr = MM_MENU_RACE_TYPE.posY_curr;
 	MM_MENU_PLAYERS_1P2P.posX_curr = menuPos[TITLE_MENU_POS_PLAYERS].x + transition[TITLE_TRANSITION_PLAYERS].currX;
 	MM_MENU_PLAYERS_1P2P.posY_curr = menuPos[TITLE_MENU_POS_PLAYERS].y + transition[TITLE_TRANSITION_PLAYERS].currY;
 	MM_MENU_PLAYERS_2P3P4P.posX_curr = menuPos[TITLE_MENU_POS_PLAYERS].x + transition[TITLE_TRANSITION_PLAYERS].currX;

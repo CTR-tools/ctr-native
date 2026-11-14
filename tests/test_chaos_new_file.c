@@ -99,9 +99,9 @@ void MM_ToggleRows_Difficulty(void)
 static void TestDifficultyChoices(void)
 {
 	CTR_TEST_SECTION("Adventure difficulty selection");
-	const enum AdventureDifficulty choices[] = {
-	    ADV_DIFFICULTY_EASY, ADV_DIFFICULTY_NORMAL, ADV_DIFFICULTY_HARD,
-	    ADV_DIFFICULTY_SUPER_HARD, ADV_DIFFICULTY_ULTRA_HARD,
+	const enum DifficultyLevel choices[] = {
+	    DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD,
+	    DIFFICULTY_SUPER_HARD, DIFFICULTY_ULTRA_HARD,
 	};
 	for (int extra = 0; extra <= 1; extra++)
 	{
@@ -134,12 +134,12 @@ static void TestAdventureTimeLimits(void)
 	sdata->gGT = &tracker;
 	tracker.gameMode1 = ADVENTURE_MODE;
 	const int expected[] = {1000, 1200, 900, 800, 700};
-	for (int i = 0; i < ADV_DIFFICULTY_COUNT; i++)
+	for (int i = 0; i < DIFFICULTY_COUNT; i++)
 	{
-		sdata->advDifficulty = (enum AdventureDifficulty)i;
+		sdata->advDifficulty = (enum DifficultyLevel)i;
 		CTR_TEST_CHECK_EQ(GAMEPROG_AdventureTimeLimit(1000), expected[i], "each difficulty scales the event time");
 	}
-	sdata->advDifficulty = ADV_DIFFICULTY_EASY;
+	sdata->advDifficulty = DIFFICULTY_EASY;
 	tracker.gameMode1 = BATTLE_MODE;
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureTimeLimit(1000), 1000, "non-Adventure event times remain unchanged");
 	tracker.gameMode1 = ADVENTURE_MODE | RELIC_RACE;
@@ -148,9 +148,23 @@ static void TestAdventureTimeLimits(void)
 	s_coop = true;
 	CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(0, 0), 838, "co-op and difficulty multipliers compose after the existing float rounding");
 	CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(0, 0), 838, "reading the target repeatedly does not rescale it");
-	sdata->advDifficulty = ADV_DIFFICULTY_NORMAL;
+	sdata->advDifficulty = DIFFICULTY_NORMAL;
 	CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(0, 0), 699, "Normal retains the original co-op target");
 	s_coop = false;
+	CTR_TEST_SECTION("Arcade challenge difficulty time limits");
+	const int arcadeValues[] = {ARCADE_DIFFICULTY_EASY, ARCADE_DIFFICULTY_NORMAL, ARCADE_DIFFICULTY_HARD,
+	                            ARCADE_DIFFICULTY_SUPER_HARD, ARCADE_DIFFICULTY_ULTRA_HARD};
+	const int arcadeExpected[] = {1200, 1000, 900, 800, 700};
+	for (int i = 0; i < 5; i++)
+	{
+		tracker.arcadeDifficulty = arcadeValues[i];
+		tracker.gameMode1 = ARCADE_MODE | RELIC_RACE;
+		CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(0, 0), arcadeExpected[i], "Arcade relic targets use the selected Arcade difficulty");
+		tracker.gameMode1 = ARCADE_MODE | CRYSTAL_CHALLENGE;
+		CTR_TEST_CHECK_EQ(GAMEPROG_AdventureTimeLimit(1000), arcadeExpected[i], "Arcade crystal clocks use the selected Arcade difficulty");
+	}
+	tracker.gameMode1 = ARCADE_MODE;
+	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureTimeLimit(1000), 1000, "ordinary Arcade races do not change their clocks");
 }
 
 static void TestAdventureBotDifficulty(void)
@@ -159,10 +173,10 @@ static void TestAdventureBotDifficulty(void)
 	struct GameTracker tracker = {0};
 	sdata->gGT = &tracker;
 	tracker.gameMode1 = ADVENTURE_MODE;
-	sdata->advDifficulty = ADV_DIFFICULTY_NORMAL;
+	sdata->advDifficulty = DIFFICULTY_NORMAL;
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBotDifficulty(200), 200, "Medium preserves the adaptive difficulty");
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBossLosses(5), 5, "Medium retains boss loss assistance");
-	sdata->advDifficulty = ADV_DIFFICULTY_EASY;
+	sdata->advDifficulty = DIFFICULTY_EASY;
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBotDifficulty(100), 75, "Easy lowers the bot coefficient");
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBotDifficulty(300), 120, "Easy caps incremental difficulty");
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureLossIndex(0), 0, "Easy does not count a loss before the first attempt");
@@ -170,7 +184,7 @@ static void TestAdventureBotDifficulty(void)
 	const int fixed[] = {240, 320, 640};
 	for (int i = 0; i < 3; i++)
 	{
-		sdata->advDifficulty = (enum AdventureDifficulty)(ADV_DIFFICULTY_HARD + i);
+		sdata->advDifficulty = (enum DifficultyLevel)(DIFFICULTY_HARD + i);
 		CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBotDifficulty(10), fixed[i], "fixed difficulties ignore the adaptive value");
 		CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBotDifficulty(200), fixed[i], "fixed difficulty remains the same after progress or losses");
 		CTR_TEST_CHECK_EQ(GAMEPROG_AdventureBossLosses(5), 0, "fixed difficulty disables boss loss assistance");
@@ -200,7 +214,7 @@ static void TestNewAfterChaosCreation(void)
 			CTR_TEST_CHECK_EQ(s_setupEntries, 1, "the preceding creation reached Chaos setup");
 
 			sdata->chaosSettings.durationSeconds = 45;
- 			sdata->advDifficulty = ADV_DIFFICULTY_HARD;
+ 			sdata->advDifficulty = DIFFICULTY_HARD;
 			sdata->chaosSettings.triggerIntervalSeconds = 90;
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount, CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
@@ -211,7 +225,7 @@ static void TestNewAfterChaosCreation(void)
 			// Clearing only armed here would leave the previous file's custom settings.
 			MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
 			CheckFreshSettings();
-			CTR_TEST_CHECK_EQ(sdata->advDifficulty, ADV_DIFFICULTY_NORMAL, "a new file resets the previous difficulty to Normal");
+			CTR_TEST_CHECK_EQ(sdata->advDifficulty, DIFFICULTY_NORMAL, "a new file resets the previous difficulty to Normal");
 			CTR_TEST_CHECK(MM_NewLoad_InChain() == (expanded != 0), "New follows the expanded creation steps when enabled");
 	}
 }

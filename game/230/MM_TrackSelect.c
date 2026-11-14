@@ -132,9 +132,37 @@ static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 	memory->cursor = bind + 1;
 }
 
+static unsigned int MM_TrackSelect_DetectedMode(const struct GameTracker *gGT)
+{
+	if ((gGT->gameMode1 & CRYSTAL_CHALLENGE) != 0)
+	{
+		return NATIVE_TRACK_DETECTED_CRYSTAL;
+	}
+	if ((gGT->gameMode1 & RELIC_RACE) != 0)
+	{
+		return NATIVE_TRACK_DETECTED_RELIC;
+	}
+	if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+	{
+		return NATIVE_TRACK_DETECTED_CTR;
+	}
+	if ((gGT->gameMode1 & TIME_TRIAL) != 0)
+	{
+		return NATIVE_TRACK_DETECTED_TIME_TRIAL;
+	}
+	if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+	{
+		return NATIVE_TRACK_DETECTED_ARCADE;
+	}
+	return NATIVE_TRACK_DETECTED_VS;
+}
+
 static void MM_TrackSelect_BuildRaceTracks(void)
 {
 	const struct NativeTrackRegistry *registry = NativeTrackLibrary_Current();
+	struct GameTracker *gGT = GAME_TRACKER;
+	b32 crystal = (gGT->gameMode1 & CRYSTAL_CHALLENGE) != 0;
+	b32 token = (gGT->gameMode2 & TOKEN_RACE) != 0;
 	size_t count = NativeTrackRegistry_Count(registry);
 	const size_t maxCustom = 0x7fff - MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
 	if (count > maxCustom)
@@ -153,26 +181,42 @@ static void MM_TrackSelect_BuildRaceTracks(void)
 	{
 		return;
 	}
-	memcpy(s_raceTracks, MM_ARCADE_TRACKS, sizeof(MM_ARCADE_TRACKS));
 	size_t enabled = 0;
+	if (crystal)
+	{
+		for (int i = 0; i < MM_TRACK_SELECT_BATTLE_TRACK_COUNT; i++)
+		{
+			int level = MM_BATTLE_TRACKS[i].levID;
+			if (level == NITRO_COURT || level == RAMPAGE_RUINS || level == SKULL_ROCK || level == ROCKY_ROAD)
+			{
+				s_raceTracks[enabled++] = MM_BATTLE_TRACKS[i];
+			}
+		}
+	}
+	else
+	{
+		for (int i = 0; i < MM_TRACK_SELECT_ARCADE_TRACK_COUNT; i++)
+		{
+			if (token && MM_ARCADE_TRACKS[i].levID >= SLIDE_COLISEUM) { continue; }
+			s_raceTracks[enabled++] = MM_ARCADE_TRACKS[i];
+		}
+	}
+	unsigned int mode = MM_TrackSelect_DetectedMode(gGT);
 	for (size_t i = 0; i < count; i++)
 	{
 		int levelID = NATIVE_TRACK_CUSTOM_ID_BASE + (int)i;
 		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, levelID);
-		unsigned int mode = (GAME_TRACKER->gameMode1 & TIME_TRIAL) != 0 ? NATIVE_TRACK_DETECTED_TIME_TRIAL :
-		                    (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? NATIVE_TRACK_DETECTED_ARCADE : NATIVE_TRACK_DETECTED_VS;
-		b32 allowed = NativeTrackLibrary_AllowsDetectedMode(track, mode);
-		if (!NativeTrackLibrary_IsEnabled(track) || !allowed)
+		if (!NativeTrackLibrary_IsEnabled(track) || !NativeTrackLibrary_AllowsDetectedMode(track, mode))
 		{
 			continue;
 		}
-		struct MainMenu_LevelRow *row = &s_raceTracks[MM_TRACK_SELECT_ARCADE_TRACK_COUNT + enabled++];
+		struct MainMenu_LevelRow *row = &s_raceTracks[enabled++];
 		*row = MM_ARCADE_TRACKS[0];
 		row->levID = (s16)levelID;
 		row->mapTextureID = -1;
 		row->unlock = MM_TRACK_UNLOCK_ALWAYS;
 	}
-	s_raceTrackCount += (s16)enabled;
+	s_raceTrackCount = (s16)enabled;
 }
 
 static b32 MM_TrackSelect_UseRaceTracks(void)
@@ -510,8 +554,14 @@ static void MM_TrackCarousel_Confirm(void *context, int index)
 		MM_TRACK_TRANSITION_STATE = EXITING_MENU;
 		return;
 	}
-	if ((GAME_TRACKER->gameMode1 & (BATTLE_MODE | TIME_TRIAL)) != 0)
+	if ((GAME_TRACKER->gameMode1 & (BATTLE_MODE | TIME_TRIAL | RELIC_RACE | CRYSTAL_CHALLENGE)) != 0 ||
+	    (GAME_TRACKER->gameMode2 & TOKEN_RACE) != 0)
 	{
+		if ((GAME_TRACKER->gameMode1 & CRYSTAL_CHALLENGE) != 0)
+		{
+			int level = GAME_TRACKER->currLEV;
+			GAME_TRACKER->originalEventTime = level >= NITRO_COURT && level <= LAB_BASEMENT ? AH_WARP_BATTLE_TIMES[level - NITRO_COURT] : TITLE_INITIAL_EVENT_TIME;
+		}
 		MM_TRACK_TRANSITION_START_AFTER_EXIT = 1;
 		MM_TRACK_TRANSITION_STATE = EXITING_MENU;
 	}

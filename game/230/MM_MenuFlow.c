@@ -4,6 +4,32 @@
 extern struct MenuRow s_rowsMainMenuBasicConfig[];
 extern struct MenuRow s_rowsMainMenuWithSBConfig[];
 
+enum ExpandedArcadeRow
+{
+	EXPANDED_ARCADE_SINGLE,
+	EXPANDED_ARCADE_CUP,
+	EXPANDED_ARCADE_RELIC,
+	EXPANDED_ARCADE_CTR,
+	EXPANDED_ARCADE_CRYSTAL,
+	EXPANDED_ARCADE_ROW_COUNT,
+};
+
+static struct MenuRow s_expandedArcadeRows[] = {
+	{0x15e, 0, 1, 0, 0},
+	{LNG_CUP, 0, 2, 1, 1},
+	{LNG_RELIC_RACE, 1, 3, 2, 2},
+	{LNG_CTR_CHALLENGE_TITLE, 2, 4, 3, 3},
+	{LNG_EXPANDED_CRYSTAL_CHALLENGE, 3, 4, 4, 4},
+	{.stringIndex = RECTMENU_STRING_NONE},
+};
+
+static struct RectMenu s_expandedArcadeMenu = {
+	.stringIndexTitle = LNG_RACE_TYPE,
+	.state = CENTER_ON_X,
+	.rows = s_expandedArcadeRows,
+	.funcPtr = MM_MenuProc_SingleCup,
+};
+
 #include "MM_NewLoad.c"
 
 s32 MM_TransitionInOut(struct TransitionMeta *meta, s32 framesPassed, s32 numFrames)
@@ -160,10 +186,10 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 	}
 	// clear flags from game mode
 	CustomCupRace_Clear(&sdata->customCupRace);
-	GAME_TRACKER->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP);
+	GAME_TRACKER->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP | RELIC_RACE | CRYSTAL_CHALLENGE);
 
 	// clear more game mode flags
-	GAME_TRACKER->gameMode2 &= ~(CUP_ANY_KIND);
+	GAME_TRACKER->gameMode2 &= ~(CUP_ANY_KIND | TOKEN_RACE);
 
 	mainMenu->state |= ONLY_DRAW_TITLE;
 
@@ -233,9 +259,11 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 
 		// set game mode to Arcade Mode
 		GAME_TRACKER->gameMode1 |= ARCADE_MODE;
+		struct RectMenu *raceTypeMenu = g_config.expandedArcade ? &s_expandedArcadeMenu : &MM_MENU_RACE_TYPE;
+		raceTypeMenu->rowSelected = 0;
 
 		// set next menu
-		mainMenu->ptrNextBox_InHierarchy = &MM_MENU_RACE_TYPE;
+		mainMenu->ptrNextBox_InHierarchy = raceTypeMenu;
 		mainMenu->state |= DRAW_NEXT_MENU_IN_HIERARCHY;
 		return;
 	}
@@ -630,7 +658,7 @@ void MM_MenuProc_Difficulty(struct RectMenu *menu)
 	else
 	{
 		// Ultra Hard's coefficient follows CTR Archipelago's AI difficulty preset.
-		static const int extraDifficulty[] = {0x140, 0x280};
+		static const int extraDifficulty[] = {ARCADE_DIFFICULTY_SUPER_HARD, ARCADE_DIFFICULTY_ULTRA_HARD};
 		GAME_TRACKER->arcadeDifficulty = extraDifficulty[row - MM_DIFFICULTY_COUNT];
 	}
 
@@ -661,19 +689,41 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu)
 		return;
 	}
 
-	if (row >= MM_RACE_TYPE_SELECTABLE_ROWS)
+	b32 expanded = menu == &s_expandedArcadeMenu;
+	if (row >= (expanded ? EXPANDED_ARCADE_ROW_COUNT : MM_RACE_TYPE_SELECTABLE_ROWS))
 	{
 		return;
 	}
 
 	// disable Cup mode
-	GAME_TRACKER->gameMode2 &= ~(CUP_ANY_KIND);
+	GAME_TRACKER->gameMode2 &= ~(CUP_ANY_KIND | TOKEN_RACE);
+	GAME_TRACKER->gameMode1 &= ~(RELIC_RACE | CRYSTAL_CHALLENGE);
 
 	// if you choose cup mode
-	if (menu->rowSelected != 0)
+	if (row == EXPANDED_ARCADE_CUP)
 	{
 		// enable cup mode
 		GAME_TRACKER->gameMode2 |= CUP_ANY_KIND;
+	}
+	if (expanded && row >= EXPANDED_ARCADE_RELIC)
+	{
+		switch (row)
+		{
+		case EXPANDED_ARCADE_RELIC:
+			GAME_TRACKER->gameMode1 |= RELIC_RACE;
+			break;
+		case EXPANDED_ARCADE_CTR:
+			GAME_TRACKER->gameMode2 |= TOKEN_RACE;
+			break;
+		case EXPANDED_ARCADE_CRYSTAL:
+			GAME_TRACKER->gameMode1 |= CRYSTAL_CHALLENGE;
+			break;
+		}
+		GAME_TRACKER->numPlyrNextGame = 1;
+		GAME_TRACKER->numLaps = MM_DEFAULT_LAP_COUNT;
+		menu->ptrNextBox_InHierarchy = &MM_MENU_DIFFICULTY;
+		menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;
+		return;
 	}
 
 	menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;

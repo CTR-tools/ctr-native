@@ -139,6 +139,24 @@ int main(void)
 	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_VS) &&
 	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_ARCADE),
 	               "unknown compatibility permits VS but does not confirm arcade");
+	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsDetectedMode(NULL, NATIVE_TRACK_DETECTED_CTR), "missing tracks cannot support CTR");
+	arcadeOnly.detectedModes = NATIVE_TRACK_DETECTED_RELIC | NATIVE_TRACK_DETECTED_CRYSTAL | NATIVE_TRACK_DETECTED_CTR | NATIVE_TRACK_DETECTED_ARCADE;
+	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_RELIC) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CRYSTAL) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CTR),
+	               "unknown compatibility does not confirm challenge support");
+	arcadeOnly.detectionKnown = 1;
+	CTR_TEST_CHECK(NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_RELIC) &&
+	               NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CRYSTAL) &&
+	               NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CTR),
+	               "detected challenge modes are available");
+	arcadeOnly.detectedModes = NATIVE_TRACK_DETECTED_CTR;
+	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CTR), "CTR requires bot paths as well as letters");
+	arcadeOnly.detectedModes = NATIVE_TRACK_DETECTED_ARCADE;
+	CTR_TEST_CHECK(!NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CTR) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_RELIC) &&
+	               !NativeTrackLibrary_AllowsDetectedMode(&arcadeOnly, NATIVE_TRACK_DETECTED_CRYSTAL),
+	               "arcade support alone does not confirm challenge support");
 	CTR_TEST_CHECK(NativeTrackLibrary_SetEnabled(metadata, 0) && !NativeTrackLibrary_IsEnabled(metadata), "a track can be disabled");
 	NativeTrackRegistry_Destroy(registry);
 	registry = NativeTrackLibrary_Scan(root, &result);

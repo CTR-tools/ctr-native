@@ -511,10 +511,17 @@ void Audio_Update1(void)
 					// defeat music
 					uVar1 = 5;
 
-					// Co-op only earns the fanfare when both racers took the top
-					// two places; a single racer up front is a loss. Every other
-					// mode keeps retail's "human in front won" test.
+					// Co-op races grade both racers; other races start with the
+					// retail "human in front won" test, then apply event rules.
 					humanWon = MainGameEnd_IsCoopRace(gGT) ? MainGameEnd_AdventureRaceWon(gGT) : (raceOrderIndex == 0);
+					if ((gGT->gameMode1 & RELIC_RACE) != 0)
+					{
+						humanWon = (gGT->gameModeEnd & (NEW_RELIC | NEW_HIGH_SCORE)) != 0;
+					}
+					else if ((gGT->gameMode2 & TOKEN_RACE) != 0)
+					{
+						humanWon = humanWon && MainGameEnd_AllCTRLettersCollected(gGT);
+					}
 
 					if (humanWon || ((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
 					{

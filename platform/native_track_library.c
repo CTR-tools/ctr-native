@@ -498,8 +498,23 @@ int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track)
 
 int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
 {
-	return track != NULL && (mode == NATIVE_TRACK_DETECTED_VS || mode == NATIVE_TRACK_DETECTED_TIME_TRIAL ||
-	                         (mode == NATIVE_TRACK_DETECTED_ARCADE && track->detectionKnown && (track->detectedModes & mode) != 0));
+	if (track == NULL)
+	{
+		return false;
+	}
+	if (mode == NATIVE_TRACK_DETECTED_VS || mode == NATIVE_TRACK_DETECTED_TIME_TRIAL)
+	{
+		return true;
+	}
+	if (!track->detectionKnown)
+	{
+		return false;
+	}
+	if (mode == NATIVE_TRACK_DETECTED_ARCADE || mode == NATIVE_TRACK_DETECTED_RELIC || mode == NATIVE_TRACK_DETECTED_CRYSTAL || mode == NATIVE_TRACK_DETECTED_CTR)
+	{
+		return (track->detectedModes & mode) != 0;
+	}
+	return false;
 }
 
 int NativeTrackLibrary_SetEnabled(const struct NativeTrackMetadata *track, int enabled)

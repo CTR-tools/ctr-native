@@ -2,19 +2,20 @@
 #define CTR_NATIVE_ADVENTURE_DIFFICULTY_SAVE_H
 
 #include <namespace_Memcard.h>
+#include <difficulty.h>
 
-static inline enum AdventureDifficulty AdvDifficultySave_Decode(u8 saved)
+static inline enum DifficultyLevel AdvDifficultySave_Decode(u8 saved)
 {
-	if (saved >= ADV_DIFFICULTY_COUNT)
+	if (saved >= DIFFICULTY_COUNT)
 	{
-		return ADV_DIFFICULTY_NORMAL;
+		return DIFFICULTY_NORMAL;
 	}
-	return (enum AdventureDifficulty)saved;
+	return (enum DifficultyLevel)saved;
 }
 
-static inline u8 AdvDifficultySave_Encode(enum AdventureDifficulty difficulty)
+static inline u8 AdvDifficultySave_Encode(enum DifficultyLevel difficulty)
 {
-	return (unsigned int)difficulty < ADV_DIFFICULTY_COUNT ? (u8)difficulty : ADV_DIFFICULTY_NORMAL;
+	return (unsigned int)difficulty < DIFFICULTY_COUNT ? (u8)difficulty : DIFFICULTY_NORMAL;
 }
 
 #endif

@@ -252,13 +252,13 @@ int LOAD_TenStages(struct GameTracker *gGT, int loadingStage, struct BigHeader *
 		{
 			ovrRegion1 = 3;
 		}
-		else if ((gGT->gameMode1 & ARCADE_MODE) != 0)
-		{
-			ovrRegion1 = 1;
-		}
 		else if ((gGT->gameMode1 & RELIC_RACE) != 0)
 		{
 			ovrRegion1 = 2;
+		}
+		else if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+		{
+			ovrRegion1 = 1;
 		}
 		else if ((gGT->gameMode1 & ADVENTURE_MODE) != 0)
 		{

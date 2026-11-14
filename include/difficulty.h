@@ -1,0 +1,24 @@
+#ifndef CTR_NATIVE_DIFFICULTY_H
+#define CTR_NATIVE_DIFFICULTY_H
+
+// Zero is Normal so empty and older card extensions preserve retail behavior.
+enum DifficultyLevel
+{
+	DIFFICULTY_NORMAL,
+	DIFFICULTY_EASY,
+	DIFFICULTY_HARD,
+	DIFFICULTY_SUPER_HARD,
+	DIFFICULTY_ULTRA_HARD,
+	DIFFICULTY_COUNT,
+};
+
+enum ArcadeDifficultyCoefficient
+{
+	ARCADE_DIFFICULTY_EASY = 0x50,
+	ARCADE_DIFFICULTY_NORMAL = 0xa0,
+	ARCADE_DIFFICULTY_HARD = 0xf0,
+	ARCADE_DIFFICULTY_SUPER_HARD = 0x140,
+	ARCADE_DIFFICULTY_ULTRA_HARD = 0x280,
+};
+
+#endif

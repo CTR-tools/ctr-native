@@ -376,6 +376,35 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 
 
 	// === Relic Race Only ===
+	static const int labels[] = {LNG_SAPPHIRE, LNG_GOLD, LNG_PLATINUM};
+	static const int colors[] = {TROPY_LIGHT_BLUE, PAPU_YELLOW, SILVER};
+	if ((flags & UI_RACE_CLOCK_SHOW_RESULTS) == 0)
+	{
+		enum { RELIC_HUD_ROW_SPACING = 24 };
+		for (int i = 0; i < (int)len(labels); i++)
+		{
+			int rowY = textPosY + i * RELIC_HUD_ROW_SPACING;
+			DecalFont_DrawLine(sdata->lngStrings[labels[i]], textPosX,
+			                   rowY + UI_RACE_CLOCK_RELIC_HUD_LABEL_Y_OFFSET, FONT_SMALL, colors[i]);
+			DecalFont_DrawLine(RECTMENU_DrawTime(GAMEPROG_RelicTargetTime(gGT->levelID, i)),
+			                   textPosX, rowY + UI_RACE_CLOCK_RELIC_HUD_TIME_Y_OFFSET, FONT_BIG, colors[i]);
+		}
+		return;
+	}
+	if ((gGT->gameMode1 & ARCADE_MODE) != 0)
+	{
+		int tier = MainGameEnd_RelicTier(gGT, driver);
+		DecalFont_DrawLine(sdata->lngStrings[tier >= 0 ? labels[tier] : LNG_TRY_AGAIN],
+		                   textPosX, textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET,
+		                   FONT_BIG, JUSTIFY_RIGHT | (tier >= 0 ? colors[tier] : ORANGE));
+		if (tier >= 0)
+		{
+			DecalFont_DrawLine(RECTMENU_DrawTime(GAMEPROG_RelicTargetTime(gGT->levelID, tier)),
+			                   textPosX + UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET,
+			                   textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET, FONT_BIG, colors[tier]);
+		}
+		return;
+	}
 
 	u32 *rewardsSet = sdata->advProgress.rewards;
 
@@ -432,21 +461,10 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 
 LAB_8004f378:
 	fontType = FONT_BIG;
-	if ((flags & UI_RACE_CLOCK_SHOW_RESULTS) == 0)
-	{
-		fontType = FONT_SMALL;
-		relicLabelY = textPosY + UI_RACE_CLOCK_RELIC_HUD_LABEL_Y_OFFSET;
-		relicTimeY = textPosY + UI_RACE_CLOCK_RELIC_HUD_TIME_Y_OFFSET;
-		relicTimeX = textPosX;
-	}
-
-	else
-	{
-		lapOrRelicColor = lapOrRelicColor | JUSTIFY_RIGHT;
-		relicLabelY = textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET;
-		relicTimeY = relicLabelY;
-		relicTimeX = textPosX + UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET;
-	}
+	lapOrRelicColor = lapOrRelicColor | JUSTIFY_RIGHT;
+	relicLabelY = textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET;
+	relicTimeY = relicLabelY;
+	relicTimeX = textPosX + UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET;
 
 	DecalFont_DrawLine(sdata->lngStrings[lngIndex], (int)(s16)textPosX, (int)relicLabelY, fontType, (int)(s16)lapOrRelicColor);
 

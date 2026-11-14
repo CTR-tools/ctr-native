@@ -569,28 +569,25 @@ void RenderAllHUD(struct GameTracker *gGT)
 					{
 						if ((gameMode1 & CRYSTAL_CHALLENGE) == 0)
 						{
-							if ((gameMode1 & TIME_TRIAL) == 0)
+							if ((gameMode1 & RELIC_RACE) != 0)
+							{
+								RR_EndEvent_DrawMenu();
+							}
+							else if ((gameMode1 & TIME_TRIAL) == 0)
 							{
 								if ((gameMode1 & ARCADE_MODE) == 0)
 								{
-									if ((gameMode1 & RELIC_RACE) == 0)
+									if ((gameMode1 & ADVENTURE_MODE) != 0)
 									{
-										if ((gameMode1 & ADVENTURE_MODE) != 0)
-										{
-											AA_EndEvent_DrawMenu();
-										}
-										else if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
-										{
-											VB_EndEvent_DrawMenu();
-										}
-										else
-										{
-											gGT->hudFlags = (hudFlags & HUD_FLAG_CLEAR_RACE_HUD_MASK) | HUD_FLAG_CUP_STANDINGS;
-										}
+										AA_EndEvent_DrawMenu();
+									}
+									else if ((gGT->gameMode2 & CUP_ANY_KIND) == 0)
+									{
+										VB_EndEvent_DrawMenu();
 									}
 									else
 									{
-										RR_EndEvent_DrawMenu();
+										gGT->hudFlags = (hudFlags & HUD_FLAG_CLEAR_RACE_HUD_MASK) | HUD_FLAG_CUP_STANDINGS;
 									}
 								}
 								else

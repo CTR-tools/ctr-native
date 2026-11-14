@@ -6,19 +6,19 @@
 static void SelectProfile_ApplyAdvMultiplayerCharacter(void);
 static const struct AdvMultiplayerSettings *SelectProfile_AdvSettingsToShow(const struct AdvProgress *adv, int slot);
 static b32 SelectProfile_CardSlotIsChaos(int slot);
-static enum AdventureDifficulty SelectProfile_AdvDifficultyToShow(const struct AdvProgress *adv, int slot);
+static enum DifficultyLevel SelectProfile_AdvDifficultyToShow(const struct AdvProgress *adv, int slot);
 static int SelectProfile_EngineToShow(const struct AdvProgress *adv, int slot, int player, int character);
 
-static const char *SelectProfile_DifficultyLabel(enum AdventureDifficulty difficulty)
+static const char *SelectProfile_DifficultyLabel(enum DifficultyLevel difficulty)
 {
 	switch (difficulty)
 	{
-	case ADV_DIFFICULTY_EASY: return LANG_GetString(LNG_EASY);
-	case ADV_DIFFICULTY_HARD: return LANG_GetString(LNG_HARD);
-	case ADV_DIFFICULTY_SUPER_HARD: return LANG_GetString(LNG_EXPANDED_SUPER_HARD);
-	case ADV_DIFFICULTY_ULTRA_HARD: return LANG_GetString(LNG_EXPANDED_ULTRA_HARD);
-	case ADV_DIFFICULTY_NORMAL:
-	case ADV_DIFFICULTY_COUNT:
+	case DIFFICULTY_EASY: return LANG_GetString(LNG_EASY);
+	case DIFFICULTY_HARD: return LANG_GetString(LNG_HARD);
+	case DIFFICULTY_SUPER_HARD: return LANG_GetString(LNG_EXPANDED_SUPER_HARD);
+	case DIFFICULTY_ULTRA_HARD: return LANG_GetString(LNG_EXPANDED_ULTRA_HARD);
+	case DIFFICULTY_NORMAL:
+	case DIFFICULTY_COUNT:
 	default: return NULL;
 	}
 }
@@ -899,7 +899,7 @@ static void SelectProfile_ClearChaosSettings(int slot)
 	memset(&SelectProfile_MemcardData()->extension.chaos[slot], 0, sizeof(struct ChaosSettingsSaved));
 }
 
-static enum AdventureDifficulty SelectProfile_AdvDifficultyToShow(const struct AdvProgress *adv, int slot)
+static enum DifficultyLevel SelectProfile_AdvDifficultyToShow(const struct AdvProgress *adv, int slot)
 {
 	if (adv == &sdata->advProgress)
 	{
@@ -907,7 +907,7 @@ static enum AdventureDifficulty SelectProfile_AdvDifficultyToShow(const struct A
 	}
 	if (slot < 0 || slot >= MEMCARD_ADV_PROFILE_COUNT)
 	{
-		return ADV_DIFFICULTY_NORMAL;
+		return DIFFICULTY_NORMAL;
 	}
 	return AdvDifficultySave_Decode(SelectProfile_MemcardData()->extension.difficulty[slot]);
 }
@@ -1357,7 +1357,7 @@ static int SelectProfile_HandleSelection(struct RectMenu *menu, int rowCount)
 		GAMEPROG_NewProfile_InsideAdv(&SelectProfile_MemcardProfile()->advProgress[menu->rowSelected]);
 		SelectProfile_ClearAdvMultiplayer(menu->rowSelected);
 		SelectProfile_ClearChaosSettings(menu->rowSelected);
-		SelectProfile_MemcardData()->extension.difficulty[menu->rowSelected] = ADV_DIFFICULTY_NORMAL;
+		SelectProfile_MemcardData()->extension.difficulty[menu->rowSelected] = DIFFICULTY_NORMAL;
 		MEMCARD_SetIcon(0);
 		RefreshCard_StartMemcardAction(3);
 		*(s16 *)&sdata->unk_memcardRelated_8008d928[0] = 1;

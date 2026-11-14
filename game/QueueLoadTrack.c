@@ -24,7 +24,10 @@ void QueueLoadTrack_MenuProc(struct RectMenu *menu)
 	// clear battle related variables
 	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
 	{
-		gGT->originalEventTime = TITLE_INITIAL_EVENT_TIME;
+		if ((gGT->gameMode1 & CRYSTAL_CHALLENGE) == 0)
+		{
+			gGT->originalEventTime = TITLE_INITIAL_EVENT_TIME;
+		}
 		gGT->gameMode1 &= ~(POINT_LIMIT | LIFE_LIMIT | TIME_LIMIT);
 	}
 
