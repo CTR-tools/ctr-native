@@ -18,6 +18,7 @@ static enum ExpandedLngString s_trackImportMessage;
 static bool s_trackImportIsPatch;
 static struct NativeTrackRegistry *s_trackReviewRegistry;
 static int s_trackReviewIndex, s_trackReviewRow, s_trackReviewEditing;
+#include "MM_TrackRelic.c"
 
 enum { TRACK_IMPORT_RETAIL_MUSIC_COUNT = TURBO_TRACK + 1 };
 
@@ -102,6 +103,7 @@ static int MM_TrackImport_ReviewRescan(const char *identity)
 
 static void MM_TrackImport_ReviewClose(void)
 {
+	s_relicPage = s_relicEditing = 0;
 	MusicPreview_Restore();
 	NativeTextEdit_Close();
 	NativeTrackRegistry_Destroy(s_trackReviewRegistry);
@@ -162,6 +164,15 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	    .musicIndex = custom ? choice + 1 : 0,
 	    .included = NativeTrackPatch_ReviewIncluded(track->identity), .includedCount = MM_TrackImport_IncludedCount(),
 	};
+	if (s_relicPage)
+	{
+		view->relicPage = 1;
+		view->row = s_relicRow;
+		view->editing = s_relicEditing;
+		view->editingValue = s_relicEditing ? NativeTextEdit_Value() : NULL;
+		view->message = s_relicMessage;
+		for (int i = 0; i < NATIVE_TRACK_RELIC_COUNT; i++) { view->relicTimes[i] = NativeTrackLibrary_RelicTime(track, i); }
+	}
 	return 1;
 }
 
@@ -224,6 +235,13 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 {
 	const struct NativeTrackMetadata *track = MM_TrackImport_ReviewTrack();
 	if (track == NULL) { return; }
+	if (s_relicPage)
+	{
+		int result = TrackRelic_Update(track, buttons, &s_relicMessage);
+		if (result < 0) { s_relicPage = 0; s_relicMessage = NULL; }
+		else if (result > 0 && !MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = LNG_EXPANDED_TRACKS_REFRESH_REVIEW_FAILED; }
+		return;
+	}
 	if (s_trackReviewEditing)
 	{
 		enum NativeTextEditResult result = NativeTextEdit_Result();
@@ -317,6 +335,10 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 		const char *value = s_trackReviewRow == TRACK_REVIEW_TITLE ? track->title : track->author;
 		s_trackReviewEditing = NativeTextEdit_BeginForGame(value != NULL ? value : "", 256);
 		if (s_trackReviewEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
+	}
+	else if (confirm && s_trackReviewRow == TRACK_REVIEW_RELIC_TIMES)
+	{
+		s_relicPage = 1; s_relicRow = 0; s_relicMessage = NULL;
 	}
 	else if (confirm && s_trackReviewRow == TRACK_REVIEW_CONFIRM)
 	{

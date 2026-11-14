@@ -1,6 +1,7 @@
 #include <shared/ctr_test.h>
 #include <common.h>
 #include <platform/native_track_library.h>
+#include <platform/native_track_records.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -20,14 +21,21 @@ NativeConfig g_config;
 static int s_setupEntries;
 static int s_titleReturns;
 static bool s_coop;
+static struct NativeTrackMetadata s_customRelicTrack;
+int NativeTrackRecords_Key(const struct NativeTrackMetadata *track, struct NativeTrackRecordKey *key) { (void)track; (void)key; return 0; }
+int NativeTrackRecords_LoadCurrent(enum NativeTrackRecordKind kind, const struct NativeTrackMetadata *track, const struct NativeTrackRecordKey *key, void *data, size_t size)
+{ (void)kind; (void)track; (void)key; (void)data; (void)size; return 0; }
+int NativeTrackRecords_SaveCurrent(enum NativeTrackRecordKind kind, const struct NativeTrackMetadata *track, const struct NativeTrackRecordKey *key, const void *data, size_t size)
+{ (void)kind; (void)track; (void)key; (void)data; (void)size; return 0; }
+void Platform_LogWarn(const char *fmt, ...) { (void)fmt; }
 
 // This fixture exercises the new-file flow without a custom track library.
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return NULL; }
+int NativeTrackLibrary_RelicTargetTime(const struct NativeTrackMetadata *track, int tier) { (void)track; (void)tier; return 115200; }
 const struct NativeTrackMetadata *NativeTrackRegistry_Get(const struct NativeTrackRegistry *registry, int levelID)
 {
 	(void)registry;
-	(void)levelID;
-	return NULL;
+	return levelID == NATIVE_TRACK_CUSTOM_ID_BASE ? &s_customRelicTrack : NULL;
 }
 size_t NativeTrackRegistry_Count(const struct NativeTrackRegistry *registry)
 {
@@ -165,6 +173,11 @@ static void TestAdventureTimeLimits(void)
 	}
 	tracker.gameMode1 = ARCADE_MODE;
 	CTR_TEST_CHECK_EQ(GAMEPROG_AdventureTimeLimit(1000), 1000, "ordinary Arcade races do not change their clocks");
+	tracker.gameMode1 = ARCADE_MODE | RELIC_RACE;
+	tracker.arcadeDifficulty = ARCADE_DIFFICULTY_NORMAL;
+	CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(NATIVE_TRACK_CUSTOM_ID_BASE, 0), 115200, "custom hundredths convert to CTR time units");
+	tracker.arcadeDifficulty = ARCADE_DIFFICULTY_EASY;
+	CTR_TEST_CHECK_EQ(GAMEPROG_RelicTargetTime(NATIVE_TRACK_CUSTOM_ID_BASE, 0), 138240, "custom targets use the same difficulty scaling as retail");
 }
 
 static void TestAdventureBotDifficulty(void)

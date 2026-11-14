@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"
+#include "MM_TrackRelic.c"
 
 CTR_STATIC_ASSERT((int)NATIVE_TRACK_DEFAULT_RETAIL_MUSIC == (int)CRASH_COVE);
 
@@ -52,6 +53,8 @@ static void CustomTracks_PreviewMusic(const struct NativeTrackRegistry *registry
 
 static void CustomTracks_CloseDetail(void)
 {
+	if (s_relicEditing) { NativeTextEdit_Close(); }
+	s_relicPage = s_relicEditing = 0;
 	if (s_customTracksEditing) { NativeTextEdit_Close(); s_customTracksEditing = 0; }
 	if (s_customTracksPreview) { MusicPreview_Restore(); s_customTracksPreview = 0; }
 }
@@ -170,8 +173,8 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 {
 	(void)selected;
 	const struct TrackImportReviewView *view = context;
-	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
-	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
+	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
+	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
 	const char *label = LANG_GetString(view->installed ? installedLabels[row] : labels[row]);
 	if ((!view->installed && row == TRACK_REVIEW_CONFIRM && view->includedCount == 0) ||
 	    (view->installed && !s_customTracksImportEnabled && row >= TRACK_REVIEW_TITLE && row <= TRACK_REVIEW_CONFIRM))
@@ -228,6 +231,28 @@ static void CustomTracks_DrawReviewRow(const void *context, int row, int y, bool
 	CustomTracks_DrawImportReviewRow(context, row + view->installed, y, selected, ot);
 }
 
+static void CustomTracks_DrawRelicRow(const void *context, int row, int y, bool selected, uint32_t *ot)
+{
+	(void)selected;
+	const struct TrackImportReviewView *view = context;
+	static const int labels[] = {LNG_SAPPHIRE, LNG_GOLD, LNG_PLATINUM, LNG_EXPANDED_TRACKS_BACK};
+	FullScreenMenu_DrawRowLabel(LANG_GetString(labels[row]), y, ot);
+	if (row < NATIVE_TRACK_RELIC_COUNT)
+	{
+		char value[NATIVE_TRACK_RELIC_TEXT_BYTES];
+		if (view->editing && view->row == row)
+		{
+			TrackText_Copy(value, sizeof(value), view->editingValue);
+			FullScreenMenu_DrawEditableValue(value, FULLSCREEN_MENU_CONTENT_W / 2, y, ot);
+		}
+		else
+		{
+			NativeTrackLibrary_FormatRelicTime(view->relicTimes[row], value, sizeof(value));
+			FullScreenMenu_DrawValueText(value, y, ot);
+		}
+	}
+}
+
 static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *view, struct GameTracker *gGT, uint32_t *ot)
 {
 	struct FullScreenMenu_Scroll scroll = {0};
@@ -238,6 +263,12 @@ static void CustomTracks_DrawImportReview(const struct TrackImportReviewView *vi
 	else if (view->message != NULL)
 	{
 		FullScreenMenu_DrawPrompt(view->message, ot);
+	}
+	if (view->relicPage)
+	{
+		FullScreenMenu_DrawScreen(LANG_GetString(LNG_EXPANDED_TRACKS_RELIC_TIMES), 0, &scroll, NATIVE_TRACK_RELIC_COUNT + 1,
+		                          view->row, CustomTracks_DrawRelicRow, view, gGT, ot);
+		return;
 	}
 	FullScreenMenu_DrawScreen(LANG_GetString(view->installed ? LNG_EXPANDED_TRACKS_DETAILS : LNG_EXPANDED_TRACKS_REVIEW_IMPORT), 0, &scroll,
 	                          TRACK_REVIEW_ROWS - view->installed, view->row - view->installed,
@@ -280,6 +311,23 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 	const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE + s_customTracksIndex);
 	if (track == NULL) { CustomTracks_CloseDetail(); s_customTracksPage = CUSTOM_TRACKS_AVAILABLE; menu->rowSelected = 0; return; }
 	u32 buttons = (u32)pad->buttonsTapped;
+	if (s_relicPage)
+	{
+		int result = TrackRelic_Update(track, buttons, &s_relicMessage);
+		if (result < 0) { s_relicPage = 0; s_relicMessage = NULL; }
+		else if (result > 0 && !CustomTracks_Rescan(track->identity)) { s_relicMessage = LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_DETAILS_FAILED); }
+		if (s_relicPage)
+		{
+			track = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), NATIVE_TRACK_CUSTOM_ID_BASE + s_customTracksIndex);
+			if (track == NULL) { return; }
+			struct TrackImportReviewView view = {.relicPage = 1, .row = s_relicRow, .editing = s_relicEditing,
+			    .editingValue = s_relicEditing ? NativeTextEdit_Value() : NULL, .message = s_relicMessage};
+			for (int i = 0; i < NATIVE_TRACK_RELIC_COUNT; i++) { view.relicTimes[i] = NativeTrackLibrary_RelicTime(track, i); }
+			CustomTracks_DrawImportReview(&view, gGT, ot);
+			return;
+		}
+		goto draw;
+	}
 	if (s_customTracksEditing)
 	{
 		enum NativeTextEditResult result = NativeTextEdit_Result();
@@ -330,6 +378,10 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 			s_customTracksEditing = NativeTextEdit_BeginForGame(value != NULL ? value : "", 256);
 			if (s_customTracksEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
 			if (!s_customTracksEditing) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_EDITOR_FAILED); }
+		}
+		else if (confirm && s_customTracksImportEnabled && menu->rowSelected == TRACK_REVIEW_RELIC_TIMES)
+		{
+			s_relicPage = 1; s_relicRow = 0; s_relicMessage = NULL;
 		}
 		else if (s_customTracksImportEnabled && (menu->rowSelected == TRACK_REVIEW_MUSIC_SOURCE || menu->rowSelected == TRACK_REVIEW_MUSIC_TRACK) &&
 		         ((buttons & (BTN_LEFT | BTN_RIGHT)) || confirm))

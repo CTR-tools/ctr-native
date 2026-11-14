@@ -168,8 +168,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
-	char fields[4][NATIVE_TRACK_FIELD_MAX + 7] = {{0}};
-	const char *keys[] = {"id", "title", "author", "music"};
+	char fields[7][NATIVE_TRACK_FIELD_MAX + 7] = {{0}};
+	const char *keys[] = {"id", "title", "author", "music", "relic_sapphire", "relic_gold", "relic_platinum"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -266,9 +266,17 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
-	struct NativeTrackMetadata metadata = {fields[0][0] ? fields[0] : localID, fields[1][0] ? fields[1] : name,
-	                                       paths[0], paths[1], paths[2][0] ? paths[2] : NULL, fields[2][0] ? fields[2] : NULL,
-	                                       0, 0, fields[3][0] ? fields[3] : NULL};
+	struct NativeTrackMetadata metadata = {.identity = fields[0][0] ? fields[0] : localID, .title = fields[1][0] ? fields[1] : name,
+	    .levPath = paths[0], .vrmPath = paths[1], .scaPath = paths[2][0] ? paths[2] : NULL,
+	    .author = fields[2][0] ? fields[2] : NULL, .music = fields[3][0] ? fields[3] : NULL};
+	for (int i = 0; i < NATIVE_TRACK_RELIC_COUNT; i++)
+	{
+		if ((seen & (1u << (i + 4))) != 0)
+		{
+			if (!NativeTrackLibrary_ParseRelicTime(fields[i + 4], &metadata.relicTimes[i])) { return 0; }
+			metadata.relicTimesSet |= 1u << i;
+		}
+	}
 	metadata.detectionKnown = TrackDetect_File(paths[0], &metadata.detectedModes);
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
@@ -462,6 +470,16 @@ static int NativeTrackLibrary_WriteFields(const struct NativeTrackMetadata *trac
 	int ok = fprintf(file, "id = %s\ntitle = %s\n", track->identity, title) > 0;
 	if (ok && author[0] != '\0') { ok = fprintf(file, "author = %s\n", author) > 0; }
 	if (ok && music != NULL && music[0] != '\0') { ok = fprintf(file, "music = %s\n", music) > 0; }
+	static const char *const relicKeys[] = {"relic_sapphire", "relic_gold", "relic_platinum"};
+	for (int i = 0; ok && i < NATIVE_TRACK_RELIC_COUNT; i++)
+	{
+		if ((track->relicTimesSet & (1u << i)) != 0)
+		{
+			char time[NATIVE_TRACK_RELIC_TEXT_BYTES];
+			NativeTrackLibrary_FormatRelicTime(track->relicTimes[i], time, sizeof(time));
+			ok = fprintf(file, "%s = %s\n", relicKeys[i], time) > 0;
+		}
+	}
 	if (fclose(file) != 0) { ok = 0; }
 	if (ok) { ok = SDL_RenamePath(temporary, path); }
 	if (!ok) { SDL_RemovePath(temporary); }
@@ -487,6 +505,49 @@ int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int ret
 {
 	if (track == NULL || (retail < 0 && !custom)) { return 0; }
 	return NativeTrackLibrary_WriteMetadata(track, track->title, track->author != NULL ? track->author : "", retail, custom);
+}
+
+int NativeTrackLibrary_ParseRelicTime(const char *text, unsigned int *hundredths)
+{
+	if (text == NULL || !isdigit((unsigned char)text[0])) { return 0; }
+	unsigned int minutes = (unsigned int)(*text++ - '0');
+	if (isdigit((unsigned char)*text)) { minutes = minutes * 10 + (unsigned int)(*text++ - '0'); }
+	if (strlen(text) != 6 || text[0] != ':' || text[3] != ':' ||
+	    !isdigit((unsigned char)text[1]) || !isdigit((unsigned char)text[2]) ||
+	    !isdigit((unsigned char)text[4]) || !isdigit((unsigned char)text[5])) { return 0; }
+	unsigned int seconds = (unsigned int)(text[1] - '0') * 10 + (unsigned int)(text[2] - '0');
+	if (seconds >= 60) { return 0; }
+	if (hundredths != NULL) { *hundredths = (minutes * 60 + seconds) * 100 + (unsigned int)(text[4] - '0') * 10 + (unsigned int)(text[5] - '0'); }
+	return 1;
+}
+
+void NativeTrackLibrary_FormatRelicTime(unsigned int hundredths, char *text, size_t size)
+{
+	snprintf(text, size, "%u:%02u:%02u", hundredths / 6000 % 100, hundredths / 100 % 60, hundredths % 100);
+}
+
+unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier)
+{
+	static const unsigned int defaults[] = {12000, 15000, 18000};
+	if (tier < 0 || tier >= NATIVE_TRACK_RELIC_COUNT) { return 0; }
+	return track != NULL && (track->relicTimesSet & (1u << tier)) ? track->relicTimes[tier] : defaults[tier];
+}
+
+int NativeTrackLibrary_RelicTargetTime(const struct NativeTrackMetadata *track, int tier)
+{
+	enum { CTR_TIME_UNITS_PER_SECOND = 960, HUNDREDTHS_PER_SECOND = 100 };
+	/* Round up so the game's truncating clock display retains the entered hundredth. */
+	return (int)((NativeTrackLibrary_RelicTime(track, tier) * CTR_TIME_UNITS_PER_SECOND + HUNDREDTHS_PER_SECOND - 1) / HUNDREDTHS_PER_SECOND);
+}
+
+int NativeTrackLibrary_SetRelicTime(const struct NativeTrackMetadata *track, int tier, const char *text)
+{
+	unsigned int time;
+	if (track == NULL || tier < 0 || tier >= NATIVE_TRACK_RELIC_COUNT || !NativeTrackLibrary_ParseRelicTime(text, &time)) { return 0; }
+	struct NativeTrackMetadata updated = *track;
+	updated.relicTimes[tier] = time;
+	updated.relicTimesSet |= 1u << tier;
+	return NativeTrackLibrary_WriteFields(&updated, track->title, track->author != NULL ? track->author : "", track->music);
 }
 
 int NativeTrackLibrary_IsEnabled(const struct NativeTrackMetadata *track)

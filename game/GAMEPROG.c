@@ -652,13 +652,9 @@ int GAMEPROG_AdventureTimeLimit(int time)
 // can never disagree about what the round demands.
 int GAMEPROG_RelicTargetTime(int levelID, int tier)
 {
-	// Custom tracks have no retail relic target table.
-	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID) != NULL)
-	{
-		// TODO: address this
-		return GAMEPROG_AdventureTimeLimit(3 * 0xe100);
-	}
-	int soloTime = data.RelicTime[levelID * GAMEPROG_RELIC_TIER_COUNT + tier];
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	int soloTime = customTrack != NULL ? NativeTrackLibrary_RelicTargetTime(customTrack, tier) :
+	    data.RelicTime[levelID * GAMEPROG_RELIC_TIER_COUNT + tier];
 
 	if (MainGameEnd_IsCoopRace(GAME_TRACKER))
 	{

@@ -96,11 +96,39 @@ int main(void)
 	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(registry, id);
 	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->title, "track") == 0 && metadata->scaPath == NULL && metadata->author == NULL,
 	               "directory name and music use defaults");
+	CTR_TEST_CHECK(NativeTrackLibrary_RelicTime(metadata, 0) == 12000 && NativeTrackLibrary_RelicTime(metadata, 1) == 15000 &&
+	               NativeTrackLibrary_RelicTime(metadata, 2) == 18000, "missing relic thresholds use the requested defaults");
 	NativeTrackRegistry_Destroy(registry);
 
 	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\n");
 	registry = NativeTrackLibrary_Scan(root, &result);
 	metadata = NativeTrackRegistry_Get(registry, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_SECTION("relic time validation and persistence");
+	unsigned int time = 0;
+	CTR_TEST_CHECK(NativeTrackLibrary_ParseRelicTime("2:40:01", &time) && time == 16001, "relic input parses minutes, seconds and hundredths");
+	CTR_TEST_CHECK(NativeTrackLibrary_ParseRelicTime("99:59:99", &time) && time == 599999, "the maximum time is accepted");
+	const char *invalidTimes[] = {"", "1:60:00", "1:00:100", "100:00:00", "1:0:00", "1:00:0", "-1:00:00", "1:00:00x"};
+	for (size_t i = 0; i < SDL_arraysize(invalidTimes); i++)
+	{
+		CTR_TEST_CHECK(!NativeTrackLibrary_ParseRelicTime(invalidTimes[i], NULL), "malformed relic times are rejected");
+	}
+	CTR_TEST_CHECK(NativeTrackLibrary_SetRelicTime(metadata, 0, "2:40:01"), "a custom relic time is saved");
+	struct NativeTrackRegistry *relicScan = NativeTrackLibrary_Scan(root, NULL);
+	const struct NativeTrackMetadata *relic = NativeTrackRegistry_Get(relicScan, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(relic != NULL && NativeTrackLibrary_RelicTime(relic, 0) == 16001 && NativeTrackLibrary_RelicTime(relic, 1) == 15000,
+	               "a saved threshold and unspecified defaults survive a rescan");
+	CTR_TEST_CHECK(NativeTrackLibrary_RelicTargetTime(relic, 0) == 153610, "custom hundredths retain their displayed value in CTR time units");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetDetails(relic, "Renamed", "Track Author"), "editing details preserves relic thresholds");
+	NativeTrackRegistry_Destroy(relicScan);
+	relicScan = NativeTrackLibrary_Scan(root, NULL);
+	relic = NativeTrackRegistry_Get(relicScan, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(relic != NULL && NativeTrackLibrary_RelicTime(relic, 0) == 16001, "rewriting metadata retains the custom relic time");
+	NativeTrackRegistry_Destroy(relicScan);
+	WriteFixture(track, "track.ini", "title=Test Track\nrelic_sapphire=2:60:00\n");
+	relicScan = NativeTrackLibrary_Scan(root, &result);
+	CTR_TEST_CHECK(relicScan != NULL && result.installed == 0 && result.rejected == 1, "an invalid explicit threshold rejects the track manifest");
+	NativeTrackRegistry_Destroy(relicScan);
+	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\n");
 	CTR_TEST_SECTION("music selection persistence");
 	CTR_TEST_CHECK(NativeTrackLibrary_Music(metadata) == -1,
 	               "missing selection retains the original audio fallback");

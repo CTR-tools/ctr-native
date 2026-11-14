@@ -46,6 +46,12 @@ Music is previewed as you browse. The custom music choices are numbered and
 drawn from the available audio in the import; retail choices use the game's
 original music. Custom music is only offered when available.
 
+**Relic times** opens an editor for the sapphire, gold and platinum targets.
+Enter minutes, seconds and hundredths as `M:SS:HH` (for example `2:40:00`);
+minutes may have one or two digits, and seconds must be below 60. The defaults
+are sapphire `2:00:00`, gold `2:30:00` and platinum `3:00:00`. Targets are
+independent; set them in descending order if higher relics should be harder.
+
 Choose **Confirm import** to install the selected tracks, or **Cancel import**
 to discard the review. At least one track must be selected to confirm.
 
@@ -53,7 +59,7 @@ to discard the review. At least one track must be selected to confirm.
 
 Open **Options > Custom Tracks > Available Tracks** and select a track to open
 its details. There you can change **Active**, edit its name and author, choose
-between its custom music (if available) and retail music, preview the selection,
+between its custom music (if available) and retail music, edit relic times, preview the selection,
 or delete the track after confirmation. Disabling a track does not delete its
 files or records. Deleting a track removes its library directory; records and
 ghosts are stored separately.

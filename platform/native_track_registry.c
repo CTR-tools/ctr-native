@@ -82,6 +82,8 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 	entry->metadata.music = metadata->music != NULL && metadata->music[0] != '\0' ? NativeTrackRegistry_Copy(metadata->music) : NULL;
 	entry->metadata.detectedModes = metadata->detectedModes;
 	entry->metadata.detectionKnown = metadata->detectionKnown;
+	memcpy(entry->metadata.relicTimes, metadata->relicTimes, sizeof(entry->metadata.relicTimes));
+	entry->metadata.relicTimesSet = metadata->relicTimesSet;
 	if (entry->metadata.identity == NULL || entry->metadata.title == NULL || entry->metadata.levPath == NULL ||
 	    entry->metadata.vrmPath == NULL || (metadata->scaPath != NULL && metadata->scaPath[0] != '\0' && entry->metadata.scaPath == NULL) ||
 	    (metadata->author != NULL && metadata->author[0] != '\0' && entry->metadata.author == NULL) ||

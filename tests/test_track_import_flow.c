@@ -69,6 +69,10 @@ int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
 	return 1;
 }
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return s_installedRegistry; }
+unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier) { (void)track; return 12000 + tier * 3000; }
+void NativeTrackLibrary_FormatRelicTime(unsigned int time, char *text, size_t size) { snprintf(text, size, "%u:%02u:%02u", time / 6000 % 100, time / 100 % 60, time % 100); }
+int NativeTrackLibrary_ParseRelicTime(const char *text, unsigned int *time) { (void)text; (void)time; return 1; }
+int NativeTrackLibrary_SetRelicTime(const struct NativeTrackMetadata *track, int tier, const char *text) { (void)track; (void)tier; (void)text; return 1; }
 int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
 {
 	(void)track;
@@ -282,6 +286,7 @@ int main(void)
 	               strcmp(s_previewIdentity, "local:other") == 0,
 	               "a track without local audio can select and preview another candidate's SCA");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
+	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
