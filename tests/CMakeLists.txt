@@ -241,6 +241,10 @@ ctr_add_test_suite(test_boss_cutscenes
     SOURCES test_boss_cutscenes.c
 )
 
+ctr_add_test_suite(test_load_request
+    SOURCES test_load_request.c
+)
+
 ctr_add_test_suite(test_decal_font_scale
     SOURCES test_decal_font_scale.c
 )
@@ -255,6 +259,10 @@ ctr_add_test_suite(test_chaos_save
 ctr_add_test_suite(test_pgxp
     SOURCES test_pgxp.c
 )
+ctr_add_test_suite(test_pgxp_gte SOURCES test_pgxp_gte.c)
+if(UNIX)
+    target_link_libraries(test_pgxp_gte PRIVATE m)
+endif()
 
 ctr_add_test_suite(test_native_controls
     SOURCES controls/test_native_controls.c

@@ -10,6 +10,8 @@ static int s_stops;
 static int s_resumes;
 static int s_loads;
 static int s_prompts;
+static int s_levelRequests;
+static s16 s_requestedLevel;
 static s16 s_promptX;
 static s16 s_promptY;
 
@@ -96,7 +98,8 @@ u8 CAM_Path_Move(int frame, s16 *pos, s16 *rot, s16 *flags)
 }
 void MainRaceTrack_RequestLoad(s16 level)
 {
-	(void)level;
+	s_levelRequests++;
+	s_requestedLevel = level;
 }
 
 b32 VehPickupItem_MaskBoolGoodGuy(struct Driver *driver)
@@ -122,6 +125,7 @@ static void Reset(int mode, int index, CutscenePhase phase)
 	memset(&sdata_static, 0, sizeof(sdata_static));
 	memset(&s_tracker, 0, sizeof(s_tracker));
 	memset(&s_pads, 0, sizeof(s_pads));
+	memset(&g_config, 0, sizeof(g_config));
 	CS_OVR233_ResetData();
 	sdata->gGT = &s_tracker;
 	sdata->gGamepads = &s_pads;
@@ -131,6 +135,31 @@ static void Reset(int mode, int index, CutscenePhase phase)
 	s_tracker.gameMode2 = VEH_FREEZE_PODIUM;
 	s_tracker.podiumRewardID = STATIC_KEY;
 	s_stops = s_resumes = s_loads = s_prompts = 0;
+	s_levelRequests = 0;
+}
+
+static void TestPodiumExitRequestsLoadOnce(void)
+{
+	CTR_TEST_SECTION("podium exit requests the menu once");
+	for (int skip = 0; skip <= 1; skip++)
+	{
+		struct CsPodiumCameraThreadObj podium = {0};
+		struct Thread camera = {0};
+		struct Driver driver = {0};
+		Reset(BOSS_CUTSCENES_UNSKIPPABLE, ROO_START, CS_WAIT_INPUT);
+		g_config.skipPodiumCeremonies = skip;
+		g_config.loadingScreen = LOADING_SCREEN_FADE;
+		s_tracker.drivers[0] = &driver;
+		camera.object = &podium;
+		if (!skip)
+		{
+			s_pads.gamepad[0].buttonsTapped = BTN_CROSS_one;
+		}
+
+		CS_Camera_ThTick_Podium(&camera);
+		CTR_TEST_CHECK(s_levelRequests == 1 && s_requestedLevel == MAIN_MENU_LEVEL, "podium exit requests the main menu");
+		CTR_TEST_CHECK((camera.flags & THREAD_FLAG_DEAD) != 0, "the camera retires so it cannot restart the loading fade each frame");
+	}
 }
 
 static void TestModesAndPrompt(void)
@@ -192,5 +221,6 @@ int main(void)
 {
 	TestModesAndPrompt();
 	TestAllAutomaticSkips();
+	TestPodiumExitRequestsLoadOnce();
 	return CtrTest_Summary();
 }

@@ -20,7 +20,9 @@ void MainRaceTrack_RequestLoad(s16 levelID)
 
 	// A menu can leave the flag fully on screen. Start a fresh transition for
 	// the loading fade instead of immediately treating the screen as covered.
-	if (g_config.loadingScreen == LOADING_SCREEN_FADE || RaceFlag_IsFullyOffScreen())
+	// Callers may request a load every frame; do not restart a pending fade.
+	if (sdata->Loading.stage != LOAD_REQUESTED &&
+	    (g_config.loadingScreen == LOADING_SCREEN_FADE || RaceFlag_IsFullyOffScreen()))
 	{
 		RaceFlag_BeginTransition(1);
 	}

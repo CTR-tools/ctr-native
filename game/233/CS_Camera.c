@@ -457,6 +457,7 @@ void CS_Camera_ThTick_Podium(struct Thread *th)
 			gGT->gameMode2 &= ~VEH_FREEZE_PODIUM;
 			RaceFlag_SetDrawOrder(0);
 			MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+			th->flags |= THREAD_FLAG_DEAD;
 			return;
 		}
 	}

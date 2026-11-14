@@ -527,8 +527,10 @@ int GTE_operator(int op)
 		{
 			double input[3] = {(double)VX(v), (double)VY(v), (double)VZ(v)};
 			double result[3];
-			const double rotation[9] = {C2_R11, C2_R12, C2_R13, C2_R21, C2_R22, C2_R23, C2_R31, C2_R32, C2_R33};
-			const double translation[3] = {C2_TRX, C2_TRY, C2_TRZ};
+			// A shadow can be evicted by another matrix. Fall back to the banks
+			// selected by MVMVA, not RTPS's bank 0 (the clip pass uses bank 1).
+			const double rotation[9] = {MX11(mx), MX12(mx), MX13(mx), MX21(mx), MX22(mx), MX23(mx), MX31(mx), MX32(mx), MX33(mx)};
+			const double translation[3] = {CV1(cv), CV2(cv), CV3(cv)};
 
 			NativePgxp_GteGetInput(v, (s16)VX(v), (s16)VY(v), (s16)VZ(v), input);
 			NativePgxp_Transform(mx, cv, rotation, translation, input, result);
