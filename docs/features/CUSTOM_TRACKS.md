@@ -51,7 +51,7 @@ It is available when the track is detected as supporting Relic races; tracks
 with unknown compatibility cannot be edited until support is detected.
 Enter minutes, seconds and hundredths as `M:SS:HH` (for example `2:40:00`);
 minutes may have one or two digits, and seconds must be below 60. The defaults
-are sapphire `2:00:00`, gold `2:30:00` and platinum `3:00:00`. Targets are
+are sapphire `3:00:00`, gold `2:30:00` and platinum `2:00:00`. Targets are
 independent; set them in descending order if higher relics should be harder.
 
 Choose **Confirm import** to install the selected tracks, or **Cancel import**
@@ -82,11 +82,14 @@ selectors:
 - **Arcade:** requires a detected bot path. Tracks whose mode detection is
   unknown are not offered in Arcade.
 - **Time Trial:** available for every installed track.
+- **CTR Challenge:** requires detected CTR letters and bot paths.
+- **Relic Race and Crystal Challenge:** require detection of the corresponding
+  mode. Tracks whose mode detection is unknown are not offered in these modes
+  or CTR Challenge.
 
 The manager displays detected mode hints: TT (Time Trial), ARC (Arcade), VS,
 CTR, REL (Relic) and CRY (Crystal). These are best-effort hints, not a
-guarantee that the track works. CTR, Relic and Crystal hints do **not** enable
-those custom modes yet. Custom tracks are not added to cups or Adventure mode.
+guarantee that the track works. Custom tracks are not added to cups or Adventure mode.
 
 ## Manual installation
 

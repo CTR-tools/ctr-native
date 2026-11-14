@@ -19,8 +19,8 @@ and selection eligibility are determined by the application. Identities must
 be unique. `.ctr-disabled` marks a disabled track.
 
 Relic times use `M:SS:HH` or `MM:SS:HH` (hundredths), with seconds from 00 to
-59. Missing values default to sapphire `2:00:00`, gold `2:30:00`, and platinum
-`3:00:00`. Each value is independent; malformed explicit values reject the manifest.
+59. Missing values default to sapphire `3:00:00`, gold `2:30:00`, and platinum
+`2:00:00`. Each value is independent; malformed explicit values reject the manifest.
 
 `NativeTrackLibrary_Refresh` replaces the registry. Metadata pointers borrowed
 from it are invalid after refresh; runtime IDs are assigned in scan order and

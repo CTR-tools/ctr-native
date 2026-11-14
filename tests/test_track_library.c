@@ -96,8 +96,8 @@ int main(void)
 	const struct NativeTrackMetadata *metadata = NativeTrackRegistry_Get(registry, id);
 	CTR_TEST_CHECK(metadata != NULL && strcmp(metadata->title, "track") == 0 && metadata->scaPath == NULL && metadata->author == NULL,
 	               "directory name and music use defaults");
-	CTR_TEST_CHECK(NativeTrackLibrary_RelicTime(metadata, 0) == 12000 && NativeTrackLibrary_RelicTime(metadata, 1) == 15000 &&
-	               NativeTrackLibrary_RelicTime(metadata, 2) == 18000, "missing relic thresholds use the requested defaults");
+	CTR_TEST_CHECK(NativeTrackLibrary_RelicTime(metadata, 0) == 18000 && NativeTrackLibrary_RelicTime(metadata, 1) == 15000 &&
+	               NativeTrackLibrary_RelicTime(metadata, 2) == 12000, "missing relic thresholds use the requested defaults");
 	NativeTrackRegistry_Destroy(registry);
 
 	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\n");

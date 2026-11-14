@@ -172,10 +172,6 @@ static void MM_TrackSelect_BuildRaceTracks(void)
 	free(s_raceTracks);
 	s_raceTracks = NULL;
 	s_raceTrackCount = MM_TRACK_SELECT_ARCADE_TRACK_COUNT;
-	if (count == 0)
-	{
-		return;
-	}
 	s_raceTracks = malloc((MM_TRACK_SELECT_ARCADE_TRACK_COUNT + count) * sizeof(*s_raceTracks));
 	if (s_raceTracks == NULL)
 	{

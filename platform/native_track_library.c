@@ -528,7 +528,7 @@ void NativeTrackLibrary_FormatRelicTime(unsigned int hundredths, char *text, siz
 
 unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier)
 {
-	static const unsigned int defaults[] = {12000, 15000, 18000};
+	static const unsigned int defaults[] = {18000, 15000, 12000};
 	if (tier < 0 || tier >= NATIVE_TRACK_RELIC_COUNT) { return 0; }
 	return track != NULL && (track->relicTimesSet & (1u << tier)) ? track->relicTimes[tier] : defaults[tier];
 }
@@ -571,7 +571,12 @@ int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *trac
 	{
 		return false;
 	}
-	if (mode == NATIVE_TRACK_DETECTED_ARCADE || mode == NATIVE_TRACK_DETECTED_RELIC || mode == NATIVE_TRACK_DETECTED_CRYSTAL || mode == NATIVE_TRACK_DETECTED_CTR)
+	if (mode == NATIVE_TRACK_DETECTED_CTR)
+	{
+		unsigned int required = NATIVE_TRACK_DETECTED_CTR | NATIVE_TRACK_DETECTED_ARCADE;
+		return (track->detectedModes & required) == required;
+	}
+	if (mode == NATIVE_TRACK_DETECTED_ARCADE || mode == NATIVE_TRACK_DETECTED_RELIC || mode == NATIVE_TRACK_DETECTED_CRYSTAL)
 	{
 		return (track->detectedModes & mode) != 0;
 	}

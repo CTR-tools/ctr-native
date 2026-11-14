@@ -514,7 +514,11 @@ void Audio_Update1(void)
 					// Co-op races grade both racers; other races start with the
 					// retail "human in front won" test, then apply event rules.
 					humanWon = MainGameEnd_IsCoopRace(gGT) ? MainGameEnd_AdventureRaceWon(gGT) : (raceOrderIndex == 0);
-					if ((gGT->gameMode1 & RELIC_RACE) != 0)
+					if ((gGT->gameMode1 & (RELIC_RACE | ARCADE_MODE)) == (RELIC_RACE | ARCADE_MODE))
+					{
+						humanWon = MainGameEnd_RelicTier(gGT, MainGameEnd_GradeDriver(gGT)) >= 0;
+					}
+					else if ((gGT->gameMode1 & RELIC_RACE) != 0)
 					{
 						humanWon = (gGT->gameModeEnd & (NEW_RELIC | NEW_HIGH_SCORE)) != 0;
 					}
