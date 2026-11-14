@@ -163,6 +163,7 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	    .musicTrack = custom ? NULL : sdata->lngStrings[data.metaDataLEV[choice].name_LNG],
 	    .musicIndex = custom ? choice + 1 : 0,
 	    .included = NativeTrackPatch_ReviewIncluded(track->identity), .includedCount = MM_TrackImport_IncludedCount(),
+	    .relicAvailable = NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC),
 	};
 	if (s_relicPage)
 	{
@@ -336,7 +337,8 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 		s_trackReviewEditing = NativeTextEdit_BeginForGame(value != NULL ? value : "", 256);
 		if (s_trackReviewEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
 	}
-	else if (confirm && s_trackReviewRow == TRACK_REVIEW_RELIC_TIMES)
+	else if (confirm && s_trackReviewRow == TRACK_REVIEW_RELIC_TIMES &&
+	         NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC))
 	{
 		s_relicPage = 1; s_relicRow = 0; s_relicMessage = NULL;
 	}

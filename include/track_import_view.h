@@ -26,6 +26,7 @@ struct TrackImportReviewView
 	int included, includedCount;
 	int installed;
 	int relicPage;
+	int relicAvailable;
 	unsigned int relicTimes[3];
 };
 

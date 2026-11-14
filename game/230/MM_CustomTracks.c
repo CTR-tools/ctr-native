@@ -176,7 +176,8 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
 	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
 	const char *label = LANG_GetString(view->installed ? installedLabels[row] : labels[row]);
-	if ((!view->installed && row == TRACK_REVIEW_CONFIRM && view->includedCount == 0) ||
+	if ((row == TRACK_REVIEW_RELIC_TIMES && !view->relicAvailable) ||
+	    (!view->installed && row == TRACK_REVIEW_CONFIRM && view->includedCount == 0) ||
 	    (view->installed && !s_customTracksImportEnabled && row >= TRACK_REVIEW_TITLE && row <= TRACK_REVIEW_CONFIRM))
 	{
 		DecalFont_DrawLineOT((char *)label, FULLSCREEN_MENU_LABEL_X, y, FONT_SMALL, GRAY, ot);
@@ -379,7 +380,8 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 			if (s_customTracksEditing) { NativeTextEdit_LimitCharacters(TRACK_REVIEW_TEXT_CHARACTERS); }
 			if (!s_customTracksEditing) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_EDITOR_FAILED); }
 		}
-		else if (confirm && s_customTracksImportEnabled && menu->rowSelected == TRACK_REVIEW_RELIC_TIMES)
+		else if (confirm && s_customTracksImportEnabled && menu->rowSelected == TRACK_REVIEW_RELIC_TIMES &&
+		         NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC))
 		{
 			s_relicPage = 1; s_relicRow = 0; s_relicMessage = NULL;
 		}
@@ -422,7 +424,8 @@ draw:
 	struct TrackImportReviewView view = {
 		.title = track->title, .author = track->author, .index = s_customTracksIndex, .count = count,
 		.row = menu->rowSelected, .included = NativeTrackLibrary_IsEnabled(track), .installed = 1,
-		.editing = s_customTracksEditing, .editingValue = s_customTracksEditing ? NativeTextEdit_Value() : NULL,
+	    .editing = s_customTracksEditing, .editingValue = s_customTracksEditing ? NativeTextEdit_Value() : NULL,
+	    .relicAvailable = NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC),
 		.message = s_customTracksMessage, .musicSource = LANG_GetString(custom ? LNG_EXPANDED_TRACKS_CUSTOM : LNG_EXPANDED_TRACKS_RETAIL),
 		.musicTrack = custom ? LANG_GetString(LNG_EXPANDED_TRACKS_AUDIO) : sdata->lngStrings[data.metaDataLEV[music].name_LNG],
 	};

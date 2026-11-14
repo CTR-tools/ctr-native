@@ -127,6 +127,8 @@ const char *NativeAssets_GetBaseDir(void)
 }
 const char *NativeAssets_GetAssetDir(void) { return "fixture-assets"; }
 int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track) { (void)track; return s_savedMusic; }
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
+{ return track != NULL && track->detectionKnown && (track->detectedModes & mode) != 0; }
 unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier) { (void)track; return 12000 + tier * 3000; }
 void NativeTrackLibrary_FormatRelicTime(unsigned int time, char *text, size_t size) { snprintf(text, size, "%u:%02u:%02u", time / 6000 % 100, time / 100 % 60, time % 100); }
 int NativeTrackLibrary_ParseRelicTime(const char *text, unsigned int *time) { (void)text; (void)time; return 1; }

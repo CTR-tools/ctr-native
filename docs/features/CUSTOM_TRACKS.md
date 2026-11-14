@@ -47,6 +47,8 @@ drawn from the available audio in the import; retail choices use the game's
 original music. Custom music is only offered when available.
 
 **Relic times** opens an editor for the sapphire, gold and platinum targets.
+It is available when the track is detected as supporting Relic races; tracks
+with unknown compatibility cannot be edited until support is detected.
 Enter minutes, seconds and hundredths as `M:SS:HH` (for example `2:40:00`);
 minutes may have one or two digits, and seconds must be below 60. The defaults
 are sapphire `2:00:00`, gold `2:30:00` and platinum `3:00:00`. Targets are
