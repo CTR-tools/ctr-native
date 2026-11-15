@@ -287,6 +287,7 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 {
 	const struct GameTracker *gGT = sdata->gGT;
 	const int barWidth = UI_SLIDE_METER_BAR_W;
+	const int displayWidth = barWidth - 2 * Widescreen_XShift(barWidth);
 	int barHeight = gGT->numPlyrCurrGame >= UI_SLIDE_METER_SPLIT_PLAYER_COUNT ? UI_SLIDE_METER_BAR_H_SPLIT : UI_SLIDE_METER_BAR_H_FULL;
 
 	int meterLength = 0;
@@ -298,11 +299,11 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	RECT box;
-	s16 topX = posX - barWidth;
+	s16 topX = posX - displayWidth;
 	s16 topY = posY - barHeight;
 	box.x = topX;
 	box.y = topY;
-	box.w = barWidth;
+	box.w = displayWidth;
 	box.h = barHeight;
 	Color black = MakeColor(0, 0, 0);
 	CTR_Box_DrawWireBox(&box, &black, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
@@ -331,9 +332,10 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 		p->v[2].pos.y = posY;
 		p->v[3].pos.y = posY;
 
-		p->v[0].pos.x = posX - meterLength;
+		int leftX = posX - meterLength + 2 * Widescreen_XShift(meterLength);
+		p->v[0].pos.x = leftX;
 		p->v[1].pos.x = posX;
-		p->v[2].pos.x = posX - meterLength;
+		p->v[2].pos.x = leftX;
 		p->v[3].pos.x = posX;
 
 		AddPrimitive(p, gGT->pushBuffer_UI.ptrOT);
@@ -347,11 +349,12 @@ void UI_DrawReservesMeter(s16 posX, s16 posY, struct Driver *driver)
 {
 	const struct GameTracker *gGT = sdata->gGT;
 	const int barWidth = 49;
+	const int displayWidth = barWidth - 2 * Widescreen_XShift(barWidth);
 	const int barHeight = 3;
-	s16 topX = posX - barWidth;
+	s16 topX = posX - displayWidth;
 	s16 topY = posY - barHeight;
 
-	RECT box = {topX, topY, barWidth, barHeight};
+	RECT box = {topX, topY, displayWidth, barHeight};
 	Color black = MakeColor(0, 0, 0);
 	CTR_Box_DrawWireBox(&box, &black, gGT->pushBuffer_UI.ptrOT, &gGT->backBuffer->primMem);
 
@@ -385,9 +388,10 @@ void UI_DrawReservesMeter(s16 posX, s16 posY, struct Driver *driver)
 		p->v[1].pos.y = topY;
 		p->v[2].pos.y = posY;
 		p->v[3].pos.y = posY;
-		p->v[0].pos.x = posX - meterLength;
+		int leftX = posX - meterLength + 2 * Widescreen_XShift(meterLength);
+		p->v[0].pos.x = leftX;
 		p->v[1].pos.x = posX;
-		p->v[2].pos.x = posX - meterLength;
+		p->v[2].pos.x = leftX;
 		p->v[3].pos.x = posX;
 
 		AddPrimitive(p, gGT->pushBuffer_UI.ptrOT);
