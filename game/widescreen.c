@@ -31,6 +31,13 @@ int Widescreen_ScaleXFromAnchor(int x, int anchor)
 	return x + Widescreen_FixedEdgeShift(anchor - x);
 }
 
+void Widescreen_CompressRect(RECT *rect)
+{
+	const int inset = Widescreen_CenteredEdgeShift(rect->w);
+	rect->x += inset;
+	rect->w -= 2 * inset;
+}
+
 void Widescreen_CompressFT4(POLY_FT4 *p)
 {
 	int len = Widescreen_CenteredEdgeShift(p->x1 - p->x0);

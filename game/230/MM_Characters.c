@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -1335,6 +1336,7 @@ dontDrawSelectCharacter:
 		drawRect.y = currentIconTransition->currY + preInputCharacterMeta->posY;
 		drawRect.w = MM_CHARACTER_SELECT_ICON_RECT_W;
 		drawRect.h = MM_CHARACTER_SELECT_ICON_RECT_H;
+		Widescreen_CompressRect(&drawRect);
 
 		// if player has not selected a character
 		playerSelectedAfterInput = (((int)(s16)MM_CHARACTER_SELECT_FLAGS >> playerIndex) & 1U) != 0;
@@ -1343,7 +1345,7 @@ dontDrawSelectCharacter:
 		{
 			// draw string
 			// "1", "2", "3", "4", above the character icon
-			DecalFont_DrawLine(MM_PLAYER_NUMBER_STRINGS[playerIndex], currentIconTransition->currX + (u32)preInputCharacterMeta->posX - 6,
+			DecalFont_DrawLine(MM_PLAYER_NUMBER_STRINGS[playerIndex], drawRect.x + MM_CHARACTER_SELECT_CURSOR_LABEL_OFFSET_X,
 			                   currentIconTransition->currY + (u32)preInputCharacterMeta->posY - 3, FONT_BIG, WHITE);
 			outlineColor = &playerColor;
 		}
@@ -1492,6 +1494,7 @@ outerPlayerLoopComplete:
 				drawRect.h = MM_CHARACTER_SELECT_HIGHLIGHT_H;
 				MM_CHARACTERS_LOAD_HIGHLIGHT_GAME_TRACKER(highlightGameTracker, highlightTransitionY, highlightMetadataY);
 				drawRect.y = highlightTransitionY + MM_CHARACTER_SELECT_HIGHLIGHT_OFFSET_Y;
+				Widescreen_CompressRect(&drawRect);
 
 				// this draws the flashing blue square that appears when you highlight a character in the character select screen
 				MM_DRAW_SOLID_BOX_WITH_PRIM_MEM(highlightRect, animatedColorPtr, highlightGameTracker->backBuffer->otMem.uiOT,
@@ -1588,6 +1591,7 @@ outerPlayerLoopComplete:
 			iconRect.y = MM_CHARACTER_SELECT_TRANSITION_META[playerIndex].currY + (s16)iconMetaTail[0];
 			iconRect.w = MM_CHARACTER_SELECT_ICON_RECT_W;
 			iconRect.h = MM_CHARACTER_SELECT_ICON_RECT_H;
+			Widescreen_CompressRect(&iconRect);
 
 			// Draw 2D Menu rectangle background
 			RECTMENU_DrawInnerRect(&iconRect, 0, GAME_TRACKER->backBuffer->otMem.uiOT);

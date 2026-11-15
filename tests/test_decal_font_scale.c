@@ -106,6 +106,20 @@ int main(void)
 		CTR_TEST_CHECK_EQ(centered, expectedInsets[aspect], "centered inset scales each edge for the selected aspect ratio");
 		CTR_TEST_CHECK(Widescreen_FixedEdgeShift(49) == 2 * centered, "fixed-edge shift matches both centered edge movements");
 	}
+	CTR_TEST_SECTION("character selection rectangles follow portrait compression");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		RECT frame = {100, 50, 52, 33};
+		RECT highlight = {103, 52, 46, 29};
+		Widescreen_CompressRect(&frame);
+		Widescreen_CompressRect(&highlight);
+		CTR_TEST_CHECK_EQ(2 * frame.x + frame.w, 252, "frame remains centered on the portrait");
+		CTR_TEST_CHECK_EQ(2 * highlight.x + highlight.w, 252, "selection highlight remains centered on the portrait");
+		CTR_TEST_CHECK_EQ(frame.w, 52 - 2 * Widescreen_CenteredEdgeShift(52), "frame width follows the portrait aspect correction");
+		CTR_TEST_CHECK_EQ(frame.y, 50, "frame vertical position is unchanged");
+		CTR_TEST_CHECK_EQ(frame.h, 33, "frame height is unchanged");
+	}
 	g_config.aspectRatio = 0;
 	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 400, "4:3 preserves map coordinates");
 	g_config.aspectRatio = 1;

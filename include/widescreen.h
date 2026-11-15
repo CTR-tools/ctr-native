@@ -7,6 +7,7 @@ int Widescreen_CenteredEdgeShift(int width);
 // Total inset when the opposite edge remains fixed.
 int Widescreen_FixedEdgeShift(int width);
 int Widescreen_ScaleXFromAnchor(int x, int anchor);
+void Widescreen_CompressRect(RECT *rect);
 
 void Widescreen_CompressFT4(POLY_FT4 *p);
 void Widescreen_CompressGT4(POLY_GT4 *p);
