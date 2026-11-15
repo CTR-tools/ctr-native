@@ -85,6 +85,10 @@ int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int ret
 	(void)track; (void)custom; s_musicRetail = retail;
 	return 1;
 }
+int NativeTrackLibrary_TrackRomLod(const struct NativeTrackMetadata *track)
+{ return track != NULL && (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_ON || (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_AUTO && track->trackRomLodDetected)); }
+int NativeTrackLibrary_SetTrackRomLod(const struct NativeTrackMetadata *track, int mode)
+{ (void)track; (void)mode; return 1; }
 
 int NativeFolderDialog_Open(void) { s_dialogResult = NATIVE_FOLDER_DIALOG_PENDING; return 1; }
 int NativeFileDialog_OpenPatch(void) { return NativeFolderDialog_Open(); }
@@ -118,11 +122,11 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 {
 	(void)directory; (void)result;
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable == 1 ? "track.sca" : NULL, "Author", 0, 0, NULL};
+	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable == 1 ? "track.sca" : NULL, "Author", 0, 0, NULL, 0, 0};
 	NativeTrackRegistry_Add(registry, &track, NULL);
 	if (s_musicAvailable)
 	{
-		struct NativeTrackMetadata other = {"local:other", "Other", "other.lev", "other.vrm", "other.sca", NULL, 0, 0, NULL};
+		struct NativeTrackMetadata other = {"local:other", "Other", "other.lev", "other.vrm", "other.sca", NULL, 0, 0, NULL, 0, 0};
 		NativeTrackRegistry_Add(registry, &other, NULL);
 	}
 	return registry;
@@ -228,7 +232,7 @@ int main(void)
 	s_musicRetail = -1;
 	s_musicIdentity[0] = '\0';
 	s_installedRegistry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata installed = {"local:installed", "Installed", "installed.lev", "installed.vrm", "installed.sca", NULL, 0, 0, NULL};
+	struct NativeTrackMetadata installed = {"local:installed", "Installed", "installed.lev", "installed.vrm", "installed.sca", NULL, 0, 0, NULL, 0, 0};
 	NativeTrackRegistry_Add(s_installedRegistry, &installed, NULL);
 	CTR_TEST_SECTION("patch review and confirmation");
 	MM_TrackImport_OpenPatch();
@@ -307,13 +311,10 @@ int main(void)
 	               strcmp(s_previewIdentity, "local:other") == 0,
 	               "a track without local audio can select and preview another candidate's SCA");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
-	MM_TrackImport_Update(BTN_DOWN);
+	for (int row = TRACK_REVIEW_TRACK; row < TRACK_REVIEW_CONFIRM; row++)
+	{
+		MM_TrackImport_Update(BTN_DOWN);
+	}
 	MM_TrackImport_Update(BTN_CROSS);
 	CTR_TEST_CHECK(s_commits == 1 && s_refresh == 0 && s_trackImportState == TRACK_IMPORT_INSTALLING,
 	               "confirm starts installation without blocking for completion");

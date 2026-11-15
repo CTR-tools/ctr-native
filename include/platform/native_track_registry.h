@@ -21,6 +21,14 @@ enum NativeTrackDetectedMode
 	NATIVE_TRACK_DETECTED_VS = 1 << 5,
 };
 
+enum NativeTrackRomLodMode
+{
+	NATIVE_TRACK_ROM_LOD_AUTO,
+	NATIVE_TRACK_ROM_LOD_ON,
+	NATIVE_TRACK_ROM_LOD_OFF,
+	NATIVE_TRACK_ROM_LOD_COUNT,
+};
+
 struct NativeTrackMetadata
 {
 	const char *identity;
@@ -34,6 +42,8 @@ struct NativeTrackMetadata
 	const char *music;
 	unsigned int relicTimes[3]; /* hundredths of a second, sapphire/gold/platinum */
 	unsigned int relicTimesSet;
+	enum NativeTrackRomLodMode trackRomLodOverride;
+	int trackRomLodDetected;
 };
 
 struct NativeTrackRegistry;

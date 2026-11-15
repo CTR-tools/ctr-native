@@ -173,8 +173,8 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 {
 	(void)selected;
 	const struct TrackImportReviewView *view = context;
-	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
-	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
+	static const int labels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_IMPORT, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_TRACKROM_LOD, LNG_EXPANDED_TRACKS_CONFIRM_IMPORT, LNG_EXPANDED_TRACKS_CANCEL_IMPORT};
+	static const int installedLabels[] = {LNG_EXPANDED_TRACKS_TRACK, LNG_EXPANDED_TRACKS_ACTIVE, LNG_EXPANDED_TRACKS_NAME, LNG_EXPANDED_TRACKS_AUTHOR, LNG_EXPANDED_TRACKS_MUSIC_SOURCE, LNG_EXPANDED_TRACKS_MUSIC_TRACK, LNG_EXPANDED_TRACKS_RELIC_TIMES, LNG_EXPANDED_TRACKS_TRACKROM_LOD, LNG_EXPANDED_TRACKS_DELETE, LNG_EXPANDED_TRACKS_BACK};
 	const char *label = LANG_GetString(view->installed ? installedLabels[row] : labels[row]);
 	if ((row == TRACK_REVIEW_RELIC_TIMES && !view->relicAvailable) ||
 	    (!view->installed && row == TRACK_REVIEW_CONFIRM && view->includedCount == 0) ||
@@ -215,6 +215,11 @@ static void CustomTracks_DrawImportReviewRow(const void *context, int row, int y
 	else if (row == TRACK_REVIEW_INCLUDE)
 	{
 		snprintf(value, sizeof(value), "%s", LANG_GetString(view->included ? LNG_EXPANDED_TRACKS_YES : LNG_EXPANDED_TRACKS_NO));
+	}
+	else if (row == TRACK_REVIEW_TRACKROM_LOD)
+	{
+		snprintf(value, sizeof(value), "%s%s", view->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_AUTO ? "AUTO: " : "",
+		         LANG_GetString(view->trackRomLodEnabled ? LNG_EXPANDED_TRACKS_YES : LNG_EXPANDED_TRACKS_NO));
 	}
 	else if (row == TRACK_REVIEW_CONFIRM && !view->installed)
 	{
@@ -373,6 +378,13 @@ static void CustomTracks_Detail(struct RectMenu *menu, struct GamepadBuffer *pad
 			s_customTracksPage = CUSTOM_TRACKS_DELETE;
 			return;
 		}
+		else if (s_customTracksImportEnabled && menu->rowSelected == TRACK_REVIEW_TRACKROM_LOD && ((buttons & (BTN_LEFT | BTN_RIGHT)) || confirm))
+		{
+			int mode = (track->trackRomLodOverride + ((buttons & BTN_LEFT) ? NATIVE_TRACK_ROM_LOD_COUNT - 1 : 1)) % NATIVE_TRACK_ROM_LOD_COUNT;
+			if (!NativeTrackLibrary_SetTrackRomLod(track, mode)) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_SAVE_DETAILS_FAILED); }
+			else if (!CustomTracks_Rescan(track->identity)) { s_customTracksMessage = LANG_GetString(LNG_EXPANDED_TRACKS_REFRESH_DETAILS_FAILED); }
+			else { s_customTracksMessage = NULL; }
+		}
 		else if (confirm && s_customTracksImportEnabled && (menu->rowSelected == TRACK_REVIEW_TITLE || menu->rowSelected == TRACK_REVIEW_AUTHOR))
 		{
 			const char *value = menu->rowSelected == TRACK_REVIEW_TITLE ? track->title : track->author;
@@ -427,6 +439,7 @@ draw:
 	    .editing = s_customTracksEditing, .editingValue = s_customTracksEditing ? NativeTextEdit_Value() : NULL,
 	    .relicAvailable = NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC),
 		.message = s_customTracksMessage, .musicSource = LANG_GetString(custom ? LNG_EXPANDED_TRACKS_CUSTOM : LNG_EXPANDED_TRACKS_RETAIL),
+		.trackRomLodOverride = track->trackRomLodOverride, .trackRomLodEnabled = NativeTrackLibrary_TrackRomLod(track),
 		.musicTrack = custom ? LANG_GetString(LNG_EXPANDED_TRACKS_AUDIO) : sdata->lngStrings[data.metaDataLEV[music].name_LNG],
 	};
 	CustomTracks_DrawImportReview(&view, gGT, ot);

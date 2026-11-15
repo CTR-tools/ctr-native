@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_track_library.h>
 #include "RenderLevelLod.h"
 
 enum RenderListsScratchOffset
@@ -113,7 +114,7 @@ static int RenderLists_ProjectDistance(struct PushBuffer *pb, const struct Bound
 	return distance;
 }
 
-static int RenderLists_Select1P2PSlot(const struct BSP *bsp, struct PushBuffer *pb, int lodDistanceThreshold)
+static int RenderLists_Select1P2PSlot(const struct BSP *bsp, struct PushBuffer *pb, int lodDistanceThreshold, u8 numPlyr)
 {
 	int slotIndex;
 
@@ -127,11 +128,16 @@ static int RenderLists_Select1P2PSlot(const struct BSP *bsp, struct PushBuffer *
 	}
 	else if (RenderLists_ProjectDistance(pb, &bsp->box) > lodDistanceThreshold)
 	{
-		// NOTE: This is not a detail cutoff. It selects the emitter the leaf was
-		// authored for: past it the leaf draws through the full-dynamic path
-		// rather than the subdivided grids, which read grid data the
-		// full-dynamic quads do not carry.
-		slotIndex = RENDER_LIST_SLOT_FULL_DYNAMIC;
+		const struct NativeTrackMetadata *track = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), GAME_TRACKER->levelID);
+		if (numPlyr == 1 && NativeTrackLibrary_TrackRomLod(track))
+		{
+			slotIndex = RENDER_LIST_SLOT_DYNAMIC_SUBDIV;
+		}
+		else
+		{
+			// Full-dynamic quads may not carry the subdivided grid data.
+			slotIndex = RENDER_LIST_SLOT_FULL_DYNAMIC;
+		}
 	}
 	else if ((bsp->flag & BSP_RENDER_LEAF_FLAG_4X4) != 0)
 	{
@@ -252,7 +258,7 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 
 	if ((bspRoot->flag & BSP_NODE_FLAG_LEAF) != 0)
 	{
-		int slotIndex = RenderLists_Select1P2PSlot(bspRoot, pb, lodDistanceThreshold);
+		int slotIndex = RenderLists_Select1P2PSlot(bspRoot, pb, lodDistanceThreshold, numPlyr);
 
 		RenderLists_LinkBsp(bspRoot, bspRoot, RenderLists_Get1P2PHead(LevRenderList, slotIndex), bspList);
 		return 1;
@@ -280,7 +286,7 @@ static int RenderLists_Walk1P2P(struct BSP *bspRoot, const int *visLeafList, str
 				continue;
 			}
 
-			int slotIndex = RenderLists_Select1P2PSlot(bsp, pb, lodDistanceThreshold);
+			int slotIndex = RenderLists_Select1P2PSlot(bsp, pb, lodDistanceThreshold, numPlyr);
 			RenderLists_LinkBsp(bspRoot, bsp, RenderLists_Get1P2PHead(LevRenderList, slotIndex), bspList);
 			count++;
 		}

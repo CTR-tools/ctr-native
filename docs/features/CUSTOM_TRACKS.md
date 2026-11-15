@@ -53,6 +53,10 @@ Enter minutes, seconds and hundredths as `M:SS:HH` (for example `2:40:00`);
 minutes may have one or two digits, and seconds must be below 60. The defaults
 are sapphire `3:00:00`, gold `2:30:00` and platinum `2:00:00`. Targets are
 independent; set them in descending order if higher relics should be harder.
+**TrackROM LOD** controls a compatibility path for tracks whose distant
+textures are incorrect. Auto detects likely cases from the LEV; choose Yes or
+No to override detection. It currently affects single-player rendering only
+and may increase geometry and rendering cost.
 
 Choose **Confirm import** to install the selected tracks, or **Cancel import**
 to discard the review. At least one track must be selected to confirm.
@@ -120,6 +124,8 @@ author = Track Creator
 All fields are optional. IDs must be unique. Unknown or duplicate keys make the
 manifest invalid. The game may also write a `music` field when you choose music
 in the track details; use the in-game menu to change that selection.
+The optional `trackrom_lod = on` or `trackrom_lod = off` overrides automatic
+detection; omitting it restores Auto.
 
 ## Records, previews and troubleshooting
 
