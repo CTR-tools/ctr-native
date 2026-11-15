@@ -1,6 +1,5 @@
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <ui_map_geometry.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -70,12 +69,20 @@ int main(void)
 		CTR_TEST_CHECK(Widescreen_FixedEdgeShift(49) == 2 * centered, "fixed-edge shift matches both centered edge movements");
 	}
 	g_config.aspectRatio = 0;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 400, "4:3 preserves map coordinates");
+	g_config.aspectRatio = 1;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 424, "16:9 shifts the map edge toward its right anchor");
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(500, 500), 500, "the map anchor stays fixed");
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(600, 500), 576, "coordinates on the other side move toward the anchor");
+	g_config.aspectRatio = 3;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(350, 440), 388, "the three-player map uses its shifted anchor");
+	g_config.aspectRatio = 0;
 
 	CTR_TEST_SECTION("map marker alignment");
 	g_config.aspectRatio = 3;
 	ResetDrawing();
-	int mapLeft = UI_Map_ScaleX(400, 500, Widescreen_GetFactor());
-	int markerX = UI_Map_ScaleX(400, 500, Widescreen_GetFactor()) - Widescreen_CenteredEdgeShift(12);
+	int mapLeft = Widescreen_ScaleXFromAnchor(400, 500);
+	int markerX = Widescreen_ScaleXFromAnchor(400, 500) - Widescreen_CenteredEdgeShift(12);
 	Color markerColor = {0};
 	DecalHUD_DrawPolyGT4(&s_icon, markerX, 40, &s_buffer.primMem, s_originalOT,
 	                     markerColor, markerColor, markerColor, markerColor, 0, FP(1.0));

@@ -1,5 +1,4 @@
 #include <common.h>
-#include <ui_map_geometry.h>
 
 enum UIMapConstants
 {
@@ -121,7 +120,7 @@ void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empt
 
 	// posX is the right side,
 	// letftX is the left side
-	leftX = UI_Map_ScaleX(posX - sizeX, posX, Widescreen_GetFactor());
+	leftX = Widescreen_ScaleXFromAnchor(posX - sizeX, posX);
 
 	p->x0 = leftX;
 	p->x1 = posX;
@@ -199,7 +198,7 @@ void UI_Map_GetIconPos(struct UIMap *map, int *posX, int *posY)
 	{
 		rightEdge -= UI_MAP_3P_OFFSET_X;
 	}
-	*posX = UI_Map_ScaleX(map->iconStartX + addX, rightEdge, Widescreen_GetFactor());
+	*posX = Widescreen_ScaleXFromAnchor(map->iconStartX + addX, rightEdge);
 	*posY = map->iconStartY + addY - UI_MAP_ICON_Y_OFFSET;
 	return;
 }

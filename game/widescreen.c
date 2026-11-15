@@ -26,6 +26,11 @@ int Widescreen_FixedEdgeShift(int width)
 	return 2 * Widescreen_CenteredEdgeShift(width);
 }
 
+int Widescreen_ScaleXFromAnchor(int x, int anchor)
+{
+	return x + Widescreen_FixedEdgeShift(anchor - x);
+}
+
 void Widescreen_CompressFT4(POLY_FT4 *p)
 {
 	int len = Widescreen_CenteredEdgeShift(p->x1 - p->x0);

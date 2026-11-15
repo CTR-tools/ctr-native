@@ -125,7 +125,8 @@ static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 	AddPrim(gGT->pushBuffer_UI.ptrOT, reset);
 	memory->cursor = reset + 1;
 	MM_TrackSelect_DrawMapLayers(&s_customMapIcons[0], &s_customMapIcons[1],
-	                             centerX + s_customMap.width * Widescreen_GetFactor() / 2000, centerY + s_customMap.height / 2);
+	                             centerX + (s_customMap.width - Widescreen_FixedEdgeShift(s_customMap.width)) / 2,
+	                             centerY + s_customMap.height / 2);
 	DR_PSYX_TEX *bind = memory->cursor;
 	SetPsyXTexture(bind, s_customMapTexture, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE);
 	AddPrim(gGT->pushBuffer_UI.ptrOT, bind);
@@ -1029,7 +1030,7 @@ static void MM_TrackSelect_DrawPreview(struct MainMenu_LevelRow *selectMenu, str
 							mapHeight += (s32)mapBottomV2;
 							mapHeight -= (s32)mapBottomV0;
 							MM_TrackSelect_DrawMapLayers(iconMap0, iconMap1,
-							                             (s16)mapRect.x + (s16)mapRect.w / 2 + mapWidth * Widescreen_GetFactor() / 2000,
+							                             (s16)mapRect.x + (s16)mapRect.w / 2 + (mapWidth - Widescreen_FixedEdgeShift(mapWidth)) / 2,
 							                             (s16)mapRect.y + (s16)mapRect.h / 2 + mapHeight / 2);
 						}
 					}
