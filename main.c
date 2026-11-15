@@ -57,11 +57,11 @@
 #include "platform/custom-tracks/native_track_import.c"
 #include "platform/custom-tracks/native_track_patch.c"
 #include "platform/custom-tracks/native_track_records.c"
-#include "platform/native_custom_cup_storage.c"
+#include "platform/custom-cups/native_custom_cup_storage.c"
 #include "platform/custom-tracks/native_track_preview.c"
 #include "platform/custom-tracks/native_track_map.c"
 CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
-#include "platform/native_chaos_ipc.c"
+#include "platform/chaos/native_chaos_ipc.c"
 #include "platform/native_audio.c"
 #include "platform/native_memory.c"
 #include "platform/native_checkpoint.c"

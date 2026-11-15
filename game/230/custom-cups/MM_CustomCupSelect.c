@@ -1,9 +1,9 @@
 #include <common.h>
 #include <level_info.h>
-#include <platform/native_custom_cup_storage.h>
+#include <platform/custom-cups/native_custom_cup_storage.h>
 #include <platform/custom-tracks/native_track_library.h>
 #include <track_text.h>
-#include "MM_FullScreenMenu.c"
+#include "../MM_FullScreenMenu.c"
 
 enum CustomCupSelectPage
 {

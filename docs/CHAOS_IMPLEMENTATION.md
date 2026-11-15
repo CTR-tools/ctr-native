@@ -11,7 +11,7 @@
 | Shared driving-class constant loader          | `game/Vehicle/VehBirth_Consts.c` (included by `VehBirth.c`)                       |
 | Creation flow and shared settings screen      | `game/230/MM_NewLoad.c`, `game/230/chaos/MM_ChaosConfig.c`                             |
 | Pause entry and HUD                           | `game/MAIN/MainFreeze_Chaos.c`, `game/UI/UI_Chaos.c`                             |
-| External filesystem interface                 | `platform/native_chaos_ipc.c`                                                    |
+| External filesystem interface                 | `platform/chaos/native_chaos_ipc.c`                                                    |
 
 Player guide: [Chaos mode](features/CHAOS.md).
 External protocol: [Chaos external file provider](features/CHAOS_EXTERNAL_PROVIDER.md).

@@ -1,7 +1,7 @@
 #include <common.h>
 #include <chaos/chaos_gate.h>
 #include <race_field.h>
-#include <platform/native_chaos_ipc.h>
+#include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
 
 enum

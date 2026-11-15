@@ -3,7 +3,7 @@
 #include <platform/custom-tracks/native_track_library.h>
 #include <platform/text/native_text_edit.h>
 #include <track_text.h>
-#include <track_import_view.h>
+#include <custom-tracks/track_import_view.h>
  #include <text/text_format.h>
 #include <stdio.h>
 

@@ -1,4 +1,4 @@
-#include <platform/native_chaos_ipc.h>
+#include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_assets.h>
 #include <platform/native_log.h>
 #include <platform/native_replay_scheduler.h>

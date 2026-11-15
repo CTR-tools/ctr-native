@@ -66,7 +66,7 @@ ctr_add_test_suite(test_disc_images
 )
 
 ctr_add_test_suite(test_language_disc
-    SOURCES test_language_disc.c
+    SOURCES text/test_language_disc.c
 )
 
 ctr_add_test_suite(test_tomlc17
@@ -75,22 +75,22 @@ ctr_add_test_suite(test_tomlc17
 )
 
 ctr_add_test_suite(test_text_catalog
-    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
+    SOURCES text/test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17
 )
 
 ctr_add_test_suite(test_text_export
-    SOURCES test_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
+    SOURCES text/test_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
 ctr_add_test_suite(test_text_runtime
-    SOURCES test_text_runtime.c
+    SOURCES text/test_text_runtime.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
 ctr_add_test_suite(test_language_discovery
-    SOURCES test_language_discovery.c
+    SOURCES text/test_language_discovery.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
@@ -99,16 +99,16 @@ ctr_add_test_suite(test_track_text
 )
 
 ctr_add_test_suite(test_custom_cup
-    SOURCES test_custom_cup.c
+    SOURCES custom-cups/test_custom_cup.c
 )
 
 ctr_add_test_suite(test_custom_cup_storage
-    SOURCES test_custom_cup_storage.c
+    SOURCES custom-cups/test_custom_cup_storage.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_native_text_edit
-    SOURCES test_native_text_edit.c
+    SOURCES text/test_native_text_edit.c
     LIBRARIES SDL3::SDL3
 )
 
@@ -234,7 +234,7 @@ ctr_add_test_suite(test_chaos_setup
 )
 
 ctr_add_test_suite(test_menu_strings
-    SOURCES test_menu_strings.c
+    SOURCES text/test_menu_strings.c
 )
 
 ctr_add_test_suite(test_boss_cutscenes

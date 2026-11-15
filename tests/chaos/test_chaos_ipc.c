@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
 #include <shared/ctr_test_scratch.h>
-#include <platform/native_chaos_ipc.h>
+#include <platform/chaos/native_chaos_ipc.h>
 
 static char s_base[1024];
 static int s_playback;
@@ -22,7 +22,7 @@ static bool RemovePathForTest(const char *path)
 }
 
 #define SDL_RemovePath RemovePathForTest
-#include <platform/native_chaos_ipc.c>
+#include <platform/chaos/native_chaos_ipc.c>
 #undef SDL_RemovePath
 
 const char *NativeAssets_GetBaseDir(void)
