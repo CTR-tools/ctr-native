@@ -1,7 +1,7 @@
 #include <shared/ctr_test.h>
 #include <shared/ctr_test_scratch.h>
-#include <platform/native_text_export.h>
-#include <namespace_Lng.h>
+#include <platform/text/native_text_export.h>
+#include <text/namespace_Lng.h>
 #include <string.h>
 
 static char s_exportDir[1024];

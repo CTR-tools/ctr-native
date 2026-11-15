@@ -4,9 +4,9 @@
 #include <platform/native_track_import.h>
 #include <platform/native_track_library.h>
 #include <platform/native_track_patch.h>
-#include <platform/native_text_edit.h>
+#include <platform/text/native_text_edit.h>
 #include <track_import_view.h>
-#include <text_format.h>
+#include <text/text_format.h>
 #include <stdio.h>
 
 #include "MM_FullScreenMenu.c"

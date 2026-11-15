@@ -1,7 +1,7 @@
 #include <SDL3/SDL.h>
-#include <platform/native_text_export.h>
-#include <platform/native_text_catalog.h>
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_text_export.h>
+#include <platform/text/native_text_catalog.h>
+#include <platform/text/native_text_runtime.h>
 #include <platform/native_assets.h>
 #include <errno.h>
 #include <fcntl.h>

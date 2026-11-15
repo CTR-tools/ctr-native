@@ -6,9 +6,9 @@
 #include <platform/native_config.h>
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
-#include <platform/native_language_disc.h>
-#include <platform/native_text_runtime.h>
-#include <namespace_Lng.h>
+#include <platform/text/native_language_disc.h>
+#include <platform/text/native_text_runtime.h>
+#include <text/namespace_Lng.h>
 
 static const ConfigEnumValue kMaskModeValues[] = {
     {"Normal", MASK_MODE_NORMAL, LNG_EXPANDED_CONFIG_NORMAL},

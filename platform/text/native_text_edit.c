@@ -1,4 +1,4 @@
-#include <platform/native_text_edit.h>
+#include <platform/text/native_text_edit.h>
 #include <SDL3/SDL.h>
 #include <string.h>
 

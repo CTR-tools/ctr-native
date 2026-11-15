@@ -1,4 +1,4 @@
-#include <platform/native_text_catalog.h>
+#include <platform/text/native_text_catalog.h>
 #include <tomlc17.h>
 
 #include <stdlib.h>
@@ -10,10 +10,10 @@ enum { NATIVE_TEXT_CATALOG_MAX_VALUE_BYTES = 4096 };
 
 static const char *const s_nativeTextKeys[LNG_EXPANDED_STRING_END] = {
 #define RETAIL_TEXT_KEY(name, value) [name] = #name + 4,
-#include <retail_text_keys.h>
+#include <text/retail_text_keys.h>
 #undef RETAIL_TEXT_KEY
 #define EXPANDED_TEXT_KEY(name) [name] = #name + sizeof("LNG_EXPANDED_") - 1,
-#include <expanded_text_keys.h>
+#include <text/expanded_text_keys.h>
 #undef EXPANDED_TEXT_KEY
 };
 

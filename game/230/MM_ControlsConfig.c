@@ -1,5 +1,5 @@
 #include <common.h>
-#include <text_format.h>
+#include <text/text_format.h>
 #include <track_text.h>
 
 #include <platform/native_controls.h>

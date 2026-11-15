@@ -15,7 +15,7 @@
 #include <namespace_Howl.h>
 #include <namespace_Instance.h>
 #include <namespace_Level.h>
-#include <namespace_Lng.h>
+#include <text/namespace_Lng.h>
 #include <namespace_JitPool.h>
 #include <namespace_Load.h>
 #include <namespace_Memcard.h>

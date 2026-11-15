@@ -619,8 +619,8 @@ QueueLastPack:
 	return sdata->ptrMPK;
 }
 
-#include <platform/native_language_disc.h>
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_language_disc.h>
+#include <platform/text/native_text_runtime.h>
 
 struct LngFile
 {

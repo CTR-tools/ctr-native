@@ -1,8 +1,8 @@
 #include <SDL3/SDL.h>
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <platform/native_text_runtime.h>
-#include <platform/native_language_disc.h>
+#include <platform/text/native_text_runtime.h>
+#include <platform/text/native_language_disc.h>
 
 struct sData sdata_static;
 NativeConfig g_config;
@@ -96,9 +96,9 @@ FILE *NativeAssets_OpenHost(const char *path, const char *mode)
 	return TextTest_File(text);
 }
 
-#include <platform/native_text_catalog.c>
+#include <platform/text/native_text_catalog.c>
 #define fopen TextTest_OpenShipped
-#include <platform/native_text_runtime.c>
+#include <platform/text/native_text_runtime.c>
 #undef fopen
 #include <game/LANG.c>
 #include <game/RECTMENU_Text.c>

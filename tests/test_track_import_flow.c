@@ -4,7 +4,7 @@
 #include <platform/native_folder_dialog.h>
 #include <platform/native_track_library.h>
 #include <platform/native_track_patch.h>
-#include <platform/native_text_edit.h>
+#include <platform/text/native_text_edit.h>
 #include <track_import_view.h>
 #include <platform/native_track_registry.c>
 

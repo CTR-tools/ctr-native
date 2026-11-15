@@ -5,7 +5,7 @@ struct sData sdata_static;
 NativeConfig g_config;
 int LOAD_RetailDiscActive(void) { return 0; }
 
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_text_runtime.h>
 void NativeTextRuntime_Reload(int slot) { (void)slot; }
 static const char *const s_testExpanded[] = {"Mode", "Chaos", "Regular", "Chaos Rules", "Super Hard", "Ultra Hard",
                                              "PRESS START TO SKIP", "NO PREVIEW", "CHAOS SETUP", "CHAOS EFFECTS",

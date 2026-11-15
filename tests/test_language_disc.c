@@ -54,7 +54,7 @@ int NativeDiscImage_ReadFileBytesOn(enum NativeDiscImageId id, const char *path,
 	return 0;
 }
 
-#include <platform/native_language_disc.c>
+#include <platform/text/native_language_disc.c>
 
 static void TestLanguage_WriteLE32(u8 *p, u32 value)
 {

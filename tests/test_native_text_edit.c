@@ -1,7 +1,7 @@
 #include <shared/ctr_test.h>
 #include <SDL3/SDL.h>
 #include <custom_cup.h>
-#include <platform/native_text_edit.c>
+#include <platform/text/native_text_edit.c>
 
 int main(void)
 {

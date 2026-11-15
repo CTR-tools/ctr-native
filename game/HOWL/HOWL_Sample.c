@@ -1,7 +1,7 @@
 #include <common.h>
 #include <platform/native_cd.h>
 #include <platform/native_spu_memory.h>
-#include <platform/native_language_disc.h>
+#include <platform/text/native_language_disc.h>
 
 enum { HOWL_SAMPLE_SPU_UNIT = 8 };
 

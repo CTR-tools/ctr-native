@@ -11,7 +11,7 @@ enum ExpandedLngString
 	LNG_EXPANDED_STRING_BASE = LNG_RETAIL_STRING_COUNT,
 	LNG_EXPANDED_FIRST = LNG_EXPANDED_STRING_BASE - 1,
 #define EXPANDED_TEXT_KEY(name) name,
-#include <expanded_text_keys.h>
+#include <text/expanded_text_keys.h>
 #undef EXPANDED_TEXT_KEY
 	LNG_EXPANDED_STRING_END,
 	LNG_EXPANDED_STRING_COUNT = LNG_EXPANDED_STRING_END - LNG_EXPANDED_STRING_BASE,
@@ -23,7 +23,7 @@ enum ExpandedLngString
 enum LngStringId
 {
 #define RETAIL_TEXT_KEY(name, value) name = value,
-#include <retail_text_keys.h>
+#include <text/retail_text_keys.h>
 #undef RETAIL_TEXT_KEY
 };
 

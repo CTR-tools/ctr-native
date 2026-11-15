@@ -3,7 +3,7 @@
 #include <shared/ctr_test_scratch.h>
 #include <platform/native_assets.h>
 #include <platform/native_config.h>
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_text_runtime.h>
 
 static char s_base[512];
 static char s_assets[512];
@@ -20,8 +20,8 @@ FILE *NativeAssets_OpenHost(const char *relativePath, const char *mode)
 }
 
 #include <platform/native_config.c>
-#include <platform/native_text_catalog.c>
-#include <platform/native_text_runtime.c>
+#include <platform/text/native_text_catalog.c>
+#include <platform/text/native_text_runtime.c>
 
 static void MakeDir(const char *relative)
 {

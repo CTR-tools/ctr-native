@@ -1,6 +1,6 @@
-#include <platform/native_language_disc.h>
+#include <platform/text/native_language_disc.h>
 #include <platform/native_disc_image.h>
-#include <namespace_Lng.h>
+#include <text/namespace_Lng.h>
 
 #include <stdlib.h>
 #include <stdio.h>

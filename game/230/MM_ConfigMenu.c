@@ -2,9 +2,9 @@
 
 #include <platform/native_controls.h>
 #include <platform/native_audio.h>
-#include <platform/native_language_disc.h>
-#include <platform/native_text_runtime.h>
-#include <platform/native_text_export.h>
+#include <platform/text/native_language_disc.h>
+#include <platform/text/native_text_runtime.h>
+#include <platform/text/native_text_export.h>
 
 // Row arrays with CONFIG entry at bottom, used by MM_MenuProc_Main
 struct MenuRow s_rowsMainMenuBasicConfig[] = {

@@ -1,7 +1,7 @@
 #ifndef NATIVE_TEXT_CATALOG_H
 #define NATIVE_TEXT_CATALOG_H
 
-#include <namespace_Lng.h>
+#include <text/namespace_Lng.h>
 #include <stdio.h>
 
 // Catalog values are UTF-8, not game-font bytes. A caller must convert them

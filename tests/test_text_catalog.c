@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
-#include <platform/native_text_catalog.h>
-#include <text_format.h>
+#include <platform/text/native_text_catalog.h>
+#include <text/text_format.h>
 #include <string.h>
 
 int main(void)
@@ -12,7 +12,7 @@ int main(void)
 	const char translation[] = "MODE = 'Modalit\xc3\xa0'\nUNKNOWN = 'ignored'\nCHAOS = 42\n";
 	CTR_TEST_SECTION("Catalogs and individual entries");
 #define EXPANDED_TEXT_KEY(name) CTR_TEST_CHECK(strcmp(NativeTextCatalog_KeyName(name), #name + sizeof("LNG_EXPANDED_") - 1) == 0, "Expanded ID maps to its shared key");
-#include <expanded_text_keys.h>
+#include <text/expanded_text_keys.h>
 #undef EXPANDED_TEXT_KEY
 	CTR_TEST_CHECK_EQ(LNG_EXPANDED_MODE, LNG_RETAIL_STRING_COUNT, "the first Expanded ID follows retail");
 	CTR_TEST_CHECK(strcmp(NativeTextCatalog_KeyName(LNG_EXPANDED_MODE), "MODE") == 0, "the first ID maps to its catalog key");

@@ -75,12 +75,12 @@ ctr_add_test_suite(test_tomlc17
 )
 
 ctr_add_test_suite(test_text_catalog
-    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17
 )
 
 ctr_add_test_suite(test_text_export
-    SOURCES test_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    SOURCES test_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 

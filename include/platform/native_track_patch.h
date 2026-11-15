@@ -1,7 +1,7 @@
 #ifndef CTR_NATIVE_TRACK_PATCH_H
 #define CTR_NATIVE_TRACK_PATCH_H
 
-#include <namespace_Lng.h>
+#include <text/namespace_Lng.h>
 
 enum NativeTrackPatchStage
 {

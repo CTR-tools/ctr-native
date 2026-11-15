@@ -1,7 +1,7 @@
-#include <platform/native_text_runtime.h>
-#include <platform/native_text_catalog.h>
+#include <platform/text/native_text_runtime.h>
+#include <platform/text/native_text_catalog.h>
 #include <platform/native_assets.h>
-#include <platform/native_language_disc.h>
+#include <platform/text/native_language_disc.h>
 
 #include <stdio.h>
 #include <stdlib.h>
