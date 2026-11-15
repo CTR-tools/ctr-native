@@ -11,5 +11,5 @@ if(WIN32)
         COMMENT "Verifying Windows track import tools (download if missing)"
         VERBATIM
     )
-    add_dependencies(ctr_native_expanded ctr_track_tools)
+    add_dependencies(crash_team_racing_expanded ctr_track_tools)
 endif()

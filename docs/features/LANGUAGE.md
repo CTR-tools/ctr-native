@@ -1,6 +1,6 @@
 # Language Selection and Translations
 
-CTR Native Expanded lets you choose the text and voice languages independently.
+Crash Team Racing Expanded lets you choose the text and voice languages independently.
 English, French, German, Italian, Spanish and Dutch text catalogs are included;
 you can also add your own text translations. The optional European disc supplies
 additional voice languages and an alternative source of original-game text.
@@ -32,8 +32,8 @@ own European disc image at `assets/ctr-e.bin`. The usual NTSC-U base image at
 `assets/ctr-u.bin` is still required. 
 
 ```text
-CTR-Native/
-  ctr_native_expanded.exe
+crash_team_racing_expanded/
+  crash_team_racing_expanded.exe
   resources/text/       included text catalogs
   assets/
     ctr-u.bin           required base disc

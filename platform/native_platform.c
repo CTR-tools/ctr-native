@@ -139,7 +139,7 @@ internal void Platform_CalcFPS(void)
 		const f64 elapsedSeconds = (f64)(now - s_fpsLastCounter) / (f64)freq;
 		const f64 fps = (f64)s_fpsFrameCount / elapsedSeconds;
 
-		Platform_Log("[CTR Native Expanded] FPS: %.2f (last %d frames)\n", fps, s_fpsFrameCount);
+		Platform_Log(NATIVE_LOG_PREFIX "FPS: %.2f (last %d frames)\n", fps, s_fpsFrameCount);
 	}
 
 	s_fpsFrameCount = 0;
@@ -254,12 +254,12 @@ internal void Platform_HandleKey(int key, char down)
 		{
 		case SDL_SCANCODE_F1:
 			g_dbg_wireframeMode ^= 1;
-			Platform_LogWarn("[CTR Native Expanded] wireframe mode: %d\n", g_dbg_wireframeMode);
+			Platform_LogWarn(NATIVE_LOG_PREFIX "wireframe mode: %d\n", g_dbg_wireframeMode);
 			break;
 
 		case SDL_SCANCODE_F2:
 			g_dbg_texturelessMode ^= 1;
-			Platform_LogWarn("[CTR Native Expanded] textureless mode: %d\n", g_dbg_texturelessMode);
+			Platform_LogWarn(NATIVE_LOG_PREFIX "textureless mode: %d\n", g_dbg_texturelessMode);
 			break;
 		case SDL_SCANCODE_UP:
 		case SDL_SCANCODE_DOWN:
@@ -278,18 +278,18 @@ internal void Platform_HandleKey(int key, char down)
 			NativeReplayScheduler_RequestStop();
 			break;
 		case SDL_SCANCODE_F7:
-			Platform_LogWarn("[CTR Native Expanded] saving VRAM.TGA\n");
+			Platform_LogWarn(NATIVE_LOG_PREFIX "saving VRAM.TGA\n");
 			NativeRenderer_SaveVRAM("VRAM.TGA", 0, 0, VRAM_WIDTH, VRAM_HEIGHT, 1);
 			break;
 		case SDL_SCANCODE_F12:
-			Platform_LogWarn("[CTR Native Expanded] Saving screenshot...\n");
+			Platform_LogWarn(NATIVE_LOG_PREFIX "Saving screenshot...\n");
 			Platform_TakeScreenshot();
 			break;
 		case SDL_SCANCODE_F3:
 			// Debug toggle for the same option the menu edits; the per-frame
 			// sync in Platform_BeginFrame pushes it into the renderer.
 			g_config.textureFiltering = !g_config.textureFiltering;
-			Platform_LogWarn("[CTR Native Expanded] filtering mode: %d\n", g_config.textureFiltering ? 1 : 0);
+			Platform_LogWarn(NATIVE_LOG_PREFIX "filtering mode: %d\n", g_config.textureFiltering ? 1 : 0);
 			break;
 		case SDL_SCANCODE_F5:
 			NativeSaveState_RequestSave();
@@ -309,11 +309,11 @@ void Platform_Init(const char *title, int width, int height)
 	Platform_LogInit(title);
 	Platform_GetWindowName(title, windowName, sizeof(windowName));
 
-	Platform_Log("[CTR Native Expanded] Initialising platform\n");
+	Platform_Log(NATIVE_LOG_PREFIX "Initialising platform\n");
 
 	if (SDL_Init(SDL_INIT_VIDEO) == 0)
 	{
-		Platform_LogError("[CTR Native Expanded] Failed to initialise SDL\n");
+		Platform_LogError(NATIVE_LOG_PREFIX "Failed to initialise SDL\n");
 		Platform_LogShutdown();
 		return;
 	}
@@ -322,14 +322,14 @@ void Platform_Init(const char *title, int width, int height)
 
 	if (!NativeRenderer_InitialiseRender(windowName, width, height, g_config.fullscreen))
 	{
-		Platform_LogError("[CTR Native Expanded] Failed to initialise window\n");
+		Platform_LogError(NATIVE_LOG_PREFIX "Failed to initialise window\n");
 		Platform_Shutdown();
 		return;
 	}
 
 	if (!NativeRenderer_InitialisePSX())
 	{
-		Platform_LogError("[CTR Native Expanded] Failed to initialise PSX renderer state\n");
+		Platform_LogError(NATIVE_LOG_PREFIX "Failed to initialise PSX renderer state\n");
 		Platform_Shutdown();
 		return;
 	}

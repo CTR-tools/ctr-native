@@ -3,7 +3,7 @@
 # Creating a release is a tag. Nothing here is edited by hand, and the version
 # is derived in priority order:
 #
-#   1. CTR_NATIVE_EXPANDED_VERSION from the command line, which CI passes from
+#   1. CRASH_TEAM_RACING_EXPANDED_VERSION from the command line, which CI passes from
 #      the release tag.
 #   2. .git_archival.txt, which `git archive` fills in. GitHub builds its
 #      release source archives that way, so a tarball reports the tag it was
@@ -11,8 +11,8 @@
 #   3. git describe, for a clone that has tags.
 #   4. 0.0.0-dev, for a tree with none of the above.
 #
-# Exports CTR_NATIVE_EXPANDED_VERSION, CTR_NATIVE_EXPANDED_BUILD_ID and
-# CTR_NATIVE_EXPANDED_VERSION_SOURCE into the including scope. This is an
+# Exports CRASH_TEAM_RACING_EXPANDED_VERSION, CRASH_TEAM_RACING_EXPANDED_BUILD_ID and
+# CRASH_TEAM_RACING_EXPANDED_VERSION_SOURCE into the including scope. This is an
 # include(), not a function(), so plain set() is what lands them in the caller.
 
 # Parses `git describe --long` output such as v1.0.0-beta3-10-g877de50e5, which
@@ -44,7 +44,7 @@ endfunction()
 
 set(tag_pattern "v[0-9]*")
 set(archive_file "${CMAKE_SOURCE_DIR}/.git_archival.txt")
-set(version "${CTR_NATIVE_EXPANDED_VERSION}")
+set(version "${CRASH_TEAM_RACING_EXPANDED_VERSION}")
 set(build_metadata "")
 set(describe_hash "")
 
@@ -142,6 +142,6 @@ if(build_metadata)
     set(version "${version}+${build_metadata}")
 endif()
 
-set(CTR_NATIVE_EXPANDED_VERSION "${version}")
-set(CTR_NATIVE_EXPANDED_BUILD_ID "${git_hash}${dirty_suffix}")
-set(CTR_NATIVE_EXPANDED_VERSION_SOURCE "${source}")
+set(CRASH_TEAM_RACING_EXPANDED_VERSION "${version}")
+set(CRASH_TEAM_RACING_EXPANDED_BUILD_ID "${git_hash}${dirty_suffix}")
+set(CRASH_TEAM_RACING_EXPANDED_VERSION_SOURCE "${source}")

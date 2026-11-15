@@ -1,17 +1,17 @@
 @echo off
 setlocal
 
-:: CTR Native Expanded Build Script (Windows)
+:: Crash Team Racing Expanded Build Script (Windows)
 :: Requires MSYS2 MinGW32 tools and UCRT64 Make in PATH
 
-set "CTR_NATIVE_EXPANDED_MSYS2_PACKAGES=git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-make"
+set "CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES=git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-make"
 
 where i686-w64-mingw32-gcc >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo ERROR: i686-w64-mingw32-gcc not found in PATH
     echo.
     echo Install MSYS2, then run:
-    echo   pacman -S --needed %CTR_NATIVE_EXPANDED_MSYS2_PACKAGES%
+    echo   pacman -S --needed %CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES%
     echo Then add C:\msys64\mingw32\bin and C:\msys64\ucrt64\bin to your PATH
     exit /b 1
 )
@@ -21,7 +21,7 @@ if %ERRORLEVEL% neq 0 (
     echo ERROR: cmake not found in PATH
     echo.
     echo Install MSYS2, then run:
-    echo   pacman -S --needed %CTR_NATIVE_EXPANDED_MSYS2_PACKAGES%
+    echo   pacman -S --needed %CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES%
     echo Then add C:\msys64\mingw32\bin and C:\msys64\ucrt64\bin to your PATH
     exit /b 1
 )
@@ -31,7 +31,7 @@ if %ERRORLEVEL% neq 0 (
     echo ERROR: mingw32-make not found in PATH
     echo.
     echo Install MSYS2, then run:
-    echo   pacman -S --needed %CTR_NATIVE_EXPANDED_MSYS2_PACKAGES%
+    echo   pacman -S --needed %CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES%
     echo Then add C:\msys64\mingw32\bin and C:\msys64\ucrt64\bin to your PATH
     exit /b 1
 )
@@ -49,4 +49,4 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo Build succeeded: build\ctr_native_expanded.exe
+echo Build succeeded: build\crash_team_racing_expanded.exe

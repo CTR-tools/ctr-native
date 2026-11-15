@@ -1,13 +1,13 @@
 # Third-Party Notices
 
 This project vendors third-party software and contains modified third-party
-derivatives. Keep this file with source and binary distributions of CTR Native
-Expanded.
+derivatives. Keep this file with source and binary distributions of Crash Team
+Racing Expanded.
 
 ## Optional local track import tools
 
 The xdelta importer invokes separate executables; these are not
-linked into CTR Native Expanded. The Windows build runs
+linked into Crash Team Racing Expanded. The Windows build runs
 `scripts/setup-track-tools.ps1` to install pinned, SHA-256-verified releases in
 `assets/tools/`. CTR-tools binaries and DLLs come from the upstream Windows
 release **r14**. Windows release archives include the tools, license texts,
@@ -36,7 +36,7 @@ SPU, CD, and controller library interfaces. CTR Native now owns those headers
 and native platform implementations in `include/` and `platform/` while
 preserving Psy-Q-shaped APIs.
 
-CTR Native Expanded contains modified/project-owned PsyCross derivatives in these
+Crash Team Racing Expanded contains modified/project-owned PsyCross derivatives in these
 component areas:
 
 - `include/psx/`: Psy-Q-compatible facade headers

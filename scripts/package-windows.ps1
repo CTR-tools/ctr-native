@@ -24,14 +24,14 @@
 .EXAMPLE
     ./scripts/package-windows.ps1 -Version 1.2.0
 
-    Packages build\ctr_native_expanded.exe as dist\ctr-native-expanded-v-1-2-0-windows-x86.zip.
+    Packages build\crash_team_racing_expanded.exe as dist\crash-team-racing-expanded-v-1-2-0-windows-x86.zip.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [string] $Version,
 
-    [string] $Executable = 'build\ctr_native_expanded.exe',
+    [string] $Executable = 'build\crash_team_racing_expanded.exe',
 
     [string] $DistDir = 'dist'
 )
@@ -48,11 +48,11 @@ if ($versionNumber -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
     throw "Version '$Version' is not X.Y.Z."
 }
 
-$executableName = 'ctr_native_expanded.exe'
+$executableName = 'crash_team_racing_expanded.exe'
 
-# Matches the archives published so far, such as
-# ctr-native-expanded-v-1-0-0-windows-x86.zip.
-$packageName = 'ctr-native-expanded-v-{0}-windows-x86' -f ($versionNumber -replace '\.', '-')
+# Release archive naming, for example
+# crash-team-racing-expanded-v-1-0-0-windows-x86.zip.
+$packageName = 'crash-team-racing-expanded-v-{0}-windows-x86' -f ($versionNumber -replace '\.', '-')
 
 $staging = Join-Path ([System.IO.Path]::GetTempPath()) ('ctr-package-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $staging -Force | Out-Null

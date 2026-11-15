@@ -1,8 +1,8 @@
-# CTR Native Expanded Agent Guide
+# Crash Team Racing Expanded Agent Guide
 
 ## Project Purpose
 
-CTR Native Expanded is a customizable native PC port of Crash Team Racing. It
+Crash Team Racing Expanded is a customizable native PC port of Crash Team Racing. It
 builds on `CTR-tools/ctr-native`; the local fork adds display, gameplay, and
 quality-of-life options.
 

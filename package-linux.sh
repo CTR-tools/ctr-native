@@ -15,9 +15,9 @@ VERSION="${VERSION#v}"
 
 BUILD_DIR="${BUILD_DIR:-build}"
 DIST_DIR="${DIST_DIR:-dist}"
-PACKAGE_NAME="ctr_native_expanded-${VERSION}-linux-x86"
+PACKAGE_NAME="crash_team_racing_expanded-${VERSION}-linux-x86"
 PACKAGE_DIR="${DIST_DIR}/${PACKAGE_NAME}"
-BINARY_PATH="${BUILD_DIR}/ctr_native_expanded"
+BINARY_PATH="${BUILD_DIR}/crash_team_racing_expanded"
 
 if [[ ! -x "${BINARY_PATH}" ]]; then
     echo "ERROR: missing executable: ${BINARY_PATH}" >&2
@@ -33,7 +33,7 @@ cp LICENSE "${PACKAGE_DIR}/"
 cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/"
 
 cat >"${PACKAGE_DIR}/README.txt" <<EOF
-CTR Native Expanded Linux x86 ${VERSION} build
+Crash Team Racing Expanded Linux x86 ${VERSION} build
 
 Game assets are not included.
 
@@ -45,7 +45,7 @@ assets/
 
 - Run:
 
-./ctr_native_expanded
+./crash_team_racing_expanded
 
 The disc image must be the common single-track raw PSX BIN layout:
 MODE2/2352 sectors, with the data track starting at byte 0.
@@ -82,10 +82,10 @@ If the game does not launch, run it from a terminal and include:
 - distro/version
 - GPU/driver
 - terminal output
-- output of: ldd ./ctr_native_expanded
+- output of: ldd ./crash_team_racing_expanded
 EOF
 
-chmod +x "${PACKAGE_DIR}/ctr_native_expanded"
+chmod +x "${PACKAGE_DIR}/crash_team_racing_expanded"
 
 (
     cd "${DIST_DIR}"

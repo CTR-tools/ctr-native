@@ -12,7 +12,7 @@ void MM_Title_DrawBranding(void)
 	s16 ringCenterX = SCREEN_WIDTH / 2 + (MM_TITLE_RING_CENTER_X_4_3 - SCREEN_WIDTH / 2) * Widescreen_GetFactor() / 1000;
 	u32 *ot = &GAME_TRACKER->backBuffer->otMem.uiOT[MM_TITLE_TM_OT_INDEX];
 	DecalFont_DrawLineScaledOT("EXPANDED", ringCenterX, MM_TITLE_EXPANDED_Y, FONT_BIG, JUSTIFY_CENTER | WHITE, FP(0.75), ot);
-	DecalFont_DrawLineScaledOT("v" CTR_NATIVE_EXPANDED_VERSION, MM_TITLE_VERSION_X, MM_TITLE_VERSION_Y, FONT_SMALL, WHITE, FP(0.75), ot);
+	DecalFont_DrawLineScaledOT("v" CRASH_TEAM_RACING_EXPANDED_VERSION, MM_TITLE_VERSION_X, MM_TITLE_VERSION_Y, FONT_SMALL, WHITE, FP(0.75), ot);
 }
 
 void MM_Title_MenuUpdate(void)

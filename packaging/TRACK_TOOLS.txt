@@ -1,7 +1,7 @@
 Local custom track import tools
 ==============================
 
-These standalone programs are invoked by CTR Native Expanded.
+These standalone programs are invoked by Crash Team Racing Expanded.
 They are not linked into the game. No ROMs, patches or track assets are included.
 
 xdelta3 3.2.2

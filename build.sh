@@ -1,5 +1,5 @@
 #!/bin/bash
-# CTR Native Expanded Build Script (Linux)
+# Crash Team Racing Expanded Build Script (Linux)
 # Requires gcc-multilib and X11/GL/ALSA dev packages
 
 set -e
@@ -15,4 +15,4 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT
 cmake --build build -j"$(nproc)"
 
 echo ""
-echo "Build succeeded: build/ctr_native_expanded"
+echo "Build succeeded: build/crash_team_racing_expanded"

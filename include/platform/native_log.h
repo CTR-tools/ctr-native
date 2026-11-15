@@ -3,6 +3,8 @@
 
 #include <macros.h>
 
+#define NATIVE_LOG_PREFIX "[Crash Team Racing Expanded] "
+
 int Platform_LogSetPath(const char *path);
 const char *Platform_LogGetPath(void);
 void Platform_LogInit(const char *appName);

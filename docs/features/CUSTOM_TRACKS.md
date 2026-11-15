@@ -1,6 +1,6 @@
 # Custom Tracks
 
-CTR Native Expanded can import custom tracks from a local folder or attempt
+Crash Team Racing Expanded can import custom tracks from a local folder or attempt
 to load one from an xdelta patch. Tracks and patches are not included with the game.
 
 ## Import a track

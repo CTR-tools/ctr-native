@@ -1,6 +1,6 @@
 ---
 name: codebase-navigation
-description: Navigate CTR Native Expanded's unity build, platform boundary, headers, overlays, and build tools when locating or adding code.
+description: Navigate Crash Team Racing Expanded's unity build, platform boundary, headers, overlays, and build tools when locating or adding code.
 ---
 
 # Navigate the codebase

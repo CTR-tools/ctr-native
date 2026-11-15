@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
-project(CTR-Native-Expanded C)
+project(Crash-Team-Racing-Expanded C)
 include(CheckCCompilerFlag)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR
-        "CTR Native Expanded currently requires a 32-bit target. "
+        "Crash Team Racing Expanded currently requires a 32-bit target. "
         "Select Win32 for MSVC, an i686 MinGW compiler on Windows, or pass -m32 "
         "in the initial compiler and linker flags on Linux."
     )
 endif()
 
-set(CTR_NATIVE_EXPANDED_MSVC_FRONTEND OFF)
+set(CRASH_TEAM_RACING_EXPANDED_MSVC_FRONTEND OFF)
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-    set(CTR_NATIVE_EXPANDED_MSVC_FRONTEND ON)
+    set(CRASH_TEAM_RACING_EXPANDED_MSVC_FRONTEND ON)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
@@ -21,7 +21,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
 
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeVersion.cmake")
-message(STATUS "CTR Native Expanded ${CTR_NATIVE_EXPANDED_VERSION} (version source: ${CTR_NATIVE_EXPANDED_VERSION_SOURCE})")
+message(STATUS "Crash Team Racing Expanded ${CRASH_TEAM_RACING_EXPANDED_VERSION} (version source: ${CRASH_TEAM_RACING_EXPANDED_VERSION_SOURCE})")
 
 function(ctr_native_add_label_warning_if_supported target warning flag_check)
     set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
@@ -40,7 +40,7 @@ endfunction()
 # The warning set every first-party target is held to, so a test and the code it
 # covers report the same diagnostics.
 function(ctr_native_apply_common_options target)
-    if(CTR_NATIVE_EXPANDED_MSVC_FRONTEND)
+    if(CRASH_TEAM_RACING_EXPANDED_MSVC_FRONTEND)
         target_compile_options(${target} PRIVATE
             /W4
             /bigobj
@@ -117,36 +117,36 @@ if(NOT EXISTS "${CMAKE_BINARY_DIR}/controls.ini")
     message(STATUS "Copied default_controls.ini → ${CMAKE_BINARY_DIR}/controls.ini")
 endif()
 
-# CTR Native Expanded
-add_executable(ctr_native_expanded main.c)
+# Crash Team Racing Expanded
+add_executable(crash_team_racing_expanded main.c)
 file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml"
     "${CMAKE_SOURCE_DIR}/resources/text/*/retail.toml"
     "${CMAKE_SOURCE_DIR}/resources/text/*/language.toml")
-set_property(TARGET ctr_native_expanded APPEND PROPERTY LINK_DEPENDS ${CTR_SHIPPED_TEXT_CATALOGS} "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake")
-add_custom_command(TARGET ctr_native_expanded POST_BUILD
-    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+set_property(TARGET crash_team_racing_expanded APPEND PROPERTY LINK_DEPENDS ${CTR_SHIPPED_TEXT_CATALOGS} "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake")
+add_custom_command(TARGET crash_team_racing_expanded POST_BUILD
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:crash_team_racing_expanded>"
             -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
     VERBATIM
 )
 # Keep managed catalogs current on ordinary builds even when the executable did
 # not need relinking (notably with multi-configuration generators).
 add_custom_target(ctr_text_catalogs ALL
-    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:ctr_native_expanded>"
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE=${CMAKE_SOURCE_DIR}" "-DDESTINATION=$<TARGET_FILE_DIR:crash_team_racing_expanded>"
             -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
     VERBATIM
 )
-set_target_properties(ctr_native_expanded PROPERTIES
+set_target_properties(crash_team_racing_expanded PROPERTIES
     C_STANDARD 17
     C_STANDARD_REQUIRED ON
     C_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
-target_include_directories(ctr_native_expanded PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_compile_definitions(ctr_native_expanded PRIVATE
+target_include_directories(crash_team_racing_expanded PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(crash_team_racing_expanded PRIVATE
     CTR_INTERNAL
-    CTR_NATIVE_EXPANDED_VERSION=\"${CTR_NATIVE_EXPANDED_VERSION}\"
-    CTR_NATIVE_EXPANDED_BUILD_ID=\"${CTR_NATIVE_EXPANDED_BUILD_ID}\"
+    CRASH_TEAM_RACING_EXPANDED_VERSION=\"${CRASH_TEAM_RACING_EXPANDED_VERSION}\"
+    CRASH_TEAM_RACING_EXPANDED_BUILD_ID=\"${CRASH_TEAM_RACING_EXPANDED_BUILD_ID}\"
 )
 
 # Memory and BSP-leaf telemetry. Off unless asked for: it samples per frame and
@@ -155,17 +155,17 @@ target_compile_definitions(ctr_native_expanded PRIVATE
 # -DCTR_DIAGNOSTICS=ON.
 option(CTR_DIAGNOSTICS "Compile the memory and BSP-leaf diagnostics" OFF)
 if(CTR_DIAGNOSTICS)
-    target_compile_definitions(ctr_native_expanded PRIVATE CTR_DIAGNOSTICS)
+    target_compile_definitions(crash_team_racing_expanded PRIVATE CTR_DIAGNOSTICS)
 endif()
 #TODO(aalhendi): fix warnings
-ctr_native_apply_common_options(ctr_native_expanded)
-target_link_libraries(ctr_native_expanded SDL3::SDL3 tomlc17)
+ctr_native_apply_common_options(crash_team_racing_expanded)
+target_link_libraries(crash_team_racing_expanded SDL3::SDL3 tomlc17)
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/CtrNativeTrackTools.cmake")
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(ctr_native_expanded PRIVATE -static-libgcc)
+    target_link_options(crash_team_racing_expanded PRIVATE -static-libgcc)
 endif()
 if(MINGW)
-    target_link_options(ctr_native_expanded PRIVATE -static)
+    target_link_options(crash_team_racing_expanded PRIVATE -static)
 endif()
 
 include(CTest)
