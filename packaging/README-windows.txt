@@ -1,17 +1,17 @@
-CTR Native Expanded Windows x86 {{VERSION}} build
+Crash Team Racing Expanded Windows x86 {{VERSION}} build
 
 Game assets are not included.
 
 Normal setup:
 - Put your own
-   NTSC-U retail CTR disc image in the assets folder next to ctr_native_expanded.exe:
+   NTSC-U retail CTR disc image in the assets folder next to crash_team_racing_expanded.exe:
 
   assets/
     ctr-u.bin
 
 - Run:
 
-  ctr_native_expanded.exe
+  crash_team_racing_expanded.exe
 
 The disc image must be the common single-track raw PSX BIN layout:
 MODE2/2352 sectors, with the data track starting at byte 0.

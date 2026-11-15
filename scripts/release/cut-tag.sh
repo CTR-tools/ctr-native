@@ -80,7 +80,7 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-git tag -a "$tag" -m "CTR Native Expanded $tag" "$SHA"
+git tag -a "$tag" -m "Crash Team Racing Expanded $tag" "$SHA"
 git push origin "refs/tags/$tag"
 
 echo "Pushed refs/tags/$tag."

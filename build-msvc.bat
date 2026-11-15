@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-:: CTR Native Expanded MSVC Build Script (Windows x86)
+:: Crash Team Racing Expanded MSVC Build Script (Windows x86)
 :: Requires Visual Studio 2022 or Build Tools with the Desktop C++ workload.
 
 where cmake >nul 2>&1
@@ -24,4 +24,4 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo Build succeeded: build-msvc-x86\Release\ctr_native_expanded.exe
+echo Build succeeded: build-msvc-x86\Release\crash_team_racing_expanded.exe

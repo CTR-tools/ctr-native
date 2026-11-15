@@ -122,11 +122,12 @@ struct NativeTrackRegistry *NativeTrackLibrary_Scan(const char *directory, struc
 {
 	(void)directory; (void)result;
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata track = {"local:track", "Track", "track.lev", "track.vrm", s_musicAvailable == 1 ? "track.sca" : NULL, "Author", 0, 0, NULL, 0, 0};
+	struct NativeTrackMetadata track = {.identity = "local:track", .title = "Track", .levPath = "track.lev", .vrmPath = "track.vrm",
+	                                    .scaPath = s_musicAvailable == 1 ? "track.sca" : NULL, .author = "Author"};
 	NativeTrackRegistry_Add(registry, &track, NULL);
 	if (s_musicAvailable)
 	{
-		struct NativeTrackMetadata other = {"local:other", "Other", "other.lev", "other.vrm", "other.sca", NULL, 0, 0, NULL, 0, 0};
+		struct NativeTrackMetadata other = {.identity = "local:other", .title = "Other", .levPath = "other.lev", .vrmPath = "other.vrm", .scaPath = "other.sca"};
 		NativeTrackRegistry_Add(registry, &other, NULL);
 	}
 	return registry;
@@ -232,7 +233,8 @@ int main(void)
 	s_musicRetail = -1;
 	s_musicIdentity[0] = '\0';
 	s_installedRegistry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata installed = {"local:installed", "Installed", "installed.lev", "installed.vrm", "installed.sca", NULL, 0, 0, NULL, 0, 0};
+	struct NativeTrackMetadata installed = {.identity = "local:installed", .title = "Installed", .levPath = "installed.lev",
+	                                        .vrmPath = "installed.vrm", .scaPath = "installed.sca"};
 	NativeTrackRegistry_Add(s_installedRegistry, &installed, NULL);
 	CTR_TEST_SECTION("patch review and confirmation");
 	MM_TrackImport_OpenPatch();

@@ -14,8 +14,8 @@ int main(void)
 	char title[] = "First track";
 	char author[] = "Author";
 	char music[] = "custom";
-	struct NativeTrackMetadata first = {"track-a", title, "a.lev", "a.vrm", NULL, author, 0, 0, music};
-	struct NativeTrackMetadata second = {"track-b", "Second track", "b.lev", "b.vrm", "b.sca", NULL, 0, 0, NULL};
+	struct NativeTrackMetadata first = {.identity = "track-a", .title = title, .levPath = "a.lev", .vrmPath = "a.vrm", .author = author, .music = music};
+	struct NativeTrackMetadata second = {.identity = "track-b", .title = "Second track", .levPath = "b.lev", .vrmPath = "b.vrm", .scaPath = "b.sca"};
 	int firstID = 0, secondID = 0, found = 0;
 	CTR_TEST_CHECK(NativeTrackRegistry_Add(registry, &first, &firstID), "first track is registered");
 	const struct NativeTrackMetadata *stored = NativeTrackRegistry_Get(registry, firstID);
@@ -45,7 +45,7 @@ int main(void)
 	{
 		char identity[32];
 		snprintf(identity, sizeof(identity), "growth-%d", i);
-		struct NativeTrackMetadata item = {identity, "Growth", "a.lev", "a.vrm", NULL, NULL, 0, 0, NULL};
+		struct NativeTrackMetadata item = {.identity = identity, .title = "Growth", .levPath = "a.lev", .vrmPath = "a.vrm"};
 		if (!NativeTrackRegistry_Add(registry, &item, &lastID))
 		{
 			added = 0;

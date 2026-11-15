@@ -3,6 +3,7 @@
 #include <macros.h>
 
 #include <platform/native_disc_image.h>
+#include <platform/native_log.h>
 #include <platform/native_path.h>
 
 #if defined(_WIN32)
@@ -738,15 +739,15 @@ void NativeAssets_FreeBytes(struct NativeAssetsByteBuffer *bytes)
 
 internal void NativeAssets_PrintHeader(void)
 {
-	fprintf(stderr, "[CTR Native Expanded] Missing or invalid assets.\n");
-	fprintf(stderr, "[CTR Native Expanded] Expected NTSC-U retail assets under: %s\n", NativeAssets_GetAssetDir());
+	fprintf(stderr, NATIVE_LOG_PREFIX "Missing or invalid assets.\n");
+	fprintf(stderr, NATIVE_LOG_PREFIX "Expected NTSC-U retail assets under: %s\n", NativeAssets_GetAssetDir());
 }
 
 internal void NativeAssets_PrintFooter(void)
 {
-	fprintf(stderr, "[CTR Native Expanded] Provide either raw NTSC-U disc image %s, or extracted files:\n", NATIVE_ASSETS_DISC_PATH);
-	fprintf(stderr, "[CTR Native Expanded]   Required: %s, %s\n", NATIVE_ASSETS_BIGFILE_PATH, NATIVE_ASSETS_KART_HWL_PATH);
-	fprintf(stderr, "[CTR Native Expanded]   For complete audio/video: %s, %s, plus XA files referenced by %s\n", NATIVE_ASSETS_TEST_STR_PATH, NATIVE_ASSETS_XNF_PATH,
+	fprintf(stderr, NATIVE_LOG_PREFIX "Provide either raw NTSC-U disc image %s, or extracted files:\n", NATIVE_ASSETS_DISC_PATH);
+	fprintf(stderr, NATIVE_LOG_PREFIX "  Required: %s, %s\n", NATIVE_ASSETS_BIGFILE_PATH, NATIVE_ASSETS_KART_HWL_PATH);
+	fprintf(stderr, NATIVE_LOG_PREFIX "  For complete audio/video: %s, %s, plus XA files referenced by %s\n", NATIVE_ASSETS_TEST_STR_PATH, NATIVE_ASSETS_XNF_PATH,
 	        NATIVE_ASSETS_XNF_PATH);
 }
 
@@ -764,7 +765,7 @@ internal int NativeAssets_CheckRequiredFile(const char *path)
 
 	if (!NativeAssets_BuildPath(path, assetPath, sizeof(assetPath)))
 	{
-		fprintf(stderr, "[CTR Native Expanded] asset path too long: %s\n", path);
+		fprintf(stderr, NATIVE_LOG_PREFIX "asset path too long: %s\n", path);
 		return 0;
 	}
 
@@ -773,7 +774,7 @@ internal int NativeAssets_CheckRequiredFile(const char *path)
 		return 1;
 	}
 
-	fprintf(stderr, "[CTR Native Expanded] missing asset: %s\n", assetPath);
+	fprintf(stderr, NATIVE_LOG_PREFIX "missing asset: %s\n", assetPath);
 	return 0;
 }
 
@@ -797,7 +798,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 	                 : NativeAssets_ReadBytes(NATIVE_ASSETS_XNF_PATH, NATIVE_ASSET_READ_DATA_FILE, &xnf);
 	if (!loaded)
 	{
-		fprintf(stderr, "[CTR Native Expanded] unable to read XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
+		fprintf(stderr, NATIVE_LOG_PREFIX "unable to read XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 
@@ -805,7 +806,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 	    (NativeAssets_ReadLE32(&xnf.data[8]) != NATIVE_ASSETS_XA_TYPE_COUNT))
 	{
 		NativeAssets_FreeBytes(&xnf);
-		fprintf(stderr, "[CTR Native Expanded] invalid XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
+		fprintf(stderr, NATIVE_LOG_PREFIX "invalid XA manifest: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 
@@ -815,7 +816,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 	if (numXasTotal > ((u32)xnf.size - NATIVE_ASSETS_XA_HEADER_SIZE) / 4u)
 	{
 		NativeAssets_FreeBytes(&xnf);
-		fprintf(stderr, "[CTR Native Expanded] invalid XA position table: %s\n", NATIVE_ASSETS_XNF_PATH);
+		fprintf(stderr, NATIVE_LOG_PREFIX "invalid XA position table: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 	u32 entryOffset = NATIVE_ASSETS_XA_HEADER_SIZE + numXasTotal * 4u;
@@ -823,7 +824,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 	if (numTracksTotal > ((u32)xnf.size - entryOffset) / NATIVE_ASSETS_XA_ENTRY_BYTES)
 	{
 		NativeAssets_FreeBytes(&xnf);
-		fprintf(stderr, "[CTR Native Expanded] invalid XA entry table: %s\n", NATIVE_ASSETS_XNF_PATH);
+		fprintf(stderr, NATIVE_LOG_PREFIX "invalid XA entry table: %s\n", NATIVE_ASSETS_XNF_PATH);
 		return 0;
 	}
 
@@ -835,7 +836,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 		if ((firstSongIndex > numTracksTotal) || (numSongs > numTracksTotal) || (firstSongIndex + numSongs > numTracksTotal))
 		{
 			NativeAssets_FreeBytes(&xnf);
-			fprintf(stderr, "[CTR Native Expanded] invalid XA song range in %s\n", NATIVE_ASSETS_XNF_PATH);
+			fprintf(stderr, NATIVE_LOG_PREFIX "invalid XA song range in %s\n", NATIVE_ASSETS_XNF_PATH);
 			return 0;
 		}
 
@@ -862,7 +863,7 @@ internal int NativeAssets_ValidateXA(u32 *missing)
 			int written = snprintf(relativePath, sizeof(relativePath), "%s/S%02u.XA", xaDirs[categoryID], (unsigned int)fileNumber);
 			if ((written <= 0) || ((size_t)written >= sizeof(relativePath)))
 			{
-				fprintf(stderr, "[CTR Native Expanded] XA asset path too long: %s/S%02u.XA\n", xaDirs[categoryID], (unsigned int)fileNumber);
+				fprintf(stderr, NATIVE_LOG_PREFIX "XA asset path too long: %s/S%02u.XA\n", xaDirs[categoryID], (unsigned int)fileNumber);
 				return 0;
 			}
 
@@ -897,7 +898,7 @@ int NativeAssets_Validate(void)
 		}
 		if (ok && (missingMovie || missingManifest || missingXA))
 		{
-			fprintf(stderr, "[CTR Native Expanded] Warning: missing optional media (%s%s%s). Unavailable audio/video will be skipped.\n",
+			fprintf(stderr, NATIVE_LOG_PREFIX "Warning: missing optional media (%s%s%s). Unavailable audio/video will be skipped.\n",
 			        missingMovie ? NATIVE_ASSETS_TEST_STR_PATH : "", missingMovie && (missingManifest || missingXA) ? ", " : "",
 			        missingManifest ? NATIVE_ASSETS_XNF_PATH
 			        : missingXA     ? "XA streams"

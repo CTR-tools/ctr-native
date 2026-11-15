@@ -86,7 +86,7 @@ int main(void)
 	CTR_TEST_CHECK(CustomCup_ResolveTrack("retail:crash-cove", NULL, &id) && id == CRASH_COVE, "retail slug resolves without a registry");
 	CTR_TEST_CHECK(!CustomCup_ResolveTrack("retail:missing", NULL, &id), "unknown retail slug is rejected");
 	struct NativeTrackRegistry *registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata track = {"crash-cove", "Custom", "track.lev", "track.vrm", NULL, NULL, 0, 0, NULL};
+	struct NativeTrackMetadata track = {.identity = "crash-cove", .title = "Custom", .levPath = "track.lev", .vrmPath = "track.vrm"};
 	CTR_TEST_CHECK(registry != NULL && NativeTrackRegistry_Add(registry, &track, &id), "custom track is registered");
 	char *identity = CustomCup_TrackIdentity(id, registry);
 	CTR_TEST_CHECK(identity != NULL && strcmp(identity, "custom:crash-cove") == 0, "custom identity has its own namespace");
@@ -112,8 +112,8 @@ int main(void)
 	CTR_TEST_CHECK(CustomCup_FirstUnavailableArcadeTrack(&copy, registry) == 0,
 	               "a custom track with unknown Arcade support is unavailable");
 	struct NativeTrackRegistry *arcadeRegistry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata arcade = {"crash-cove", "Custom", "track.lev", "track.vrm", NULL, NULL,
-	                                     NATIVE_TRACK_DETECTED_ARCADE, 1, NULL};
+	struct NativeTrackMetadata arcade = {.identity = "crash-cove", .title = "Custom", .levPath = "track.lev", .vrmPath = "track.vrm",
+	                                     .detectedModes = NATIVE_TRACK_DETECTED_ARCADE, .detectionKnown = 1};
 	CTR_TEST_CHECK(arcadeRegistry != NULL && NativeTrackRegistry_Add(arcadeRegistry, &arcade, NULL) &&
 	               CustomCup_FirstUnavailableArcadeTrack(&copy, arcadeRegistry) == CUSTOM_CUP_TRACKS_RESOLVED,
 	               "enabled Arcade-compatible custom and retail tracks are available");
@@ -131,7 +131,7 @@ int main(void)
 	CTR_TEST_CHECK(CustomCup_FirstUnavailableArcadeTrack(&copy, NULL) == 0,
 	               "a missing custom track is unavailable in Arcade");
 	registry = NativeTrackRegistry_Create();
-	struct NativeTrackMetadata other = {"other", "Other", "other.lev", "other.vrm", NULL, NULL, 0, 0, NULL};
+	struct NativeTrackMetadata other = {.identity = "other", .title = "Other", .levPath = "other.lev", .vrmPath = "other.vrm"};
 	int newID = -1;
 	CTR_TEST_CHECK(registry != NULL && NativeTrackRegistry_Add(registry, &other, NULL) && NativeTrackRegistry_Add(registry, &track, &newID) &&
 	               newID != id && CustomCup_ResolveTrack(copy.tracks[0], registry, &resolved) && resolved == newID,

@@ -10,10 +10,10 @@ Use this for bug reports in internal builds.
 ## Record
 
 ```sh
-build/ctr_native_expanded --record
+build/crash_team_racing_expanded --record
 ```
 
-Windows: use `build\ctr_native_expanded.exe` instead.
+Windows: use `build\crash_team_racing_expanded.exe` instead.
 
 Normal saves live in `memcards/slot0`.
 
@@ -22,7 +22,7 @@ When recording starts, the CTR save files from `memcards/slot0` and `slot1` are 
 To choose when recording starts:
 
 ```sh
-build/ctr_native_expanded --record --toggle
+build/crash_team_racing_expanded --record --toggle
 ```
 
 - Press `F9` to start.
@@ -31,13 +31,13 @@ build/ctr_native_expanded --record --toggle
 For more detailed reports:
 
 ```sh
-build/ctr_native_expanded --record --detailed
+build/crash_team_racing_expanded --record --detailed
 ```
 
 You can combine both:
 
 ```sh
-build/ctr_native_expanded --record --toggle --detailed
+build/crash_team_racing_expanded --record --toggle --detailed
 ```
 
 ## Play Back
@@ -47,7 +47,7 @@ Use the command written in that folder's `metadata.txt`.
 It looks like:
 
 ```sh
-build/ctr_native_expanded --replay "debug/reports/20260605/ctr-123456/input.ctrreplay"
+build/crash_team_racing_expanded --replay "debug/reports/20260605/ctr-123456/input.ctrreplay"
 ```
 
 Playback creates a fresh writable `memcard.playback` from `memcard.seed` every run and does not touch your real saves.
@@ -55,5 +55,5 @@ Playback creates a fresh writable `memcard.playback` from `memcard.seed` every r
 If a developer asks you to bypass header identity checks:
 
 ```sh
-build/ctr_native_expanded --replay "debug/reports/20260605/ctr-123456/input.ctrreplay" --replay-bypass-header
+build/crash_team_racing_expanded --replay "debug/reports/20260605/ctr-123456/input.ctrreplay" --replay-bypass-header
 ```

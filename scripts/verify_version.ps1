@@ -23,12 +23,12 @@
 .EXAMPLE
     ./scripts/verify_version.ps1
 
-    Checks build\ctr_native_expanded.exe against this checkout.
+    Checks build\crash_team_racing_expanded.exe against this checkout.
 #>
 [CmdletBinding()]
 param(
     [string] $RepoRoot,
-    [string] $Executable = 'build\ctr_native_expanded.exe'
+    [string] $Executable = 'build\crash_team_racing_expanded.exe'
 )
 
 Set-StrictMode -Version Latest
@@ -55,8 +55,8 @@ function Resolve-ExpectedVersion {
     # CMake to expand when it reads the probe.
     @'
 include("${CMAKE_SOURCE_DIR}/cmake/CtrNativeVersion.cmake")
-message(STATUS "EXPECTED_VERSION=${CTR_NATIVE_EXPANDED_VERSION}")
-message(STATUS "EXPECTED_BUILD_ID=${CTR_NATIVE_EXPANDED_BUILD_ID}")
+message(STATUS "EXPECTED_VERSION=${CRASH_TEAM_RACING_EXPANDED_VERSION}")
+message(STATUS "EXPECTED_BUILD_ID=${CRASH_TEAM_RACING_EXPANDED_BUILD_ID}")
 '@ | Set-Content -LiteralPath $probe -Encoding ascii
 
     # `cmake -P` runs with the working directory as CMAKE_SOURCE_DIR, which is
@@ -106,7 +106,7 @@ if ($expected.Version -eq '0.0.0-dev') {
     throw "The version resolved to the 0.0.0-dev fallback, so no release tag was reachable. Check that the checkout fetched its tags."
 }
 
-$expectedLine = "CTR Native Expanded $($expected.Version) ($($expected.BuildId))"
+$expectedLine = "Crash Team Racing Expanded $($expected.Version) ($($expected.BuildId))"
 if ($reported -ne $expectedLine) {
     throw "The binary does not report the version CMake resolved for it.`n  expected: $expectedLine`n  reported: $reported"
 }

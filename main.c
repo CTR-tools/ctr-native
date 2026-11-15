@@ -1,8 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define SDL_MAIN_HANDLED
 
-#ifndef CTR_NATIVE_EXPANDED_VERSION
-#define CTR_NATIVE_EXPANDED_VERSION "0.0.0-dev"
+#ifndef CRASH_TEAM_RACING_EXPANDED_VERSION
+#define CRASH_TEAM_RACING_EXPANDED_VERSION "0.0.0-dev"
 #endif
 
 #include <stdio.h>
@@ -118,8 +118,8 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #endif
 #endif
 
-#ifndef CTR_NATIVE_EXPANDED_BUILD_ID
-#define CTR_NATIVE_EXPANDED_BUILD_ID "unknown"
+#ifndef CRASH_TEAM_RACING_EXPANDED_BUILD_ID
+#define CRASH_TEAM_RACING_EXPANDED_BUILD_ID "unknown"
 #endif
 
 static int NativeConsole_ShouldPauseOnError(void)
@@ -144,7 +144,7 @@ static s32 NativeConsole_Return(const u32 result)
 	{
 		fflush(stdout);
 		fflush(stderr);
-		fprintf(stderr, "\n[CTR Native Expanded] Press Enter to close this window...");
+		fprintf(stderr, "\n" NATIVE_LOG_PREFIX "Press Enter to close this window...");
 		fflush(stderr);
 
 		while (getchar() != '\n' && !feof(stdin))
@@ -168,33 +168,33 @@ int main(int argc, char *argv[])
 	{
 		if (NativeArg_IsVersion(argv[argIndex]))
 		{
-			printf("CTR Native Expanded %s (%s)\n", CTR_NATIVE_EXPANDED_VERSION, CTR_NATIVE_EXPANDED_BUILD_ID);
+			printf("Crash Team Racing Expanded %s (%s)\n", CRASH_TEAM_RACING_EXPANDED_VERSION, CRASH_TEAM_RACING_EXPANDED_BUILD_ID);
 			return 0;
 		}
 	}
 
-	printf("[CTR Native Expanded] Starting...\n");
+	printf(NATIVE_LOG_PREFIX "Starting...\n");
 	fflush(stdout);
 
 	const char *sdlBasePath = SDL_GetBasePath();
-	printf("[CTR Native Expanded] SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
+	printf(NATIVE_LOG_PREFIX "SDL base path: %s\n", sdlBasePath ? sdlBasePath : "(null)");
 	fflush(stdout);
 
 	if (!NativeAssets_Init(sdlBasePath))
 	{
-		fprintf(stderr, "[CTR Native Expanded] Failed to initialize asset paths.\n");
+		fprintf(stderr, NATIVE_LOG_PREFIX "Failed to initialize asset paths.\n");
 		return NativeConsole_Return(1);
 	}
 
-	printf("[CTR Native Expanded] Version: %s (%s)\n", CTR_NATIVE_EXPANDED_VERSION, CTR_NATIVE_EXPANDED_BUILD_ID);
-	printf("[CTR Native Expanded] Built with: " CC "\n");
-	printf("[CTR Native Expanded] Base: %s\n", NativeAssets_GetBaseDir());
-	printf("[CTR Native Expanded] Assets: %s\n", NativeAssets_GetAssetDir());
+	printf(NATIVE_LOG_PREFIX "Version: %s (%s)\n", CRASH_TEAM_RACING_EXPANDED_VERSION, CRASH_TEAM_RACING_EXPANDED_BUILD_ID);
+	printf(NATIVE_LOG_PREFIX "Built with: " CC "\n");
+	printf(NATIVE_LOG_PREFIX "Base: %s\n", NativeAssets_GetBaseDir());
+	printf(NATIVE_LOG_PREFIX "Assets: %s\n", NativeAssets_GetAssetDir());
 	fflush(stdout);
 
 	if (chdir(NativeAssets_GetBaseDir()) != 0)
 	{
-		fprintf(stderr, "[CTR Native Expanded] Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
+		fprintf(stderr, NATIVE_LOG_PREFIX "Failed to enter base directory: %s\n", NativeAssets_GetBaseDir());
 		return NativeConsole_Return(1);
 	}
 
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-Platform_Init("CTR Native Expanded", 800, 600);
+Platform_Init("Crash Team Racing Expanded", 800, 600);
 
 #if defined(CTR_INTERNAL)
 	if (NativePerf_ConfigureFromArgs(argc, argv) != 0)

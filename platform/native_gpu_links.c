@@ -1,4 +1,5 @@
 #include <platform/native_gpu_links.h>
+#include <platform/native_log.h>
 
 #include <macros.h>
 
@@ -135,7 +136,7 @@ void NativeGpuLinks_RegisterRangeChecked(const char *label, const void *hostStar
 		return;
 	}
 
-	fprintf(stderr, "[CTR Native Expanded] GPU link bridge failed to register %s range start=%p size=%zu\n", label, hostStart, size);
+	fprintf(stderr, NATIVE_LOG_PREFIX "GPU link bridge failed to register %s range start=%p size=%zu\n", label, hostStart, size);
 	abort();
 }
 
@@ -194,13 +195,13 @@ uint32_t NativeGpuLinks_FromHostPointerAt(const void *hostPtr, const char *file,
 		return range->tokenStart + (uint32_t)(host - range->hostStart);
 	}
 
-	fprintf(stderr, "[CTR Native Expanded] GPU link bridge has no token for host pointer %p\n", hostPtr);
+	fprintf(stderr, NATIVE_LOG_PREFIX "GPU link bridge has no token for host pointer %p\n", hostPtr);
 	FILE *report = fopen("gpu-link-crash.log", "a");
 	if (report != NULL)
 	{
 		NativeGpuLinks_WriteDiagnostics(report, hostPtr, file, line, function);
 		fclose(report);
-		fprintf(stderr, "[CTR Native Expanded] GPU diagnostics appended to gpu-link-crash.log\n");
+		fprintf(stderr, NATIVE_LOG_PREFIX "GPU diagnostics appended to gpu-link-crash.log\n");
 	}
 	NativeGpuLinks_WriteDiagnostics(stderr, hostPtr, file, line, function);
 	abort();

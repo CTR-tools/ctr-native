@@ -9,7 +9,7 @@ set -euo pipefail
 
 gh release create "$TAG" \
     --draft \
-    --title "CTR Native Expanded ${TAG#v}" \
+    --title "Crash Team Racing Expanded ${TAG#v}" \
     --generate-notes \
     "dist/*"
 

@@ -41,7 +41,7 @@ int main(void)
 	CTR_TEST_CHECK(s_registry != NULL, "custom registry can be created");
 	if (s_registry != NULL)
 	{
-		struct NativeTrackMetadata metadata = {"custom-id", "Custom title", "track.lev", "track.vrm", NULL, NULL, 0, 0, NULL};
+		struct NativeTrackMetadata metadata = {.identity = "custom-id", .title = "Custom title", .levPath = "track.lev", .vrmPath = "track.vrm"};
 		int id = 0;
 		CTR_TEST_CHECK(NativeTrackRegistry_Add(s_registry, &metadata, &id), "custom track is registered");
 		info = LevelInfo_Lookup(id);
@@ -52,7 +52,7 @@ int main(void)
 		               "custom display titles preserve the complete text");
 		CTR_TEST_CHECK(strcmp(LevelInfo_DisplayTitle(id, NULL, NULL, 0), "") == 0,
 		               "custom display titles handle a missing buffer safely");
-		struct NativeTrackMetadata special = {"special", "A\xc3\xa9 @B", "track.lev", "track.vrm", NULL, NULL, 0, 0, NULL};
+		struct NativeTrackMetadata special = {.identity = "special", .title = "A\xc3\xa9 @B", .levPath = "track.lev", .vrmPath = "track.vrm"};
 		int specialID = -1;
 		CTR_TEST_CHECK(NativeTrackRegistry_Add(s_registry, &special, &specialID) &&
 		               strcmp(LevelInfo_DisplayTitle(specialID, NULL, title, sizeof(title)), "A? ?B") == 0,
