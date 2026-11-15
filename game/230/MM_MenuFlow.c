@@ -261,6 +261,8 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 		GAME_TRACKER->gameMode1 |= ARCADE_MODE;
 		struct RectMenu *raceTypeMenu = g_config.expandedArcade ? &s_expandedArcadeMenu : &MM_MENU_RACE_TYPE;
 		raceTypeMenu->rowSelected = 0;
+		raceTypeMenu->state &= ~(ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY);
+		raceTypeMenu->ptrNextBox_InHierarchy = NULL;
 
 		// set next menu
 		mainMenu->ptrNextBox_InHierarchy = raceTypeMenu;
