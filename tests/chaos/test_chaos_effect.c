@@ -1,10 +1,10 @@
-// Pins the effect catalogue in include/chaos_effect.h: that every effect is
+// Pins the effect catalogue in include/chaos/chaos_effect.h: that every effect is
 // addressable by index and by slug, that the enabled array is read one entry
 // per effect, and that a pick is uniform over what is enabled.
 
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <chaos_effect.h>
+#include <chaos/chaos_effect.h>
 
 // regionsEXE.h defines sdata as a pointer into this, so the linker wants the
 // storage even though nothing here reads it.

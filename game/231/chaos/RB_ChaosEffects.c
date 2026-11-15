@@ -1,5 +1,5 @@
 #include <common.h>
-#include "RB_Collision.h"
+#include "../RB_Collision.h"
 #include <platform/native_audio.h>
 
 // Effect operations only; RB_Chaos.c checks activation and driver eligibility.

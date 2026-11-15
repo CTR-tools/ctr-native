@@ -1,4 +1,4 @@
-#include <shared/chaos_fixture.h>
+#include <chaos/chaos_fixture.h>
 #include <game/MAIN/MainGameStart.c>
 
 static bool s_teleported;

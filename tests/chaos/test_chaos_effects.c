@@ -11,7 +11,7 @@ s32 TestUnexpectedCOP2(s32 op);
 #define MFC2_S TestUnexpectedMFC2_S
 #define doCOP2 TestUnexpectedCOP2
 #define CHAOS_FIXTURE_REAL_LAP_STATS
-#include <shared/chaos_fixture.h>
+#include <chaos/chaos_fixture.h>
 #undef CTC2
 #undef MTC2
 #undef MFC2

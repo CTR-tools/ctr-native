@@ -1,7 +1,7 @@
 #ifndef CTR_NATIVE_CHAOS_RUNTIME_H
 #define CTR_NATIVE_CHAOS_RUNTIME_H
 
-#include <chaos_effect.h>
+#include <chaos/chaos_effect.h>
 
 enum ChaosRuntimeConstants
 {

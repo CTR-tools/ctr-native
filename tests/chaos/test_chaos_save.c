@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <chaos_save.h>
+#include <chaos/chaos_save.h>
 #include <adventure_difficulty_save.h>
 
 struct sData sdata_static;

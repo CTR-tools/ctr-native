@@ -64,7 +64,7 @@ b32 MainGameEnd_IsCoopRace(struct GameTracker *gGT)
 #include <game/GAMEPROG.c>
 // Begin is file-static: include its actual module to catch a missing reset at the caller.
 #include <game/230/MM_NewLoad.c>
-#include <game/230/MM_Chaos.c>
+#include <game/230/chaos/MM_Chaos.c>
 
 static void ResetFixture(void)
 {

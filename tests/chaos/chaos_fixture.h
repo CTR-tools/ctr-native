@@ -485,10 +485,10 @@ static void CaptureLaunchVelocity(struct Driver *driver, Vec3 *velocity)
 #define VehPhysForce_RotAxisAngle TestTeleportMatrix
 #include <game/231/RB_Warpball_Path.c>
 #include <game/231/RB_Hazard.c>
-#include <game/231/RB_ChaosEffects.c>
+#include <game/231/chaos/RB_ChaosEffects.c>
 #undef VehPhysForce_RotAxisAngle
 #undef VehPhysCrash_ConvertVecToSpeed
-#include <game/231/RB_Chaos.c>
+#include <game/231/chaos/RB_Chaos.c>
 
 static const char *s_externalCommand;
 static int s_externalReads;

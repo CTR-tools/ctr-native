@@ -184,19 +184,19 @@ ctr_add_test_suite(test_race_field
 
 # The Chaos catalogue and race gate, both header-only, for the same reason.
 ctr_add_test_suite(test_chaos_effect
-    SOURCES test_chaos_effect.c
+    SOURCES chaos/test_chaos_effect.c
 )
 
 ctr_add_test_suite(test_chaos_gate
-    SOURCES test_chaos_gate.c
+    SOURCES chaos/test_chaos_gate.c
 )
 
 ctr_add_test_suite(test_chaos_runtime
-    SOURCES test_chaos_runtime.c
+    SOURCES chaos/test_chaos_runtime.c
 )
 
 ctr_add_test_suite(test_chaos_effects
-    SOURCES test_chaos_effects.c
+    SOURCES chaos/test_chaos_effects.c
 )
 
 ctr_add_test_suite(test_warpball
@@ -208,11 +208,11 @@ ctr_add_test_suite(test_vehicle_spawn
 )
 
 ctr_add_test_suite(test_chaos_pickup
-    SOURCES test_chaos_pickup.c
+    SOURCES chaos/test_chaos_pickup.c
 )
 
 ctr_add_test_suite(test_chaos_ipc
-    SOURCES test_chaos_ipc.c
+    SOURCES chaos/test_chaos_ipc.c
     LIBRARIES SDL3::SDL3
 )
 
@@ -226,11 +226,11 @@ ctr_add_test_suite(test_native_cd
 )
 
 ctr_add_test_suite(test_chaos_new_file
-    SOURCES test_chaos_new_file.c
+    SOURCES chaos/test_chaos_new_file.c
 )
 
 ctr_add_test_suite(test_chaos_setup
-    SOURCES test_chaos_setup.c
+    SOURCES chaos/test_chaos_setup.c
 )
 
 ctr_add_test_suite(test_menu_strings
@@ -250,7 +250,7 @@ ctr_add_test_suite(test_decal_font_scale
 )
 
 ctr_add_test_suite(test_chaos_save
-    SOURCES test_chaos_save.c
+    SOURCES chaos/test_chaos_save.c
 )
 
 # test_pgxp.c #includes platform/native_pgxp.c so it reaches the module's

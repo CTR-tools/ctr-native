@@ -43,7 +43,7 @@
 
 // Game declarations and GPU helpers that depend on the layout headers above.
 #include <functions.h>
-#include <chaos.h>
+#include <chaos/chaos.h>
 #include <gpu.h>
 
 static inline void *CTR_PsyqMemmove(void *dest, const void *src, s32 count)

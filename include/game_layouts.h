@@ -19,7 +19,7 @@
 #include <namespace_JitPool.h>
 #include <namespace_Load.h>
 #include <namespace_Memcard.h>
-#include <chaos_runtime.h>
+#include <chaos/chaos_runtime.h>
 #include <namespace_Mempack.h>
 #include <namespace_Particle.h>
 #include <namespace_Proc.h>

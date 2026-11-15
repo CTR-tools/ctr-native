@@ -1,5 +1,5 @@
 #include <common.h>
-#include <chaos_gate.h>
+#include <chaos/chaos_gate.h>
 #include <race_field.h>
 #include <platform/native_chaos_ipc.h>
 #include <platform/native_log.h>

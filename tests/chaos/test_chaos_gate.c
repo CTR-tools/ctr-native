@@ -1,9 +1,9 @@
-// Pins the race gate in include/chaos_gate.h: which levels Chaos may run on,
+// Pins the race gate in include/chaos/chaos_gate.h: which levels Chaos may run on,
 // and what it takes to widen that later.
 
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <chaos_gate.h>
+#include <chaos/chaos_gate.h>
 
 // regionsEXE.h defines sdata as a pointer into this, so the linker wants the
 // storage even though nothing here reads it.

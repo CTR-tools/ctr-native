@@ -4,12 +4,12 @@
 
 | Responsibility                                | Owner                                                                            |
 |-----------------------------------------------|----------------------------------------------------------------------------------|
-| Stable effect IDs, slugs, scope and selection | `include/chaos_effect.h`                                                         |
-| Save encoding and runtime layouts             | `include/chaos_save.h`, `include/namespace_Memcard.h`, `include/chaos_runtime.h` |
-| Eligibility and runtime                       | `include/chaos_gate.h`, `game/231/RB_Chaos.c`                                    |
-| Effect implementations                        | `game/231/RB_ChaosEffects.c`                                                      |
+| Stable effect IDs, slugs, scope and selection | `include/chaos/chaos_effect.h`                                                         |
+| Save encoding and runtime layouts             | `include/chaos/chaos_save.h`, `include/namespace_Memcard.h`, `include/chaos/chaos_runtime.h` |
+| Eligibility and runtime                       | `include/chaos/chaos_gate.h`, `game/231/chaos/RB_Chaos.c`                                    |
+| Effect implementations                        | `game/231/chaos/RB_ChaosEffects.c`                                                      |
 | Shared driving-class constant loader          | `game/Vehicle/VehBirth_Consts.c` (included by `VehBirth.c`)                       |
-| Creation flow and shared settings screen      | `game/230/MM_NewLoad.c`, `game/230/MM_ChaosConfig.c`                             |
+| Creation flow and shared settings screen      | `game/230/MM_NewLoad.c`, `game/230/chaos/MM_ChaosConfig.c`                             |
 | Pause entry and HUD                           | `game/MAIN/MainFreeze_Chaos.c`, `game/UI/UI_Chaos.c`                             |
 | External filesystem interface                 | `platform/native_chaos_ipc.c`                                                    |
 
@@ -17,9 +17,9 @@ Player guide: [Chaos mode](features/CHAOS.md).
 External protocol: [Chaos external file provider](features/CHAOS_EXTERNAL_PROVIDER.md).
 
 Asset-free regression suites mirror these responsibilities:
-`tests/test_chaos_runtime.c` covers scheduling, activation, triggers, IPC and HUD;
-`tests/test_chaos_effects.c` covers gameplay modifiers and instant rewards.
-Both use `tests/shared/chaos_fixture.h` for the shared world, real module include
+`tests/chaos/test_chaos_runtime.c` covers scheduling, activation, triggers, IPC and HUD;
+`tests/chaos/test_chaos_effects.c` covers gameplay modifiers and instant rewards.
+Both use `tests/chaos/chaos_fixture.h` for the shared world, real module include
 chain and integration doubles. `tests/test_warpball.c` independently covers orb
 launch and teardown without loading the Chaos runtime. Visual/audio presentation,
 AI movement after handover or time skip, and combined 2P/rescue/retry/quick-state
