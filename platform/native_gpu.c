@@ -5,6 +5,7 @@
  */
 
 #include <macros.h>
+#include <platform/graphics/native_text_vertices.h>
 #include "platform/native_gpu.h"
 
 #include <platform.h>
@@ -1878,6 +1879,21 @@ internal void ProcessDrawEnvCommand(u32 code)
 	}
 }
 
+enum
+{
+	NATIVE_GPU_TEXT_COMMAND = 0xb3,
+	NATIVE_GPU_GOURAUD_TEXTURED_QUAD_COMMAND = 0x3c,
+	NATIVE_GPU_TEXT_SUBTYPE = 0x03,
+};
+
+void NativeGpu_SetTextX(POLY_GT4 *poly, float left, float right)
+{
+	if (NativeTextVertices_Set(poly, left, right))
+	{
+		poly->code = NATIVE_GPU_TEXT_COMMAND;
+	}
+}
+
 internal int ProcessPsyXPrims(P_TAG *polyTag)
 {
 	const int primSubType = polyTag->code & 0x0F;
@@ -1898,6 +1914,25 @@ internal int ProcessPsyXPrims(P_TAG *polyTag)
 		DR_PSYX_DBGMARKER *psydbg = (DR_PSYX_DBGMARKER *)polyTag;
 		s_gpu.currentSplitDebugText = psydbg->text;
 		return 2;
+	}
+	case NATIVE_GPU_TEXT_SUBTYPE:
+	{
+		POLY_GT4 *poly = (POLY_GT4 *)polyTag;
+		float left, right;
+		b32 hasPreciseVertices = NativeTextVertices_Get(poly, &left, &right);
+		int first = s_gpu.vertexIndex;
+		poly->code = NATIVE_GPU_GOURAUD_TEXTURED_QUAD_COMMAND;
+		ProcessGouraudPoly(polyTag);
+		poly->code = NATIVE_GPU_TEXT_COMMAND;
+		float offsetX, offsetY;
+		DrawEnvOffset(&offsetX, &offsetY);
+		(void)offsetY;
+		if (hasPreciseVertices)
+		{
+			s_gpu.vertexBuffer[first].x = s_gpu.vertexBuffer[first + 2].x = s_gpu.vertexBuffer[first + 4].x = left + offsetX;
+			s_gpu.vertexBuffer[first + 1].x = s_gpu.vertexBuffer[first + 3].x = s_gpu.vertexBuffer[first + 5].x = right + offsetX;
+		}
+		return 12;
 	}
 	}
 

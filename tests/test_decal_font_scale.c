@@ -9,6 +9,8 @@ static struct DB s_buffer;
 static struct Icon s_icon;
 static struct { struct IconGroup group; struct Icon *icons[48]; } s_atlas;
 static POLY_GT4 s_glyphs[16];
+static float s_preciseLeft[16];
+static float s_preciseRight[16];
 static u32 s_originalOT[5];
 static u32 s_targetOT[5];
 
@@ -42,9 +44,18 @@ void NativePgxp_BindWrittenXY(const void *destination, u32 value)
 	(void)value;
 }
 
+void NativeGpu_SetTextX(POLY_GT4 *poly, float left, float right)
+{
+	int index = (int)(poly - s_glyphs);
+	s_preciseLeft[index] = left;
+	s_preciseRight[index] = right;
+}
+
 static void ResetDrawing(void)
 {
 	memset(s_glyphs, 0, sizeof(s_glyphs));
+	memset(s_preciseLeft, 0, sizeof(s_preciseLeft));
+	memset(s_preciseRight, 0, sizeof(s_preciseRight));
 	s_buffer.primMem.cursor = s_glyphs;
 	for (int i = 0; i < 5; i++)
 	{
@@ -196,9 +207,12 @@ int main(void)
 	                  "out-of-range color markers do not index the palette");
 
 	CTR_TEST_SECTION("small glyphs retain widescreen compression after fractional scaling");
-	const int halfWidths[] = { 6, 5, 5, 3 };
-	const int fractionalWidths[] = { 6, 5, 5, 4 };
-	const int fullWidths[] = { 13, 11, 11, 9 };
+	const int halfWidths[] = { 6, 4, 4, 3 };
+	const int fractionalWidths[] = { 6, 4, 5, 3 };
+	const int fullWidths[] = { 13, 9, 10, 7 };
+	const int halfAdvances[] = {6, 4, 5, 3};
+	const int fullAdvances[] = {13, 9, 10, 7};
+	const int lineWidths[] = {26, 19, 21, 14};
 	for (int aspect = 0; aspect < 4; aspect++)
 	{
 		g_config.aspectRatio = aspect;
@@ -206,13 +220,13 @@ int main(void)
 		ResetDrawing();
 		DecalFont_DrawLineScaledOT("AB", 100, 40, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, FP(0.5), s_targetOT);
 		CTR_TEST_CHECK_EQ(GlyphWidth(0), halfWidths[aspect], "half-size glyphs use the requested display proportions");
-		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, 6, "aspect correction preserves the text's cumulative advance");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, halfAdvances[aspect], "scaled text advances with the display aspect");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].y0, 40, "aspect correction preserves the text baseline");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].y2 - s_glyphs[0].y0, 5, "aspect correction does not alter glyph height");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].x2, s_glyphs[0].x0, "the lower left edge follows the corrected upper edge");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].x3, s_glyphs[0].x1, "the lower right edge follows the corrected upper edge");
 
-		// 13 * .49 truncates to 6; combining the transforms first rounds 21:9 to 4, not 3.
+		// The advance and both glyph edges use the same cumulative transform.
 		s_icon.texLayout.u1 = s_icon.texLayout.u3 = 13;
 		ResetDrawing();
 		DecalFont_DrawLineScaledOT("A", 100, 40, FONT_SMALL, ORANGE, FP(0.49), s_targetOT);
@@ -221,8 +235,36 @@ int main(void)
 		ResetDrawing();
 		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, s_targetOT);
 		CTR_TEST_CHECK_EQ(GlyphWidth(0), fullWidths[aspect], "ordinary drawing retains its original aspect-corrected geometry");
-		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, 13, "ordinary drawing retains the full character advance");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, fullAdvances[aspect], "ordinary text advances with the display aspect");
 		CTR_TEST_CHECK(s_tracker.pushBuffer_UI.ptrOT == s_originalOT, "ordinary drawing restores the ordering table");
+		CTR_TEST_CHECK_EQ(DecalFont_GetLineWidth("AB", FONT_SMALL), lineWidths[aspect], "reported width matches the widescreen text layout");
+		int rightAlignedX = s_glyphs[0].x0;
+		ResetDrawing();
+		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0 - rightAlignedX, lineWidths[aspect], "right alignment uses the displayed line width");
+		int leftAlignedX = s_glyphs[0].x0;
+		ResetDrawing();
+		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, JUSTIFY_CENTER | ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(leftAlignedX - s_glyphs[0].x0, lineWidths[aspect] / 2, "center alignment uses the displayed line width");
+		ResetDrawing();
+		DecalFont_DrawLineOT("AAA", 100, 40, FONT_SMALL, ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x1, s_glyphs[1].x0, "adjacent glyph edges share the same rounded coordinate");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x1, s_glyphs[2].x0, "rounding does not create gaps or overlaps between glyphs");
+		if (aspect != 0)
+		{
+			CTR_TEST_CHECK(s_preciseRight[0] == s_preciseLeft[1], "subpixel edges meet without rounding gaps");
+			CTR_TEST_CHECK(s_preciseRight[1] == s_preciseLeft[2], "subpixel edges stay aligned across the line");
+		}
 	}
+	CTR_TEST_SECTION("multiline wrapping uses displayed width");
+	char wrappedText[] = "AB AB";
+	g_config.aspectRatio = 0;
+	ResetDrawing();
+	CTR_TEST_CHECK_EQ(DecalFont_DrawMultiLine(wrappedText, 10, 20, 50, FONT_SMALL, ORANGE), 20,
+	                  "4:3 wraps text that exceeds the available width");
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	CTR_TEST_CHECK_EQ(DecalFont_DrawMultiLine(wrappedText, 10, 20, 50, FONT_SMALL, ORANGE), 10,
+	                  "21:9 keeps the narrower text on one line");
 	return CtrTest_Summary();
 }

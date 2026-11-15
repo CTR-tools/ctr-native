@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/native_gpu.h>
 
 #define FONT_ICON_GROUP        data.font_IconGroupID
 #define FONT_CHAR_WIDTH        data.font_charPixWidth
@@ -45,7 +46,7 @@ static int DecalFont_InlineColor(const u8 *text, s16 len)
 	DecalHUD_DrawPolyGT4((icon), (x), (y), (primMem), (ot), ColorCode_Load(&(c0)), ColorCode_Load(&(c1)), ColorCode_Load(&(c2)), ColorCode_Load(&(c3)), \
 	                     (transparency), (scale))
 
-s32 DecalFont_GetLineWidthStrlen(char *str, s16 len, s16 fontType)
+static s32 DecalFont_GetLineWidthRaw(char *str, s16 len, s16 fontType)
 {
 	s16 width = 0;
 	while (*str != 0 && len != 0)
@@ -76,10 +77,33 @@ s32 DecalFont_GetLineWidthStrlen(char *str, s16 len, s16 fontType)
 	return width;
 }
 
+static int DecalFont_ScaleX(int value, s32 scale)
+{
+	return (s64)value * scale * Widescreen_GetFactor() / ((s64)FP(1.0) * 1000);
+}
+
+s32 DecalFont_GetLineWidthStrlen(char *str, s16 len, s16 fontType)
+{
+	return DecalFont_ScaleX(DecalFont_GetLineWidthRaw(str, len, fontType), FP(1.0));
+}
+
 
 s32 DecalFont_GetLineWidth(char *str, s16 fontType)
 {
 	return (s16)DecalFont_GetLineWidthStrlen(str, -1, fontType);
+}
+
+static void DecalFont_SetGlyphGeometry(POLY_GT4 *glyph, const struct Icon *icon, int glyphX, int glyphOffset,
+                                       int startX, float preciseStartX, float horizontalScale, int iconScale, s32 scale, int aspectFactor)
+{
+	int iconWidth = icon->texLayout.u1 - icon->texLayout.u0;
+	s64 right = ((s64)glyphOffset * FP(1.0) + (s64)iconWidth * iconScale) * scale * aspectFactor;
+	int rightX = startX + right / ((s64)FP(1.0) * FP(1.0) * 1000);
+	glyph->x0 = glyph->x2 = glyphX;
+	glyph->x1 = glyph->x3 = rightX;
+	float left = preciseStartX + glyphOffset * horizontalScale;
+	float glyphWidth = (float)iconWidth * iconScale / FP(1.0);
+	NativeGpu_SetTextX(glyph, left, preciseStartX + (glyphOffset + glyphWidth) * horizontalScale);
 }
 
 
@@ -87,17 +111,29 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 {
 	s16 x = posX;
 	u8 *character;
+	int rawWidth = DecalFont_GetLineWidthRaw(str, len, fontType);
 
 	if (flags & JUSTIFY_CENTER)
 	{
-		x = posX - ((s16)(DecalFont_GetLineWidthStrlen(str, len, fontType) * scale / FP(1.0)) >> 1);
+		x = posX - ((s16)DecalFont_ScaleX(rawWidth, scale) >> 1);
 	}
 	else if (flags & JUSTIFY_RIGHT)
 	{
-		x = posX - DecalFont_GetLineWidthStrlen(str, len, fontType) * scale / FP(1.0);
+		x = posX - DecalFont_ScaleX(rawWidth, scale);
 	}
 
 	const s16 startX = x;
+	const int aspectFactor = Widescreen_GetFactor();
+	const float horizontalScale = (float)scale * aspectFactor / (FP(1.0) * 1000.0f);
+	float preciseStartX = posX;
+	if (flags & JUSTIFY_CENTER)
+	{
+		preciseStartX -= rawWidth * horizontalScale / 2.0f;
+	}
+	else if (flags & JUSTIFY_RIGHT)
+	{
+		preciseStartX -= rawWidth * horizontalScale;
+	}
 	int advance = 0;
 	flags &= 0xfff;
 	for (character = (u8 *)str; *character != 0 && len != 0; character++, len--)
@@ -208,7 +244,8 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 					struct Icon **icons = ICONGROUP_GETICONS(group);
 					for (int i = 0; i < copies; i++)
 					{
-						int glyphX = x + (extraX + i * copyOffset) * scale / FP(1.0);
+						int glyphOffset = advance + extraX + i * copyOffset;
+						int glyphX = startX + DecalFont_ScaleX(glyphOffset, scale);
 						int glyphY = posY + extraY * scale / FP(1.0);
 						if (inverted)
 						{
@@ -218,16 +255,21 @@ static void DecalFont_DrawLineStrlenScaled(char *str, s16 len, s16 posX, s16 pos
 						}
 						else
 						{
+							POLY_GT4 *glyph = gGT->backBuffer->primMem.cursor;
 							FONT_DRAW_POLY_GT4(icons[iconID], glyphX, glyphY, &gGT->backBuffer->primMem,
 							                   gGT->pushBuffer_UI.ptrOT, colors[0], colors[1], colors[2], colors[3],
 							                   0, iconScale * scale / FP(1.0));
+							if (icons[iconID] != NULL && (aspectFactor != 1000 || scale != FP(1.0)))
+							{
+								DecalFont_SetGlyphGeometry(glyph, icons[iconID], glyphX, glyphOffset, startX, preciseStartX,
+								                           horizontalScale, iconScale, scale, aspectFactor);
+							}
 						}
 					}
 				}
 			}
 		}
 		advance += charWidth;
-		x = startX + advance * scale / FP(1.0);
 	}
 }
 
