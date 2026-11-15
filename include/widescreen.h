@@ -2,6 +2,7 @@
 #define WIDESCREEN_H
 
 int Widescreen_GetFactor(void);
+int Widescreen_ScaleWidth(int width);
 // Per-edge inset when both edges move toward the center.
 int Widescreen_CenteredEdgeShift(int width);
 // Total inset when the opposite edge remains fixed.

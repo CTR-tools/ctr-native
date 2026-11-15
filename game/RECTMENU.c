@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 #include "RECTMENU_Text.c"
 
 
@@ -296,7 +297,7 @@ void RECTMENU_DrawInnerRectWithGaps(RECT *r, int type, u32 *ot, int topGap, int 
 
 	if ((type & 4) == 0)
 	{
-		s16 horizontalOffset = ((type & 0x80) != 0) ? 4 : 0xc;
+		s16 horizontalOffset = Widescreen_ScaleWidth(((type & 0x80) != 0) ? 4 : 0xc);
 		s16 verticalOffset = ((type & 0x40) != 0) ? 2 : 6;
 
 		adjustedRect.x = r->x + r->w;

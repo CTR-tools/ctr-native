@@ -98,11 +98,14 @@ int main(void)
 	NativeGpuLinks_RegisterRangeChecked("font test primitives", s_glyphs, sizeof(s_glyphs));
 
 	CTR_TEST_SECTION("widescreen edge insets");
+	const int shadowWidths[][2] = {{12, 4}, {9, 3}, {9, 3}, {6, 2}};
 	const int expectedInsets[] = {0, 6, 4, 10};
 	for (int aspect = 0; aspect < 4; aspect++)
 	{
 		g_config.aspectRatio = aspect;
 		int centered = Widescreen_CenteredEdgeShift(49);
+		CTR_TEST_CHECK_EQ(Widescreen_ScaleWidth(12), shadowWidths[aspect][0], "standard menu shadow offset follows the aspect ratio");
+		CTR_TEST_CHECK_EQ(Widescreen_ScaleWidth(4), shadowWidths[aspect][1], "small menu shadow offset follows the aspect ratio");
 		CTR_TEST_CHECK_EQ(centered, expectedInsets[aspect], "centered inset scales each edge for the selected aspect ratio");
 		CTR_TEST_CHECK(Widescreen_FixedEdgeShift(49) == 2 * centered, "fixed-edge shift matches both centered edge movements");
 	}
@@ -119,6 +122,25 @@ int main(void)
 		CTR_TEST_CHECK_EQ(frame.w, 52 - 2 * Widescreen_CenteredEdgeShift(52), "frame width follows the portrait aspect correction");
 		CTR_TEST_CHECK_EQ(frame.y, 50, "frame vertical position is unchanged");
 		CTR_TEST_CHECK_EQ(frame.h, 33, "frame height is unchanged");
+	}
+	CTR_TEST_SECTION("character grid spacing follows each layout center");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		for (int center = 154; center <= 250; center += 96)
+		{
+			const int left = center + Widescreen_ScaleWidth(-96);
+			const int right = center + Widescreen_ScaleWidth(96);
+			CTR_TEST_CHECK_EQ(left + right, 2 * center, "the grid remains centered on its original layout");
+			const int innerLeft = center + Widescreen_ScaleWidth(-32);
+			const int innerRight = center + Widescreen_ScaleWidth(32);
+			CTR_TEST_CHECK(abs((innerRight - innerLeft) - (innerLeft - left)) <= 1,
+			               "the center gap matches neighboring columns within one pixel");
+			if (aspect == 0)
+			{
+				CTR_TEST_CHECK_EQ(left, center - 96, "4:3 retains the original grid position");
+			}
+		}
 	}
 	g_config.aspectRatio = 0;
 	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 400, "4:3 preserves map coordinates");

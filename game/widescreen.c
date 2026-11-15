@@ -11,6 +11,11 @@ int Widescreen_GetFactor(void)
 	}
 }
 
+int Widescreen_ScaleWidth(int width)
+{
+	return width * Widescreen_GetFactor() / 1000;
+}
+
 int Widescreen_CenteredEdgeShift(int width)
 {
 	const int factor = Widescreen_GetFactor();
