@@ -1,4 +1,5 @@
 #include <common.h>
+#include <ui_map_geometry.h>
 
 enum UIMapConstants
 {
@@ -24,6 +25,7 @@ enum UIMapConstants
 	UI_MAP_ARROW_ROT_FLAG = 0x1000,
 	UI_MAP_ICON_SCALE = 0x1000,
 	UI_MAP_ADV_ARROW_SCALE = 0x800,
+	UI_MAP_RIGHT_EDGE = 500,
 };
 
 
@@ -119,7 +121,7 @@ void UI_Map_DrawMap_ExtraFunc(struct Icon *icon, POLY_FT4 *p, s16 posX, s16 empt
 
 	// posX is the right side,
 	// letftX is the left side
-	leftX = posX - sizeX;
+	leftX = UI_Map_ScaleX(posX - sizeX, posX, Widescreen_GetFactor());
 
 	p->x0 = leftX;
 	p->x1 = posX;
@@ -192,7 +194,12 @@ void UI_Map_GetIconPos(struct UIMap *map, int *posX, int *posY)
 		addY += UI_MAP_3P_OFFSET_Y;
 	}
 
-	*posX = map->iconStartX + addX;
+	int rightEdge = UI_MAP_RIGHT_EDGE;
+	if (sdata->gGT->numPlyrCurrGame == 3)
+	{
+		rightEdge -= UI_MAP_3P_OFFSET_X;
+	}
+	*posX = UI_Map_ScaleX(map->iconStartX + addX, rightEdge, Widescreen_GetFactor());
 	*posY = map->iconStartY + addY - UI_MAP_ICON_Y_OFFSET;
 	return;
 }
@@ -240,8 +247,16 @@ void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, in
 	ptrColor = data.ptrColor[colorID];
 
 	struct Icon **iconPtrArray = ICONGROUP_GETICONS(sdata->gGT->iconGroup[UI_MAP_ICON_GROUP]);
+	struct Icon *icon = iconPtrArray[iconID];
+	if (icon != NULL)
+	{
+		// DrawPolyGT4 compresses around the icon's center, but posX is its
+		// original left edge. Keep that edge in the map's coordinate space.
+		int width = ((icon->texLayout.u1 - icon->texLayout.u0) * scale) >> 12;
+		posX -= Widescreen_XShift(width);
+	}
 
-	DecalHUD_DrawPolyGT4(iconPtrArray[iconID], posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_Load(&ptrColor[0]),
+	DecalHUD_DrawPolyGT4(icon, posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_Load(&ptrColor[0]),
 	                     ColorCode_Load(&ptrColor[1]), ColorCode_Load(&ptrColor[2]), ColorCode_Load(&ptrColor[3]), 0, (int)scale);
 
 	return;

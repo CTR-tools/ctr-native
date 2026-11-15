@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <ui_map_geometry.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -58,6 +59,17 @@ int main(void)
 	data.font_charPixWidth[FONT_SMALL] = 13;
 	data.trigApprox[0].cos = FP(1.0);
 	NativeGpuLinks_RegisterRangeChecked("font test primitives", s_glyphs, sizeof(s_glyphs));
+
+	CTR_TEST_SECTION("map marker alignment");
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	int mapLeft = UI_Map_ScaleX(400, 500, Widescreen_GetFactor());
+	int markerX = UI_Map_ScaleX(400, 500, Widescreen_GetFactor()) - Widescreen_XShift(12);
+	Color markerColor = {0};
+	DecalHUD_DrawPolyGT4(&s_icon, markerX, 40, &s_buffer.primMem, s_originalOT,
+	                     markerColor, markerColor, markerColor, markerColor, 0, FP(1.0));
+	CTR_TEST_CHECK_EQ(s_glyphs[0].x0, mapLeft, "the marker left edge follows the transformed map edge at 21:9");
+	g_config.aspectRatio = 0;
 
 	CTR_TEST_SECTION("scaled font emits real geometry with alignment and ordering-table ownership");
 	ResetDrawing();
