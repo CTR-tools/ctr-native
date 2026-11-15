@@ -89,7 +89,7 @@ string(REPLACE "NATIVE_TEXT_CATALOG_retail" "NATIVE_TEXT_CATALOG_RETAIL" CTR_TEX
 string(REPLACE "NATIVE_TEXT_CATALOG_expanded" "NATIVE_TEXT_CATALOG_EXPANDED" CTR_TEXT_LENGTH_CATALOGS "${CTR_TEXT_LENGTH_CATALOGS}")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_length_catalogs.h" CONTENT "${CTR_TEXT_LENGTH_CATALOGS}")
 ctr_add_test_suite(test_text_lengths
-    SOURCES text/test_text_lengths.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
+    SOURCES text/test_text_lengths.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/config/native_config.c
     LIBRARIES tomlc17
 )
 target_include_directories(test_text_lengths PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
