@@ -162,7 +162,12 @@ void UI_WeaponBG_DrawShine(struct Icon *icon, s16 posX, s16 posY, struct PrimMem
 			break;
 		}
 
-	        Widescreen_CompressGT4(p);
+		// All four mirrored quadrants share one center; compressing each
+		// separately pulls their inner edges apart.
+		p->x0 = Widescreen_ScaleXFromAnchor(p->x0, rightX);
+		p->x1 = Widescreen_ScaleXFromAnchor(p->x1, rightX);
+		p->x2 = Widescreen_ScaleXFromAnchor(p->x2, rightX);
+		p->x3 = Widescreen_ScaleXFromAnchor(p->x3, rightX);
 
 		CtrGpu_WriteColorCode(&p->r0, CTR_ReadU32LE(&shineColors[UI_WEAPON_SHINE_COLOR_DARK_ROW * sizeof(u32)]));
 		CtrGpu_WriteColorCode(&p->r1, CTR_ReadU32LE(&shineColors[UI_WEAPON_SHINE_COLOR_MID_ROW * sizeof(u32)]));

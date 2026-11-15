@@ -16,6 +16,25 @@ static u32 s_targetOT[5];
 #include <game/widescreen.c>
 #include <game/DecalHUD.c>
 #include <game/DecalFont.c>
+#include <game/UI/UI_Icon.c>
+
+int MATH_Sin(u32 angle)
+{
+	(void)angle;
+	return 0;
+}
+
+void AddPrim(void *ot, void *p)
+{
+	u32 tag = CTR_GPU_ReadTagWord(p);
+	CTR_GPU_WriteTagWord(p, CtrGpu_PackOTTag(CTR_GPU_ReadTagWord(ot), tag & 0xff000000u));
+	CTR_GPU_WriteTagWord(ot, CtrGpu_PrimToOTLink24(p));
+}
+
+void AddPrimitive(void *p, void *ot)
+{
+	AddPrim(ot, p);
+}
 
 void NativePgxp_BindWrittenXY(const void *destination, u32 value)
 {
@@ -76,6 +95,25 @@ int main(void)
 	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(600, 500), 576, "coordinates on the other side move toward the anchor");
 	g_config.aspectRatio = 3;
 	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(350, 440), 388, "the three-player map uses its shifted anchor");
+	g_config.aspectRatio = 0;
+
+	CTR_TEST_SECTION("wumpa and weapon shine quadrants");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		ResetDrawing();
+		UI_WeaponBG_DrawShine(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 1, FP(1.0), FP(1.0), 0);
+		CTR_TEST_CHECK(s_buffer.primMem.cursor == s_glyphs + 4, "the shine emits four quadrants");
+		CTR_TEST_CHECK(s_glyphs[0].x1 >= s_glyphs[1].x1, "upper quadrants meet at the center without a gap");
+		CTR_TEST_CHECK(s_glyphs[2].x1 >= s_glyphs[3].x1, "lower quadrants meet at the center without a gap");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0, s_glyphs[2].x0, "left quadrants share their outer edge");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0, s_glyphs[3].x0, "right quadrants share their outer edge");
+		if (aspect == 0)
+		{
+			CTR_TEST_CHECK_EQ(s_glyphs[0].x0, 100, "4:3 preserves the original shine position");
+			CTR_TEST_CHECK_EQ(s_glyphs[1].x0, 123, "4:3 preserves the mirrored shine edge");
+		}
+	}
 	g_config.aspectRatio = 0;
 
 	CTR_TEST_SECTION("map marker alignment");
