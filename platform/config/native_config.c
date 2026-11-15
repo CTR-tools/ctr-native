@@ -833,7 +833,6 @@ void NativeConfig_Load(void)
                 strncpy(section, p + 1, sizeof(section) - 1);
                 section[sizeof(section) - 1] = '\0';
             }
-            printf("[Config] Section: [%s]\n", section);
             continue;
         }
 
@@ -910,7 +909,6 @@ void NativeConfig_Load(void)
                 }
                 else
                     *(int *)e->valuePtr = atoi(value);
-                printf("[Config] %s/%s = %s\n", e->section, e->key, value);
                 break;
             }
         }
