@@ -7,7 +7,7 @@
  #include <text/text_format.h>
 #include <stdio.h>
 
-#include "../MM_FullScreenMenu.c"
+#include "../menu-helpers/MM_FullScreenMenu.c"
 #include "../MM_TrackRelic.c"
 
 CTR_STATIC_ASSERT((int)NATIVE_TRACK_DEFAULT_RETAIL_MUSIC == (int)CRASH_COVE);

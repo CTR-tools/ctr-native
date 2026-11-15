@@ -33,7 +33,7 @@ const char *LANG_GetString(s32 index)
 	return value;
 }
 
-#include <game/230/MM_FullScreenMenu.c>
+#include <game/230/menu-helpers/MM_FullScreenMenu.c>
 #include <game/230/config/MM_ControlsConfig.c>
 #include <game/RaceConfig.c>
 

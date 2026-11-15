@@ -1,4 +1,4 @@
-#include "../MM_FullScreenMenu.c"
+#include "../menu-helpers/MM_FullScreenMenu.c"
 #include <platform/text/native_text_edit.h>
 
 enum CustomCupEditPage

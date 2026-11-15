@@ -14,7 +14,7 @@ void RECTMENU_DrawInnerRect(RECT *rect, int style, u32 *ot) { (void)rect; (void)
 #define MM_TRIG_APPROX (data.trigApprox)
 #define MM_DRAW_LINE_WIDE_FLAGS DecalFont_DrawLine
 #define MM_DRAW_CLEAR_BOX CTR_Box_DrawClearBox
-#include <game/230/MM_Carousel.c>
+#include <game/230/menu-helpers/MM_Carousel.c>
 
 struct Fixture { int selected; int selections; int confirmed; unsigned int enabled; };
 static bool Enabled(void *context, int index) { return (((struct Fixture *)context)->enabled & (1u << index)) != 0; }

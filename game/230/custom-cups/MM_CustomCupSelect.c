@@ -3,7 +3,7 @@
 #include <platform/custom-cups/native_custom_cup_storage.h>
 #include <platform/custom-tracks/native_track_library.h>
 #include <track_text.h>
-#include "../MM_FullScreenMenu.c"
+#include "../menu-helpers/MM_FullScreenMenu.c"
 
 enum CustomCupSelectPage
 {

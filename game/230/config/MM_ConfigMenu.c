@@ -47,7 +47,7 @@ void MM_Controls_ResetNavigation(void);
 // player's own. Used for the back button, which this file handles on its behalf.
 u32 MM_Controls_MenuTapped(void);
 
-#include "../MM_FullScreenMenu.c"
+#include "../menu-helpers/MM_FullScreenMenu.c"
 
 // Section lookup built from g_configEntries at first use.
 enum

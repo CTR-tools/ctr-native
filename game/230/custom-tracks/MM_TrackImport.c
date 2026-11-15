@@ -9,7 +9,7 @@
 #include <text/text_format.h>
 #include <stdio.h>
 
-#include "../MM_FullScreenMenu.c"
+#include "../menu-helpers/MM_FullScreenMenu.c"
 
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
 enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_DISCARD_FAILED, TRACK_IMPORT_RESULT };

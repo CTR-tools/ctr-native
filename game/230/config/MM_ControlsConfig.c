@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../MM_ChoicePicker.c"
+#include "../menu-helpers/MM_ChoicePicker.c"
 
 enum ControlsRowKind
 {
