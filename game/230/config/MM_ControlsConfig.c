@@ -2,12 +2,12 @@
 #include <text/text_format.h>
 #include <track_text.h>
 
-#include <platform/native_controls.h>
+#include <platform/config/native_controls.h>
 
 #include <stdio.h>
 #include <string.h>
 
-#include "MM_ChoicePicker.c"
+#include "../MM_ChoicePicker.c"
 
 enum ControlsRowKind
 {

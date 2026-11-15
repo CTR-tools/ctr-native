@@ -24,7 +24,7 @@
 
 #include "platform/native_assets.h"
 #include "platform/native_antialiasing.h"
-#include "platform/native_controls.h"
+#include "platform/config/native_controls.h"
 #include "platform/native_log.h"
 #include "platform/native_memory.h"
 #include "platform/native_memtrack.h"
@@ -93,8 +93,8 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
-#include "platform/native_config.c"
-#include "platform/native_controls.c"
+#include "platform/config/native_config.c"
+#include "platform/config/native_controls.c"
 
 #ifndef CC
 #if defined(__GNUC__)

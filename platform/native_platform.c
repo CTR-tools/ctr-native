@@ -6,7 +6,7 @@
 #include "platform/native_glad.h"
 #include "platform/native_gpu.h"
 #include "platform/native_input.h"
-#include "platform/native_config.h"
+#include "platform/config/native_config.h"
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"

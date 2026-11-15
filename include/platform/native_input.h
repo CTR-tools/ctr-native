@@ -25,7 +25,7 @@ void Platform_InputUpdate(void);
 void Platform_InputControllerAdded(int deviceIndex);
 void Platform_InputControllerRemoved(int instanceId);
 
-// Logs the player-to-device assignment resolved by platform/native_controls.c.
+// Logs the player-to-device assignment resolved by platform/config/native_controls.c.
 void Platform_InputLogAssignment(void);
 
 void Platform_InputPadInit(int slot, unsigned char *padData);

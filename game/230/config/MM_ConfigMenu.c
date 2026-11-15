@@ -1,6 +1,6 @@
 #include <common.h>
 
-#include <platform/native_controls.h>
+#include <platform/config/native_controls.h>
 #include <platform/native_audio.h>
 #include <platform/text/native_language_disc.h>
 #include <platform/text/native_text_runtime.h>
@@ -47,7 +47,7 @@ void MM_Controls_ResetNavigation(void);
 // player's own. Used for the back button, which this file handles on its behalf.
 u32 MM_Controls_MenuTapped(void);
 
-#include "MM_FullScreenMenu.c"
+#include "../MM_FullScreenMenu.c"
 
 // Section lookup built from g_configEntries at first use.
 enum

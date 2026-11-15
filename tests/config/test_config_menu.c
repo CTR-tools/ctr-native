@@ -17,7 +17,7 @@ s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 f
 	s_promptDraws++;
 	return 8;
 }
-#include <platform/native_config.c>
+#include <platform/config/native_config.c>
 
 static struct GameTracker s_tracker;
 static struct DB s_buffer;
@@ -108,7 +108,7 @@ static struct RectMenu *s_chaosCaller;
 static void ConfigMenuTest_Save(void);
 #define NativeConfig_Save ConfigMenuTest_Save
 #include <game/230/custom-tracks/MM_CustomTracks.c>
-#include <game/230/MM_ConfigMenu.c>
+#include <game/230/config/MM_ConfigMenu.c>
 #undef NativeConfig_Save
 #include <game/230/MM_AudioConfig.c>
 #include <game/UI/UI_VolumeSlider.c>

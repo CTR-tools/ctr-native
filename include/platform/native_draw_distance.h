@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 // The increase_draw_distance option (g_config.increaseDrawDistance, declared in
-// include/platform/native_config.h) lets the renderer submit geometry up to
+// include/platform/config/native_config.h) lets the renderer submit geometry up to
 // NATIVE_DRAW_DISTANCE_SCALE times farther than retail, so distant geometry is
 // still drawn and a model keeps its high-poly LOD header out to the distance it
 // was authored for.

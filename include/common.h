@@ -38,7 +38,7 @@
 
 #include <platform.h>
 
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #include <widescreen.h>
 
 // Game declarations and GPU helpers that depend on the layout headers above.

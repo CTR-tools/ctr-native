@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <platform/native_controls.h>
+#include <platform/config/native_controls.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -34,7 +34,7 @@ const char *LANG_GetString(s32 index)
 }
 
 #include <game/230/MM_FullScreenMenu.c>
-#include <game/230/MM_ControlsConfig.c>
+#include <game/230/config/MM_ControlsConfig.c>
 #include <game/RaceConfig.c>
 
 enum { TEST_KEYBOARD_DEVICE = PLATFORM_INPUT_PAD_COUNT };

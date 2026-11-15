@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 
 void MM_Cheat_MaxWumpa(void)
 {

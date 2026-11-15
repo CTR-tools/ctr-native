@@ -1,4 +1,4 @@
-// Unit tests for platform/native_controls.c.
+// Unit tests for platform/config/native_controls.c.
 //
 // The module is a .c in the unity build, so this suite pulls it in directly
 // and drives the device table by hand. That keeps the tests focused on the
@@ -71,8 +71,8 @@ void Platform_LogWarn(const char *fmt, ...)
 //
 // Order matters: native_input.c reads the assignment from native_controls.c,
 // which reads its defaults from native_config.c.
-#include <platform/native_config.c>
-#include <platform/native_controls.c>
+#include <platform/config/native_config.c>
+#include <platform/config/native_controls.c>
 #include <platform/native_input.c>
 
 // The scratch directory the base directory is redirected into, so no run can

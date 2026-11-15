@@ -7,7 +7,7 @@ description: Add or change HUD elements, menu screens, primitives, race overlays
 
 Use this skill for heads-up display, 2D drawing, or menus.
 
-1. Start with `game/MAIN/MainFrame_RenderFrame.c` (`RenderAllHUD`, `RenderDispEnv_UI`) and `game/UI/UI_RenderFrame.c` for racing, adventure hub, crystal challenge, and multiplayer HUD paths. Menu code is chiefly in `game/230/`; the configurable Options menu is `game/230/MM_ConfigMenu.c`.
+1. Start with `game/MAIN/MainFrame_RenderFrame.c` (`RenderAllHUD`, `RenderDispEnv_UI`) and `game/UI/UI_RenderFrame.c` for racing, adventure hub, crystal challenge, and multiplayer HUD paths. Menu code is chiefly in `game/230/`; the configurable Options menu is `game/230/config/MM_ConfigMenu.c`.
 2. Put drawing routines in the relevant `game/UI/` file and declare public game functions in `include/functions.h`. HUD positions come from the per-player `data.hudStructPtr` layouts; use `UI_HUD_SLOT_*` and `UI_HUD_SLOT_COUNT` from `include/namespace_UI.h` rather than numeric offsets.
 3. Emit graphics through the existing primitive allocation/ordering-table path (`GetPrimMem`, `AddPrimitive`, `gGT->pushBuffer_UI.ptrOT` or the appropriate per-player push buffer). Follow neighboring routines for clipping, scale, and primitive lifetime; do not bypass the rendering pipeline with direct GL drawing.
 4. Layering comes from which ordering-table slot you submit to, not from call order. `ClearOTagR` links every slot to the slot below it and `RenderSubmit` starts `DrawOTag` at `&pushBuffer[0].ptrOT[0x3ff]`, so the chain is emitted from the highest slot down to slot 0, and every primitive is prepended into its slot. A higher slot index is therefore a lower layer.

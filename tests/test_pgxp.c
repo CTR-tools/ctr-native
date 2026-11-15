@@ -20,7 +20,7 @@
 #include <math.h>
 
 #include <macros.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #include <platform/native_pgxp.h>
 #include <platform/native_renderer_types.h>
 

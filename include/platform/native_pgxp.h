@@ -2,7 +2,7 @@
 #define NATIVE_PGXP_H
 
 #include <macros.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #include <stddef.h>
 
 // NOTE: Precision geometry transform pipeline, modelled on DuckStation's PGXP

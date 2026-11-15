@@ -6,7 +6,7 @@
 
 #if defined(CTR_INTERNAL)
 #include <platform/native_checkpoint.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #endif
 
 enum

@@ -3,7 +3,7 @@
 
 // Runtime internal render scale for the MAIN render target, selected by the
 // player through the options menu (g_config.renderScale; see
-// platform/native_config.c). Modes:
+// platform/config/native_config.c). Modes:
 //
 //   1        Original: the PSX-sized raster and the shipped VRAM-roundtrip
 //            presentation, byte-for-byte the pre-scale behavior. Default.

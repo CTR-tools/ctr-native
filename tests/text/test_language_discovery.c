@@ -2,7 +2,7 @@
 #include <shared/ctr_test.h>
 #include <shared/ctr_test_scratch.h>
 #include <platform/native_assets.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #include <platform/text/native_text_runtime.h>
 
 static char s_base[512];
@@ -19,7 +19,7 @@ FILE *NativeAssets_OpenHost(const char *relativePath, const char *mode)
 	return size < 0 || (size_t)size >= sizeof(path) ? NULL : fopen(path, mode);
 }
 
-#include <platform/native_config.c>
+#include <platform/config/native_config.c>
 #include <platform/text/native_text_catalog.c>
 #include <platform/text/native_text_runtime.c>
 

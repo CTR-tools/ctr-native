@@ -2,8 +2,8 @@
 
 #include <macros.h>
 
-#include <platform/native_config.h>
-#include <platform/native_controls.h>
+#include <platform/config/native_config.h>
+#include <platform/config/native_controls.h>
 #include "platform/native_log.h"
 #include "psx/libpad.h"
 

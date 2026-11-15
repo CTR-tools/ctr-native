@@ -3,7 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
 #include <platform/text/native_language_disc.h>
