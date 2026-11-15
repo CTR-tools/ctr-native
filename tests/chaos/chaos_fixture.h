@@ -451,6 +451,7 @@ enum { SOUND_CLOCK = 0x44, SOUND_INVISIBILITY = 0x61 };
 
 #include <game/LIST.c>
 #include <game/HOWL/HOWL_Voiceline.c>
+#include <game/widescreen.c>
 #include <game/DotLights.c>
 #include <game/Vehicle/VehPhysCrash.c>
 #include <game/Vehicle/VehBirth_Consts.c>

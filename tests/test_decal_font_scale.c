@@ -19,6 +19,14 @@ static u32 s_targetOT[5];
 #include <game/DecalHUD.c>
 #include <game/DecalFont.c>
 #include <game/UI/UI_Icon.c>
+#include <game/DotLights.c>
+
+int OtherFX_Play(u32 soundID, int flags)
+{
+	(void)soundID;
+	(void)flags;
+	return 0;
+}
 
 int MATH_Sin(u32 angle)
 {
@@ -266,5 +274,38 @@ int main(void)
 	ResetDrawing();
 	CTR_TEST_CHECK_EQ(DecalFont_DrawMultiLine(wrappedText, 10, 20, 50, FONT_SMALL, ORANGE), 10,
 	                  "21:9 keeps the narrower text on one line");
+
+	CTR_TEST_SECTION("starting lights stay adjacent and centered");
+	static POLY_FT4 lights[4];
+	NativeGpuLinks_RegisterRangeChecked("starting light primitives", lights, sizeof(lights));
+	for (int i = 0; i < 4; i++)
+	{
+		s_tracker.trafficLightIcon[i] = &s_icon;
+	}
+	s_icon.texLayout.u1 = s_icon.texLayout.u3 = 24;
+	s_icon.texLayout.v2 = s_icon.texLayout.v3 = 24;
+	for (int players = 1; players <= 4; players++)
+	{
+		s_tracker.numPlyrCurrGame = players;
+		s_tracker.pushBuffer[0].rect = (RECT){players > 2 ? 259 : 0, 0, players > 2 ? 253 : 512, 106};
+		s_tracker.pushBuffer[0].ptrOT = s_targetOT;
+		for (int aspect = 0; aspect < 4; aspect++)
+		{
+			g_config.aspectRatio = aspect;
+			s_buffer.primMem.cursor = lights;
+			s_targetOT[0] = NATIVE_GPU_LINK_TERMINATOR;
+			DotLights_Video(&s_tracker, 960, 1);
+			RECT bounds;
+			CTR_TEST_CHECK(DotLights_GetBounds(&s_tracker, 0, 960, &bounds), "visible lights provide bounds");
+			for (int i = 0; i < 3; i++)
+			{
+				CTR_TEST_CHECK_EQ(lights[i].x1, lights[i + 1].x0, "adjacent lights have no widescreen gaps");
+			}
+			CTR_TEST_CHECK_EQ(lights[0].x0 + s_tracker.pushBuffer[0].rect.x, bounds.x, "bounds begin at the first light");
+			CTR_TEST_CHECK_EQ(lights[3].x1 + s_tracker.pushBuffer[0].rect.x, bounds.x + bounds.w, "bounds end at the last light");
+			CTR_TEST_CHECK(abs(2 * bounds.x + bounds.w - (2 * s_tracker.pushBuffer[0].rect.x + s_tracker.pushBuffer[0].rect.w)) <= 1,
+			               "the light group remains centered in its viewport");
+		}
+	}
 	return CtrTest_Summary();
 }
