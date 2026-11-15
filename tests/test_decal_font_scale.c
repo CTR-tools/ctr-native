@@ -60,11 +60,22 @@ int main(void)
 	data.trigApprox[0].cos = FP(1.0);
 	NativeGpuLinks_RegisterRangeChecked("font test primitives", s_glyphs, sizeof(s_glyphs));
 
+	CTR_TEST_SECTION("widescreen edge insets");
+	const int expectedInsets[] = {0, 6, 4, 10};
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		int centered = Widescreen_CenteredEdgeShift(49);
+		CTR_TEST_CHECK_EQ(centered, expectedInsets[aspect], "centered inset scales each edge for the selected aspect ratio");
+		CTR_TEST_CHECK(Widescreen_FixedEdgeShift(49) == 2 * centered, "fixed-edge shift matches both centered edge movements");
+	}
+	g_config.aspectRatio = 0;
+
 	CTR_TEST_SECTION("map marker alignment");
 	g_config.aspectRatio = 3;
 	ResetDrawing();
 	int mapLeft = UI_Map_ScaleX(400, 500, Widescreen_GetFactor());
-	int markerX = UI_Map_ScaleX(400, 500, Widescreen_GetFactor()) - Widescreen_XShift(12);
+	int markerX = UI_Map_ScaleX(400, 500, Widescreen_GetFactor()) - Widescreen_CenteredEdgeShift(12);
 	Color markerColor = {0};
 	DecalHUD_DrawPolyGT4(&s_icon, markerX, 40, &s_buffer.primMem, s_originalOT,
 	                     markerColor, markerColor, markerColor, markerColor, 0, FP(1.0));

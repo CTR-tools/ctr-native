@@ -11,7 +11,7 @@ int Widescreen_GetFactor(void)
 	}
 }
 
-int Widescreen_XShift(int width)
+int Widescreen_CenteredEdgeShift(int width)
 {
 	const int factor = Widescreen_GetFactor();
 
@@ -21,9 +21,14 @@ int Widescreen_XShift(int width)
 	return (width * (1000 - factor)) / 2000;
 }
 
+int Widescreen_FixedEdgeShift(int width)
+{
+	return 2 * Widescreen_CenteredEdgeShift(width);
+}
+
 void Widescreen_CompressFT4(POLY_FT4 *p)
 {
-	int len = Widescreen_XShift(p->x1 - p->x0);
+	int len = Widescreen_CenteredEdgeShift(p->x1 - p->x0);
 	p->x0 += len;
 	p->x2 += len;
 	p->x1 -= len;
@@ -32,7 +37,7 @@ void Widescreen_CompressFT4(POLY_FT4 *p)
 
 void Widescreen_CompressGT4(POLY_GT4 *p)
 {
-	int len = Widescreen_XShift(p->x1 - p->x0);
+	int len = Widescreen_CenteredEdgeShift(p->x1 - p->x0);
 	p->x0 += len;
 	p->x2 += len;
 	p->x1 -= len;
@@ -60,7 +65,7 @@ void Widescreen_CompressGT4Scaled(POLY_GT4 *p, int unscaledWidth, int scale)
 void Widescreen_CompressNative(PolyFT4 *p)
 {
 	int w = p->v[1].pos.x - p->v[0].pos.x;
-	int len = Widescreen_XShift(w);
+	int len = Widescreen_CenteredEdgeShift(w);
 	p->v[0].pos.x += len;
 	p->v[2].pos.x += len;
 	p->v[1].pos.x -= len;

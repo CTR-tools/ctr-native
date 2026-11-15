@@ -253,7 +253,7 @@ void UI_Map_DrawRawIcon(struct UIMap *map, const s32 worldPos[3], int iconID, in
 		// DrawPolyGT4 compresses around the icon's center, but posX is its
 		// original left edge. Keep that edge in the map's coordinate space.
 		int width = ((icon->texLayout.u1 - icon->texLayout.u0) * scale) >> 12;
-		posX -= Widescreen_XShift(width);
+		posX -= Widescreen_CenteredEdgeShift(width);
 	}
 
 	DecalHUD_DrawPolyGT4(icon, posX, posY, &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_Load(&ptrColor[0]),

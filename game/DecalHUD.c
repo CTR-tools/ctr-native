@@ -153,7 +153,7 @@ void DecalHUD_DrawWeapon(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *
         }
         else if (rot == 1)
         {
-          len = Widescreen_XShift(p->x2 - p->x0);
+          len = Widescreen_CenteredEdgeShift(p->x2 - p->x0);
           p->x0 += len;
           p->x1 += len;
           p->x2 -= len;
@@ -161,7 +161,7 @@ void DecalHUD_DrawWeapon(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *
         }
         else if (rot == 2)
         {
-          len = Widescreen_XShift(p->x2 - p->x3);
+          len = Widescreen_CenteredEdgeShift(p->x2 - p->x3);
           p->x3 += len;
           p->x1 += len;
           p->x2 -= len;
@@ -169,7 +169,7 @@ void DecalHUD_DrawWeapon(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *
         }
         else
         {
-          len = Widescreen_XShift(p->x0 - p->x2);
+          len = Widescreen_CenteredEdgeShift(p->x0 - p->x2);
           p->x2 += len;
           p->x3 += len;
           p->x0 -= len;

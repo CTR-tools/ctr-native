@@ -287,7 +287,7 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 {
 	const struct GameTracker *gGT = sdata->gGT;
 	const int barWidth = UI_SLIDE_METER_BAR_W;
-	const int displayWidth = barWidth - 2 * Widescreen_XShift(barWidth);
+	const int displayWidth = barWidth - Widescreen_FixedEdgeShift(barWidth);
 	int barHeight = gGT->numPlyrCurrGame >= UI_SLIDE_METER_SPLIT_PLAYER_COUNT ? UI_SLIDE_METER_BAR_H_SPLIT : UI_SLIDE_METER_BAR_H_FULL;
 
 	int meterLength = 0;
@@ -332,7 +332,7 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 		p->v[2].pos.y = posY;
 		p->v[3].pos.y = posY;
 
-		int leftX = posX - meterLength + 2 * Widescreen_XShift(meterLength);
+		int leftX = posX - meterLength + Widescreen_FixedEdgeShift(meterLength);
 		p->v[0].pos.x = leftX;
 		p->v[1].pos.x = posX;
 		p->v[2].pos.x = leftX;
@@ -349,7 +349,7 @@ void UI_DrawReservesMeter(s16 posX, s16 posY, struct Driver *driver)
 {
 	const struct GameTracker *gGT = sdata->gGT;
 	const int barWidth = 49;
-	const int displayWidth = barWidth - 2 * Widescreen_XShift(barWidth);
+	const int displayWidth = barWidth - Widescreen_FixedEdgeShift(barWidth);
 	const int barHeight = 3;
 	s16 topX = posX - displayWidth;
 	s16 topY = posY - barHeight;
@@ -388,7 +388,7 @@ void UI_DrawReservesMeter(s16 posX, s16 posY, struct Driver *driver)
 		p->v[1].pos.y = topY;
 		p->v[2].pos.y = posY;
 		p->v[3].pos.y = posY;
-		int leftX = posX - meterLength + 2 * Widescreen_XShift(meterLength);
+		int leftX = posX - meterLength + Widescreen_FixedEdgeShift(meterLength);
 		p->v[0].pos.x = leftX;
 		p->v[1].pos.x = posX;
 		p->v[2].pos.x = leftX;
