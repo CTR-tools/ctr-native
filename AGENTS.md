@@ -14,6 +14,13 @@ unity build. Game code lives in `game/`, shared declarations and layouts in
 `externals/SDL/` is vendored; do not edit it for application changes. This is a
 32-bit C17 native target. CMake defines `CTR_INTERNAL`.
 
+Keep directories navigable as the project grows: reuse existing thematic
+subdirectories and create new ones when a coherent set of related files would
+otherwise crowd a directory. Avoid unnecessary nesting or grouping unrelated
+code solely to reduce file counts. Preserve the game/platform boundary and
+overlay ownership; when moving files, update unity includes, tests, build
+paths, and documentation without changing include order.
+
 Task-focused, provider-agnostic skills live under `.agents/skills/`. Each
 `SKILL.md` has a short description and instructions. Read the relevant skill
 when the task needs that subsystem; combine skills for cross-cutting work:
