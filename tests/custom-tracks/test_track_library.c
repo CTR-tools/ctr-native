@@ -1,7 +1,7 @@
 #include <shared/ctr_test_scratch.h>
 
-#include <platform/native_track_registry.c>
-#include <platform/native_track_library.c>
+#include <platform/custom-tracks/native_track_registry.c>
+#include <platform/custom-tracks/native_track_library.c>
 
 static void WriteFixture(const char *directory, const char *name, const char *text)
 {

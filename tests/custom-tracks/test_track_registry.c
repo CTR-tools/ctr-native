@@ -1,6 +1,6 @@
 #include "shared/ctr_test.h"
 #include <stdint.h>
-#include <platform/native_track_registry.c>
+#include <platform/custom-tracks/native_track_registry.c>
 
 int main(void)
 {

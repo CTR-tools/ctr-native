@@ -2,11 +2,11 @@
 #include <SDL3/SDL.h>
 #include <common.h>
 #include <platform/native_folder_dialog.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_patch.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_patch.h>
 #include <platform/text/native_text_edit.h>
 #include <track_import_view.h>
-#include <platform/native_track_registry.c>
+#include <platform/custom-tracks/native_track_registry.c>
 
 struct sData sdata_static;
 struct Data data;
@@ -145,7 +145,7 @@ const char *NativeTextEdit_Value(void) { return s_editValue; }
 void NativeTextEdit_Close(void) { s_editResult = NATIVE_TEXT_EDIT_IDLE; }
 int OtherFX_Play(u32 id, int flags) { s_sound = (int)id; (void)flags; return 0; }
 
-#include <game/230/MM_TrackImport.c>
+#include <game/230/custom-tracks/MM_TrackImport.c>
 
 int main(void)
 {

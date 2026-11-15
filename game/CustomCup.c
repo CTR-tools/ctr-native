@@ -1,7 +1,7 @@
 #include <common.h>
 #include <custom_cup.h>
-#include <platform/native_track_registry.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_registry.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 #include <stddef.h>
 #include <stdlib.h>

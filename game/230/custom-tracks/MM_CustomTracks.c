@@ -1,14 +1,14 @@
 #include <common.h>
 #include <platform/native_assets.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <platform/text/native_text_edit.h>
 #include <track_text.h>
 #include <track_import_view.h>
  #include <text/text_format.h>
 #include <stdio.h>
 
-#include "MM_FullScreenMenu.c"
-#include "MM_TrackRelic.c"
+#include "../MM_FullScreenMenu.c"
+#include "../MM_TrackRelic.c"
 
 CTR_STATIC_ASSERT((int)NATIVE_TRACK_DEFAULT_RETAIL_MUSIC == (int)CRASH_COVE);
 

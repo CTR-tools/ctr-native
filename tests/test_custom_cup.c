@@ -1,7 +1,7 @@
 #include <shared/ctr_test.h>
 #include <common.h>
 #include <custom_cup.h>
-#include <platform/native_track_registry.h>
+#include <platform/custom-tracks/native_track_registry.h>
 #include <string.h>
 #include <extended_lap_times.h>
 
@@ -14,7 +14,7 @@ int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *trac
 	return track != NULL && track->detectionKnown && (track->detectedModes & mode) != 0;
 }
 
-#include <platform/native_track_registry.c>
+#include <platform/custom-tracks/native_track_registry.c>
 #include <game/CustomCup.c>
 
 int main(void)

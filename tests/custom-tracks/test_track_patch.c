@@ -1,10 +1,10 @@
 #include <shared/ctr_test_scratch.h>
-#include <platform/native_track_registry.c>
-#include <platform/native_track_library.c>
-#include <platform/native_track_validate.c>
-#include <platform/native_track_file.c>
-#include <platform/native_track_import.c>
-#include <platform/native_track_patch.c>
+#include <platform/custom-tracks/native_track_registry.c>
+#include <platform/custom-tracks/native_track_library.c>
+#include <platform/custom-tracks/native_track_validate.c>
+#include <platform/custom-tracks/native_track_file.c>
+#include <platform/custom-tracks/native_track_import.c>
+#include <platform/custom-tracks/native_track_patch.c>
 
 static void PatchTest_Write(const char *path, const void *data, size_t size)
 {

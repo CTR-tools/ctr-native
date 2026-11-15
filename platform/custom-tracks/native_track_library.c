@@ -1,4 +1,4 @@
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 #include <SDL3/SDL.h>
 #include <ctype.h>

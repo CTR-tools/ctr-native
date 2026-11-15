@@ -2,7 +2,7 @@
 #define CTR_NATIVE_TRACK_FILE_H
 
 #include <stddef.h>
-#include <platform/native_track_registry.h>
+#include <platform/custom-tracks/native_track_registry.h>
 
 enum NativeTrackFileRole
 {

@@ -1,6 +1,6 @@
 #include <common.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_records.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_records.h>
 #include <platform/native_log.h>
 #include <stdlib.h>
 

@@ -1,6 +1,6 @@
-#include <platform/native_track_patch.h>
-#include <platform/native_track_import.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_patch.h>
+#include <platform/custom-tracks/native_track_import.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>

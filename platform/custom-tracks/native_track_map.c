@@ -1,7 +1,7 @@
-#include <platform/native_track_map.h>
-#include <platform/native_track_file.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_validate.h>
+#include <platform/custom-tracks/native_track_map.h>
+#include <platform/custom-tracks/native_track_file.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_validate.h>
 #include <stdlib.h>
 #include <string.h>
 

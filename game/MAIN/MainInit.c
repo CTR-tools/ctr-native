@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <platform/native_draw_distance.h>
 
 // MainInit_Drivers spawns one driver per racer counted here.

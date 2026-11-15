@@ -10,6 +10,6 @@
 #define STBI_NO_STDIO
 #define STBI_MAX_DIMENSIONS 4096
 #define STB_IMAGE_IMPLEMENTATION
-#include "../externals/SDL/src/video/stb_image.h"
+#include "../../externals/SDL/src/video/stb_image.h"
 
 #endif

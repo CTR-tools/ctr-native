@@ -1,4 +1,4 @@
-#include <platform/native_track_validate.h>
+#include <platform/custom-tracks/native_track_validate.h>
 
 #include <stdint.h>
 

@@ -1,5 +1,5 @@
 /* Saphi SCA bank loading, adapted from ctr-native-ap HOWL_CustomMusic.c. */
-#include <platform/native_track_file.h>
+#include <platform/custom-tracks/native_track_file.h>
 #include <platform/native_log.h>
 #include <platform/native_spu_memory.h>
 #include <stdlib.h>

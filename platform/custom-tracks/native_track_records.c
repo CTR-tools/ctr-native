@@ -1,4 +1,4 @@
-#include <platform/native_track_records.h>
+#include <platform/custom-tracks/native_track_records.h>
 #include <platform/native_memcard.h>
 #include <SDL3/SDL.h>
 #include <stdio.h>

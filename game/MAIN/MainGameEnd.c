@@ -1,6 +1,6 @@
 #include <common.h>
 #include <extended_lap_times.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 enum
 {

@@ -1,5 +1,5 @@
-#include <platform/native_track_file.h>
-#include <platform/native_track_validate.h>
+#include <platform/custom-tracks/native_track_file.h>
+#include <platform/custom-tracks/native_track_validate.h>
 
 #include <limits.h>
 #include <stdio.h>

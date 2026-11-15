@@ -1,7 +1,7 @@
 #include <shared/ctr_test_scratch.h>
 static const char *s_testMemcardRoot;
 const char *NativeMemcard_GetRoot(void) { return s_testMemcardRoot; }
-#include <platform/native_track_records.c>
+#include <platform/custom-tracks/native_track_records.c>
 
 static void WriteTrackFile(const char *path, const char *content)
 {

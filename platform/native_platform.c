@@ -16,7 +16,7 @@
 
 #include <SDL3/SDL.h>
 #include <platform/native_folder_dialog.h>
-#include <platform/native_track_patch.h>
+#include <platform/custom-tracks/native_track_patch.h>
 #include <SDL3/SDL_main.h>
 #include <stdbool.h>
 #include <stdio.h>

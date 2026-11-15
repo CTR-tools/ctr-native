@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <platform/native_track_registry.h>
+#include <platform/custom-tracks/native_track_registry.h>
 #include <platform/text/native_text_edit.h>
 
 struct sData sdata_static;
@@ -107,7 +107,7 @@ static struct RectMenu *s_chaosCaller;
 // Count menu persistence calls without touching any real configuration file.
 static void ConfigMenuTest_Save(void);
 #define NativeConfig_Save ConfigMenuTest_Save
-#include <game/230/MM_CustomTracks.c>
+#include <game/230/custom-tracks/MM_CustomTracks.c>
 #include <game/230/MM_ConfigMenu.c>
 #undef NativeConfig_Save
 #include <game/230/MM_AudioConfig.c>

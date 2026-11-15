@@ -1,5 +1,5 @@
-#include <platform/native_track_preview.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_preview.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <psx/libgpu.h>
 #include <stdio.h>
 #include <stdlib.h>

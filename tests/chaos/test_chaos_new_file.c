@@ -1,7 +1,7 @@
 #include <shared/ctr_test.h>
 #include <common.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_records.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_records.h>
 
 struct sData sdata_static;
 struct Data data;

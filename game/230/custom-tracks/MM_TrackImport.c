@@ -1,15 +1,15 @@
 #include <common.h>
 #include <platform/native_assets.h>
 #include <platform/native_folder_dialog.h>
-#include <platform/native_track_import.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_patch.h>
+#include <platform/custom-tracks/native_track_import.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_patch.h>
 #include <platform/text/native_text_edit.h>
 #include <track_import_view.h>
 #include <text/text_format.h>
 #include <stdio.h>
 
-#include "MM_FullScreenMenu.c"
+#include "../MM_FullScreenMenu.c"
 
 enum { TRACK_IMPORT_PATH_BYTES = 1024 };
 enum TrackImportState { TRACK_IMPORT_CLOSED, TRACK_IMPORT_CHOOSING, TRACK_IMPORT_PATCHING, TRACK_IMPORT_REVIEW, TRACK_IMPORT_INSTALLING, TRACK_IMPORT_DISCARDING, TRACK_IMPORT_DISCARD_FAILED, TRACK_IMPORT_RESULT };
@@ -18,7 +18,7 @@ static enum ExpandedLngString s_trackImportMessage;
 static bool s_trackImportIsPatch;
 static struct NativeTrackRegistry *s_trackReviewRegistry;
 static int s_trackReviewIndex, s_trackReviewRow, s_trackReviewEditing;
-#include "MM_TrackRelic.c"
+#include "../MM_TrackRelic.c"
 
 enum { TRACK_IMPORT_RETAIL_MUSIC_COUNT = TURBO_TRACK + 1 };
 

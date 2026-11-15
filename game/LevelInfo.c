@@ -1,7 +1,7 @@
 #include <common.h>
 #include <level_info.h>
 #include <track_text.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 struct LevelInfo LevelInfo_Lookup(int levelID)
 {

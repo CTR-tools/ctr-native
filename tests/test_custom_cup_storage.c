@@ -3,7 +3,7 @@
 #include <common.h>
 #include <platform/native_custom_cup_storage.h>
 #include <platform/native_assets.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 static char s_base[512];
 const char *NativeAssets_GetBaseDir(void) { return s_base; }
@@ -16,7 +16,7 @@ int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *trac
 	return 1;
 }
 
-#include <platform/native_track_registry.c>
+#include <platform/custom-tracks/native_track_registry.c>
 #include <game/CustomCup.c>
 #include <platform/native_custom_cup_storage.c>
 

@@ -121,45 +121,45 @@ ctr_add_test_suite(test_end_race_camera
 )
 
 ctr_add_test_suite(test_track_registry
-    SOURCES test_track_registry.c
+    SOURCES custom-tracks/test_track_registry.c
 )
 
 ctr_add_test_suite(test_track_library
-    SOURCES test_track_library.c
+    SOURCES custom-tracks/test_track_library.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_import
-    SOURCES test_track_import.c
+    SOURCES custom-tracks/test_track_import.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_import_flow
-    SOURCES test_track_import_flow.c
+    SOURCES custom-tracks/test_track_import_flow.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_patch
-    SOURCES test_track_patch.c
+    SOURCES custom-tracks/test_track_patch.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_records
-    SOURCES test_track_records.c
+    SOURCES custom-tracks/test_track_records.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_file
-    SOURCES test_track_file.c
+    SOURCES custom-tracks/test_track_file.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_validate
-    SOURCES test_track_validate.c
+    SOURCES custom-tracks/test_track_validate.c
 )
 
 ctr_add_test_suite(test_track_map
-    SOURCES test_track_map.c
+    SOURCES custom-tracks/test_track_map.c
 )
 
 ctr_add_test_suite(test_cycle_tex

@@ -1,7 +1,7 @@
 #include <shared/ctr_test_scratch.h>
-#include <platform/native_track_registry.c>
-#include <platform/native_track_validate.c>
-#include <platform/native_track_file.c>
+#include <platform/custom-tracks/native_track_registry.c>
+#include <platform/custom-tracks/native_track_validate.c>
+#include <platform/custom-tracks/native_track_file.c>
 
 int main(void)
 {

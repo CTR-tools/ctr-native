@@ -1,5 +1,5 @@
 #include <shared/ctr_test.h>
-#include <platform/native_track_validate.c>
+#include <platform/custom-tracks/native_track_validate.c>
 #include <string.h>
 
 static void Write32(unsigned char *p, uint32_t value)

@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <platform/native_track_registry.h>
+#include <platform/custom-tracks/native_track_registry.h>
 
 struct NativeTrackRecordKey
 {

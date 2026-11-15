@@ -1,7 +1,7 @@
 #include <shared/ctr_test.h>
 #include <common.h>
 #include <level_info.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -12,7 +12,7 @@ const struct NativeTrackRegistry *NativeTrackLibrary_Current(void)
 	return s_registry;
 }
 
-#include <platform/native_track_registry.c>
+#include <platform/custom-tracks/native_track_registry.c>
 #include <game/LevelInfo.c>
 
 int main(void)

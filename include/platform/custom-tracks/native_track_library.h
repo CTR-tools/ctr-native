@@ -2,7 +2,7 @@
 #define CTR_NATIVE_TRACK_LIBRARY_H
 
 #include <stddef.h>
-#include <platform/native_track_registry.h>
+#include <platform/custom-tracks/native_track_registry.h>
 
 /* Retail level ID of Crash Cove, the fallback when no local SCA exists. */
 enum { NATIVE_TRACK_DEFAULT_RETAIL_MUSIC = 3 };

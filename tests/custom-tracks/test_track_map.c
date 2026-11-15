@@ -1,6 +1,6 @@
 #include <shared/ctr_test.h>
-#include <platform/native_track_file.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_file.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +13,8 @@ size_t NativeTrackFile_SectorBytes(const struct NativeTrackFile *f) { (void)f; r
 int NativeTrackFile_Read(struct NativeTrackFile *f, void *p, size_t n) { (void)f; (void)p; (void)n; return 0; }
 void NativeTrackFile_Close(struct NativeTrackFile *f) { (void)f; }
 
-#include <platform/native_track_validate.c>
-#include <platform/native_track_map.c>
+#include <platform/custom-tracks/native_track_validate.c>
+#include <platform/custom-tracks/native_track_map.c>
 
 static void Write32(unsigned char *p, uint32_t n)
 {
