@@ -1,7 +1,7 @@
 #include <common.h>
-#include <platform/native_track_library.h>
-#include <platform/native_track_preview.h>
-#include <platform/native_track_map.h>
+#include <platform/custom-tracks/native_track_library.h>
+#include <platform/custom-tracks/native_track_preview.h>
+#include <platform/custom-tracks/native_track_map.h>
 #include <platform/native_renderer.h>
 #include <track_text.h>
 #include <level_info.h>

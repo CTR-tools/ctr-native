@@ -5,7 +5,7 @@ For installation, supported modes and troubleshooting, see the
 
 ## Library and identity
 
-`platform/native_track_library.c` scans immediate subdirectories of
+`platform/custom-tracks/native_track_library.c` scans immediate subdirectories of
 `assets/tracks/`. Each track requires `track.lev` and `track.vrm`; `track.sca`,
 `preview.jpg` and `track.ini` are optional. Missing metadata falls back to the
 directory name for the title and `local:<directory name>` for the identity.
@@ -72,7 +72,7 @@ Windows builds set up verified xdelta3 and CTR-tools under `assets/tools/`;
 release archives include them. See `packaging/TRACK_TOOLS.txt` and
 `scripts/setup-track-tools.ps1` for versions, licenses and manual setup.
 Other hosts must provide compatible executables at the paths expected by
-`platform/native_track_patch.c`.
+`platform/custom-tracks/native_track_patch.c`.
 
 The automated track suites use synthetic fixtures. Optional integration
 diagnostics can inspect or import a supplied patch into disposable storage:

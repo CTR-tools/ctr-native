@@ -1,7 +1,7 @@
 #ifndef CTR_NATIVE_NAMESPACE_MEMCARD_H
 #define CTR_NATIVE_NAMESPACE_MEMCARD_H
 
-#include <chaos_effect.h>
+#include <chaos/chaos_effect.h>
 
 // Modified from original game
 enum MC_STAGE

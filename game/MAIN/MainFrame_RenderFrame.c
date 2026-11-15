@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_draw_distance.h>
+#include <platform/graphics/native_draw_distance.h>
 #include "../RenderLevel/RenderLevelLod.h"
 #include <platform/native_pgxp.h>
 #include <platform/native_gpu.h>

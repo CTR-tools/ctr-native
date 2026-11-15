@@ -1,6 +1,6 @@
 #include <common.h>
-#include <platform/native_text_catalog.h>
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_text_catalog.h>
+#include <platform/text/native_text_runtime.h>
 
 static const char *s_languageResolved[LNG_EXPANDED_STRING_BASE + LNG_EXPANDED_STRING_COUNT];
 static char *s_languageRetailOriginal[LNG_RETAIL_STRING_COUNT];

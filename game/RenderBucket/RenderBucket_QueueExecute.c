@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_draw_distance.h>
+#include <platform/graphics/native_draw_distance.h>
 #include "RenderBucket_PgxpTranslation.h"
 
 

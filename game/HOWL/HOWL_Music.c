@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 #include <stdio.h>
 
 enum { MUSIC_PREVIEW_MENU = -1, MUSIC_PREVIEW_CUSTOM = -2 };

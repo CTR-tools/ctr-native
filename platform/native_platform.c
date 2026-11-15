@@ -6,17 +6,17 @@
 #include "platform/native_glad.h"
 #include "platform/native_gpu.h"
 #include "platform/native_input.h"
-#include "platform/native_config.h"
+#include "platform/config/native_config.h"
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
-#include "platform/native_render_scale.h"
+#include "platform/graphics/native_render_scale.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
 
 #include <SDL3/SDL.h>
 #include <platform/native_folder_dialog.h>
-#include <platform/native_track_patch.h>
+#include <platform/custom-tracks/native_track_patch.h>
 #include <SDL3/SDL_main.h>
 #include <stdbool.h>
 #include <stdio.h>

@@ -57,7 +57,7 @@ function(ctr_add_test_suite NAME)
 endfunction()
 
 # Header-only, so it needs none of the platform unit.
-ctr_add_test_suite(test_carousel SOURCES test_carousel.c)
+ctr_add_test_suite(test_carousel SOURCES menu-helpers/test_carousel.c)
 ctr_add_test_suite(test_lap_clock SOURCES test_lap_clock.c)
 
 ctr_add_test_suite(test_disc_images
@@ -66,7 +66,7 @@ ctr_add_test_suite(test_disc_images
 )
 
 ctr_add_test_suite(test_language_disc
-    SOURCES test_language_disc.c
+    SOURCES text/test_language_disc.c
 )
 
 ctr_add_test_suite(test_tomlc17
@@ -75,22 +75,22 @@ ctr_add_test_suite(test_tomlc17
 )
 
 ctr_add_test_suite(test_text_catalog
-    SOURCES test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    SOURCES text/test_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17
 )
 
 ctr_add_test_suite(test_text_export
-    SOURCES test_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/native_text_catalog.c
+    SOURCES text/test_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
 ctr_add_test_suite(test_text_runtime
-    SOURCES test_text_runtime.c
+    SOURCES text/test_text_runtime.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
 ctr_add_test_suite(test_language_discovery
-    SOURCES test_language_discovery.c
+    SOURCES text/test_language_discovery.c
     LIBRARIES tomlc17 SDL3::SDL3
 )
 
@@ -99,16 +99,16 @@ ctr_add_test_suite(test_track_text
 )
 
 ctr_add_test_suite(test_custom_cup
-    SOURCES test_custom_cup.c
+    SOURCES custom-cups/test_custom_cup.c
 )
 
 ctr_add_test_suite(test_custom_cup_storage
-    SOURCES test_custom_cup_storage.c
+    SOURCES custom-cups/test_custom_cup_storage.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_native_text_edit
-    SOURCES test_native_text_edit.c
+    SOURCES text/test_native_text_edit.c
     LIBRARIES SDL3::SDL3
 )
 
@@ -121,45 +121,45 @@ ctr_add_test_suite(test_end_race_camera
 )
 
 ctr_add_test_suite(test_track_registry
-    SOURCES test_track_registry.c
+    SOURCES custom-tracks/test_track_registry.c
 )
 
 ctr_add_test_suite(test_track_library
-    SOURCES test_track_library.c
+    SOURCES custom-tracks/test_track_library.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_import
-    SOURCES test_track_import.c
+    SOURCES custom-tracks/test_track_import.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_import_flow
-    SOURCES test_track_import_flow.c
+    SOURCES custom-tracks/test_track_import_flow.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_patch
-    SOURCES test_track_patch.c
+    SOURCES custom-tracks/test_track_patch.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_records
-    SOURCES test_track_records.c
+    SOURCES custom-tracks/test_track_records.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_file
-    SOURCES test_track_file.c
+    SOURCES custom-tracks/test_track_file.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_track_validate
-    SOURCES test_track_validate.c
+    SOURCES custom-tracks/test_track_validate.c
 )
 
 ctr_add_test_suite(test_track_map
-    SOURCES test_track_map.c
+    SOURCES custom-tracks/test_track_map.c
 )
 
 ctr_add_test_suite(test_cycle_tex
@@ -171,11 +171,11 @@ ctr_add_test_suite(test_water_visibility
 )
 
 ctr_add_test_suite(test_config_menu
-    SOURCES test_config_menu.c
+    SOURCES config/test_config_menu.c
 )
 
 ctr_add_test_suite(test_render_scale
-    SOURCES test_render_scale.c
+    SOURCES graphics/test_render_scale.c
 )
 
 ctr_add_test_suite(test_race_field
@@ -184,19 +184,19 @@ ctr_add_test_suite(test_race_field
 
 # The Chaos catalogue and race gate, both header-only, for the same reason.
 ctr_add_test_suite(test_chaos_effect
-    SOURCES test_chaos_effect.c
+    SOURCES chaos/test_chaos_effect.c
 )
 
 ctr_add_test_suite(test_chaos_gate
-    SOURCES test_chaos_gate.c
+    SOURCES chaos/test_chaos_gate.c
 )
 
 ctr_add_test_suite(test_chaos_runtime
-    SOURCES test_chaos_runtime.c
+    SOURCES chaos/test_chaos_runtime.c
 )
 
 ctr_add_test_suite(test_chaos_effects
-    SOURCES test_chaos_effects.c
+    SOURCES chaos/test_chaos_effects.c
 )
 
 ctr_add_test_suite(test_warpball
@@ -208,11 +208,11 @@ ctr_add_test_suite(test_vehicle_spawn
 )
 
 ctr_add_test_suite(test_chaos_pickup
-    SOURCES test_chaos_pickup.c
+    SOURCES chaos/test_chaos_pickup.c
 )
 
 ctr_add_test_suite(test_chaos_ipc
-    SOURCES test_chaos_ipc.c
+    SOURCES chaos/test_chaos_ipc.c
     LIBRARIES SDL3::SDL3
 )
 
@@ -226,15 +226,15 @@ ctr_add_test_suite(test_native_cd
 )
 
 ctr_add_test_suite(test_chaos_new_file
-    SOURCES test_chaos_new_file.c
+    SOURCES chaos/test_chaos_new_file.c
 )
 
 ctr_add_test_suite(test_chaos_setup
-    SOURCES test_chaos_setup.c
+    SOURCES chaos/test_chaos_setup.c
 )
 
 ctr_add_test_suite(test_menu_strings
-    SOURCES test_menu_strings.c
+    SOURCES text/test_menu_strings.c
 )
 
 ctr_add_test_suite(test_boss_cutscenes
@@ -250,7 +250,7 @@ ctr_add_test_suite(test_decal_font_scale
 )
 
 ctr_add_test_suite(test_chaos_save
-    SOURCES test_chaos_save.c
+    SOURCES chaos/test_chaos_save.c
 )
 
 # test_pgxp.c #includes platform/native_pgxp.c so it reaches the module's
@@ -265,12 +265,12 @@ if(UNIX)
 endif()
 
 ctr_add_test_suite(test_native_controls
-    SOURCES controls/test_native_controls.c
+    SOURCES config/test_native_controls.c
     LIBRARIES SDL3::SDL3
 )
 
 ctr_add_test_suite(test_controls_menu
-    SOURCES controls/test_controls_menu.c
+    SOURCES config/test_controls_menu.c
 )
 
 # test_memtrack.c #includes platform/native_memtrack.c so it can read the
@@ -284,7 +284,7 @@ target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
 
 # Header-only, so it needs none of the platform unit.
 ctr_add_test_suite(test_draw_distance
-    SOURCES test_draw_distance.c
+    SOURCES graphics/test_draw_distance.c
 )
 
 ctr_add_test_suite(test_level_lod

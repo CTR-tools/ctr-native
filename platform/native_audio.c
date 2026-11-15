@@ -2,8 +2,8 @@
 #include <platform/native_audio.h>
 #include <platform/native_assets.h>
 #include <platform/native_disc_image.h>
-#include <platform/native_config.h>
-#include <platform/native_language_disc.h>
+#include <platform/config/native_config.h>
+#include <platform/text/native_language_disc.h>
 #include <platform/native_perf.h>
 #include <platform/native_spu_memory.h>
 

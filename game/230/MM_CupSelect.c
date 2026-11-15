@@ -1,5 +1,5 @@
 #include <common.h>
-#include "MM_CustomCupSelect.c"
+#include "custom-cups/MM_CustomCupSelect.c"
 
 // NOTE(aalhendi): Keeping this shared lookup visible at the call site lets
 // GCC reuse $v1 after storing the ordering-table argument.

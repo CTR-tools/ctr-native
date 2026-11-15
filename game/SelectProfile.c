@@ -1,5 +1,5 @@
 #include <common.h>
-#include <chaos_save.h>
+#include <chaos/chaos_save.h>
 #include <adventure_difficulty_save.h>
 
 // Defined with the profile load and save helpers further down.

@@ -6,7 +6,7 @@
 
 #if defined(CTR_INTERNAL)
 #include <platform/native_checkpoint.h>
-#include <platform/native_config.h>
+#include <platform/config/native_config.h>
 #endif
 
 enum
@@ -619,8 +619,8 @@ QueueLastPack:
 	return sdata->ptrMPK;
 }
 
-#include <platform/native_language_disc.h>
-#include <platform/native_text_runtime.h>
+#include <platform/text/native_language_disc.h>
+#include <platform/text/native_text_runtime.h>
 
 struct LngFile
 {

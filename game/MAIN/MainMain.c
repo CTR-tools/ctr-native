@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 #if defined(CTR_INTERNAL)
 #include <platform/native_perf.h>

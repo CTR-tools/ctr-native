@@ -1,6 +1,6 @@
 #include <common.h>
 
-#include "MM_FullScreenMenu.c"
+#include "menu-helpers/MM_FullScreenMenu.c"
 
 enum AudioConfigConstants
 {

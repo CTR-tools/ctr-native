@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_controls.h>
+#include <platform/config/native_controls.h>
 
 
 void GAMEPAD_Init(struct GamepadSystem *gGamepads)

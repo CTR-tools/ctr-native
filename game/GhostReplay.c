@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_track_library.h>
+#include <platform/custom-tracks/native_track_library.h>
 
 internal s16 Ghost_LerpRot12(s16 curr, s16 next, u16 t)
 {

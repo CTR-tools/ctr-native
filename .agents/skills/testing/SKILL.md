@@ -37,15 +37,15 @@ A suite that needs that state includes the module's own sources into its own
 translation unit, in the same order `main.c` uses:
 
 ```c
-#include <platform/native_config.c>
-#include <platform/native_controls.c>
+#include <platform/config/native_config.c>
+#include <platform/config/native_controls.c>
 #include <platform/native_input.c>
 ```
 
 Order matters where one module reads another. Then double whatever the module
 calls but does not define — `NativeAssets_GetBaseDir`, `Platform_Log`,
 `Platform_LogWarn`, `g_padCommEnable` and similar — with the real signature, or
-the link fails. `tests/controls/test_native_controls.c` is the worked example.
+the link fails. `tests/config/test_native_controls.c` is the worked example.
 
 ## Rules
 
