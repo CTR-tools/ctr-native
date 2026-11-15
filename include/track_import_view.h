@@ -11,6 +11,7 @@ enum TrackImportReviewRow
 	TRACK_REVIEW_AUTHOR,
 	TRACK_REVIEW_MUSIC_SOURCE,
 	TRACK_REVIEW_MUSIC_TRACK,
+	TRACK_REVIEW_RELIC_TIMES,
 	TRACK_REVIEW_CONFIRM,
 	TRACK_REVIEW_CANCEL,
 	TRACK_REVIEW_ROWS,
@@ -24,6 +25,9 @@ struct TrackImportReviewView
 	int index, count, row, editing;
 	int included, includedCount;
 	int installed;
+	int relicPage;
+	int relicAvailable;
+	unsigned int relicTimes[3];
 };
 
 void MM_TrackImport_Reset(void);

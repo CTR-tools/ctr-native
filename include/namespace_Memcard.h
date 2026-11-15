@@ -626,17 +626,6 @@ struct AdvMultiplayerSettings
 	s16 characterID2;
 };
 
-// Zero is Normal so empty and older card extensions preserve retail behavior.
-enum AdventureDifficulty
-{
-	ADV_DIFFICULTY_NORMAL,
-	ADV_DIFFICULTY_EASY,
-	ADV_DIFFICULTY_HARD,
-	ADV_DIFFICULTY_SUPER_HARD,
-	ADV_DIFFICULTY_ULTRA_HARD,
-	ADV_DIFFICULTY_COUNT,
-};
-
 // What makes an effect activate.
 enum ChaosTrigger
 {

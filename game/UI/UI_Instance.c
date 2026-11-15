@@ -383,8 +383,12 @@ void UI_INSTANCE_InitAll(void)
 			sdata->ptrRelic->scale.x = 0;
 		}
 
-		// Get Relic Time to put in HUD
-		if (
+		// Get Relic Time for next target
+		if ((gameMode1 & ADVENTURE_MODE) == 0)
+		{
+			relicType = 0;
+		}
+		else if (
 		    // no platinum and no gold
 		    !CHECK_ADV_BIT(sdata->advProgress.rewards, gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC) &&
 		    !CHECK_ADV_BIT(sdata->advProgress.rewards, gGT->levelID + ADV_REWARD_FIRST_GOLD_RELIC))
@@ -436,8 +440,8 @@ void UI_INSTANCE_InitAll(void)
 		UI_INSTANCE_BirthWithThread(STATIC_BIG1, (int)UI_ThTick_big1, UI_HUD_SLOT_BIG1, 0, 0, (int)sdata->s_big1);
 	}
 
-	// If you're not in Adventure Mode
-	if ((gameMode1 & ADVENTURE_MODE) == 0)
+	// If you're not in Token Race
+	if ((gGT->gameMode2 & TOKEN_RACE) == 0)
 	{
 		return;
 	}

@@ -32,6 +32,8 @@ struct NativeTrackMetadata
 	unsigned int detectedModes;
 	int detectionKnown;
 	const char *music;
+	unsigned int relicTimes[3]; /* hundredths of a second, sapphire/gold/platinum */
+	unsigned int relicTimesSet;
 };
 
 struct NativeTrackRegistry;

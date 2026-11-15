@@ -309,9 +309,9 @@ void INSTANCE_LevInitAll(struct InstDef *definitions, s32 count)
 			}
 		}
 
-		if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) == 0 || (GAME_TRACKER->gameMode2 & TOKEN_RACE) == 0)
+		if ((GAME_TRACKER->gameMode2 & TOKEN_RACE) == 0)
 		{
-			// C-T-R letters are only active in adventure token races.
+			// C-T-R letters are only active in token races.
 			if ((u32)((u16)levInstDef->model->id - STATIC_C) < 3)
 			{
 				inst->flags &= ~DRAW_COLLISION_MASK;

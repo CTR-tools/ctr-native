@@ -247,6 +247,7 @@ See the [language player guide](docs/features/LANGUAGE.md) for setup and custom 
 | `extra_difficulty_levels`             | `true` / `false`                                             | `false`   | Offer Super Hard and Ultra Hard in Arcade and Adventure setup                                                                                                                                                          |
 | `engine_selection`                    | `true` / `false`                                             | `false`   | Choose an engine class independently of the character with L1/R1 during character selection. Available classes are Balanced, Acceleration, Speed, Turn and Maxed Out; Adventure profiles save each player's selection. |
 | `custom_cups`                         | `true` / `false`                                             | `false`   | When enabled, choose **Custom** in Arcade Cup selection to create, edit, play, or delete cups. Cups are saved in the `custom-cups/` folder next to `config.ini`.           |
+| `expanded_arcade`                     | `true` / `false`                                             | `false`   | Offer standalone Relic Race, CTR Challenge and Crystal Challenge events in Arcade. |
 
 **Known limitation:** when race tracks are enabled in Battle mode, the turbo/invisibility
 weapon icons and battle points/lives icons will be missing on those tracks.

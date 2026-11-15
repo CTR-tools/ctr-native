@@ -46,6 +46,14 @@ Music is previewed as you browse. The custom music choices are numbered and
 drawn from the available audio in the import; retail choices use the game's
 original music. Custom music is only offered when available.
 
+**Relic times** opens an editor for the sapphire, gold and platinum targets.
+It is available when the track is detected as supporting Relic races; tracks
+with unknown compatibility cannot be edited until support is detected.
+Enter minutes, seconds and hundredths as `M:SS:HH` (for example `2:40:00`);
+minutes may have one or two digits, and seconds must be below 60. The defaults
+are sapphire `3:00:00`, gold `2:30:00` and platinum `2:00:00`. Targets are
+independent; set them in descending order if higher relics should be harder.
+
 Choose **Confirm import** to install the selected tracks, or **Cancel import**
 to discard the review. At least one track must be selected to confirm.
 
@@ -53,7 +61,7 @@ to discard the review. At least one track must be selected to confirm.
 
 Open **Options > Custom Tracks > Available Tracks** and select a track to open
 its details. There you can change **Active**, edit its name and author, choose
-between its custom music (if available) and retail music, preview the selection,
+between its custom music (if available) and retail music, edit relic times, preview the selection,
 or delete the track after confirmation. Disabling a track does not delete its
 files or records. Deleting a track removes its library directory; records and
 ghosts are stored separately.
@@ -74,11 +82,14 @@ selectors:
 - **Arcade:** requires a detected bot path. Tracks whose mode detection is
   unknown are not offered in Arcade.
 - **Time Trial:** available for every installed track.
+- **CTR Challenge:** requires detected CTR letters and bot paths.
+- **Relic Race and Crystal Challenge:** require detection of the corresponding
+  mode. Tracks whose mode detection is unknown are not offered in these modes
+  or CTR Challenge.
 
 The manager displays detected mode hints: TT (Time Trial), ARC (Arcade), VS,
 CTR, REL (Relic) and CRY (Crystal). These are best-effort hints, not a
-guarantee that the track works. CTR, Relic and Crystal hints do **not** enable
-those custom modes yet. Custom tracks are not added to cups or Adventure mode.
+guarantee that the track works. Custom tracks are not added to cups or Adventure mode.
 
 ## Manual installation
 

@@ -8,17 +8,22 @@ struct sData sdata_static;
 static void TestAdventureDifficultyEncoding(void)
 {
 	CTR_TEST_SECTION("Adventure difficulty card encoding");
+	CTR_TEST_CHECK_EQ(DIFFICULTY_NORMAL, 0, "Normal keeps its saved value");
+	CTR_TEST_CHECK_EQ(DIFFICULTY_EASY, 1, "Easy keeps its saved value");
+	CTR_TEST_CHECK_EQ(DIFFICULTY_HARD, 2, "Hard keeps its saved value");
+	CTR_TEST_CHECK_EQ(DIFFICULTY_SUPER_HARD, 3, "Super Hard keeps its saved value");
+	CTR_TEST_CHECK_EQ(DIFFICULTY_ULTRA_HARD, 4, "Ultra Hard keeps its saved value");
 	u8 saved = 0;
-	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), ADV_DIFFICULTY_NORMAL, "old zeroed slots load as Normal");
-	for (int difficulty = 0; difficulty < ADV_DIFFICULTY_COUNT; difficulty++)
+	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), DIFFICULTY_NORMAL, "old zeroed slots load as Normal");
+	for (int difficulty = 0; difficulty < DIFFICULTY_COUNT; difficulty++)
 	{
-		saved = AdvDifficultySave_Encode((enum AdventureDifficulty)difficulty);
+		saved = AdvDifficultySave_Encode((enum DifficultyLevel)difficulty);
 		CTR_TEST_CHECK_EQ((int)AdvDifficultySave_Decode(saved), difficulty, "each difficulty round-trips");
 	}
-	saved = ADV_DIFFICULTY_COUNT;
-	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), ADV_DIFFICULTY_NORMAL, "unknown difficulty loads as Normal");
-	saved = AdvDifficultySave_Encode((enum AdventureDifficulty)-1);
-	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), ADV_DIFFICULTY_NORMAL, "invalid live values save as Normal");
+	saved = DIFFICULTY_COUNT;
+	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), DIFFICULTY_NORMAL, "unknown difficulty loads as Normal");
+	saved = AdvDifficultySave_Encode((enum DifficultyLevel)-1);
+	CTR_TEST_CHECK_EQ(AdvDifficultySave_Decode(saved), DIFFICULTY_NORMAL, "invalid live values save as Normal");
 }
 
 static void TestBitsetWireFormat(void)

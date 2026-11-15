@@ -21,7 +21,7 @@ global_variable const s16 s_battleTrackPurpleTokenOffset[LAB_BASEMENT - NITRO_CO
     CC_BATTLE_TRACK_PURPLE_TOKEN_OFFSETS,
 };
 
-extern struct RectMenu menu221;
+extern struct RectMenu menuArcadeRaceEnd;
 
 // NOTE(aalhendi): The overlay-private matching ABI overrides these defaults
 // before compiling the retail artifact.
@@ -163,7 +163,7 @@ void CC_EndEvent_DrawMenu()
 	s16 resultsYOffset;
 
 	comparisonGT = GAME_TRACKER_RELOAD();
-	UI_RaceEnd_SetMenuLayout(&menu221, &promptPos);
+	UI_RaceEnd_SetMenuLayout(&data.menuRetryExit, &promptPos);
 	resultsYOffset = MainGameEnd_IsCoopRace(comparisonGT) ? CC_COOP_RESULTS_Y_OFFSET : 0;
 
 		if (UI_Crystal_CountCollected(comparisonGT) >= comparisonGT->numCrystalsInLEV)
@@ -214,7 +214,7 @@ void CC_EndEvent_DrawMenu()
 		// YOU WIN, or TRY AGAIN
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[resultStringIndex], pos[0] + 0x33, pos[1] + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));
 
-		canAward = didWin;
+		canAward = didWin && (comparisonGT->gameMode1 & ADVENTURE_MODE) != 0;
 		if (!canAward)
 		{
 			goto DrawAlreadyAwardedMenu;
@@ -302,50 +302,8 @@ void CC_EndEvent_DrawMenu()
 		}
 
 		RECTMENU_ClearInput();
-		RECTMENU_Show(&menu221); // Retry / Exit To Map menu
+		RECTMENU_Show((comparisonGT->gameMode1 & ARCADE_MODE) != 0 ? &menuArcadeRaceEnd : &data.menuRetryExit);
 		GAME_MENU_READY |= 1;
 	}
 }
 
-struct MenuRow rows221[3] = {
-    // Retry
-    {
-        .stringIndex = LNG_RETRY,
-        .rowOnPressUp = 0,
-        .rowOnPressDown = 1,
-        .rowOnPressLeft = 0,
-        .rowOnPressRight = 0,
-    },
-
-    // Exit to map
-    {
-        .stringIndex = LNG_EXIT_TO_MAP,
-        .rowOnPressUp = 0,
-        .rowOnPressDown = 1,
-        .rowOnPressLeft = 1,
-        .rowOnPressRight = 1,
-    },
-
-    // NULL, end of menu
-    {
-        .stringIndex = RECTMENU_STRING_NONE,
-        .rowOnPressUp = 0,
-        .rowOnPressDown = 0,
-        .rowOnPressLeft = 0,
-        .rowOnPressRight = 0,
-    }};
-
-struct RectMenu menu221 = {
-    .stringIndexTitle = RECTMENU_STRING_NONE,
-    .posX_curr = 0x100,
-    .posY_curr = 0xB4,
-
-    .unk1 = 0,
-
-    .state = RECTMENU_STATE_CENTERED,
-    .rows = rows221,
-    .funcPtr = UI_RaceEnd_MenuProc,
-    .drawStyle = 4,
-
-    // rest of variables all default zero
-};

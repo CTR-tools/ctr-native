@@ -58,14 +58,13 @@ enum ArcadeAdventureEndMenuConstants
 	AA_BIG_NUM_Z_BASE = 0x100,
 	AA_ADD_CONFIG_0_PAGE_OFFSET = -0x2f00,
 
-	AA_CTR_LETTER_COUNT = 3,
 };
 
 // NOTE(aalhendi): Retail stores this writable one-character string before the
 // overlay code.
 global_variable s32 s_driverRankString222 CTR_PSX_MATCH_SECTION(".rodata") = 0x20;
-extern struct RectMenu menu222;
-extern struct RectMenu menu222_2P;
+extern struct RectMenu menuArcadeRaceEnd;
+extern struct RectMenu menuArcadeRaceEnd2P;
 
 // NOTE(aalhendi): The matching build overrides these defaults through its
 // private retail-symbol header. Native code reaches the same state through the
@@ -78,26 +77,6 @@ extern struct RectMenu menu222_2P;
 #define gameRemoveConfig8        (sdata->Loading.OnBegin.RemBitsConfig8)
 #define gameHudStructs           (data.hudStructPtr)
 #define gameMenuRetryExit        (data.menuRetryExit)
-
-// The three CTR letters are a single shared resource: a co-op round is won on
-// them only if the pair collected all three between them, so the round total is
-// the sum over the human racers rather than one driver's tally.
-static int AA_TeamLettersCollected(struct GameTracker *gGT)
-{
-	int collected = 0;
-
-	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
-	{
-		struct Driver *letterRacer = gGT->drivers[i];
-
-		if (letterRacer != NULL)
-		{
-			collected += letterRacer->PickupLetterHUD.numCollected;
-		}
-	}
-
-	return collected;
-}
 
 void AA_EndEvent_DrawMenu(void)
 {
@@ -167,7 +146,7 @@ void AA_EndEvent_DrawMenu(void)
 	if ((adventureGameTracker->gameMode1 & ADVENTURE_MODE) != 0)
 	{
 		if (!MainGameEnd_AdventureRaceWon(adventureGameTracker) ||
-		    (AA_TeamLettersCollected(adventureGameTracker) != AA_CTR_LETTER_COUNT))
+		    !MainGameEnd_AllCTRLettersCollected(adventureGameTracker))
 		{
 			// A lost or incomplete token run drops the letters in a six-frame stagger.
 			if (GAME_FRAMES_SINCE_RACE_ENDED < AA_RESULT_MAX_FRAMES)
@@ -590,11 +569,11 @@ void AA_EndEvent_DrawMenu(void)
 
 		if (GAME_TRACKER->numPlyrCurrGame == 1)
 		{
-			RECTMENU_Show(&menu222);
+			RECTMENU_Show(&menuArcadeRaceEnd);
 		}
 		else
 		{
-			RECTMENU_Show(&menu222_2P);
+			RECTMENU_Show(&menuArcadeRaceEnd2P);
 		}
 
 		// record that the menu is drawing
@@ -612,7 +591,7 @@ void AA_EndEvent_DrawMenu(void)
 		}
 	}
 	else if (MainGameEnd_AdventureRaceWon(GAME_TRACKER) &&
-	         (AA_TeamLettersCollected(GAME_TRACKER) == AA_CTR_LETTER_COUNT))
+	         MainGameEnd_AllCTRLettersCollected(GAME_TRACKER))
 	{
 		goto race_won;
 	}
@@ -703,7 +682,7 @@ race_won:
 		GAME_TRACKER->podiumRewardID = STATIC_TROPHY;
 	}
 
-	if (AA_TeamLettersCollected(GAME_TRACKER) == AA_CTR_LETTER_COUNT)
+	if (MainGameEnd_AllCTRLettersCollected(GAME_TRACKER))
 	{
 		UNLOCK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_CTR_TOKEN);
 	}
@@ -922,7 +901,7 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 	return;
 }
 
-struct MenuRow rows222[5] = {
+struct MenuRow rowsArcadeRaceEnd[5] = {
     // Retry
     {
         .stringIndex = LNG_RETRY,
@@ -964,25 +943,25 @@ struct MenuRow rows222[5] = {
         .rowOnPressRight = 0,
     }};
 
-struct RectMenu menu222 = {
+struct RectMenu menuArcadeRaceEnd = {
     .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 256,
     .posY_curr = 170,
     .unk1 = 0,
     .state = RECTMENU_STATE_SMALL_CENTERED,
-    .rows = rows222,
+    .rows = rowsArcadeRaceEnd,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,
     // rest of variables all default zero
 };
 
-struct RectMenu menu222_2P = {
+struct RectMenu menuArcadeRaceEnd2P = {
     .stringIndexTitle = RECTMENU_STRING_NONE,
     .posX_curr = 256,
     .posY_curr = 108,
     .unk1 = 0,
     .state = RECTMENU_STATE_SMALL_CENTERED,
-    .rows = rows222,
+    .rows = rowsArcadeRaceEnd,
     .funcPtr = UI_RaceEnd_MenuProc,
     .drawStyle = 4,
     // rest of variables all default zero

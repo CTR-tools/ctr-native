@@ -9,13 +9,18 @@ For installation, supported modes and troubleshooting, see the
 `assets/tracks/`. Each track requires `track.lev` and `track.vrm`; `track.sca`,
 `preview.jpg` and `track.ini` are optional. Missing metadata falls back to the
 directory name for the title and `local:<directory name>` for the identity.
-The manifest accepts `id`, `title`, `author` and `music` once each; unknown or
+The manifest accepts `id`, `title`, `author`, `music`, `relic_sapphire`,
+`relic_gold` and `relic_platinum` once each; unknown or
 duplicate keys are rejected. `music` is `custom` for the track's local SCA or
 `retail:<level ID>` for one of the 18 retail music selections. Missing or invalid
 selections fall back to the local SCA when present, otherwise Crash Cove; invalid
 explicit selections are corrected when the registry is published. Mode hints
 and selection eligibility are determined by the application. Identities must
 be unique. `.ctr-disabled` marks a disabled track.
+
+Relic times use `M:SS:HH` or `MM:SS:HH` (hundredths), with seconds from 00 to
+59. Missing values default to sapphire `3:00:00`, gold `2:30:00`, and platinum
+`2:00:00`. Each value is independent; malformed explicit values reject the manifest.
 
 `NativeTrackLibrary_Refresh` replaces the registry. Metadata pointers borrowed
 from it are invalid after refresh; runtime IDs are assigned in scan order and

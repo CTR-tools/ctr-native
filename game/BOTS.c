@@ -329,7 +329,7 @@ void BOTS_Adv_AdjustDifficulty(void)
 	{
 		currDifficulty = 0;
 	}
-	if ((gameMode1 & ADVENTURE_CUP) != 0 && sdata->advDifficulty != ADV_DIFFICULTY_NORMAL)
+	if ((gameMode1 & ADVENTURE_CUP) != 0 && sdata->advDifficulty != DIFFICULTY_NORMAL)
 	{
 		cupDifficulty = (s16)(currDifficulty + BOTS_DIFFICULTY_CUP_OFFSET);
 	}

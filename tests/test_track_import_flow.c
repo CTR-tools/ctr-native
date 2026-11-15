@@ -69,6 +69,12 @@ int NativeTrackPatch_ReviewSetMusic(const char *identity, const char *source)
 	return 1;
 }
 const struct NativeTrackRegistry *NativeTrackLibrary_Current(void) { return s_installedRegistry; }
+int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode)
+{ return track != NULL && track->detectionKnown && (track->detectedModes & mode) != 0; }
+unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier) { (void)track; return 12000 + tier * 3000; }
+void NativeTrackLibrary_FormatRelicTime(unsigned int time, char *text, size_t size) { snprintf(text, size, "%u:%02u:%02u", time / 6000 % 100, time / 100 % 60, time % 100); }
+int NativeTrackLibrary_ParseRelicTime(const char *text, unsigned int *time) { (void)text; (void)time; return 1; }
+int NativeTrackLibrary_SetRelicTime(const struct NativeTrackMetadata *track, int tier, const char *text) { (void)track; (void)tier; (void)text; return 1; }
 int NativeTrackLibrary_Music(const struct NativeTrackMetadata *track)
 {
 	(void)track;
@@ -239,6 +245,25 @@ int main(void)
 	s_patchResult = 1;
 	MM_TrackImport_Update(0);
 	CTR_TEST_CHECK(s_trackImportState == TRACK_IMPORT_REVIEW && s_commits == 0, "a prepared patch opens review before publication");
+	s_trackReviewRow = TRACK_REVIEW_RELIC_TIMES;
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(!view.relicAvailable, "unknown relic compatibility disables the relic time row");
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_CHECK(!s_relicPage, "a track without detected relic support cannot open relic time editing");
+	struct NativeTrackRegistry *relicRegistry = NativeTrackRegistry_Create();
+	struct NativeTrackMetadata relicTrack = {.identity = "local:relic", .title = "Relic", .levPath = "relic.lev", .vrmPath = "relic.vrm",
+	    .detectionKnown = 1, .detectedModes = NATIVE_TRACK_DETECTED_RELIC};
+	NativeTrackRegistry_Add(relicRegistry, &relicTrack, NULL);
+	struct NativeTrackRegistry *originalReview = s_trackReviewRegistry;
+	s_trackReviewRegistry = relicRegistry;
+	MM_TrackImport_GetReview(&view);
+	CTR_TEST_CHECK(view.relicAvailable, "detected relic support enables the relic time row");
+	MM_TrackImport_Update(BTN_CROSS);
+	CTR_TEST_CHECK(s_relicPage, "a track with relic support can open relic time editing");
+	MM_TrackImport_Update(BTN_TRIANGLE);
+	NativeTrackRegistry_Destroy(relicRegistry);
+	s_trackReviewRegistry = originalReview;
+	s_trackReviewRow = TRACK_REVIEW_TRACK;
 	MM_TrackImport_GetReview(&view);
 	CTR_TEST_CHECK(strcmp(view.musicSource, "Custom") == 0 && view.musicIndex == 1 && view.musicTrack == NULL,
 	               "an imported custom song is selected by default");
@@ -282,6 +307,7 @@ int main(void)
 	               strcmp(s_previewIdentity, "local:other") == 0,
 	               "a track without local audio can select and preview another candidate's SCA");
 	s_trackReviewRow = TRACK_REVIEW_TRACK;
+	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);
 	MM_TrackImport_Update(BTN_DOWN);

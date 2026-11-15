@@ -4093,7 +4093,7 @@ struct sData
 	// Co-op Adventure settings of the profile in use. Mirrored from the card
 	// extension on load and written back on save.
 	struct AdvMultiplayerSettings advMultiplayer;
-	enum AdventureDifficulty advDifficulty;
+	enum DifficultyLevel advDifficulty;
 
 	// Zero means the character's default; otherwise the engine class plus one.
 	u8 selectedEngineClass[4];

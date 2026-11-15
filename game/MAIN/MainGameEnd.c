@@ -622,6 +622,42 @@ b32 MainGameEnd_GotAllTimeCrates(struct GameTracker *gGT)
 	return MainGameEnd_TimeCratesCollected(gGT) == gGT->timeCratesInLEV;
 }
 
+int MainGameEnd_RelicTier(struct GameTracker *gGT, struct Driver *driver)
+{
+	enum { RELIC_TIER_COUNT = 3, RELIC_PERFECT_BONUS = 0x2580 };
+	int time = driver->timeElapsedInRace;
+	if (MainGameEnd_GotAllTimeCrates(gGT))
+	{
+		time -= RELIC_PERFECT_BONUS;
+	}
+	int tier = -1;
+	for (int i = 0; i < RELIC_TIER_COUNT; i++)
+	{
+		if (time <= GAMEPROG_RelicTargetTime(gGT->levelID, i))
+		{
+			tier = i;
+		}
+	}
+	return tier;
+}
+
+b32 MainGameEnd_AllCTRLettersCollected(struct GameTracker *gGT)
+{
+	enum { CTR_LETTER_COUNT = 3 };
+	int collected = 0;
+
+	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
+	{
+		struct Driver *driver = gGT->drivers[i];
+		if (driver != NULL)
+		{
+			collected += driver->PickupLetterHUD.numCollected;
+		}
+	}
+
+	return collected == CTR_LETTER_COUNT;
+}
+
 // Whether the human side won the Adventure round. A lone racer has to finish
 // first on their own. A co-op pair is a single result, so it is won only when both
 // racers are on the podium - first and second, in either order - and one racer up

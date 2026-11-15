@@ -1,5 +1,7 @@
 #include <common.h>
 
+extern struct RectMenu menuArcadeRaceEnd;
+
 enum RelicRaceEndMenuConstants
 {
 	RR_SAPPHIRE_RELIC_INDEX = 0,
@@ -82,18 +84,20 @@ static s32 RR_TeamTargetTime(struct GameTracker *gGT, s32 tier)
 
 void RR_EndEvent_UnlockAward(void)
 {
+	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) == 0)
+	{
+		return;
+	}
 	// One clock and one crate pool decide the pair's relic, so both the tier
 	// comparison and the all-crates bonus are read off the team, not off player one.
-	s32 timeDeduct;
-	s32 teamTime;
+	s32 tier;
 	s32 goldTarget;
 	s32 platinumTarget;
 
 	{
 		struct GameTracker *gGT = GAME_TRACKER;
 
-		timeDeduct = MainGameEnd_GotAllTimeCrates(gGT) ? RR_RACE_TIME_TEN_SECONDS : 0;
-		teamTime = MainGameEnd_GradeDriver(gGT)->timeElapsedInRace - timeDeduct;
+		tier = MainGameEnd_RelicTier(gGT, MainGameEnd_GradeDriver(gGT));
 		goldTarget = RR_TeamTargetTime(gGT, RR_GOLD_RELIC_INDEX);
 		platinumTarget = RR_TeamTargetTime(gGT, RR_PLATINUM_RELIC_INDEX);
 	}
@@ -105,7 +109,7 @@ void RR_EndEvent_UnlockAward(void)
 
 		gGT = GAME_TRACKER;
 
-		if (teamTime <= RR_TeamTargetTime(gGT, RR_SAPPHIRE_RELIC_INDEX))
+		if (tier >= RR_SAPPHIRE_RELIC_INDEX)
 		{
 			rewards = GAME_ADV_PROGRESS.rewards;
 			rewardBit = gGT->levelID + ADV_REWARD_FIRST_SAPPHIRE_RELIC;
@@ -129,7 +133,7 @@ void RR_EndEvent_UnlockAward(void)
 		s32 rewardBit;
 
 		gGT = GAME_TRACKER;
-		if (teamTime <= goldTarget)
+		if (tier >= RR_GOLD_RELIC_INDEX)
 		{
 			rewards = GAME_ADV_PROGRESS.rewards;
 			rewardBit = gGT->levelID + ADV_REWARD_FIRST_GOLD_RELIC;
@@ -154,7 +158,7 @@ void RR_EndEvent_UnlockAward(void)
 		s32 rewardBit;
 
 		gGT = GAME_TRACKER;
-		if (teamTime <= platinumTarget)
+		if (tier >= RR_PLATINUM_RELIC_INDEX)
 		{
 			rewards = GAME_ADV_PROGRESS.rewards;
 			rewardBit = gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC;
@@ -340,7 +344,6 @@ void RR_EndEvent_DrawMenu(void)
 	RECT box;
 	SVec2 pos;
 	SVec2 promptPos;
-	s32 rewardBit;
 
 	register s16 textColor CTR_PSX_REGISTER("$19");
 	char crateCountText[16];
@@ -354,18 +357,17 @@ void RR_EndEvent_DrawMenu(void)
 	// change color
 	textColor = (GAME_TRACKER->timer & 1) ? (JUSTIFY_CENTER | ORANGE) : (JUSTIFY_CENTER | WHITE);
 
-	rewardBit = GAME_TRACKER->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC;
-
-	// check if platinum is unlocked, set platinum color
-	if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, rewardBit))
+	// The relic instance is created with its sapphire color.
+	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) != 0)
 	{
-		RR_RELIC->colorRGBA = RR_PLATINUM_RELIC_COLOR;
-	}
-
-	// check if gold is unlocked, set gold color
-	else if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_GOLD_RELIC))
-	{
-		RR_RELIC->colorRGBA = RR_GOLD_RELIC_COLOR;
+		if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC))
+		{
+			RR_RELIC->colorRGBA = RR_PLATINUM_RELIC_COLOR;
+		}
+		else if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, GAME_TRACKER->levelID + ADV_REWARD_FIRST_GOLD_RELIC))
+		{
+			RR_RELIC->colorRGBA = RR_GOLD_RELIC_COLOR;
+		}
 	}
 
 	{
@@ -691,7 +693,7 @@ skip_new_high_score:
 		if ((GAME_ANY_PLAYER_TAP & RR_CONFIRM_BUTTON_MASK) != 0)
 		{
 			RECTMENU_ClearInput();
-			RECTMENU_Show(&data.menuRetryExit);
+			RECTMENU_Show((GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 ? &menuArcadeRaceEnd : &data.menuRetryExit);
 
 			// record that you have pressed X to continue
 			GAME_MENU_READY |= RR_MENU_READY_FLAG;

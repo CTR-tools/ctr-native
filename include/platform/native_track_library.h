@@ -6,6 +6,7 @@
 
 /* Retail level ID of Crash Cove, the fallback when no local SCA exists. */
 enum { NATIVE_TRACK_DEFAULT_RETAIL_MUSIC = 3 };
+enum { NATIVE_TRACK_RELIC_COUNT = 3, NATIVE_TRACK_RELIC_TEXT_BYTES = 9 };
 
 struct NativeTrackScanResult
 {
@@ -39,6 +40,11 @@ int NativeTrackLibrary_ValidText(const char *text, int allowEmpty);
 int NativeTrackLibrary_WriteMetadata(const struct NativeTrackMetadata *track, const char *title, const char *author,
                                      int retail, int custom);
 int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom);
+int NativeTrackLibrary_ParseRelicTime(const char *text, unsigned int *hundredths);
+void NativeTrackLibrary_FormatRelicTime(unsigned int hundredths, char *text, size_t size);
+unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier);
+int NativeTrackLibrary_RelicTargetTime(const struct NativeTrackMetadata *track, int tier);
+int NativeTrackLibrary_SetRelicTime(const struct NativeTrackMetadata *track, int tier, const char *text);
 /* Unknown source modes remain selectable; explicit lists must include time_trial. */
 /* Arcade and VS require positive LEV detection, not just source tags. */
 int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode);

@@ -497,7 +497,7 @@ void GAMEPROG_NewGame_OnBoot(void)
 	GAMEPROG_NewProfile_OutsideAdv(&GAME_SAVE);
 	GAMEPROG_NewProfile_InsideAdv(&GAME_ADV_PROGRESS);
 	GAMEPROG_ResetAdvMultiplayer(&sdata->advMultiplayer);
-	sdata->advDifficulty = ADV_DIFFICULTY_NORMAL;
+	sdata->advDifficulty = DIFFICULTY_NORMAL;
 	GAMEPROG_ResetChaosSettings(&sdata->chaosSettings);
 	Chaos_PublishEffects();
 	GAMEPROG_GetPtrHighScoreTrack();
@@ -541,7 +541,7 @@ int GAMEPROG_AdventureLossIndex(int losses)
 {
 	enum { EASY_LOSS_BONUS = 2 };
 	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) != 0 &&
-	    sdata->advDifficulty == ADV_DIFFICULTY_EASY && losses > 0)
+	    sdata->advDifficulty == DIFFICULTY_EASY && losses > 0)
 	{
 		return losses + EASY_LOSS_BONUS;
 	}
@@ -568,21 +568,21 @@ int GAMEPROG_AdventureBotDifficulty(int difficulty)
 	int result = difficulty;
 	switch (sdata->advDifficulty)
 	{
-	case ADV_DIFFICULTY_EASY:
+	case DIFFICULTY_EASY:
 		result = difficulty * EASY_SCALE_NUMERATOR / EASY_SCALE_DENOMINATOR;
 		if (result > EASY_MAX)
 		{
 			result = EASY_MAX;
 		}
 		break;
-	case ADV_DIFFICULTY_HARD: result = HARD_VALUE; break;
-	case ADV_DIFFICULTY_SUPER_HARD: result = SUPER_HARD_VALUE; break;
-	case ADV_DIFFICULTY_ULTRA_HARD: result = ULTRA_HARD_VALUE; break;
-	case ADV_DIFFICULTY_NORMAL:
-	case ADV_DIFFICULTY_COUNT:
+	case DIFFICULTY_HARD: result = HARD_VALUE; break;
+	case DIFFICULTY_SUPER_HARD: result = SUPER_HARD_VALUE; break;
+	case DIFFICULTY_ULTRA_HARD: result = ULTRA_HARD_VALUE; break;
+	case DIFFICULTY_NORMAL:
+	case DIFFICULTY_COUNT:
 	default: return difficulty;
 	}
-	if ((mode & ADVENTURE_BOSS) != 0 && sdata->advDifficulty >= ADV_DIFFICULTY_HARD)
+	if ((mode & ADVENTURE_BOSS) != 0 && sdata->advDifficulty >= DIFFICULTY_HARD)
 	{
 		result += FIXED_BOSS_BONUS;
 	}
@@ -592,29 +592,56 @@ int GAMEPROG_AdventureBotDifficulty(int difficulty)
 int GAMEPROG_AdventureBossLosses(int losses)
 {
 	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) != 0 &&
-	    sdata->advDifficulty >= ADV_DIFFICULTY_HARD && sdata->advDifficulty < ADV_DIFFICULTY_COUNT)
+	    sdata->advDifficulty >= DIFFICULTY_HARD && sdata->advDifficulty < DIFFICULTY_COUNT)
 	{
 		return 0;
 	}
 	return losses;
 }
 
+static enum DifficultyLevel GAMEPROG_DifficultyFromCoefficient(int coefficient)
+{
+	if (coefficient <= ARCADE_DIFFICULTY_EASY)
+	{
+		return DIFFICULTY_EASY;
+	}
+	if (coefficient <= ARCADE_DIFFICULTY_NORMAL)
+	{
+		return DIFFICULTY_NORMAL;
+	}
+	if (coefficient <= ARCADE_DIFFICULTY_HARD)
+	{
+		return DIFFICULTY_HARD;
+	}
+	if (coefficient <= ARCADE_DIFFICULTY_SUPER_HARD)
+	{
+		return DIFFICULTY_SUPER_HARD;
+	}
+	return DIFFICULTY_ULTRA_HARD;
+}
+
 int GAMEPROG_AdventureTimeLimit(int time)
 {
-	if ((GAME_TRACKER->gameMode1 & ADVENTURE_MODE) == 0)
+	u32 mode = GAME_TRACKER->gameMode1;
+	enum DifficultyLevel difficulty = sdata->advDifficulty;
+	if ((mode & ARCADE_MODE) != 0 && (mode & (RELIC_RACE | CRYSTAL_CHALLENGE)) != 0)
+	{
+		difficulty = GAMEPROG_DifficultyFromCoefficient(GAME_TRACKER->arcadeDifficulty);
+	}
+	else if ((mode & ADVENTURE_MODE) == 0)
 	{
 		return time;
 	}
 
 	int percent;
-	switch (sdata->advDifficulty)
+	switch (difficulty)
 	{
-	case ADV_DIFFICULTY_EASY: percent = 120; break;
-	case ADV_DIFFICULTY_HARD: percent = 90; break;
-	case ADV_DIFFICULTY_SUPER_HARD: percent = 80; break;
-	case ADV_DIFFICULTY_ULTRA_HARD: percent = 70; break;
-	case ADV_DIFFICULTY_NORMAL:
-	case ADV_DIFFICULTY_COUNT:
+	case DIFFICULTY_EASY: percent = 120; break;
+	case DIFFICULTY_HARD: percent = 90; break;
+	case DIFFICULTY_SUPER_HARD: percent = 80; break;
+	case DIFFICULTY_ULTRA_HARD: percent = 70; break;
+	case DIFFICULTY_NORMAL:
+	case DIFFICULTY_COUNT:
 	default: return time;
 	}
 	return (int)((s64)time * percent / 100);
@@ -625,7 +652,9 @@ int GAMEPROG_AdventureTimeLimit(int time)
 // can never disagree about what the round demands.
 int GAMEPROG_RelicTargetTime(int levelID, int tier)
 {
-	int soloTime = data.RelicTime[levelID * GAMEPROG_RELIC_TIER_COUNT + tier];
+	const struct NativeTrackMetadata *customTrack = NativeTrackRegistry_Get(NativeTrackLibrary_Current(), levelID);
+	int soloTime = customTrack != NULL ? NativeTrackLibrary_RelicTargetTime(customTrack, tier) :
+	    data.RelicTime[levelID * GAMEPROG_RELIC_TIER_COUNT + tier];
 
 	if (MainGameEnd_IsCoopRace(GAME_TRACKER))
 	{

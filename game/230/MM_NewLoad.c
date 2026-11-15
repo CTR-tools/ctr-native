@@ -2,9 +2,9 @@
 
 extern void MM_ChaosConfig_OnEnter(void);
 
-static const enum AdventureDifficulty s_advDifficultyRows[] = {
-	ADV_DIFFICULTY_EASY, ADV_DIFFICULTY_NORMAL, ADV_DIFFICULTY_HARD,
-	ADV_DIFFICULTY_SUPER_HARD, ADV_DIFFICULTY_ULTRA_HARD,
+static const enum DifficultyLevel s_advDifficultyRows[] = {
+	DIFFICULTY_EASY, DIFFICULTY_NORMAL, DIFFICULTY_HARD,
+	DIFFICULTY_SUPER_HARD, DIFFICULTY_ULTRA_HARD,
 };
 
 static int MM_NewLoad_DifficultyRow(void)
@@ -150,7 +150,7 @@ static bool MM_NewLoad_InChain(void)
 static void MM_NewLoad_Begin(struct RectMenu *parent)
 {
 	sdata->newLoad = (struct NewLoadState){0};
-	sdata->advDifficulty = ADV_DIFFICULTY_NORMAL;
+	sdata->advDifficulty = DIFFICULTY_NORMAL;
 	// Every new file starts Regular with fresh defaults, even when the prompt is disabled.
 	GAMEPROG_ResetChaosSettings(&sdata->chaosSettings);
 	MM_NewLoad_PrepareDifficulty();
