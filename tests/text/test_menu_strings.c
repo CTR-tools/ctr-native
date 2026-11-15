@@ -7,12 +7,12 @@ int LOAD_RetailDiscActive(void) { return 0; }
 
 #include <platform/text/native_text_runtime.h>
 void NativeTextRuntime_Reload(int slot) { (void)slot; }
-static const char *const s_testExpanded[] = {"Mode", "Chaos", "Regular", "Chaos Rules", "Super Hard", "Ultra Hard",
-                                             "PRESS START TO SKIP", "NO PREVIEW", "CHAOS SETUP", "CHAOS EFFECTS",
-	                                             "Duration", "Trigger", "Interval",
-	                                             "Effects", "Confirm", "Active Effects", "Random", "Pickup", "External",
-	                                             "Automatic", "Disabled", "SELECT DEVICE", "DEVICE", "Vibration",
-	                                             "Deadzone", "Restore Defaults", "None"};
+static const char *const s_testExpanded[LNG_EXPANDED_STRING_COUNT] = {
+	[LNG_EXPANDED_MODE - LNG_EXPANDED_STRING_BASE] = "Mode",
+	[LNG_EXPANDED_CHAOS - LNG_EXPANDED_STRING_BASE] = "Chaos",
+	[LNG_EXPANDED_REGULAR - LNG_EXPANDED_STRING_BASE] = "Regular",
+	[LNG_EXPANDED_CHAOS_RULES - LNG_EXPANDED_STRING_BASE] = "Chaos Rules",
+};
 const char *NativeTextRuntime_Get(enum NativeTextSource source, int key)
 {
 	int index = key - LNG_EXPANDED_STRING_BASE;

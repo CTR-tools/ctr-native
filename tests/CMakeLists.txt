@@ -79,6 +79,21 @@ ctr_add_test_suite(test_text_catalog
     LIBRARIES tomlc17
 )
 
+set(CTR_TEXT_LENGTH_CATALOGS "")
+foreach(catalog IN LISTS CTR_SHIPPED_TEXT_CATALOGS)
+    if(catalog MATCHES "/(retail|expanded)\\.toml$")
+        string(APPEND CTR_TEXT_LENGTH_CATALOGS "    {\"${catalog}\", NATIVE_TEXT_CATALOG_${CMAKE_MATCH_1}},\n")
+    endif()
+endforeach()
+string(REPLACE "NATIVE_TEXT_CATALOG_retail" "NATIVE_TEXT_CATALOG_RETAIL" CTR_TEXT_LENGTH_CATALOGS "${CTR_TEXT_LENGTH_CATALOGS}")
+string(REPLACE "NATIVE_TEXT_CATALOG_expanded" "NATIVE_TEXT_CATALOG_EXPANDED" CTR_TEXT_LENGTH_CATALOGS "${CTR_TEXT_LENGTH_CATALOGS}")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_length_catalogs.h" CONTENT "${CTR_TEXT_LENGTH_CATALOGS}")
+ctr_add_test_suite(test_text_lengths
+    SOURCES text/test_text_lengths.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/config/native_config.c
+    LIBRARIES tomlc17
+)
+target_include_directories(test_text_lengths PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+
 ctr_add_test_suite(test_text_export
     SOURCES text/test_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_export.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c
     LIBRARIES tomlc17 SDL3::SDL3
