@@ -84,6 +84,8 @@ int NativeTrackRegistry_Add(struct NativeTrackRegistry *registry, const struct N
 	entry->metadata.detectionKnown = metadata->detectionKnown;
 	memcpy(entry->metadata.relicTimes, metadata->relicTimes, sizeof(entry->metadata.relicTimes));
 	entry->metadata.relicTimesSet = metadata->relicTimesSet;
+	entry->metadata.trackRomLodOverride = metadata->trackRomLodOverride;
+	entry->metadata.trackRomLodDetected = metadata->trackRomLodDetected;
 	if (entry->metadata.identity == NULL || entry->metadata.title == NULL || entry->metadata.levPath == NULL ||
 	    entry->metadata.vrmPath == NULL || (metadata->scaPath != NULL && metadata->scaPath[0] != '\0' && entry->metadata.scaPath == NULL) ||
 	    (metadata->author != NULL && metadata->author[0] != '\0' && entry->metadata.author == NULL) ||

@@ -74,9 +74,35 @@ static void TestDetectModes(void)
 	CTR_TEST_CHECK(!TrackDetect_Lev(bytes, 10, &modes), "a truncated header is unknown");
 }
 
+static void TestDetectTrackRomLod(void)
+{
+	CTR_TEST_SECTION("LEV distant texture detection");
+	unsigned char bytes[4 + 10000] = {0};
+	unsigned char *p = bytes + 4;
+	DetectWrite32(bytes, 10000);
+	DetectWrite32(p, 32);
+	DetectWrite32(p + 32, 100);
+	DetectWrite32(p + 44, 100);
+	for (int i = 0; i < 100; i++) { DetectWrite32(p + 100 + i * 92 + 64, 9500); }
+	p[9504] = 127; p[9509] = 127; p[9510] = 127; p[9511] = 127;
+	CTR_TEST_CHECK(TrackDetect_TrackRomLod(bytes, sizeof(bytes)), "mostly full-atlas textures select high detail");
+	p[9504] = 126; p[9510] = 126;
+	CTR_TEST_CHECK(!TrackDetect_TrackRomLod(bytes, sizeof(bytes)), "ordinary textures retain retail detail");
+	DetectWrite32(p + 100 + 64, 9999);
+	CTR_TEST_CHECK(!TrackDetect_TrackRomLod(bytes, sizeof(bytes)), "out-of-range texture pointers do not trigger the heuristic");
+	struct NativeTrackMetadata track = {0};
+	track.trackRomLodDetected = 1;
+	CTR_TEST_CHECK(NativeTrackLibrary_TrackRomLod(&track), "auto follows detection");
+	track.trackRomLodOverride = NATIVE_TRACK_ROM_LOD_OFF;
+	CTR_TEST_CHECK(!NativeTrackLibrary_TrackRomLod(&track), "off overrides detection");
+	track.trackRomLodDetected = 0; track.trackRomLodOverride = NATIVE_TRACK_ROM_LOD_ON;
+	CTR_TEST_CHECK(NativeTrackLibrary_TrackRomLod(&track), "on overrides detection");
+}
+
 int main(void)
 {
 	TestDetectModes();
+	TestDetectTrackRomLod();
 	char root[1024], track[1100], path[1200];
 	CtrTestScratch_Open(root, sizeof(root), "test-track-library", NULL);
 	snprintf(track, sizeof(track), "%s/track", root);
@@ -129,6 +155,17 @@ int main(void)
 	CTR_TEST_CHECK(relicScan != NULL && result.installed == 0 && result.rejected == 1, "an invalid explicit threshold rejects the track manifest");
 	NativeTrackRegistry_Destroy(relicScan);
 	WriteFixture(track, "track.ini", "id=test:track\ntitle=Test Track\nauthor=Track Author\n");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetTrackRomLod(metadata, NATIVE_TRACK_ROM_LOD_OFF), "detail override is persisted");
+	struct NativeTrackRegistry *withDetail = NativeTrackLibrary_Scan(root, NULL);
+	const struct NativeTrackMetadata *detail = NativeTrackRegistry_Get(withDetail, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(detail != NULL && detail->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_OFF, "the detail override survives a rescan");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetDetails(detail, detail->title, detail->author), "editing metadata retains detail preference");
+	NativeTrackRegistry_Destroy(withDetail);
+	withDetail = NativeTrackLibrary_Scan(root, NULL);
+	detail = NativeTrackRegistry_Get(withDetail, NATIVE_TRACK_CUSTOM_ID_BASE);
+	CTR_TEST_CHECK(detail != NULL && detail->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_OFF, "detail preference survives a metadata rewrite");
+	CTR_TEST_CHECK(NativeTrackLibrary_SetTrackRomLod(detail, NATIVE_TRACK_ROM_LOD_AUTO), "automatic mode removes the override");
+	NativeTrackRegistry_Destroy(withDetail);
 	CTR_TEST_SECTION("music selection persistence");
 	CTR_TEST_CHECK(NativeTrackLibrary_Music(metadata) == -1,
 	               "missing selection retains the original audio fallback");

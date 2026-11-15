@@ -136,6 +136,37 @@ static int TrackDetect_File(const char *path, unsigned int *modes)
 	return known;
 }
 
+/* Large shared atlas rectangles are a hint, not proof, that low LOD is unusable. */
+static int TrackDetect_TrackRomLod(const unsigned char *bytes, size_t size)
+{
+	if (bytes == NULL || size < 8) { return 0; }
+	uint32_t end = TrackDetect_Read32(bytes);
+	if (end > size - 4 || end < 4) { return 0; }
+	const unsigned char *p = bytes + 4;
+	uint32_t mesh = TrackDetect_Read32(p);
+	if (mesh > end || end - mesh < 16) { return 0; }
+	uint32_t count = TrackDetect_Read32(p + mesh);
+	uint32_t quads = TrackDetect_Read32(p + mesh + 12);
+	if (count < 100 || quads > end || count > (end - quads) / 92) { return 0; }
+	uint32_t matches = 0;
+	for (uint32_t i = 0; i < count; i++)
+	{
+		uint32_t tex = TrackDetect_Read32(p + quads + i * 92 + 64);
+		if (tex > end || end - tex < 12) { return 0; }
+		const unsigned char *t = p + tex;
+		unsigned int minU = 255, maxU = 0, minV = 255, maxV = 0;
+		const int offsets[] = {0, 4, 8, 10};
+		for (int j = 0; j < 4; j++)
+		{
+			unsigned int u = t[offsets[j]], v = t[offsets[j] + 1];
+			if (u < minU) { minU = u; } if (u > maxU) { maxU = u; }
+			if (v < minV) { minV = v; } if (v > maxV) { maxV = v; }
+		}
+		if (minU == 0 && maxU == 127 && minV == 0 && maxV == 127) { matches++; }
+	}
+	return matches >= count - count / 4;
+}
+
 static int NativeTrackLibrary_Join(char *output, size_t size, const char *directory, const char *name)
 {
 	int length = snprintf(output, size, "%s/%s", directory, name);
@@ -168,8 +199,8 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 	{
 		return 0;
 	}
-	char fields[7][NATIVE_TRACK_FIELD_MAX + 7] = {{0}};
-	const char *keys[] = {"id", "title", "author", "music", "relic_sapphire", "relic_gold", "relic_platinum"};
+	char fields[8][NATIVE_TRACK_FIELD_MAX + 7] = {{0}};
+	const char *keys[] = {"id", "title", "author", "music", "relic_sapphire", "relic_gold", "relic_platinum", "trackrom_lod"};
 	unsigned int seen = 0;
 	char line[NATIVE_TRACK_LINE_MAX];
 	int valid = 1;
@@ -193,6 +224,7 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 		}
 		*separator = '\0';
 		key = NativeTrackLibrary_Trim(key);
+		if (strcmp(key, "high_detail") == 0) { key = "trackrom_lod"; }
 		char *value = NativeTrackLibrary_Trim(separator + 1);
 		size_t index = 0;
 		while (index < SDL_arraysize(keys) && strcmp(key, keys[index]) != 0)
@@ -278,6 +310,16 @@ int NativeTrackLibrary_ReadDirectory(struct NativeTrackRegistry *registry, const
 		}
 	}
 	metadata.detectionKnown = TrackDetect_File(paths[0], &metadata.detectedModes);
+	metadata.trackRomLodOverride = strcmp(fields[7], "on") == 0 ? NATIVE_TRACK_ROM_LOD_ON :
+	                              strcmp(fields[7], "off") == 0 ? NATIVE_TRACK_ROM_LOD_OFF : NATIVE_TRACK_ROM_LOD_AUTO;
+	SDL_PathInfo levInfo;
+	if (SDL_GetPathInfo(paths[0], &levInfo) && levInfo.size <= TRACK_DETECT_MAX_BYTES)
+	{
+		size_t levSize = 0;
+		unsigned char *lev = SDL_LoadFile(paths[0], &levSize);
+		metadata.trackRomLodDetected = TrackDetect_TrackRomLod(lev, levSize);
+		SDL_free(lev);
+	}
 	return NativeTrackRegistry_Add(registry, &metadata, NULL);
 }
 
@@ -480,10 +522,28 @@ static int NativeTrackLibrary_WriteFields(const struct NativeTrackMetadata *trac
 			ok = fprintf(file, "%s = %s\n", relicKeys[i], time) > 0;
 		}
 	}
+	if (ok && track->trackRomLodOverride != NATIVE_TRACK_ROM_LOD_AUTO)
+	{
+		ok = fprintf(file, "trackrom_lod = %s\n", track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_ON ? "on" : "off") > 0;
+	}
 	if (fclose(file) != 0) { ok = 0; }
 	if (ok) { ok = SDL_RenamePath(temporary, path); }
 	if (!ok) { SDL_RemovePath(temporary); }
 	return ok;
+}
+
+int NativeTrackLibrary_TrackRomLod(const struct NativeTrackMetadata *track)
+{
+	return track != NULL && (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_ON ||
+	                         (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_AUTO && track->trackRomLodDetected));
+}
+
+int NativeTrackLibrary_SetTrackRomLod(const struct NativeTrackMetadata *track, int mode)
+{
+	if (track == NULL || mode < NATIVE_TRACK_ROM_LOD_AUTO || mode >= NATIVE_TRACK_ROM_LOD_COUNT) { return 0; }
+	struct NativeTrackMetadata copy = *track;
+	copy.trackRomLodOverride = mode;
+	return NativeTrackLibrary_WriteFields(&copy, track->title, track->author != NULL ? track->author : "", track->music);
 }
 
 int NativeTrackLibrary_SetDetails(const struct NativeTrackMetadata *track, const char *title, const char *author)

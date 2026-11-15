@@ -162,6 +162,7 @@ int MM_TrackImport_GetReview(struct TrackImportReviewView *view)
 	    .musicSource = LANG_GetString(custom ? LNG_EXPANDED_TRACKS_CUSTOM : LNG_EXPANDED_TRACKS_RETAIL),
 	    .musicTrack = custom ? NULL : sdata->lngStrings[data.metaDataLEV[choice].name_LNG],
 	    .musicIndex = custom ? choice + 1 : 0,
+	    .trackRomLodOverride = track->trackRomLodOverride, .trackRomLodEnabled = NativeTrackLibrary_TrackRomLod(track),
 	    .included = NativeTrackPatch_ReviewIncluded(track->identity), .includedCount = MM_TrackImport_IncludedCount(),
 	    .relicAvailable = NativeTrackLibrary_AllowsDetectedMode(track, NATIVE_TRACK_DETECTED_RELIC),
 	};
@@ -270,6 +271,14 @@ static void MM_TrackImport_ReviewUpdate(u32 buttons)
 	int back = FullScreenMenu_Back(buttons);
 	int confirm = !back && FullScreenMenu_Confirm(buttons);
 	int count = (int)NativeTrackRegistry_Count(s_trackReviewRegistry);
+	if (!back && s_trackReviewRow == TRACK_REVIEW_TRACKROM_LOD && ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
+	{
+		int mode = (track->trackRomLodOverride + ((buttons & BTN_LEFT) ? NATIVE_TRACK_ROM_LOD_COUNT - 1 : 1)) % NATIVE_TRACK_ROM_LOD_COUNT;
+		if (!NativeTrackLibrary_SetTrackRomLod(track, mode)) { s_trackImportMessage = LNG_EXPANDED_TRACKS_SAVE_DETAILS_FAILED; }
+		else if (!MM_TrackImport_ReviewRescan(track->identity)) { s_trackImportMessage = LNG_EXPANDED_TRACKS_REFRESH_REVIEW_FAILED; }
+		else { s_trackImportMessage = LNG_TRACK_RESULT_OK; }
+		return;
+	}
 	if (!back && s_trackReviewRow == TRACK_REVIEW_INCLUDE && ((buttons & (BTN_LEFT | BTN_RIGHT)) != 0 || confirm))
 	{
 		if (!NativeTrackPatch_ReviewSetIncluded(track->identity, !NativeTrackPatch_ReviewIncluded(track->identity)))

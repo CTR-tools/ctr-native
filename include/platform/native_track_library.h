@@ -45,6 +45,8 @@ void NativeTrackLibrary_FormatRelicTime(unsigned int hundredths, char *text, siz
 unsigned int NativeTrackLibrary_RelicTime(const struct NativeTrackMetadata *track, int tier);
 int NativeTrackLibrary_RelicTargetTime(const struct NativeTrackMetadata *track, int tier);
 int NativeTrackLibrary_SetRelicTime(const struct NativeTrackMetadata *track, int tier, const char *text);
+int NativeTrackLibrary_TrackRomLod(const struct NativeTrackMetadata *track);
+int NativeTrackLibrary_SetTrackRomLod(const struct NativeTrackMetadata *track, int mode);
 /* Unknown source modes remain selectable; explicit lists must include time_trial. */
 /* Arcade and VS require positive LEV detection, not just source tags. */
 int NativeTrackLibrary_AllowsDetectedMode(const struct NativeTrackMetadata *track, unsigned int mode);

@@ -137,6 +137,10 @@ int NativeTrackLibrary_SetDetails(const struct NativeTrackMetadata *track, const
 { (void)track; snprintf(s_savedTitle, sizeof(s_savedTitle), "%s", title); snprintf(s_savedAuthor, sizeof(s_savedAuthor), "%s", author); return 1; }
 int NativeTrackLibrary_SetMusic(const struct NativeTrackMetadata *track, int retail, int custom)
 { (void)track; (void)custom; s_savedMusic = retail; return 1; }
+int NativeTrackLibrary_TrackRomLod(const struct NativeTrackMetadata *track)
+{ return track != NULL && (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_ON || (track->trackRomLodOverride == NATIVE_TRACK_ROM_LOD_AUTO && track->trackRomLodDetected)); }
+int NativeTrackLibrary_SetTrackRomLod(const struct NativeTrackMetadata *track, int mode)
+{ (void)track; (void)mode; return 1; }
 int NativeTrackRegistry_Find(const struct NativeTrackRegistry *registry, const char *identity, int *level)
 { (void)registry; (void)identity; if (level != NULL) { *level = NATIVE_TRACK_CUSTOM_ID_BASE; } return 1; }
 int NativeTextEdit_BeginForGame(const char *initial, size_t maxBytes) { (void)initial; (void)maxBytes; s_editResult = NATIVE_TEXT_EDIT_ACTIVE; return 1; }
