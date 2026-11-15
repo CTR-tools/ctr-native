@@ -1,6 +1,11 @@
 // Retail string identifiers and their NTSC-U indices.
-RETAIL_TEXT_KEY(LNG_PAUSED, 0x000)                     // PAUSED
-RETAIL_TEXT_KEY(LNG_RESTART, 0x001)                    // RESTART
+#ifndef RETAIL_TEXT_KEY_LIMIT
+#define RETAIL_TEXT_KEY_LIMIT(name, value, limit) RETAIL_TEXT_KEY(name, value)
+#define RETAIL_TEXT_KEY_LIMIT_LOCAL
+#endif
+#define RETAIL_TEXT_KEY_MENU_ENTRY(name, value) RETAIL_TEXT_KEY_LIMIT(name, value, TEXT_LIMIT_MENU_ENTRY)
+RETAIL_TEXT_KEY_MENU_ENTRY(LNG_PAUSED, 0x000)          // PAUSED
+RETAIL_TEXT_KEY(LNG_RESTART, 0x001)          // RESTART
 RETAIL_TEXT_KEY(LNG_RESUME, 0x002)                     // RESUME
 RETAIL_TEXT_KEY(LNG_QUIT, 0x003)                       // QUIT
 RETAIL_TEXT_KEY(LNG_RETRY, 0x004)                      // RETRY
@@ -587,3 +592,8 @@ RETAIL_TEXT_KEY(LNG_BEGINNER, 0x248)                                       // Be
 RETAIL_TEXT_KEY(LNG_INTERMEDIATE, 0x249)                                   // Intermediate
 RETAIL_TEXT_KEY(LNG_ADVANCED, 0x24a)                                       // Advanced
 RETAIL_TEXT_KEY(LNG_TURBOS, 0x24b)                                         // Turbos
+#undef RETAIL_TEXT_KEY_MENU_ENTRY
+#ifdef RETAIL_TEXT_KEY_LIMIT_LOCAL
+#undef RETAIL_TEXT_KEY_LIMIT
+#undef RETAIL_TEXT_KEY_LIMIT_LOCAL
+#endif
