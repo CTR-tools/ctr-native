@@ -354,9 +354,11 @@ void MM_ToggleRows_PlayerCount(void)
 	s16 rowIndex;
 	s16 selectablePlayerCountRows = MM_PLAYER_1P2P_SELECTABLE_ROWS;
 	const b32 adventurePlayerCountSelection = (GAME_TRACKER->gameMode1 & ADVENTURE_MODE) != 0 && g_config.expandedAdventureOptions;
+	const b32 extraArcadePlayerCountSelection = (GAME_TRACKER->gameMode1 & ARCADE_MODE) != 0 &&
+	    ((GAME_TRACKER->gameMode1 & (RELIC_RACE | CRYSTAL_CHALLENGE)) != 0 || (GAME_TRACKER->gameMode2 & TOKEN_RACE) != 0);
 	struct MenuRow *playerCountRows = MM_ROWS_PLAYERS_1P2P;
 
-	if (g_config.extendedMultiplayer && !adventurePlayerCountSelection)
+	if (g_config.extendedMultiplayer && !adventurePlayerCountSelection && !extraArcadePlayerCountSelection)
 	{
 		playerCountRows = MM_ROWS_PLAYERS_1P2P3P4P;
 		selectablePlayerCountRows = MM_PLAYER_1P2P3P4P_SELECTABLE_ROWS;
@@ -719,11 +721,7 @@ void MM_MenuProc_SingleCup(struct RectMenu *menu)
 			GAME_TRACKER->gameMode1 |= CRYSTAL_CHALLENGE;
 			break;
 		}
-		GAME_TRACKER->numPlyrNextGame = 1;
 		GAME_TRACKER->numLaps = MM_DEFAULT_LAP_COUNT;
-		menu->ptrNextBox_InHierarchy = &MM_MENU_DIFFICULTY;
-		menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;
-		return;
 	}
 
 	menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;
