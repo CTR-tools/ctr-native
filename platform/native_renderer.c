@@ -14,7 +14,7 @@
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
 #include "platform/custom-tracks/native_track_map.h"
-#include "platform/native_render_scale.h"
+#include "platform/graphics/native_render_scale.h"
 #include "platform/config/native_config.h"
 
 #include <assert.h>

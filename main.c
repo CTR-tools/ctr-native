@@ -23,7 +23,7 @@
 #define ExitCriticalSection()
 
 #include "platform/native_assets.h"
-#include "platform/native_antialiasing.h"
+#include "platform/graphics/native_antialiasing.h"
 #include "platform/config/native_controls.h"
 #include "platform/native_log.h"
 #include "platform/native_memory.h"
@@ -89,7 +89,7 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_platform.c"
 #include "platform/native_replay_scheduler.c"
 #include "platform/native_renderer.c"
-#include "platform/native_antialiasing.c"
+#include "platform/graphics/native_antialiasing.c"
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"

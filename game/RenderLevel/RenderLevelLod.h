@@ -2,7 +2,7 @@
 #define CTR_RENDER_LEVEL_LOD_H
 
 #include <common.h>
-#include <platform/native_draw_distance.h>
+#include <platform/graphics/native_draw_distance.h>
 
 enum RenderLevelLod2PConstants
 {

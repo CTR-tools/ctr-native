@@ -10,7 +10,7 @@
 #include "platform/native_log.h"
 #include "platform/native_perf.h"
 #include "platform/native_renderer.h"
-#include "platform/native_render_scale.h"
+#include "platform/graphics/native_render_scale.h"
 #include "platform/native_replay_scheduler.h"
 #include "platform/native_savestate.h"
 

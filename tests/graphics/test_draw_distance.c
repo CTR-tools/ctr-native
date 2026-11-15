@@ -1,5 +1,5 @@
 // Pins the increase_draw_distance contract in
-// include/platform/native_draw_distance.h.
+// include/platform/graphics/native_draw_distance.h.
 //
 // The header is header-only and every helper is pure, so this suite needs none
 // of the platform unit and builds as a single file against the shared harness.
@@ -11,7 +11,7 @@
 
 #include <shared/ctr_test.h>
 
-#include <platform/native_draw_distance.h>
+#include <platform/graphics/native_draw_distance.h>
 
 // A value each helper is given, chosen so that dividing and multiplying it by
 // the factor are distinguishable from returning it untouched.

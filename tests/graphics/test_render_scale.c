@@ -1,5 +1,5 @@
 // Pins the render-scale coordinate contract in
-// include/platform/native_render_scale.h.
+// include/platform/graphics/native_render_scale.h.
 //
 // The header is header-only, so this suite needs none of the platform unit and
 // builds as a single file against the shared harness.
@@ -9,7 +9,7 @@
 
 #include <shared/ctr_test.h>
 
-#include <platform/native_render_scale.h>
+#include <platform/graphics/native_render_scale.h>
 
 int main(void)
 {

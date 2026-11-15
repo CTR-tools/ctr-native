@@ -175,7 +175,7 @@ ctr_add_test_suite(test_config_menu
 )
 
 ctr_add_test_suite(test_render_scale
-    SOURCES test_render_scale.c
+    SOURCES graphics/test_render_scale.c
 )
 
 ctr_add_test_suite(test_race_field
@@ -284,7 +284,7 @@ target_compile_definitions(test_memtrack PRIVATE CTR_DIAGNOSTICS)
 
 # Header-only, so it needs none of the platform unit.
 ctr_add_test_suite(test_draw_distance
-    SOURCES test_draw_distance.c
+    SOURCES graphics/test_draw_distance.c
 )
 
 ctr_add_test_suite(test_level_lod

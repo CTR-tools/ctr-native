@@ -1,5 +1,5 @@
 #include <common.h>
-#include <platform/native_draw_distance.h>
+#include <platform/graphics/native_draw_distance.h>
 #include <platform/native_pgxp.h>
 
 int MainDB_GetClipSize(u32 levelID, int numPlyrCurrGame)

@@ -2,7 +2,7 @@
 #define NATIVE_ANTIALIASING_H
 
 // Presentation-time antialiasing for the presented frame, implemented in
-// platform/native_antialiasing.c.
+// platform/graphics/native_antialiasing.c.
 //
 // These passes run after the frame is finished: they resolve the edges of the
 // source the renderer was about to present, then blit the result into the

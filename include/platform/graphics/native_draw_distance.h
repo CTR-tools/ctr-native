@@ -11,7 +11,7 @@
 //
 // Each helper is pure: it takes retail's own value plus the flag, reads no
 // global, and returns the value the caller should use. That is what lets them be
-// tested off-line — see tests/test_draw_distance.c.
+// tested off-line — see tests/graphics/test_draw_distance.c.
 
 #define NATIVE_DRAW_DISTANCE_SCALE 4
 
