@@ -71,7 +71,9 @@ void Platform_LogWarn(const char *fmt, ...)
 //
 // Order matters: native_input.c reads the assignment from native_controls.c,
 // which reads its defaults from native_config.c.
+#include <platform/config/native_config_ini.c>
 #include <platform/config/native_config.c>
+#include <platform/config/native_profile.c>
 #include <platform/config/native_controls.c>
 #include <platform/native_input.c>
 

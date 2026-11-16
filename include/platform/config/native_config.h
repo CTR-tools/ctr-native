@@ -168,13 +168,5 @@ typedef enum {
 // Apply only the keys present in the file. Invalid files leave g_config intact.
 ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path);
 
-typedef enum {
-    CONFIG_PROFILE_VANILLA,
-    CONFIG_PROFILE_EXPANDED,
-} ConfigProfile;
-
-// The profile is stored independently of config.ini. On failure, *profile is unchanged.
-ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile);
-bool NativeConfig_SaveProfile(ConfigProfile profile);
 
 #endif

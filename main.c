@@ -94,7 +94,9 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
+#include "platform/config/native_config_ini.c"
 #include "platform/config/native_config.c"
+#include "platform/config/native_profile.c"
 #include "platform/config/native_controls.c"
 
 #ifndef CC

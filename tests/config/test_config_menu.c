@@ -17,6 +17,7 @@ s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 f
 	s_promptDraws++;
 	return 8;
 }
+#include <platform/config/native_config_ini.c>
 #include <platform/config/native_config.c>
 
 static struct GameTracker s_tracker;
