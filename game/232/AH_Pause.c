@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 #include "AH_UI.h"
 
 enum AHPauseIconGroupID
@@ -338,8 +339,8 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 			translation = (Vec3 *)member->inst->matrix.t;
 			translation->x = SelectProfile_UI_ConvertX(instPosX, AH_PAUSE_UI_COORD_SCALE);
 			translation->y = SelectProfile_UI_ConvertY(instPosY + AH_PAUSE_TOKEN_TOTAL_ICON_Y, AH_PAUSE_UI_COORD_SCALE);
-			SelectProfile_PrintInteger(totals[i], (s16)(instPosX + AH_PAUSE_TOKEN_TOTAL_NUMBER_X), instPosY + AH_PAUSE_TOKEN_TOTAL_NUMBER_Y, 0, 0);
-			DecalFont_DrawLine(AH_PAUSE_X_GLYPH, instPosX + AH_PAUSE_TOKEN_TOTAL_X_GLYPH_X, instPosY + AH_PAUSE_TOKEN_TOTAL_X_GLYPH_Y, FONT_SMALL, 0);
+			SelectProfile_PrintInteger(totals[i], (s16)(instPosX + Widescreen_ScaleWidth(AH_PAUSE_TOKEN_TOTAL_NUMBER_X)), instPosY + AH_PAUSE_TOKEN_TOTAL_NUMBER_Y, 0, 0);
+			DecalFont_DrawLine(AH_PAUSE_X_GLYPH, instPosX + Widescreen_ScaleWidth(AH_PAUSE_TOKEN_TOTAL_X_GLYPH_X), instPosY + AH_PAUSE_TOKEN_TOTAL_X_GLYPH_Y, FONT_SMALL, 0);
 		}
 		break;
 	}
@@ -367,8 +368,8 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 			translation = (Vec3 *)member->inst->matrix.t;
 			translation->x = SelectProfile_UI_ConvertX(instPosX, AH_PAUSE_UI_COORD_SCALE);
 			translation->y = SelectProfile_UI_ConvertY(AH_PAUSE_RELIC_TOTAL_Y, AH_PAUSE_UI_COORD_SCALE);
-			SelectProfile_PrintInteger(totals[i], (s16)(instPosX + AH_PAUSE_RELIC_TOTAL_NUMBER_X), AH_PAUSE_RELIC_TOTAL_Y, 0, 0);
-			DecalFont_DrawLine(AH_PAUSE_X_GLYPH, instPosX + AH_PAUSE_RELIC_TOTAL_X_GLYPH_X, AH_PAUSE_RELIC_TOTAL_X_GLYPH_Y, FONT_SMALL, 0);
+			SelectProfile_PrintInteger(totals[i], (s16)(instPosX + Widescreen_ScaleWidth(AH_PAUSE_RELIC_TOTAL_NUMBER_X)), AH_PAUSE_RELIC_TOTAL_Y, 0, 0);
+			DecalFont_DrawLine(AH_PAUSE_X_GLYPH, instPosX + Widescreen_ScaleWidth(AH_PAUSE_RELIC_TOTAL_X_GLYPH_X), AH_PAUSE_RELIC_TOTAL_X_GLYPH_Y, FONT_SMALL, 0);
 		}
 		sprintf(totalString, AH_PAUSE_TOTAL_FORMAT, GAME_LANGUAGE_STRINGS[LNG_TOTAL], totals[0] + totals[1] + totals[2]);
 		DecalFont_DrawLine(totalString, savedPosX + AH_PAUSE_TITLE_CENTER_X, AH_PAUSE_TOTAL_TEXT_Y, FONT_BIG, JUSTIFY_CENTER | ORANGE);

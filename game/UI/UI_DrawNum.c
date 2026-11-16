@@ -71,11 +71,11 @@ void UI_DrawNumTimebox(s16 posX, s16 posY, int collected)
 {
 	char string[UI_DRAWNUM_COUNTER_TEXT_BUFFER_SIZE];
 
-	DecalFont_DrawLine(UI_NUM_X, posX + UI_DRAWNUM_TIMEBOX_X_OFFSET_X, posY + UI_DRAWNUM_TIMEBOX_X_OFFSET_Y, FONT_SMALL, ORANGE);
+	DecalFont_DrawLine(UI_NUM_X, posX + Widescreen_ScaleWidth(UI_DRAWNUM_TIMEBOX_X_OFFSET_X), posY + UI_DRAWNUM_TIMEBOX_X_OFFSET_Y, FONT_SMALL, ORANGE);
 
 	sprintf(string, rdata.s_lapString, collected, CTR_PRINTF_PSX_LONG(GAME_TRACKER->timeCratesInLEV));
 
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_X, posY + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_Y, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_X), posY + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_Y, FONT_BIG, ORANGE);
 }
 
 // NOTE(aalhendi): Retail callers pass the driver through the shared HUD
@@ -97,7 +97,7 @@ void UI_DrawNumRelic(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver)
@@ -117,7 +117,7 @@ void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 void UI_DrawNumTrophy(s16 posX, s16 posY, struct Driver *driver)
@@ -137,7 +137,7 @@ void UI_DrawNumTrophy(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 // Crystal Challenge has a single shared counter, so co-op players pool pickups.
@@ -166,5 +166,5 @@ void UI_DrawNumCrystal(s16 posX, s16 posY)
 
 	sprintf(string, rdata.s_lapString, UI_Crystal_CountCollected(GAME_TRACKER), CTR_PRINTF_PSX_LONG(GAME_TRACKER->numCrystalsInLEV));
 
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
