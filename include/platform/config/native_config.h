@@ -161,6 +161,7 @@ void NativeConfig_ApplyDependencies(const ConfigEntry *changedEntry);
 
 typedef enum {
     CONFIG_LOAD_OK,
+    CONFIG_LOAD_NOT_FOUND,
     CONFIG_LOAD_FILE_ERROR,
     CONFIG_LOAD_INVALID,
 } ConfigLoadResult;

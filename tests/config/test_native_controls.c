@@ -1684,6 +1684,80 @@ static void TestVibrationPersistence(void)
 	}
 }
 
+static void TestProfileStartup(void)
+{
+	CTR_TEST_SECTION("startup loads the selected profile before config overrides");
+	char directory[512], profilePath[512], configPath[512], vanillaPath[512], expandedPath[512];
+	NativePath_Join(directory, sizeof(directory), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets"));
+	NativePath_Join(profilePath, sizeof(profilePath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("profile.ini"));
+	NativePath_Join(configPath, sizeof(configPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
+	NativePath_Join(vanillaPath, sizeof(vanillaPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets/vanilla.ini"));
+	NativePath_Join(expandedPath, sizeof(expandedPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets/expanded.ini"));
+	const NativeConfig initial = g_config;
+	remove(profilePath);
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_NO_PROFILE, "missing profile requests selection");
+	CTR_TEST_CHECK(SDL_CreateDirectory(directory), "scratch preset directory exists");
+	FILE *file = fopen(vanillaPath, "w");
+	CTR_TEST_CHECK(file != NULL, "Vanilla preset fixture can be written");
+	if (file == NULL) { return; }
+	fputs("[General]\nskip_intro = false\nshow_reserves_meter = true\n", file);
+	fclose(file);
+	file = fopen(expandedPath, "w");
+	CTR_TEST_CHECK(file != NULL, "Expanded preset fixture can be written");
+	if (file == NULL) { remove(vanillaPath); return; }
+	fputs("[General]\nskip_intro = true\nshow_reserves_meter = true\n", file);
+	fclose(file);
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "config fixture can be written");
+	if (file == NULL) { remove(vanillaPath); remove(expandedPath); return; }
+	fputs("[General]\nshow_reserves_meter = false\n", file);
+	fclose(file);
+	g_config.skipIntro = false;
+	g_config.showReservesMeter = false;
+	g_config.engineSelection = true;
+	CTR_TEST_CHECK(NativeProfile_Select(CONFIG_PROFILE_EXPANDED, false) == CONFIG_LOAD_OK,
+	               "profile can be selected for future defaults only");
+	CTR_TEST_CHECK(!g_config.skipIntro && !g_config.showReservesMeter && g_config.engineSelection,
+	               "future-default selection preserves every current option");
+	ConfigProfile selected = CONFIG_PROFILE_VANILLA;
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&selected) == CONFIG_LOAD_OK && selected == CONFIG_PROFILE_EXPANDED,
+	               "future-default selection persists the selected profile");
+	CTR_TEST_CHECK(NativeProfile_Select(CONFIG_PROFILE_EXPANDED, true) == CONFIG_LOAD_OK,
+	               "selected preset can be applied");
+	CTR_TEST_CHECK(g_config.skipIntro && g_config.showReservesMeter && g_config.engineSelection,
+	               "applying a preset changes only its listed options");
+	CTR_TEST_CHECK(NativeProfile_Select((ConfigProfile)99, true) == CONFIG_LOAD_INVALID,
+	               "invalid profile selection is rejected");
+	CTR_TEST_CHECK(NativeConfig_SaveProfile(CONFIG_PROFILE_EXPANDED), "Expanded profile can be selected");
+	g_config.skipIntro = false;
+	g_config.showReservesMeter = true;
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_READY && NativeProfile_GetStartupStatus() == PROFILE_STARTUP_READY,
+	               "selected Expanded preset loads successfully");
+	CTR_TEST_CHECK(g_config.skipIntro && !g_config.showReservesMeter, "config overrides only its explicit value");
+	CTR_TEST_CHECK(NativeConfig_SaveProfile(CONFIG_PROFILE_VANILLA), "Vanilla profile can be selected");
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_READY && !g_config.skipIntro,
+	               "Vanilla selection loads the Vanilla preset");
+	remove(vanillaPath);
+	CTR_TEST_CHECK(NativeProfile_Select(CONFIG_PROFILE_VANILLA, true) == CONFIG_LOAD_NOT_FOUND,
+	               "missing preset cannot be selected");
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&selected) == CONFIG_LOAD_OK && selected == CONFIG_PROFILE_VANILLA,
+	               "failed selection preserves the previously saved profile");
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_PRESET_ERROR, "missing preset is reported without stopping startup");
+	file = fopen(profilePath, "w");
+	CTR_TEST_CHECK(file != NULL, "invalid profile fixture can be written");
+	if (file != NULL)
+	{
+		fputs("[Profile]\nactive = Unknown\n", file);
+		fclose(file);
+		CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_INVALID_PROFILE, "invalid profile is reported");
+	}
+	remove(profilePath);
+	remove(configPath);
+	remove(expandedPath);
+	SDL_RemovePath(directory);
+	g_config = initial;
+}
+
 static void TestDeveloperDefaultsAreImmutable(void)
 {
 	CTR_TEST_SECTION("developer defaults do not depend on load order");
@@ -1725,7 +1799,8 @@ static void TestConfigPresetPrecedence(void)
 	fclose(file);
 	g_config.showReservesMeter = false;
 	g_config.skipIntro = false;
-	CTR_TEST_CHECK(NativeProfile_LoadConfiguration(presetPath) == CONFIG_LOAD_OK, "valid preset loads");
+	CTR_TEST_CHECK(NativeConfig_ReadPresetDefaults(presetPath) == CONFIG_LOAD_OK, "valid preset loads");
+	NativeConfig_Load();
 	CTR_TEST_CHECK(!g_config.showReservesMeter && g_config.skipIntro,
 	               "explicit config value wins while a missing value uses the preset");
 	file = fopen(presetPath, "w");
@@ -1736,7 +1811,8 @@ static void TestConfigPresetPrecedence(void)
 		fclose(file);
 		g_config.skipIntro = false;
 		g_config.showReservesMeter = true;
-		CTR_TEST_CHECK(NativeProfile_LoadConfiguration(presetPath) == CONFIG_LOAD_INVALID, "invalid preset is reported");
+		CTR_TEST_CHECK(NativeConfig_ReadPresetDefaults(presetPath) == CONFIG_LOAD_INVALID, "invalid preset is reported");
+		NativeConfig_Load();
 		CTR_TEST_CHECK(!g_config.skipIntro && !g_config.showReservesMeter,
 		               "invalid preset is discarded and the user's configuration still loads");
 	}
@@ -1752,7 +1828,7 @@ static void TestProfileFile(void)
 	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("profile.ini"));
 	remove(path);
 	ConfigProfile profile = CONFIG_PROFILE_EXPANDED;
-	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_FILE_ERROR, "missing profile reports a file error");
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_NOT_FOUND, "missing profile is reported");
 	CTR_TEST_CHECK(profile == CONFIG_PROFILE_EXPANDED, "missing profile does not alter the output");
 	CTR_TEST_CHECK(NativeConfig_SaveProfile(CONFIG_PROFILE_VANILLA), "Vanilla profile is saved");
 	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_OK && profile == CONFIG_PROFILE_VANILLA,
@@ -1843,7 +1919,7 @@ static void TestPresetFile(void)
 		               "invalid preset does not partially alter configuration");
 	}
 	remove(path);
-	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(path) == CONFIG_LOAD_FILE_ERROR, "missing preset reports a file error");
+	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(path) == CONFIG_LOAD_NOT_FOUND, "missing preset is reported");
 	g_config = initial;
 }
 
@@ -1892,6 +1968,7 @@ int main(void)
 
 	CTR_TEST_SECTION("native_controls tests");
 	TestDeveloperDefaultsAreImmutable();
+	TestProfileStartup();
 	TestConfigPresetPrecedence();
 	TestProfileFile();
 	TestPresetFile();

@@ -16,21 +16,30 @@ static const ConfigEntry kProfileEntry = {
     .numEnumValues = sizeof(kProfileValues) / sizeof(kProfileValues[0]),
 };
 
+static NativeProfileStartupStatus s_profileStartupStatus = PROFILE_STARTUP_NO_PROFILE;
+
+static bool NativeProfile_PresetPath(ConfigProfile profile, char *path, size_t pathSize)
+{
+    const char *relativePath;
+    switch (profile)
+    {
+        case CONFIG_PROFILE_VANILLA:
+            relativePath = "presets/vanilla.ini";
+            break;
+        case CONFIG_PROFILE_EXPANDED:
+            relativePath = "presets/expanded.ini";
+            break;
+        default:
+            return false;
+    }
+    NativePath_Join(path, pathSize, NativeStr8_FromCString(NativeAssets_GetBaseDir()), NativeStr8_FromCString(relativePath));
+    return true;
+}
+
 static void *NativeProfile_Destination(const ConfigEntry *entry, void *context)
 {
     (void)entry;
     return context;
-}
-
-ConfigLoadResult NativeProfile_LoadConfiguration(const char *presetPath)
-{
-    ConfigLoadResult result = CONFIG_LOAD_OK;
-    if (presetPath != NULL)
-    {
-        result = NativeConfig_ReadPresetDefaults(presetPath);
-    }
-    NativeConfig_Load();
-    return result;
 }
 
 ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile)
@@ -76,4 +85,59 @@ bool NativeConfig_SaveProfile(ConfigProfile profile)
         written = false;
     }
     return fclose(file) == 0 && written;
+}
+
+ConfigLoadResult NativeProfile_Select(ConfigProfile profile, bool apply)
+{
+    char path[512];
+    if (!NativeProfile_PresetPath(profile, path, sizeof(path)))
+    {
+        return CONFIG_LOAD_INVALID;
+    }
+    NativeConfig previous = g_config;
+    ConfigLoadResult result = NativeConfig_ApplyPresetFile(path);
+    if (result != CONFIG_LOAD_OK)
+    {
+        return result;
+    }
+    if (!NativeConfig_SaveProfile(profile))
+    {
+        g_config = previous;
+        return CONFIG_LOAD_FILE_ERROR;
+    }
+    if (!apply)
+    {
+        g_config = previous;
+    }
+    s_profileStartupStatus = PROFILE_STARTUP_READY;
+    return CONFIG_LOAD_OK;
+}
+
+NativeProfileStartupStatus NativeProfile_LoadStartup(void)
+{
+    ConfigProfile profile;
+    ConfigLoadResult profileResult = NativeConfig_LoadProfile(&profile);
+    if (profileResult != CONFIG_LOAD_OK)
+    {
+        s_profileStartupStatus = profileResult == CONFIG_LOAD_NOT_FOUND
+                                     ? PROFILE_STARTUP_NO_PROFILE : PROFILE_STARTUP_INVALID_PROFILE;
+    }
+    else
+    {
+        char path[512];
+        NativeProfile_PresetPath(profile, path, sizeof(path));
+        ConfigLoadResult presetResult = NativeConfig_ReadPresetDefaults(path);
+        s_profileStartupStatus = presetResult == CONFIG_LOAD_OK ? PROFILE_STARTUP_READY : PROFILE_STARTUP_PRESET_ERROR;
+        if (s_profileStartupStatus == PROFILE_STARTUP_PRESET_ERROR)
+        {
+            fprintf(stderr, "[Profile] Could not load preset: %s\n", path);
+        }
+    }
+    NativeConfig_Load();
+    return s_profileStartupStatus;
+}
+
+NativeProfileStartupStatus NativeProfile_GetStartupStatus(void)
+{
+    return s_profileStartupStatus;
 }

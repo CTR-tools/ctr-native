@@ -108,7 +108,10 @@ ConfigLoadResult NativeConfig_ReadFile(const char *path, void *context, ConfigDe
                                        ConfigParseOverride parseOverride)
 {
     FILE *file = fopen(path, "r");
-    if (file == NULL) { return CONFIG_LOAD_FILE_ERROR; }
+    if (file == NULL)
+    {
+        return errno == ENOENT ? CONFIG_LOAD_NOT_FOUND : CONFIG_LOAD_FILE_ERROR;
+    }
     ConfigLoadResult result = CONFIG_LOAD_OK;
     char line[256];
     char section[64] = "";

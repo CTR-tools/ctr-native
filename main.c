@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
 	}
 
 	NativeTextRuntime_DiscoverLanguages();
-	NativeConfig_Load();
+	NativeProfile_LoadStartup();
 	if (!NativeLanguageDisc_HasAnyText())
 	{
 		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
