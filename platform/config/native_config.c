@@ -3,6 +3,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <limits.h>
 #include <platform/config/native_config.h>
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
@@ -777,11 +779,6 @@ void NativeConfig_ApplyDependencies(const ConfigEntry *changedEntry)
     }
 }
 
-static bool ParseBool(const char *s)
-{
-    return strcmp(s, "true") == 0 || strcmp(s, "1") == 0;
-}
-
 static char *trimWhitespace(char *s)
 {
     while (isspace((unsigned char)*s))
@@ -795,6 +792,228 @@ static char *trimWhitespace(char *s)
     return s;
 }
 
+typedef enum
+{
+    CONFIG_PARSE_COMPATIBLE,
+    CONFIG_PARSE_STRICT,
+} ConfigParseMode;
+
+static bool NativeConfig_ParseBool(const char *value, bool *destination, ConfigParseMode mode)
+{
+    if (strcmp(value, "true") == 0 || strcmp(value, "1") == 0)
+    {
+        *destination = true;
+        return true;
+    }
+    if (mode == CONFIG_PARSE_COMPATIBLE || strcmp(value, "false") == 0 || strcmp(value, "0") == 0)
+    {
+        *destination = false;
+        return true;
+    }
+    return false;
+}
+
+static bool NativeConfig_ParseNumber(const char *value, int *destination)
+{
+    errno = 0;
+    char *end;
+    long number = strtol(value, &end, 10);
+    if (end == value || *end != '\0' || errno == ERANGE || number < INT_MIN || number > INT_MAX)
+    {
+        return false;
+    }
+    *destination = (int)number;
+    return true;
+}
+
+static bool NativeConfig_ParseInt(const ConfigEntry *entry, const char *value, int *destination, ConfigParseMode mode)
+{
+    if (mode == CONFIG_PARSE_COMPATIBLE)
+    {
+        *destination = atoi(value);
+        return true;
+    }
+    int number;
+    if (!NativeConfig_ParseNumber(value, &number) || number < entry->min || number > entry->max)
+    {
+        return false;
+    }
+    *destination = number;
+    return true;
+}
+
+static bool NativeConfig_ParseEnum(const ConfigEntry *entry, const char *value, int *destination, ConfigParseMode mode)
+{
+    if (entry->valuePtr == &g_config.textLanguage)
+    {
+        int slot = NativeTextRuntime_LanguageSlot(value);
+        if (slot >= 0)
+        {
+            *destination = slot;
+            return true;
+        }
+    }
+    for (int i = 0; i < entry->numEnumValues; i++)
+    {
+        if (strcmp(value, entry->enumValues[i].name) == 0)
+        {
+            *destination = entry->enumValues[i].value;
+            return true;
+        }
+    }
+
+    if (mode == CONFIG_PARSE_COMPATIBLE)
+    {
+        if (entry->valuePtr == &g_config.textLanguage)
+        {
+            char *end;
+            long slot = strtol(value, &end, 10);
+            *destination = end != value && *end == '\0' &&
+                           slot >= 0 && slot < NATIVE_TEXT_CUSTOM_FIRST &&
+                           NativeTextRuntime_LanguageId((int)slot) != NULL
+                               ? (int)slot : NATIVE_LANGUAGE_ENGLISH;
+        }
+        else
+        {
+            *destination = atoi(value);
+        }
+        return true;
+    }
+
+    int number;
+    if (!NativeConfig_ParseNumber(value, &number))
+    {
+        return false;
+    }
+    for (int i = 0; i < entry->numEnumValues; i++)
+    {
+        if (number == entry->enumValues[i].value)
+        {
+            *destination = number;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool NativeConfig_ParseValue(const ConfigEntry *entry, const char *value, NativeConfig *target, ConfigParseMode mode)
+{
+    size_t offset = (size_t)((const char *)entry->valuePtr - (const char *)&g_config);
+    char *destination = (char *)target + offset;
+    switch (entry->type)
+    {
+        case CFG_BOOL:
+            return NativeConfig_ParseBool(value, (bool *)destination, mode);
+        case CFG_INT:
+            return NativeConfig_ParseInt(entry, value, (int *)destination, mode);
+        case CFG_ENUM:
+            return NativeConfig_ParseEnum(entry, value, (int *)destination, mode);
+        case CFG_ACTION:
+        case CFG_SUBSECTION:
+        default:
+            return false;
+    }
+}
+
+static ConfigLoadResult NativeConfig_ReadFile(const char *path, NativeConfig *target, ConfigParseMode mode)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL)
+    {
+        return CONFIG_LOAD_FILE_ERROR;
+    }
+
+    ConfigLoadResult result = CONFIG_LOAD_OK;
+    char line[256];
+    char section[64] = "";
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        if (mode == CONFIG_PARSE_STRICT && strchr(line, '\n') == NULL && !feof(file))
+        {
+            result = CONFIG_LOAD_INVALID;
+            break;
+        }
+        char *p = trimWhitespace(line);
+        if (*p == '\0' || *p == ';' || *p == '#')
+        {
+            continue;
+        }
+        if (*p == '[')
+        {
+            char *end = strchr(p + 1, ']');
+            if (mode == CONFIG_PARSE_STRICT && (end == NULL || *trimWhitespace(end + 1) != '\0' || end == p + 1 || (size_t)(end - p - 1) >= sizeof(section)))
+            {
+                result = CONFIG_LOAD_INVALID;
+                break;
+            }
+            if (end != NULL)
+            {
+                *end = '\0';
+                strncpy(section, p + 1, sizeof(section) - 1);
+                section[sizeof(section) - 1] = '\0';
+            }
+            continue;
+        }
+        char *eq = strchr(p, '=');
+        if (eq == NULL)
+        {
+            if (mode == CONFIG_PARSE_STRICT)
+            {
+                result = CONFIG_LOAD_INVALID;
+                break;
+            }
+            continue;
+        }
+        *eq = '\0';
+        char *key = trimWhitespace(p);
+        char *value = trimWhitespace(eq + 1);
+        const ConfigEntry *entry = NULL;
+        for (int i = 0; i < g_numConfigEntries; i++)
+        {
+            if (strcmp(section, g_configEntries[i].section) == 0 && strcmp(key, g_configEntries[i].key) == 0)
+            {
+                entry = &g_configEntries[i];
+                break;
+            }
+        }
+        if (entry == NULL || entry->type == CFG_ACTION || entry->type == CFG_SUBSECTION)
+        {
+            if (mode == CONFIG_PARSE_STRICT)
+            {
+                result = CONFIG_LOAD_INVALID;
+                break;
+            }
+            continue;
+        }
+        if (!NativeConfig_ParseValue(entry, value, target, mode))
+        {
+            result = CONFIG_LOAD_INVALID;
+            break;
+        }
+    }
+    if (ferror(file))
+    {
+        result = CONFIG_LOAD_FILE_ERROR;
+    }
+    if (fclose(file) != 0)
+    {
+        result = CONFIG_LOAD_FILE_ERROR;
+    }
+    return result;
+}
+
+ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path)
+{
+    NativeConfig candidate = g_config;
+    ConfigLoadResult result = NativeConfig_ReadFile(path, &candidate, CONFIG_PARSE_STRICT);
+    if (result == CONFIG_LOAD_OK)
+    {
+        g_config = candidate;
+        NativeConfig_ResetDisabledDeveloperHacks();
+    }
+    return result;
+}
+
 void NativeConfig_Load(void)
 {
     // Must happen before the parse below (and before the config menu can edit
@@ -804,102 +1023,13 @@ void NativeConfig_Load(void)
     printf("[Config] Base:       %s\n", NativeAssets_GetBaseDir());
     char path[512];
     NativePath_Join(path, sizeof(path), NativeStr8_FromCString(NativeAssets_GetBaseDir()), NATIVE_STR8_LIT("config.ini"));
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        printf("[Config] config.ini NOT FOUND (%s)\n", path);
+    if (NativeConfig_ReadFile(path, &g_config, CONFIG_PARSE_COMPATIBLE) != CONFIG_LOAD_OK)
+    {
+        printf("[Config] Could not read config.ini (%s)\n", path);
         return;
     }
 
     printf("[Config] config.ini opened OK\n");
-
-    char line[256];
-    char section[64] = "";
-
-    while (fgets(line, sizeof(line), f))
-    {
-        char *p = trimWhitespace(line);
-
-        if (*p == '\0' || *p == ';' || *p == '#')
-            continue;
-
-        if (*p == '[')
-        {
-            char *end = strchr(p + 1, ']');
-            if (end)
-            {
-                *end = '\0';
-                strncpy(section, p + 1, sizeof(section) - 1);
-                section[sizeof(section) - 1] = '\0';
-            }
-            continue;
-        }
-
-        char *eq = strchr(p, '=');
-        if (!eq)
-            continue;
-
-        *eq = '\0';
-        char *key = trimWhitespace(p);
-        char *value = trimWhitespace(eq + 1);
-
-        for (int i = 0; i < g_numConfigEntries; i++)
-        {
-            const ConfigEntry *e = &g_configEntries[i];
-            if (strcmp(section, e->section) == 0 &&
-                strcmp(key, e->key) == 0)
-            {
-                if (e->type == CFG_ACTION || e->type == CFG_SUBSECTION)
-                {
-                    // Nothing to parse; the section is drawn by its own screen.
-                }
-                else if (e->type == CFG_BOOL)
-                    *(bool *)e->valuePtr = ParseBool(value);
-                else if (e->type == CFG_ENUM)
-                {
-                    int matched = 0;
-                    if (e->valuePtr == &g_config.textLanguage)
-                    {
-                        int slot = NativeTextRuntime_LanguageSlot(value);
-                        if (slot >= 0)
-                        {
-                            *(int *)e->valuePtr = slot;
-                            matched = 1;
-                        }
-                    }
-                    for (int j = 0; j < e->numEnumValues; j++)
-                    {
-                        if (strcmp(value, e->enumValues[j].name) == 0)
-                        {
-                            *(int *)e->valuePtr = e->enumValues[j].value;
-                            matched = 1;
-                            break;
-                        }
-                    }
-                    if (!matched)
-                    {
-                        if (e->valuePtr == &g_config.textLanguage)
-                        {
-                            char *end;
-                            long slot = strtol(value, &end, 10);
-                            *(int *)e->valuePtr = end != value && *end == '\0' &&
-                                                 slot >= 0 && slot < NATIVE_TEXT_CUSTOM_FIRST &&
-                                                 NativeTextRuntime_LanguageId((int)slot) != NULL
-                                                     ? (int)slot : NATIVE_LANGUAGE_ENGLISH;
-                        }
-                        else
-                        {
-                            *(int *)e->valuePtr = atoi(value);
-                        }
-                    }
-                }
-                else
-                    *(int *)e->valuePtr = atoi(value);
-                break;
-            }
-        }
-    }
-
-    fclose(f);
 
     // Applied after the whole file is parsed so key order in config.ini does
     // not matter: developer hack options only take effect while the section is

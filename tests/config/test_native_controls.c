@@ -1682,6 +1682,69 @@ static void TestVibrationPersistence(void)
 	}
 }
 
+static void TestPresetFile(void)
+{
+	CTR_TEST_SECTION("preset files are validated before applying");
+	char path[512];
+	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("preset-test.ini"));
+	const NativeConfig initial = g_config;
+	FILE *file = fopen(path, "w");
+	CTR_TEST_CHECK(file != NULL, "scratch preset can be written");
+	if (file == NULL)
+	{
+		return;
+	}
+	fputs("[General]\nshow_reserves_meter = true\n[Vehicle]\nspeed_stat_multiplier = 120\n[Graphics]\nrender_scale = Original\n", file);
+	fclose(file);
+	g_config.showReservesMeter = false;
+	g_config.skipIntro = true;
+	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(path) == CONFIG_LOAD_OK, "valid preset is accepted");
+	CTR_TEST_CHECK(g_config.showReservesMeter && g_config.speedMultiplier == 120 && g_config.renderScale == 1,
+	               "boolean, integer and enum preset values are applied");
+	CTR_TEST_CHECK(g_config.skipIntro, "options omitted from the preset are preserved");
+	char configPath[512];
+	NativePath_Join(configPath, sizeof(configPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "scratch config can be written for parser comparison");
+	if (file != NULL)
+	{
+		fputs("[General]\nshow_reserves_meter = true\n[Vehicle]\nspeed_stat_multiplier = 120\n[Graphics]\nrender_scale = Original\n", file);
+		fclose(file);
+		g_config.showReservesMeter = false;
+		g_config.speedMultiplier = 100;
+		g_config.renderScale = 0;
+		NativeConfig_Load();
+		CTR_TEST_CHECK(g_config.showReservesMeter && g_config.speedMultiplier == 120 && g_config.renderScale == 1,
+		               "config and preset files interpret valid values identically");
+		remove(configPath);
+	}
+
+	const char *invalid[] = {
+	    "[General]\nshow_reserves_meter = false\nunknown = true\n",
+	    "[General]\nshow_reserves_meter = perhaps\n",
+	    "[Vehicle]\nspeed_stat_multiplier = 999\n",
+	    "[Graphics]\nrender_scale = 99\n",
+	    "[General\nshow_reserves_meter = false\n",
+	};
+	for (int i = 0; i < (int)(sizeof(invalid) / sizeof(invalid[0])); i++)
+	{
+		file = fopen(path, "w");
+		CTR_TEST_CHECK(file != NULL, "invalid scratch preset can be written");
+		if (file == NULL)
+		{
+			break;
+		}
+		fputs(invalid[i], file);
+		fclose(file);
+		CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(path) == CONFIG_LOAD_INVALID, "invalid preset is rejected");
+		CTR_TEST_CHECK(g_config.showReservesMeter && g_config.speedMultiplier == 120 && g_config.renderScale == 1,
+		               "invalid preset does not partially alter configuration");
+	}
+	remove(path);
+	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(path) == CONFIG_LOAD_FILE_ERROR, "missing preset reports a file error");
+	g_config = initial;
+}
+
 static void TestAdventureOptionsWithoutLegacyMigration(void)
 {
 	CTR_TEST_SECTION("Adventure options ignore obsolete keys");
@@ -1726,6 +1789,7 @@ int main(void)
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
 	CTR_TEST_SECTION("native_controls tests");
+	TestPresetFile();
 	TestAdventureOptionsWithoutLegacyMigration();
 
 	TestCaptureTimeoutRestoresTheBinding();
