@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum UIWeaponConstants
 {
@@ -94,8 +95,15 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d)
 		// If this weapon has a quantity (3 missiles)
 		if (d->numHeldItems != 0)
 		{
+			int quantityX = posX;
+			const struct Icon *icon = gGT->ptrIcons[iconID];
+			if (icon != NULL)
+			{
+				int iconWidth = ((icon->texLayout.v2 - icon->texLayout.v0) * scale) >> 12;
+				quantityX += Widescreen_CenteredEdgeShift(iconWidth);
+			}
 			// Draw the number near the weapon icon to show how many
-			DecalFont_DrawLine(sdata->s_spacebar, (int)posX, (int)posY, UI_WEAPON_QUANTITY_FONT, UI_WEAPON_QUANTITY_FLAGS);
+			DecalFont_DrawLine(sdata->s_spacebar, quantityX, (int)posY, UI_WEAPON_QUANTITY_FONT, UI_WEAPON_QUANTITY_FLAGS);
 		}
 	}
 
