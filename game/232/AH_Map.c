@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum AHMapIconID
 {
@@ -687,11 +688,16 @@ static void AH_Map_DrawMultiplayer(void)
 	// layer: everything else must stay on top of it.
 	u32 *ot = &gGT->pushBuffer_UI.ptrOT[UI_HUD_ORDERING_SLOT_LOWEST];
 
-	int iconX = AH_MAP_MULTIPLAYER_LABEL_X + DecalFont_GetLineWidth(label, FONT_BIG) + AH_MAP_MULTIPLAYER_ICON_GAP_X;
+	struct Icon *icon = gGT->ptrIcons[data.MetaDataCharacters[characterID2].iconID];
+	int iconX = AH_MAP_MULTIPLAYER_LABEL_X + DecalFont_GetLineWidth(label, FONT_BIG) + Widescreen_ScaleWidth(AH_MAP_MULTIPLAYER_ICON_GAP_X);
+	if (icon != NULL)
+	{
+		iconX -= Widescreen_CenteredEdgeShift(icon->texLayout.u1 - icon->texLayout.u0);
+	}
 
 	DecalFont_DrawLineOT(label, AH_MAP_MULTIPLAYER_LABEL_X, AH_MAP_MULTIPLAYER_LABEL_Y, FONT_BIG, ORANGE, ot);
 
-	DecalHUD_DrawPolyFT4(gGT->ptrIcons[data.MetaDataCharacters[characterID2].iconID], iconX,
+	DecalHUD_DrawPolyFT4(icon, iconX,
 	                     AH_MAP_MULTIPLAYER_LABEL_Y + AH_MAP_MULTIPLAYER_ICON_OFFSET_Y, &gGT->backBuffer->primMem,
 	                     ot, 0, AH_MAP_MULTIPLAYER_ICON_SCALE);
 }
@@ -772,10 +778,10 @@ void AH_Map_Main(void)
 		UI_DrawSlideMeter(hud[AH_MAP_HUD_SLOT_SLIDE_METER].x, hud[AH_MAP_HUD_SLOT_SLIDE_METER].y, advDriver);
 	}
 
-	UI_DrawNumRelic(hud[AH_MAP_HUD_SLOT_RELIC_COUNT].x + AH_MAP_HUD_COUNTER_OFFSET_X, hud[AH_MAP_HUD_SLOT_RELIC_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y,
+	UI_DrawNumRelic(hud[AH_MAP_HUD_SLOT_RELIC_COUNT].x + Widescreen_ScaleWidth(AH_MAP_HUD_COUNTER_OFFSET_X), hud[AH_MAP_HUD_SLOT_RELIC_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y,
 	                advDriver);
-	UI_DrawNumKey(hud[AH_MAP_HUD_SLOT_KEY_COUNT].x + AH_MAP_HUD_COUNTER_OFFSET_X, hud[AH_MAP_HUD_SLOT_KEY_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y, advDriver);
-	UI_DrawNumTrophy(hud[AH_MAP_HUD_SLOT_TROPHY_COUNT].x + AH_MAP_HUD_COUNTER_OFFSET_X, hud[AH_MAP_HUD_SLOT_TROPHY_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y,
+	UI_DrawNumKey(hud[AH_MAP_HUD_SLOT_KEY_COUNT].x + Widescreen_ScaleWidth(AH_MAP_HUD_COUNTER_OFFSET_X), hud[AH_MAP_HUD_SLOT_KEY_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y, advDriver);
+	UI_DrawNumTrophy(hud[AH_MAP_HUD_SLOT_TROPHY_COUNT].x + Widescreen_ScaleWidth(AH_MAP_HUD_COUNTER_OFFSET_X), hud[AH_MAP_HUD_SLOT_TROPHY_COUNT].y + AH_MAP_HUD_COUNTER_OFFSET_Y,
 	                 advDriver);
 
 	AH_Map_DrawMultiplayer();

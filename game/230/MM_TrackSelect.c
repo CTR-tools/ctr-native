@@ -5,6 +5,7 @@
 #include <platform/native_renderer.h>
 #include <track_text.h>
 #include <level_info.h>
+#include <widescreen.h>
 #include <stdlib.h>
 
 enum TrackSelectVideoState
@@ -27,6 +28,7 @@ enum
 	MM_TRACK_VIDEO_ICON_INDEX = 0x3f,
 	MM_TRACK_VIDEO_SCREEN_W = 0x200,
 	MM_TRACK_VIDEO_SCREEN_H = 0xd8,
+	MM_TRACK_PREVIEW_ORIGINAL_ASPECT_FACTOR = 1000,
 	MM_TRACK_SELECT_BATTLE_TRACK_COUNT = 7,
 	MM_TRACK_SELECT_ARCADE_TRACK_COUNT = 18,
 	MM_TRACK_SELECT_COMBINED_BATTLE_TRACK_COUNT = MM_TRACK_SELECT_BATTLE_TRACK_COUNT + MM_TRACK_SELECT_ARCADE_TRACK_COUNT,
@@ -69,7 +71,6 @@ static struct MainMenu_LevelRow *s_raceTracks;
 static s16 s_raceTrackCount;
 static int s_previewTrackID = -1;
 static int s_previewLoaded;
-static int s_previewAspectFactor;
 static struct NativeTrackMap s_customMap;
 static struct Icon s_customMapIcons[2];
 static int s_customMapTrackID = -1;
@@ -125,7 +126,8 @@ static void MM_TrackSelect_DrawCustomMap(int centerX, int centerY)
 	AddPrim(gGT->pushBuffer_UI.ptrOT, reset);
 	memory->cursor = reset + 1;
 	MM_TrackSelect_DrawMapLayers(&s_customMapIcons[0], &s_customMapIcons[1],
-	                             centerX + s_customMap.width / 2, centerY + s_customMap.height / 2);
+	                             centerX + (s_customMap.width - Widescreen_FixedEdgeShift(s_customMap.width)) / 2,
+	                             centerY + s_customMap.height / 2);
 	DR_PSYX_TEX *bind = memory->cursor;
 	SetPsyXTexture(bind, s_customMapTexture, NATIVE_TRACK_MAP_TEXTURE_SIZE, NATIVE_TRACK_MAP_TEXTURE_SIZE);
 	AddPrim(gGT->pushBuffer_UI.ptrOT, bind);
@@ -322,9 +324,14 @@ static void MM_TrackSelect_Video_DrawNativePreview(RECT *r, s32 srcX, s32 srcY, 
 	// a 16-bit textured quad instead of relying on a CPU-side VRAM copy.
 	*ot = (u32)CtrGpu_PrimToOTLink24(prim);
 	nextPrim = DISPLAY_Blur_SubFunc(prim, &tile[0]);
-	if (opaque)
+	const int centerX = r->x + r->w / 2;
+	for (POLY_FT4 *poly = (POLY_FT4 *)prim; poly < (POLY_FT4 *)nextPrim; poly++)
 	{
-		for (POLY_FT4 *poly = (POLY_FT4 *)prim; poly < (POLY_FT4 *)nextPrim; poly++)
+		poly->x0 = centerX + Widescreen_ScaleWidth(poly->x0 - centerX);
+		poly->x1 = centerX + Widescreen_ScaleWidth(poly->x1 - centerX);
+		poly->x2 = centerX + Widescreen_ScaleWidth(poly->x2 - centerX);
+		poly->x3 = centerX + Widescreen_ScaleWidth(poly->x3 - centerX);
+		if (opaque)
 		{
 			poly->code &= (u8)~2;
 		}
@@ -339,6 +346,8 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 	struct BigEntry *bigfileEntries;
 	struct MainMenu_LevelRow *selectedMenu;
 	s32 videoFileIndex;
+	RECT frame = *r;
+	Widescreen_CompressRect(&frame);
 
 	if (NativeTrackRegistry_Get(NativeTrackLibrary_Current(), selectMenu[trackIndex].levID) != NULL)
 	{
@@ -356,12 +365,11 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 			u16 tpage = icon->texLayout.tpage;
 			int srcX = icon->texLayout.u0 + (tpage & 0xf) * 0x40 + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_X;
 			int srcY = icon->texLayout.v0 + (tpage & 0x10) * 0x10 + ((tpage & 0x800) >> 2) + MM_TRACK_VIDEO_FRAME_SRC_OFFSET_Y;
-			int aspectFactor = Widescreen_GetFactor();
-			if (s_previewTrackID != selectMenu[trackIndex].levID || s_previewAspectFactor != aspectFactor)
+			if (s_previewTrackID != selectMenu[trackIndex].levID)
 			{
 				s_previewTrackID = selectMenu[trackIndex].levID;
-				s_previewAspectFactor = aspectFactor;
-				s_previewLoaded = NativeTrackPreview_Load(s_previewTrackID, srcX, srcY, MM_TRACK_VIDEO_FRAME_WIDTH, MM_TRACK_VIDEO_FRAME_HEIGHT, aspectFactor);
+				s_previewLoaded = NativeTrackPreview_Load(s_previewTrackID, srcX, srcY, MM_TRACK_VIDEO_FRAME_WIDTH, MM_TRACK_VIDEO_FRAME_HEIGHT,
+				                                         MM_TRACK_PREVIEW_ORIGINAL_ASPECT_FACTOR);
 			}
 			if (s_previewLoaded && r->x >= 0 && r->y >= 0 && r->x + r->w <= MM_TRACK_VIDEO_SCREEN_W && r->y + r->h <= MM_TRACK_VIDEO_SCREEN_H)
 			{
@@ -373,7 +381,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 		{
 			DecalFont_DrawLine((char *)LANG_GetString(LNG_EXPANDED_NO_PREVIEW), r->x + r->w / 2, r->y + r->h / 2, FONT_SMALL, JUSTIFY_CENTER | WHITE);
 		}
-		RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+		RECTMENU_DrawInnerRect(&frame, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
 		return;
 	}
 	s_previewTrackID = -1;
@@ -466,7 +474,7 @@ void MM_TrackSelect_Video_Draw(RECT *r, struct MainMenu_LevelRow *selectMenu, s1
 	MM_TRACK_VIDEO_STATE_PREV = MM_TRACK_VIDEO_STATE_CURR;
 
 	// Draw 2D Menu rectangle background
-	RECTMENU_DrawInnerRect(r, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
+	RECTMENU_DrawInnerRect(&frame, (s16)(rectFlags | 1), GAME_TRACKER->backBuffer->otMem.uiOT);
 }
 
 b16 MM_TrackSelect_boolTrackOpen(struct MainMenu_LevelRow *menuSelect)
@@ -1029,7 +1037,7 @@ static void MM_TrackSelect_DrawPreview(struct MainMenu_LevelRow *selectMenu, str
 							mapHeight += (s32)mapBottomV2;
 							mapHeight -= (s32)mapBottomV0;
 							MM_TrackSelect_DrawMapLayers(iconMap0, iconMap1,
-							                             (s16)mapRect.x + (s16)mapRect.w / 2 + mapWidth / 2,
+							                             (s16)mapRect.x + (s16)mapRect.w / 2 + (mapWidth - Widescreen_FixedEdgeShift(mapWidth)) / 2,
 							                             (s16)mapRect.y + (s16)mapRect.h / 2 + mapHeight / 2);
 						}
 					}

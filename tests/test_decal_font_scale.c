@@ -9,6 +9,9 @@ static struct DB s_buffer;
 static struct Icon s_icon;
 static struct { struct IconGroup group; struct Icon *icons[48]; } s_atlas;
 static POLY_GT4 s_glyphs[16];
+static POLY_FT4 s_trackerQuads[4];
+static float s_preciseLeft[16];
+static float s_preciseRight[16];
 static u32 s_originalOT[5];
 static u32 s_targetOT[5];
 
@@ -16,6 +19,33 @@ static u32 s_targetOT[5];
 #include <game/widescreen.c>
 #include <game/DecalHUD.c>
 #include <game/DecalFont.c>
+#include <game/UI/UI_Icon.c>
+#include <game/DotLights.c>
+
+int OtherFX_Play(u32 soundID, int flags)
+{
+	(void)soundID;
+	(void)flags;
+	return 0;
+}
+
+int MATH_Sin(u32 angle)
+{
+	(void)angle;
+	return 0;
+}
+
+void AddPrim(void *ot, void *p)
+{
+	u32 tag = CTR_GPU_ReadTagWord(p);
+	CTR_GPU_WriteTagWord(p, CtrGpu_PackOTTag(CTR_GPU_ReadTagWord(ot), tag & 0xff000000u));
+	CTR_GPU_WriteTagWord(ot, CtrGpu_PrimToOTLink24(p));
+}
+
+void AddPrimitive(void *p, void *ot)
+{
+	AddPrim(ot, p);
+}
 
 void NativePgxp_BindWrittenXY(const void *destination, u32 value)
 {
@@ -23,9 +53,18 @@ void NativePgxp_BindWrittenXY(const void *destination, u32 value)
 	(void)value;
 }
 
+void NativeGpu_SetTextX(POLY_GT4 *poly, float left, float right)
+{
+	int index = (int)(poly - s_glyphs);
+	s_preciseLeft[index] = left;
+	s_preciseRight[index] = right;
+}
+
 static void ResetDrawing(void)
 {
 	memset(s_glyphs, 0, sizeof(s_glyphs));
+	memset(s_preciseLeft, 0, sizeof(s_preciseLeft));
+	memset(s_preciseRight, 0, sizeof(s_preciseRight));
 	s_buffer.primMem.cursor = s_glyphs;
 	for (int i = 0; i < 5; i++)
 	{
@@ -58,6 +97,131 @@ int main(void)
 	data.font_charPixWidth[FONT_SMALL] = 13;
 	data.trigApprox[0].cos = FP(1.0);
 	NativeGpuLinks_RegisterRangeChecked("font test primitives", s_glyphs, sizeof(s_glyphs));
+	NativeGpuLinks_RegisterRangeChecked("tracker test primitives", s_trackerQuads, sizeof(s_trackerQuads));
+
+	CTR_TEST_SECTION("rotated menu arrows preserve their center");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		ResetDrawing();
+		Color white = {.r = 255, .g = 255, .b = 255};
+		DecalHUD_Arrow2D(&s_icon, 100, 50, &s_buffer.primMem, s_originalOT, white, white, white, white, 0, FP(1.0), 0);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0, 100 + Widescreen_ScaleWidth(-6), "arrow left edge follows widescreen around its center");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x1, 100 + Widescreen_ScaleWidth(7), "arrow right edge follows widescreen around its center");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].y0, 45, "arrow vertical extent stays unchanged");
+	}
+
+	CTR_TEST_SECTION("widescreen edge insets");
+	CTR_TEST_SECTION("tracker quadrants scale around the tracked driver");
+	int trackerX[4][2];
+	int trackerY[4][2];
+	g_config.aspectRatio = 0;
+	ResetDrawing();
+	s_buffer.primMem.cursor = s_trackerQuads;
+	UI_TrackerBG(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 0, FP(1.0), FP(1.0), 0, 112);
+	for (int i = 0; i < 4; i++)
+	{
+		POLY_FT4 *quad = &s_trackerQuads[i];
+		trackerX[i][0] = quad->x0;
+		trackerX[i][1] = quad->x1;
+		trackerY[i][0] = quad->y0;
+		trackerY[i][1] = quad->y2;
+	}
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	s_buffer.primMem.cursor = s_trackerQuads;
+	UI_TrackerBG(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 0, FP(1.0), FP(1.0), 0, 112);
+	for (int i = 0; i < 4; i++)
+	{
+		POLY_FT4 *quad = &s_trackerQuads[i];
+		CTR_TEST_CHECK_EQ(quad->x0, 112 + Widescreen_ScaleWidth(trackerX[i][0] - 112), "tracker quadrant starts at the corrected horizontal position");
+		CTR_TEST_CHECK_EQ(quad->x1, 112 + Widescreen_ScaleWidth(trackerX[i][1] - 112), "tracker quadrant ends at the corrected horizontal position");
+		CTR_TEST_CHECK_EQ(quad->y0, trackerY[i][0], "tracker quadrant top stays unchanged");
+		CTR_TEST_CHECK_EQ(quad->y2, trackerY[i][1], "tracker quadrant bottom stays unchanged");
+	}
+	const int shadowWidths[][2] = {{12, 4}, {9, 3}, {9, 3}, {6, 2}};
+	const int expectedInsets[] = {0, 6, 4, 10};
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		int centered = Widescreen_CenteredEdgeShift(49);
+		CTR_TEST_CHECK_EQ(Widescreen_ScaleWidth(12), shadowWidths[aspect][0], "standard menu shadow offset follows the aspect ratio");
+		CTR_TEST_CHECK_EQ(Widescreen_ScaleWidth(4), shadowWidths[aspect][1], "small menu shadow offset follows the aspect ratio");
+		CTR_TEST_CHECK_EQ(centered, expectedInsets[aspect], "centered inset scales each edge for the selected aspect ratio");
+		CTR_TEST_CHECK(Widescreen_FixedEdgeShift(49) == 2 * centered, "fixed-edge shift matches both centered edge movements");
+	}
+	CTR_TEST_SECTION("character selection rectangles follow portrait compression");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		RECT frame = {100, 50, 52, 33};
+		RECT highlight = {103, 52, 46, 29};
+		Widescreen_CompressRect(&frame);
+		Widescreen_CompressRect(&highlight);
+		CTR_TEST_CHECK_EQ(2 * frame.x + frame.w, 252, "frame remains centered on the portrait");
+		CTR_TEST_CHECK_EQ(2 * highlight.x + highlight.w, 252, "selection highlight remains centered on the portrait");
+		CTR_TEST_CHECK_EQ(frame.w, 52 - 2 * Widescreen_CenteredEdgeShift(52), "frame width follows the portrait aspect correction");
+		CTR_TEST_CHECK_EQ(frame.y, 50, "frame vertical position is unchanged");
+		CTR_TEST_CHECK_EQ(frame.h, 33, "frame height is unchanged");
+	}
+	CTR_TEST_SECTION("character grid spacing follows each layout center");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		for (int center = 154; center <= 250; center += 96)
+		{
+			const int left = center + Widescreen_ScaleWidth(-96);
+			const int right = center + Widescreen_ScaleWidth(96);
+			CTR_TEST_CHECK_EQ(left + right, 2 * center, "the grid remains centered on its original layout");
+			const int innerLeft = center + Widescreen_ScaleWidth(-32);
+			const int innerRight = center + Widescreen_ScaleWidth(32);
+			CTR_TEST_CHECK(abs((innerRight - innerLeft) - (innerLeft - left)) <= 1,
+			               "the center gap matches neighboring columns within one pixel");
+			if (aspect == 0)
+			{
+				CTR_TEST_CHECK_EQ(left, center - 96, "4:3 retains the original grid position");
+			}
+		}
+	}
+	g_config.aspectRatio = 0;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 400, "4:3 preserves map coordinates");
+	g_config.aspectRatio = 1;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(400, 500), 424, "16:9 shifts the map edge toward its right anchor");
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(500, 500), 500, "the map anchor stays fixed");
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(600, 500), 576, "coordinates on the other side move toward the anchor");
+	g_config.aspectRatio = 3;
+	CTR_TEST_CHECK_EQ(Widescreen_ScaleXFromAnchor(350, 440), 388, "the three-player map uses its shifted anchor");
+	g_config.aspectRatio = 0;
+
+	CTR_TEST_SECTION("wumpa and weapon shine quadrants");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		ResetDrawing();
+		UI_WeaponBG_DrawShine(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 1, FP(1.0), FP(1.0), 0);
+		CTR_TEST_CHECK(s_buffer.primMem.cursor == s_glyphs + 4, "the shine emits four quadrants");
+		CTR_TEST_CHECK(s_glyphs[0].x1 >= s_glyphs[1].x1, "upper quadrants meet at the center without a gap");
+		CTR_TEST_CHECK(s_glyphs[2].x1 >= s_glyphs[3].x1, "lower quadrants meet at the center without a gap");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0, s_glyphs[2].x0, "left quadrants share their outer edge");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0, s_glyphs[3].x0, "right quadrants share their outer edge");
+		if (aspect == 0)
+		{
+			CTR_TEST_CHECK_EQ(s_glyphs[0].x0, 100, "4:3 preserves the original shine position");
+			CTR_TEST_CHECK_EQ(s_glyphs[1].x0, 123, "4:3 preserves the mirrored shine edge");
+		}
+	}
+	g_config.aspectRatio = 0;
+
+	CTR_TEST_SECTION("map marker alignment");
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	int mapLeft = Widescreen_ScaleXFromAnchor(400, 500);
+	int markerX = Widescreen_ScaleXFromAnchor(400, 500) - Widescreen_CenteredEdgeShift(12);
+	Color markerColor = {0};
+	DecalHUD_DrawPolyGT4(&s_icon, markerX, 40, &s_buffer.primMem, s_originalOT,
+	                     markerColor, markerColor, markerColor, markerColor, 0, FP(1.0));
+	CTR_TEST_CHECK_EQ(s_glyphs[0].x0, mapLeft, "the marker left edge follows the transformed map edge at 21:9");
+	g_config.aspectRatio = 0;
 
 	CTR_TEST_SECTION("scaled font emits real geometry with alignment and ordering-table ownership");
 	ResetDrawing();
@@ -128,9 +292,12 @@ int main(void)
 	                  "out-of-range color markers do not index the palette");
 
 	CTR_TEST_SECTION("small glyphs retain widescreen compression after fractional scaling");
-	const int halfWidths[] = { 6, 5, 5, 3 };
-	const int fractionalWidths[] = { 6, 5, 5, 4 };
-	const int fullWidths[] = { 13, 11, 11, 9 };
+	const int halfWidths[] = { 6, 4, 4, 3 };
+	const int fractionalWidths[] = { 6, 4, 5, 3 };
+	const int fullWidths[] = { 13, 9, 10, 7 };
+	const int halfAdvances[] = {6, 4, 5, 3};
+	const int fullAdvances[] = {13, 9, 10, 7};
+	const int lineWidths[] = {26, 19, 21, 14};
 	for (int aspect = 0; aspect < 4; aspect++)
 	{
 		g_config.aspectRatio = aspect;
@@ -138,13 +305,13 @@ int main(void)
 		ResetDrawing();
 		DecalFont_DrawLineScaledOT("AB", 100, 40, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, FP(0.5), s_targetOT);
 		CTR_TEST_CHECK_EQ(GlyphWidth(0), halfWidths[aspect], "half-size glyphs use the requested display proportions");
-		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, 6, "aspect correction preserves the text's cumulative advance");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, halfAdvances[aspect], "scaled text advances with the display aspect");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].y0, 40, "aspect correction preserves the text baseline");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].y2 - s_glyphs[0].y0, 5, "aspect correction does not alter glyph height");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].x2, s_glyphs[0].x0, "the lower left edge follows the corrected upper edge");
 		CTR_TEST_CHECK_EQ(s_glyphs[0].x3, s_glyphs[0].x1, "the lower right edge follows the corrected upper edge");
 
-		// 13 * .49 truncates to 6; combining the transforms first rounds 21:9 to 4, not 3.
+		// The advance and both glyph edges use the same cumulative transform.
 		s_icon.texLayout.u1 = s_icon.texLayout.u3 = 13;
 		ResetDrawing();
 		DecalFont_DrawLineScaledOT("A", 100, 40, FONT_SMALL, ORANGE, FP(0.49), s_targetOT);
@@ -153,8 +320,69 @@ int main(void)
 		ResetDrawing();
 		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, JUSTIFY_RIGHT | ORANGE, s_targetOT);
 		CTR_TEST_CHECK_EQ(GlyphWidth(0), fullWidths[aspect], "ordinary drawing retains its original aspect-corrected geometry");
-		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, 13, "ordinary drawing retains the full character advance");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x0 - s_glyphs[0].x0, fullAdvances[aspect], "ordinary text advances with the display aspect");
 		CTR_TEST_CHECK(s_tracker.pushBuffer_UI.ptrOT == s_originalOT, "ordinary drawing restores the ordering table");
+		CTR_TEST_CHECK_EQ(DecalFont_GetLineWidth("AB", FONT_SMALL), lineWidths[aspect], "reported width matches the widescreen text layout");
+		int rightAlignedX = s_glyphs[0].x0;
+		ResetDrawing();
+		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0 - rightAlignedX, lineWidths[aspect], "right alignment uses the displayed line width");
+		int leftAlignedX = s_glyphs[0].x0;
+		ResetDrawing();
+		DecalFont_DrawLineOT("AB", 100, 40, FONT_SMALL, JUSTIFY_CENTER | ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(leftAlignedX - s_glyphs[0].x0, lineWidths[aspect] / 2, "center alignment uses the displayed line width");
+		ResetDrawing();
+		DecalFont_DrawLineOT("AAA", 100, 40, FONT_SMALL, ORANGE, s_targetOT);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x1, s_glyphs[1].x0, "adjacent glyph edges share the same rounded coordinate");
+		CTR_TEST_CHECK_EQ(s_glyphs[1].x1, s_glyphs[2].x0, "rounding does not create gaps or overlaps between glyphs");
+		if (aspect != 0)
+		{
+			CTR_TEST_CHECK(s_preciseRight[0] == s_preciseLeft[1], "subpixel edges meet without rounding gaps");
+			CTR_TEST_CHECK(s_preciseRight[1] == s_preciseLeft[2], "subpixel edges stay aligned across the line");
+		}
+	}
+	CTR_TEST_SECTION("multiline wrapping uses displayed width");
+	char wrappedText[] = "AB AB";
+	g_config.aspectRatio = 0;
+	ResetDrawing();
+	CTR_TEST_CHECK_EQ(DecalFont_DrawMultiLine(wrappedText, 10, 20, 50, FONT_SMALL, ORANGE), 20,
+	                  "4:3 wraps text that exceeds the available width");
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	CTR_TEST_CHECK_EQ(DecalFont_DrawMultiLine(wrappedText, 10, 20, 50, FONT_SMALL, ORANGE), 10,
+	                  "21:9 keeps the narrower text on one line");
+
+	CTR_TEST_SECTION("starting lights stay adjacent and centered");
+	static POLY_FT4 lights[4];
+	NativeGpuLinks_RegisterRangeChecked("starting light primitives", lights, sizeof(lights));
+	for (int i = 0; i < 4; i++)
+	{
+		s_tracker.trafficLightIcon[i] = &s_icon;
+	}
+	s_icon.texLayout.u1 = s_icon.texLayout.u3 = 24;
+	s_icon.texLayout.v2 = s_icon.texLayout.v3 = 24;
+	for (int players = 1; players <= 4; players++)
+	{
+		s_tracker.numPlyrCurrGame = players;
+		s_tracker.pushBuffer[0].rect = (RECT){players > 2 ? 259 : 0, 0, players > 2 ? 253 : 512, 106};
+		s_tracker.pushBuffer[0].ptrOT = s_targetOT;
+		for (int aspect = 0; aspect < 4; aspect++)
+		{
+			g_config.aspectRatio = aspect;
+			s_buffer.primMem.cursor = lights;
+			s_targetOT[0] = NATIVE_GPU_LINK_TERMINATOR;
+			DotLights_Video(&s_tracker, 960, 1);
+			RECT bounds;
+			CTR_TEST_CHECK(DotLights_GetBounds(&s_tracker, 0, 960, &bounds), "visible lights provide bounds");
+			for (int i = 0; i < 3; i++)
+			{
+				CTR_TEST_CHECK_EQ(lights[i].x1, lights[i + 1].x0, "adjacent lights have no widescreen gaps");
+			}
+			CTR_TEST_CHECK_EQ(lights[0].x0 + s_tracker.pushBuffer[0].rect.x, bounds.x, "bounds begin at the first light");
+			CTR_TEST_CHECK_EQ(lights[3].x1 + s_tracker.pushBuffer[0].rect.x, bounds.x + bounds.w, "bounds end at the last light");
+			CTR_TEST_CHECK(abs(2 * bounds.x + bounds.w - (2 * s_tracker.pushBuffer[0].rect.x + s_tracker.pushBuffer[0].rect.w)) <= 1,
+			               "the light group remains centered in its viewport");
+		}
 	}
 	return CtrTest_Summary();
 }

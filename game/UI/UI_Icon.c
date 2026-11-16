@@ -162,7 +162,12 @@ void UI_WeaponBG_DrawShine(struct Icon *icon, s16 posX, s16 posY, struct PrimMem
 			break;
 		}
 
-	        Widescreen_CompressGT4(p);
+		// All four mirrored quadrants share one center; compressing each
+		// separately pulls their inner edges apart.
+		p->x0 = Widescreen_ScaleXFromAnchor(p->x0, rightX);
+		p->x1 = Widescreen_ScaleXFromAnchor(p->x1, rightX);
+		p->x2 = Widescreen_ScaleXFromAnchor(p->x2, rightX);
+		p->x3 = Widescreen_ScaleXFromAnchor(p->x3, rightX);
 
 		CtrGpu_WriteColorCode(&p->r0, CTR_ReadU32LE(&shineColors[UI_WEAPON_SHINE_COLOR_DARK_ROW * sizeof(u32)]));
 		CtrGpu_WriteColorCode(&p->r1, CTR_ReadU32LE(&shineColors[UI_WEAPON_SHINE_COLOR_MID_ROW * sizeof(u32)]));
@@ -183,7 +188,7 @@ void UI_WeaponBG_DrawShine(struct Icon *icon, s16 posX, s16 posY, struct PrimMem
 	}
 }
 
-void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int color)
+void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int color, int anchorX)
 {
 	s16 rightX;
 	s16 bottomY;
@@ -229,9 +234,7 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 			p->code |= UI_ICON_SEMI_TRANS_CODE_BIT;
 		}
 
-		const int widescreenOffset = 0;
-
-		p->x0 = centerX + widescreenOffset;
+		p->x0 = centerX;
 		p->x1 = rightX;
 		p->y0 = centerY;
 		p->y2 = bottomY;
@@ -239,7 +242,7 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 		switch (quadIndex)
 		{
 		case 1:
-			p->x0 = altX - widescreenOffset;
+			p->x0 = altX;
 			p->x1 = leftX;
 			break;
 
@@ -249,7 +252,7 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 			break;
 
 		case 3:
-			p->x0 = altX - widescreenOffset;
+			p->x0 = altX;
 			p->y0 = altY;
 
 			p->x1 = leftX;
@@ -257,6 +260,8 @@ void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct Prim
 			break;
 		}
 
+		p->x0 = anchorX + Widescreen_ScaleWidth(p->x0 - anchorX);
+		p->x1 = anchorX + Widescreen_ScaleWidth(p->x1 - anchorX);
 		p->x2 = p->x0;
 		p->y1 = p->y0;
 

@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 #define UI_NUM_X      sdata->s_x
 #define UI_NUM_INT    sdata->s_int
@@ -35,7 +36,7 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 		DecalFont_DrawLine(UI_NUM_X, posX, posY + UI_DRAWNUM_SMALL_X_OFFSET_Y, FONT_SMALL, ORANGE);
 
 		sprintf(message, UI_NUM_INT, d->numWumpas);
-		DecalFont_DrawLine(message, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+		DecalFont_DrawLine(message, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 	}
 	else
 	{
@@ -57,7 +58,7 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 			struct GameTracker *nextGT = GAME_TRACKER;
 			s32 byteOffset = ones * sizeof(struct Icon *);
 			struct IconGroup *nextGroup = nextGT->iconGroup[UI_DRAWNUM_DIGIT_ICON_GROUP];
-			UI_NUM_DRAW_POLY_GT4(*(struct Icon **)((u8 *)nextGroup + byteOffset + sizeof(struct IconGroup)), posX + UI_DRAWNUM_WUMPA_DIGIT_SPACING_X, posY,
+			UI_NUM_DRAW_POLY_GT4(*(struct Icon **)((u8 *)nextGroup + byteOffset + sizeof(struct IconGroup)), posX + Widescreen_ScaleWidth(UI_DRAWNUM_WUMPA_DIGIT_SPACING_X), posY,
 			                     &nextGT->backBuffer->primMem, nextGT->pushBuffer_UI.ptrOT, ((Color *)UI_NUM_COLORS[ORANGE])[0],
 			                     ((Color *)UI_NUM_COLORS[ORANGE])[1], ((Color *)UI_NUM_COLORS[ORANGE])[2], ((Color *)UI_NUM_COLORS[ORANGE])[3], 0, FP(1.0));
 		}
@@ -70,11 +71,11 @@ void UI_DrawNumTimebox(s16 posX, s16 posY, int collected)
 {
 	char string[UI_DRAWNUM_COUNTER_TEXT_BUFFER_SIZE];
 
-	DecalFont_DrawLine(UI_NUM_X, posX + UI_DRAWNUM_TIMEBOX_X_OFFSET_X, posY + UI_DRAWNUM_TIMEBOX_X_OFFSET_Y, FONT_SMALL, ORANGE);
+	DecalFont_DrawLine(UI_NUM_X, posX + Widescreen_ScaleWidth(UI_DRAWNUM_TIMEBOX_X_OFFSET_X), posY + UI_DRAWNUM_TIMEBOX_X_OFFSET_Y, FONT_SMALL, ORANGE);
 
 	sprintf(string, rdata.s_lapString, collected, CTR_PRINTF_PSX_LONG(GAME_TRACKER->timeCratesInLEV));
 
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_X, posY + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_Y, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_X), posY + UI_DRAWNUM_TIMEBOX_TEXT_OFFSET_Y, FONT_BIG, ORANGE);
 }
 
 // NOTE(aalhendi): Retail callers pass the driver through the shared HUD
@@ -96,7 +97,7 @@ void UI_DrawNumRelic(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver)
@@ -116,7 +117,7 @@ void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 void UI_DrawNumTrophy(s16 posX, s16 posY, struct Driver *driver)
@@ -136,7 +137,7 @@ void UI_DrawNumTrophy(s16 posX, s16 posY, struct Driver *driver)
 	}
 
 	sprintf(string, UI_NUM_LONG, CTR_PRINTF_PSX_LONG(num));
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }
 
 // Crystal Challenge has a single shared counter, so co-op players pool pickups.
@@ -165,5 +166,5 @@ void UI_DrawNumCrystal(s16 posX, s16 posY)
 
 	sprintf(string, rdata.s_lapString, UI_Crystal_CountCollected(GAME_TRACKER), CTR_PRINTF_PSX_LONG(GAME_TRACKER->numCrystalsInLEV));
 
-	DecalFont_DrawLine(string, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+	DecalFont_DrawLine(string, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 }

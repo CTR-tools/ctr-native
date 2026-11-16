@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -66,6 +67,13 @@ enum
 	MM_CHARACTER_SELECT_COLOR_PULSE_SCALE_SHIFT = 7,
 	MM_CHARACTER_SELECT_COLOR_PULSE_FP_SHIFT = 0xc,
 };
+
+static int MM_Characters_GridX(int x)
+{
+	const int halfWidth = MM_CHARACTER_SELECT_ICON_RECT_W / 2;
+	const int center = (MM_ACTIVE_CHARACTER_SELECT_META[0].posX + MM_ACTIVE_CHARACTER_SELECT_META[3].posX) / 2 + halfWidth;
+	return center + Widescreen_ScaleWidth(x + halfWidth - center) - halfWidth;
+}
 
 // NOTE(aalhendi): These local seams reproduce the few instructions whose
 // register choices GCC 2.8.1 cannot express through C alone. Native builds
@@ -1331,10 +1339,11 @@ dontDrawSelectCharacter:
 		CTR_PSX_OBSERVE_VALUE(preInputCharacterMeta);
 		CTR_PSX_OBSERVE_VALUE(preInputCharacterMeta);
 
-		drawRect.x = currentIconTransition->currX + preInputCharacterMeta->posX;
+		drawRect.x = MM_Characters_GridX(currentIconTransition->currX + preInputCharacterMeta->posX);
 		drawRect.y = currentIconTransition->currY + preInputCharacterMeta->posY;
 		drawRect.w = MM_CHARACTER_SELECT_ICON_RECT_W;
 		drawRect.h = MM_CHARACTER_SELECT_ICON_RECT_H;
+		Widescreen_CompressRect(&drawRect);
 
 		// if player has not selected a character
 		playerSelectedAfterInput = (((int)(s16)MM_CHARACTER_SELECT_FLAGS >> playerIndex) & 1U) != 0;
@@ -1343,7 +1352,7 @@ dontDrawSelectCharacter:
 		{
 			// draw string
 			// "1", "2", "3", "4", above the character icon
-			DecalFont_DrawLine(MM_PLAYER_NUMBER_STRINGS[playerIndex], currentIconTransition->currX + (u32)preInputCharacterMeta->posX - 6,
+			DecalFont_DrawLine(MM_PLAYER_NUMBER_STRINGS[playerIndex], drawRect.x + MM_CHARACTER_SELECT_CURSOR_LABEL_OFFSET_X,
 			                   currentIconTransition->currY + (u32)preInputCharacterMeta->posY - 3, FONT_BIG, WHITE);
 			outlineColor = &playerColor;
 		}
@@ -1406,7 +1415,7 @@ outerPlayerLoopComplete:
 				MM_CHARACTERS_BEGIN_ICON_COLOR_COPY(iconCharacterMetadata);
 				iconTransitionByteOffset += iconWork;
 				iconTransition = (struct TransitionMeta *)iconTransitionByteOffset;
-				iconPosX = iconTransition->currX + preInputCharacterMeta->posX + MM_CHARACTER_SELECT_ICON_DECAL_OFFSET_X;
+				iconPosX = MM_Characters_GridX(iconTransition->currX + preInputCharacterMeta->posX) + MM_CHARACTER_SELECT_ICON_DECAL_OFFSET_X;
 
 				MM_RECTMENU_DRAW_POLY_GT4(
 				    CTR_PSX_PAGE_LVALUE(struct GameTracker *, iconGameTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)
@@ -1481,7 +1490,8 @@ outerPlayerLoopComplete:
 				animatedColor.g = MM_Characters_ScaleColor(animatedColor.g);
 				animatedColor.b = MM_Characters_ScaleColor(animatedColor.b);
 
-				drawRect.x = MM_CHARACTER_SELECT_TRANSITION_META[playerIcon].currX + preInputCharacterMeta->posX + MM_CHARACTER_SELECT_HIGHLIGHT_OFFSET_X;
+				drawRect.x = MM_Characters_GridX(MM_CHARACTER_SELECT_TRANSITION_META[playerIcon].currX + preInputCharacterMeta->posX) +
+				             MM_CHARACTER_SELECT_HIGHLIGHT_OFFSET_X;
 				highlightRect = &drawRect;
 				CTR_PSX_OBSERVE_VALUE(highlightRect);
 				highlightTransitionY = (u16)MM_CHARACTER_SELECT_TRANSITION_META[playerIcon].currY;
@@ -1492,6 +1502,7 @@ outerPlayerLoopComplete:
 				drawRect.h = MM_CHARACTER_SELECT_HIGHLIGHT_H;
 				MM_CHARACTERS_LOAD_HIGHLIGHT_GAME_TRACKER(highlightGameTracker, highlightTransitionY, highlightMetadataY);
 				drawRect.y = highlightTransitionY + MM_CHARACTER_SELECT_HIGHLIGHT_OFFSET_Y;
+				Widescreen_CompressRect(&drawRect);
 
 				// this draws the flashing blue square that appears when you highlight a character in the character select screen
 				MM_DRAW_SOLID_BOX_WITH_PRIM_MEM(highlightRect, animatedColorPtr, highlightGameTracker->backBuffer->otMem.uiOT,
@@ -1584,10 +1595,11 @@ outerPlayerLoopComplete:
 
 		if (MM_Characters_IsUnlocked(preInputCharacterMeta))
 		{
-			iconRect.x = MM_CHARACTER_SELECT_TRANSITION_META[playerIndex].currX + preInputCharacterMeta->posX;
+			iconRect.x = MM_Characters_GridX(MM_CHARACTER_SELECT_TRANSITION_META[playerIndex].currX + preInputCharacterMeta->posX);
 			iconRect.y = MM_CHARACTER_SELECT_TRANSITION_META[playerIndex].currY + (s16)iconMetaTail[0];
 			iconRect.w = MM_CHARACTER_SELECT_ICON_RECT_W;
 			iconRect.h = MM_CHARACTER_SELECT_ICON_RECT_H;
+			Widescreen_CompressRect(&iconRect);
 
 			// Draw 2D Menu rectangle background
 			RECTMENU_DrawInnerRect(&iconRect, 0, GAME_TRACKER->backBuffer->otMem.uiOT);

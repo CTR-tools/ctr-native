@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -61,7 +62,8 @@ static void DotLights_Video(struct GameTracker *gGT, s32 timer, u32 players)
 			continue;
 		}
 		const int sizeX = bounds.w / DOT_LIGHT_COUNT;
-		const int newPosX = bounds.x - pb->rect.x;
+		const int rawWidth = FP_Mult(gGT->trafficLightIcon[0]->texLayout.u1 - gGT->trafficLightIcon[0]->texLayout.u0, scale);
+		const int newPosX = bounds.x - pb->rect.x - Widescreen_CenteredEdgeShift(rawWidth);
 		const int newPosY = bounds.y - pb->rect.y;
 
 		for (s32 lightIndex = 0; lightIndex < DOT_LIGHT_COUNT; lightIndex++)
@@ -98,7 +100,8 @@ bool DotLights_GetBounds(struct GameTracker *gGT, int player, s32 timer, RECT *b
 	{
 		posY = DotLights_TweenPos((DOT_LIGHT_TIMER_HIDE - timer) * FP(1.0));
 	}
-	bounds->w = FP_Mult(icon->texLayout.u1 - icon->texLayout.u0, scale) * DOT_LIGHT_COUNT;
+	const int width = FP_Mult(icon->texLayout.u1 - icon->texLayout.u0, scale);
+	bounds->w = (width - 2 * Widescreen_CenteredEdgeShift(width)) * DOT_LIGHT_COUNT;
 	bounds->h = FP_Mult(icon->texLayout.v2 - icon->texLayout.v0, scale);
 	bounds->x = pb->rect.x + (pb->rect.w - bounds->w) / 2;
 	bounds->y = pb->rect.y + FP_Mult(pb->rect.h / 3, posY) - bounds->h;

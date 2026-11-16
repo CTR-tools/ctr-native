@@ -68,6 +68,7 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_checkpoint_file.c"
 #include "platform/native_cd.c"
 #include "platform/native_gpu_links.c"
+#include "platform/graphics/native_text_vertices.c"
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
 #include "platform/native_pgxp.c"

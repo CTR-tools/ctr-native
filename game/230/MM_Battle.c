@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 void MM_Battle_DrawIcon_Character(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *primMem, u32 *ot, u8 transparency, s16 scale)
 {
@@ -220,7 +221,10 @@ void MM_Battle_DrawIcon_Weapon(struct Icon *icon, u32 posX, s32 posY, struct Pri
 	((CtrPackedU16 *)packet)[0xe] = (u16)uv2;
 	((CtrPackedU16 *)packet)[0x12] = CTR_ReadU16AlignedLE(&drawIcon->texLayout.u3);
 
-	farX = drawX + scaledHeight;
+	const int horizontalWidth = (iconRotation & 1) != 0 ? scaledHeight : scaledWidth;
+	const int horizontalInset = Widescreen_CenteredEdgeShift(horizontalWidth);
+	drawX += horizontalInset;
+	farX = drawX + horizontalWidth - 2 * horizontalInset;
 	if ((iconRotation & 1) != 0)
 	{
 		farY = packedY + ((u32)scaledWidth << 0x10);
@@ -249,7 +253,6 @@ void MM_Battle_DrawIcon_Weapon(struct Icon *icon, u32 posX, s32 posY, struct Pri
 	}
 	else
 	{
-		farX = drawX + scaledWidth;
 		farY = packedY + ((u32)scaledHeight << 0x10);
 		CTR_PSX_KEEP_VALUE(scaledHeight);
 		topLeft = drawX | packedY;
@@ -1060,9 +1063,11 @@ LAB_Battle_ValidSetup:
 					s16 weaponPosY;
 					s16 weaponRow;
 					const struct BattleWeaponMenuItem *weaponItem;
+					struct Icon *weaponIcon;
 					weaponRow = ((s16)weaponIndex) / BATTLE_WEAPONS_PER_ROW;
 					weaponGridX = ((((s16)weaponIndex) % BATTLE_WEAPONS_PER_ROW) * BATTLE_WEAPON_GRID_X_STEP) + (weaponRow * BATTLE_WEAPON_GRID_ROW_STAGGER_X);
 					weaponItem = &MM_BATTLE_WEAPON_ITEMS[(s16)weaponIndex];
+					weaponIcon = GAME_TRACKER->ptrIcons[weaponItem->iconID];
 					weaponColor = &MM_BATTLE_WEAPON_ENABLED_COLOR;
 					weaponTextColor = BATTLE_WEAPON_ENABLED_TEXT_COLOR;
 					weaponFlag = weaponItem->enabledWeaponFlag;
@@ -1080,10 +1085,16 @@ LAB_Battle_ValidSetup:
 					CTR_PSX_OBSERVE_VALUE(weaponGridY);
 					if (((weaponIndex - 7U) & 0xffffU) < 2U)
 					{
-						DecalFont_DrawLine(&R230.s_3[0], weaponPosX, weaponPosY, 2, weaponTextColor);
+						int labelX = weaponPosX;
+						if (weaponIcon != NULL)
+						{
+							int iconWidth = ((weaponIcon->texLayout.v2 - weaponIcon->texLayout.v0) * BATTLE_ICON_SCALE) >> 12;
+							labelX += Widescreen_CenteredEdgeShift(iconWidth);
+						}
+						DecalFont_DrawLine(&R230.s_3[0], labelX, weaponPosY, 2, weaponTextColor);
 					}
 					MM_Battle_DrawIcon_Weapon(
-					    CTR_PSX_PAGE_LVALUE(struct GameTracker *, weaponTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->ptrIcons[weaponItem->iconID],
+					    weaponIcon,
 					    weaponPosX, weaponPosY,
 					    &CTR_PSX_PAGE_LVALUE(struct GameTracker *, weaponTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->backBuffer->primMem,
 					    (u32 *)CTR_PSX_PAGE_LVALUE(struct GameTracker *, weaponTrackerPage, MM_GAME_TRACKER_PAGE_OFFSET, GAME_TRACKER)->pushBuffer_UI.ptrOT, 1,
@@ -1120,6 +1131,7 @@ LAB_Battle_ValidSetup:
 					teamWidthScratch.weaponHighlightRect.x = weaponHighlightRectX;
 					teamWidthScratch.weaponHighlightRect.y =
 					    (menuPanelRect.y + ((signedHighlightedRow - BATTLE_ROW_WEAPON_TOP) * BATTLE_WEAPON_GRID_Y_STEP)) + BATTLE_WEAPON_HIGHLIGHT_Y_OFFSET;
+					Widescreen_CompressRect(&teamWidthScratch.weaponHighlightRect);
 					MM_DRAW_CLEAR_BOX(&teamWidthScratch.weaponHighlightRect, &GAME_MENU_HIGHLIGHT, TRANS_50_DECAL, GAME_TRACKER->backBuffer->otMem.uiOT,
 					                  &GAME_TRACKER->backBuffer->primMem);
 				}

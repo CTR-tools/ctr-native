@@ -17,6 +17,7 @@ void NativeRenderer_SwapWindow(void);
 void NativeRenderer_StoreFrameBuffer(int x, int y, int w, int h);
 void NativeRenderer_PresentVRAMDisplay(void);
 void NativeRenderer_PresentVRAMRect(int x, int y, int w, int h);
+void NativeRenderer_PresentVRAMRect4x3(int x, int y, int w, int h);
 // Present the main render target directly to the window viewport, skipping the
 // VRAM roundtrip. Used by every render-scale mode except Original; the packed
 // PSX-sized VRAM copy is still produced for feedback effects.

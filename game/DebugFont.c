@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum DebugFontConstants
 {
@@ -48,6 +49,7 @@ void DebugFont_DrawNumbers(int index, int screenPosX, int screenPosY)
 	CtrGpu_WritePackedXY(&p->x3, CTR_PackS16Pair(screenPosX + DEBUG_FONT_DIGIT_TILE_SIZE, screenPosY + DEBUG_FONT_DIGIT_TILE_SIZE));
 	CtrGpu_WritePackedXY(&p->x1, CTR_PackS16Pair(screenPosX + DEBUG_FONT_DIGIT_TILE_SIZE, screenPosY));
 	CtrGpu_WritePackedXY(&p->x2, CTR_PackS16Pair(screenPosX, screenPosY + DEBUG_FONT_DIGIT_TILE_SIZE));
+	Widescreen_CompressFT4(p);
 
 	// Each character is 7x7 pixels,
 	// '0' is 6th character on 2nd row

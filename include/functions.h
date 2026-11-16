@@ -689,7 +689,7 @@ void UI_Weapon_DrawSelf(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_Weapon_DrawBG(s16 posX, s16 posY, s16 scale, struct Driver *d);
 void UI_WeaponBG_AnimateShine(void);
 void UI_WeaponBG_DrawShine(struct Icon *icon, s16 posX, s16 posY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int unusedColor);
-void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int color);
+void UI_TrackerBG(struct Icon *targetIcon, s16 centerX, s16 centerY, struct PrimMem *primMem, u32 *ot, char transparency, s16 angleX, s16 angleY, int color, int anchorX);
 void UI_DrawNumWumpa(s16 param_1, s16 param_2, struct Driver *d);
 void UI_DrawNumKey(s16 posX, s16 posY, struct Driver *driver);
 void UI_DrawNumRelic(s16 posX, s16 posY, struct Driver *driver);

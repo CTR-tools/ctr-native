@@ -17,6 +17,21 @@
 volatile int gCtrDebugSkipLevelGeometry = 0;
 #endif
 
+static void MainFrame_UpdateUIProjection(struct GameTracker *gGT)
+{
+	static int lastAspectRatio = -1;
+	if (lastAspectRatio != g_config.aspectRatio)
+	{
+		PushBuffer_SetMatrixVP(&gGT->pushBuffer_UI);
+		if (sdata->ptrPushBufferUI != 0)
+		{
+			struct PushBuffer *wumpa = (struct PushBuffer *)(u32)sdata->ptrPushBufferUI;
+			wumpa->matrix_ViewProj = gGT->pushBuffer_UI.matrix_ViewProj;
+		}
+		lastAspectRatio = g_config.aspectRatio;
+	}
+}
+
 void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 {
 	struct Level *lev = gGT->level1;
@@ -79,6 +94,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	{
 		MM_Title_DrawBranding();
 	}
+
+	MainFrame_UpdateUIProjection(gGT);
 
 	RainLogic(gGT);
 	DropRain_MakeSound(gGT);

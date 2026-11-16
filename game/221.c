@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 #include <platform/native_log.h>
 
@@ -209,7 +210,7 @@ void CC_EndEvent_DrawMenu()
 			CC_MENU_CRYSTAL->matrix.t[0] = UI_ConvertX_2(pos[0], CC_SCREEN_DEPTH);
 			CC_MENU_CRYSTAL->matrix.t[1] = UI_ConvertY_2(pos[1], CC_SCREEN_DEPTH);
 		}
-		UI_DrawNumCrystal(pos[0] + 0xf, pos[1] - 0x10);
+		UI_DrawNumCrystal(pos[0] + Widescreen_ScaleWidth(0xf), pos[1] - 0x10);
 
 		// YOU WIN, or TRY AGAIN
 		DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[resultStringIndex], pos[0] + 0x33, pos[1] + 8, FONT_BIG, (JUSTIFY_CENTER | ORANGE));

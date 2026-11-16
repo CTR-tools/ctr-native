@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 // To do: add a header
 
@@ -204,7 +205,9 @@ void UI_RenderFrame_Racing()
 				// If you are not in Time Trial or Relic Race
 				if ((gameMode1 & (TIME_TRIAL | RELIC_RACE)) == 0)
 				{
-					UI_DrawNumWumpa(hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].x, hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].y, playerStruct);
+					int fruitX = hudStructPtr[UI_HUD_SLOT_FRUIT_MODEL].x;
+					int countX = fruitX + Widescreen_ScaleWidth(hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].x - fruitX);
+					UI_DrawNumWumpa(countX, hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].y, playerStruct);
 				}
 			}
 
@@ -932,9 +935,9 @@ void UI_RenderFrame_AdvHub(void)
 	gGT = sdata->gGT;
 	hudStructPtr = data.hudStructPtr[gGT->numPlyrCurrGame - 1];
 
-	UI_DrawNumRelic(hudStructPtr[UI_HUD_SLOT_RELIC].x + 0x10, hudStructPtr[UI_HUD_SLOT_RELIC].y - 10, gGT->drivers[0]);
-	UI_DrawNumKey(hudStructPtr[UI_HUD_SLOT_KEY].x + 0x10, hudStructPtr[UI_HUD_SLOT_KEY].y - 10, gGT->drivers[0]);
-	UI_DrawNumTrophy(hudStructPtr[UI_HUD_SLOT_TROPHY].x + 0x10, hudStructPtr[UI_HUD_SLOT_TROPHY].y - 10, gGT->drivers[0]);
+	UI_DrawNumRelic(hudStructPtr[UI_HUD_SLOT_RELIC].x + Widescreen_ScaleWidth(0x10), hudStructPtr[UI_HUD_SLOT_RELIC].y - 10, gGT->drivers[0]);
+	UI_DrawNumKey(hudStructPtr[UI_HUD_SLOT_KEY].x + Widescreen_ScaleWidth(0x10), hudStructPtr[UI_HUD_SLOT_KEY].y - 10, gGT->drivers[0]);
+	UI_DrawNumTrophy(hudStructPtr[UI_HUD_SLOT_TROPHY].x + Widescreen_ScaleWidth(0x10), hudStructPtr[UI_HUD_SLOT_TROPHY].y - 10, gGT->drivers[0]);
 }
 
 // Crystal Challenge is co-op in adventure multiplayer: the team shares one
@@ -1014,7 +1017,7 @@ void UI_RenderFrame_CrystChall(void)
 		UI_DrawSpeedBG();
 	}
 
-	UI_DrawNumCrystal(hudStructPtr[UI_HUD_SLOT_CRYSTAL].x + 0x10, hudStructPtr[UI_HUD_SLOT_CRYSTAL].y - 0x10);
+	UI_DrawNumCrystal(hudStructPtr[UI_HUD_SLOT_CRYSTAL].x + Widescreen_ScaleWidth(0x10), hudStructPtr[UI_HUD_SLOT_CRYSTAL].y - 0x10);
 
 	DecalFont_DrawLine(sdata->lngStrings[LNG_TIME], 0x14, 8, FONT_SMALL, ORANGE);
 

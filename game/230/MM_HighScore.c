@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -66,6 +67,12 @@ enum
 	MM_HIGHSCORE_MENU_WIDTH = 0xa4,
 	MM_HIGHSCORE_TEXT_JUSTIFICATION_MASK = 0xffffc000u,
 };
+
+static int MM_HighScore_IconOffset(struct Icon *icon, int iconX, int textX)
+{
+	int width = icon != NULL ? icon->texLayout.u1 - icon->texLayout.u0 : 0;
+	return iconX + Widescreen_FixedEdgeShift(textX - iconX) - Widescreen_CenteredEdgeShift(width);
+}
 
 void MM_HighScore_Text3D(char *string, s32 posX, s32 posY, s16 font, u32 flags)
 {
@@ -346,8 +353,10 @@ void MM_HighScore_Draw(s16 trackIndex, s32 rowIndex, s32 posX, s32 posY)
 			    FONT_SMALL, zeroValue);
 
 			// Character Icon
-			MM_RECTMENU_DRAW_POLY_GT4(GAME_TRACKER->ptrIcons[GAME_CHARACTER_METADATA[(s16)((struct HighScoreEntry *)displayData)[0].characterID].iconID],
-			                          bestLapTransitions[MM_HIGHSCORE_BEST_LAP_ENTRY_META_INDEX].currX + (s16)offsetX + MM_HIGHSCORE_BEST_LAP_ICON_X_OFFSET,
+			struct Icon *icon = GAME_TRACKER->ptrIcons[GAME_CHARACTER_METADATA[(s16)((struct HighScoreEntry *)displayData)[0].characterID].iconID];
+			MM_RECTMENU_DRAW_POLY_GT4(icon,
+			                          bestLapTransitions[MM_HIGHSCORE_BEST_LAP_ENTRY_META_INDEX].currX + (s16)offsetX +
+			                              MM_HighScore_IconOffset(icon, MM_HIGHSCORE_BEST_LAP_ICON_X_OFFSET, MM_HIGHSCORE_BEST_LAP_TEXT_X_OFFSET),
 			                          ((struct TransitionMeta *)sharedS1)[MM_HIGHSCORE_BEST_LAP_ENTRY_META_INDEX].currY + (s16)offsetY +
 			                              MM_HIGHSCORE_BEST_LAP_ICON_Y_OFFSET,
 			                          &GAME_TRACKER->backBuffer->primMem, (GAME_TRACKER->pushBuffer_UI).ptrOT, MM_HIGHSCORE_ICON_COLOR, MM_HIGHSCORE_ICON_COLOR,
@@ -372,8 +381,10 @@ void MM_HighScore_Draw(s16 trackIndex, s32 rowIndex, s32 posX, s32 posY)
 		CTR_PSX_KEEP_VALUE(sharedS1);
 
 		// Character Icon
-		MM_RECTMENU_DRAW_POLY_GT4(GAME_TRACKER->ptrIcons[GAME_CHARACTER_METADATA[(s16)rowEntry->characterID].iconID],
-		                          ((struct TransitionMeta *)sharedS1)[0].currX + (s16)offsetX + MM_HIGHSCORE_SCORE_ICON_X_OFFSET,
+		struct Icon *icon = GAME_TRACKER->ptrIcons[GAME_CHARACTER_METADATA[(s16)rowEntry->characterID].iconID];
+		MM_RECTMENU_DRAW_POLY_GT4(icon,
+		                          ((struct TransitionMeta *)sharedS1)[0].currX + (s16)offsetX +
+		                              MM_HighScore_IconOffset(icon, MM_HIGHSCORE_SCORE_ICON_X_OFFSET, MM_HIGHSCORE_SCORE_NAME_X_OFFSET),
 		                          ((struct TransitionMeta *)sharedS1)[0].currY + (s16)offsetY + sharedS5 + (s16)sharedS2 +
 		                              (MM_HIGHSCORE_SCORE_NAME_Y_OFFSET - MM_HIGHSCORE_BEST_TRACK_LABEL_Y_OFFSET),
 		                          &GAME_TRACKER->backBuffer->primMem, GAME_TRACKER->pushBuffer_UI.ptrOT, MM_HIGHSCORE_ICON_COLOR, MM_HIGHSCORE_ICON_COLOR,
