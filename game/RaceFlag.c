@@ -1,5 +1,6 @@
 #include <common.h>
 #include <ctr_gte_transfer.h>
+#include <widescreen.h>
 
 #define RACE_FLAG_MATRIX data.matrixTitleFlag
 #define RACE_FLAG_WAVE   data.checkerFlagVariables
@@ -28,7 +29,10 @@ enum RaceFlagScratchConstants
 {
 	RACE_FLAG_SCREEN_ROWS = 10,
 	RACE_FLAG_SCREEN_POINTS_PER_ROW = 3,
-	RACE_FLAG_SCREEN_POINTS_PER_COLUMN = RACE_FLAG_SCREEN_ROWS * RACE_FLAG_SCREEN_POINTS_PER_ROW,
+	RACE_FLAG_COLUMNS = 35,
+	RACE_FLAG_COLUMN_WIDTH = 100,
+	RACE_FLAG_ROW_HEIGHT = 282,
+	RACE_FLAG_RIPPLE_STEP = 300,
 };
 
 enum RaceFlagConstants
@@ -603,9 +607,25 @@ static void RaceFlag_DrawFade(u32 *ot, s32 position)
 	primMem->cursor = packet + 1;
 }
 
+static void RaceFlag_ScaleScreenX(u32 *points, int count, int factor)
+{
+	const int centerX = 256;
+	if (factor == 1000)
+	{
+		return;
+	}
+	for (int i = 0; i < count; i++)
+	{
+		int x = (s16)points[i];
+		x = centerX + (x - centerX) * factor / 1000;
+		points[i] = (points[i] & 0xffff0000u) | (u16)x;
+	}
+}
+
 static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 {
 	SVECTOR positions[3];
+	MATRIX flagMatrix = RACE_FLAG_MATRIX;
 	s32 columnWave[5];
 	u8 colors[2];
 	s32 leftLight;
@@ -628,40 +648,48 @@ static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 	u32 *readScreen;
 	s32 packedRight;
 	register POLY_G4 *poly CTR_PSX_REGISTER("$8");
-	CTR_GteSetRotMatrix(&RACE_FLAG_MATRIX);
-	CTR_GteSetTransMatrix(&RACE_FLAG_MATRIX);
+	const int aspectFactor = Widescreen_GetFactor();
+	const int extraColumns = (RACE_FLAG_COLUMNS * (1000 - aspectFactor) + 2 * aspectFactor - 1) / (2 * aspectFactor);
+	const int extraRows = (RACE_FLAG_SCREEN_ROWS * (1000 - aspectFactor) + 2 * aspectFactor - 1) / (2 * aspectFactor);
+	const int screenRows = RACE_FLAG_SCREEN_ROWS + 2 * extraRows;
+	const int pointsPerColumn = screenRows * RACE_FLAG_SCREEN_POINTS_PER_ROW;
+	// Reduce horizontal recession so the compressed flag still spans the viewport.
+	flagMatrix.m[2][0] = flagMatrix.m[2][0] * aspectFactor / 1000;
+	CTR_GteSetRotMatrix(&flagMatrix);
+	CTR_GteSetTransMatrix(&flagMatrix);
 	CTR_GteSetGeomOffset(256, 120);
 	gte_SetGeomScreen(256);
 	firstWave = RACE_FLAG_WAVE;
 	poly = 0;
 	writeScreen = RACE_FLAG_SCREEN_BASE;
 	toggle = 1;
-	columnPhase = sdata->RaceFlag_ElapsedTime >> 5;
-	rippleAngle = columnPhase;
+	columnPhase = (sdata->RaceFlag_ElapsedTime >> 5) - extraColumns * 256;
+	rippleAngle = columnPhase - extraRows * RACE_FLAG_SCREEN_POINTS_PER_ROW * RACE_FLAG_RIPPLE_STEP;
 	height = RaceFlag_StepWave(firstWave, firstWave[3] * GAME_TRACKER->elapsedTimeMS, &leftLight);
 	depth = ((height * RACE_FLAG_WAVE[1]) >> 13) + 640;
-	positions[0].vy = -910;
-	positions[1].vy = -816;
-	positions[2].vy = -722;
-	flagPosition = (-3006) - flagPosition;
+	positions[0].vy = -910 - extraRows * RACE_FLAG_ROW_HEIGHT;
+	positions[1].vy = -816 - extraRows * RACE_FLAG_ROW_HEIGHT;
+	positions[2].vy = -722 - extraRows * RACE_FLAG_ROW_HEIGHT;
+	flagPosition = (-3006) - flagPosition - extraColumns * RACE_FLAG_COLUMN_WIDTH;
 	positions[0].vx = flagPosition;
 	positions[1].vx = flagPosition;
 	positions[2].vx = flagPosition;
-	for (row = 0; row < RACE_FLAG_SCREEN_ROWS; ++row)
+	for (row = 0; row < screenRows; ++row)
 	{
 		for (firstPoint = 0; firstPoint < RACE_FLAG_SCREEN_POINTS_PER_ROW; ++firstPoint)
 		{
 			sine = RaceFlag_Sin(rippleAngle) + 4095;
 			positions[firstPoint].vz = depth + ((sine * 32) >> 13);
-			rippleAngle += 300;
+			rippleAngle += RACE_FLAG_RIPPLE_STEP;
 		}
 
 		CTR_GteLoadPositionsV0V1V2(positions, &positions[1], &positions[2]);
 		gte_rtpt();
-		positions[0].vy += 282;
-		positions[1].vy += 282;
-		positions[2].vy = positions[2].vy + 282;
+		positions[0].vy += RACE_FLAG_ROW_HEIGHT;
+		positions[1].vy += RACE_FLAG_ROW_HEIGHT;
+		positions[2].vy += RACE_FLAG_ROW_HEIGHT;
 		CTR_GteStorePositionsXY(writeScreen, writeScreen + 1, writeScreen + 2);
+		RaceFlag_ScaleScreenX(writeScreen, RACE_FLAG_SCREEN_POINTS_PER_ROW, aspectFactor);
 		writeScreen += 3;
 	}
 
@@ -672,31 +700,31 @@ static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 	columnWave[3] = RACE_FLAG_WAVE[3];
 	columnWave[4] = RACE_FLAG_WAVE[4];
 
-	for (column = 1; column < 35; ++column)
+	for (column = 1; column < RACE_FLAG_COLUMNS + 2 * extraColumns; ++column)
 	{
 		{
-			// Alternate two 30-vertex scratch banks; keep the byte offset separate from the cursor base.
+			// Alternate two scratch banks sized for the extended columns.
 			register u8 *columnBase CTR_PSX_REGISTER("$3") = (u8 *)(RACE_FLAG_SCREEN_BASE - 1);
-			register s32 byteOffset CTR_PSX_REGISTER("$2") = toggle * (RACE_FLAG_SCREEN_POINTS_PER_COLUMN * 4);
+			register s32 byteOffset CTR_PSX_REGISTER("$2") = toggle * (pointsPerColumn * 4);
 			writeScreen = (u32 *)(columnBase + byteOffset);
 		}
 		toggle ^= 1;
-		readScreen = RACE_FLAG_SCREEN_BASE + (toggle * RACE_FLAG_SCREEN_POINTS_PER_COLUMN);
+		readScreen = RACE_FLAG_SCREEN_BASE + (toggle * pointsPerColumn);
 		columnPhase += 256;
-		rippleAngle = columnPhase;
+		rippleAngle = columnPhase - extraRows * RACE_FLAG_SCREEN_POINTS_PER_ROW * RACE_FLAG_RIPPLE_STEP;
 		height = RaceFlag_StepWave(columnWave, columnWave[3] * 64, &leftLight);
 		depth = ((height * columnWave[1]) >> 13) + 640;
-		positions[0].vy = -910;
-		positions[1].vy = -816;
-		positions[2].vy = -722;
-		positions[0].vx += 100;
-		positions[1].vx += 100;
-		positions[2].vx += 100;
+		positions[0].vy = -910 - extraRows * RACE_FLAG_ROW_HEIGHT;
+		positions[1].vy = -816 - extraRows * RACE_FLAG_ROW_HEIGHT;
+		positions[2].vy = -722 - extraRows * RACE_FLAG_ROW_HEIGHT;
+		positions[0].vx += RACE_FLAG_COLUMN_WIDTH;
+		positions[1].vx += RACE_FLAG_COLUMN_WIDTH;
+		positions[2].vx += RACE_FLAG_COLUMN_WIDTH;
 		for (point = 0; point < RACE_FLAG_SCREEN_POINTS_PER_ROW; ++point)
 		{
 			sine = RaceFlag_DecodeSine(rippleAngle, (s32)CTR_ReadU32AlignedLE(&RACE_FLAG_TRIG[rippleAngle & RACE_FLAG_TRIG_TABLE_MASK])) + 4095;
 			positions[point].vz = depth + ((sine * 32) >> 13);
-			rippleAngle += 300;
+			rippleAngle += RACE_FLAG_RIPPLE_STEP;
 		}
 
 		CTR_GteLoadPositionsV0V1V2(positions, &positions[1], &positions[2]);
@@ -710,21 +738,22 @@ static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 			s32 shadeScale;
 			register s32 inverseRight CTR_PSX_REGISTER("$10");
 			++row;
-			if (row < RACE_FLAG_SCREEN_ROWS + 1)
+			if (row < screenRows + 1)
 			{
 				CTR_GteStorePositionsXY(writeScreen + 1, writeScreen + 2, writeScreen + 3);
-				if (row < RACE_FLAG_SCREEN_ROWS)
+				RaceFlag_ScaleScreenX(writeScreen + 1, RACE_FLAG_SCREEN_POINTS_PER_ROW, aspectFactor);
+				if (row < screenRows)
 				{
 					for (point = 0; point < RACE_FLAG_SCREEN_POINTS_PER_ROW; ++point)
 					{
 						sine = RaceFlag_DecodeSine(rippleAngle, (s32)CTR_ReadU32AlignedLE(&RACE_FLAG_TRIG[rippleAngle & RACE_FLAG_TRIG_TABLE_MASK])) + 4095;
 						positions[point].vz = depth + ((sine * 32) >> 13);
-						rippleAngle += 300;
+						rippleAngle += RACE_FLAG_RIPPLE_STEP;
 					}
 
-					positions[0].vy += 282;
-					positions[1].vy += 282;
-					positions[2].vy += 282;
+					positions[0].vy += RACE_FLAG_ROW_HEIGHT;
+					positions[1].vy += RACE_FLAG_ROW_HEIGHT;
+					positions[2].vy += RACE_FLAG_ROW_HEIGHT;
 					CTR_GteLoadPositionsV0V1V2(positions, &positions[1], &positions[2]);
 					gte_rtpt();
 				}
@@ -775,7 +804,7 @@ static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 						{
 							return;
 						}
-						if (((column >> 2) + (segment >> 2)) & 1)
+						if ((((column - extraColumns) >> 2) + ((segment - extraRows * RACE_FLAG_SCREEN_POINTS_PER_ROW) >> 2)) & 1)
 						{
 							s32 left = *((volatile s32 *)(&leftLight));
 							colors[0] = darkRight;
@@ -817,7 +846,7 @@ static void RaceFlag_DrawFlag(u32 *ot, s16 flagPosition)
 					++segment;
 				} while (quadPoint < RACE_FLAG_SCREEN_POINTS_PER_ROW);
 			}
-		} while (row < RACE_FLAG_SCREEN_ROWS);
+		} while (row < screenRows);
 		rightLight = leftLight;
 	}
 
