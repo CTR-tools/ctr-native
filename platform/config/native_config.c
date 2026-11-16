@@ -72,75 +72,11 @@ static const ConfigEnumValue kPgxpModeValues[] = {
 #define NUM_PGXP_MODES (sizeof(kPgxpModeValues) / sizeof(kPgxpModeValues[0]))
 
 NativeConfig g_config = {
-  .textLanguage = NATIVE_LANGUAGE_ENGLISH,
-  .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
-  .retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED,
-  .skipIntro = false,
-  .loadingScreen = LOADING_SCREEN_VANILLA,
-  .skipPodiumCeremonies = false,
-  .showReservesMeter = false,
-  .allowOxideStationMultiplayer = false,
-  .allowRaceTracksInBattle = false,
-  .extendedMultiplayer = false,
-  .botSelectionMode = BOT_SELECTION_PREDETERMINED,
-  .skipHints = false,
-  .bossCutscenes = BOSS_CUTSCENES_UNSKIPPABLE,
-  .expandedAdventureOptions = false,
-  .extraDifficultyLevels = false,
-  .engineSelection = false,
-  .customCups = false,
-  .expandedArcade = false,
+#include "native_config_defaults.inc"
+};
 
-  .speedMultiplier = 100,
-  .gravityMultiplier = 100,
-  .turnMultiplier = 100,
-  .jumpMultiplier = 100,
-  .reserveMultiplier = 100,
-
-  .missileSpeedMultiplier =  100,
-  .bombSpeedMultiplier = 100,
-  .warpballSpeedMultiplier = 100,
-  .bombExplosionRadiusMultiplier = 100,
-  .tntExplosionRadiusMultiplier = 100,
-
-  .unlockAllCharacters = false,
-  .unlockNitrosOxide = false,
-  .unlockCupDifficulties = false,
-  .unlockTurboTrack = false,
-  .unlockAllBattleArenas = false,
-  .unlockAllGates = false,
-  .unlockAllPortals = false,
-
-  .increaseDrawDistance = false,
-  .disableSplitScreenLod = false,
-
-  .fullscreen = false,
-  .vsync = false,
-  .aspectRatio = 0,
-  .dithering = true,
-  .renderScale = 0,
-  .smoothScaling = true,
-  .fxaa = false,
-  .textureFiltering = false,
-  .pgxpMode = PGXP_MODE_OFF,
-  .saveAnywhere = false,
-  .maskMode = MASK_MODE_NORMAL,
-  .maskProtectsFromDamage = true,
-  .maskDamagesOthers = true,
-  .maskPersistsAfterOOB = false,
-  .maskDurationMultiplier = 100,
-  .maskExtraSpeedMultiplier = 100,
-  .clockDurationMultiplier = 100,
-  .allowWeaponsDuringClock = false,
-  .autoEndRaceWhenOthersFinish = false,
-  .developerHacksEnabled = false,
-  .omniController = false,
-  .oneLapRaces = false,
-  .towPlayer2 = false,
-  .quickRace = false,
-  .chaosQuickRace = false,
-  .skipStartCountdown = false,
-  .endRaceWithL3 = false
+static const NativeConfig s_defaults = {
+#include "native_config_defaults.inc"
 };
 
 const ConfigEntry g_configEntries[] = {
@@ -714,10 +650,6 @@ const ConfigEntry g_configEntries[] = {
 
 const int g_numConfigEntries = sizeof(g_configEntries) / sizeof(g_configEntries[0]);
 
-// Snapshot of the pristine g_config, copied at the top of NativeConfig_Load
-// before anything mutates it.
-static NativeConfig s_defaults;
-
 // Developer hacks are an umbrella switch: while developerHacksEnabled is off,
 // every other option in the section is restored to its default so a hidden
 // option can never silently alter gameplay.
@@ -807,7 +739,7 @@ static void *NativeConfig_ConfigDestination(const ConfigEntry *entry, void *cont
     return (char *)context + offset;
 }
 
-ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path)
+ConfigLoadResult NativeConfig_ReadPresetDefaults(const char *path)
 {
     NativeConfig candidate = g_config;
     ConfigLoadResult result = NativeConfig_ReadFile(path, &candidate, NativeConfig_ConfigDestination,
@@ -816,6 +748,15 @@ ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path)
     if (result == CONFIG_LOAD_OK)
     {
         g_config = candidate;
+    }
+    return result;
+}
+
+ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path)
+{
+    ConfigLoadResult result = NativeConfig_ReadPresetDefaults(path);
+    if (result == CONFIG_LOAD_OK)
+    {
         NativeConfig_ResetDisabledDeveloperHacks();
     }
     return result;
@@ -832,10 +773,6 @@ static const char *NativeConfig_LanguageNameOverride(const ConfigEntry *entry, i
 
 void NativeConfig_Load(void)
 {
-    // Must happen before the parse below (and before the config menu can edit
-    // anything) so the snapshot still holds the pristine defaults.
-    s_defaults = g_config;
-
     printf("[Config] Base:       %s\n", NativeAssets_GetBaseDir());
     char path[512];
     NativePath_Join(path, sizeof(path), NativeStr8_FromCString(NativeAssets_GetBaseDir()), NATIVE_STR8_LIT("config.ini"));
@@ -843,6 +780,7 @@ void NativeConfig_Load(void)
                               CONFIG_PARSE_COMPATIBLE, NativeConfig_ParseLanguageOverride) != CONFIG_LOAD_OK)
     {
         printf("[Config] Could not read config.ini (%s)\n", path);
+        NativeConfig_ResetDisabledDeveloperHacks();
         return;
     }
 

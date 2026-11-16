@@ -7,7 +7,7 @@ description: Add or modify user-facing options in the table-driven INI configura
 
 Use this skill for any adjustable gameplay, display, or quality-of-life option.
 
-1. Add a field to `NativeConfig` in `include/platform/config/native_config.h`; initialize it in `g_config` and add a matching `ConfigEntry` in the appropriate contiguous section of `g_configEntries` in `platform/config/native_config.c`.
+1. Add a field to `NativeConfig` in `include/platform/config/native_config.h`; initialize it in `platform/config/native_config_defaults.inc` and add a matching `ConfigEntry` in the appropriate contiguous section of `g_configEntries` in `platform/config/native_config.c`.
 2. Pick `CFG_BOOL`, `CFG_INT` (with min/max/step), or `CFG_ENUM` (with a `ConfigEnumValue` table). `game/230/config/MM_ConfigMenu.c` builds a section map from adjacent entries and renders/edits the entries. Check menu assumptions when adding a section or an enum with non-contiguous values.
 3. Apply the option in the relevant game/platform code by reading `g_config`; keep the default vanilla unless the request explicitly specifies otherwise. Preserve established defaults for existing options (for example, the current `renderScale` default is Native).
 4. Add the setting to the matching table in `README.md`. `main.c` loads config before platform initialization; `NativeConfig_Load`/`Save` use `config.ini` at the executable base directory. If the file or an option is missing, the built-in default is used.

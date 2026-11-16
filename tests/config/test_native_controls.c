@@ -1684,6 +1684,67 @@ static void TestVibrationPersistence(void)
 	}
 }
 
+static void TestDeveloperDefaultsAreImmutable(void)
+{
+	CTR_TEST_SECTION("developer defaults do not depend on load order");
+	const NativeConfig initial = g_config;
+	g_config.developerHacksEnabled = false;
+	g_config.oneLapRaces = true;
+	const ConfigEntry *gate = NULL;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (g_configEntries[i].valuePtr == &g_config.developerHacksEnabled)
+		{
+			gate = &g_configEntries[i];
+			break;
+		}
+	}
+	CTR_TEST_CHECK(gate != NULL, "developer gate is registered");
+	NativeConfig_ApplyDependencies(gate);
+	CTR_TEST_CHECK(!g_config.oneLapRaces, "disabled developer hacks reset before any load");
+	g_config = initial;
+}
+
+static void TestConfigPresetPrecedence(void)
+{
+	CTR_TEST_SECTION("configuration overrides preset defaults");
+	char presetPath[512];
+	char configPath[512];
+	NativePath_Join(presetPath, sizeof(presetPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("preset-test.ini"));
+	NativePath_Join(configPath, sizeof(configPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
+	const NativeConfig initial = g_config;
+	FILE *file = fopen(presetPath, "w");
+	CTR_TEST_CHECK(file != NULL, "scratch preset can be created");
+	if (file == NULL) { return; }
+	fputs("[General]\nshow_reserves_meter = true\nskip_intro = true\n", file);
+	fclose(file);
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "scratch configuration can be created");
+	if (file == NULL) { remove(presetPath); return; }
+	fputs("[General]\nshow_reserves_meter = false\n", file);
+	fclose(file);
+	g_config.showReservesMeter = false;
+	g_config.skipIntro = false;
+	CTR_TEST_CHECK(NativeProfile_LoadConfiguration(presetPath) == CONFIG_LOAD_OK, "valid preset loads");
+	CTR_TEST_CHECK(!g_config.showReservesMeter && g_config.skipIntro,
+	               "explicit config value wins while a missing value uses the preset");
+	file = fopen(presetPath, "w");
+	CTR_TEST_CHECK(file != NULL, "invalid preset can be created");
+	if (file != NULL)
+	{
+		fputs("[General]\nskip_intro = true\nunknown = true\n", file);
+		fclose(file);
+		g_config.skipIntro = false;
+		g_config.showReservesMeter = true;
+		CTR_TEST_CHECK(NativeProfile_LoadConfiguration(presetPath) == CONFIG_LOAD_INVALID, "invalid preset is reported");
+		CTR_TEST_CHECK(!g_config.skipIntro && !g_config.showReservesMeter,
+		               "invalid preset is discarded and the user's configuration still loads");
+	}
+	remove(presetPath);
+	remove(configPath);
+	g_config = initial;
+}
+
 static void TestProfileFile(void)
 {
 	CTR_TEST_SECTION("profile persistence is separate from configuration");
@@ -1830,6 +1891,8 @@ int main(void)
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
 	CTR_TEST_SECTION("native_controls tests");
+	TestDeveloperDefaultsAreImmutable();
+	TestConfigPresetPrecedence();
 	TestProfileFile();
 	TestPresetFile();
 	TestAdventureOptionsWithoutLegacyMigration();

@@ -22,6 +22,17 @@ static void *NativeProfile_Destination(const ConfigEntry *entry, void *context)
     return context;
 }
 
+ConfigLoadResult NativeProfile_LoadConfiguration(const char *presetPath)
+{
+    ConfigLoadResult result = CONFIG_LOAD_OK;
+    if (presetPath != NULL)
+    {
+        result = NativeConfig_ReadPresetDefaults(presetPath);
+    }
+    NativeConfig_Load();
+    return result;
+}
+
 ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile)
 {
     if (profile == NULL)

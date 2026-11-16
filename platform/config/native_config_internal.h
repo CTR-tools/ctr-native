@@ -21,4 +21,7 @@ const char *NativeConfig_EnumName(const ConfigEntry *entry, int value);
 bool NativeConfig_WriteValue(FILE *file, const ConfigEntry *entry, const void *value,
                              ConfigEnumNameOverride nameOverride);
 
+// Stage preset defaults before the user configuration and dependency checks.
+ConfigLoadResult NativeConfig_ReadPresetDefaults(const char *path);
+
 #endif

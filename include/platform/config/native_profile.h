@@ -12,4 +12,7 @@ typedef enum {
 ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile);
 bool NativeConfig_SaveProfile(ConfigProfile profile);
 
+// Load config.ini after preset defaults; the config still loads if the preset fails.
+ConfigLoadResult NativeProfile_LoadConfiguration(const char *presetPath);
+
 #endif
