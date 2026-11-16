@@ -101,22 +101,6 @@ add_library(tomlc17 STATIC externals/tomlc17/tomlc17.c)
 set_target_properties(tomlc17 PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(tomlc17 PUBLIC "${CMAKE_SOURCE_DIR}/externals/tomlc17")
 
-# Copy default config.ini to build directory if config.ini doesn't exist
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/config.ini")
-    configure_file("${CMAKE_SOURCE_DIR}/resources/config/default_config.ini"
-                   "${CMAKE_BINARY_DIR}/config.ini" COPYONLY)
-    message(STATUS "Copied default_config.ini → ${CMAKE_BINARY_DIR}/config.ini")
-endif()
-
-# Same for controls.ini, which is written by the in-game Controls screen. Copied
-# only as a reference: the game creates it on the first binding change, and an
-# existing build/controls.ini must never be overwritten.
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/controls.ini")
-    configure_file("${CMAKE_SOURCE_DIR}/resources/config/default_controls.ini"
-                   "${CMAKE_BINARY_DIR}/controls.ini" COPYONLY)
-    message(STATUS "Copied default_controls.ini → ${CMAKE_BINARY_DIR}/controls.ini")
-endif()
-
 # Crash Team Racing Expanded
 add_executable(crash_team_racing_expanded main.c)
 file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS

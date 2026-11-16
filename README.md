@@ -213,8 +213,8 @@ calling menu and its selected row. The game stays paused until you resume from
 the pause menu.
 
 Configuration changes apply at runtime and are saved when leaving Options.
-They are persisted to `build/config.ini` (standard INI format). An example
-template is at `resources/config/default_config.ini`.
+They are persisted to `build/config.ini` (standard INI format). If the file is
+absent, the game starts with its built-in defaults and creates it on save.
 
 Input bindings, deadzones, player assignment and per-player vibration are kept
 separately in `build/controls.ini` and edited from **Options > System > Controls**. See
