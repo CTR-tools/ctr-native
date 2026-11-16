@@ -280,6 +280,11 @@ if(UNIX)
     target_link_libraries(test_pgxp_gte PRIVATE m)
 endif()
 
+ctr_add_test_suite(test_native_config
+    SOURCES config/test_native_config.c
+    LIBRARIES SDL3::SDL3
+)
+
 ctr_add_test_suite(test_native_controls
     SOURCES config/test_native_controls.c
     LIBRARIES SDL3::SDL3
