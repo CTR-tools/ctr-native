@@ -132,7 +132,7 @@ void MM_Scrapbook_PlayMovie(struct RectMenu *menu)
 		}
 		else
 		{
-			Platform_PinVRAMDisplayRect(nativeSrcX, nativeDisplayY, SCRAPBOOK_NATIVE_DISPLAY_WIDTH, SCREEN_HEIGHT, 1);
+			Platform_PinVRAMDisplayRect4x3(nativeSrcX, nativeDisplayY, SCRAPBOOK_NATIVE_DISPLAY_WIDTH, SCREEN_HEIGHT, 1);
 		}
 
 		if ((getButtonPress == 0) && (nativeUploaded != 0))

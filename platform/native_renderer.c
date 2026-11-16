@@ -2339,6 +2339,24 @@ void NativeRenderer_PresentVRAMRect(int displayX, int displayY, int displayW, in
 	}
 }
 
+void NativeRenderer_PresentVRAMRect4x3(int displayX, int displayY, int displayW, int displayH)
+{
+	SDL_Rect savedViewport = s_presentViewport;
+	if (g_config.aspectRatio != 0)
+	{
+		int width = s_presentViewport.h * 4 / 3;
+		if (width < s_presentViewport.w)
+		{
+			s_presentViewport.x += (s_presentViewport.w - width) / 2;
+			s_presentViewport.w = width;
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			NativeRenderer_ClearPresentationBars();
+		}
+	}
+	NativeRenderer_PresentVRAMRect(displayX, displayY, displayW, displayH);
+	s_presentViewport = savedViewport;
+}
+
 void NativeRenderer_PresentMainRenderTarget(void)
 {
 	if ((s_mainRenderTarget.width <= 0) || (s_mainRenderTarget.height <= 0) || (s_presentViewport.w <= 0) || (s_presentViewport.h <= 0))

@@ -432,7 +432,7 @@ void Platform_EndScene(void)
 	{
 		if (s_pinnedVramDisplayCustomRect)
 		{
-			NativeRenderer_PresentVRAMRect(s_pinnedVramDisplayX, s_pinnedVramDisplayY, s_pinnedVramDisplayW, s_pinnedVramDisplayH);
+			NativeRenderer_PresentVRAMRect4x3(s_pinnedVramDisplayX, s_pinnedVramDisplayY, s_pinnedVramDisplayW, s_pinnedVramDisplayH);
 		}
 		else
 		{
@@ -496,7 +496,7 @@ void Platform_PinVRAMDisplayFrames(int frameCount)
 	}
 }
 
-void Platform_PinVRAMDisplayRect(int x, int y, int w, int h, int frameCount)
+void Platform_PinVRAMDisplayRect4x3(int x, int y, int w, int h, int frameCount)
 {
 	if ((frameCount <= 0) || (w <= 0) || (h <= 0))
 	{
