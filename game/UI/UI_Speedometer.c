@@ -1,4 +1,13 @@
 #include <common.h>
+#include <widescreen.h>
+
+static void UI_Speedometer_ScaleNeedle(PolyG3 *needle, int centerX)
+{
+	for (int i = 0; i < 3; i++)
+	{
+		needle->v[i].pos.x = centerX + Widescreen_ScaleWidth(needle->v[i].pos.x - centerX);
+	}
+}
 
 void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 {
@@ -74,6 +83,7 @@ void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 	p->v[0].pos.x = posX + (FP_INT(sin[0] * needleHeight) + needleCenterX);
 	p->v[0].pos.y = posY + (yLen + needleCenterY);
 
+	UI_Speedometer_ScaleNeedle(p, posX + needleCenterX);
 	AddPrimitive(p, sdata->gGT->pushBuffer_UI.ptrOT);
 	GetPrimMem(p);
 	if (p == nullptr)
@@ -112,6 +122,7 @@ void UI_DrawSpeedNeedle(s16 posX, s16 posY, struct Driver *driver)
 	p->v[0].pos.x = posX + (FP_INT(sin[0] * needleHeight) + needleCenterX);
 	p->v[0].pos.y = posY + (yLen + needleCenterY);
 
+	UI_Speedometer_ScaleNeedle(p, posX + needleCenterX);
 	AddPrimitive(p, sdata->gGT->pushBuffer_UI.ptrOT);
 }
 
@@ -133,8 +144,8 @@ void UI_DrawSpeedBG(void)
 	for (int i = 0; i < pointCount; i += 2)
 	{
 		Point pt[2];
-		pt[0] = MakePoint(vertexesExtLine[i].x + xOffset, vertexesExtLine[i].y + yOffset);
-		pt[1] = MakePoint(vertexesExtLine[i + 1].x + xOffset, vertexesExtLine[i + 1].y + yOffset);
+		pt[0] = MakePoint(Widescreen_ScaleWidth(vertexesExtLine[i].x) + xOffset, vertexesExtLine[i].y + yOffset);
+		pt[1] = MakePoint(Widescreen_ScaleWidth(vertexesExtLine[i + 1].x) + xOffset, vertexesExtLine[i + 1].y + yOffset);
 		CTR_Box_DrawWirePrims(pt[0].x, pt[0].y, pt[1].x, pt[1].y, 0xff, 0xff, 0xff, sdata->gGT->pushBuffer_UI.ptrOT, &sdata->gGT->backBuffer->primMem);
 		CTR_Box_DrawWirePrims(pt[0].x + 1, pt[0].y + 1, pt[1].x + 1, pt[1].y + 1, 0, 0, 0, sdata->gGT->pushBuffer_UI.ptrOT, &sdata->gGT->backBuffer->primMem);
 	}
@@ -146,7 +157,7 @@ void UI_DrawSpeedBG(void)
 		Point pt[4];
 		for (int j = 0; j < 4; j++)
 		{
-			pt[j] = MakePoint(vertexes[i + j].x + xOffset, vertexes[i + j].y + yOffset);
+			pt[j] = MakePoint(Widescreen_ScaleWidth(vertexes[i + j].x) + xOffset, vertexes[i + j].y + yOffset);
 		}
 		CTR_Box_DrawWirePrims(pt[0].x, pt[0].y, pt[2].x, pt[2].y, 0xff, 0xff, 0xff, sdata->gGT->pushBuffer_UI.ptrOT, &sdata->gGT->backBuffer->primMem);
 		CTR_Box_DrawWirePrims(pt[1].x, pt[1].y, pt[3].x, pt[3].y, 0xff, 0xff, 0xff, sdata->gGT->pushBuffer_UI.ptrOT, &sdata->gGT->backBuffer->primMem);
@@ -184,7 +195,7 @@ void UI_DrawSpeedBG(void)
 	} TPage_PolyG3;
 
 	/* Draw transparent background */
-	s16 p2x = vertexes[pointCount - 1].x + xOffset;
+	s16 p2x = Widescreen_ScaleWidth(vertexes[pointCount - 1].x) + xOffset;
 	s16 p2y = vertexes[1].y + yOffset;
 	for (int i = 0; i < pointCount - 2; i += 2)
 	{
@@ -207,9 +218,9 @@ void UI_DrawSpeedBG(void)
 		}
 		p->p.gPolyCode = primCode;
 
-		p->p.v[0].pos.x = vertexes[i + 1].x + xOffset;
+		p->p.v[0].pos.x = Widescreen_ScaleWidth(vertexes[i + 1].x) + xOffset;
 		p->p.v[0].pos.y = vertexes[i + 1].y + yOffset;
-		p->p.v[1].pos.x = vertexes[i + 3].x + xOffset;
+		p->p.v[1].pos.x = Widescreen_ScaleWidth(vertexes[i + 3].x) + xOffset;
 		p->p.v[1].pos.y = vertexes[i + 3].y + yOffset;
 		p->p.v[2].pos.x = p2x;
 		p->p.v[2].pos.y = p2y;
