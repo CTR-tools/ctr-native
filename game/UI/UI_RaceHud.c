@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -192,6 +193,7 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		                 (((playerDistance / UI_BATTLE_HEAD_ARROW_DISTANCE_DIVISOR + (playerDistance >> 0x1f)) >> UI_BATTLE_HEAD_ARROW_DISTANCE_SHIFT) -
 		                  (playerDistance >> 0x1f)));
 		halfArrowWidth = (s16)(distanceScale * UI_BATTLE_HEAD_ARROW_HALF_WIDTH_SCALE >> UI_BATTLE_HEAD_ARROW_HALF_WIDTH_SHIFT);
+		halfArrowWidth = Widescreen_ScaleWidth(halfArrowWidth);
 		halfArrowHeight = (s16)(distanceScale * UI_BATTLE_HEAD_ARROW_HEIGHT_SCALE >> UI_BATTLE_HEAD_ARROW_HEIGHT_SHIFT) + UI_BATTLE_HEAD_ARROW_TIP_Y_OFFSET;
 
 		arrow->g3.x0 = arrowCenterX - halfArrowWidth;
@@ -425,7 +427,7 @@ UpdateTrackerState:
 	{
 		primMem = &gGT->backBuffer->primMem;
 
-		sideOuterX = trackerDistance + (x >> 8);
+		sideOuterX = Widescreen_ScaleWidth(trackerDistance + (x >> 8));
 		sideHalfHeight = (s16)((y * UI_TRACKER_SIDE_HEIGHT_SCALE) >> UI_TRACKER_SIDE_HEIGHT_SHIFT);
 
 		for (int side = 0; side < UI_TRACKER_SIDE_COUNT; side++)
@@ -470,7 +472,7 @@ UpdateTrackerState:
 			poly->x0 = screenPosX + orientedX;
 			poly->x2 = screenPosX + orientedX;
 
-			orientedX = orientation * trackerDistance;
+			orientedX = orientation * Widescreen_ScaleWidth(trackerDistance);
 			poly->x1 = screenPosX + orientedX;
 
 			poly->y0 = screenPosY - (sideHalfHeight + UI_TRACKER_SIDE_TIP_OFFSET);
@@ -534,7 +536,7 @@ UpdateTrackerState:
 
 	    screenPosX - (x >> UI_TRACKER_BG_X_SHIFT), screenPosY - ((y * UI_TRACKER_BG_Y_SCALE) >> UI_TRACKER_BG_Y_SHIFT),
 
-	    &gGT->backBuffer->primMem, gGT->pushBuffer[driverID].ptrOT, UI_TRACKER_BG_TRANSPARENCY, x, y, bgColor);
+	    &gGT->backBuffer->primMem, gGT->pushBuffer[driverID].ptrOT, UI_TRACKER_BG_TRANSPARENCY, x, y, bgColor, screenPosX);
 }
 
 void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags)

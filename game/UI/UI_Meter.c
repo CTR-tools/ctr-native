@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -151,14 +152,14 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 	posXInt = (int)posX;
 	numbersY = (int)posY + UI_JUMP_METER_NUMBER_Y_OFFSET + UI_JUMP_METER_NUMBER_Y_BIAS;
 
-	DebugFont_DrawNumbers(wholeSeconds, posXInt + UI_JUMP_METER_SECONDS_X_OFFSET, numbersY);
-	DebugFont_DrawNumbers(tenths, posXInt + UI_JUMP_METER_TENTHS_X_OFFSET, numbersY);
+	DebugFont_DrawNumbers(wholeSeconds, posXInt + Widescreen_ScaleWidth(UI_JUMP_METER_SECONDS_X_OFFSET), numbersY);
+	DebugFont_DrawNumbers(tenths, posXInt + Widescreen_ScaleWidth(UI_JUMP_METER_TENTHS_X_OFFSET), numbersY);
 	DebugFont_DrawNumbers((((jumpMeterRemainder + tenths * -UI_JUMP_METER_TENTH_UNIT) * UI_JUMP_METER_PERCENT_SCALE) / UI_JUMP_METER_TIME_UNIT) * 0x10000 >>
 	                          0x10,
-	                      posXInt + UI_JUMP_METER_HUNDREDTHS_X_OFFSET, numbersY);
+	                      posXInt + Widescreen_ScaleWidth(UI_JUMP_METER_HUNDREDTHS_X_OFFSET), numbersY);
 
-	numberBoxX = posX + UI_JUMP_METER_NUMBER_BOX_X_OFFSET;
-	box.w = UI_JUMP_METER_NUMBER_BOX_W;
+	numberBoxX = posX + Widescreen_ScaleWidth(UI_JUMP_METER_NUMBER_BOX_X_OFFSET);
+	box.w = Widescreen_ScaleWidth(UI_JUMP_METER_NUMBER_FILL_RIGHT_OFFSET) - Widescreen_ScaleWidth(UI_JUMP_METER_NUMBER_BOX_X_OFFSET);
 	box.h = UI_JUMP_METER_NUMBER_BOX_H;
 	box.x = numberBoxX;
 	box.y = posY + UI_JUMP_METER_NUMBER_Y_OFFSET;
@@ -180,8 +181,8 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 	if (p != 0)
 	{
 		CtrGpu_WriteColorCode(&p->r0, UI_JUMP_METER_NUMBER_FILL_COLOR);
-		p->x1 = posX + UI_JUMP_METER_NUMBER_FILL_RIGHT_OFFSET;
-		p->x3 = posX + UI_JUMP_METER_NUMBER_FILL_RIGHT_OFFSET;
+		p->x1 = posX + Widescreen_ScaleWidth(UI_JUMP_METER_NUMBER_FILL_RIGHT_OFFSET);
+		p->x3 = p->x1;
 		p->x0 = box.x;
 		p->y0 = box.y;
 		p->y1 = box.y;
@@ -195,7 +196,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 		*primMemCursor = CtrGpu_PrimToOTLink24(p);
 
 		box2.y = posY - UI_JUMP_METER_BAR_H;
-		box2.w = UI_JUMP_METER_BAR_W;
+		box2.w = Widescreen_ScaleWidth(UI_JUMP_METER_BAR_W);
 		box2.h = UI_JUMP_METER_BAR_H;
 		box2.x = posX;
 
@@ -235,7 +236,7 @@ void UI_JumpMeter_Draw(s16 posX, s16 posY, struct Driver *driver)
 			}
 			CtrGpu_WriteColorCode(&p->r0, barColorAndCode);
 			jumpMeterHeight = (int)currentJumpMeter * UI_JUMP_METER_BAR_H;
-			barRightX = posX + UI_JUMP_METER_BAR_W;
+			barRightX = posX + box2.w;
 			p->x0 = posX;
 			p->x1 = barRightX;
 			p->x2 = posX;

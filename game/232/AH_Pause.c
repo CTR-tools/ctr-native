@@ -249,14 +249,14 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 				for (i = 0; i < AH_PAUSE_HUB_REWARD_ICON_COUNT; i++)
 				{
 					Vec3 *translation = (Vec3 *)member[i - AH_PAUSE_HUB_REWARD_ICON_COUNT].inst->matrix.t;
-					translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + i * AH_PAUSE_ROW_ICON_STEP_X, AH_PAUSE_UI_COORD_SCALE);
+					translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + Widescreen_ScaleWidth(i * AH_PAUSE_ROW_ICON_STEP_X), AH_PAUSE_UI_COORD_SCALE);
 					translation->y = SelectProfile_UI_ConvertY(rowY + AH_PAUSE_ROW_ICON_Y, AH_PAUSE_UI_COORD_SCALE);
 				}
 			}
 			else
 			{
 				Vec3 *translation = (Vec3 *)member[-1].inst->matrix.t;
-				translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + AH_PAUSE_ROW_ICON_STEP_X, AH_PAUSE_UI_COORD_SCALE);
+				translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + Widescreen_ScaleWidth(AH_PAUSE_ROW_ICON_STEP_X), AH_PAUSE_UI_COORD_SCALE);
 				translation->y = SelectProfile_UI_ConvertY(rowY + AH_PAUSE_ROW_ICON_Y, AH_PAUSE_UI_COORD_SCALE);
 			}
 			DecalFont_DrawLine(GAME_LANGUAGE_STRINGS[AH_LEVEL_METADATA[trackID].name_LNG], savedPosX + textX, rowY + AH_PAUSE_ROW_TEXT_Y, FONT_BIG, 0);
@@ -271,7 +271,7 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 			if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, AH_BOSS_REWARDS[hubID]))
 				member->unlockFlags |= AH_PAUSE_MEMBER_UNLOCKED;
 			translation = (Vec3 *)member->inst->matrix.t;
-			translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + AH_PAUSE_ROW_ICON_STEP_X, AH_PAUSE_UI_COORD_SCALE);
+			translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + Widescreen_ScaleWidth(AH_PAUSE_ROW_ICON_STEP_X), AH_PAUSE_UI_COORD_SCALE);
 			translation->y = SelectProfile_UI_ConvertY(rowY + AH_PAUSE_ROW_ICON_Y, AH_PAUSE_UI_COORD_SCALE);
 			member++;
 		}
@@ -298,7 +298,7 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 			if (CHECK_ADV_BIT(GAME_ADV_PROGRESS.rewards, hubID + ADV_REWARD_PURPLE_TOKEN_HUB_ID_BASE))
 				member->unlockFlags |= AH_PAUSE_MEMBER_UNLOCKED;
 			translation = (Vec3 *)member->inst->matrix.t;
-			translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + AH_PAUSE_ROW_ICON_STEP_X, AH_PAUSE_UI_COORD_SCALE);
+			translation->x = SelectProfile_UI_ConvertX(savedPosX + iconX + Widescreen_ScaleWidth(AH_PAUSE_ROW_ICON_STEP_X), AH_PAUSE_UI_COORD_SCALE);
 			translation->y = SelectProfile_UI_ConvertY(crystalRowY + AH_PAUSE_ROW_ICON_Y, AH_PAUSE_UI_COORD_SCALE);
 			member++;
 		}
@@ -312,7 +312,7 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 					member->unlockFlags |= AH_PAUSE_MEMBER_UNLOCKED;
 				translation = (Vec3 *)member->inst->matrix.t;
 				translation->x = SelectProfile_UI_ConvertX(
-				    savedPosX + AH_PAUSE_TITLE_CENTER_X + (i - AH_PAUSE_GEM_PAGE_CENTER_INDEX) * AH_PAUSE_GEM_PAGE_ICON_SPACING_X, AH_PAUSE_UI_COORD_SCALE);
+				    savedPosX + AH_PAUSE_TITLE_CENTER_X + Widescreen_ScaleWidth((i - AH_PAUSE_GEM_PAGE_CENTER_INDEX) * AH_PAUSE_GEM_PAGE_ICON_SPACING_X), AH_PAUSE_UI_COORD_SCALE);
 				translation->y = SelectProfile_UI_ConvertY(((i & 1) << AH_PAUSE_GEM_PAGE_Y_ALT_SHIFT) | AH_PAUSE_GEM_PAGE_Y_BASE, AH_PAUSE_UI_COORD_SCALE);
 			}
 		}
@@ -332,7 +332,7 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 		for (i = 0; i < AH_PAUSE_TOKEN_ICON_COUNT; i++, member++)
 		{
 			Vec3 *translation;
-			s16 instPosX = savedPosX + AH_PAUSE_TOKEN_TOTAL_X_BASE + (i - AH_PAUSE_TOKEN_TOTAL_CENTER_INDEX) * AH_PAUSE_TOKEN_TOTAL_SPACING_X;
+			s16 instPosX = savedPosX + AH_PAUSE_TOKEN_TOTAL_X_BASE + Widescreen_ScaleWidth((i - AH_PAUSE_TOKEN_TOTAL_CENTER_INDEX) * AH_PAUSE_TOKEN_TOTAL_SPACING_X);
 			s32 instPosY = (i & 1) * AH_PAUSE_TOKEN_TOTAL_ROW_Y_STEP;
 			member->iconIndex = AH_PAUSE_ICON_FIRST_TOKEN + i;
 			member->unlockFlags |= AH_PAUSE_MEMBER_UNLOCKED;
@@ -362,7 +362,7 @@ void AH_Pause_Draw(s32 pageID, s32 inputPosX)
 		for (i = 0; i < AH_PAUSE_RELIC_ICON_COUNT; i++, member++)
 		{
 			Vec3 *translation;
-			s16 instPosX = savedPosX + AH_PAUSE_RELIC_TOTAL_X_BASE + (i - AH_PAUSE_RELIC_TOTAL_CENTER_INDEX) * AH_PAUSE_RELIC_TOTAL_SPACING_X;
+			s16 instPosX = savedPosX + AH_PAUSE_RELIC_TOTAL_X_BASE + Widescreen_ScaleWidth((i - AH_PAUSE_RELIC_TOTAL_CENTER_INDEX) * AH_PAUSE_RELIC_TOTAL_SPACING_X);
 			member->iconIndex = AH_PAUSE_ICON_SAPPHIRE_RELIC + i;
 			member->unlockFlags |= AH_PAUSE_MEMBER_UNLOCKED;
 			translation = (Vec3 *)member->inst->matrix.t;

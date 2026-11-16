@@ -9,6 +9,7 @@ static struct DB s_buffer;
 static struct Icon s_icon;
 static struct { struct IconGroup group; struct Icon *icons[48]; } s_atlas;
 static POLY_GT4 s_glyphs[16];
+static POLY_FT4 s_trackerQuads[4];
 static float s_preciseLeft[16];
 static float s_preciseRight[16];
 static u32 s_originalOT[5];
@@ -96,8 +97,48 @@ int main(void)
 	data.font_charPixWidth[FONT_SMALL] = 13;
 	data.trigApprox[0].cos = FP(1.0);
 	NativeGpuLinks_RegisterRangeChecked("font test primitives", s_glyphs, sizeof(s_glyphs));
+	NativeGpuLinks_RegisterRangeChecked("tracker test primitives", s_trackerQuads, sizeof(s_trackerQuads));
+
+	CTR_TEST_SECTION("rotated menu arrows preserve their center");
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		ResetDrawing();
+		Color white = {.r = 255, .g = 255, .b = 255};
+		DecalHUD_Arrow2D(&s_icon, 100, 50, &s_buffer.primMem, s_originalOT, white, white, white, white, 0, FP(1.0), 0);
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x0, 100 + Widescreen_ScaleWidth(-6), "arrow left edge follows widescreen around its center");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].x1, 100 + Widescreen_ScaleWidth(7), "arrow right edge follows widescreen around its center");
+		CTR_TEST_CHECK_EQ(s_glyphs[0].y0, 45, "arrow vertical extent stays unchanged");
+	}
 
 	CTR_TEST_SECTION("widescreen edge insets");
+	CTR_TEST_SECTION("tracker quadrants scale around the tracked driver");
+	int trackerX[4][2];
+	int trackerY[4][2];
+	g_config.aspectRatio = 0;
+	ResetDrawing();
+	s_buffer.primMem.cursor = s_trackerQuads;
+	UI_TrackerBG(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 0, FP(1.0), FP(1.0), 0, 112);
+	for (int i = 0; i < 4; i++)
+	{
+		POLY_FT4 *quad = &s_trackerQuads[i];
+		trackerX[i][0] = quad->x0;
+		trackerX[i][1] = quad->x1;
+		trackerY[i][0] = quad->y0;
+		trackerY[i][1] = quad->y2;
+	}
+	g_config.aspectRatio = 3;
+	ResetDrawing();
+	s_buffer.primMem.cursor = s_trackerQuads;
+	UI_TrackerBG(&s_icon, 100, 40, &s_buffer.primMem, s_originalOT, 0, FP(1.0), FP(1.0), 0, 112);
+	for (int i = 0; i < 4; i++)
+	{
+		POLY_FT4 *quad = &s_trackerQuads[i];
+		CTR_TEST_CHECK_EQ(quad->x0, 112 + Widescreen_ScaleWidth(trackerX[i][0] - 112), "tracker quadrant starts at the corrected horizontal position");
+		CTR_TEST_CHECK_EQ(quad->x1, 112 + Widescreen_ScaleWidth(trackerX[i][1] - 112), "tracker quadrant ends at the corrected horizontal position");
+		CTR_TEST_CHECK_EQ(quad->y0, trackerY[i][0], "tracker quadrant top stays unchanged");
+		CTR_TEST_CHECK_EQ(quad->y2, trackerY[i][1], "tracker quadrant bottom stays unchanged");
+	}
 	const int shadowWidths[][2] = {{12, 4}, {9, 3}, {9, 3}, {6, 2}};
 	const int expectedInsets[] = {0, 6, 4, 10};
 	for (int aspect = 0; aspect < 4; aspect++)

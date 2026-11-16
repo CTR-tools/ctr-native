@@ -360,6 +360,10 @@ void DecalHUD_Arrow2D(struct Icon *icon, s32 posX, s32 posY, struct PrimMem *pri
 	CtrGpu_WritePackedXY(&p->x2, xy2);
 	CtrGpu_WritePackedXY(&p->x3, xy3);
 	// NOTE(aalhendi): Retain raw products through the XY stores so their shifts use scratch registers.
+	p->x0 = (s16)posX + Widescreen_ScaleWidth(p->x0 - (s16)posX);
+	p->x1 = (s16)posX + Widescreen_ScaleWidth(p->x1 - (s16)posX);
+	p->x2 = (s16)posX + Widescreen_ScaleWidth(p->x2 - (s16)posX);
+	p->x3 = (s16)posX + Widescreen_ScaleWidth(p->x3 - (s16)posX);
 	CTR_PSX_OBSERVE_VALUE(rightSin);
 	{
 		register s32 bottomRightSin CTR_PSX_REGISTER("$8") = lowerRightSin;

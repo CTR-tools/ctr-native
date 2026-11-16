@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 enum
 {
@@ -48,7 +49,7 @@ static void UI_EngineStats_DrawBar(int x, int y, int length, int scale)
 {
 	struct DB *buffer = GAME_TRACKER->backBuffer;
 	u32 *ot = GAME_TRACKER->pushBuffer_UI.ptrOT;
-	const int width = length * scale / ENGINE_STATS_SCALE_ONE;
+	const int width = Widescreen_ScaleWidth(length * scale / ENGINE_STATS_SCALE_ONE);
 	const int height = (ENGINE_STATS_BAR_HEIGHT * scale + ENGINE_STATS_SCALE_ONE - 1) / ENGINE_STATS_SCALE_ONE;
 	if (width <= 0 || height <= 0)
 	{
@@ -83,8 +84,8 @@ static void UI_EngineStats_DrawBar(int x, int y, int length, int scale)
 		CtrGpu_WriteColorCode(&p->r1, right);
 		CtrGpu_WriteColorCode(&p->r2, left);
 		CtrGpu_WriteColorCode(&p->r3, right);
-		p->x0 = p->x2 = x + start * scale / ENGINE_STATS_SCALE_ONE;
-		p->x1 = p->x3 = x + end * scale / ENGINE_STATS_SCALE_ONE;
+		p->x0 = p->x2 = x + Widescreen_ScaleWidth(start * scale / ENGINE_STATS_SCALE_ONE);
+		p->x1 = p->x3 = x + Widescreen_ScaleWidth(end * scale / ENGINE_STATS_SCALE_ONE);
 		p->y0 = p->y1 = y;
 		p->y2 = p->y3 = y + height;
 		p->tag = *ot | 0x08000000;
@@ -113,8 +114,8 @@ static struct EngineStatsLayout UI_EngineStats_SmallLayout(int x, int y, const c
 		}
 	}
 	layout.labelX = x + labelWidth;
-	layout.barX = layout.labelX + 3;
-	const int contentWidth = labelWidth + 3 + 80 * barScale / ENGINE_STATS_SCALE_ONE;
+	layout.barX = layout.labelX + Widescreen_ScaleWidth(3);
+	const int contentWidth = labelWidth + Widescreen_ScaleWidth(3) + Widescreen_ScaleWidth(80 * barScale / ENGINE_STATS_SCALE_ONE);
 	const int titleWidth = DecalFont_GetLineWidth((char *)className, FONT_SMALL) * titleScale / ENGINE_STATS_SCALE_ONE;
 	const int totalWidth = titleWidth > contentWidth ? titleWidth : contentWidth;
 	layout.titleX = x + totalWidth / 2;
@@ -123,7 +124,7 @@ static struct EngineStatsLayout UI_EngineStats_SmallLayout(int x, int y, const c
 
 static struct EngineStatsLayout UI_EngineStats_LargeLayout(int x, int y, const char *className)
 {
-	struct EngineStatsLayout layout = {.labelX = x - 1, .barX = x + 9};
+	struct EngineStatsLayout layout = {.labelX = x - Widescreen_ScaleWidth(1), .barX = x + Widescreen_ScaleWidth(9)};
 	int labelWidth = 0;
 	for (int row = 0; row < 3; row++)
 	{
@@ -140,9 +141,9 @@ static struct EngineStatsLayout UI_EngineStats_LargeLayout(int x, int y, const c
 	{
 		left = layout.labelX - labelWidth;
 	}
-	if (layout.barX + 80 > right)
+	if (layout.barX + Widescreen_ScaleWidth(80) > right)
 	{
-		right = layout.barX + 80;
+		right = layout.barX + Widescreen_ScaleWidth(80);
 	}
 	left -= 6;
 	right += 6;
