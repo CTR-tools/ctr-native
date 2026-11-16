@@ -1682,6 +1682,45 @@ static void TestVibrationPersistence(void)
 	}
 }
 
+static void TestProfileFile(void)
+{
+	CTR_TEST_SECTION("profile persistence is separate from configuration");
+	char path[512];
+	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("profile.ini"));
+	remove(path);
+	ConfigProfile profile = CONFIG_PROFILE_EXPANDED;
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_FILE_ERROR, "missing profile reports a file error");
+	CTR_TEST_CHECK(profile == CONFIG_PROFILE_EXPANDED, "missing profile does not alter the output");
+	CTR_TEST_CHECK(NativeConfig_SaveProfile(CONFIG_PROFILE_VANILLA), "Vanilla profile is saved");
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_OK && profile == CONFIG_PROFILE_VANILLA,
+	               "Vanilla profile survives a round trip");
+	CTR_TEST_CHECK(NativeConfig_SaveProfile(CONFIG_PROFILE_EXPANDED), "Expanded profile is saved");
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_OK && profile == CONFIG_PROFILE_EXPANDED,
+	               "Expanded profile survives a round trip");
+	CTR_TEST_CHECK(!NativeConfig_SaveProfile((ConfigProfile)99), "invalid profile cannot be saved");
+	CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_OK && profile == CONFIG_PROFILE_EXPANDED,
+	               "invalid save leaves the existing profile intact");
+	FILE *file = fopen(path, "w");
+	CTR_TEST_CHECK(file != NULL, "invalid profile fixture can be written");
+	if (file != NULL)
+	{
+		fputs("[Profile]\nactive = unknown\n", file);
+		fclose(file);
+		CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_INVALID && profile == CONFIG_PROFILE_EXPANDED,
+		               "invalid profile leaves the output intact");
+	}
+	file = fopen(path, "w");
+	CTR_TEST_CHECK(file != NULL, "empty profile fixture can be written");
+	if (file != NULL)
+	{
+		fputs("[Profile]\n", file);
+		fclose(file);
+		CTR_TEST_CHECK(NativeConfig_LoadProfile(&profile) == CONFIG_LOAD_INVALID && profile == CONFIG_PROFILE_EXPANDED,
+		               "profile without an active value is invalid");
+	}
+	remove(path);
+}
+
 static void TestPresetFile(void)
 {
 	CTR_TEST_SECTION("preset files are validated before applying");
@@ -1789,6 +1828,7 @@ int main(void)
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
 	CTR_TEST_SECTION("native_controls tests");
+	TestProfileFile();
 	TestPresetFile();
 	TestAdventureOptionsWithoutLegacyMigration();
 
