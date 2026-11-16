@@ -1821,6 +1821,60 @@ static void TestConfigPresetPrecedence(void)
 	g_config = initial;
 }
 
+static void TestProfileDeveloperDependencies(void)
+{
+	CTR_TEST_SECTION("developer dependencies apply after preset and config layers");
+	char presetPath[512], configPath[512];
+	NativePath_Join(presetPath, sizeof(presetPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("preset-test.ini"));
+	NativePath_Join(configPath, sizeof(configPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
+	const NativeConfig initial = g_config;
+	FILE *file = fopen(presetPath, "w");
+	CTR_TEST_CHECK(file != NULL, "developer preset fixture can be written");
+	if (file == NULL) { return; }
+	fputs("[Developer Hacks]\ndeveloper_hacks_enabled = true\none_lap_races = true\n", file);
+	fclose(file);
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "developer config fixture can be written");
+	if (file == NULL) { remove(presetPath); return; }
+	fputs("[Developer Hacks]\ndeveloper_hacks_enabled = false\n", file);
+	fclose(file);
+	CTR_TEST_CHECK(NativeConfig_ReadPresetDefaults(presetPath) == CONFIG_LOAD_OK, "developer preset loads");
+	NativeConfig_Load();
+	CTR_TEST_CHECK(!g_config.developerHacksEnabled && !g_config.oneLapRaces,
+	               "config disabling the gate resets preset developer hacks");
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "enabled developer config fixture can be written");
+	if (file != NULL)
+	{
+		fputs("[Developer Hacks]\none_lap_races = true\ndeveloper_hacks_enabled = true\n", file);
+		fclose(file);
+		g_config.developerHacksEnabled = false;
+		g_config.oneLapRaces = false;
+		NativeConfig_Load();
+		CTR_TEST_CHECK(g_config.developerHacksEnabled && g_config.oneLapRaces,
+		               "config enables hacks regardless of key order");
+	}
+	remove(configPath);
+	file = fopen(presetPath, "w");
+	CTR_TEST_CHECK(file != NULL, "disabled developer preset fixture can be written");
+	if (file != NULL)
+	{
+		fputs("[Developer Hacks]\none_lap_races = true\ndeveloper_hacks_enabled = false\n", file);
+		fclose(file);
+		CTR_TEST_CHECK(NativeConfig_ReadPresetDefaults(presetPath) == CONFIG_LOAD_OK, "disabled developer preset loads");
+		NativeConfig_Load();
+		CTR_TEST_CHECK(!g_config.developerHacksEnabled && !g_config.oneLapRaces,
+		               "missing config still resets disabled preset hacks");
+		g_config.developerHacksEnabled = true;
+		g_config.oneLapRaces = true;
+		CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(presetPath) == CONFIG_LOAD_OK, "developer preset applies directly");
+		CTR_TEST_CHECK(!g_config.developerHacksEnabled && !g_config.oneLapRaces,
+		               "direct preset application resets disabled hacks");
+	}
+	remove(presetPath);
+	g_config = initial;
+}
+
 static void TestProfileFile(void)
 {
 	CTR_TEST_SECTION("profile persistence is separate from configuration");
@@ -1970,6 +2024,7 @@ int main(void)
 	TestDeveloperDefaultsAreImmutable();
 	TestProfileStartup();
 	TestConfigPresetPrecedence();
+	TestProfileDeveloperDependencies();
 	TestProfileFile();
 	TestPresetFile();
 	TestAdventureOptionsWithoutLegacyMigration();

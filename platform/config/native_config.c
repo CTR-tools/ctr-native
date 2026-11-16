@@ -682,7 +682,7 @@ static void NativeConfig_ResetDisabledDeveloperHacks(void)
         }
 
         // valuePtr points into g_config, so the same offset selects the
-        // matching field of the snapshot.
+        // matching field of the immutable defaults.
         const size_t offset = (size_t)((const char *)e->valuePtr - (const char *)&g_config);
 
         if (e->type == CFG_BOOL)
