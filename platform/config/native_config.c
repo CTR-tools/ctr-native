@@ -814,8 +814,6 @@ void NativeConfig_Load(void)
 
     char line[256];
     char section[64] = "";
-    bool hasExtraOptions = false;
-    bool legacyExtraOptions = false;
 
     while (fgets(line, sizeof(line), f))
     {
@@ -843,19 +841,6 @@ void NativeConfig_Load(void)
         *eq = '\0';
         char *key = trimWhitespace(p);
         char *value = trimWhitespace(eq + 1);
-
-        if (strcmp(section, "Adventure") == 0)
-        {
-            if (strcmp(key, "expanded_options") == 0)
-            {
-                hasExtraOptions = true;
-            }
-            else if (strcmp(key, "extra_options") == 0 || strcmp(key, "extended_character_select") == 0 ||
-                     strcmp(key, "multiplayer_adventure") == 0 || strcmp(key, "chaos_mode") == 0)
-            {
-                legacyExtraOptions |= ParseBool(value);
-            }
-        }
 
         for (int i = 0; i < g_numConfigEntries; i++)
         {
@@ -915,11 +900,6 @@ void NativeConfig_Load(void)
     }
 
     fclose(f);
-
-    if (!hasExtraOptions)
-    {
-        g_config.expandedAdventureOptions = legacyExtraOptions;
-    }
 
     // Applied after the whole file is parsed so key order in config.ini does
     // not matter: developer hack options only take effect while the section is

@@ -1682,9 +1682,9 @@ static void TestVibrationPersistence(void)
 	}
 }
 
-static void TestAdventureOptionsMigration(void)
+static void TestAdventureOptionsWithoutLegacyMigration(void)
 {
-	CTR_TEST_SECTION("Adventure options migration");
+	CTR_TEST_SECTION("Adventure options ignore obsolete keys");
 	char path[512];
 	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
 	const NativeConfig initial = g_config;
@@ -1694,10 +1694,12 @@ static void TestAdventureOptionsMigration(void)
 	    "[Adventure]\nexpanded_options = true\nextended_character_select = false\n",
 	    "[Adventure]\nextra_options = true\n",
 	};
-	const bool expected[] = {true, false, true, true};
+	const bool initialValues[] = {false, true, false, true};
+	const bool expected[] = {false, false, true, true};
 	for (int i = 0; i < (int)(sizeof(inputs) / sizeof(inputs[0])); i++)
 	{
 		g_config = initial;
+		g_config.expandedAdventureOptions = initialValues[i];
 		FILE *file = fopen(path, "w");
 		CTR_TEST_CHECK(file != NULL, "scratch config can be written");
 		if (file == NULL)
@@ -1707,7 +1709,7 @@ static void TestAdventureOptionsMigration(void)
 		fputs(inputs[i], file);
 		fclose(file);
 		NativeConfig_Load();
-		CTR_TEST_CHECK(g_config.expandedAdventureOptions == expected[i], "explicit expanded_options takes precedence over legacy keys");
+		CTR_TEST_CHECK(g_config.expandedAdventureOptions == expected[i], "obsolete keys leave the initial value unchanged and explicit expanded_options is honored");
 	}
 	remove(path);
 	g_config = initial;
@@ -1724,7 +1726,7 @@ int main(void)
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
 	CTR_TEST_SECTION("native_controls tests");
-	TestAdventureOptionsMigration();
+	TestAdventureOptionsWithoutLegacyMigration();
 
 	TestCaptureTimeoutRestoresTheBinding();
 	TestCancelRestoresTheBinding();
