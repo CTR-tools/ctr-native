@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 // To do: add a header
 
@@ -204,7 +205,9 @@ void UI_RenderFrame_Racing()
 				// If you are not in Time Trial or Relic Race
 				if ((gameMode1 & (TIME_TRIAL | RELIC_RACE)) == 0)
 				{
-					UI_DrawNumWumpa(hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].x, hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].y, playerStruct);
+					int fruitX = hudStructPtr[UI_HUD_SLOT_FRUIT_MODEL].x;
+					int countX = fruitX + Widescreen_ScaleWidth(hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].x - fruitX);
+					UI_DrawNumWumpa(countX, hudStructPtr[UI_HUD_SLOT_WUMPA_COUNT].y, playerStruct);
 				}
 			}
 

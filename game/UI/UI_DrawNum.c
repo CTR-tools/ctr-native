@@ -1,4 +1,5 @@
 #include <common.h>
+#include <widescreen.h>
 
 #define UI_NUM_X      sdata->s_x
 #define UI_NUM_INT    sdata->s_int
@@ -35,7 +36,7 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 		DecalFont_DrawLine(UI_NUM_X, posX, posY + UI_DRAWNUM_SMALL_X_OFFSET_Y, FONT_SMALL, ORANGE);
 
 		sprintf(message, UI_NUM_INT, d->numWumpas);
-		DecalFont_DrawLine(message, posX + UI_DRAWNUM_BIG_TEXT_OFFSET_X, posY, FONT_BIG, ORANGE);
+		DecalFont_DrawLine(message, posX + Widescreen_ScaleWidth(UI_DRAWNUM_BIG_TEXT_OFFSET_X), posY, FONT_BIG, ORANGE);
 	}
 	else
 	{
@@ -57,7 +58,7 @@ void UI_DrawNumWumpa(s16 posX, s16 posY, struct Driver *d)
 			struct GameTracker *nextGT = GAME_TRACKER;
 			s32 byteOffset = ones * sizeof(struct Icon *);
 			struct IconGroup *nextGroup = nextGT->iconGroup[UI_DRAWNUM_DIGIT_ICON_GROUP];
-			UI_NUM_DRAW_POLY_GT4(*(struct Icon **)((u8 *)nextGroup + byteOffset + sizeof(struct IconGroup)), posX + UI_DRAWNUM_WUMPA_DIGIT_SPACING_X, posY,
+			UI_NUM_DRAW_POLY_GT4(*(struct Icon **)((u8 *)nextGroup + byteOffset + sizeof(struct IconGroup)), posX + Widescreen_ScaleWidth(UI_DRAWNUM_WUMPA_DIGIT_SPACING_X), posY,
 			                     &nextGT->backBuffer->primMem, nextGT->pushBuffer_UI.ptrOT, ((Color *)UI_NUM_COLORS[ORANGE])[0],
 			                     ((Color *)UI_NUM_COLORS[ORANGE])[1], ((Color *)UI_NUM_COLORS[ORANGE])[2], ((Color *)UI_NUM_COLORS[ORANGE])[3], 0, FP(1.0));
 		}
