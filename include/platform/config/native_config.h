@@ -155,7 +155,6 @@ extern NativeConfig g_config;
 extern const ConfigEntry g_configEntries[];
 extern const int g_numConfigEntries;
 
-void NativeConfig_Load(void);
 void NativeConfig_Save(void);
 void NativeConfig_ApplyDependencies(const ConfigEntry *changedEntry);
 
@@ -165,6 +164,8 @@ typedef enum {
     CONFIG_LOAD_FILE_ERROR,
     CONFIG_LOAD_INVALID,
 } ConfigLoadResult;
+
+ConfigLoadResult NativeConfig_Load(void);
 
 // Apply only the keys present in the file. Invalid files leave g_config intact.
 ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path);

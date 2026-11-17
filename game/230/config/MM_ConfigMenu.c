@@ -98,6 +98,7 @@ static const ConfigEntry s_configNavigation[] = {
 	{.section = "", .key = "Game", .lngKey = LNG_EXPANDED_CONFIG_GAME, .type = CFG_SUBSECTION},
 	{.section = "", .key = "Modifiers", .lngKey = LNG_EXPANDED_CONFIG_MODIFIERS, .type = CFG_SUBSECTION},
 	{.section = "", .key = CONFIG_SECTION_CUSTOM_TRACKS, .lngKey = LNG_EXPANDED_CONFIG_CUSTOM_TRACKS, .type = CFG_ACTION},
+	{.section = "", .key = "Profile", .lngKey = LNG_EXPANDED_PROFILE_TITLE, .type = CFG_ACTION},
 	{.section = "", .key = CONFIG_SECTION_DEVELOPER_HACKS, .lngKey = LNG_EXPANDED_CONFIG_DEVELOPER_HACKS, .type = CFG_ACTION},
 	{.section = "System", .key = CONFIG_SECTION_AUDIO, .lngKey = LNG_EXPANDED_CONFIG_AUDIO, .type = CFG_ACTION},
 	{.section = "System", .key = CONFIG_SECTION_LANGUAGE, .lngKey = LNG_EXPANDED_CONFIG_LANGUAGE, .type = CFG_ACTION},
@@ -118,6 +119,12 @@ static int s_languageChoiceCount;
 static s16 s_languageChoice;
 static struct FullScreenMenu_Scroll s_languageScroll;
 static int s_textExportStatus;
+static struct
+{
+	struct RectMenu *returnMenu;
+	enum ConfigMenuContext context;
+	s16 returnRow;
+} s_configSession;
 
 static int Config_NavigationEntries(const ConfigEntry **entries)
 {
@@ -127,6 +134,7 @@ static int Config_NavigationEntries(const ConfigEntry **entries)
 	{
 		const ConfigEntry *entry = &s_configNavigation[i];
 		if (strcmp(entry->section, parent) == 0 &&
+		    (strcmp(entry->key, "Profile") != 0 || s_configSession.context == CONFIG_MENU_MAIN) &&
 		    (strcmp(entry->key, CONFIG_SECTION_DEVELOPER_HACKS) != 0 || g_config.developerHacksEnabled))
 		{
 			entries[count++] = entry;
@@ -154,24 +162,6 @@ static struct RectMenu g_configMenu = {
 	.funcPtr = MM_MenuProc_Config,
 };
 
-static struct
-{
-	struct RectMenu *returnMenu;
-	enum ConfigMenuContext context;
-	s16 returnRow;
-} s_configSession;
-
-static void Config_ClearInput(void)
-{
-	RECTMENU_ClearInput();
-	// Config and Controls read taps directly. Keep held state intact: GAMEPAD
-	// uses it as the previous frame when deriving the next frame's taps.
-	for (int i = 0; i < PLATFORM_INPUT_PAD_COUNT; i++)
-	{
-		sdata->gGamepads->gamepad[i].buttonsTapped = 0;
-	}
-}
-
 void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext context)
 {
 	s_textExportStatus = 0;
@@ -193,7 +183,7 @@ void MM_ConfigMenu_Open(struct RectMenu *returnMenu, enum ConfigMenuContext cont
 	g_configMenu.rowSelected = 0;
 	BuildSectionMap();
 	MM_Controls_ResetNavigation();
-	Config_ClearInput();
+	RECTMENU_ClearInputAndTaps();
 	sdata->ptrDesiredMenu = &g_configMenu;
 }
 
@@ -202,7 +192,7 @@ static void Config_Close(void)
 	MM_Controls_ResetNavigation();
 	NativeConfig_Save();
 	NativeControls_Save();
-	Config_ClearInput();
+	RECTMENU_ClearInputAndTaps();
 	s_configSession.returnMenu->rowSelected = s_configSession.returnRow;
 	sdata->ptrDesiredMenu = s_configSession.returnMenu;
 }
@@ -390,7 +380,7 @@ static void Config_LanguageMenu(const ConfigEntry *entry, struct GameTracker *gG
 	if (FullScreenMenu_Back(tapped))
 	{
 		s_languageMenuOpen = false;
-		Config_ClearInput();
+		RECTMENU_ClearInputAndTaps();
 		return;
 	}
 	FullScreenMenu_NavTapped(tapped, &s_languageScroll, &s_languageChoice, s_languageChoiceCount);
@@ -398,7 +388,7 @@ static void Config_LanguageMenu(const ConfigEntry *entry, struct GameTracker *gG
 	{
 		Config_ApplyLanguageChoice(entry, s_languageChoice);
 		s_languageMenuOpen = false;
-		Config_ClearInput();
+		RECTMENU_ClearInputAndTaps();
 		return;
 	}
 	FullScreenMenu_DrawScreen(LANG_GetString(LNG_EXPANDED_SELECT_LANGUAGE), 0, &s_languageScroll,
@@ -417,7 +407,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
 	if (MM_CustomTracks_Update(menu))
 	{
-		Config_ClearInput();
+		RECTMENU_ClearInputAndTaps();
 		return;
 	}
 
@@ -449,14 +439,14 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 			menu->rowSelected = s_configGroup != NULL ? s_configGroupRow : s_configRootRow;
 			s_currentSection = -1;
 			s_configScroll.offset = 0;
-			Config_ClearInput();
+			RECTMENU_ClearInputAndTaps();
 		}
 		else if (s_configGroup != NULL)
 		{
 			s_configGroup = NULL;
 			menu->rowSelected = s_configRootRow;
 			s_configScroll.offset = 0;
-			Config_ClearInput();
+			RECTMENU_ClearInputAndTaps();
 		}
 		else
 		{
@@ -517,7 +507,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 						s_currentSection = -1;
 						menu->rowSelected = s_configRootRow;
 						s_configScroll.offset = 0;
-						Config_ClearInput();
+						RECTMENU_ClearInputAndTaps();
 						return;
 					}
 				}
@@ -526,7 +516,7 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 					if (e->valuePtr == &g_config.textLanguage || e->valuePtr == &g_config.voiceLanguage)
 					{
 						Config_OpenLanguageMenu(e);
-						Config_ClearInput();
+						RECTMENU_ClearInputAndTaps();
 						Config_LanguageMenu(e, gGT, ot, 0);
 						return;
 					}
@@ -568,19 +558,25 @@ static void MM_MenuProc_Config(struct RectMenu *menu)
 		if (FullScreenMenu_Confirm((u32)pad->buttonsTapped))
 		{
 			const ConfigEntry *selected = entries[menu->rowSelected];
+			if (strcmp(selected->key, "Profile") == 0)
+			{
+				MM_ProfileMenu_Open(menu, BuildSectionMap);
+				RECTMENU_ClearInputAndTaps();
+				return;
+			}
 			if (selected->type == CFG_SUBSECTION)
 			{
 				s_configRootRow = menu->rowSelected;
 				s_configGroup = selected;
 				menu->rowSelected = 0;
 				s_configScroll.offset = 0;
-				Config_ClearInput();
+				RECTMENU_ClearInputAndTaps();
 				return;
 			}
 			if (strcmp(selected->key, CONFIG_SECTION_CUSTOM_TRACKS) == 0)
 			{
 				MM_CustomTracks_Open(menu, s_configSession.context == CONFIG_MENU_MAIN);
-				Config_ClearInput();
+				RECTMENU_ClearInputAndTaps();
 				return;
 			}
 			if (s_configGroup != NULL) { s_configGroupRow = menu->rowSelected; }

@@ -26,7 +26,9 @@ static void TestProfileStartup(void)
 	NativePath_Join(expandedPath, sizeof(expandedPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets/expanded.ini"));
 	const NativeConfig initial = g_config;
 	remove(profilePath);
+	remove(configPath);
 	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_NO_PROFILE, "missing profile requests selection");
+	CTR_TEST_CHECK(NativeProfile_GetStartupConfigResult() == CONFIG_LOAD_NOT_FOUND, "fresh install has no startup config");
 	CTR_TEST_CHECK(SDL_CreateDirectory(directory), "scratch preset directory exists");
 	FILE *file = fopen(vanillaPath, "w");
 	CTR_TEST_CHECK(file != NULL, "Vanilla preset fixture can be written");
@@ -46,6 +48,17 @@ static void TestProfileStartup(void)
 	               "fresh install loads preset values without config.ini");
 	file = fopen(configPath, "w");
 	CTR_TEST_CHECK(file != NULL, "config fixture can be written");
+	if (file == NULL) { remove(vanillaPath); remove(expandedPath); return; }
+	fputs("[General]\nshow_reserves_meter = false\n", file);
+	fclose(file);
+	remove(profilePath);
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_NO_PROFILE && NativeProfile_GetStartupConfigResult() == CONFIG_LOAD_OK,
+	               "missing profile with existing config is distinguishable from a fresh install");
+	remove(configPath);
+	CTR_TEST_CHECK(NativeProfile_GetStartupConfigResult() == CONFIG_LOAD_OK,
+	               "startup config result is retained when the file changes later");
+	file = fopen(configPath, "w");
+	CTR_TEST_CHECK(file != NULL, "config fixture can be restored");
 	if (file == NULL) { remove(vanillaPath); remove(expandedPath); return; }
 	fputs("[General]\nshow_reserves_meter = false\n", file);
 	fclose(file);

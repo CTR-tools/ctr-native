@@ -17,6 +17,7 @@ static const ConfigEntry kProfileEntry = {
 };
 
 static NativeProfileStartupStatus s_profileStartupStatus = PROFILE_STARTUP_NO_PROFILE;
+static ConfigLoadResult s_startupConfigResult = CONFIG_LOAD_NOT_FOUND;
 
 static bool NativeProfile_PresetPath(ConfigProfile profile, char *path, size_t pathSize)
 {
@@ -133,11 +134,16 @@ NativeProfileStartupStatus NativeProfile_LoadStartup(void)
             fprintf(stderr, "[Profile] Could not load preset: %s\n", path);
         }
     }
-    NativeConfig_Load();
+    s_startupConfigResult = NativeConfig_Load();
     return s_profileStartupStatus;
 }
 
 NativeProfileStartupStatus NativeProfile_GetStartupStatus(void)
 {
     return s_profileStartupStatus;
+}
+
+ConfigLoadResult NativeProfile_GetStartupConfigResult(void)
+{
+    return s_startupConfigResult;
 }

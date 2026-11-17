@@ -771,17 +771,19 @@ static const char *NativeConfig_LanguageNameOverride(const ConfigEntry *entry, i
     return NULL;
 }
 
-void NativeConfig_Load(void)
+ConfigLoadResult NativeConfig_Load(void)
 {
     printf("[Config] Base:       %s\n", NativeAssets_GetBaseDir());
     char path[512];
     NativePath_Join(path, sizeof(path), NativeStr8_FromCString(NativeAssets_GetBaseDir()), NATIVE_STR8_LIT("config.ini"));
-    if (NativeConfig_ReadFile(path, &g_config, NativeConfig_ConfigDestination, g_configEntries, g_numConfigEntries,
-                              CONFIG_PARSE_COMPATIBLE, NativeConfig_ParseLanguageOverride) != CONFIG_LOAD_OK)
+    ConfigLoadResult result = NativeConfig_ReadFile(path, &g_config, NativeConfig_ConfigDestination, g_configEntries,
+                                                    g_numConfigEntries, CONFIG_PARSE_COMPATIBLE,
+                                                    NativeConfig_ParseLanguageOverride);
+    if (result != CONFIG_LOAD_OK)
     {
         printf("[Config] Could not read config.ini (%s)\n", path);
         NativeConfig_ResetDisabledDeveloperHacks();
-        return;
+        return result;
     }
 
     printf("[Config] config.ini opened OK\n");
@@ -790,6 +792,7 @@ void NativeConfig_Load(void)
     // not matter: developer hack options only take effect while the section is
     // enabled.
     NativeConfig_ResetDisabledDeveloperHacks();
+    return result;
 }
 
 void NativeConfig_Save(void)
