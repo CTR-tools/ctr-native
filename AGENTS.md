@@ -27,6 +27,7 @@ when the task needs that subsystem; combine skills for cross-cutting work:
 
 | Task | Skill |
 |------|-------|
+| Review changes for bugs and regressions | `.agents/skills/code-review/SKILL.md` |
 | Explore feature ideas and prior art | `.agents/skills/reference-sources/SKILL.md` |
 | Retail game rules, modes, characters, items, known quirks | `.agents/skills/game-domain-knowledge/SKILL.md` |
 | Find code, add source, build architecture and overlays | `.agents/skills/codebase-navigation/SKILL.md` |
