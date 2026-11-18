@@ -12,6 +12,7 @@ static bool s_profileStartupSeen;
 static ConfigProfile s_profileChoice;
 static int s_profileError;
 static s16 s_profileRow;
+static int s_profileActiveRow;
 static struct FullScreenMenu_Scroll s_profileScroll;
 static struct RectMenu *s_profileReturnMenu;
 static s16 s_profileReturnRow;
@@ -38,8 +39,15 @@ static void ProfileMenu_Open(struct RectMenu *returnMenu, bool startup, enum Pro
 	s_profileReturnRow = returnMenu->rowSelected;
 	s_profileStartup = startup;
 	s_profileOnApplied = onApplied;
+	s_profileActiveRow = -1;
+	ConfigProfile activeProfile;
+	if (!startup && NativeConfig_LoadProfile(&activeProfile) == CONFIG_LOAD_OK)
+	{
+		s_profileActiveRow = activeProfile == CONFIG_PROFILE_VANILLA ? 0 : 1;
+	}
 	FullScreenMenu_SetShadedFrame(true);
 	ProfileMenu_SetPage(page);
+	if (s_profileActiveRow >= 0) { s_profileRow = (s16)s_profileActiveRow; }
 	sdata->ptrDesiredMenu = &s_profileMenu;
 }
 
@@ -165,6 +173,7 @@ static void MM_ProfileMenu_Update(struct RectMenu *menu)
 	labels[0] = LANG_GetString(choosing ? LNG_EXPANDED_CONFIG_VANILLA : LNG_EXPANDED_PROFILE_FUTURE);
 	labels[1] = LANG_GetString(choosing ? LNG_EXPANDED_PROFILE_EXPANDED : LNG_EXPANDED_PROFILE_APPLY);
 	labels[2] = LANG_GetString(LNG_CANCEL);
-	FullScreenMenu_DrawSectionScreen(LANG_GetString(choosing ? LNG_EXPANDED_PROFILE_TITLE : LNG_EXPANDED_PROFILE_ACTION),
-	                                 labels, &s_profileScroll, count, s_profileRow, columnX, tracker, ot);
+	FullScreenMenu_DrawSectionScreenMarked(LANG_GetString(choosing ? LNG_EXPANDED_PROFILE_TITLE : LNG_EXPANDED_PROFILE_ACTION),
+	                                       labels, &s_profileScroll, count, s_profileRow,
+	                                       choosing ? s_profileActiveRow : -1, columnX, tracker, ot);
 }

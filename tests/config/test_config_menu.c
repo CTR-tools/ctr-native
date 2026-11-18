@@ -72,6 +72,16 @@ static bool s_profileChangeTextPriority;
 static bool s_profileEnableDeveloper;
 static bool s_recordProfileLabels;
 static int s_profileVanillaLabels, s_profileCancelLabels;
+static ConfigLoadResult s_savedProfileResult = CONFIG_LOAD_NOT_FOUND;
+static ConfigProfile s_savedProfile;
+static bool s_recordProfileMarker;
+static int s_profileMarkers;
+
+ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile)
+{
+	if (s_savedProfileResult == CONFIG_LOAD_OK) { *profile = s_savedProfile; }
+	return s_savedProfileResult;
+}
 
 NativeProfileStartupStatus NativeProfile_GetStartupStatus(void) { return s_profileStatus; }
 ConfigLoadResult NativeProfile_GetStartupConfigResult(void) { return s_profileConfigResult; }
@@ -317,6 +327,7 @@ s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strle
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (s_recordProfileMarker && strcmp(text, "-") == 0) { s_profileMarkers++; }
 	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
 	if (strcmp(text, "1 / 1") == 0) { s_trackNumberDraws++; }
 	if (s_recordLanguageDraw && strcmp(text, "English") == 0 && s_languagePopupDraw == 0)
@@ -473,6 +484,7 @@ static void TestProfileMenu(void)
 	s_profileSelectResult = CONFIG_LOAD_OK;
 	s_profileSelectCalls = 0;
 	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller), "missing profile opens startup selection");
+	CTR_TEST_CHECK(s_profileActiveRow == -1, "initial selection has no active profile marker");
 	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_profileMenu, "startup uses the dedicated profile menu");
 	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
 	s_recordProfileLabels = true;
@@ -591,6 +603,18 @@ static void TestProfileMenu(void)
 	UpdateMenu();
 	s_profileSelectResult = CONFIG_LOAD_OK;
 	s_profileChangeTextPriority = false;
+	s_savedProfileResult = CONFIG_LOAD_OK;
+	s_savedProfile = CONFIG_PROFILE_EXPANDED;
+	MM_ProfileMenu_Open(&s_caller, NULL);
+	CTR_TEST_CHECK(s_profileRow == 1 && s_profileActiveRow == 1, "manual selection starts on the saved profile");
+	s_recordProfileMarker = true;
+	s_profileMarkers = 0;
+	SetInput(0, 0);
+	MM_ProfileMenu_Update(&s_profileMenu);
+	CTR_TEST_CHECK(s_profileMarkers == 1, "the saved profile has one dash marker");
+	s_recordProfileMarker = false;
+	s_savedProfileResult = CONFIG_LOAD_NOT_FOUND;
+	ProfileMenu_Close();
 	g_config = s_initialConfig;
 	s_configSaves = 0;
 }
