@@ -116,6 +116,7 @@ add_executable(crash_team_racing_expanded
     platform/config/native_profile.c
     platform/config/native_controls.c
     platform/native_glad.c
+    platform/native_build_info.c
 )
 file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml"
@@ -158,8 +159,8 @@ target_compile_definitions(crash_team_racing_expanded PRIVATE
     CTR_INTERNAL
     _CRT_SECURE_NO_WARNINGS
 )
-# Only the entrypoint and title menu include this header. Changing compiler
-# definitions instead would invalidate the whole target's flags.make on MinGW.
+# Only native_build_info.c includes this generated header, so version changes
+# do not recompile the resident core or menu unity groups.
 configure_file(cmake/ctr_build_info.h.in generated/ctr_build_info.h @ONLY)
 
 # Memory and BSP-leaf telemetry. Off unless asked for: it samples per frame and

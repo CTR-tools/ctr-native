@@ -62,6 +62,11 @@ function(ctr_add_test_suite NAME)
     set(CTR_TEST_SUITES ${CTR_TEST_SUITES} ${NAME} PARENT_SCOPE)
 endfunction()
 
+ctr_add_test_suite(test_build_info
+    SOURCES build-info/test_build_info.c ${CMAKE_SOURCE_DIR}/platform/native_build_info.c
+)
+target_include_directories(test_build_info PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/build-info)
+
 # Header-only, so it needs none of the platform unit.
 ctr_add_test_suite(test_carousel SOURCES menu-helpers/test_carousel.c)
 ctr_add_test_suite(test_lap_clock SOURCES test_lap_clock.c)
