@@ -213,11 +213,28 @@ calling menu and its selected row. The game stays paused until you resume from
 the pause menu.
 
 Configuration changes apply at runtime and are saved when leaving Options.
-They are persisted to `build/config.ini` (standard INI format). If the file is
-absent, the game starts with its built-in defaults and creates it on save.
+They are persisted in `config.ini` in the asset base directory.
+### Configuration profiles
+
+On first launch, choose 
+- **Vanilla**: original PS1-like experience
+- **Expanded**: better graphics, qol improvements and extra modes 
+
+You can change it later under **Options > Active Profile** in the main menu. With existing settings, you can
+keep them and use the profile for missing values only, or apply its preset.
+Applying a preset changes only the options it lists. The dash marks the active
+profile, even if individual settings have since changed.
+
+On startup, built-in defaults are overlaid by the preset and then explicit `config.ini` values, before applying
+dependencies. The tables below list built-in defaults, which may differ from a
+profile's values. Saving Options writes all settings to `config.ini`.
+
+Cancelling the initial choice selects Expanded. 
+
+### Controls and audio
 
 Input bindings, deadzones, player assignment and per-player vibration are kept
-separately in `build/controls.ini` and edited from **Options > System > Controls**. See
+separately in `controls.ini` in the asset base and edited from **Options > System > Controls**. See
 [docs/features/CONTROLS.md](docs/features/CONTROLS.md).
 
 The **Audio** section contains the original effects/music/voice volume sliders
@@ -302,19 +319,19 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 
 ### Graphics
 
-| Key                        | Values                                 | Default   | Description                                                                                             |
-|----------------------------|----------------------------------------|-----------|---------------------------------------------------------------------------------------------------------|
-| `increase_draw_distance`   | `true` / `false`                       | `false`   | Extends viewing, model LOD, and texture detail distances to 4x the original distances                   |
-| `disable_split_screen_lod` | `true` / `false`                       | `false`   | Use full-detail tracks, models, and effects in split-screen                                             |
-| `fullscreen`               | `true` / `false`                       | `false`   | Borderless fullscreen on startup                                                                        |
-| `vsync`                    | `true` / `false`                       | `false`   | Synchronize presentation to the display refresh; applies immediately, gameplay timing stays unchanged    |
-| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9`         | `4:3`     | Display aspect ratio                                                                                    |
-| `dithering`                | `true` / `false`                       | `true`    | Enable color dithering                                                                                  |
-| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native`  | Internal render resolution; Native follows the presentation viewport                                    |
-| `smooth_scaling`           | `true` / `false`                       | `true`    | Use linear filtering when presenting scaled output                                                      |
-| `fxaa`                     | `true` / `false`                       | `false`   | Antialias the edges of the presented frame with FXAA                                                    |
-| `texture_filtering`        | `true` / `false`                       | `false`   | Enable bilinear filtering for PSX textures                                                              |
-| `pgxp`                     | `Off`, `Geometry`, `Perspective`       | `Off`     | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
+| Key                        | Values                                 | Default  | Description                                                                                             |
+|----------------------------|----------------------------------------|----------|---------------------------------------------------------------------------------------------------------|
+| `increase_draw_distance`   | `true` / `false`                       | `false`  | Extends viewing, model LOD, and texture detail distances to 4x the original distances                   |
+| `disable_split_screen_lod` | `true` / `false`                       | `false`  | Use full-detail tracks, models, and effects in split-screen                                             |
+| `fullscreen`               | `true` / `false`                       | `true`   | Borderless fullscreen on startup                                                                        |
+| `vsync`                    | `true` / `false`                       | `false`  | Synchronize presentation to the display refresh; applies immediately, gameplay timing stays unchanged    |
+| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9`         | `4:3`    | Display aspect ratio                                                                                    |
+| `dithering`                | `true` / `false`                       | `true`   | Enable color dithering                                                                                  |
+| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native` | Internal render resolution; Native follows the presentation viewport                                    |
+| `smooth_scaling`           | `true` / `false`                       | `true`   | Use linear filtering when presenting scaled output                                                      |
+| `fxaa`                     | `true` / `false`                       | `false`  | Antialias the edges of the presented frame with FXAA                                                    |
+| `texture_filtering`        | `true` / `false`                       | `false`  | Enable bilinear filtering for PSX textures                                                              |
+| `pgxp`                     | `Off`, `Geometry`, `Perspective`       | `Off`    | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
 
 ### Developer Hacks
 

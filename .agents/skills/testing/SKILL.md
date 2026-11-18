@@ -49,7 +49,7 @@ the link fails. `tests/config/test_native_controls.c` is the worked example.
 
 ## Rules
 
-- Never let a suite read or write the working directory. The build tree holds `config.ini` and `controls.ini`; a suite that writes one will overwrite a real file. Point `NativeAssets_GetBaseDir` at `CtrTestScratch_Open` instead.
+- Never let a suite read or write the working directory. The asset base may hold user `config.ini`, `profile.ini`, and `controls.ini`; a suite that writes one will overwrite a real file. Point `NativeAssets_GetBaseDir` at `CtrTestScratch_Open` instead. For profile tests, isolate the executable directory too when writing preset fixtures.
 - A suite may reach into module internals, but only as a last resort. Reaching for `s_playerPref` or `s_capturePhase` is acceptable when there is no public accessor; note why in the comment, because that coupling is what forces the include chain.
 - Keep the suite on the same warning set as the game. `ctr_native_apply_common_options` exists for exactly this, and it has already earned its place: `-Wformat-truncation` caught test storage over-allocated against a narrower field, where a too-long key would have been silently truncated inside the code under test.
 - A suite must not depend on the game executable, the disc image, game assets or a window. Only `crash_team_racing_expanded_version` may run the game.
