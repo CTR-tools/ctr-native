@@ -1,6 +1,5 @@
 #include <common.h>
 #include <platform/config/native_profile.h>
-#include <platform/native_audio.h>
 #include <platform/text/native_language_disc.h>
 
 #include "../menu-helpers/MM_FullScreenMenu.c"
@@ -72,7 +71,7 @@ static void ProfileMenu_Close(void)
 
 static void ProfileMenu_Select(ConfigProfile profile, bool apply, bool closeOnError)
 {
-	NativeConfig previous = g_config;
+	int previousTextPriority = g_config.retailTextPriority;
 	ConfigLoadResult result = NativeProfile_Select(profile, apply);
 	if (result != CONFIG_LOAD_OK)
 	{
@@ -84,42 +83,16 @@ static void ProfileMenu_Select(ConfigProfile profile, bool apply, bool closeOnEr
 	}
 	if (apply)
 	{
-		bool languageFailed = false;
-		if (g_config.textLanguage != previous.textLanguage)
-		{
-			if (!LOAD_ApplyLanguage(g_config.textLanguage))
-			{
-				g_config.textLanguage = previous.textLanguage;
-				languageFailed = true;
-			}
-		}
 		if (g_config.retailTextPriority != RETAIL_TEXT_PRIORITY_EXPANDED && !NativeLanguageDisc_HasAnyText())
 		{
 			g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED;
 		}
-		if (g_config.textLanguage != previous.textLanguage || g_config.retailTextPriority != previous.retailTextPriority)
+		if (g_config.retailTextPriority != previousTextPriority)
 		{
 			LANG_Refresh(g_config.textLanguage);
 		}
-		if (g_config.voiceLanguage != previous.voiceLanguage)
-		{
-			if (g_config.voiceLanguage != NATIVE_LANGUAGE_ENGLISH && !NativeLanguageDisc_HasVoice(g_config.voiceLanguage))
-			{
-				g_config.voiceLanguage = previous.voiceLanguage;
-				languageFailed = true;
-			}
-			else { NativeAudio_RefreshVoiceLanguage(); }
-		}
 		NativeConfig_Save();
 		if (s_profileOnApplied != NULL) { s_profileOnApplied(); }
-		if (languageFailed)
-		{
-			s_profileError = LNG_EXPANDED_PROFILE_LANGUAGE_ERROR;
-			s_profileAfterError = PROFILE_MENU_CLOSED;
-			s_profilePage = PROFILE_MENU_ERROR;
-			RECTMENU_ClearInputAndTaps();
-			return;
-		}
 	}
 	ProfileMenu_Close();
 }

@@ -284,6 +284,7 @@ ctr_add_test_suite(test_native_config
     SOURCES config/test_native_config.c
     LIBRARIES SDL3::SDL3
 )
+target_compile_definitions(test_native_config PRIVATE CTR_PRESET_SOURCE_DIR="${CMAKE_SOURCE_DIR}/resources/presets")
 
 ctr_add_test_suite(test_native_controls
     SOURCES config/test_native_controls.c

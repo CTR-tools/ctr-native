@@ -70,6 +70,12 @@ try {
         Copy-Item -LiteralPath $source -Destination (Join-Path $staging $copy.To) -Force
     }
 
+    $presetDestination = Join-Path $staging 'resources/presets'
+    New-Item -ItemType Directory -Path $presetDestination -Force | Out-Null
+    foreach ($name in @('vanilla.ini', 'expanded.ini')) {
+        Copy-Item -LiteralPath (Join-Path $RepoRoot "resources/presets/$name") -Destination $presetDestination
+    }
+
      # Shipped translations live beside the executable, not under assets.
     $catalogRoot = Join-Path $RepoRoot 'resources/text'
     $catalogs = @(Get-ChildItem -LiteralPath $catalogRoot -File -Recurse | Where-Object { $_.Name -in @('expanded.toml', 'retail.toml', 'language.toml') })

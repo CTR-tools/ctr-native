@@ -6,8 +6,10 @@
 #include <platform/native_path.h>
 
 static char s_testBaseDir[512];
+static const char *s_testExecutableDir;
 
 const char *NativeAssets_GetBaseDir(void) { return s_testBaseDir; }
+const char *NativeAssets_GetExecutableDir(void) { return s_testExecutableDir != NULL ? s_testExecutableDir : s_testBaseDir; }
 int NativeTextRuntime_LanguageSlot(const char *id) { (void)id; return -1; }
 const char *NativeTextRuntime_LanguageId(int slot) { (void)slot; return NULL; }
 
@@ -19,11 +21,11 @@ static void TestProfileStartup(void)
 {
 	CTR_TEST_SECTION("startup loads the selected profile before config overrides");
 	char directory[512], profilePath[512], configPath[512], vanillaPath[512], expandedPath[512];
-	NativePath_Join(directory, sizeof(directory), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets"));
+	NativePath_Join(directory, sizeof(directory), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("resources/presets"));
 	NativePath_Join(profilePath, sizeof(profilePath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("profile.ini"));
 	NativePath_Join(configPath, sizeof(configPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
-	NativePath_Join(vanillaPath, sizeof(vanillaPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets/vanilla.ini"));
-	NativePath_Join(expandedPath, sizeof(expandedPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("presets/expanded.ini"));
+	NativePath_Join(vanillaPath, sizeof(vanillaPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("resources/presets/vanilla.ini"));
+	NativePath_Join(expandedPath, sizeof(expandedPath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("resources/presets/expanded.ini"));
 	const NativeConfig initial = g_config;
 	remove(profilePath);
 	remove(configPath);
@@ -127,6 +129,8 @@ static void TestProfileStartup(void)
 	remove(profilePath);
 	remove(configPath);
 	remove(expandedPath);
+	SDL_RemovePath(directory);
+	NativePath_Join(directory, sizeof(directory), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("resources"));
 	SDL_RemovePath(directory);
 	g_config = initial;
 }
@@ -383,6 +387,43 @@ static void TestAdventureOptionsWithoutLegacyMigration(void)
 	g_config = initial;
 }
 
+static void TestShippedPresets(void)
+{
+	CTR_TEST_SECTION("shipped presets");
+	const NativeConfig initial = g_config;
+	g_config.skipIntro = true;
+	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(CTR_PRESET_SOURCE_DIR "/expanded.ini") == CONFIG_LOAD_OK,
+	               "shipped Expanded preset is valid");
+	CTR_TEST_CHECK(g_config.fxaa && g_config.expandedArcade && g_config.unlockNitrosOxide &&
+	               g_config.botSelectionMode == BOT_SELECTION_RANDOM_UNLOCKED &&
+	               g_config.bossCutscenes == BOSS_CUTSCENES_SKIPPABLE && g_config.loadingScreen == LOADING_SCREEN_FADE,
+	               "Expanded preset applies the agreed options");
+	CTR_TEST_CHECK(g_config.skipIntro, "shipped preset preserves options it does not list");
+	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(CTR_PRESET_SOURCE_DIR "/vanilla.ini") == CONFIG_LOAD_OK,
+	               "shipped Vanilla preset is valid");
+	CTR_TEST_CHECK(!g_config.fxaa && !g_config.expandedArcade && !g_config.unlockNitrosOxide &&
+	               g_config.botSelectionMode == BOT_SELECTION_PREDETERMINED &&
+	               g_config.bossCutscenes == BOSS_CUTSCENES_UNSKIPPABLE && g_config.loadingScreen == LOADING_SCREEN_VANILLA,
+	               "Vanilla preset restores the corresponding options");
+	g_config = initial;
+}
+
+static void TestPresetExecutableDirectory(void)
+{
+	CTR_TEST_SECTION("presets beside executable with separate asset directory");
+	const NativeConfig initial = g_config;
+	char profilePath[512];
+	NativePath_Join(profilePath, sizeof(profilePath), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("profile.ini"));
+	s_testExecutableDir = CTR_PRESET_SOURCE_DIR "/../..";
+	CTR_TEST_CHECK(NativeProfile_Select(CONFIG_PROFILE_EXPANDED, true) == CONFIG_LOAD_OK && g_config.fxaa,
+	               "selection reads the preset beside the executable");
+	CTR_TEST_CHECK(NativeProfile_LoadStartup() == PROFILE_STARTUP_READY,
+	               "startup reads the preset beside the executable and the profile from the asset base");
+	remove(profilePath);
+	s_testExecutableDir = NULL;
+	g_config = initial;
+}
+
 int main(void)
 {
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), "config-tests", NULL);
@@ -393,6 +434,8 @@ int main(void)
 	TestProfileDeveloperDependencies();
 	TestProfileFile();
 	TestPresetFile();
+	TestShippedPresets();
+	TestPresetExecutableDirectory();
 	TestAdventureOptionsWithoutLegacyMigration();
 	CtrTestScratch_Remove("config-tests", NULL);
 	return CtrTest_Summary();

@@ -25,15 +25,15 @@ static bool NativeProfile_PresetPath(ConfigProfile profile, char *path, size_t p
     switch (profile)
     {
         case CONFIG_PROFILE_VANILLA:
-            relativePath = "presets/vanilla.ini";
+            relativePath = "resources/presets/vanilla.ini";
             break;
         case CONFIG_PROFILE_EXPANDED:
-            relativePath = "presets/expanded.ini";
+            relativePath = "resources/presets/expanded.ini";
             break;
         default:
             return false;
     }
-    NativePath_Join(path, pathSize, NativeStr8_FromCString(NativeAssets_GetBaseDir()), NativeStr8_FromCString(relativePath));
+    NativePath_Join(path, pathSize, NativeStr8_FromCString(NativeAssets_GetExecutableDir()), NativeStr8_FromCString(relativePath));
     return true;
 }
 

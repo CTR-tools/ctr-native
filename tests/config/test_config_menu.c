@@ -68,9 +68,8 @@ static ConfigLoadResult s_profileSelectResult = CONFIG_LOAD_OK;
 static ConfigProfile s_selectedProfile;
 static bool s_profileApplied;
 static int s_profileSelectCalls;
-static bool s_profileChangeLanguages;
+static bool s_profileChangeTextPriority;
 static bool s_profileEnableDeveloper;
-static bool s_languageApplyFails;
 static bool s_recordProfileLabels;
 static int s_profileVanillaLabels, s_profileCancelLabels;
 
@@ -81,10 +80,9 @@ ConfigLoadResult NativeProfile_Select(ConfigProfile profile, bool apply)
 	s_selectedProfile = profile;
 	s_profileApplied = apply;
 	s_profileSelectCalls++;
-	if (s_profileSelectResult == CONFIG_LOAD_OK && apply && s_profileChangeLanguages)
+	if (s_profileSelectResult == CONFIG_LOAD_OK && apply && s_profileChangeTextPriority)
 	{
-		g_config.textLanguage = 5;
-		g_config.voiceLanguage = 4;
+		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_ISO_EU;
 	}
 	if (s_profileSelectResult == CONFIG_LOAD_OK && apply && s_profileEnableDeveloper)
 	{
@@ -256,7 +254,7 @@ const char *LOAD_LanguageSelfName(int slot)
 	default: return NULL;
 	}
 }
-int LOAD_ApplyLanguage(int slot) { s_languageApplied = slot; return !s_languageApplyFails; }
+int LOAD_ApplyLanguage(int slot) { s_languageApplied = slot; return 1; }
 void NativeAudio_RefreshVoiceLanguage(void) { s_voiceRefreshed++; }
 void GhostTape_Destroy(void) {}
 void MainRaceTrack_RequestLoad(s16 level) { (void)level; }
@@ -557,7 +555,8 @@ static void TestProfileMenu(void)
 	SelectNavigation("Profile");
 	SetInput(BTN_DOWN | BTN_CROSS, 0);
 	UpdateMenu();
-	s_profileChangeLanguages = true;
+	s_profileChangeTextPriority = true;
+	s_europeTextAvailable = true;
 	s_profileEnableDeveloper = true;
 	s_languageApplied = 0;
 	s_voiceRefreshed = 0;
@@ -565,8 +564,8 @@ static void TestProfileMenu(void)
 	UpdateMenu();
 	CTR_TEST_CHECK(s_selectedProfile == CONFIG_PROFILE_EXPANDED && s_profileApplied,
 	               "manual confirmation applies the selected preset");
-	CTR_TEST_CHECK(s_languageApplied == 5 && s_textCatalogReloaded == 5 && s_voiceRefreshed == 1,
-	               "applying a preset refreshes text and voice languages");
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && s_textCatalogReloaded == g_config.textLanguage,
+	               "applying a preset refreshes the text priority");
 	// A preset can change the visibility of the developer section.
 	bool developerSectionFound = false;
 	for (int i = 0; i < s_numSections; i++)
@@ -591,20 +590,7 @@ static void TestProfileMenu(void)
 	SetInput(BTN_TRIANGLE, 0);
 	UpdateMenu();
 	s_profileSelectResult = CONFIG_LOAD_OK;
-	g_config = s_initialConfig;
-	s_languageApplyFails = true;
-	SelectNavigation("Profile");
-	SetInput(BTN_CROSS, 0);
-	UpdateMenu();
-	SetInput(BTN_DOWN | BTN_CROSS, 0);
-	UpdateMenu();
-	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_ERROR && s_profileError == LNG_EXPANDED_PROFILE_LANGUAGE_ERROR &&
-	               g_config.textLanguage == s_initialConfig.textLanguage,
-	               "unavailable preset language is reported and the previous language is kept");
-	SetInput(BTN_CROSS, 0);
-	UpdateMenu();
-	s_languageApplyFails = false;
-	s_profileChangeLanguages = false;
+	s_profileChangeTextPriority = false;
 	g_config = s_initialConfig;
 	s_configSaves = 0;
 }

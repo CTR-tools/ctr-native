@@ -120,6 +120,15 @@ add_custom_target(ctr_text_catalogs ALL
             -P "${CMAKE_SOURCE_DIR}/cmake/CopyTextCatalogs.cmake"
     VERBATIM
 )
+add_custom_target(ctr_presets ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:crash_team_racing_expanded>/resources/presets"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/resources/presets/vanilla.ini"
+            "${CMAKE_SOURCE_DIR}/resources/presets/expanded.ini"
+            "$<TARGET_FILE_DIR:crash_team_racing_expanded>/resources/presets"
+    VERBATIM
+)
+add_dependencies(crash_team_racing_expanded ctr_presets)
 set_target_properties(crash_team_racing_expanded PROPERTIES
     C_STANDARD 17
     C_STANDARD_REQUIRED ON
