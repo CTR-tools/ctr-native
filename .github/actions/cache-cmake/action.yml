@@ -1,0 +1,31 @@
+name: Cache CMake configuration
+description: Reuses CMake and SDL probe results only for an identical build environment.
+
+runs:
+  using: composite
+  steps:
+    - name: Fingerprint the configuration environment
+      id: fingerprint
+      shell: pwsh
+      run: ./scripts/ci/cmake-cache-key.ps1
+
+    - name: Restore configuration results
+      id: cache
+      uses: actions/cache@v4
+      with:
+        # No game/SDL objects, generated build graph or Ninja dependency logs.
+        # CMake always runs again to regenerate them for the current checkout.
+        path: |
+          build/CMakeCache.txt
+          build/CMakeFiles/${{ steps.fingerprint.outputs.cmake-version }}/
+        key: ${{ steps.fingerprint.outputs.key }}
+        # No restore-keys: stale probe results are not safe across environments.
+
+    - name: Report configuration cache status
+      shell: pwsh
+      run: |
+        if ('${{ steps.cache.outputs.cache-hit }}' -eq 'true') {
+          Write-Host 'CMake configuration cache hit; reusing compatible probe results.'
+        } else {
+          Write-Host 'CMake configuration cache miss; this run will populate it on success.'
+        }

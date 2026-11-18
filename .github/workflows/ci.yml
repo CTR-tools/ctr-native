@@ -97,6 +97,11 @@ jobs:
       - name: Restore the compiler cache
         uses: ./.github/actions/cache-compiler
 
+      # Separate from ccache: preserve the results of SDL's configure probes.
+      # Exact environment/configuration key only; CMake still runs every time.
+      - name: Restore the CMake configuration cache
+        uses: ./.github/actions/cache-cmake
+
       - name: Build
         shell: cmd
         env:
