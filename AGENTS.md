@@ -27,6 +27,7 @@ when the task needs that subsystem; combine skills for cross-cutting work:
 
 | Task | Skill |
 |------|-------|
+| Review changes for bugs and regressions | `.agents/skills/code-review/SKILL.md` |
 | Explore feature ideas and prior art | `.agents/skills/reference-sources/SKILL.md` |
 | Retail game rules, modes, characters, items, known quirks | `.agents/skills/game-domain-knowledge/SKILL.md` |
 | Find code, add source, build architecture and overlays | `.agents/skills/codebase-navigation/SKILL.md` |
@@ -50,7 +51,7 @@ vanilla behavior unless the user requests otherwise; keep existing defaults.
 - `origin` is the personal fork; `upstream` is `CTR-tools/ctr-native`. Never
   push to upstream.
 - `master` is protected. Make a topic branch and merge through a pull request.
-- `config.ini` and `errors.txt` are local only. Don't add them to commits.
+- `config.ini`, `profile.ini`, and `errors.txt` are local only. Don't add them to commits.
 - Preserve user changes and untracked files. Do not reset, clean, or discard
   worktree changes without explicit approval.
 - Do not commit changes, stage them and let the user commit.
@@ -74,3 +75,6 @@ commit message.
   code.
 - Avoid redundant parentheses.
 - Don't overexplain and don't repeat explanations over and over in comments.
+- Don't reinvent the wheel, don't duplicate code. Try to reuse pre-existing functionality where it makes sense. 
+- Extracting common functionality into a shared helper is allowed when it makes sense.
+- Put new code where it belongs, not in random files because it seems conveniente. If necessary, you can create new thematic files with clear responsibilites.

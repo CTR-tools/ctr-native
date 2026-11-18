@@ -2,6 +2,7 @@
 #include <common.h>
 #include <platform/custom-tracks/native_track_registry.h>
 #include <platform/text/native_text_edit.h>
+#include <platform/config/native_profile.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -17,6 +18,7 @@ s32 DecalFont_DrawMultiLine(char *text, s16 x, s16 y, s16 width, s16 font, s16 f
 	s_promptDraws++;
 	return 8;
 }
+#include <platform/config/native_config_ini.c>
 #include <platform/config/native_config.c>
 
 static struct GameTracker s_tracker;
@@ -60,11 +62,52 @@ static int s_backgroundDeactivations;
 static int s_trackImportOpened;
 static int s_trackRefreshCalls;
 static int s_trackRefreshSuccess = 1;
+static NativeProfileStartupStatus s_profileStatus = PROFILE_STARTUP_READY;
+static ConfigLoadResult s_profileConfigResult = CONFIG_LOAD_OK;
+static ConfigLoadResult s_profileSelectResult = CONFIG_LOAD_OK;
+static ConfigProfile s_selectedProfile;
+static bool s_profileApplied;
+static int s_profileSelectCalls;
+static bool s_profileChangeTextPriority;
+static bool s_profileEnableDeveloper;
+static bool s_recordProfileLabels;
+static int s_profileVanillaLabels, s_profileCancelLabels;
+static ConfigLoadResult s_savedProfileResult = CONFIG_LOAD_NOT_FOUND;
+static ConfigProfile s_savedProfile;
+static bool s_recordProfileMarker;
+static int s_profileMarkers;
+
+ConfigLoadResult NativeConfig_LoadProfile(ConfigProfile *profile)
+{
+	if (s_savedProfileResult == CONFIG_LOAD_OK) { *profile = s_savedProfile; }
+	return s_savedProfileResult;
+}
+
+NativeProfileStartupStatus NativeProfile_GetStartupStatus(void) { return s_profileStatus; }
+ConfigLoadResult NativeProfile_GetStartupConfigResult(void) { return s_profileConfigResult; }
+ConfigLoadResult NativeProfile_Select(ConfigProfile profile, bool apply)
+{
+	s_selectedProfile = profile;
+	s_profileApplied = apply;
+	s_profileSelectCalls++;
+	if (s_profileSelectResult == CONFIG_LOAD_OK && apply && s_profileChangeTextPriority)
+	{
+		g_config.retailTextPriority = RETAIL_TEXT_PRIORITY_ISO_EU;
+	}
+	if (s_profileSelectResult == CONFIG_LOAD_OK && apply && s_profileEnableDeveloper)
+	{
+		g_config.developerHacksEnabled = true;
+	}
+	return s_profileSelectResult;
+}
 
 const char *LANG_GetString(s32 index)
 {
+	if (s_recordProfileLabels && index == LNG_EXPANDED_CONFIG_VANILLA) { s_profileVanillaLabels++; }
+	if (s_recordProfileLabels && index == LNG_CANCEL) { s_profileCancelLabels++; }
 	switch (index)
 	{
+	case LNG_CANCEL: return "Cancel";
 	case LNG_EXPANDED_TRACKS_REFRESH_SUMMARY: return "TRACKS: {tracks}  REJECTED: {rejected}";
 	case LNG_EXPANDED_TRACKS_IMPORT: return "Import";
 	case LNG_EXPANDED_TRACKS_AUTHOR: return "Author";
@@ -108,6 +151,7 @@ static struct RectMenu *s_chaosCaller;
 static void ConfigMenuTest_Save(void);
 #define NativeConfig_Save ConfigMenuTest_Save
 #include <game/230/custom-tracks/MM_CustomTracks.c>
+#include <game/230/config/MM_ProfileMenu.c>
 #include <game/230/config/MM_ConfigMenu.c>
 #undef NativeConfig_Save
 #include <game/230/MM_AudioConfig.c>
@@ -283,6 +327,7 @@ s32 DecalFont_GetLineWidth(char *text, s16 font) { (void)font; return (s32)strle
 void DecalFont_DrawLineOT(char *text, s16 x, s16 y, s16 font, s16 flags, u32 *ot)
 {
 	(void)y; (void)font; (void)ot;
+	if (s_recordProfileMarker && strcmp(text, "-") == 0) { s_profileMarkers++; }
 	if (strcmp(text, "_") == 0) { s_cursorDraws++; }
 	if (strcmp(text, "1 / 1") == 0) { s_trackNumberDraws++; }
 	if (s_recordLanguageDraw && strcmp(text, "English") == 0 && s_languagePopupDraw == 0)
@@ -383,8 +428,28 @@ static void SetInput(int tapped, int held)
 	sdata->gGamepads->gamepad[0].buttonsHeldCurrFrame = held;
 }
 
+void RECTMENU_ClearInputAndTaps(void)
+{
+	RECTMENU_ClearInput();
+	for (size_t i = 0; i < len(sdata->gGamepads->gamepad); i++)
+	{
+		sdata->gGamepads->gamepad[i].buttonsTapped = 0;
+	}
+}
+
+static void ActivateProfileTransition(void)
+{
+	if (sdata->ptrDesiredMenu == &s_profileMenu ||
+	    (sdata->ptrActiveMenu == &s_profileMenu && sdata->ptrDesiredMenu == &g_configMenu))
+	{
+		sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+		sdata->ptrDesiredMenu = NULL;
+	}
+}
+
 static void UpdateMenu(void)
 {
+	ActivateProfileTransition();
 	struct RectMenu *menu = sdata->ptrActiveMenu;
 	menu->funcPtr(menu);
 }
@@ -402,11 +467,156 @@ static int NavigationRow(const char *name)
 
 static void SelectNavigation(const char *name)
 {
+	ActivateProfileTransition();
 	int row = NavigationRow(name);
 	if (row < 0) { CtrTest_Bail("navigation entry not found"); }
 	sdata->ptrActiveMenu->rowSelected = (s16)row;
 	SetInput(BTN_CROSS, 0);
 	UpdateMenu();
+}
+
+static void TestProfileMenu(void)
+{
+	CTR_TEST_SECTION("profile selection and startup errors");
+	s_profileStartupSeen = false;
+	s_profileStatus = PROFILE_STARTUP_NO_PROFILE;
+	s_profileConfigResult = CONFIG_LOAD_OK;
+	s_profileSelectResult = CONFIG_LOAD_OK;
+	s_profileSelectCalls = 0;
+	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller), "missing profile opens startup selection");
+	CTR_TEST_CHECK(s_profileActiveRow == -1, "initial selection has no active profile marker");
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_profileMenu, "startup uses the dedicated profile menu");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	s_recordProfileLabels = true;
+	s_profileVanillaLabels = 0;
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profileVanillaLabels > 0, "profile choice reuses the localized Vanilla label");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_ACTION && s_profileSelectCalls == 0,
+	               "existing configuration prompts before applying a preset");
+	s_profileCancelLabels = 0;
+	SetInput(0, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profileCancelLabels > 0, "profile actions reuse the localized Cancel label");
+	s_recordProfileLabels = false;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profileSelectCalls == 1 && s_selectedProfile == CONFIG_PROFILE_VANILLA && !s_profileApplied,
+	               "missing-values choice selects Vanilla without applying it");
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_caller, "startup selection returns to the main menu");
+	s_profileStartupSeen = false;
+	s_profileConfigResult = CONFIG_LOAD_NOT_FOUND;
+	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller), "fresh install opens startup selection");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_selectedProfile == CONFIG_PROFILE_EXPANDED && s_profileApplied,
+	               "cancelling fresh selection applies Expanded fallback");
+	s_profileStartupSeen = false;
+	s_profileStatus = PROFILE_STARTUP_INVALID_PROFILE;
+	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller) && s_profilePage == PROFILE_MENU_ERROR,
+	               "invalid profile first shows an error");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_CHOOSE, "invalid profile error offers a new selection");
+	s_profileSelectResult = CONFIG_LOAD_NOT_FOUND;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_ERROR && s_profileAfterError == PROFILE_MENU_CLOSED,
+	               "unavailable fallback shows an error and allows continuing");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_caller, "fallback error returns to the main menu");
+	s_profileSelectResult = CONFIG_LOAD_OK;
+	s_profileStartupSeen = false;
+	s_profileStatus = PROFILE_STARTUP_PRESET_ERROR;
+	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller) && s_profilePage == PROFILE_MENU_ERROR,
+	               "startup preset failure shows an error");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_caller && !MM_ProfileMenu_OpenStartup(&s_caller),
+	               "startup preset error can be dismissed without repeating");
+	s_profileStartupSeen = false;
+	s_profileStatus = PROFILE_STARTUP_NO_PROFILE;
+	s_profileConfigResult = CONFIG_LOAD_OK;
+	CTR_TEST_CHECK(MM_ProfileMenu_OpenStartup(&s_caller), "existing config opens profile choice");
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	int beforeFallbackSave = s_configSaves;
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_selectedProfile == CONFIG_PROFILE_EXPANDED && !s_profileApplied && s_configSaves == beforeFallbackSave,
+	               "cancelling with existing config selects Expanded without overwriting settings");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_PAUSE);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	CTR_TEST_CHECK(NavigationRow("Profile") < 0, "profile selection is unavailable while paused");
+	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
+	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
+	SelectNavigation("Profile");
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_CHOOSE, "profile selection opens from main options");
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &s_profileMenu, "manual selection opens the dedicated profile menu");
+	CTR_TEST_CHECK(sdata->gGamepads->gamepad[0].buttonsTapped == 0 && sdata->AnyPlayerTap == 0,
+	               "opening profile selection consumes the confirmation input");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_CLOSED && sdata->ptrDesiredMenu == &g_configMenu,
+	               "manual selection can be cancelled without leaving options");
+	SelectNavigation("Profile");
+	SetInput(BTN_DOWN | BTN_CROSS, 0);
+	UpdateMenu();
+	s_profileChangeTextPriority = true;
+	s_europeTextAvailable = true;
+	s_profileEnableDeveloper = true;
+	s_languageApplied = 0;
+	s_voiceRefreshed = 0;
+	SetInput(BTN_DOWN | BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_selectedProfile == CONFIG_PROFILE_EXPANDED && s_profileApplied,
+	               "manual confirmation applies the selected preset");
+	CTR_TEST_CHECK(g_config.retailTextPriority == RETAIL_TEXT_PRIORITY_ISO_EU && s_textCatalogReloaded == g_config.textLanguage,
+	               "applying a preset refreshes the text priority");
+	// A preset can change the visibility of the developer section.
+	bool developerSectionFound = false;
+	for (int i = 0; i < s_numSections; i++)
+	{
+		if (Config_IsSection(i, CONFIG_SECTION_DEVELOPER_HACKS)) { developerSectionFound = true; }
+	}
+	CTR_TEST_CHECK(developerSectionFound, "applying a preset rebuilds the config section map");
+	s_profileEnableDeveloper = false;
+	g_config.developerHacksEnabled = false;
+	SelectNavigation("Profile");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	s_profileSelectResult = CONFIG_LOAD_INVALID;
+	int saves = s_configSaves;
+	SetInput(BTN_DOWN | BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_ERROR && s_configSaves == saves,
+	               "invalid preset shows an error without saving configuration");
+	SetInput(BTN_CROSS, 0);
+	UpdateMenu();
+	CTR_TEST_CHECK(s_profilePage == PROFILE_MENU_CHOOSE, "preset error returns to profile selection");
+	SetInput(BTN_TRIANGLE, 0);
+	UpdateMenu();
+	s_profileSelectResult = CONFIG_LOAD_OK;
+	s_profileChangeTextPriority = false;
+	s_savedProfileResult = CONFIG_LOAD_OK;
+	s_savedProfile = CONFIG_PROFILE_EXPANDED;
+	MM_ProfileMenu_Open(&s_caller, NULL);
+	CTR_TEST_CHECK(s_profileRow == 1 && s_profileActiveRow == 1, "manual selection starts on the saved profile");
+	s_recordProfileMarker = true;
+	s_profileMarkers = 0;
+	SetInput(0, 0);
+	MM_ProfileMenu_Update(&s_profileMenu);
+	CTR_TEST_CHECK(s_profileMarkers == 1, "the saved profile has one dash marker");
+	s_recordProfileMarker = false;
+	s_savedProfileResult = CONFIG_LOAD_NOT_FOUND;
+	ProfileMenu_Close();
+	g_config = s_initialConfig;
+	s_configSaves = 0;
 }
 
 static void TestNavigation(void)
@@ -416,9 +626,9 @@ static void TestNavigation(void)
 	MM_ConfigMenu_Open(&s_caller, CONFIG_MENU_MAIN);
 	sdata->ptrActiveMenu = sdata->ptrDesiredMenu;
 	const ConfigEntry *entries[CONFIG_MAX_SECTIONS];
-	const char *roots[] = {"System", "Game", "Modifiers", CONFIG_SECTION_CUSTOM_TRACKS};
+	const char *roots[] = {"System", "Game", "Modifiers", CONFIG_SECTION_CUSTOM_TRACKS, "Profile"};
 	int count = Config_NavigationEntries(entries);
-	CTR_TEST_CHECK(count == (int)len(roots), "the root shows four sections when developer hacks are disabled");
+	CTR_TEST_CHECK(count == (int)len(roots), "the main-menu root includes profile selection");
 	for (int i = 0; i < count; i++)
 	{
 		CTR_TEST_CHECK(strcmp(entries[i]->key, roots[i]) == 0, "root sections follow the requested order");
@@ -449,7 +659,7 @@ static void TestNavigation(void)
 	}
 	g_config.developerHacksEnabled = true;
 	count = Config_NavigationEntries(entries);
-	CTR_TEST_CHECK(count == 5 && strcmp(entries[4]->key, CONFIG_SECTION_DEVELOPER_HACKS) == 0,
+	CTR_TEST_CHECK(count == 6 && strcmp(entries[5]->key, CONFIG_SECTION_DEVELOPER_HACKS) == 0,
 	               "developer hacks appear at the end only when enabled");
 	g_config = s_initialConfig;
 }
@@ -1248,6 +1458,7 @@ int main(void)
 	CustomTracks_DrawImportReview(&review, &s_tracker, s_buffer.otMem.uiOT);
 	CTR_TEST_CHECK(s_cursorDraws == 0, "the editing cursor blinks off");
 	data.font_charPixHeight[FONT_SMALL] = 0;
+	TestProfileMenu();
 	TestNavigation();
 	TestTrackImportMenu();
 	CTR_TEST_SECTION("Main-menu session");

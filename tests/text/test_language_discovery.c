@@ -19,6 +19,7 @@ FILE *NativeAssets_OpenHost(const char *relativePath, const char *mode)
 	return size < 0 || (size_t)size >= sizeof(path) ? NULL : fopen(path, mode);
 }
 
+#include <platform/config/native_config_ini.c>
 #include <platform/config/native_config.c>
 #include <platform/text/native_text_catalog.c>
 #include <platform/text/native_text_runtime.c>

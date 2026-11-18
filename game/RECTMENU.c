@@ -659,6 +659,16 @@ void RECTMENU_ClearInput()
 	}
 }
 
+void RECTMENU_ClearInputAndTaps(void)
+{
+	RECTMENU_ClearInput();
+	// Keep held state intact so the next frame does not generate a new tap.
+	for (size_t i = 0; i < len(sdata->gGamepads->gamepad); i++)
+	{
+		sdata->gGamepads->gamepad[i].buttonsTapped = 0;
+	}
+}
+
 
 void RECTMENU_CollectInput()
 {

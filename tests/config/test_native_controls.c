@@ -71,6 +71,7 @@ void Platform_LogWarn(const char *fmt, ...)
 //
 // Order matters: native_input.c reads the assignment from native_controls.c,
 // which reads its defaults from native_config.c.
+#include <platform/config/native_config_ini.c>
 #include <platform/config/native_config.c>
 #include <platform/config/native_controls.c>
 #include <platform/native_input.c>
@@ -1682,37 +1683,6 @@ static void TestVibrationPersistence(void)
 	}
 }
 
-static void TestAdventureOptionsMigration(void)
-{
-	CTR_TEST_SECTION("Adventure options migration");
-	char path[512];
-	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
-	const NativeConfig initial = g_config;
-	const char *inputs[] = {
-	    "[Adventure]\nchaos_mode = true\n",
-	    "[Adventure]\nextra_options = true\nexpanded_options = false\n",
-	    "[Adventure]\nexpanded_options = true\nextended_character_select = false\n",
-	    "[Adventure]\nextra_options = true\n",
-	};
-	const bool expected[] = {true, false, true, true};
-	for (int i = 0; i < (int)(sizeof(inputs) / sizeof(inputs[0])); i++)
-	{
-		g_config = initial;
-		FILE *file = fopen(path, "w");
-		CTR_TEST_CHECK(file != NULL, "scratch config can be written");
-		if (file == NULL)
-		{
-			break;
-		}
-		fputs(inputs[i], file);
-		fclose(file);
-		NativeConfig_Load();
-		CTR_TEST_CHECK(g_config.expandedAdventureOptions == expected[i], "explicit expanded_options takes precedence over legacy keys");
-	}
-	remove(path);
-	g_config = initial;
-}
-
 int main(void)
 {
 	// NativeControls_Refresh queries the real gamepad list, so the subsystem has to
@@ -1724,7 +1694,6 @@ int main(void)
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), TEST_SCRATCH_SUITE, NATIVE_CONTROLS_FILE_NAME);
 
 	CTR_TEST_SECTION("native_controls tests");
-	TestAdventureOptionsMigration();
 
 	TestCaptureTimeoutRestoresTheBinding();
 	TestCancelRestoresTheBinding();

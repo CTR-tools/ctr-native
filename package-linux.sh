@@ -31,6 +31,8 @@ mkdir -p "${PACKAGE_DIR}"
 cp "${BINARY_PATH}" "${PACKAGE_DIR}/"
 cp LICENSE "${PACKAGE_DIR}/"
 cp THIRD_PARTY_NOTICES.md "${PACKAGE_DIR}/"
+mkdir -p "${PACKAGE_DIR}/resources/presets"
+cp resources/presets/vanilla.ini resources/presets/expanded.ini "${PACKAGE_DIR}/resources/presets/"
 
 cat >"${PACKAGE_DIR}/README.txt" <<EOF
 Crash Team Racing Expanded Linux x86 ${VERSION} build

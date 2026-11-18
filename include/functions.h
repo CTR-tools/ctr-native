@@ -585,6 +585,7 @@ void RECTMENU_DrawPolyGT4(struct Icon *icon, s32 posX, s32 posY, struct PrimMem 
                           s32 transparency, s32 scale);
 b32 RECTMENU_BoolHidden(struct RectMenu *m);
 void RECTMENU_ClearInput(void);
+void RECTMENU_ClearInputAndTaps(void);
 void RECTMENU_CollectInput(void);
 void RECTMENU_ProcessState(void);
 int RECTMENU_ProcessInput(struct RectMenu *m);

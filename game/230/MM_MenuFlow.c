@@ -89,6 +89,10 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 	s16 choose;
 
 	mainMenu = menu;
+	if (mainMenu->funcState == RECTMENU_FUNC_STATE_UPDATE && sdata->ptrActiveMenu == mainMenu)
+	{
+		if (MM_ProfileMenu_OpenStartup(mainMenu)) { return; }
+	}
 
 	// if scrapbook is unlocked, change "rows" to extended array
 	if ((MM_GAME_UNLOCKS[MEMCARD_BIT_WORD(GAME_UNLOCK_BIT_SCRAPBOOK)] & MEMCARD_BIT_MASK(GAME_UNLOCK_BIT_SCRAPBOOK)) != 0)

@@ -535,9 +535,9 @@ static void FullScreenMenu_DrawScreen(const char *title, int nudgeY, const struc
 }
 
 // Large, content-sized section list: title menus sit right, pause menus centre.
-static inline void FullScreenMenu_DrawSectionScreen(const char *title, const char *const *labels,
+static inline void FullScreenMenu_DrawSectionScreenMarked(const char *title, const char *const *labels,
                                             const struct FullScreenMenu_Scroll *scroll,
-                                            int numRows, int selected, int columnX,
+                                            int numRows, int selected, int marked, int columnX,
                                             struct GameTracker *gGT, uint32_t *ot)
 {
 	const int rowHeight = data.font_charPixHeight[FONT_BIG] + 3;
@@ -552,6 +552,7 @@ static inline void FullScreenMenu_DrawSectionScreen(const char *title, const cha
 		if (labelWidth > width) { width = labelWidth; }
 	}
 	width += 2 * FULLSCREEN_MENU_ROW_PADDING;
+	if (marked >= 0) { width += 12; }
 	if (width > FULLSCREEN_MENU_CONTENT_W) { width = FULLSCREEN_MENU_CONTENT_W; }
 	const int maxWidth = 2 * (SCREEN_WIDTH - 6 - columnX);
 	if (width > maxWidth) { width = maxWidth; }
@@ -560,6 +561,10 @@ static inline void FullScreenMenu_DrawSectionScreen(const char *title, const cha
 	{
 		const int y = titleY + rowHeight + 6 + (row - scroll->offset) * rowHeight;
 		DecalFont_DrawLineOT((char *)labels[row], columnX, y, FONT_BIG, JUSTIFY_CENTER | ORANGE, ot);
+		if (row == marked)
+		{
+			DecalFont_DrawLineOT("-", columnX - width / 2 + 4, y, FONT_BIG, ORANGE, ot);
+		}
 		if (row == selected)
 		{
 			RECT highlight = {columnX - width / 2, y - 1, width, rowHeight - 3};
@@ -569,6 +574,14 @@ static inline void FullScreenMenu_DrawSectionScreen(const char *title, const cha
 	struct RectMenu frame = {.stringIndexTitle = LNG_OPTIONS, .drawStyle = s_frameDrawStyle};
 	RECT bounds = {columnX - width / 2 - 6, titleY - 6, width + 12, height + 8};
 	RECTMENU_DrawFullRect(&frame, &bounds);
+}
+
+static inline void FullScreenMenu_DrawSectionScreen(const char *title, const char *const *labels,
+                                            const struct FullScreenMenu_Scroll *scroll,
+                                            int numRows, int selected, int columnX,
+                                            struct GameTracker *gGT, uint32_t *ot)
+{
+	FullScreenMenu_DrawSectionScreenMarked(title, labels, scroll, numRows, selected, -1, columnX, gGT, ot);
 }
 
 static inline void FullScreenMenu_DrawMessage(const char *title, const char *message, struct GameTracker *gGT, uint32_t *ot)

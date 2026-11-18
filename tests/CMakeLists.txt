@@ -90,7 +90,7 @@ string(REPLACE "NATIVE_TEXT_CATALOG_retail" "NATIVE_TEXT_CATALOG_RETAIL" CTR_TEX
 string(REPLACE "NATIVE_TEXT_CATALOG_expanded" "NATIVE_TEXT_CATALOG_EXPANDED" CTR_TEXT_LENGTH_CATALOGS "${CTR_TEXT_LENGTH_CATALOGS}")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_length_catalogs.h" CONTENT "${CTR_TEXT_LENGTH_CATALOGS}")
 ctr_add_test_suite(test_text_lengths
-    SOURCES text/test_text_lengths.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/config/native_config.c
+    SOURCES text/test_text_lengths.c ${CMAKE_SOURCE_DIR}/platform/text/native_text_catalog.c ${CMAKE_SOURCE_DIR}/platform/config/native_config.c ${CMAKE_SOURCE_DIR}/platform/config/native_config_ini.c
     LIBRARIES tomlc17
 )
 target_include_directories(test_text_lengths PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -279,6 +279,12 @@ ctr_add_test_suite(test_pgxp_gte SOURCES test_pgxp_gte.c)
 if(UNIX)
     target_link_libraries(test_pgxp_gte PRIVATE m)
 endif()
+
+ctr_add_test_suite(test_native_config
+    SOURCES config/test_native_config.c
+    LIBRARIES SDL3::SDL3
+)
+target_compile_definitions(test_native_config PRIVATE CTR_PRESET_SOURCE_DIR="${CMAKE_SOURCE_DIR}/resources/presets")
 
 ctr_add_test_suite(test_native_controls
     SOURCES config/test_native_controls.c

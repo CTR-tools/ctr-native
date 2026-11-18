@@ -241,6 +241,7 @@
 #include "230/MM_Battle.c"
 #include "230/custom-tracks/MM_TrackImport.c"
 #include "230/custom-tracks/MM_CustomTracks.c"
+#include "230/config/MM_ProfileMenu.c"
 #include "230/config/MM_ConfigMenu.c"
 #include "230/MM_AudioConfig.c"
 #include "230/config/MM_ControlsConfig.c"

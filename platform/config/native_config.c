@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <stdbool.h>
 #include <platform/config/native_config.h>
+#include "native_config_internal.h"
 #include <platform/native_assets.h>
 #include <platform/native_path.h>
 #include <platform/text/native_language_disc.h>
@@ -72,75 +72,11 @@ static const ConfigEnumValue kPgxpModeValues[] = {
 #define NUM_PGXP_MODES (sizeof(kPgxpModeValues) / sizeof(kPgxpModeValues[0]))
 
 NativeConfig g_config = {
-  .textLanguage = NATIVE_LANGUAGE_ENGLISH,
-  .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
-  .retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED,
-  .skipIntro = false,
-  .loadingScreen = LOADING_SCREEN_VANILLA,
-  .skipPodiumCeremonies = false,
-  .showReservesMeter = false,
-  .allowOxideStationMultiplayer = false,
-  .allowRaceTracksInBattle = false,
-  .extendedMultiplayer = false,
-  .botSelectionMode = BOT_SELECTION_PREDETERMINED,
-  .skipHints = false,
-  .bossCutscenes = BOSS_CUTSCENES_UNSKIPPABLE,
-  .expandedAdventureOptions = false,
-  .extraDifficultyLevels = false,
-  .engineSelection = false,
-  .customCups = false,
-  .expandedArcade = false,
+#include "native_config_defaults.inc"
+};
 
-  .speedMultiplier = 100,
-  .gravityMultiplier = 100,
-  .turnMultiplier = 100,
-  .jumpMultiplier = 100,
-  .reserveMultiplier = 100,
-
-  .missileSpeedMultiplier =  100,
-  .bombSpeedMultiplier = 100,
-  .warpballSpeedMultiplier = 100,
-  .bombExplosionRadiusMultiplier = 100,
-  .tntExplosionRadiusMultiplier = 100,
-
-  .unlockAllCharacters = false,
-  .unlockNitrosOxide = false,
-  .unlockCupDifficulties = false,
-  .unlockTurboTrack = false,
-  .unlockAllBattleArenas = false,
-  .unlockAllGates = false,
-  .unlockAllPortals = false,
-
-  .increaseDrawDistance = false,
-  .disableSplitScreenLod = false,
-
-  .fullscreen = false,
-  .vsync = false,
-  .aspectRatio = 0,
-  .dithering = true,
-  .renderScale = 0,
-  .smoothScaling = true,
-  .fxaa = false,
-  .textureFiltering = false,
-  .pgxpMode = PGXP_MODE_OFF,
-  .saveAnywhere = false,
-  .maskMode = MASK_MODE_NORMAL,
-  .maskProtectsFromDamage = true,
-  .maskDamagesOthers = true,
-  .maskPersistsAfterOOB = false,
-  .maskDurationMultiplier = 100,
-  .maskExtraSpeedMultiplier = 100,
-  .clockDurationMultiplier = 100,
-  .allowWeaponsDuringClock = false,
-  .autoEndRaceWhenOthersFinish = false,
-  .developerHacksEnabled = false,
-  .omniController = false,
-  .oneLapRaces = false,
-  .towPlayer2 = false,
-  .quickRace = false,
-  .chaosQuickRace = false,
-  .skipStartCountdown = false,
-  .endRaceWithL3 = false
+static const NativeConfig s_defaults = {
+#include "native_config_defaults.inc"
 };
 
 const ConfigEntry g_configEntries[] = {
@@ -714,10 +650,6 @@ const ConfigEntry g_configEntries[] = {
 
 const int g_numConfigEntries = sizeof(g_configEntries) / sizeof(g_configEntries[0]);
 
-// Snapshot of the pristine g_config, copied at the top of NativeConfig_Load
-// before anything mutates it.
-static NativeConfig s_defaults;
-
 // Developer hacks are an umbrella switch: while developerHacksEnabled is off,
 // every other option in the section is restored to its default so a hidden
 // option can never silently alter gameplay.
@@ -750,7 +682,7 @@ static void NativeConfig_ResetDisabledDeveloperHacks(void)
         }
 
         // valuePtr points into g_config, so the same offset selects the
-        // matching field of the snapshot.
+        // matching field of the immutable defaults.
         const size_t offset = (size_t)((const char *)e->valuePtr - (const char *)&g_config);
 
         if (e->type == CFG_BOOL)
@@ -777,154 +709,90 @@ void NativeConfig_ApplyDependencies(const ConfigEntry *changedEntry)
     }
 }
 
-static bool ParseBool(const char *s)
+static bool NativeConfig_ParseLanguageOverride(const ConfigEntry *entry, const char *value, void *destination,
+                                               ConfigParseMode mode, bool *result)
 {
-    return strcmp(s, "true") == 0 || strcmp(s, "1") == 0;
+    if (entry->valuePtr != &g_config.textLanguage) { return false; }
+    int slot = NativeTextRuntime_LanguageSlot(value);
+    if (slot >= 0)
+    {
+        *(int *)destination = slot;
+        *result = true;
+        return true;
+    }
+    for (int i = 0; i < entry->numEnumValues; i++)
+    {
+        if (strcmp(value, entry->enumValues[i].name) == 0) { return false; }
+    }
+    if (mode == CONFIG_PARSE_STRICT) { return false; }
+    char *end;
+    long number = strtol(value, &end, 10);
+    *(int *)destination = end != value && *end == '\0' && number >= 0 && number < NATIVE_TEXT_CUSTOM_FIRST &&
+                          NativeTextRuntime_LanguageId((int)number) != NULL ? (int)number : NATIVE_LANGUAGE_ENGLISH;
+    *result = true;
+    return true;
 }
 
-static char *trimWhitespace(char *s)
+static void *NativeConfig_ConfigDestination(const ConfigEntry *entry, void *context)
 {
-    while (isspace((unsigned char)*s))
-        s++;
-    if (*s == '\0')
-        return s;
-    char *end = s + strlen(s) - 1;
-    while (end > s && isspace((unsigned char)*end))
-        end--;
-    *(end + 1) = '\0';
-    return s;
+    size_t offset = (size_t)((const char *)entry->valuePtr - (const char *)&g_config);
+    return (char *)context + offset;
 }
 
-void NativeConfig_Load(void)
+ConfigLoadResult NativeConfig_ReadPresetDefaults(const char *path)
 {
-    // Must happen before the parse below (and before the config menu can edit
-    // anything) so the snapshot still holds the pristine defaults.
-    s_defaults = g_config;
+    NativeConfig candidate = g_config;
+    ConfigLoadResult result = NativeConfig_ReadFile(path, &candidate, NativeConfig_ConfigDestination,
+                                                     g_configEntries, g_numConfigEntries, CONFIG_PARSE_STRICT,
+                                                     NativeConfig_ParseLanguageOverride);
+    if (result == CONFIG_LOAD_OK)
+    {
+        g_config = candidate;
+    }
+    return result;
+}
 
+ConfigLoadResult NativeConfig_ApplyPresetFile(const char *path)
+{
+    ConfigLoadResult result = NativeConfig_ReadPresetDefaults(path);
+    if (result == CONFIG_LOAD_OK)
+    {
+        NativeConfig_ResetDisabledDeveloperHacks();
+    }
+    return result;
+}
+
+static const char *NativeConfig_LanguageNameOverride(const ConfigEntry *entry, int value)
+{
+    if (entry->valuePtr == &g_config.textLanguage && value >= NATIVE_TEXT_CUSTOM_FIRST)
+    {
+        return NativeTextRuntime_LanguageId(value);
+    }
+    return NULL;
+}
+
+ConfigLoadResult NativeConfig_Load(void)
+{
     printf("[Config] Base:       %s\n", NativeAssets_GetBaseDir());
     char path[512];
     NativePath_Join(path, sizeof(path), NativeStr8_FromCString(NativeAssets_GetBaseDir()), NATIVE_STR8_LIT("config.ini"));
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        printf("[Config] config.ini NOT FOUND (%s)\n", path);
-        return;
+    ConfigLoadResult result = NativeConfig_ReadFile(path, &g_config, NativeConfig_ConfigDestination, g_configEntries,
+                                                    g_numConfigEntries, CONFIG_PARSE_COMPATIBLE,
+                                                    NativeConfig_ParseLanguageOverride);
+    if (result != CONFIG_LOAD_OK)
+    {
+        printf("[Config] Could not read config.ini (%s)\n", path);
+        NativeConfig_ResetDisabledDeveloperHacks();
+        return result;
     }
 
     printf("[Config] config.ini opened OK\n");
-
-    char line[256];
-    char section[64] = "";
-    bool hasExtraOptions = false;
-    bool legacyExtraOptions = false;
-
-    while (fgets(line, sizeof(line), f))
-    {
-        char *p = trimWhitespace(line);
-
-        if (*p == '\0' || *p == ';' || *p == '#')
-            continue;
-
-        if (*p == '[')
-        {
-            char *end = strchr(p + 1, ']');
-            if (end)
-            {
-                *end = '\0';
-                strncpy(section, p + 1, sizeof(section) - 1);
-                section[sizeof(section) - 1] = '\0';
-            }
-            continue;
-        }
-
-        char *eq = strchr(p, '=');
-        if (!eq)
-            continue;
-
-        *eq = '\0';
-        char *key = trimWhitespace(p);
-        char *value = trimWhitespace(eq + 1);
-
-        if (strcmp(section, "Adventure") == 0)
-        {
-            if (strcmp(key, "expanded_options") == 0)
-            {
-                hasExtraOptions = true;
-            }
-            else if (strcmp(key, "extra_options") == 0 || strcmp(key, "extended_character_select") == 0 ||
-                     strcmp(key, "multiplayer_adventure") == 0 || strcmp(key, "chaos_mode") == 0)
-            {
-                legacyExtraOptions |= ParseBool(value);
-            }
-        }
-
-        for (int i = 0; i < g_numConfigEntries; i++)
-        {
-            const ConfigEntry *e = &g_configEntries[i];
-            if (strcmp(section, e->section) == 0 &&
-                strcmp(key, e->key) == 0)
-            {
-                if (e->type == CFG_ACTION || e->type == CFG_SUBSECTION)
-                {
-                    // Nothing to parse; the section is drawn by its own screen.
-                }
-                else if (e->type == CFG_BOOL)
-                    *(bool *)e->valuePtr = ParseBool(value);
-                else if (e->type == CFG_ENUM)
-                {
-                    int matched = 0;
-                    if (e->valuePtr == &g_config.textLanguage)
-                    {
-                        int slot = NativeTextRuntime_LanguageSlot(value);
-                        if (slot >= 0)
-                        {
-                            *(int *)e->valuePtr = slot;
-                            matched = 1;
-                        }
-                    }
-                    for (int j = 0; j < e->numEnumValues; j++)
-                    {
-                        if (strcmp(value, e->enumValues[j].name) == 0)
-                        {
-                            *(int *)e->valuePtr = e->enumValues[j].value;
-                            matched = 1;
-                            break;
-                        }
-                    }
-                    if (!matched)
-                    {
-                        if (e->valuePtr == &g_config.textLanguage)
-                        {
-                            char *end;
-                            long slot = strtol(value, &end, 10);
-                            *(int *)e->valuePtr = end != value && *end == '\0' &&
-                                                 slot >= 0 && slot < NATIVE_TEXT_CUSTOM_FIRST &&
-                                                 NativeTextRuntime_LanguageId((int)slot) != NULL
-                                                     ? (int)slot : NATIVE_LANGUAGE_ENGLISH;
-                        }
-                        else
-                        {
-                            *(int *)e->valuePtr = atoi(value);
-                        }
-                    }
-                }
-                else
-                    *(int *)e->valuePtr = atoi(value);
-                break;
-            }
-        }
-    }
-
-    fclose(f);
-
-    if (!hasExtraOptions)
-    {
-        g_config.expandedAdventureOptions = legacyExtraOptions;
-    }
 
     // Applied after the whole file is parsed so key order in config.ini does
     // not matter: developer hack options only take effect while the section is
     // enabled.
     NativeConfig_ResetDisabledDeveloperHacks();
+    return result;
 }
 
 void NativeConfig_Save(void)
@@ -953,29 +821,7 @@ void NativeConfig_Save(void)
             lastSection = e->section;
         }
 
-        if (e->type == CFG_BOOL)
-            fprintf(f, "%s = %s\n", e->key, *(bool *)e->valuePtr ? "true" : "false");
-        else if (e->type == CFG_ENUM)
-        {
-            int val = *(int *)e->valuePtr;
-            const char *name = "?";
-            if (e->valuePtr == &g_config.textLanguage && val >= NATIVE_TEXT_CUSTOM_FIRST)
-            {
-                const char *id = NativeTextRuntime_LanguageId(val);
-                if (id != NULL) { name = id; }
-            }
-            for (int j = 0; j < e->numEnumValues; j++)
-            {
-                if (e->enumValues[j].value == val)
-                {
-                    name = e->enumValues[j].name;
-                    break;
-                }
-            }
-            fprintf(f, "%s = %s\n", e->key, name);
-        }
-        else
-            fprintf(f, "%s = %d\n", e->key, *(int *)e->valuePtr);
+        NativeConfig_WriteValue(f, e, e->valuePtr, NativeConfig_LanguageNameOverride);
     }
 
     fclose(f);

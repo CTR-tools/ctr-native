@@ -7,9 +7,7 @@
     a directory with local track import tools, zips it, and writes a sha256
     beside the archive.
 
-    config.ini and controls.ini are produced by copying default_config.ini and
-    default_controls.ini. Every copy is written out source to destination on
-    purpose.
+    The game uses built-in defaults until config.ini and controls.ini are saved.
 
 .PARAMETER Version
     The release version, with or without the leading v.
@@ -63,8 +61,6 @@ try {
     $copies = @(
         @{ From = $Executable; To = $executableName }
         @{ From = 'THIRD_PARTY_NOTICES.md'; To = 'THIRD_PARTY_NOTICES.md' }
-        @{ From = 'resources/config/default_config.ini'; To = 'config.ini' }
-        @{ From = 'resources/config/default_controls.ini'; To = 'controls.ini' }
     )
     foreach ($copy in $copies) {
         $source = Join-Path $RepoRoot $copy.From
@@ -72,6 +68,12 @@ try {
             throw "Missing $source."
         }
         Copy-Item -LiteralPath $source -Destination (Join-Path $staging $copy.To) -Force
+    }
+
+    $presetDestination = Join-Path $staging 'resources/presets'
+    New-Item -ItemType Directory -Path $presetDestination -Force | Out-Null
+    foreach ($name in @('vanilla.ini', 'expanded.ini')) {
+        Copy-Item -LiteralPath (Join-Path $RepoRoot "resources/presets/$name") -Destination $presetDestination
     }
 
      # Shipped translations live beside the executable, not under assets.
