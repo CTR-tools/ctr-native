@@ -3,12 +3,6 @@
 
 enum
 {
-	SOUND_CLOCK = 0x44,
-	SOUND_INVISIBILITY = 0x61,
-};
-
-enum
-{
 	AUDIO_NONE = 0,
 	AUDIO_LOADING = 1,
 	AUDIO_STOP_ALL = 2,

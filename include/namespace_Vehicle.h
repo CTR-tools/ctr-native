@@ -3,23 +3,6 @@
 
 #include <ctr_math.h>
 
-enum
-{
-	VEH_BIRTH_WHEEL_SIZE = 0xccc,
-	VEH_PHYS_FORCE_TERRAIN_SCALE_NEUTRAL = 0x100,
-	VEH_PHYS_FORCE_SUPER_TURBO_PAD_FIRE_LEVEL = 0x800,
-};
-
-enum VehPickDamage
-{
-	VEH_PICK_DAMAGE_NONE = 0,
-	VEH_PICK_DAMAGE_SPIN = 1,
-	VEH_PICK_DAMAGE_BLAST = 2,
-	VEH_PICK_DAMAGE_SQUISH = 3,
-	VEH_PICK_DAMAGE_BURN = 4,
-	VEH_PICK_DAMAGE_MASK_GRAB = 5,
-};
-
 struct Thread;
 struct Driver;
 struct PushBuffer;

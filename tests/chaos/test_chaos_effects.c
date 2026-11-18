@@ -2857,6 +2857,13 @@ static void TestAnxiousMask(void)
 		CTR_TEST_CHECK_EQ(human.collisionFlags, DRIVER_COLL_FLAG_GROUNDED, "ordinary road and ice do not trigger rescue");
 	}
 	road.terrain_type = TERRAIN_ASPHALT;
+	data.MetaDataTerrain[TERRAIN_ASPHALT].speedMultiplier = 257;
+	Chaos_ApplyRescueRules(&human);
+	CTR_TEST_CHECK_EQ(human.collisionFlags, DRIVER_COLL_FLAG_GROUNDED, "faster-than-neutral terrain does not request rescue");
+	data.MetaDataTerrain[TERRAIN_ASPHALT].speedMultiplier = 255;
+	Chaos_ApplyRescueRules(&human);
+	CTR_TEST_CHECK((human.collisionFlags & DRIVER_COLL_FLAG_MASK_GRAB_REQUEST) != 0, "terrain immediately below neutral requests rescue");
+	data.MetaDataTerrain[TERRAIN_ASPHALT].speedMultiplier = 256;
 	human.currBlockTouching = &offRoad;
 	human.collisionFlags = DRIVER_COLL_FLAG_GROUNDED;
 	const u8 states[] = {KS_MASK_GRABBED, KS_BLASTED, KS_SPINNING, KS_ENGINE_REVVING, KS_WARP_PAD};
@@ -4096,7 +4103,7 @@ static void TestReserveGifts(void)
 	CTR_TEST_CHECK_EQ(Chaos_ReservesForDriver(human, 1968), 2000, "natural consumption cannot lower frozen reserves");
 	VehFire_Increment(human, 500, POWER_SLIDE_HANG_TIME, CHAOS_THIRD_DRIFT_FIRE_LEVEL);
 	CTR_TEST_CHECK_EQ(human->reserves, 2500, "boosts can still increase frozen reserves");
-	VehPickState_ApplyDamage(human, VEH_PICK_DAMAGE_SPIN, NULL, 0, true);
+	VehPickState_ForceDamage(human, VEH_PICK_DAMAGE_SPIN);
 	CTR_TEST_CHECK_EQ(human->reserves, 2500, "the actual damage path cannot clear frozen reserves");
 	struct Driver bot = {.driverID = 2, .reserves = 2000, .actionsFlagSet = ACTION_BOT};
 	CTR_TEST_CHECK_EQ(Chaos_ReservesForDriver(&bot, 0), 0, "bot fuel remains ordinary");

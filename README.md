@@ -391,7 +391,6 @@ include/ (shared structs, globals and declarations)
 ```
 
 - First-party native code targets portable C17 with compiler extensions disabled
-- Keep each unity group's include order. Cross-group APIs and constants belong in shared headers; do not rely on an earlier group's file-static declarations. Resident rendering stays with the native GTE code so its hot paths can still be inlined without LTO.
 - The default build uses 32-bit mode while remaining PSX address-shaped data and host-pointer contracts are audited. GPU primitive links are bridged through 24-bit native tokens; see `docs/MEMORY_MODEL.md`.
 
 ## AI Usage

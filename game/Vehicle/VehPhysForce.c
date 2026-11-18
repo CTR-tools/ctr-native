@@ -1,4 +1,5 @@
 #include "VehCommon.h"
+#include "VehPhysForce.h"
 
 void VehPhysForce_ConvertSpeedToVec(struct Driver *driver, Vec3 *velocity)
 {
@@ -96,6 +97,7 @@ enum
 	VEH_PHYS_FORCE_LOW_GRAVITY_DIVISOR = 100,
 	VEH_PHYS_FORCE_MUD_TERMINAL_SPEED = 0x100,
 	VEH_PHYS_FORCE_SKID_SPEED_THRESHOLD = 0x300,
+	VEH_PHYS_FORCE_TERRAIN_SCALE_NEUTRAL = 0x100,
 	VEH_PHYS_FORCE_TERRAIN_SIDE_LOCK_TIMER = -0x140,
 	VEH_PHYS_FORCE_TERRAIN_RUMBLE_FRAMES = 4,
 	VEH_PHYS_FORCE_TERRAIN_RUMBLE_FORCE = 0x7f,
@@ -130,7 +132,6 @@ enum
 	VEH_PHYS_FORCE_WAKE_BURST_PARTICLE_COUNT = 10,
 	VEH_PHYS_FORCE_TURBO_PAD_RESERVES = 0x3c0,
 	VEH_PHYS_FORCE_SUPER_TURBO_PAD_RESERVES = 0x78,
-	VEH_PHYS_FORCE_TURBO_PAD_FIRE_LEVEL = 0x100,
 	VEH_PHYS_FORCE_COLLISION_BEST_DIST_INIT = 0x7fffffff,
 	VEH_PHYS_FORCE_SURFACE_PUSHBACK_Y_BIAS = 4,
 	VEH_PHYS_FORCE_SURFACE_PUSHBACK_SHIFT = 6,
@@ -141,6 +142,15 @@ static inline u16 VehPhysForce_QuadFlags(const struct QuadBlock *quad)
 	// NOTE(aalhendi): Native collision searches can leave a missing quad while
 	// retail reaches this helper only with a valid fixed-address quad pointer.
 	return quad != NULL ? quad->quadFlags : 0;
+}
+
+void VehPhysForce_RequestOffroadRescue(struct Driver *driver)
+{
+	const struct Terrain *terrain = VehAfterColl_GetTerrain(driver->currBlockTouching->terrain_type);
+	if (terrain->speedMultiplier < VEH_PHYS_FORCE_TERRAIN_SCALE_NEUTRAL)
+	{
+		driver->collisionFlags |= DRIVER_COLL_FLAG_MASK_GRAB_REQUEST;
+	}
 }
 
 

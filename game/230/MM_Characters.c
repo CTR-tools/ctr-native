@@ -492,8 +492,7 @@ LAB_Characters_DrawWindows_Loop:
 	CTR_PSX_ADD_SYMBOL_LOW(dataPointer, dataPointer, MM_CHARACTER_SELECT_CURRENT_IDS_ASM_NAME, (u32)MM_CHARACTER_SELECT_CURRENT_IDS);
 	currCharacterID = (s16 *)(indexOrSlideFactor * sizeof(*currCharacterID) + dataPointer);
 
-    loopGameTracker->drivers[indexOrSlideFactor]->wheelSize =
-      (*currCharacterID == NITROS_OXIDE) ? 0 : VEH_BIRTH_WHEEL_SIZE;
+	VehBirth_SetWheelSizeForCharacter(loopGameTracker->drivers[indexOrSlideFactor], *currCharacterID);
 	driverInst->animFrame = 0;
 	driverInst->animIndex = 0;
 

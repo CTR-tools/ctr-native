@@ -17,6 +17,10 @@ and layouts in
 `externals/SDL/` is vendored; do not edit it for application changes. This is a
 32-bit C17 native target. CMake defines `CTR_INTERNAL`.
 
+Module-owned shared constant groups live in small headers beside their game
+implementations, with explicit consumer includes rather than global layout
+namespace exposure. Keep private policy behind owner operations where useful.
+
 Keep directories navigable as the project grows: reuse existing thematic
 subdirectories and create new ones when a coherent set of related files would
 otherwise crowd a directory. Avoid unnecessary nesting or grouping unrelated

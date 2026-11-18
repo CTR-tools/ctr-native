@@ -5,6 +5,10 @@
 // Include the real modules in unity order so both suites exercise the same paths.
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <game/DotLights.h>
+#include <game/Vehicle/VehPickState.h>
+#include <game/Vehicle/VehPhysForce.h>
+#include <game/Vehicle/VehPickupItem.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -444,14 +448,13 @@ void VehPickupItem_ShootWarpball(struct Driver *driver, struct Driver *target)
 	s_mailLaunches++;
 }
 
-// VehPickupItem.c precedes Chaos in the game unity build.
-
 #include <game/LIST.c>
 #include <game/HOWL/HOWL_Voiceline.c>
 #include <game/widescreen.c>
 #include <game/DotLights.c>
 #include <game/Vehicle/VehPhysCrash.c>
 #include <game/Vehicle/VehBirth_Consts.c>
+#include <game/Vehicle/VehBirth_Appearance.c>
 #include <game/Vehicle/VehCalc.c>
 #include <game/Vehicle/VehPhysForce.c>
 // Exercise the real bot-to-human handover; only driving callbacks are doubled.

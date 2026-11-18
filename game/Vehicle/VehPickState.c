@@ -1,4 +1,5 @@
 #include "VehCommon.h"
+#include "VehPickState.h"
 
 enum
 {
@@ -38,7 +39,7 @@ enum
 };
 
 
-int VehPickState_ApplyDamage(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason, bool bypassProtection)
+static int VehPickState_ApplyDamage(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason, bool bypassProtection)
 {
 	int victimState = victimDriver->kartState;
 	register int victimID CTR_PSX_REGISTER("$2");
@@ -381,4 +382,9 @@ int VehPickState_TrySquish(struct Driver *driver)
 int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason)
 {
 	return VehPickState_ApplyDamage(victimDriver, damageType, attackDriver, reason, false);
+}
+
+int VehPickState_ForceDamage(struct Driver *driver, int damageType)
+{
+	return VehPickState_ApplyDamage(driver, damageType, NULL, 0, true);
 }

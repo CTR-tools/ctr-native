@@ -743,6 +743,7 @@ void VehBirth_SetConstsForClass(struct Driver *driver, int engineID);
 int VehBirth_EngineClassForPlayer(int player, int defaultClass);
 void VehBirth_EngineAudio_AllPlayers(void);
 void VehBirth_TireSprites(struct Thread *t);
+void VehBirth_SetWheelSizeForCharacter(struct Driver *driver, int character);
 void VehBirth_NonGhost(struct Thread *t, int index);
 struct Driver *VehBirth_Player(int index);
 
@@ -1290,9 +1291,10 @@ int RB_Hazard_HurtDriver(struct Driver *driverVictim, int damageType, struct Dri
 void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags);
 void VehPickupItem_ShootWarpball(struct Driver *driver, struct Driver *target);
 int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason);
-int VehPickState_ApplyDamage(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason, bool bypassProtection);
+int VehPickState_ForceDamage(struct Driver *driver, int damageType);
 void RB_Follower_Init(struct Driver *d, struct Thread *mineTh);
 void VehPhysForce_CounterSteer(struct Driver *driver);
+void VehPhysForce_RequestOffroadRescue(struct Driver *driver);
 b32 LOAD_IsOpen_AdvHub(void);
 int VehPhysJoystick_ReturnToRest(int stickVal, int half, struct RacingWheelData *rwd);
 int VehPhysJoystick_GetStrengthAbsolute(int stickVal, int maxSteer, struct RacingWheelData *rwd);

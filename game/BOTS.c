@@ -1,4 +1,5 @@
 #include <common.h>
+#include "BOTS.h"
 #include <platform/custom-tracks/native_track_library.h>
 
 enum

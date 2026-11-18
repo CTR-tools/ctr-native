@@ -1,4 +1,5 @@
 #include <common.h>
+#include "DotLights.h"
 #include <widescreen.h>
 
 enum

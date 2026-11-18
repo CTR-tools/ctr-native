@@ -1,4 +1,5 @@
 #include "VehCommon.h"
+#include <game/BOTS.h>
 
 void VehPhysProc_TakeControl(struct Driver *driver)
 {
