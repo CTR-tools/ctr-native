@@ -37,8 +37,8 @@
       "name": "windows-mingw-i686-debug",
       "displayName": "Windows MinGW i686 Debug",
       "inherits": "common",
-      "generator": "MinGW Makefiles",
-      "binaryDir": "${sourceDir}/build-mingw-i686-debug",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-ninja-i686-debug",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -52,15 +52,15 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_C_COMPILER": "i686-w64-mingw32-gcc",
-        "CMAKE_MAKE_PROGRAM": "mingw32-make"
+        "CMAKE_MAKE_PROGRAM": "ninja"
       }
     },
     {
       "name": "windows-mingw-i686-release",
       "displayName": "Windows MinGW i686 Release",
       "inherits": "common",
-      "generator": "MinGW Makefiles",
-      "binaryDir": "${sourceDir}/build-mingw-i686-release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-ninja-i686-release",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -74,7 +74,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_C_COMPILER": "i686-w64-mingw32-gcc",
-        "CMAKE_MAKE_PROGRAM": "mingw32-make"
+        "CMAKE_MAKE_PROGRAM": "ninja"
       }
     },
     {

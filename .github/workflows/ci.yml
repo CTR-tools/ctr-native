@@ -70,18 +70,19 @@ jobs:
           release: false
           update: true
           # One whitespace-separated list, installed through pacman. This is the
-          # same package set build.bat prints when a tool is missing.
+          # build.bat's package set plus ccache for CI compiler caching.
           install: >-
             git
             mingw-w64-i686-gcc
             mingw-w64-i686-cmake
-            mingw-w64-ucrt-x86_64-make
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-ccache
 
-      - name: Put the MinGW32 toolchain and UCRT64 Make on PATH
+      - name: Put the MinGW32 toolchain and UCRT64 build tools on PATH
         shell: pwsh
         run: |
           # The action puts only its own msys2.cmd shim on PATH, not the
-          # tools. Make runs as a 64-bit host tool; GCC still targets i686.
+          # tools. Ninja and ccache are 64-bit host tools; GCC targets i686.
           $msys2 = '${{ steps.msys2.outputs.msys2-location }}'
           if ([string]::IsNullOrWhiteSpace($msys2)) {
             # The action's default install location, in case a v2 release old
@@ -91,16 +92,21 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\ucrt64\bin"
           Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\mingw32\bin"
 
-      # SDL is compiled from vendored source and dominates a cold build, so
-      # its build tree is cached and reused. The action carries the key it
-      # needs and the reason the restored files have to be touched; see
-      # .github/actions/cache-sdl/action.yml.
-      - name: Restore the SDL build cache
-        uses: ./.github/actions/cache-sdl
+      # Cache compiler results.
+      # ccache validates source, header, compiler and flag changes itself.
+      - name: Restore the compiler cache
+        uses: ./.github/actions/cache-compiler
 
       - name: Build
         shell: cmd
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
         run: .\build.bat
+
+      - name: Show compiler cache statistics
+        if: always()
+        shell: pwsh
+        run: ccache --show-stats
 
       - name: Verify the binary reports the resolved version
         # Worth running on a tag build above all: there `git describe` sits on

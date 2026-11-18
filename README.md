@@ -46,11 +46,11 @@ The existing MinGW i686 build remains supported:
 2. In an MSYS2 terminal:
    ```
    pacman -Syu
-   pacman -S --needed git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-make
+   pacman -S --needed git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-ninja
    ```
    If the update asks you to close the terminal, reopen MSYS2 and run the install command.
 3. Add `C:\msys64\mingw32\bin` and `C:\msys64\ucrt64\bin` to your system PATH,
-   keeping `mingw32\bin` first. Make is a 64-bit host tool; GCC still builds the
+   keeping `mingw32\bin` first. Ninja is a 64-bit host tool; GCC still builds the
    game for 32-bit Windows.
 4. Open a new Command Prompt or PowerShell and run `build.bat`.
 

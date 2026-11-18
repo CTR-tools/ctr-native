@@ -2,9 +2,9 @@
 setlocal
 
 :: Crash Team Racing Expanded Build Script (Windows)
-:: Requires MSYS2 MinGW32 tools and UCRT64 Make in PATH
+:: Requires MSYS2 MinGW32 tools and UCRT64 Ninja in PATH
 
-set "CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES=git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-make"
+set "CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES=git mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-ucrt-x86_64-ninja"
 
 where i686-w64-mingw32-gcc >nul 2>&1
 if %ERRORLEVEL% neq 0 (
@@ -26,9 +26,9 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-where mingw32-make >nul 2>&1
+where ninja >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo ERROR: mingw32-make not found in PATH
+    echo ERROR: ninja not found in PATH
     echo.
     echo Install MSYS2, then run:
     echo   pacman -S --needed %CRASH_TEAM_RACING_EXPANDED_MSYS2_PACKAGES%
@@ -36,7 +36,7 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_MAKE_PROGRAM=mingw32-make -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 if %ERRORLEVEL% neq 0 (
     echo ERROR: CMake configure failed
     exit /b 1
