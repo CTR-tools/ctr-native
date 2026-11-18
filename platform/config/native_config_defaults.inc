@@ -36,7 +36,7 @@
 .unlockAllPortals = false,
 .increaseDrawDistance = false,
 .disableSplitScreenLod = false,
-.fullscreen = false,
+.fullscreen = true,
 .vsync = false,
 .aspectRatio = 0,
 .dithering = true,
