@@ -69,12 +69,11 @@ jobs:
           # them, which is where the remaining setup time goes.
           release: false
           update: true
-          # One whitespace-separated list, installed through pacman. This is the
-          # build.bat's package set plus ccache for CI compiler caching.
+          # Reuse the runner's native Git and CMake. Installing their MSYS2
+          # counterparts pulls in unnecessary dependencies, including Perl.
+          # Only GCC must target i686; CMake runs as a native host tool.
           install: >-
-            git
             mingw-w64-i686-gcc
-            mingw-w64-i686-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-ccache
 
