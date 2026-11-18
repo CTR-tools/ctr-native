@@ -36,7 +36,8 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+:: Forward optional CMake configure arguments; local defaults stay unchanged.
+cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=i686-w64-mingw32-gcc -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON %*
 if %ERRORLEVEL% neq 0 (
     echo ERROR: CMake configure failed
     exit /b 1

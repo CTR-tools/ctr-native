@@ -20,3 +20,9 @@ runs:
         key: ccache-${{ runner.os }}-i686-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
           ccache-${{ runner.os }}-i686-v1-
+
+    - name: Reset statistics for this run
+      shell: pwsh
+      run: |
+        ccache --zero-stats
+        if ($LASTEXITCODE -ne 0) { throw 'ccache statistics reset failed.' }

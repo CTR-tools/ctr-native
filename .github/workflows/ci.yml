@@ -26,7 +26,7 @@ concurrency:
 jobs:
   windows-build-and-test:
     name: Windows build and tests
-    runs-on: windows-latest
+    runs-on: windows-2025
     timeout-minutes: 60
 
     steps:
@@ -47,6 +47,12 @@ jobs:
           # 0.0.0-dev, which is exactly the kind of wrong version a build gate
           # exists to catch.
           fetch-depth: 0
+
+      # windows-latest can supply different CMake versions even on a rerun.
+      - name: Set up pinned native CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '4.4.5'
 
       - name: Set up the MSYS2 MinGW32 toolchain
         id: msys2
@@ -69,7 +75,7 @@ jobs:
           # them, which is where the remaining setup time goes.
           release: false
           update: true
-          # Reuse the runner's native Git and CMake. Installing their MSYS2
+          # Use native Git and pinned CMake. Installing their MSYS2
           # counterparts pulls in unnecessary dependencies, including Perl.
           # Only GCC must target i686; CMake runs as a native host tool.
           install: >-
@@ -105,12 +111,15 @@ jobs:
         shell: cmd
         env:
           CMAKE_C_COMPILER_LAUNCHER: ccache
-        run: .\build.bat
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+        # SDL's PCH prevents ccache reuse with its default correctness checks.
+        # Prefer cacheable objects on fresh CI runners; local builds keep PCH.
+        run: .\build.bat -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON
 
       - name: Show compiler cache statistics
         if: always()
         shell: pwsh
-        run: ccache --show-stats
+        run: ccache --show-stats --verbose
 
       - name: Verify the binary reports the resolved version
         # Worth running on a tag build above all: there `git describe` sits on
