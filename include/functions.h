@@ -172,6 +172,7 @@ void CseqMusic_ChangeTempo(u16 songID, int p2);
 void CseqMusic_AdvHubSwap(u16 songId, struct SongSet *songSet, int songSetActiveBits);
 void CseqMusic_Stop(u16 songID);
 void CseqMusic_StopAll(void);
+int CustomSca_Serve(void *destination, int sector, int count);
 void Bank_ResetAllocator(void);
 int Bank_Alloc(int bankID, struct Bank *ptrBank);
 int Bank_AssignSpuAddrs(void);
@@ -1289,6 +1290,7 @@ int RB_Hazard_HurtDriver(struct Driver *driverVictim, int damageType, struct Dri
 void VehPickupItem_ShootNow(struct Driver *d, s32 weaponID, s32 flags);
 void VehPickupItem_ShootWarpball(struct Driver *driver, struct Driver *target);
 int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason);
+int VehPickState_ApplyDamage(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason, bool bypassProtection);
 void RB_Follower_Init(struct Driver *d, struct Thread *mineTh);
 void VehPhysForce_CounterSteer(struct Driver *driver);
 b32 LOAD_IsOpen_AdvHub(void);

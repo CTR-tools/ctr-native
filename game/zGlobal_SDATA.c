@@ -1,6 +1,8 @@
 
 #include <common.h>
 
+struct sData *sdata = &sdata_static;
+
 #if defined(__GNUC__)
 char memcardBytes[MEMCARD_FILE_DATA_SIZE];
 #endif

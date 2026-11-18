@@ -298,11 +298,6 @@ struct Model *MM_Characters_GetModelByName(const char *name)
 }
 void MM_Characters_DrawWindows(b32 showDrivers)
 {
-	struct InstanceWithIDPP
-	{
-		struct Instance instance;
-		struct InstDrawPerPlayer idpp[4];
-	};
 	register b32 boolShowDrivers CTR_PSX_REGISTER("$22");
 	register struct MetaDataCHAR *characterMetadata CTR_PSX_REGISTER("$23");
 	register s16 *desiredCharacterIDs CTR_PSX_REGISTER("$21");
@@ -310,7 +305,6 @@ void MM_Characters_DrawWindows(b32 showDrivers)
 	register u32 transitionOffsetOrPointer CTR_PSX_REGISTER("$3");
 	register struct PushBuffer *pb CTR_PSX_REGISTER("$8");
 	struct Instance *driverInst;
-	struct InstanceWithIDPP *driverWithIDPP;
 	register struct GameTracker *loopGameTracker CTR_PSX_REGISTER("$5");
 	struct Model *model;
 	register SVec2 *windowPos CTR_PSX_REGISTER("$7");
@@ -482,17 +476,16 @@ LAB_Characters_DrawWindows_Loop:
 	}
 
 	indexOrSlideFactor = playerIndex;
-	driverWithIDPP = (struct InstanceWithIDPP *)driverInst;
 
 	// clear pushBuffer in every InstDrawPerPlayer
-	driverWithIDPP->idpp[0].pushBuffer = 0;
-	driverWithIDPP->idpp[1].pushBuffer = 0;
-	driverWithIDPP->idpp[2].pushBuffer = 0;
-	driverWithIDPP->idpp[3].pushBuffer = 0;
+	driverInst->idpp[0].pushBuffer = 0;
+	driverInst->idpp[1].pushBuffer = 0;
+	driverInst->idpp[2].pushBuffer = 0;
+	driverInst->idpp[3].pushBuffer = 0;
 
 	// set pushBuffer in InstDrawPerPlayer,
 	// so that each camera can only see one driver
-	driverWithIDPP->idpp[indexOrSlideFactor].pushBuffer = pb;
+	driverInst->idpp[indexOrSlideFactor].pushBuffer = pb;
 
 	CTR_PSX_CLOBBER("$2");
 	CTR_PSX_LOAD_SYMBOL_PAGE(dataPointer, MM_CHARACTER_SELECT_CURRENT_IDS_ASM_NAME);

@@ -42,7 +42,10 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-cmake --build build -j
+:: Bound parallel jobs: bare -j starts an unlimited number of compilers.
+if not defined CMAKE_BUILD_PARALLEL_LEVEL set "CMAKE_BUILD_PARALLEL_LEVEL=%NUMBER_OF_PROCESSORS%"
+if not defined CMAKE_BUILD_PARALLEL_LEVEL set "CMAKE_BUILD_PARALLEL_LEVEL=2"
+cmake --build build
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Build failed
     exit /b 1

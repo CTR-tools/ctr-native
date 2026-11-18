@@ -6,8 +6,7 @@
 #include <common.h>
 #include <chaos/chaos_effect.h>
 
-// regionsEXE.h defines sdata as a pointer into this, so the linker wants the
-// storage even though nothing here reads it.
+// Resident storage for the suite's game-facing helpers.
 struct sData sdata_static;
 
 #define CHAOS_TEST_PICK_SAMPLES 20000

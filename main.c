@@ -1,5 +1,6 @@
-#define _CRT_SECURE_NO_WARNINGS
 #define SDL_MAIN_HANDLED
+
+#include <ctr_build_info.h>
 
 #ifndef CRASH_TEAM_RACING_EXPANDED_VERSION
 #define CRASH_TEAM_RACING_EXPANDED_VERSION "0.0.0-dev"
@@ -25,6 +26,7 @@
 #include "platform/native_assets.h"
 #include "platform/graphics/native_antialiasing.h"
 #include "platform/config/native_controls.h"
+#include "platform/config/native_profile.h"
 #include "platform/native_log.h"
 #include "platform/native_memory.h"
 #include "platform/native_memtrack.h"
@@ -72,7 +74,6 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
 #include "platform/native_pgxp.c"
-#include "platform/native_glad.c"
 #include "platform/native_input.c"
 #include "platform/text/native_text_edit.c"
 #include "platform/native_inline_c.c"
@@ -94,10 +95,6 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
-#include "platform/config/native_config_ini.c"
-#include "platform/config/native_config.c"
-#include "platform/config/native_profile.c"
-#include "platform/config/native_controls.c"
 
 #ifndef CC
 #if defined(__GNUC__)

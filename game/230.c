@@ -1,3 +1,5 @@
+#include <ctr_build_info.h>
+
 #define MM_GAME_TRACKER_PAGE_VALUE                        0U
 #define MM_GAME_TRACKER_PAGE_OFFSET                       0
 #define MM_OVERLAY_PAGE_VALUE                             0U

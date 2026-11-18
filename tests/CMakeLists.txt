@@ -5,6 +5,11 @@
 set(CTR_TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/tests")
 set(CTR_TEST_SUITES "")
 
+add_library(ctr_test_game_globals STATIC shared/ctr_test_game_globals.c)
+target_include_directories(ctr_test_game_globals PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR})
+set_target_properties(ctr_test_game_globals PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+ctr_native_apply_common_options(ctr_test_game_globals)
+
 add_test(NAME crash_team_racing_expanded_version COMMAND $<TARGET_FILE:crash_team_racing_expanded> --version)
 set_tests_properties(crash_team_racing_expanded_version PROPERTIES PASS_REGULAR_EXPRESSION "^Crash Team Racing Expanded ")
 
@@ -13,6 +18,7 @@ set_tests_properties(crash_team_racing_expanded_version PROPERTIES PASS_REGULAR_
 function(ctr_add_test_suite NAME)
     cmake_parse_arguments(ARG "" "" "SOURCES;LIBRARIES" ${ARGN})
     add_executable(${NAME} ${ARG_SOURCES})
+    target_link_libraries(${NAME} PRIVATE ctr_test_game_globals)
 
     set_target_properties(${NAME} PROPERTIES
         C_STANDARD 17
@@ -41,7 +47,7 @@ function(ctr_add_test_suite NAME)
     endif()
 
     if(ARG_LIBRARIES)
-        target_link_libraries(${NAME} ${ARG_LIBRARIES})
+        target_link_libraries(${NAME} PRIVATE ${ARG_LIBRARIES})
     endif()
     if(MINGW)
         target_link_options(${NAME} PRIVATE -static)

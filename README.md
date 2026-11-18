@@ -23,7 +23,7 @@ crash_team_racing_expanded/
   CMakePresets.json   Shared CLion/command-line CMake configurations
   README.md           This file
   game/               Our copies of all decompiled game source (943 files)
-    game_unity.h      Ordered unity include chain for all game source files
+    game_unity.h      Resident core/rendering unity chain; subsystems build separately
   include/            Project headers (structs, globals, declarations, platform facade)
   externals/
     SDL/              SDL3 source (static build)
@@ -82,6 +82,13 @@ ctest --preset windows-msvc-x86-debug
 
 First build compiles SDL3 from source. This is cached as a static library in the selected build directory.
 
+Incremental builds compile audio, HUD, vehicles, menu, race, hub and cutscene code
+as separate unity groups. Configuration and the OpenGL loader also compile
+separately. Release optimization remains enabled.
+`build.bat` limits parallel jobs to the logical processor count; set
+`CMAKE_BUILD_PARALLEL_LEVEL` to override it (for example, `4` on a memory-limited
+machine).
+
 Output:
 
 - MSVC: `build-msvc-x86/Release/crash_team_racing_expanded.exe`
@@ -103,7 +110,7 @@ ctest --test-dir build --output-on-failure -R "test_"  # suites only
 To rebuild only the suites, without the game: `cmake --build build --target tests`. Nothing pulls the game in, and nothing pulls the suites out of an ordinary build.
 Test binaries land in `build/tests/`.
 A suite is a plain executable that returns 0 when nothing failed, so CTest, IDes and the command line agree on what a pass is. Shared plumbing - the check counter, the failure report and the summary - is in `tests/shared/ctr_test.h`; `tests/shared/ctr_test_scratch.h` hands a suite a disposable directory when it needs to write files.
-Because the game is a unity build (see below), the state a module keeps is file-static, so a suite cannot link against `crash_team_racing_expanded.exe` at all. A suite that needs that state includes the module's own sources into its own translation unit, in the same order `main.c` uses. The game and its tests therefore compile the same sources rather than drifting apart.
+The game uses subsystem unity groups (see below). A suite that needs a module's file-static state includes that module's sources into its own translation unit, in the same order as its game unity group. The game and its tests therefore compile the same sources rather than drifting apart. Game-facing suites provide their own `sdata_static` fixture; the shared test support library supplies the `sdata` pointer when needed.
 
 ### Clean build
 
@@ -367,12 +374,24 @@ main.c (entrypoint)
   |
   +-- game/game_unity.h
         |
-        +-- game/ (all decompiled game source)
-              |
-              +-- include/ (headers: structs, globals, declarations)
+        +-- resident core and rendering
+
+Separate translation units, linked into the same executable:
+  game/HOWL/howl_unity.c       audio
+  game/UI/ui_unity.c           HUD
+  game/Vehicle/vehicle_unity.c vehicles and physics
+  game/230.c                  main menu
+  game/231/race_unity.c        race/battle overlay
+  game/232/hub_unity.c         adventure hub overlay
+  game/233/cutscene_unity.c    cutscene/podium overlay
+  platform/config/native_*.c  configuration, profiles and controls
+  platform/native_glad.c      OpenGL loader
+
+include/ (shared structs, globals and declarations)
 ```
 
 - First-party native code targets portable C17 with compiler extensions disabled
+- Keep each unity group's include order. Cross-group APIs and constants belong in shared headers; do not rely on an earlier group's file-static declarations. Resident rendering stays with the native GTE code so its hot paths can still be inlined without LTO.
 - The default build uses 32-bit mode while remaining PSX address-shaped data and host-pointer contracts are audited. GPU primitive links are bridged through 24-bit native tokens; see `docs/MEMORY_MODEL.md`.
 
 ## AI Usage
