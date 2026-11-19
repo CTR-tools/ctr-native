@@ -139,6 +139,14 @@ const ConfigEntry g_configEntries[] = {
     },
     {
         .section = "General",
+        .key = "remember_camera",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_REMEMBER_CAMERA,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.rememberCamera
+    },
+    {
+        .section = "General",
         .key = "skip_podium_ceremonies",
         .availableDuringPause = true,
         .lngKey = LNG_EXPANDED_CONFIG_SKIP_PODIUM,

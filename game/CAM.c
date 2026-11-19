@@ -1,6 +1,8 @@
 #include <common.h>
 #include <math.h>
 #include <platform/native_pgxp.h>
+#include <platform/config/native_config.h>
+#include <platform/config/native_camera_preferences.h>
 
 
 enum
@@ -376,6 +378,11 @@ void CAM_Init(struct CameraDC *cDC, s32 cameraID, struct Driver *d, struct PushB
 
 	// needed or L2 breaks
 	cDC->cameraID = cameraID;
+	if (g_config.rememberCamera)
+	{
+		cDC->zoomToggleState = NativeCameraPreferences_GetZoom(cameraID);
+		cDC->nearOrFar = cDC->zoomToggleState;
+	}
 
 	cDC->driverToFollow = d;
 	cDC->pushBuffer = pb;
@@ -491,7 +498,7 @@ void CAM_StartOfRace(struct CameraDC *cDC)
 		cDC->transitionBlend = 0;
 
 		cDC->transitionFrameCount = 0x1E;
-		cDC->nearOrFar = 0;
+		cDC->nearOrFar = g_config.rememberCamera ? cDC->zoomToggleState : 0;
 
 		// when camera reaches player, be zoomed in
 		cDC->cameraMode = 0;
@@ -1827,6 +1834,10 @@ void CAM_ThTick(struct Thread *t)
 		{
 			cDC->nearOrFar = cDC->zoomToggleState;
 			cDC->cameraMode = 0;
+			if (g_config.rememberCamera)
+			{
+				NativeCameraPreferences_SetZoom(cDC->cameraID, cDC->zoomToggleState);
+			}
 		}
 	}
 

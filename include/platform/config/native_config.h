@@ -14,6 +14,7 @@ typedef struct {
     int voiceLanguage;
     int retailTextPriority;
     bool skipIntro;             // false = off (default), true = skip all intros
+    bool rememberCamera;
     int loadingScreen;          // LOADING_SCREEN_VANILLA, NO_TEXT, or FADE
     bool skipPodiumCeremonies;  // false = off (default), true = automatically leave post-event podiums
     bool showReservesMeter;     // true = show the in-game reserves meter (default = false)
