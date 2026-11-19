@@ -113,6 +113,7 @@ add_executable(crash_team_racing_expanded
     game/233/cutscene_unity.c
     platform/config/native_config_ini.c
     platform/config/native_config.c
+    platform/config/native_camera_preferences.c
     platform/config/native_profile.c
     platform/config/native_controls.c
     platform/native_glad.c

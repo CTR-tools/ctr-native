@@ -3,6 +3,7 @@
 .voiceLanguage = NATIVE_LANGUAGE_ENGLISH,
 .retailTextPriority = RETAIL_TEXT_PRIORITY_EXPANDED,
 .skipIntro = false,
+.rememberCamera = false,
 .loadingScreen = LOADING_SCREEN_VANILLA,
 .skipPodiumCeremonies = false,
 .showReservesMeter = false,
