@@ -258,8 +258,8 @@ static void CheckFreshSettings(void)
 {
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	CTR_TEST_CHECK(!settings->armed, "a new file starts Regular");
-	CTR_TEST_CHECK_EQ(settings->durationSeconds, CHAOS_DURATION_DEFAULT_SECONDS, "duration starts at its default");
-	CTR_TEST_CHECK_EQ(settings->triggerIntervalSeconds, CHAOS_TRIGGER_INTERVAL_DEFAULT_SECONDS, "interval starts at its default");
+	CTR_TEST_CHECK_EQ(settings->durationSeconds, 10, "duration defaults to ten seconds");
+	CTR_TEST_CHECK_EQ(settings->triggerIntervalSeconds, 10, "interval defaults to ten seconds");
 	CTR_TEST_CHECK_EQ(settings->trigger, CHAOS_TRIGGER_RANDOM, "trigger starts at its default");
 	CTR_TEST_CHECK_EQ(settings->enabledCount, CHAOS_EFFECT_COUNT, "all default effects are counted");
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)

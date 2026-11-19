@@ -42,9 +42,9 @@ Existing Regular files stay Regular.
 
 | Setting | Meaning |
 | --- | --- |
-| **Duration** | How long timed effects last: 5–60 seconds, in 5-second steps. Default: 30 seconds. Instant effects apply once. |
+| **Duration** | How long timed effects last: 5–60 seconds, in 5-second steps. Default: 10 seconds. Instant effects apply once. |
 | **Trigger** | What causes the next activation; see below. Default: Random. |
-| **Interval** | Gap used by Random, Interval and External: 5–120 seconds, in 5-second steps. Default: 35 seconds. Hidden for Pickup. |
+| **Interval** | Gap used by Random, Interval and External: 5–120 seconds, in 5-second steps. Default: 10 seconds. Hidden for Pickup. |
 | **Effects** | Open the list and turn individual effects ON or OFF. All are selected initially. |
 | **Confirm** | Accept these rules. At least one effect must be selected. |
 
