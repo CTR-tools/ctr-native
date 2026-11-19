@@ -903,19 +903,28 @@ GLint u_disableDitherLoc;
 	    "		vec2 dx = dFdx(P), dy = dFdy(P);\n"                                                                                                        \
 	    "		float lx = length(dx), ly = length(dy);\n"                                                                                                \
 	    "		vec2 major = lx >= ly ? dx : dy;\n"                                                                                                        \
+	    "		vec2 minor = lx >= ly ? dy : dx;\n"                                                                                                        \
 	    "		float majorLength = max(lx, ly);\n"                                                                                                        \
 	    "		float minorLength = min(lx, ly);\n"                                                                                                        \
-	    "		int count = int(clamp(ceil(majorLength / max(minorLength, 1.0)), 1.0, 16.0));\n"                                                           \
+	    "		// Distribute the 16-tap budget across both pixel footprint axes.\n"                                                                      \
+	    "		float majorSamples = min(ceil(max(majorLength, 1.0)), ceil(sqrt(16.0 * max(majorLength, 1.0) / max(minorLength, 1.0))));\n"            \
+	    "		int majorCount = int(clamp(majorSamples, 1.0, 16.0));\n"                                                                                  \
+	    "		int minorCount = int(min(ceil(max(minorLength, 1.0)), floor(16.0 / float(majorCount))));\n"                                              \
 	    "		vec4 color = vec4(0.0);\n"                                                                                                                \
 	    "		float visible = 0.0, stp = 0.0, nonStp = 0.0;\n"                                                                                          \
 	    "		for (int i = 0; i < 16; ++i) {\n"                                                                                                          \
-	    "			if (i >= count) break;\n"                                                                                                                \
-	    "			float offset = (float(i) + 0.5) / float(count) - 0.5;\n"                                                                                 \
-	    "			color += bilinearTextureSample(P + major * offset);\n"                                                                                    \
-	    "			visible += sampledVisible; stp += sampledStp; nonStp += sampledNonStp;\n"                                                                \
+	    "			if (i >= majorCount) break;\n"                                                                                                           \
+	    "			float majorOffset = (float(i) + 0.5) / float(majorCount) - 0.5;\n"                                                                      \
+	    "			for (int j = 0; j < 16; ++j) {\n"                                                                                                        \
+	    "				if (j >= minorCount) break;\n"                                                                                                          \
+	    "				float minorOffset = (float(j) + 0.5) / float(minorCount) - 0.5;\n"                                                                     \
+	    "				color += bilinearTextureSample(P + major * majorOffset + minor * minorOffset);\n"                                                        \
+	    "				visible += sampledVisible; stp += sampledStp; nonStp += sampledNonStp;\n"                                                               \
+	    "			}\n"                                                                                                                                     \
 	    "		}\n"                                                                                                                                      \
-	    "		sampledVisible = visible / float(count); sampledStp = stp / float(count); sampledNonStp = nonStp / float(count);\n"                        \
-	    "		return color / float(count);\n"                                                                                                             \
+	    "		float count = float(majorCount * minorCount);\n"                                                                                           \
+	    "		sampledVisible = visible / count; sampledStp = stp / count; sampledNonStp = nonStp / count;\n"                                          \
+	    "		return color / count;\n"                                                                                                                   \
 	    "	}\n"                                                                                                                                        \
 	    "	vec4 nearestTextureSample(vec2 P) {\n"                                                                                                      \
 	    "		vec2 rg = samplePSX(P);\n"                                                                                                                 \
