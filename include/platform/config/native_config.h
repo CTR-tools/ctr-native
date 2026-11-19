@@ -41,6 +41,7 @@ typedef struct {
     bool unlockAllGates;        // false = off, true = all adventure mode wood doors open without keys
     bool unlockAllPortals;      // false = off, true = all warp pads and boss garages unlocked
     bool increaseDrawDistance;  // false = off (default), true = render NATIVE_DRAW_DISTANCE_SCALE x farther (platform/graphics/native_draw_distance.h)
+    bool livePauseBackground;   // render the paused scene instead of a captured image
     bool disableSplitScreenLod; // false = off (default), true = use full-detail split-screen assets and effects
     bool fullscreen;            // false = windowed, true = borderless fullscreen
     bool vsync;                 // false = off (default), true = synchronize presentation to the display
@@ -50,6 +51,7 @@ typedef struct {
     bool smoothScaling;         // true = linear filtering for direct presentation
     bool fxaa;                  // false = off (default), true = FXAA edge antialiasing on the presented frame
     bool textureFiltering;      // true = bilinear PSX texture sampling
+    bool anisotropicFiltering;  // true = up to 16 anisotropic texture samples
     int pgxpMode;               // PGXP_MODE_OFF (default), GEOMETRY, or PERSPECTIVE
     bool saveAnywhere;          // false = off (default), true = save anywhere in adventure mode by pressing select or from the pause menu
     int missileSpeedMultiplier; // percent, 20%..500%, 100 = 1.0x (default)

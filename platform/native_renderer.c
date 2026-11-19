@@ -859,6 +859,8 @@ GLint u_disableDitherLoc;
 	    "	uniform int psxDrawMaskSet;\n"                                                                                                              \
 	    "	uniform int psxTextureOutputStp;\n"                                                                                                         \
 	    "	float sampledStp = 0.0;\n"                                                                                                                  \
+	    "	float sampledVisible = 0.0;\n"                                                                                                              \
+	    "	float sampledNonStp = 0.0;\n"                                                                                                               \
 	    "	const vec2 c_LUTTexel = vec2(1.0 / 256.0, 1.0 / 256.0);\n"                                                                                  \
 	    "	vec4 lut(vec2 rg) { return texture2D(s_rgLut, rg - c_LUTTexel * 0.0001); }\n" GPU_STP_PASS_FUNC "	vec4 bilinearTextureSample(vec2 P) {\n" \
 	    "		vec2 frac = fract(P);\n"                                                                                                                   \
@@ -890,12 +892,39 @@ GLint u_disableDitherLoc;
 	    "		float nonStp = mix(nx1, nx2, frac.y);\n"                                                                                                   \
 	    "		vec2 rg = mix(mix(C11, C21, frac.x), mix(C12, C22, frac.x), frac.y);\n"                                                                    \
 	    "		sampledStp = stp;\n"                                                                                                                       \
-	    "		if(discardForSemiTransPass(axm, stp, nonStp)) { discard; }\n"                                                                              \
+	    "		sampledVisible = axm; sampledNonStp = nonStp;\n"                                                                                           \
 	    "		vec4 x1 = mix(lut(C11), lut(C21), frac.x);\n"                                                                                              \
 	    "		vec4 x2 = mix(lut(C12), lut(C22), frac.x);\n"                                                                                              \
 	    "		vec4 t = mix(x1, x2, frac.y);\n"                                                                                                           \
 	    "		t.w = 1.0 - t.w;\n"                                                                                                                        \
 	    "		return t;\n"                                                                                                                               \
+	    "	}\n"                                                                                                                                        \
+	    "	vec4 anisotropicTextureSample(vec2 P) {\n"                                                                                                   \
+	    "		vec2 dx = dFdx(P), dy = dFdy(P);\n"                                                                                                        \
+	    "		float lx = length(dx), ly = length(dy);\n"                                                                                                \
+	    "		vec2 major = lx >= ly ? dx : dy;\n"                                                                                                        \
+	    "		vec2 minor = lx >= ly ? dy : dx;\n"                                                                                                        \
+	    "		float majorLength = max(lx, ly);\n"                                                                                                        \
+	    "		float minorLength = min(lx, ly);\n"                                                                                                        \
+	    "		// Distribute the 16-tap budget across both pixel footprint axes.\n"                                                                      \
+	    "		float majorSamples = min(ceil(max(majorLength, 1.0)), ceil(sqrt(16.0 * max(majorLength, 1.0) / max(minorLength, 1.0))));\n"            \
+	    "		int majorCount = int(clamp(majorSamples, 1.0, 16.0));\n"                                                                                  \
+	    "		int minorCount = int(min(ceil(max(minorLength, 1.0)), floor(16.0 / float(majorCount))));\n"                                              \
+	    "		vec4 color = vec4(0.0);\n"                                                                                                                \
+	    "		float visible = 0.0, stp = 0.0, nonStp = 0.0;\n"                                                                                          \
+	    "		for (int i = 0; i < 16; ++i) {\n"                                                                                                          \
+	    "			if (i >= majorCount) break;\n"                                                                                                           \
+	    "			float majorOffset = (float(i) + 0.5) / float(majorCount) - 0.5;\n"                                                                      \
+	    "			for (int j = 0; j < 16; ++j) {\n"                                                                                                        \
+	    "				if (j >= minorCount) break;\n"                                                                                                          \
+	    "				float minorOffset = (float(j) + 0.5) / float(minorCount) - 0.5;\n"                                                                     \
+	    "				color += bilinearTextureSample(P + major * majorOffset + minor * minorOffset);\n"                                                        \
+	    "				visible += sampledVisible; stp += sampledStp; nonStp += sampledNonStp;\n"                                                               \
+	    "			}\n"                                                                                                                                     \
+	    "		}\n"                                                                                                                                      \
+	    "		float count = float(majorCount * minorCount);\n"                                                                                           \
+	    "		sampledVisible = visible / count; sampledStp = stp / count; sampledNonStp = nonStp / count;\n"                                          \
+	    "		return color / count;\n"                                                                                                                   \
 	    "	}\n"                                                                                                                                        \
 	    "	vec4 nearestTextureSample(vec2 P) {\n"                                                                                                      \
 	    "		vec2 rg = samplePSX(P);\n"                                                                                                                 \
@@ -907,7 +936,11 @@ GLint u_disableDitherLoc;
 	    "		return t;\n"                                                                                                                               \
 	    "	}\n"                                                                                                                                        \
 	    "	void main() {\n"                                                                                                                            \
-	    "		vec4 color = (bilinearFilter > 0) ? bilinearTextureSample(v_texcoord.xy) : nearestTextureSample(v_texcoord.xy);\n"                         \
+	    "		vec4 color;\n"                                                                                                                             \
+	    "		if (bilinearFilter > 0) {\n"                                                                                                               \
+	    "			color = bilinearFilter > 1 ? anisotropicTextureSample(v_texcoord.xy) : bilinearTextureSample(v_texcoord.xy);\n"                           \
+	    "			if(discardForSemiTransPass(sampledVisible, sampledStp, sampledNonStp)) { discard; }\n"                                                   \
+	    "		} else { color = nearestTextureSample(v_texcoord.xy); }\n"                                                                                 \
 	    "		fragColor = dither(color * v_color);\n"                                                                                                    \
 	    "		fragColor.a = (psxDrawMaskSet != 0 || (psxTextureOutputStp != 0 && sampledStp >= 0.5)) ? 1.0 : 0.0;\n"                                     \
 	    "	}\n"
@@ -1542,7 +1575,7 @@ internal void NativeRenderer_SetShader(const ShaderID shader)
 }
 
 
-void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
+void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat, int allowAnisotropic)
 {
 	switch (texFormat)
 	{
@@ -1599,7 +1632,7 @@ void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat)
 	// churn. bilinearFilter stays here because it toggles at runtime (debug key).
 	if (u_bilinearFilterLoc >= 0)
 	{
-		glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
+		glUniform1i(u_bilinearFilterLoc, g_config.anisotropicFiltering && allowAnisotropic ? 2 : g_cfg_bilinearFiltering);
 	}
 	if (u_disableDitherLoc >= 0)
 	{

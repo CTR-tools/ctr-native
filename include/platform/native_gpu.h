@@ -17,6 +17,7 @@ extern int g_GPUDisabledState;
 
 int NativeGpu_HasPendingSplits(void);
 void NativeGpu_SetTimeStopPaletteBoundary(const void *boundary);
+void NativeGpu_SetUiBoundary(const void *boundary);
 void NativeGpu_SetTextX(POLY_GT4 *poly, float left, float right);
 void ClearSplits(void);
 void DrawAllSplits(void);

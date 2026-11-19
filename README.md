@@ -326,18 +326,20 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 
 ### Graphics
 
-| Key                        | Values                                 | Default  | Description                                                                                             |
-|----------------------------|----------------------------------------|----------|---------------------------------------------------------------------------------------------------------|
-| `increase_draw_distance`   | `true` / `false`                       | `false`  | Extends viewing, model LOD, and texture detail distances to 4x the original distances                   |
-| `disable_split_screen_lod` | `true` / `false`                       | `false`  | Use full-detail tracks, models, and effects in split-screen                                             |
-| `fullscreen`               | `true` / `false`                       | `true`   | Borderless fullscreen on startup                                                                        |
-| `vsync`                    | `true` / `false`                       | `false`  | Synchronize presentation to the display refresh; applies immediately, gameplay timing stays unchanged    |
-| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9`         | `4:3`    | Display aspect ratio                                                                                    |
-| `dithering`                | `true` / `false`                       | `true`   | Enable color dithering                                                                                  |
-| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native` | Internal render resolution; Native follows the presentation viewport                                    |
-| `smooth_scaling`           | `true` / `false`                       | `true`   | Use linear filtering when presenting scaled output                                                      |
-| `fxaa`                     | `true` / `false`                       | `false`  | Antialias the edges of the presented frame with FXAA                                                    |
-| `texture_filtering`        | `true` / `false`                       | `false`  | Enable bilinear filtering for PSX textures                                                              |
+| Key                        | Values                                 | Default  | Description                                                                                            |
+|----------------------------|----------------------------------------|----------|--------------------------------------------------------------------------------------------------------|
+| `increase_draw_distance`   | `true` / `false`                       | `false`  | Extends viewing, model LOD, and texture detail distances to 4x the original distances                  |
+| `live_pause_background`    | `true` / `false`                       | `false`  | Renders the paused 3D scene instead of the original static pause image |
+| `disable_split_screen_lod` | `true` / `false`                       | `false`  | Use full-detail tracks, models, and effects in split-screen                                            |
+| `fullscreen`               | `true` / `false`                       | `true`   | Borderless fullscreen on startup                                                                       |
+| `vsync`                    | `true` / `false`                       | `false`  | Synchronize presentation to the display refresh; applies immediately, gameplay timing stays unchanged   |
+| `aspect_ratio`             | `4:3`, `16:9`, `16:10`, `21:9`         | `4:3`    | Display aspect ratio                                                                                   |
+| `dithering`                | `true` / `false`                       | `true`   | Enable color dithering                                                                                 |
+| `render_scale`             | `Original`, `2X`, `3X`, `4X`, `Native` | `Native` | Internal render resolution; Native follows the presentation viewport                                   |
+| `smooth_scaling`           | `true` / `false`                       | `true`   | Use linear filtering when presenting scaled output                                                     |
+| `fxaa`                     | `true` / `false`                       | `false`  | Antialias the edges of the presented frame with FXAA                                                   |
+| `texture_filtering`        | `true` / `false`                       | `false`  | Enable bilinear filtering for PSX textures                                                             |
+| `anisotropic_filtering`    | `true` / `false`                       | `false`  | Enable up to 16x anisotropic filtering for PSX textures                                                |
 | `pgxp`                     | `Off`, `Geometry`, `Perspective`       | `Off`    | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
 
 ### Developer Hacks
