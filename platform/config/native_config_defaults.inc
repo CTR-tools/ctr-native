@@ -44,6 +44,7 @@
 .smoothScaling = true,
 .fxaa = false,
 .textureFiltering = false,
+.anisotropicFiltering = false,
 .pgxpMode = PGXP_MODE_OFF,
 .saveAnywhere = false,
 .maskMode = MASK_MODE_NORMAL,

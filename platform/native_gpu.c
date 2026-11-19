@@ -70,10 +70,16 @@ DISPENV activeDispEnv;
 DRAWENV activeDrawEnv;
 int g_GPUDisabledState = 0;
 global_variable const void *s_timeStopPaletteBoundary;
+global_variable const void *s_uiBoundary;
 
 void NativeGpu_SetTimeStopPaletteBoundary(const void *boundary)
 {
 	s_timeStopPaletteBoundary = boundary;
+}
+
+void NativeGpu_SetUiBoundary(const void *boundary)
+{
+	s_uiBoundary = boundary;
 }
 
 typedef struct
@@ -90,6 +96,7 @@ typedef struct
 	bool psxTexturedSemiTrans;
 	bool psxTextureOutputSTP;
 	bool psxDrawMaskSet;
+	bool allowAnisotropic;
 
 	u16 startVertex;
 	u16 numVerts;
@@ -112,6 +119,8 @@ typedef struct
 	int drawPrimMode;
 	bool psxDrawMaskSet;
 	bool framebufferFeedbackRunActive;
+	bool uiPhase;
+	bool spritePrimitive;
 
 	GrVertex vertexBuffer[MAX_VERTEX_BUFFER_SIZE];
 	GPUDrawSplit splits[MAX_DRAW_SPLITS];
@@ -901,6 +910,7 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 	// textured draws unless E6 forces it. Recursive screen-copy effects depend
 	// on this bit surviving after the blended textured pass.
 	bool psxTextureOutputSTP = textured && s_gpu.overrideTexture == 0;
+	bool allowAnisotropic = textured && !s_gpu.uiPhase && !s_gpu.spritePrimitive;
 
 	if (textured && s_gpu.overrideTexture != 0)
 	{
@@ -914,6 +924,7 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 	if (!psxTexturedSemiTrans && curSplit->blendMode == blendMode && curSplit->texFormat == texFormat && curSplit->textureId == textureId &&
 	    curSplit->drawPrimMode == s_gpu.drawPrimMode && curSplit->psxTexturedSemiTrans == psxTexturedSemiTrans &&
 	    curSplit->psxTextureOutputSTP == psxTextureOutputSTP && curSplit->psxDrawMaskSet == s_gpu.psxDrawMaskSet &&
+	    curSplit->allowAnisotropic == allowAnisotropic &&
 	    curSplit->drawenv.clip.x == activeDrawEnv.clip.x && curSplit->drawenv.clip.y == activeDrawEnv.clip.y &&
 	    curSplit->drawenv.clip.w == activeDrawEnv.clip.w && curSplit->drawenv.clip.h == activeDrawEnv.clip.h && curSplit->drawenv.dfe == activeDrawEnv.dfe &&
 	    curSplit->debugText == s_gpu.currentSplitDebugText)
@@ -936,6 +947,7 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 	split->psxTexturedSemiTrans = psxTexturedSemiTrans;
 	split->psxTextureOutputSTP = psxTextureOutputSTP;
 	split->psxDrawMaskSet = s_gpu.psxDrawMaskSet;
+	split->allowAnisotropic = allowAnisotropic;
 	split->drawenv = activeDrawEnv;
 	split->dispenv = activeDispEnv;
 	split->debugText = s_gpu.currentSplitDebugText;
@@ -945,6 +957,13 @@ internal void AddSplit(bool semiTrans, bool textured, bool framebufferFeedback)
 
 	split->startVertex = s_gpu.vertexIndex;
 	split->numVerts = 0;
+}
+
+internal void AddSpriteSplit(bool semiTrans, bool framebufferFeedback)
+{
+	s_gpu.spritePrimitive = true;
+	AddSplit(semiTrans, true, framebufferFeedback);
+	s_gpu.spritePrimitive = false;
 }
 
 void DrawSplit(const GPUDrawSplit *split)
@@ -971,7 +990,7 @@ void DrawSplit(const GPUDrawSplit *split)
 
 	NativeRenderer_SetStencilMode(split->drawPrimMode); // draw with mask 0x16
 
-	NativeRenderer_SetTexture(split->textureId, split->texFormat);
+	NativeRenderer_SetTexture(split->textureId, split->texFormat, split->allowAnisotropic);
 
 	if (split->texFormat == TF_32_BIT_RGBA)
 	{
@@ -1180,6 +1199,7 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 
 	// setup single primitive flag (needed for AddSplits)
 	s_gpu.drawPrimMode = singlePrimitive;
+	s_gpu.uiPhase = false;
 
 	if (singlePrimitive)
 	{
@@ -1195,6 +1215,11 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 		u8 *basePacket = (u8 *)p;
 		while (true)
 		{
+			if (basePacket == s_uiBoundary)
+			{
+				s_gpu.uiPhase = true;
+				s_uiBoundary = NULL;
+			}
 			if (basePacket == s_timeStopPaletteBoundary)
 			{
 				// The UI ordering table follows every world viewport. Flush the
@@ -1269,6 +1294,8 @@ void ParsePrimitivesLinkedList(u32 *p, int singlePrimitive)
 		}
 	}
 
+	s_uiBoundary = NULL;
+	s_gpu.uiPhase = false;
 	NativePerf_EndScope(NATIVE_PERF_BUCKET_DRAW_OTAG_PARSE);
 }
 
@@ -1648,7 +1675,7 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT *poly = (SPRT *)polyTag;
 
-		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		AddSpriteSplit(semiTrans, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, poly->w, poly->h);
@@ -1699,7 +1726,7 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT_8 *poly = (SPRT_8 *)polyTag;
 
-		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		AddSpriteSplit(semiTrans, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, 8, 8);
@@ -1733,7 +1760,7 @@ internal int ProcessTileAndSprt(P_TAG *polyTag)
 	{
 		SPRT_16 *poly = (SPRT_16 *)polyTag;
 
-		AddSplit(semiTrans, true, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
+		AddSpriteSplit(semiTrans, NativeGpu_TPageOverlapsActiveDrawPage(activeDrawEnv.tpage));
 
 		GrVertex *firstVertex = &s_gpu.vertexBuffer[s_gpu.vertexIndex];
 		MakeVertexRect(firstVertex, &poly->x0, 16, 16);

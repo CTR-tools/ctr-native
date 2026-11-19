@@ -966,7 +966,7 @@ static void TestAvailability(void)
 		"audio", "text", "retail_priority", "export_active_language", "controls", "custom_tracks", "skip_intro", "skip_podium_ceremonies", "loading_screen", "show_reserves_meter",
 		"skip_hints", "boss_cutscenes", "increase_draw_distance", "dithering",
 		"fullscreen", "vsync", "aspect_ratio", "render_scale", "smooth_scaling",
-		"fxaa", "texture_filtering", "pgxp",
+		"fxaa", "texture_filtering", "anisotropic_filtering", "pgxp",
 		"allow_oxide_station_multiplayer", "allow_race_tracks_in_battle",
 		"extended_multiplayer", "bot_selection_mode", "mask_mode",
 		"expanded_options", "save_anywhere", "unlock_all_characters", "unlock_nitros_oxide", "unlock_cup_difficulties", "unlock_turbo_track", "unlock_all_battle_arenas",

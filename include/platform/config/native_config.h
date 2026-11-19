@@ -50,6 +50,7 @@ typedef struct {
     bool smoothScaling;         // true = linear filtering for direct presentation
     bool fxaa;                  // false = off (default), true = FXAA edge antialiasing on the presented frame
     bool textureFiltering;      // true = bilinear PSX texture sampling
+    bool anisotropicFiltering;  // true = up to 16 anisotropic texture samples
     int pgxpMode;               // PGXP_MODE_OFF (default), GEOMETRY, or PERSPECTIVE
     bool saveAnywhere;          // false = off (default), true = save anywhere in adventure mode by pressing select or from the pause menu
     int missileSpeedMultiplier; // percent, 20%..500%, 100 = 1.0x (default)

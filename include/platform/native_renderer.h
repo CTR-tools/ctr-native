@@ -42,7 +42,7 @@ void NativeRenderer_SetStencilMode(int drawPrim);
 void NativeRenderer_SetOffscreenState(const RECT16 *offscreenRect, int enable);
 void NativeRenderer_SetProjection(const RECT16 *drawRect, const DISPENV *displayEnv, int offscreen);
 void NativeRenderer_SetupClipMode(const RECT16 *clipRect, const DISPENV *displayEnv, int enable);
-void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat);
+void NativeRenderer_SetTexture(TextureID texture, TexFormat texFormat, int allowAnisotropic);
 void NativeRenderer_SetOverrideTextureSize(int width, int height);
 void NativeRenderer_SetPSXTextureSemiTransPass(int pass);
 void NativeRenderer_SetPSXTextureOutputSTP(int enabled);

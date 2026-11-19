@@ -338,6 +338,7 @@ weapon icons and battle points/lives icons will be missing on those tracks.
 | `smooth_scaling`           | `true` / `false`                       | `true`   | Use linear filtering when presenting scaled output                                                      |
 | `fxaa`                     | `true` / `false`                       | `false`  | Antialias the edges of the presented frame with FXAA                                                    |
 | `texture_filtering`        | `true` / `false`                       | `false`  | Enable bilinear filtering for PSX textures                                                              |
+| `anisotropic_filtering`    | `true` / `false`                       | `false`  | Enable up to 16x anisotropic filtering for PSX textures                                                 |
 | `pgxp`                     | `Off`, `Geometry`, `Perspective`       | `Off`    | Sub-pixel vertex precision; `Geometry` removes PS1 polygon wobble, `Perspective` also un-warps textures |
 
 ### Developer Hacks

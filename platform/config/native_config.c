@@ -574,6 +574,14 @@ const ConfigEntry g_configEntries[] = {
     },
     {
         .section = "Graphics",
+        .key = "anisotropic_filtering",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_ANISOTROPIC_FILTERING,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.anisotropicFiltering
+    },
+    {
+        .section = "Graphics",
         .key = "pgxp",
         .availableDuringPause = true,
         .lngKey = LNG_EXPANDED_CONFIG_SUBPIXEL,
