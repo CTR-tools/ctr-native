@@ -48,54 +48,8 @@ jobs:
           # exists to catch.
           fetch-depth: 0
 
-      # windows-latest can supply different CMake versions even on a rerun.
-      - name: Set up pinned native CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: '4.4.5'
-
-      - name: Set up the MSYS2 MinGW32 toolchain
-        id: msys2
-        uses: msys2/setup-msys2@v2
-        with:
-          # The 32-bit environment this build requires. Upstream has deprecated
-          # MINGW32 and MINGW64 in favour of 64-bit ones, which this project
-          # cannot use: CMakeLists.txt rejects any target that is not 32-bit.
-          # The warning is therefore expected, not a signal about this build.
-          msystem: MINGW32
-          suppress-deprecation-warnings: msystem-mingw32
-          # Reuse the MSYS2 that ships in the runner image instead of
-          # downloading and extracting a fresh base on every run. The action
-          # looks for it at C:\msys64 and fails outright rather than falling
-          # back to a download, so this gives up newer MSYS2 point releases and
-          # accepts a hard failure if a future image ever drops MSYS2.
-          #
-          # Only the base install is skipped. The action still caches the
-          # downloaded packages under var/cache/pacman/pkg, and still unpacks
-          # them, which is where the remaining setup time goes.
-          release: false
-          update: true
-          # Use native Git and pinned CMake. Installing their MSYS2
-          # counterparts pulls in unnecessary dependencies, including Perl.
-          # Only GCC must target i686; CMake runs as a native host tool.
-          install: >-
-            mingw-w64-i686-gcc
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-ccache
-
-      - name: Put the MinGW32 toolchain and UCRT64 build tools on PATH
-        shell: pwsh
-        run: |
-          # The action puts only its own msys2.cmd shim on PATH, not the
-          # tools. Ninja and ccache are 64-bit host tools; GCC targets i686.
-          $msys2 = '${{ steps.msys2.outputs.msys2-location }}'
-          if ([string]::IsNullOrWhiteSpace($msys2)) {
-            # The action's default install location, in case a v2 release old
-            # enough to lack the output ever resolves.
-            $msys2 = 'C:\msys64'
-          }
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\ucrt64\bin"
-          Add-Content -LiteralPath $env:GITHUB_PATH -Value "$msys2\mingw32\bin"
+      - name: Set up cached CMake and MSYS2
+        uses: ./.github/actions/setup-build-tools
 
       # Cache compiler results.
       # ccache validates source, header, compiler and flag changes itself.
