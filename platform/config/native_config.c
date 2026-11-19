@@ -251,6 +251,13 @@ const ConfigEntry g_configEntries[] = {
         .valuePtr = &g_config.expandedArcade
     },
     {
+        .section = "General",
+        .key = "chaos_mode",
+        .lngKey = LNG_EXPANDED_CHAOS,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.chaosMode
+    },
+    {
         .section = "Adventure",
         .key = "skip_hints",
         .availableDuringPause = true,

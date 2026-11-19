@@ -4098,9 +4098,10 @@ struct sData
 	// Zero means the character's default; otherwise the engine class plus one.
 	u8 selectedEngineClass[4];
 
-	// Chaos settings of the profile in use. Initialised on New, configured at creation,
-	// and mirrored to/from the card extension on save/load.
+	// Live Chaos rules shared by all modes; Adventure save/load persists them per slot.
 	struct ChaosSettings chaosSettings;
+	// Ordinary menu destination after the Arcade/VS/Battle Chaos prompt.
+	struct RectMenu *chaosSessionNextMenu;
 
 	// The chaos system's own generator. Separate from sdata->randomNumber and
 	// the deadcoed pair, which the replay verifier compares every recorded frame.

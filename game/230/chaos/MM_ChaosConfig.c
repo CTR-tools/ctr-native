@@ -4,7 +4,7 @@
 _Static_assert(LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
                "Chaos effect text IDs must match effect IDs");
 
-// Shared full-screen settings: editable during creation, read-only from pause.
+// Shared settings: editable during creation/session setup, read-only from pause.
 // Page changes draw immediately; leaving the screen happens after drawing.
 static void MM_MenuProc_ChaosConfig(struct RectMenu *menu);
 
@@ -68,6 +68,7 @@ static const int s_chaosReadOnlyPageTitles[CHAOS_PAGE_COUNT] = {
 static void Chaos_BuildSettingRows(void)
 {
 	struct ChaosMenuState *state = &sdata->chaosMenu;
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	state->numSettings = 0;
 
 	for (int setting = 0; setting < CHAOS_SETTING_COUNT; setting++)
@@ -76,7 +77,7 @@ static void Chaos_BuildSettingRows(void)
 		{
 			continue;
 		}
-		if (setting == CHAOS_SETTING_INTERVAL && !Chaos_TriggerIsTimed(sdata->chaosSettings.trigger))
+		if (setting == CHAOS_SETTING_INTERVAL && !Chaos_TriggerIsTimed(settings->trigger))
 		{
 			continue;
 		}
@@ -172,6 +173,14 @@ void MM_ChaosConfig_OnEnter(void)
 	Chaos_OnEnter(NULL);
 }
 
+void MM_ChaosConfig_OpenSession(void)
+{
+	Chaos_OnEnter(NULL);
+	sdata->chaosMenu.sessionSetup = true;
+	RECTMENU_ClearInput();
+	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
+}
+
 void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
 {
 	Chaos_OnEnter(returnMenu);
@@ -185,9 +194,10 @@ static ChaosEffectId Chaos_EffectForRow(int row)
 	{
 		return ChaosEffect_FromIndex(row);
 	}
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		if (!sdata->chaosSettings.effects[id])
+		if (!settings->effects[id])
 		{
 			continue;
 		}
@@ -290,6 +300,7 @@ static void Chaos_TestRace(ChaosEffectId effect)
 static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 {
 	struct GameTracker *gGT = sdata->gGT;
+	struct ChaosSettings *settings = &sdata->chaosSettings;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
 	struct ChaosMenuState *state = &sdata->chaosMenu;
@@ -309,7 +320,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	ChaosEffectId testEffect = CHAOS_EFFECT_NONE;
 
 	FullScreenMenu_NavScroll(pad, &state->scroll[state->page], &selected, Chaos_PageRowCount(state));
-	if (!readOnly && state->page == CHAOS_PAGE_EFFECTS && g_config.chaosQuickRace &&
+	if (!readOnly && !state->sessionSetup && state->page == CHAOS_PAGE_EFFECTS && g_config.chaosQuickRace &&
 	    (pad->buttonsTapped & BTN_START) != 0)
 	{
 		testEffect = Chaos_EffectForRow(selected);
@@ -337,7 +348,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 		OtherFX_Play(1, 1);
 		if (state->page == CHAOS_PAGE_EFFECTS)
 		{
-			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount,
+			ChaosEffect_Toggle(settings->effects, &settings->enabledCount,
 			                   ChaosEffect_FromIndex(selected));
 		}
 		else
@@ -395,7 +406,14 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	}
 	else if (finish)
 	{
-		MM_NewLoad_FinishChaosSetup();
+		if (state->sessionSetup)
+		{
+			MM_ChaosSession_FinishSetup(true);
+		}
+		else
+		{
+			MM_NewLoad_FinishChaosSetup();
+		}
 	}
 	else if (leave)
 	{
@@ -403,6 +421,10 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 		{
 			RECTMENU_ClearInput();
 			sdata->ptrDesiredMenu = state->returnMenu;
+		}
+		else if (state->sessionSetup)
+		{
+			MM_ChaosSession_FinishSetup(false);
 		}
 		else
 		{

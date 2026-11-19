@@ -255,6 +255,7 @@ struct ChaosMenuState
 	struct RectMenu menu;
 	// Non-NULL selects the read-only pause view and its return destination.
 	struct RectMenu *returnMenu;
+	bool sessionSetup;
 	enum ChaosPage page;
 	struct FullScreenMenu_Scroll scroll[CHAOS_PAGE_COUNT];
 	enum ChaosSetting visibleSettings[CHAOS_SETTING_COUNT];
@@ -264,7 +265,7 @@ struct ChaosMenuState
 
 enum
 {
-	CHAOS_PAUSE_ROW_CAPACITY = 6, // five actions and a terminator
+	CHAOS_PAUSE_ROW_CAPACITY = 9, // seven retail Battle actions, Chaos Rules and a terminator
 };
 
 CTR_STATIC_ASSERT(sizeof(struct MenuRow) == 6);

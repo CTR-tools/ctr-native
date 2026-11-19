@@ -193,7 +193,7 @@ void UI_Chaos_DrawActivation(struct GameTracker *gGT)
 	int numDocked = 0;
 	const int dockTop = gGT->numPlyrCurrGame > 1 ? UI_CHAOS_LIST_MULTIPLAYER_TOP : UI_CHAOS_LIST_TOP;
 	int dockBottom = dockTop;
-	struct UI_Chaos_ReservedRow reserved[ADV_MULTIPLAYER_NUM_PLAYERS_MAX * 2];
+	struct UI_Chaos_ReservedRow reserved[CHAOS_MAX_HUMAN_PLAYERS * 2];
 	const int numReserved = UI_Chaos_CollectReservedRows(gGT, reserved);
 	for (int i = count - 1; i >= 0 && numDocked < UI_CHAOS_MAX_DOCKED; i--)
 	{

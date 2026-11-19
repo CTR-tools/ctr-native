@@ -14,6 +14,7 @@ enum ChaosRuntimeConstants
 	CHAOS_WUMPA_DRAIN_PERIOD_MS = 1000,
 	CHAOS_INJECTION_RESERVES = 10 * 960,
 	CHAOS_MAX_DEFERRED_IMPACTS = 1024,
+	CHAOS_MAX_HUMAN_PLAYERS = 4,
 };
 
 enum ChaosImpactKind
@@ -93,15 +94,15 @@ struct ChaosRuntime
 	int numInstantNotices;
 	s32 intervalRemainingMS;
 	bool raceInitialized;
-	bool touchingTurboPad[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
-	struct ChaosControlShuffle controls[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	bool touchingTurboPad[CHAOS_MAX_HUMAN_PLAYERS];
+	struct ChaosControlShuffle controls[CHAOS_MAX_HUMAN_PLAYERS];
 	u8 engineClass[LOAD_CHARACTER_ID_COUNT];
 	bool engineClassChanged[LOAD_CHARACTER_ID_COUNT];
-	struct ChaosRestart restart[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	struct ChaosRestart restart[CHAOS_MAX_HUMAN_PLAYERS];
 	struct ChaosIdentity identity[LOAD_CHARACTER_ID_COUNT];
 	// Partner slot plus one; zero means this controller owns its original kart.
 	u8 bodySwapPartner[LOAD_CHARACTER_ID_COUNT];
-	bool cameraBlendPending[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	bool cameraBlendPending[CHAOS_MAX_HUMAN_PLAYERS];
 	u8 teleportForwardCrossings[LOAD_CHARACTER_ID_COUNT];
 	bool humanAudioContext;
 	bool humanXA;

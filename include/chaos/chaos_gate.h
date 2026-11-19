@@ -5,9 +5,9 @@
 
 #include <stdbool.h>
 
-// Pure race eligibility check. The engine must separately check the loaded
-// file's chaosSettings.armed flag and any active menu; the creation-prompt
-// option does not control a loaded file.
+// Pure race eligibility check. The engine must separately check the
+// active rules' armed flag and any active menu; the creation-prompt option
+// does not control a loaded Adventure file or a non-Adventure session.
 //
 // The inputs are gGT->gameMode1 and gGT->overlayIndex_Threads. The latter is not
 // one of the thirteen overlay binaries: it is the thread group, of which there
@@ -23,19 +23,13 @@
 // bit being renumbered without the mask being reconsidered.
 CTR_STATIC_ASSERT(CHAOS_GATE_NON_RACE_MODES == 0x6030200F);
 
-enum ChaosGateScope
-{
-	CHAOS_GATE_ADVENTURE_ONLY = 0,
-	CHAOS_GATE_ANY_RACE,
-};
-
 // Each condition is named for what has to be true, rather than for what it
 // rules out, so the gate reads as a list of requirements.
-static inline bool ChaosGate_IsRaceEligible(int gameMode1, int threadsIndex, int lightsGone, enum ChaosGateScope scope)
+static inline bool ChaosGate_IsRaceEligible(int gameMode1, int threadsIndex, int lightsGone)
 {
 	// None of the non-race markers is set. The other four thread groups are
 	// each marked by one of them, so this alone leaves the podium.
-	const bool isRaceLevel = (gameMode1 & CHAOS_GATE_NON_RACE_MODES) == 0;
+	const bool isRaceLevel = (gameMode1 & (CHAOS_GATE_NON_RACE_MODES | TIME_TRIAL)) == 0;
 
 	if (!isRaceLevel)
 	{
@@ -50,10 +44,8 @@ static inline bool ChaosGate_IsRaceEligible(int gameMode1, int threadsIndex, int
 		return false;
 	}
 
-	const bool inScope = (scope == CHAOS_GATE_ANY_RACE) || ((gameMode1 & ADVENTURE_MODE) != 0);
-
 	// Wait for GO.
-	return lightsGone && inScope;
+	return lightsGone;
 }
 
 #endif

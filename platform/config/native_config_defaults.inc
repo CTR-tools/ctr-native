@@ -18,6 +18,7 @@
 .engineSelection = false,
 .customCups = false,
 .expandedArcade = false,
+.chaosMode = false,
 .speedMultiplier = 100,
 .gravityMultiplier = 100,
 .turnMultiplier = 100,

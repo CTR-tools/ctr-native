@@ -354,15 +354,15 @@ struct RectMenu *MainFreeze_GetMenuPtr(void)
 
 	if ((gameMode & BATTLE_MODE) != 0)
 	{
-		return &data.menuBattle;
+		return MainFreeze_ChaosPauseMenu(&data.menuBattle, data.rowsBattle, len(data.rowsBattle) - 1);
 	}
 
 	if ((gGT->gameMode2 & CUP_ANY_KIND) != 0)
 	{
-		return &data.menuArcadeCup;
+		return MainFreeze_ChaosPauseMenu(&data.menuArcadeCup, data.rowsArcadeCup, len(data.rowsArcadeCup) - 1);
 	}
 
-	return &data.menuArcadeRace;
+	return MainFreeze_ChaosPauseMenu(&data.menuArcadeRace, data.rowsArcadeRace, len(data.rowsArcadeRace) - 1);
 }
 
 void MainFreeze_IfPressStart(void)

@@ -21,6 +21,20 @@ static int s_finishes;
 static int s_returns;
 static bool s_drewBeforeExit;
 static int s_testLevel;
+static int s_sessionFinishes;
+static int s_sessionReturns;
+
+void MM_ChaosSession_FinishSetup(bool confirm)
+{
+	if (confirm)
+	{
+		s_sessionFinishes++;
+	}
+	else
+	{
+		s_sessionReturns++;
+	}
+}
 
 const char *LANG_GetString(s32 index)
 {
@@ -157,6 +171,7 @@ static void EnterSetup(void)
 	memset(&s_buffer, 0, sizeof(s_buffer));
 	sdata->gGT = &s_tracker;
 	s_tracker.backBuffer = &s_buffer;
+	s_tracker.gameMode1 = ADVENTURE_MODE;
 	sdata->gGamepads = &sdata->gamepadSystem;
 	sdata->chaosSettings.durationSeconds = CHAOS_DURATION_DEFAULT_SECONDS;
 	sdata->chaosSettings.triggerIntervalSeconds = CHAOS_TRIGGER_INTERVAL_DEFAULT_SECONDS;
@@ -168,6 +183,8 @@ static void EnterSetup(void)
 	}
 	s_finishes = 0;
 	s_returns = 0;
+	s_sessionFinishes = 0;
+	s_sessionReturns = 0;
 	s_drewBeforeExit = false;
 	MM_ChaosConfig_OnEnter();
 }
@@ -341,7 +358,7 @@ static void TestResidentRestore(void)
 
 static void TestPauseEntryVisibility(void)
 {
-	CTR_TEST_SECTION("only an active Chaos Adventure gains a pause action");
+	CTR_TEST_SECTION("armed Adventure and session rules add a pause action only in supported modes");
 	EnterSetup();
 	struct MenuRow base[] = {
 		{LNG_RESUME, 2, 1, 0, 0},
@@ -353,7 +370,7 @@ static void TestPauseEntryVisibility(void)
 	const struct
 	{
 		u32 mode;
-		bool adventurePause;
+		bool supportedPause;
 	} cases[] = {
 		{ADVENTURE_ARENA, true},
 		{ADVENTURE_MODE, true},
@@ -361,9 +378,10 @@ static void TestPauseEntryVisibility(void)
 		{ADVENTURE_MODE | RELIC_RACE, true},
 		{ADVENTURE_MODE | CRYSTAL_CHALLENGE, true},
 		{ADVENTURE_MODE | ADVENTURE_BOSS, true},
-		{ARCADE_MODE, false},
+		{ARCADE_MODE, true},
+		{0, true},
 		{TIME_TRIAL, false},
-		{BATTLE_MODE, false},
+		{BATTLE_MODE, true},
 		{MAIN_MENU | ADVENTURE_MODE, false},
 		{GAME_CUTSCENE | ADVENTURE_MODE, false},
 	};
@@ -371,14 +389,14 @@ static void TestPauseEntryVisibility(void)
 	{
 		for (int armed = 0; armed <= 1; armed++)
 		{
-			for (int players = 1; players <= 2; players++)
+			for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
 			{
 				s_tracker.gameMode1 = cases[i].mode | PAUSE_1;
 				s_tracker.numPlyrCurrGame = players;
 				sdata->chaosSettings.armed = armed != 0;
-				const bool visible = armed && cases[i].adventurePause;
+				const bool visible = armed && cases[i].supportedPause;
 				MainFreeze_ChaosPauseMenu(&pause, base, 3);
-				CTR_TEST_CHECK((pause.rows == sdata->chaosPauseRows) == visible, "the action requires a Chaos Adventure file in hub, race or cup for either player count");
+				CTR_TEST_CHECK((pause.rows == sdata->chaosPauseRows) == visible, "Chaos Rules requires armed rules in a supported mode for every player count");
 				if (visible)
 				{
 					CTR_TEST_CHECK_EQ(pause.rows[3].stringIndex, LNG_EXPANDED_CHAOS_RULES, "Chaos Rules is appended after Options");
@@ -533,6 +551,32 @@ static void CheckTestRaceGrid(void)
 	                  "the test-race human starts at the back of the Adventure grid");
 }
 
+static void TestSessionSetup(void)
+{
+	CTR_TEST_SECTION("the shared editor dispatches session confirmation and Back using the live rules");
+	EnterSetup();
+	s_tracker.gameMode1 = ARCADE_MODE;
+	sdata->chaosSettings.durationSeconds = 10;
+	MM_ChaosConfig_OpenSession();
+	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &MM_menuChaosConfig && sdata->chaosMenu.sessionSetup,
+	               "the session editor becomes the active full-screen menu");
+	Frame(0, BTN_RIGHT);
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, 15, "the editor changes the live duration");
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.numSettings - 1;
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK_EQ(s_sessionFinishes, 1, "Confirm resumes session selection");
+	CTR_TEST_CHECK_EQ(s_finishes, 0, "session Confirm does not advance Adventure creation");
+	MM_ChaosConfig_OpenSession();
+	Frame(BTN_TRIANGLE, 0);
+	CTR_TEST_CHECK_EQ(s_sessionReturns, 1, "Back returns to the session mode prompt");
+	CTR_TEST_CHECK_EQ(s_returns, 0, "session Back does not retreat through Adventure creation");
+	g_config.chaosQuickRace = true;
+	MM_ChaosConfig_OpenSession();
+	sdata->chaosMenu.page = CHAOS_PAGE_EFFECTS;
+	Frame(BTN_START, 0);
+	CTR_TEST_CHECK_EQ(s_testLevel, -1, "the Adventure test shortcut is unavailable in session setup");
+}
+
 static void TestChaosRaceShortcut(void)
 {
 	CTR_TEST_SECTION("Start tests the highlighted effect only during editable creation");
@@ -601,5 +645,6 @@ int main(void)
 	TestReadOnlyPauseView();
 	TestFilteredActiveEffects();
 	TestChaosRaceShortcut();
+	TestSessionSetup();
 	return CtrTest_Summary();
 }

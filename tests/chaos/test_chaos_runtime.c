@@ -19,6 +19,61 @@ static s32 LatestNoticeRemaining(void)
 	return runtime->numActive > 0 ? runtime->active[runtime->numActive - 1].noticeRemainingMS : 0;
 }
 
+static void CheckSuspended(void);
+
+static void TestSessionModes(void)
+{
+	CTR_TEST_SECTION("session rules run in Arcade, VS and Battle for one to four humans");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE | LIFE_LIMIT, ARCADE_MODE | RELIC_RACE,
+	                     ARCADE_MODE | CRYSTAL_CHALLENGE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			SetupRace(CHAOS_TRIGGER_INTERVAL);
+			Chaos_Reset();
+			s_tracker.gameMode1 = modes[mode];
+			s_tracker.numPlyrCurrGame = players;
+			struct Driver humans[CHAOS_MAX_HUMAN_PLAYERS] = {0};
+			for (int player = 0; player < players; player++)
+			{
+				humans[player].driverID = player;
+				s_tracker.drivers[player] = &humans[player];
+			}
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(sdata->chaosRuntime.raceInitialized, "armed live rules initialize in every supported mode");
+			Tick(5000);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "the session interval activates its selected effect");
+			for (int player = 0; player < players; player++)
+			{
+				CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, &humans[player]),
+				               "the effect targets every human including players three and four");
+			}
+			CTR_TEST_CHECK(!Chaos_EffectFitsEvent(CHAOS_EFFECT_ARENA_CHAMPIONS) || modes[mode] == ARCADE_MODE,
+			               "bot-only effects are excluded from VS, Battle, relic and crystal events");
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
+			Tick(1);
+			Chaos_OnTurboPadContact(&humans[players - 1], true);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 0, "the last human's turbo pad triggers Chaos too");
+			Tick(1);
+			Chaos_OnTurboPadContact(&humans[players - 1], true);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 1, "staying on a pad does not retrigger");
+			s_tracker.gameMode1 |= PAUSE_1;
+			CheckSuspended();
+			s_tracker.gameMode1 &= ~PAUSE_1;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "retry clears effects while retaining session rules");
+			s_tracker.gameMode1 = TIME_TRIAL;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(!sdata->chaosRuntime.raceInitialized, "armed session rules cannot initialize in Time Trial");
+			s_tracker.gameMode1 = modes[mode];
+			s_tracker.boolDemoMode = true;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(!sdata->chaosRuntime.raceInitialized, "attract-mode demos never inherit session Chaos");
+		}
+	}
+}
+
 static void TestIntervalCadence(void)
 {
 	CTR_TEST_SECTION("Interval starts after GO, carries frame overshoot and gives new entries full duration");
@@ -27,7 +82,7 @@ static void TestIntervalCadence(void)
 	Chaos_Reset();
 	MainGameStart_Initialize(&s_tracker, true);
 	CTR_TEST_CHECK(s_teleported && sdata->chaosRuntime.raceInitialized, "the actual race-start callback initializes Chaos after teleporting");
-	CTR_TEST_CHECK(!g_config.expandedAdventureOptions, "the creation prompt is disabled in this fixture");
+	CTR_TEST_CHECK(!g_config.chaosMode, "the creation prompt is disabled in this fixture");
 	Tick(5000);
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the countdown cannot activate an effect");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "the countdown does not consume trigger time");
@@ -103,9 +158,9 @@ static void TestGatesAndPause(void)
 		s_tracker.gameMode1 = ADVENTURE_MODE | blocked[i];
 		CheckSuspended();
 	}
-	s_tracker.gameMode1 = ARCADE_MODE;
+	s_tracker.gameMode1 = ARCADE_MODE | TIME_TRIAL;
 	CheckSuspended();
-	s_tracker.gameMode1 = BATTLE_MODE;
+	s_tracker.gameMode1 = BATTLE_MODE | MAIN_MENU;
 	CheckSuspended();
 	s_tracker.gameMode1 = ADVENTURE_MODE;
 	s_tracker.overlayIndex_Threads = OVERLAY_INDEX_ADV_HUB;
@@ -271,8 +326,8 @@ static void TestPickupTrigger(void)
 		s_tracker.gameMode1 = ADVENTURE_MODE | blocked[i];
 		CTR_TEST_CHECK(!Chaos_OnPickup(&human), "race gates block pickup activation");
 	}
-	s_tracker.gameMode1 = ARCADE_MODE;
-	CTR_TEST_CHECK(!Chaos_OnPickup(&human), "Arcade retains ordinary pickup behavior");
+	s_tracker.gameMode1 = ARCADE_MODE | TIME_TRIAL;
+	CTR_TEST_CHECK(!Chaos_OnPickup(&human), "Time Trial retains ordinary pickup behavior");
 	s_tracker.gameMode1 = ADVENTURE_MODE;
 	for (int trigger = 0; trigger < CHAOS_TRIGGER_COUNT; trigger++)
 	{
@@ -683,6 +738,46 @@ static void TestHudVisibilityAndDockLimit(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "the HUD preserves all four running activations");
 }
 
+static void TestFourPlayerHudReservations(void)
+{
+	CTR_TEST_SECTION("3P and 4P reserve all Final Lap and restart-light rows");
+	for (int players = 3; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+	{
+		SetupRace(CHAOS_TRIGGER_EXTERNAL);
+		s_tracker.gameMode1 = BATTLE_MODE;
+		s_tracker.numPlyrCurrGame = players;
+		static struct DB buffer;
+		u32 uiOT[5];
+		buffer.otMem.uiOT = uiOT;
+		s_tracker.backBuffer = &buffer;
+		s_tracker.hudFlags = HUD_FLAG_RACE_HUD;
+		struct Icon icon = {0};
+		icon.texLayout.u1 = 16;
+		icon.texLayout.v2 = 32;
+		s_tracker.trafficLightIcon[0] = &icon;
+		for (int player = 0; player < players; player++)
+		{
+			s_tracker.pushBuffer[player].rect = (RECT){
+				(player % 2) * SCREEN_WIDTH / 2, (player / 2) * SCREEN_HEIGHT / 2,
+				SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+			sdata->finalLapTextTimer[player] = 30;
+			sdata->chaosRuntime.restart[player].active = true;
+			sdata->chaosRuntime.restart[player].timer = DOT_LIGHT_TIMER_RED1;
+		}
+		struct UI_Chaos_ReservedRow reserved[CHAOS_MAX_HUMAN_PLAYERS * 2];
+		CTR_TEST_CHECK_EQ(UI_Chaos_CollectReservedRows(&s_tracker, reserved), players * 2,
+		                  "each human contributes both reserved HUD rows");
+		CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 10000), "Battle can announce a session effect");
+		DrawNotice();
+		CTR_TEST_CHECK_EQ(s_noticeDraws, 1, "the shared announcement renders with every player's HUD reservations");
+		for (int row = 0; row < players * 2; row++)
+		{
+			CTR_TEST_CHECK(s_noticeY >= reserved[row].bottom || s_noticeY + UI_CHAOS_BANNER_ROW_HEIGHT <= reserved[row].top,
+			               "the announcement avoids all four players' reserved rows");
+		}
+	}
+}
+
 static void TestHudLayeringAndSoloStack(void)
 {
 	CTR_TEST_SECTION("solo banners stack downward and docked labels keep fixed rows behind lap statistics");
@@ -973,7 +1068,7 @@ static void TestBotEffectEventScope(void)
 	struct Driver finishedBot = {.driverID = 2, .actionsFlagSet = ACTION_BOT | ACTION_RACE_FINISHED};
 	s_tracker.drivers[2] = &finishedBot;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000), "finished bots do not prevent activating Arena Champions");
-	const int botlessEvents[] = {RELIC_RACE, CRYSTAL_CHALLENGE, TIME_TRIAL, BATTLE_MODE};
+	const int botlessEvents[] = {RELIC_RACE, CRYSTAL_CHALLENGE, BATTLE_MODE};
 	for (int i = 0; i < (int)len(botlessEvents); i++)
 	{
 		s_tracker.gameMode1 = ADVENTURE_MODE | botlessEvents[i];
@@ -1039,6 +1134,8 @@ static void TestLocalizedVoiceFallback(void)
 
 int main(void)
 {
+	TestSessionModes();
+	TestFourPlayerHudReservations();
 	TestBodySwapPlayerCount();
 	TestLocalizedVoiceFallback();
 	TestBotEffectEventScope();

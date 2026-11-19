@@ -6,8 +6,8 @@ static struct RectMenu *MainFreeze_ChaosPauseMenu(struct RectMenu *menu, struct 
 {
 	menu->rows = rows;
 	const u32 mode = sdata->gGT->gameMode1;
-	if (!sdata->chaosSettings.armed || (mode & (ADVENTURE_MODE | ADVENTURE_ARENA)) == 0 ||
-	    (mode & (MAIN_MENU | GAME_CUTSCENE)) != 0)
+	if (!sdata->chaosSettings.armed ||
+	    (mode & (MAIN_MENU | GAME_CUTSCENE | TIME_TRIAL)) != 0)
 	{
 		return menu;
 	}
@@ -25,3 +25,6 @@ static struct RectMenu *MainFreeze_ChaosPauseMenu(struct RectMenu *menu, struct 
 CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsAdvHub) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);
 CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsAdvRace) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);
 CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsAdvCup) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);
+CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsBattle) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);
+CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsArcadeCup) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);
+CTR_STATIC_ASSERT(len(((struct Data *)0)->rowsArcadeRace) + 1 <= CHAOS_PAUSE_ROW_CAPACITY);

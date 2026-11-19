@@ -31,7 +31,10 @@ static bool Chaos_EffectFitsEvent(ChaosEffectId effect)
 	{
 		return (sdata->gGT->gameMode1 & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0;
 	}
-	return def->scope != CHAOS_SCOPE_BOTS || (sdata->gGT->gameMode1 & RACE_FIELD_NO_BOT_MODES) == 0;
+	const struct GameTracker *tracker = sdata->gGT;
+	return def->scope != CHAOS_SCOPE_BOTS ||
+	       RaceField_BotCount(tracker->gameMode1, tracker->cup.cupID,
+	                          tracker->numPlyrCurrGame, g_config.extendedMultiplayer) > 0;
 }
 
 static ChaosEffectId Chaos_PickEventEffect(void)
@@ -67,11 +70,11 @@ static s32 Chaos_NextTriggerGap(void)
 
 bool Chaos_IsRunning(const struct GameTracker *gGT)
 {
-	return sdata->chaosRuntime.raceInitialized && sdata->chaosSettings.armed &&
+	return sdata->chaosRuntime.raceInitialized && sdata->chaosSettings.armed && !gGT->boolDemoMode &&
 	       sdata->ptrActiveMenu == NULL && sdata->Loading.stage == LOAD_IDLE &&
 	       (gGT->gameMode1 & DEBUG_MENU) == 0 &&
 	       ChaosGate_IsRaceEligible(gGT->gameMode1, gGT->overlayIndex_Threads,
-	                                gGT->trafficLightsTimer < 1, CHAOS_GATE_ADVENTURE_ONLY);
+	                                gGT->trafficLightsTimer < 1);
 }
 
 void Chaos_Init(u32 seed)
@@ -203,9 +206,10 @@ void Chaos_Reset(void)
 
 void Chaos_LoadCharacterModels(struct GameTracker *gGT, struct BigHeader *bigfile)
 {
-	if (sdata->chaosSettings.armed && sdata->chaosSettings.effects[CHAOS_EFFECT_IDENTITY_CRISIS] &&
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
+	if (!gGT->boolDemoMode && settings->armed && settings->effects[CHAOS_EFFECT_IDENTITY_CRISIS] &&
 	    ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
-	                             OVERLAY_INDEX_RACING_OR_BATTLE, true, CHAOS_GATE_ADVENTURE_ONLY))
+	                             OVERLAY_INDEX_RACING_OR_BATTLE, true))
 	{
 		Chaos_PreloadCharacterModels(bigfile);
 	}
@@ -216,9 +220,9 @@ void Chaos_BeginRace(struct GameTracker *gGT)
 	Chaos_Reset();
 	Chaos_PublishEffects();
 	// Initialization may precede unpausing; GO gates updates, not race setup.
-	if (!sdata->chaosSettings.armed ||
+	if (!sdata->chaosSettings.armed || gGT->boolDemoMode ||
 	    !ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
-	                             gGT->overlayIndex_Threads, true, CHAOS_GATE_ADVENTURE_ONLY))
+	                             gGT->overlayIndex_Threads, true))
 	{
 		return;
 	}
@@ -535,9 +539,9 @@ void Chaos_PublishEffects(void)
 	char catalogue[NATIVE_CHAOS_CATALOGUE_SIZE] = {0};
 	size_t used = 0;
 	const struct GameTracker *gGT = sdata->gGT;
-	const bool eligibleRace = gGT != NULL &&
+	const bool eligibleRace = gGT != NULL && !gGT->boolDemoMode &&
 	    ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
-	                             gGT->overlayIndex_Threads, true, CHAOS_GATE_ADVENTURE_ONLY);
+	                             gGT->overlayIndex_Threads, true);
 	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
 	{
 		if (settings->effects[i] && Chaos_EffectFitsEvent((ChaosEffectId)i))
@@ -559,18 +563,19 @@ void Chaos_PublishEffects(void)
 
 static bool Chaos_ActivateExternalEffect(const char *slug)
 {
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	const ChaosEffectId effect = ChaosEffect_FromSlug(slug);
 	if (effect == CHAOS_EFFECT_NONE)
 	{
 		Platform_LogError("[Chaos] Consumed invalid or unknown effect command.\n");
 		return false;
 	}
-	if (!ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect))
+	if (!ChaosEffect_IsEnabled(settings->effects, effect))
 	{
 		Platform_LogError("[Chaos] Consumed disabled effect: %s\n", slug);
 		return false;
 	}
-	if (!Chaos_Activate(effect, sdata->chaosSettings.durationSeconds * CHAOS_MILLISECONDS_PER_SECOND))
+	if (!Chaos_Activate(effect, settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND))
 	{
 		Platform_LogError("[Chaos] Consumed effect rejected by runtime: %s\n", slug);
 		return false;
@@ -730,7 +735,7 @@ void Chaos_OnTurboPadContact(struct Driver *driver, bool touching)
 {
 	if (sdata->chaosSettings.trigger != CHAOS_TRIGGER_PICKUP || !Chaos_IsRunning(sdata->gGT) || driver == NULL ||
 	    !ChaosEffect_AppliesToDriver(CHAOS_SCOPE_HUMANS, driver->driverID, sdata->gGT->numPlyrCurrGame) ||
-	    driver->driverID >= ADV_MULTIPLAYER_NUM_PLAYERS_MAX)
+	    driver->driverID >= (int)len(sdata->chaosRuntime.touchingTurboPad))
 	{
 		return;
 	}
@@ -783,7 +788,7 @@ static const struct Driver *Chaos_TopDownDriver(const struct PushBuffer *pushBuf
 	const struct GameTracker *tracker = sdata->gGT;
 	if (pushBuffer == NULL || !sdata->chaosRuntime.raceInitialized || !sdata->chaosSettings.armed ||
 	    !ChaosGate_IsRaceEligible(tracker->gameMode1 & ~PAUSE_ALL, tracker->overlayIndex_Threads,
-	                             tracker->trafficLightsTimer < 1, CHAOS_GATE_ADVENTURE_ONLY))
+	                             tracker->trafficLightsTimer < 1))
 	{
 		return NULL;
 	}

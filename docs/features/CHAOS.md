@@ -1,26 +1,41 @@
 # Chaos mode
 
-Chaos adds temporary gameplay effects to Adventure: reversed steering, giant
-karts, explosive crates and more. You choose which effects can appear and what
-triggers them when creating the Adventure file.
+Chaos adds temporary gameplay effects to Adventure, Arcade, VS and Battle:
+reversed steering, giant karts, explosive crates and more. You choose which
+effects can appear and what triggers them.
 
 It works in solo Adventure and [2P co-op Adventure](2P_ADVENTURE.md).
 The hub is unaffected; Chaos runs in Adventure events,
 including trophy, boss, CTR, relic, crystal and gem-cup challenges.
 
+## Arcade, VS and Battle
+
+Enable **Chaos** under **General** in **Options Config**, or set `chaos_mode = true`
+in the `[General]` section of `config.ini` (default: `false`). Then select
+**Arcade**, **VS** or **Battle** from the main menu and choose **Regular**
+or **Chaos**. Regular continues normally; Chaos opens the same rules screen used
+by Adventure. Confirm the rules, then continue through the usual race type,
+player count, character and track selection. With the option disabled, the mode
+prompt is skipped and new session races are Regular. The same option controls
+the Chaos prompt when creating a new Adventure.
+
+Chaos supports up to four human players where the underlying mode allows them.
+Effects requiring racing bots are excluded when the event has no bot grid;
+track-path teleports are excluded from Battle and crystal challenges.
+
 ## Starting a Chaos file
 
-1. Enable **Expanded Options** under **Adventure** in the in-game **Options Config**
-   menu, or set `expanded_options = true` in the `[Adventure]` section of `config.ini`.
+1. Enable **Chaos** under **General** in the in-game **Options Config** menu,
+   or set `chaos_mode = true` in the `[General]` section of `config.ini`.
 2. Start a **New Adventure** and choose **Chaos** at the mode prompt. Choose
    **Regular** to create an ordinary Adventure instead.
 3. Configure Chaos, select **Confirm**, then continue to character selection.
 
 ![New Adventure mode selection showing Chaos and Regular](images/chaos-mode-choice.jpg)
 
-The global option only enables this creation prompt. Your choice and Chaos rules
+The **Chaos** option only gates this creation prompt. Your choice and Chaos rules
 are stored in the Adventure save slot. Loading a Chaos file does not show setup
-again, and turning the global option off does not disable Chaos in that file.
+again, and turning the Chaos option off does not disable Chaos in that file.
 Existing Regular files stay Regular.
 
 ## Choosing the rules
@@ -41,7 +56,7 @@ effect list to setup. These refer to the game's mapped controller buttons.
 
 ![Chaos effect selection with individual ON and OFF toggles](images/chaos-effect-selection.jpg)
 
-**Rules are fixed once the file is created.** To play with another trigger,
+**Adventure rules are fixed once the file is created.** To play with another trigger,
 duration, interval or selection, create another Adventure file.
 
 ## Triggers
@@ -73,8 +88,8 @@ The game waits one full Interval from GO, then reads the next request. Each
 successful activation starts a fresh interval. With no request, no effect starts.
 
 Requests wait through pauses and Za Warudo's time stop, and can carry over to the
-next race, which starts a new interval from GO. The selected effect uses your saved
-Duration and must be enabled in the file. Setup and a manual submission example are in the
+next race, which starts a new interval from GO. The selected effect uses your chosen
+Duration and must be enabled in the current rules. Setup and a manual submission example are in the
 [external provider guide](CHAOS_EXTERNAL_PROVIDER.md).
 
 ## Effects

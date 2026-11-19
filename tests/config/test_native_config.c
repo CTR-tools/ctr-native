@@ -17,6 +17,41 @@ const char *NativeTextRuntime_LanguageId(int slot) { (void)slot; return NULL; }
 #include <platform/config/native_config.c>
 #include <platform/config/native_profile.c>
 
+static void TestChaosModeOption(void)
+{
+	CTR_TEST_SECTION("Chaos setup is opt-in under General and persists independently of Expanded Options");
+	const NativeConfig initial = g_config;
+	CTR_TEST_CHECK(!g_config.chaosMode, "Chaos selection is disabled by default");
+	const ConfigEntry *entry = NULL;
+	for (int i = 0; i < g_numConfigEntries; i++)
+	{
+		if (strcmp(g_configEntries[i].key, "chaos_mode") == 0)
+		{
+			entry = &g_configEntries[i];
+			break;
+		}
+	}
+	CTR_TEST_CHECK(entry != NULL && strcmp(entry->section, "General") == 0 &&
+	               entry->type == CFG_BOOL && entry->valuePtr == &g_config.chaosMode,
+	               "the General menu and INI share the Chaos toggle");
+	g_config.chaosMode = true;
+	g_config.expandedAdventureOptions = false;
+	NativeConfig_Save();
+	g_config.chaosMode = false;
+	CTR_TEST_CHECK(NativeConfig_Load() == CONFIG_LOAD_OK && g_config.chaosMode && !g_config.expandedAdventureOptions,
+	               "enabled session Chaos survives saving without requiring Adventure options");
+	g_config.chaosMode = false;
+	g_config.expandedAdventureOptions = true;
+	NativeConfig_Save();
+	g_config.chaosMode = true;
+	CTR_TEST_CHECK(NativeConfig_Load() == CONFIG_LOAD_OK && !g_config.chaosMode && g_config.expandedAdventureOptions,
+	               "disabled session Chaos survives saving independently of enabled Adventure options");
+	char path[512];
+	NativePath_Join(path, sizeof(path), NativeStr8_FromCString(s_testBaseDir), NATIVE_STR8_LIT("config.ini"));
+	remove(path);
+	g_config = initial;
+}
+
 static void TestProfileStartup(void)
 {
 	CTR_TEST_SECTION("startup loads the selected profile before config overrides");
@@ -399,12 +434,14 @@ static void TestShippedPresets(void)
 	               g_config.bossCutscenes == BOSS_CUTSCENES_SKIPPABLE && g_config.loadingScreen == LOADING_SCREEN_FADE,
 	               "Expanded preset applies the agreed options");
 	CTR_TEST_CHECK(g_config.skipIntro, "shipped preset preserves options it does not list");
+	CTR_TEST_CHECK(g_config.chaosMode, "Expanded enables the shared Chaos prompt");
 	CTR_TEST_CHECK(NativeConfig_ApplyPresetFile(CTR_PRESET_SOURCE_DIR "/vanilla.ini") == CONFIG_LOAD_OK,
 	               "shipped Vanilla preset is valid");
 	CTR_TEST_CHECK(!g_config.fxaa && !g_config.expandedArcade && !g_config.unlockNitrosOxide &&
 	               g_config.botSelectionMode == BOT_SELECTION_PREDETERMINED &&
 	               g_config.bossCutscenes == BOSS_CUTSCENES_UNSKIPPABLE && g_config.loadingScreen == LOADING_SCREEN_VANILLA,
 	               "Vanilla preset restores the corresponding options");
+	CTR_TEST_CHECK(!g_config.chaosMode, "switching to Vanilla disables the shared Chaos prompt");
 	g_config = initial;
 }
 
@@ -428,6 +465,7 @@ int main(void)
 {
 	CtrTestScratch_Open(s_testBaseDir, sizeof(s_testBaseDir), "config-tests", NULL);
 	CTR_TEST_SECTION("native_config tests");
+	TestChaosModeOption();
 	TestDeveloperDefaultsAreImmutable();
 	TestProfileStartup();
 	TestConfigPresetPrecedence();

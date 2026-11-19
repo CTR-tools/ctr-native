@@ -16,7 +16,8 @@ be shorter than 128 bytes; oversized input and embedded NUL bytes are rejected.
 
 The game creates `chaos/` and atomically publishes `effects` via `effects.tmp`
 at game initialization and in `Chaos_BeginRace()`, never in frame updates.
-The list reflects the save's selection and current event for any trigger; it is
+The list reflects the Adventure save's or Arcade/VS/Battle session's selection
+and current event for any trigger; it is
 empty outside eligible races, when Chaos is unarmed or when no selected effect
 applies. It is not a readiness signal or heartbeat. Execution validates
 eligibility again, including whether an unfinished target remains.

@@ -76,7 +76,7 @@ static struct RectMenu *MM_NewLoad_Screen(int step)
 	case NEWLOAD_STEP_DIFFICULTY:
 		return g_config.expandedAdventureOptions ? &D230.menuDifficulty : NULL;
 	case NEWLOAD_STEP_CHAOS:
-		return g_config.expandedAdventureOptions ? &MM_MENU_CHAOS_PROMPT : NULL;
+		return g_config.chaosMode ? &MM_MENU_CHAOS_PROMPT : NULL;
 	case NEWLOAD_STEP_PLAYERS:
 		return g_config.expandedAdventureOptions ? &MM_MENU_PLAYERS_1P2P : NULL;
 	default:
@@ -161,7 +161,7 @@ static void MM_NewLoad_Begin(struct RectMenu *parent)
 		return;
 	}
 	sdata->newLoad.parentOf[sdata->newLoad.step] = parent;
-	screen->rowSelected = MM_NewLoad_DifficultyRow();
+	screen->rowSelected = sdata->newLoad.step == NEWLOAD_STEP_DIFFICULTY ? MM_NewLoad_DifficultyRow() : 0;
 	MM_Menu_Attach(parent, screen);
 }
 
@@ -264,7 +264,7 @@ static void MM_NewLoad_ResumeFromCharacterSelect(struct RectMenu *previous)
 		}
 		else if (step == NEWLOAD_STEP_CHAOS)
 		{
-			screen->rowSelected = !sdata->chaosSettings.armed;
+			screen->rowSelected = sdata->chaosSettings.armed;
 		}
 		else
 		{

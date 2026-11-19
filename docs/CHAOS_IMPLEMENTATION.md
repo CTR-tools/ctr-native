@@ -177,12 +177,20 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
 ## Profile and menu integration
 
 - Every New resets the live settings to Regular with all implemented effects
-  selected. `expanded_options` controls the creation prompt; loaded files use
-  `chaosSettings.armed`. Settings are immutable once the file is created.
+  selected. General's `chaos_mode` controls the creation prompt; loaded files use
+  `chaosSettings.armed`. Adventure does not edit rules once the file is created.
 - Creation retains choices when navigating Back, including across the character
   selection overlay. Confirm requires a selected effect; this does not reinterpret
   an existing armed, empty file as Regular.
-- Armed Adventure files add **Chaos Rules** to hub/race/gem-cup pause menus.
+- All modes use the live `chaosSettings`, initialized to Regular at boot.
+  General's `chaos_mode` offers their Regular/Chaos prompt (off by default);
+  disabling it skips setup and disarms session rules on the next mode selection.
+  Loading an Adventure restores its saved rules; creating one resets the live
+  rules. Only Adventure saves encode them. `MM_ChaosSession.c` owns the
+  main-menu prompt and resumes the retail menu chain without an extra recap box.
+  Live rules survive retries, cups and mode selection, but are replaced when
+  loading or creating an Adventure and reset at application restart.
+- Armed rules add **Chaos Rules** to Adventure and session pause menus.
   The shared setup screen is read-only, without Confirm. **Active Effects** lists
   enabled effects, not currently running activations, without ON/OFF controls.
 - Custom menu strings live in `RECTMENU_Text.c`; `RECTMENU_GetString` handles
@@ -191,8 +199,10 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
 ## Runtime and checkpoints
 
 `Chaos_BeginRace` runs after vehicle teleport in `MainGameStart_Initialize`.
-`Chaos_Update` runs before gameplay threads, only after GO in eligible Adventure
-races, with no active menu, debug menu or pending load. Pause freezes timers.
+`Chaos_Update` runs before gameplay threads, only after GO in eligible Adventure,
+Arcade, VS and Battle events, with no active menu, debug menu or pending load.
+Time Trial and demos are excluded. Pause freezes timers. Per-human runtime and
+HUD reservation arrays support four players; bot-only effects require a bot grid.
 Race end, retry teardown and level-load stage 0 clear runtime before driver reuse;
 settings and the dedicated `chaosRng` survive. `Chaos_Init(seed)` initializes the
 generator once at process startup; the host supplies a seed from SDL's
