@@ -41,6 +41,7 @@ typedef struct {
     bool unlockAllGates;        // false = off, true = all adventure mode wood doors open without keys
     bool unlockAllPortals;      // false = off, true = all warp pads and boss garages unlocked
     bool increaseDrawDistance;  // false = off (default), true = render NATIVE_DRAW_DISTANCE_SCALE x farther (platform/graphics/native_draw_distance.h)
+    bool livePauseBackground;   // render the paused scene instead of a captured image
     bool disableSplitScreenLod; // false = off (default), true = use full-detail split-screen assets and effects
     bool fullscreen;            // false = windowed, true = borderless fullscreen
     bool vsync;                 // false = off (default), true = synchronize presentation to the display

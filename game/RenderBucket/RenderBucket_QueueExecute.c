@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/config/native_config.h>
 #include <platform/graphics/native_draw_distance.h>
 #include "RenderBucket_PgxpTranslation.h"
 
@@ -2015,6 +2016,11 @@ static struct RenderBucketEntry *RenderBucket_QueueDraw(struct Instance *inst, s
 	// NOTE(aalhendi): Retail callers provide a valid visible-list instance and
 	// model; native keeps malformed host-side lists from trapping.
 	if (inst == 0)
+	{
+		return rbi;
+	}
+	if (gameMode1 != 0 && g_config.livePauseBackground && inst->thread != NULL &&
+	    (inst->thread->flags & 0xff) == HUD)
 	{
 		return rbi;
 	}

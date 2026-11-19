@@ -35,6 +35,7 @@
 .unlockAllGates = false,
 .unlockAllPortals = false,
 .increaseDrawDistance = false,
+.livePauseBackground = false,
 .disableSplitScreenLod = false,
 .fullscreen = true,
 .vsync = false,

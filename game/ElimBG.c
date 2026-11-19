@@ -1,4 +1,5 @@
 #include <common.h>
+#include <platform/config/native_config.h>
 
 enum ElimBGPauseState
 {
@@ -6,6 +7,7 @@ enum ElimBGPauseState
 	ELIM_BG_PAUSE_STATE_CAPTURE = 1,
 	ELIM_BG_PAUSE_STATE_DRAW = 2,
 	ELIM_BG_PAUSE_STATE_RESTORE = 3,
+	ELIM_BG_PAUSE_STATE_LIVE = 4,
 };
 
 enum ElimBGVramSlot
@@ -162,7 +164,14 @@ void ElimBG_Activate(struct GameTracker *gGT)
 {
 	sdata->pause_backup_renderFlags = gGT->renderFlags;
 	sdata->pause_backup_hudFlags = gGT->hudFlags;
-	sdata->pause_state = ELIM_BG_PAUSE_STATE_CAPTURE;
+	if (g_config.livePauseBackground)
+	{
+		sdata->pause_state = ELIM_BG_PAUSE_STATE_LIVE;
+	}
+	else
+	{
+		sdata->pause_state = ELIM_BG_PAUSE_STATE_CAPTURE;
+	}
 }
 
 
@@ -238,6 +247,22 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 	int tileX;
 	RECT rect1;
 	RECT rect2;
+	b32 restoreToLive = false;
+
+	if (sdata->pause_state == ELIM_BG_PAUSE_STATE_LIVE && !g_config.livePauseBackground)
+	{
+		sdata->pause_state = ELIM_BG_PAUSE_STATE_CAPTURE;
+	}
+	else if (sdata->pause_state == ELIM_BG_PAUSE_STATE_DRAW && g_config.livePauseBackground)
+	{
+		sdata->pause_state = ELIM_BG_PAUSE_STATE_RESTORE;
+		restoreToLive = true;
+	}
+
+	if (sdata->pause_state == ELIM_BG_PAUSE_STATE_LIVE)
+	{
+		return;
+	}
 
 	// if this is last frame of pause
 	if (sdata->pause_state == ELIM_BG_PAUSE_STATE_RESTORE)
@@ -263,8 +288,16 @@ void ElimBG_HandleState(struct GameTracker *gGT)
 		// Enable all instances
 		ElimBG_ToggleAllInstances(gGT, 0);
 
-		// game is not paused anymore
-		sdata->pause_state = ELIM_BG_PAUSE_STATE_NONE;
+		if (restoreToLive)
+		{
+			gGT->renderFlags = (gGT->renderFlags & RENDER_FLAG_CHECKERED_FLAG) | (sdata->pause_backup_renderFlags & RENDER_FLAG_ALL_EXCEPT_CHECKERED_FLAG_MASK);
+			gGT->hudFlags = sdata->pause_backup_hudFlags;
+			sdata->pause_state = ELIM_BG_PAUSE_STATE_LIVE;
+		}
+		else
+		{
+			sdata->pause_state = ELIM_BG_PAUSE_STATE_NONE;
+		}
 	}
 
 	// if game is paused, but not on the restore frame
@@ -387,6 +420,13 @@ void ElimBG_Deactivate(struct GameTracker *gGT)
 {
 	// it's written this way for bytebudget reasons.
 	u8 backup = (u8)sdata->pause_backup_hudFlags;
+
+	if (sdata->pause_state == ELIM_BG_PAUSE_STATE_LIVE)
+	{
+		gGT->hudFlags = backup;
+		sdata->pause_state = ELIM_BG_PAUSE_STATE_NONE;
+		return;
+	}
 
 	// if game is paused
 	if (sdata->pause_state != ELIM_BG_PAUSE_STATE_NONE)

@@ -498,6 +498,14 @@ const ConfigEntry g_configEntries[] = {
     },
     {
         .section = "Graphics",
+        .key = "live_pause_background",
+        .availableDuringPause = true,
+        .lngKey = LNG_EXPANDED_CONFIG_LIVE_PAUSE_BACKGROUND,
+        .type = CFG_BOOL,
+        .valuePtr = &g_config.livePauseBackground
+    },
+    {
+        .section = "Graphics",
         .key = "disable_split_screen_lod",
     	.availableDuringPause = true,
         .lngKey = LNG_EXPANDED_CONFIG_MULTIPLAYER_QUALITY,

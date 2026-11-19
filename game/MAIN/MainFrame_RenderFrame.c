@@ -123,9 +123,12 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 	NativePgxp_SetWorldPhase(0);
 
 	MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_HUD);
-	RenderAllHUD(gGT);
-	// HUD layout reserves Final Lap's row before drawing decrements its timer.
-	DrawFinalLap(gGT);
+	if ((gGT->gameMode1 & PAUSE_ALL) == 0 || !g_config.livePauseBackground)
+	{
+		RenderAllHUD(gGT);
+		// HUD layout reserves Final Lap's row before drawing decrements its timer.
+		DrawFinalLap(gGT);
+	}
 	MAINFRAME_PERF_END(NATIVE_PERF_BUCKET_MAINFRAME_HUD);
 
 	NativePgxp_SetWorldPhase(1);
@@ -182,7 +185,8 @@ void MainFrame_RenderFrame(struct GameTracker *gGT, struct GamepadSystem *gGamep
 		MAINFRAME_PERF_BEGIN(NATIVE_PERF_BUCKET_MAINFRAME_POST_LEVEL);
 		RenderDispEnv_World(gGT); // == RenderDispEnv_World ==
 
-		if (((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && (gGT->numPlyrCurrGame > 1))
+		if (((gGT->hudFlags & HUD_FLAG_RACE_HUD) != 0) && (gGT->numPlyrCurrGame > 1) &&
+		    ((gGT->gameMode1 & PAUSE_ALL) == 0 || !g_config.livePauseBackground))
 		{
 			// A HUD element, despite sitting between two world passes.
 			NativePgxp_SetWorldPhase(0);
