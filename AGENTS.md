@@ -8,11 +8,18 @@ quality-of-life options.
 
 ## Architecture and skills
 
-`main.c` includes `game/game_unity.h` and the platform implementation in a
-unity build. Game code lives in `game/`, shared declarations and layouts in
+`main.c` includes the resident core/rendering chain in `game/game_unity.h` and
+most platform implementations. Audio, HUD, vehicles and overlays use separate
+subsystem unity sources listed in `CMakeLists.txt`; configuration and the OpenGL
+loader also compile separately. Game code lives in `game/`, shared declarations
+and layouts in
 `include/`, and SDL3/OpenGL and host integrations in `platform/`.
 `externals/SDL/` is vendored; do not edit it for application changes. This is a
 32-bit C17 native target. CMake defines `CTR_INTERNAL`.
+
+Module-owned shared constant groups live in small headers beside their game
+implementations, with explicit consumer includes rather than global layout
+namespace exposure. Keep private policy behind owner operations where useful.
 
 Keep directories navigable as the project grows: reuse existing thematic
 subdirectories and create new ones when a coherent set of related files would

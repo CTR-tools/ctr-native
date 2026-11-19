@@ -1,0 +1,12 @@
+#ifndef BOTS_H
+#define BOTS_H
+
+enum BotsDamageState
+{
+	BOTS_DAMAGE_STATE_SPIN = 1,
+	BOTS_DAMAGE_STATE_BLAST = 2,
+	BOTS_DAMAGE_STATE_SQUISH = 3,
+	BOTS_DAMAGE_STATE_MASK_GRAB = 5,
+};
+
+#endif

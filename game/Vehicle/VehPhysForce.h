@@ -1,0 +1,10 @@
+#ifndef VEH_PHYS_FORCE_H
+#define VEH_PHYS_FORCE_H
+
+enum VehPhysForcePadFireLevel
+{
+	VEH_PHYS_FORCE_TURBO_PAD_FIRE_LEVEL = 0x100,
+	VEH_PHYS_FORCE_SUPER_TURBO_PAD_FIRE_LEVEL = 0x800,
+};
+
+#endif

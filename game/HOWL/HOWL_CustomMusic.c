@@ -196,7 +196,7 @@ static int CustomSca_LoadBankFrom(struct Bank *bank, const struct NativeTrackReg
 	return 1;
 }
 
-static int CustomSca_Serve(void *destination, int sector, int count)
+int CustomSca_Serve(void *destination, int sector, int count)
 {
 	if (!s_scaServing || sector < CUSTOM_SCA_SECTOR_BASE || count <= 0) { return 0; }
 	size_t start = (size_t)(sector - CUSTOM_SCA_SECTOR_BASE) * CUSTOM_SCA_SECTOR;

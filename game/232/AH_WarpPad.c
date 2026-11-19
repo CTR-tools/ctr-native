@@ -1389,7 +1389,7 @@ void AH_WarpPad_LInB(struct Instance *inst)
 				{
 					{
 						const struct MetaDataLEV *level = AH_LEVEL_METADATA;
-						__typeof__(&AH_WARP_CUPS[0]) cups = AH_WARP_CUPS;
+						const struct AdventureCup *cups = AH_WARP_CUPS;
 						tokenIndex = level[warppadObj->levelID].ctrTokenGroupID;
 
 						// token color

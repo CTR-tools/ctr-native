@@ -4150,7 +4150,7 @@ extern struct sData sdata_static;
 // 0x8008d668 - 0x8009f6fc
 extern struct BSS bss;
 
-struct sData *sdata = &sdata_static;
+extern struct sData *sdata;
 
 CTR_STATIC_ASSERT(sizeof(struct MetaDataCHAR) == 0x10);
 CTR_STATIC_ASSERT(offsetof(struct MetaDataCHAR, iconID) == 0x8);

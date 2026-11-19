@@ -5,8 +5,7 @@
 #include <common.h>
 #include <chaos/chaos_gate.h>
 
-// regionsEXE.h defines sdata as a pointer into this, so the linker wants the
-// storage even though nothing here reads it.
+// Resident storage for the suite's game-facing helpers.
 struct sData sdata_static;
 
 // An Adventure race, and the shape every accepted case starts from.

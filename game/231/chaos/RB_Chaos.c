@@ -1,4 +1,6 @@
 #include <common.h>
+#include <game/Vehicle/VehPhysForce.h>
+#include <game/Vehicle/VehPickupItem.h>
 #include <chaos/chaos_gate.h>
 #include <race_field.h>
 #include <platform/chaos/native_chaos_ipc.h>
@@ -683,7 +685,7 @@ void Chaos_ApplyRescueRules(struct Driver *driver)
 {
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_ANXIOUS_MASK, driver))
 	{
-		Chaos_RequestOffroadRescue(driver);
+		VehPhysForce_RequestOffroadRescue(driver);
 	}
 }
 

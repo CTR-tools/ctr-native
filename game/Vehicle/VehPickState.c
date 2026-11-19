@@ -1,14 +1,8 @@
 #include "VehCommon.h"
+#include "VehPickState.h"
 
 enum
 {
-	VEH_PICK_DAMAGE_NONE = 0,
-	VEH_PICK_DAMAGE_SPIN = 1,
-	VEH_PICK_DAMAGE_BLAST = 2,
-	VEH_PICK_DAMAGE_SQUISH = 3,
-	VEH_PICK_DAMAGE_BURN = 4,
-	VEH_PICK_DAMAGE_MASK_GRAB = 5,
-
 	VEH_PICK_REASON_BOMB = 1,
 	VEH_PICK_REASON_MOTIONLESS_POTION = 2,
 	VEH_PICK_REASON_MISSILE = 3,
@@ -388,4 +382,9 @@ int VehPickState_TrySquish(struct Driver *driver)
 int VehPickState_NewState(struct Driver *victimDriver, int damageType, struct Driver *attackDriver, int reason)
 {
 	return VehPickState_ApplyDamage(victimDriver, damageType, attackDriver, reason, false);
+}
+
+int VehPickState_ForceDamage(struct Driver *driver, int damageType)
+{
+	return VehPickState_ApplyDamage(driver, damageType, NULL, 0, true);
 }

@@ -5,6 +5,10 @@
 // Include the real modules in unity order so both suites exercise the same paths.
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <game/DotLights.h>
+#include <game/Vehicle/VehPickState.h>
+#include <game/Vehicle/VehPhysForce.h>
+#include <game/Vehicle/VehPickupItem.h>
 
 struct sData sdata_static;
 struct Data data;
@@ -21,8 +25,6 @@ const char *LANG_GetString(s32 index)
 	snprintf(value, sizeof(values[0]), "TEXT ID %d", (int)index);
 	return value;
 }
-// VehBirth.c precedes Chaos in the game unity build; this fixture doubles birth.
-enum { VEH_BIRTH_WHEEL_SIZE = 0xccc };
 static struct GameTracker s_tracker;
 static struct GamepadSystem s_gamepads;
 static struct Driver s_defaultDrivers[2];
@@ -446,19 +448,17 @@ void VehPickupItem_ShootWarpball(struct Driver *driver, struct Driver *target)
 	s_mailLaunches++;
 }
 
-// VehPickupItem.c precedes Chaos in the game unity build.
-enum { SOUND_CLOCK = 0x44, SOUND_INVISIBILITY = 0x61 };
-
 #include <game/LIST.c>
 #include <game/HOWL/HOWL_Voiceline.c>
 #include <game/widescreen.c>
 #include <game/DotLights.c>
 #include <game/Vehicle/VehPhysCrash.c>
 #include <game/Vehicle/VehBirth_Consts.c>
+#include <game/Vehicle/VehBirth_Appearance.c>
 #include <game/Vehicle/VehCalc.c>
 #include <game/Vehicle/VehPhysForce.c>
 // Exercise the real bot-to-human handover; only driving callbacks are doubled.
-enum { BOTS_DAMAGE_STATE_SPIN = 1, BOTS_DAMAGE_STATE_BLAST = 2, VEH_PHYS_PROC_SPIN_INITIAL_RATE = 300 };
+enum { VEH_PHYS_PROC_SPIN_INITIAL_RATE = 300 };
 #include <game/Vehicle/VehPhysProc_TakeControl.c>
 #include <game/Vehicle/VehPickState.c>
 #include <game/Vehicle/VehPhysGeneral.c>

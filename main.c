@@ -1,9 +1,6 @@
-#define _CRT_SECURE_NO_WARNINGS
 #define SDL_MAIN_HANDLED
 
-#ifndef CRASH_TEAM_RACING_EXPANDED_VERSION
-#define CRASH_TEAM_RACING_EXPANDED_VERSION "0.0.0-dev"
-#endif
+#include "platform/native_build_info.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +22,7 @@
 #include "platform/native_assets.h"
 #include "platform/graphics/native_antialiasing.h"
 #include "platform/config/native_controls.h"
+#include "platform/config/native_profile.h"
 #include "platform/native_log.h"
 #include "platform/native_memory.h"
 #include "platform/native_memtrack.h"
@@ -72,7 +70,6 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_gpu.c"
 #include "platform/native_gte_core.c"
 #include "platform/native_pgxp.c"
-#include "platform/native_glad.c"
 #include "platform/native_input.c"
 #include "platform/text/native_text_edit.c"
 #include "platform/native_inline_c.c"
@@ -94,10 +91,6 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #include "platform/native_savestate.c"
 #include "platform/native_state.c"
 #include "platform/native_str.c"
-#include "platform/config/native_config_ini.c"
-#include "platform/config/native_config.c"
-#include "platform/config/native_profile.c"
-#include "platform/config/native_controls.c"
 
 #ifndef CC
 #if defined(__GNUC__)
@@ -119,10 +112,6 @@ CTR_STATIC_ASSERT((int)SCRAPBOOK < NATIVE_TRACK_CUSTOM_ID_BASE);
 #else
 #define CC "Unknown"
 #endif
-#endif
-
-#ifndef CRASH_TEAM_RACING_EXPANDED_BUILD_ID
-#define CRASH_TEAM_RACING_EXPANDED_BUILD_ID "unknown"
 #endif
 
 static int NativeConsole_ShouldPauseOnError(void)
@@ -171,7 +160,7 @@ int main(int argc, char *argv[])
 	{
 		if (NativeArg_IsVersion(argv[argIndex]))
 		{
-			printf("Crash Team Racing Expanded %s (%s)\n", CRASH_TEAM_RACING_EXPANDED_VERSION, CRASH_TEAM_RACING_EXPANDED_BUILD_ID);
+			printf("Crash Team Racing Expanded %s (%s)\n", NativeBuildInfo_GetVersion(), NativeBuildInfo_GetBuildId());
 			return 0;
 		}
 	}
@@ -189,7 +178,7 @@ int main(int argc, char *argv[])
 		return NativeConsole_Return(1);
 	}
 
-	printf(NATIVE_LOG_PREFIX "Version: %s (%s)\n", CRASH_TEAM_RACING_EXPANDED_VERSION, CRASH_TEAM_RACING_EXPANDED_BUILD_ID);
+	printf(NATIVE_LOG_PREFIX "Version: %s (%s)\n", NativeBuildInfo_GetVersion(), NativeBuildInfo_GetBuildId());
 	printf(NATIVE_LOG_PREFIX "Built with: " CC "\n");
 	printf(NATIVE_LOG_PREFIX "Base: %s\n", NativeAssets_GetBaseDir());
 	printf(NATIVE_LOG_PREFIX "Assets: %s\n", NativeAssets_GetAssetDir());

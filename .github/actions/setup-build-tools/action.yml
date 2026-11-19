@@ -1,0 +1,79 @@
+name: Set up cached Windows build tools
+description: Restores pinned CMake and an isolated, fully installed MSYS2 toolchain.
+
+inputs:
+  cmake-version:
+    description: Native CMake version to install and cache.
+    default: '4.4.5'
+  toolchain-revision:
+    description: Bump to refresh MSYS2 packages, even when the runner image is unchanged.
+    default: '2026-11-19-1'
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the CMake distribution
+      uses: actions/cache@v4
+      with:
+        # Include the tool-cache completion marker alongside the x64 directory.
+        path: ${{ runner.tool_cache }}/cmake/${{ inputs.cmake-version }}
+        key: cmake-dist-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cmake-version }}-v1
+
+    - name: Activate pinned native CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: ${{ inputs.cmake-version }}
+
+    - name: Identify the runner image
+      id: image
+      shell: pwsh
+      run: |
+        if ([string]::IsNullOrWhiteSpace($env:ImageVersion)) {
+          throw 'The installed MSYS2 cache requires a versioned GitHub-hosted image.'
+        }
+        "version=$env:ImageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+    - name: Restore the installed MSYS2 toolchain
+      id: msys2-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.tool_cache }}/ctr-msys2/msys64
+        key: msys2-installed-${{ runner.os }}-${{ runner.arch }}-${{ steps.image.outputs.version }}-${{ inputs.toolchain-revision }}-${{ hashFiles('.github/actions/setup-build-tools/action.yml') }}
+        # No partial-key fallback: restore only this exact toolchain generation.
+
+    - name: Install MSYS2 on a cache miss
+      if: steps.msys2-cache.outputs.cache-hit != 'true'
+      uses: msys2/setup-msys2@v2
+      with:
+        # Never overlay the runner's preinstalled C:/msys64.
+        location: ${{ runner.tool_cache }}/ctr-msys2
+        release: true
+        msystem: MINGW32
+        suppress-deprecation-warnings: msystem-mingw32
+        update: true
+        cache: false
+        install: >-
+          mingw-w64-i686-gcc
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-ccache
+
+    - name: Discard downloaded package archives before caching
+      if: steps.msys2-cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        & '${{ runner.tool_cache }}/ctr-msys2/msys64/usr/bin/pacman.exe' --noconfirm -Scc
+        if ($LASTEXITCODE -ne 0) { throw 'MSYS2 package archive cleanup failed.' }
+
+    - name: Activate the installed toolchain
+      shell: pwsh
+      run: |
+        $root = '${{ runner.tool_cache }}/ctr-msys2/msys64'
+        foreach ($tool in @('mingw32/bin/i686-w64-mingw32-gcc.exe', 'ucrt64/bin/ninja.exe', 'ucrt64/bin/ccache.exe', 'usr/bin/pacman.exe')) {
+          if (-not (Test-Path -LiteralPath "$root/$tool")) {
+            throw "Incomplete MSYS2 toolchain cache: $tool. Bump toolchain-revision to rebuild it."
+          }
+        }
+        "$root/ucrt64/bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        "$root/mingw32/bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        'MSYSTEM=MINGW32' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host 'Toolchain ready. MSYS2 updates run only on cache misses; bump toolchain-revision to refresh.'

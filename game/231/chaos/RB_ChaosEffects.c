@@ -1,4 +1,8 @@
 #include <common.h>
+#include <game/DotLights.h>
+#include <game/Vehicle/VehPickState.h>
+#include <game/Vehicle/VehPhysForce.h>
+#include <game/Vehicle/VehPickupItem.h>
 #include "../RB_Collision.h"
 #include <platform/native_audio.h>
 
@@ -1100,7 +1104,7 @@ static void Chaos_UpgradeTurbo(struct Driver *driver)
 
 static void Chaos_ApplyClockCurse(struct Driver *driver, s32 durationMS)
 {
-	VehPickState_ApplyDamage(driver, VEH_PICK_DAMAGE_SPIN, NULL, 0, true);
+	VehPickState_ForceDamage(driver, VEH_PICK_DAMAGE_SPIN);
 	driver->clockReceive = durationMS;
 }
 
@@ -1188,7 +1192,7 @@ static void Chaos_SetCharacterModel(struct Driver *driver, int character, struct
 	}
 	driver->matrixArray = BAKED_GTE_MATRIX_NONE;
 	driver->matrixIndex = 0;
-	driver->wheelSize = character == NITROS_OXIDE ? 0 : VEH_BIRTH_WHEEL_SIZE;
+	VehBirth_SetWheelSizeForCharacter(driver, character);
 }
 
 static void Chaos_SpawnTransformationSmoke(struct Driver *driver)
@@ -1916,20 +1920,11 @@ static int Chaos_KeepReserves(const struct Driver *driver, int reserves)
 	return reserves < driver->reserves ? driver->reserves : reserves;
 }
 
-static void Chaos_RequestOffroadRescue(struct Driver *driver)
-{
-	const struct Terrain *terrain = VehAfterColl_GetTerrain(driver->currBlockTouching->terrain_type);
-	if (terrain->speedMultiplier < VEH_PHYS_FORCE_TERRAIN_SCALE_NEUTRAL)
-	{
-		driver->collisionFlags |= DRIVER_COLL_FLAG_MASK_GRAB_REQUEST;
-	}
-}
-
 static void Chaos_ExplodeCrate(struct Driver *driver, struct Instance *crateInst)
 {
 	RB_Burst_InitVisual(crateInst);
 	PlaySound3D(HOWL_SFX_TNT_EXPLOSION, crateInst);
-	VehPickState_ApplyDamage(driver, VEH_PICK_DAMAGE_BLAST, NULL, 0, true);
+	VehPickState_ForceDamage(driver, VEH_PICK_DAMAGE_BLAST);
 }
 
 static int Chaos_InvertSteering(const struct GamepadBuffer *pad)

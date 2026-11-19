@@ -102,7 +102,22 @@ set_target_properties(tomlc17 PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON C_
 target_include_directories(tomlc17 PUBLIC "${CMAKE_SOURCE_DIR}/externals/tomlc17")
 
 # Crash Team Racing Expanded
-add_executable(crash_team_racing_expanded main.c)
+add_executable(crash_team_racing_expanded
+    main.c
+    game/HOWL/howl_unity.c
+    game/UI/ui_unity.c
+    game/Vehicle/vehicle_unity.c
+    game/230.c
+    game/231/race_unity.c
+    game/232/hub_unity.c
+    game/233/cutscene_unity.c
+    platform/config/native_config_ini.c
+    platform/config/native_config.c
+    platform/config/native_profile.c
+    platform/config/native_controls.c
+    platform/native_glad.c
+    platform/native_build_info.c
+)
 file(GLOB_RECURSE CTR_SHIPPED_TEXT_CATALOGS CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/resources/text/*/expanded.toml"
     "${CMAKE_SOURCE_DIR}/resources/text/*/retail.toml"
@@ -135,12 +150,18 @@ set_target_properties(crash_team_racing_expanded PROPERTIES
     C_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
-target_include_directories(crash_team_racing_expanded PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(crash_team_racing_expanded PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
+)
 target_compile_definitions(crash_team_racing_expanded PRIVATE
     CTR_INTERNAL
-    CRASH_TEAM_RACING_EXPANDED_VERSION=\"${CRASH_TEAM_RACING_EXPANDED_VERSION}\"
-    CRASH_TEAM_RACING_EXPANDED_BUILD_ID=\"${CRASH_TEAM_RACING_EXPANDED_BUILD_ID}\"
+    _CRT_SECURE_NO_WARNINGS
 )
+# Only native_build_info.c includes this generated header, so version changes
+# do not recompile the resident core or menu unity groups.
+configure_file(cmake/ctr_build_info.h.in generated/ctr_build_info.h @ONLY)
 
 # Memory and BSP-leaf telemetry. Off unless asked for: it samples per frame and
 # writes to the log, which is wanted while measuring a configuration and not

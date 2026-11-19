@@ -129,8 +129,48 @@ static void TestSpawnScale(void)
 	sdata->gGT = NULL;
 }
 
+static void TestCharacterWheels(void)
+{
+	CTR_TEST_SECTION("Character changes restore normal wheels or hide Oxide's wheels");
+	struct Driver driver = {.kartScale = 2};
+	const int characters[] = {CRASH_BANDICOOT, NITROS_OXIDE, NEO_CORTEX};
+	const int sizes[] = {0xccc, 0, 0xccc};
+	for (unsigned int i = 0; i < len(characters); i++)
+	{
+		VehBirth_SetWheelSizeForCharacter(&driver, characters[i]);
+		CTR_TEST_CHECK_EQ(driver.wheelSize, sizes[i], "each character change replaces the previous wheel size");
+		CTR_TEST_CHECK_EQ(driver.kartScale, 2, "character wheel selection preserves Chaos body scaling");
+	}
+}
+
+static void TestOxideBirthWheels(void)
+{
+	CTR_TEST_SECTION("Oxide birth retains the menu exception until character selection");
+	struct GameTracker tracker = {0};
+	struct IconGroup tires = {0};
+	struct Driver driver = {0};
+	struct Thread thread = {.object = &driver};
+	const int levels[] = {MAIN_MENU_LEVEL, CRASH_COVE};
+	const int sizes[] = {0xccc, 0};
+	sdata->gGT = &tracker;
+	tracker.iconGroup[0] = &tires;
+	GAME_CHARACTER_IDS[0] = NITROS_OXIDE;
+	for (unsigned int i = 0; i < len(levels); i++)
+	{
+		tracker.levelID = levels[i];
+		VehBirth_TireSprites(&thread);
+		CTR_TEST_CHECK_EQ(driver.wheelSize, sizes[i], "only race birth hides Oxide's wheels immediately");
+		VehBirth_SetWheelSizeForCharacter(&driver, NITROS_OXIDE);
+		CTR_TEST_CHECK_EQ(driver.wheelSize, 0, "explicit character selection hides Oxide's wheels in either scene");
+	}
+	GAME_CHARACTER_IDS[0] = CRASH_BANDICOOT;
+	sdata->gGT = NULL;
+}
+
 int main(void)
 {
 	TestSpawnScale();
+	TestCharacterWheels();
+	TestOxideBirthWheels();
 	return CtrTest_Summary();
 }

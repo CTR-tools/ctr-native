@@ -30,11 +30,14 @@ is skipped by `-R "test_"`.
 ## The unity constraint
 
 `global_variable` is `static` (`include/macros.h`), so a platform module's state
-is file-static and no other translation unit can name it. `main.c` gets all the
-sources into one unit; a suite cannot link against `crash_team_racing_expanded.exe` at all.
+is file-static and no other translation unit can name it. The game compiles
+subsystem unity groups plus independent platform modules; a suite cannot link
+against `crash_team_racing_expanded.exe` at all. Game-facing suites define their
+own `sdata_static`; the `ctr_test_game_globals` archive supplies `sdata` only to
+suites that reference it.
 
 A suite that needs that state includes the module's own sources into its own
-translation unit, in the same order `main.c` uses:
+translation unit, in the same order as the owning game unity group:
 
 ```c
 #include <platform/config/native_config.c>

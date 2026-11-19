@@ -1,3 +1,4 @@
+#include <SDL3/SDL.h>
 #include <platform/config/native_controls.h>
 
 #include <macros.h>
@@ -6,7 +7,6 @@
 #include "platform/native_log.h"
 #include "platform/native_path.h"
 
-#include <SDL3/SDL.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
