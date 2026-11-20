@@ -27,6 +27,25 @@ enum
 	UI_LIMIT_CLOCK_FLASH_THRESHOLD = 0x3840,
 };
 
+int UI_GetRaceClockResultsWidth(b32 compactResults)
+{
+	const int numLaps = sdata->gGT->numLaps;
+	const int font = compactResults ? FONT_SMALL : FONT_BIG;
+	const int offset = compactResults ? 0 : Widescreen_ScaleWidth(UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET);
+	char *timeField = compactResults || numLaps >= UI_RACE_CLOCK_EXTENDED_MINUTE_LAP_COUNT ? "00:00:00" : "0:00:00";
+	int width = offset + DecalFont_GetLineWidth(timeField, font);
+	if (numLaps <= EXTENDED_LAP_HISTORY_CAPACITY)
+	{
+		const int lapFont = compactResults || numLaps > 3 ? FONT_SMALL : FONT_BIG;
+		const int lapWidth = DecalFont_GetLineWidth("00:00:00", lapFont);
+		if (lapWidth > width)
+		{
+			width = lapWidth;
+		}
+	}
+	return width;
+}
+
 // used for both finished lap time and current race time
 void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *driver)
 {
@@ -401,7 +420,7 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 		if (tier >= 0)
 		{
 			DecalFont_DrawLine(RECTMENU_DrawTime(GAMEPROG_RelicTargetTime(gGT->levelID, tier)),
-			                   textPosX + UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET,
+			                   textPosX + Widescreen_ScaleWidth(UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET),
 			                   textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET, FONT_BIG, colors[tier]);
 		}
 		return;
@@ -465,7 +484,7 @@ LAB_8004f378:
 	lapOrRelicColor = lapOrRelicColor | JUSTIFY_RIGHT;
 	relicLabelY = textPosY - UI_RACE_CLOCK_RELIC_RESULTS_Y_OFFSET;
 	relicTimeY = relicLabelY;
-	relicTimeX = textPosX + UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET;
+	relicTimeX = textPosX + Widescreen_ScaleWidth(UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET);
 
 	DecalFont_DrawLine(sdata->lngStrings[lngIndex], (int)(s16)textPosX, (int)relicLabelY, fontType, (int)(s16)lapOrRelicColor);
 

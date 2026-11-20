@@ -1,6 +1,5 @@
 #include <common.h>
 #include <extended_lap_times.h>
-#include <widescreen.h>
 
 enum ArcadeAdventureEndMenuConstants
 {
@@ -894,9 +893,7 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 	timeBoxRect.x = pos.x - DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_TOTAL], compactResults ? FONT_SMALL : FONT_BIG) - AA_TIME_BOX_HORIZONTAL_PADDING;
 	timeBoxRect.y = (pos.y - timeBoxHeight) + 0xd;
 	timeBoxRect.w = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_TOTAL], compactResults ? FONT_SMALL : FONT_BIG) +
-	                (compactResults
-	                     ? DecalFont_GetLineWidth("00:00:00", FONT_SMALL) + 2 * AA_TIME_BOX_HORIZONTAL_PADDING
-	                     : Widescreen_ScaleWidth(0x94));
+	                UI_GetRaceClockResultsWidth(compactResults) + 2 * AA_TIME_BOX_HORIZONTAL_PADDING;
 	timeBoxRect.h = timeBoxHeight + 6;
 
 	// Draw 2D Menu rectangle background
