@@ -11,6 +11,8 @@ enum
 {
 	CHAOS_RANDOM_GAP_MIN_PERCENT = 30,
 	CHAOS_TIME_STOP_MAX_MS = 10000,
+	CHAOS_BOT_COOLDOWN_MS = 30000,
+	CHAOS_BOT_EFFECT_COOLDOWN_MS = 60000,
 };
 
 static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *driver)
@@ -35,6 +37,57 @@ static int Chaos_PlayerPoolCount(void)
 	}
 	const int players = sdata->gGT->numPlyrCurrGame;
 	return players < CHAOS_MAX_HUMAN_PLAYERS ? players : CHAOS_MAX_HUMAN_PLAYERS;
+}
+
+static bool Chaos_PlayerCanReceive(int player)
+{
+	if (player < 0 || player >= Chaos_PlayerPoolCount())
+	{
+		return false;
+	}
+	const struct Driver *driver = sdata->gGT->drivers[player];
+	return driver != NULL && (driver->actionsFlagSet & (ACTION_RACE_FINISHED | ACTION_BOT)) == 0;
+}
+
+static bool Chaos_BotEffectBlocked(ChaosEffectId effect)
+{
+	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	if (runtime->botCooldownMS > 0 || runtime->botEffectCooldownMS[effect] > 0)
+	{
+		return true;
+	}
+	// The global cooldown starts on completion, so no other bot effect may
+	// start while a timed one is still running in any player's pool.
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		const struct ChaosPlayerRuntime *pool = &runtime->players[player];
+		for (int i = 0; i < pool->numActive; i++)
+		{
+			if (ChaosEffect_Def(pool->active[i].effect)->scope == CHAOS_SCOPE_BOTS)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static s32 Chaos_TickCooldown(s32 remainingMS, s32 elapsedMS)
+{
+	return remainingMS > elapsedMS ? remainingMS - elapsedMS : 0;
+}
+
+static void Chaos_StartBotCooldown(ChaosEffectId effect, s32 elapsedSinceEndMS)
+{
+	if (effect < 0 || effect >= CHAOS_EFFECT_COUNT)
+	{
+		return;
+	}
+	if (Chaos_UsesPersonalPools() && ChaosEffect_Def(effect)->scope == CHAOS_SCOPE_BOTS)
+	{
+		sdata->chaosRuntime.botCooldownMS = Chaos_TickCooldown(CHAOS_BOT_COOLDOWN_MS, elapsedSinceEndMS);
+		sdata->chaosRuntime.botEffectCooldownMS[effect] = Chaos_TickCooldown(CHAOS_BOT_EFFECT_COOLDOWN_MS, elapsedSinceEndMS);
+	}
 }
 
 static bool Chaos_ActivationTargetsDriver(ChaosEffectId effect, int player, const struct Driver *driver)
@@ -262,6 +315,7 @@ void Chaos_BeginRace(struct GameTracker *gGT)
 static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, int player)
 {
 	const ChaosEffectId effect = activation->effect;
+	Chaos_StartBotCooldown(effect, 0);
 	if (effect == CHAOS_EFFECT_BODY_SWAP)
 	{
 		Chaos_ReturnBodySwaps();
@@ -495,8 +549,6 @@ static void Chaos_EnqueueInstantNotice(const struct ChaosActivation *activation,
 	pool->instantNotices[pool->numInstantNotices++] = *activation;
 }
 
-// The shared entry point uses pool zero. Personal trigger wiring is added
-// after the multi-driver effects have their own ownership-aware lifecycle.
 static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int player)
 {
 	const struct GameTracker *gGT = sdata->gGT;
@@ -511,9 +563,8 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 		.effect = effect,
 	};
 	const bool personal = Chaos_UsesPersonalPools();
-	const struct Driver *recipient = personal ? gGT->drivers[player] : NULL;
-	if (personal && (recipient == NULL ||
-	    (recipient->actionsFlagSet & (ACTION_RACE_FINISHED | ACTION_BOT)) != 0))
+	if (personal && (!Chaos_PlayerCanReceive(player) || Chaos_IsTimeStopped() ||
+	    (ChaosEffect_Def(effect)->scope == CHAOS_SCOPE_BOTS && Chaos_BotEffectBlocked(effect))))
 	{
 		return false;
 	}
@@ -544,6 +595,10 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 		pool->active[pool->numActive++] = activation;
 	}
 	Chaos_ApplyOneOff(&activation, player);
+	if (instant)
+	{
+		Chaos_StartBotCooldown(effect, 0);
+	}
 	if (effect == CHAOS_EFFECT_ZA_WARUDO)
 	{
 		Chaos_PlayTimeEffectSound(SOUND_CLOCK);
@@ -556,6 +611,40 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 bool Chaos_Activate(ChaosEffectId effect, s32 durationMS)
 {
 	return Chaos_ActivateForPlayer(effect, durationMS, 0);
+}
+
+static bool Chaos_TriggerForPlayer(int player)
+{
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
+	const s32 durationMS = settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND;
+	if (durationMS <= 0)
+	{
+		return false;
+	}
+	if (!Chaos_UsesPersonalPools())
+	{
+		return Chaos_Activate(Chaos_PickEventEffect(), durationMS);
+	}
+	if (!Chaos_PlayerCanReceive(player) || Chaos_IsTimeStopped())
+	{
+		return false;
+	}
+	// Remove rejected candidates rather than retrying the same unavailable
+	// effect indefinitely. Each remaining candidate keeps equal probability.
+	bool candidates[CHAOS_EFFECT_COUNT];
+	memcpy(candidates, settings->effects, sizeof(candidates));
+	int count = ChaosEffect_CountEnabled(candidates);
+	while (count > 0)
+	{
+		const ChaosEffectId effect = ChaosEffect_Pick(candidates, count, &sdata->chaosRng);
+		if (Chaos_ActivateForPlayer(effect, durationMS, player))
+		{
+			return true;
+		}
+		candidates[effect] = false;
+		count--;
+	}
+	return false;
 }
 
 bool Chaos_IsActive(ChaosEffectId effect)
@@ -610,7 +699,7 @@ void Chaos_PublishEffects(void)
 	char catalogue[NATIVE_CHAOS_CATALOGUE_SIZE] = {0};
 	size_t used = 0;
 	const struct GameTracker *gGT = sdata->gGT;
-	const bool eligibleRace = gGT != NULL && !gGT->boolDemoMode &&
+	const bool eligibleRace = gGT != NULL && !gGT->boolDemoMode && !Chaos_UsesPersonalPools() &&
 	    ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
 	                             gGT->overlayIndex_Threads, true);
 	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
@@ -816,8 +905,7 @@ bool Chaos_OnPickup(struct Driver *driver)
 	{
 		return false;
 	}
-	const ChaosEffectId effect = Chaos_PickEventEffect();
-	return Chaos_Activate(effect, settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND);
+	return Chaos_TriggerForPlayer(Chaos_UsesPersonalPools() ? driver->driverID : 0);
 }
 
 void Chaos_OnTurboPadContact(struct Driver *driver, bool touching)
@@ -1023,7 +1111,10 @@ static void Chaos_TickPlayerActivations(int player, s32 elapsedMS, bool timeStop
 		Chaos_TickTimeEffectSound(entry, elapsedMS);
 		if (entry->remainingMS <= elapsedMS)
 		{
+			const ChaosEffectId effect = entry->effect;
+			const s32 overshootMS = elapsedMS - entry->remainingMS;
 			Chaos_RemoveActivation(player, i);
+			Chaos_StartBotCooldown(effect, overshootMS);
 			continue;
 		}
 		entry->remainingMS -= elapsedMS;
@@ -1046,6 +1137,35 @@ static void Chaos_TickActivations(s32 elapsedMS)
 	}
 }
 
+static void Chaos_TickBotCooldowns(s32 elapsedMS)
+{
+	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	runtime->botCooldownMS = Chaos_TickCooldown(runtime->botCooldownMS, elapsedMS);
+	for (int effect = 0; effect < CHAOS_EFFECT_COUNT; effect++)
+	{
+		runtime->botEffectCooldownMS[effect] = Chaos_TickCooldown(runtime->botEffectCooldownMS[effect], elapsedMS);
+	}
+}
+
+static void Chaos_UpdateTriggerClock(int player, s32 elapsedMS, bool commonCadence)
+{
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	pool->intervalRemainingMS -= elapsedMS;
+	while (pool->intervalRemainingMS <= 0)
+	{
+		const int count = commonCadence ? Chaos_PlayerPoolCount() : player + 1;
+		for (int recipient = player; recipient < count; recipient++)
+		{
+			Chaos_TriggerForPlayer(recipient);
+		}
+		pool->intervalRemainingMS += Chaos_NextTriggerGap();
+		if (Chaos_UsesPersonalPools() && Chaos_IsTimeStopped())
+		{
+			break;
+		}
+	}
+}
+
 void Chaos_Update(struct GameTracker *gGT)
 {
 	if (!Chaos_IsRunning(gGT) || gGT->elapsedTimeMS <= 0)
@@ -1055,6 +1175,11 @@ void Chaos_Update(struct GameTracker *gGT)
 	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	const bool wasTimeStopped = Chaos_IsTimeStopped();
+	if (!wasTimeStopped && Chaos_UsesPersonalPools())
+	{
+		// Tick existing cooldowns before expiry starts any new ones this frame.
+		Chaos_TickBotCooldowns(gGT->elapsedTimeMS);
+	}
 	Chaos_TickActivations(gGT->elapsedTimeMS);
 	if (wasTimeStopped)
 	{
@@ -1065,6 +1190,10 @@ void Chaos_Update(struct GameTracker *gGT)
 	Chaos_UpdateControlAxes();
 	if (settings->trigger == CHAOS_TRIGGER_EXTERNAL)
 	{
+		if (Chaos_UsesPersonalPools())
+		{
+			return;
+		}
 		if (pool->intervalRemainingMS > 0)
 		{
 			pool->intervalRemainingMS -= gGT->elapsedTimeMS;
@@ -1082,15 +1211,26 @@ void Chaos_Update(struct GameTracker *gGT)
 	{
 		return;
 	}
-	const s32 durationMS = settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND;
-	pool->intervalRemainingMS -= gGT->elapsedTimeMS;
-	while (pool->intervalRemainingMS <= 0)
+	if (settings->trigger == CHAOS_TRIGGER_INTERVAL)
 	{
-		if (durationMS > 0)
+		Chaos_UpdateTriggerClock(0, gGT->elapsedTimeMS, true);
+		// In Interval the first clock is authoritative, even if its player has
+		// finished. Mirror it so every pool carries the same cadence.
+		for (int player = 1; player < Chaos_PlayerPoolCount(); player++)
 		{
-			const ChaosEffectId effect = Chaos_PickEventEffect();
-			Chaos_Activate(effect, durationMS);
+			sdata->chaosRuntime.players[player].intervalRemainingMS = pool->intervalRemainingMS;
 		}
-		pool->intervalRemainingMS += Chaos_NextTriggerGap();
+		return;
+	}
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		if (!Chaos_UsesPersonalPools() || Chaos_PlayerCanReceive(player))
+		{
+			Chaos_UpdateTriggerClock(player, gGT->elapsedTimeMS, false);
+		}
+		if (Chaos_IsTimeStopped())
+		{
+			break;
+		}
 	}
 }

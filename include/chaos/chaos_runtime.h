@@ -98,6 +98,8 @@ struct ChaosPlayerRuntime
 struct ChaosRuntime
 {
 	struct ChaosPlayerRuntime players[CHAOS_MAX_HUMAN_PLAYERS];
+	s32 botCooldownMS;
+	s32 botEffectCooldownMS[CHAOS_EFFECT_COUNT];
 	bool raceInitialized;
 	bool touchingTurboPad[CHAOS_MAX_HUMAN_PLAYERS];
 	struct ChaosControlShuffle controls[CHAOS_MAX_HUMAN_PLAYERS];

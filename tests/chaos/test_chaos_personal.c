@@ -268,13 +268,12 @@ static void TestGlobalEffectsAcrossPools(void)
 	CTR_TEST_CHECK(Chaos_IsActive(CHAOS_EFFECT_ARENA_CHAMPIONS), "the global active query searches beyond the first pool");
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 100), 175, "a bot receives a global effect triggered from a later pool");
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&s_humans[2], 100), 100, "the triggering player does not inherit a bot effect");
-	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 2000, 3), "another player can refresh a global bot effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[2].numActive, 0, "global replacement removes the previous pool's copy");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[3].numActive, 1, "the replacement resides in the new triggering pool");
+	CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 2000, 3), "another player cannot refresh a running bot effect");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[2].numActive, 1, "rejection preserves the original bot activation");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[3].numActive, 0, "rejection consumes no slot in another pool");
 	Tick(1000);
-	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 100), 175, "the old pool's deadline cannot expire its global replacement");
-	Tick(1000);
-	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 100), 100, "the global replacement expires from its own pool");
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 100), 100, "the bot effect expires at its original deadline");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, CHAOS_BOT_COOLDOWN_MS, "expiry starts the shared bot cooldown");
 
 	const struct ChaosActivation notice = {.effect = CHAOS_EFFECT_KING_CRIMSON, .noticeRemainingMS = CHAOS_ACTIVATION_NOTICE_MS};
 	Chaos_EnqueueInstantNotice(&notice, 2);
@@ -298,7 +297,7 @@ static void TestPoolTimersAndRestore(void)
 	}
 	CTR_TEST_CHECK(sdata->chaosRuntime.players[0].intervalRemainingMS != sdata->chaosRuntime.players[1].intervalRemainingMS,
 	               "Random initializes separate clocks rather than copying the first pool's sample");
-	// Personal trigger scheduling remains a later implementation step.
+	// Isolate activation expiry from automatic trigger scheduling.
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 	for (int player = 0; player < 4; player++)
 	{
@@ -378,6 +377,258 @@ static void TestTimeStopAcrossPools(void)
 	}
 }
 
+static void SelectPersonalEffect(ChaosEffectId effect)
+{
+	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+	sdata->chaosSettings.effects[effect] = true;
+	sdata->chaosSettings.enabledCount = 1;
+}
+
+static void TestPersonalInterval(void)
+{
+	CTR_TEST_SECTION("Interval shares cadence but targets every eligible player's pool separately");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= 4; players++)
+		{
+			SetupPersonalWorld(modes[mode], players);
+			SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
+			Chaos_BeginRace(&s_tracker);
+			Tick(4999);
+			for (int player = 0; player < players; player++)
+			{
+				CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "every pool waits for the common first boundary");
+			}
+			Tick(33);
+			for (int player = 0; player < players; player++)
+			{
+				const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+				CTR_TEST_CHECK_EQ(pool->numActive, 1, "each human receives a coincident independent activation");
+				CTR_TEST_CHECK_EQ(pool->active[0].remainingMS, 30000, "each new activation receives its full duration");
+				CTR_TEST_CHECK_EQ(pool->intervalRemainingMS, 4968, "all pools retain the same cadence and frame overshoot");
+			}
+			// The first player's clock still drives the others after finishing.
+			s_humans[0].actionsFlagSet |= ACTION_RACE_FINISHED;
+			Tick(4968);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 25032, "a finished player is not refreshed by Interval");
+			for (int player = 1; player < players; player++)
+			{
+				CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].active[0].remainingMS, 30000, "remaining players continue after player one finishes");
+			}
+		}
+	}
+}
+
+static void TestPersonalRandom(void)
+{
+	CTR_TEST_SECTION("Random consumes independent trigger clocks and restores their RNG sequence");
+	for (int players = 1; players <= 4; players++)
+	{
+		SetupPersonalWorld(ARCADE_MODE, players);
+		SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+		sdata->chaosSettings.trigger = CHAOS_TRIGGER_RANDOM;
+		Chaos_Init(12345);
+		Chaos_BeginRace(&s_tracker);
+		for (int player = 0; player < players; player++)
+		{
+			sdata->chaosRuntime.players[player].intervalRemainingMS = 100 + player * 100;
+		}
+		Tick(100);
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the first Random clock triggers independently");
+		for (int player = 1; player < players; player++)
+		{
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "later Random deadlines do not trigger early");
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].intervalRemainingMS, player * 100, "later clocks retain their own remaining gaps");
+		}
+		const struct ChaosRuntime saved = sdata->chaosRuntime;
+		const u32 rng = sdata->chaosRng;
+		Tick(300);
+		const struct ChaosRuntime expected = sdata->chaosRuntime;
+		const u32 expectedRng = sdata->chaosRng;
+		sdata->chaosRuntime = saved;
+		sdata->chaosRng = rng;
+		Tick(300);
+		CTR_TEST_CHECK(memcmp(&expected, &sdata->chaosRuntime, sizeof(expected)) == 0, "restoring clocks reproduces every Random pool");
+		CTR_TEST_CHECK_EQ(sdata->chaosRng, expectedRng, "restoring the RNG reproduces future independent gaps");
+		for (int player = 0; player < players; player++)
+		{
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 1, "every due Random pool eventually activates");
+		}
+	}
+}
+
+static void TestPersonalPickupAndReroll(void)
+{
+	CTR_TEST_SECTION("Pickup targets its source and bounded rerolls preserve useful triggers");
+	for (int players = 1; players <= 4; players++)
+	{
+		SetupPersonalWorld(BATTLE_MODE, players);
+		SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+		for (int player = players - 1; player >= 0; player--)
+		{
+			CTR_TEST_CHECK(Chaos_OnPickup(&s_humans[player]), "every human can trigger a personal pickup");
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 1, "Pickup inserts the activation in its source's pool");
+			if (player > 0)
+			{
+				CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player - 1].numActive, 0, "Pickup leaves untriggered players untouched");
+			}
+		}
+	}
+	SetupPersonalWorld(BATTLE_MODE, 2);
+	SelectPersonalEffect(CHAOS_EFFECT_YARDRAT_TRAINING);
+	CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[1]), "a completely incompatible pool returns without looping");
+	sdata->chaosSettings.effects[CHAOS_EFFECT_BODY_SWAP] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_RESERVE_INJECTION] = true;
+	sdata->chaosSettings.enabledCount = 4;
+	CTR_TEST_CHECK(Chaos_OnPickup(&s_humans[1]), "unavailable special effects and incompatible candidates do not waste a usable pickup");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[1].numInstantNotices, 1, "the fallback gift belongs only to the source player");
+	s_humans[1].actionsFlagSet |= ACTION_RACE_FINISHED;
+	CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[1]), "finished players cannot trigger personal pickups");
+}
+
+static void TestBotCooldowns(void)
+{
+	CTR_TEST_SECTION("bot cooldowns are shared across pools and begin at effect completion");
+	SetupPersonalWorld(ARCADE_MODE, 4);
+	g_config.extendedMultiplayer = true;
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000, 2), "a later pool may start the first bot effect");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 0, "a running effect has not started its completion cooldown");
+	CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_KING_CRIMSON, 1000, 0), "another bot effect cannot overlap the running one");
+	Tick(1100);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 29900, "global cooldown starts at expiry and retains frame overshoot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS], 59900, "per-effect cooldown starts at expiry too");
+	Tick(29899);
+	CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_KING_CRIMSON, 1000, 1), "global cooldown rejects another effect until the exact boundary");
+	Tick(1);
+	CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000, 1), "the longer per-effect cooldown survives the global boundary");
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_KING_CRIMSON, 1000, 1), "a different bot effect becomes available at the global boundary");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 30000, "an instant bot effect starts cooldown at execution");
+	CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_KING_CRIMSON, 1000, 3), "same-frame triggers in another pool cannot bypass cooldowns");
+	SelectPersonalEffect(CHAOS_EFFECT_ARENA_CHAMPIONS);
+	CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[3]), "an entirely cooling pool returns without an activation");
+	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
+	sdata->chaosSettings.enabledCount = 2;
+	CTR_TEST_CHECK(Chaos_OnPickup(&s_humans[3]), "a blocked bot candidate is rerolled to a usable human effect");
+	Tick(30000);
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000, 0), "the original bot effect returns at its sixty-second boundary");
+	Chaos_BeginRace(&s_tracker);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 0, "race restart clears global cooldown");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_KING_CRIMSON], 0, "race restart clears per-effect cooldowns");
+}
+
+static void TestPersonalTimerSuspensionAndExternal(void)
+{
+	CTR_TEST_SECTION("Za Warudo suspends personal clocks and cooldowns; External remains shared-only");
+	SetupPersonalWorld(ARCADE_MODE, 4);
+	SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_RANDOM;
+	Chaos_BeginRace(&s_tracker);
+	sdata->chaosRuntime.botCooldownMS = 1000;
+	sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS] = 2000;
+	for (int player = 0; player < 4; player++)
+	{
+		sdata->chaosRuntime.players[player].intervalRemainingMS = 100 + player;
+	}
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[2];
+	pool->active[pool->numActive++] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 50};
+	Tick(50);
+	for (int player = 0; player < 4; player++)
+	{
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].intervalRemainingMS, 100 + player, "every trigger clock stays frozen through time-stop expiry");
+	}
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 1000, "global bot cooldown stays frozen");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS], 2000, "per-effect bot cooldown stays frozen");
+	Tick(10);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 990, "cooldowns resume only on the next unfrozen frame");
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+	s_externalCommand = "fly-me-to-the-moon";
+	const int reads = s_externalReads;
+	Tick(5000);
+	CTR_TEST_CHECK_EQ(s_externalReads, reads, "personal mode does not consume shared external commands");
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK_EQ(strlen(s_externalCatalogue), 0, "personal mode publishes no shared-provider catalogue");
+	s_externalCommand = NULL;
+}
+
+static void TestPersonalSelectionAndEligibility(void)
+{
+	CTR_TEST_SECTION("personal selection is independent and temporary eligibility cannot stall scheduling");
+	SetupPersonalWorld(ARCADE_MODE, 4);
+	SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+	sdata->chaosSettings.effects[CHAOS_EFFECT_GROUNDED] = true;
+	sdata->chaosSettings.enabledCount = 2;
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
+	Chaos_Init(12345);
+	Chaos_BeginRace(&s_tracker);
+	bool differentSelections = false;
+	for (int boundary = 0; boundary < 10; boundary++)
+	{
+		Tick(5000);
+		const struct ChaosPlayerRuntime *first = &sdata->chaosRuntime.players[0];
+		for (int player = 1; player < 4; player++)
+		{
+			const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+			differentSelections |= pool->active[pool->numActive - 1].effect != first->active[first->numActive - 1].effect;
+		}
+	}
+	CTR_TEST_CHECK(differentSelections, "common Interval cadence does not copy one selection into every pool");
+	SelectPersonalEffect(CHAOS_EFFECT_ZA_WARUDO);
+	Tick(100000);
+	for (int player = 0; player < 4; player++)
+	{
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "a temporarily empty pool neither loops nor creates unavailable effects");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].intervalRemainingMS, 5000, "empty pools retain common cadence through multiple missed boundaries");
+	}
+	SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+	Tick(5000);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[3].numActive, 1, "a usable pool resumes without restarting the race");
+
+	SetupPersonalWorld(ARCADE_MODE, 4);
+	SelectPersonalEffect(CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_RANDOM;
+	Chaos_BeginRace(&s_tracker);
+	s_humans[0].actionsFlagSet |= ACTION_RACE_FINISHED;
+	s_humans[1].actionsFlagSet |= ACTION_BOT;
+	s_tracker.drivers[2] = NULL;
+	for (int player = 0; player < 4; player++)
+	{
+		sdata->chaosRuntime.players[player].intervalRemainingMS = 50;
+	}
+	Tick(50);
+	for (int player = 0; player < 3; player++)
+	{
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "Random skips finished, bot and missing recipients");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].intervalRemainingMS, 50, "Random does not consume an ineligible recipient's clock");
+	}
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[3].numActive, 1, "ineligible earlier slots do not block another player's Random deadline");
+}
+
+static void TestBotTriggerContention(void)
+{
+	CTR_TEST_SECTION("automatic personal triggers cannot duplicate bot effects in the same frame");
+	SetupPersonalWorld(ARCADE_MODE, 4);
+	g_config.extendedMultiplayer = true;
+	SelectPersonalEffect(CHAOS_EFFECT_ARENA_CHAMPIONS);
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
+	Chaos_BeginRace(&s_tracker);
+	Tick(5000);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the first due recipient owns the sole bot activation");
+	for (int player = 1; player < 4; player++)
+	{
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "later same-frame draws cannot duplicate the running bot effect");
+	}
+	sdata->chaosSettings.effects[CHAOS_EFFECT_RESERVE_INJECTION] = true;
+	sdata->chaosSettings.enabledCount = 2;
+	Tick(5000);
+	for (int player = 0; player < 4; player++)
+	{
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numInstantNotices, 1, "every due recipient rerolls a blocked bot candidate to a personal gift");
+	}
+}
+
 int main(void)
 {
 	TestPersonalIsolation();
@@ -393,5 +644,12 @@ int main(void)
 	TestPoolTimersAndRestore();
 	TestSharedPoolSelection();
 	TestTimeStopAcrossPools();
+	TestPersonalInterval();
+	TestPersonalRandom();
+	TestPersonalPickupAndReroll();
+	TestBotCooldowns();
+	TestPersonalTimerSuspensionAndExternal();
+	TestPersonalSelectionAndEligibility();
+	TestBotTriggerContention();
 	return CtrTest_Summary();
 }
