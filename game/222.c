@@ -1,5 +1,6 @@
 #include <common.h>
 #include <extended_lap_times.h>
+#include <widescreen.h>
 
 enum ArcadeAdventureEndMenuConstants
 {
@@ -52,7 +53,7 @@ enum ArcadeAdventureEndMenuConstants
 	AA_COMPACT_RESULT_TIME_Y_TOP = 0x3C,
 	AA_COMPACT_RESULT_TIME_Y_BOTTOM = 0xa8,
 	AA_COMPACT_RESULT_TIME_BOX_PADDING = 0x10,
-	AA_COMPACT_RESULT_TIME_BOX_WIDTH = 0x64,
+	AA_TIME_BOX_HORIZONTAL_PADDING = 6,
 	AA_COMPACT_RESULT_BIG_NUM_X_OFFSET = 0x10,
 	AA_COMPACT_RESULT_BIG_NUM_Y_OFFSET = 4,
 	AA_BIG_NUM_Z_BASE = 0x100,
@@ -890,10 +891,12 @@ void AA_EndEvent_DisplayTime(s16 driverId, s16 timeOffsetFrames)
 
 	UI_DrawRaceClock(pos.x, pos.y, UI_RACE_CLOCK_SHOW_RESULTS | (compactResults ? UI_RACE_CLOCK_COMPACT_RESULTS : 0), driver);
 
-	timeBoxRect.x = (pos.x - DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_TOTAL], compactResults ? FONT_SMALL : FONT_BIG)) + -6;
+	timeBoxRect.x = pos.x - DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_TOTAL], compactResults ? FONT_SMALL : FONT_BIG) - AA_TIME_BOX_HORIZONTAL_PADDING;
 	timeBoxRect.y = (pos.y - timeBoxHeight) + 0xd;
 	timeBoxRect.w = DecalFont_GetLineWidth(GAME_LANGUAGE_STRINGS[LNG_TOTAL], compactResults ? FONT_SMALL : FONT_BIG) +
-	                (compactResults ? AA_COMPACT_RESULT_TIME_BOX_WIDTH : 0x94);
+	                (compactResults
+	                     ? DecalFont_GetLineWidth("00:00:00", FONT_SMALL) + 2 * AA_TIME_BOX_HORIZONTAL_PADDING
+	                     : Widescreen_ScaleWidth(0x94));
 	timeBoxRect.h = timeBoxHeight + 6;
 
 	// Draw 2D Menu rectangle background

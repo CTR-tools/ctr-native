@@ -1,5 +1,6 @@
 #include <common.h>
 #include <extended_lap_times.h>
+#include <widescreen.h>
 
 enum
 {
@@ -231,7 +232,7 @@ void UI_DrawRaceClock(s16 labelPosX, s16 labelPosY, u32 flags, struct Driver *dr
 		posX = (int)(s16)textPosX;
 		if (!compactResults)
 		{
-			posX += UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET;
+			posX += Widescreen_ScaleWidth(UI_RACE_CLOCK_RESULTS_TIME_X_OFFSET);
 		}
 		numParamY = (u32)textPosY << 0x10;
 	}

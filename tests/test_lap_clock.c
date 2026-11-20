@@ -4,11 +4,15 @@
 
 struct sData sdata_static;
 struct rData rdata;
+struct Data data;
 struct GameTracker tracker;
+NativeConfig g_config;
 static int savedCalls;
 static int savedLap;
 static int savedDriver;
 static unsigned int relicTargetsDrawn;
+static int textCalls;
+static s16 timeTextX;
 
 void UI_SaveLapTime(int lap, int time, s16 driverID)
 {
@@ -20,7 +24,11 @@ void UI_SaveLapTime(int lap, int time, s16 driverID)
 
 void DecalFont_DrawLine(char *str, s16 x, s16 y, s16 font, s16 flags)
 {
-	(void)str; (void)x; (void)y; (void)font; (void)flags;
+	(void)str; (void)y; (void)font; (void)flags;
+	if (textCalls++ == 1)
+	{
+		timeTextX = x;
+	}
 }
 
 int GAMEPROG_AdventureTimeLimit(int time) { return time; }
@@ -30,6 +38,7 @@ int MainGameEnd_RelicTier(struct GameTracker *gGT, struct Driver *driver) { (voi
 char *RECTMENU_DrawTime(int time) { (void)time; return ""; }
 void MainGameEnd_Initialize(void) {}
 
+#include <game/widescreen.c>
 #include <game/UI/UI_Clock.c>
 
 int main(void)
@@ -76,6 +85,19 @@ int main(void)
 	relicTargetsDrawn = 0;
 	UI_DrawRaceClock(0, 0, UI_RACE_CLOCK_SHOW_RESULTS, &driver);
 	CTR_TEST_CHECK_EQ(relicTargetsDrawn, 0, "Adventure results retain their existing reward display");
+
+	CTR_TEST_SECTION("Result time spacing follows the aspect ratio");
+	const int timeOffsets[] = {17, 12, 14, 9};
+	for (int aspect = 0; aspect < 4; aspect++)
+	{
+		g_config.aspectRatio = aspect;
+		textCalls = 0;
+		UI_DrawRaceClock(100, 60, UI_RACE_CLOCK_SHOW_RESULTS, &driver);
+		CTR_TEST_CHECK_EQ(timeTextX, 100 + timeOffsets[aspect], "normal results compress the label-to-time offset");
+		textCalls = 0;
+		UI_DrawRaceClock(100, 60, UI_RACE_CLOCK_SHOW_RESULTS | UI_RACE_CLOCK_COMPACT_RESULTS, &driver);
+		CTR_TEST_CHECK_EQ(timeTextX, 100, "compact results retain the shared time column");
+	}
 
 	return CtrTest_Summary();
 }
