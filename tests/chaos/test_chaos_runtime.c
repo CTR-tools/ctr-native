@@ -50,7 +50,7 @@ static void TestSessionModes(void)
 				               "the effect targets every human including players three and four");
 			}
 			CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_ARENA_CHAMPIONS, s_tracker.gameMode1,
-			                                     s_tracker.cup.cupID, players, g_config.extendedMultiplayer) ||
+			                                     s_tracker.cup.cupID, players, g_config.extendedMultiplayer, false) ||
 			               modes[mode] == ARCADE_MODE,
 			               "bot-only effects are excluded from VS, Battle, relic and crystal events");
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;

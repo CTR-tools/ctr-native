@@ -100,6 +100,11 @@ static bool Chaos_ActivationTargetsDriver(ChaosEffectId effect, int player, cons
 	{
 		return true;
 	}
+	if (effect == CHAOS_EFFECT_BODY_SWAP)
+	{
+		return driver->driverID == player ||
+		       sdata->chaosRuntime.bodySwapPartner[player] == driver->driverID + 1;
+	}
 	return driver->driverID == player;
 }
 
@@ -120,7 +125,7 @@ static ChaosEffectId Chaos_PickEventEffect(void)
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)
 	{
 		if (effects[i] && !ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
-		                                       gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
+		                                       gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
 		{
 			effects[i] = false;
 			enabledCount--;
@@ -165,6 +170,32 @@ static bool Chaos_CanSwapBody(int slot)
 	       (driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0;
 }
 
+static int Chaos_CollectBodySwapPartners(int player, int *candidates)
+{
+	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	if (!Chaos_CanSwapBody(player) || runtime->bodySwapPartner[player] != 0)
+	{
+		return 0;
+	}
+	int count = 0;
+	for (int slot = 0; slot < (int)len(GAME_TRACKER->drivers); slot++)
+	{
+		if (slot != player && runtime->bodySwapPartner[slot] == 0 && Chaos_CanSwapBody(slot))
+		{
+			candidates[count++] = slot;
+		}
+	}
+	return count;
+}
+
+static void Chaos_BeginBodySwapPair(int player, int partner)
+{
+	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	runtime->bodySwapPartner[player] = partner + 1;
+	runtime->bodySwapPartner[partner] = player + 1;
+	Chaos_SwapBodies(player, partner);
+}
+
 bool Chaos_IsTimeStopped(void)
 {
 	const struct GameTracker *tracker = GAME_TRACKER;
@@ -192,33 +223,42 @@ bool Chaos_IsTimeStopped(void)
 static void Chaos_BeginBodySwaps(void)
 {
 	struct GameTracker *tracker = GAME_TRACKER;
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
 	Chaos_ReturnBodySwaps();
 	for (int player = 0; player < tracker->numPlyrCurrGame; player++)
 	{
-		if (runtime->bodySwapPartner[player] != 0 || !Chaos_CanSwapBody(player))
-		{
-			continue;
-		}
 		int candidates[LOAD_CHARACTER_ID_COUNT];
-		int count = 0;
-		for (int slot = player + 1; slot < (int)len(tracker->drivers); slot++)
-		{
-			if (runtime->bodySwapPartner[slot] == 0 && Chaos_CanSwapBody(slot))
-			{
-				candidates[count++] = slot;
-			}
-		}
+		const int count = Chaos_CollectBodySwapPartners(player, candidates);
 		if (count == 0)
 		{
 			continue;
 		}
 		const int partner = candidates[ChaosEffect_NextRandom(&sdata->chaosRng) % count];
-		runtime->bodySwapPartner[player] = partner + 1;
-		runtime->bodySwapPartner[partner] = player + 1;
-		Chaos_SwapBodies(player, partner);
+		Chaos_BeginBodySwapPair(player, partner);
 	}
 	Chaos_RefreshBodySwapModifiers();
+}
+
+static void Chaos_RemoveActivation(int player, int index);
+
+static void Chaos_EndPersonalBodySwap(int slot)
+{
+	const int partner = sdata->chaosRuntime.bodySwapPartner[slot] - 1;
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		if (player != slot && player != partner)
+		{
+			continue;
+		}
+		const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+		for (int i = 0; i < pool->numActive; i++)
+		{
+			if (pool->active[i].effect == CHAOS_EFFECT_BODY_SWAP)
+			{
+				Chaos_RemoveActivation(player, i);
+				return;
+			}
+		}
+	}
 }
 
 void Chaos_ReturnBodySwapsNearFinish(struct GameTracker *tracker, int nearDistance)
@@ -236,7 +276,15 @@ void Chaos_ReturnBodySwapsNearFinish(struct GameTracker *tracker, int nearDistan
 		    (driver->distanceToFinish_curr < (u32)nearDistance || sdata->chaosRuntime.teleportForwardCrossings[slot] != 0) &&
 		    (driver->actionsFlagSet & ACTION_BEHIND_START_LINE) == 0)
 		{
-			Chaos_ReturnBodySwap(slot);
+			if (Chaos_UsesPersonalPools())
+			{
+				// Clear the old deadline as well, before a new pair can form.
+				Chaos_EndPersonalBodySwap(slot);
+			}
+			else
+			{
+				Chaos_ReturnBodySwap(slot);
+			}
 			returned = true;
 		}
 	}
@@ -318,7 +366,14 @@ static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, 
 	Chaos_StartBotCooldown(effect, 0);
 	if (effect == CHAOS_EFFECT_BODY_SWAP)
 	{
-		Chaos_ReturnBodySwaps();
+		if (!Chaos_UsesPersonalPools())
+		{
+			Chaos_ReturnBodySwaps();
+		}
+		else if (sdata->chaosRuntime.bodySwapPartner[player] != 0)
+		{
+			Chaos_ReturnBodySwap(player);
+		}
 		Chaos_RefreshBodySwapModifiers();
 	}
 	if (effect != CHAOS_EFFECT_BIG_KART_ENERGY && effect != CHAOS_EFFECT_SMALL_KART_ENERGY)
@@ -433,7 +488,10 @@ static void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation, int
 	}
 	if (effect == CHAOS_EFFECT_BODY_SWAP)
 	{
-		Chaos_BeginBodySwaps();
+		if (!Chaos_UsesPersonalPools())
+		{
+			Chaos_BeginBodySwaps();
+		}
 		return;
 	}
 	if (effect == CHAOS_EFFECT_YOUVE_GOT_MAIL)
@@ -555,7 +613,7 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 	if (!Chaos_IsRunning(gGT) || durationMS <= 0 || player < 0 || player >= Chaos_PlayerPoolCount() ||
 	    !ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect) ||
 	    !ChaosEvent_EffectFits(effect, gGT->gameMode1, gGT->cup.cupID,
-	                          gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
+	                          gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
 	{
 		return false;
 	}
@@ -568,10 +626,20 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 	{
 		return false;
 	}
-	// These effects still use the shared lifecycle until their dedicated step.
-	if (personal && (effect == CHAOS_EFFECT_BODY_SWAP || effect == CHAOS_EFFECT_ZA_WARUDO))
+	// Personal time-stop immunity is adapted in the next special-effect step.
+	if (personal && effect == CHAOS_EFFECT_ZA_WARUDO)
 	{
 		return false;
+	}
+	int bodySwapCandidates[LOAD_CHARACTER_ID_COUNT];
+	int bodySwapCount = 0;
+	if (personal && effect == CHAOS_EFFECT_BODY_SWAP)
+	{
+		bodySwapCount = Chaos_CollectBodySwapPartners(player, bodySwapCandidates);
+		if (bodySwapCount == 0)
+		{
+			return false;
+		}
 	}
 	Chaos_RemoveReplacedEffects(effect, player);
 	if (effect == CHAOS_EFFECT_ZA_WARUDO && durationMS > CHAOS_TIME_STOP_MAX_MS)
@@ -593,6 +661,12 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 	else
 	{
 		pool->active[pool->numActive++] = activation;
+	}
+	if (bodySwapCount > 0)
+	{
+		const int partner = bodySwapCandidates[ChaosEffect_NextRandom(&sdata->chaosRng) % bodySwapCount];
+		Chaos_BeginBodySwapPair(player, partner);
+		Chaos_RefreshBodySwapModifiers();
 	}
 	Chaos_ApplyOneOff(&activation, player);
 	if (instant)
@@ -705,7 +779,7 @@ void Chaos_PublishEffects(void)
 	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
 	{
 		if (settings->effects[i] && ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
-		                                               gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
+		                                               gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
 		{
 			const char *slug = ChaosEffect_Def((ChaosEffectId)i)->slug;
 			const size_t length = strlen(slug);
