@@ -1846,6 +1846,276 @@ static void TestTimeStopPotionContacts(void)
 	}
 }
 
+static void SeedPersonalTimeStop(struct BodySwapWorld *world, int humans, int owner)
+{
+	SetupPersonalBodySwap(world, humans, 1);
+	// Exercise immunity before enabling personal activation: audio is adapted next.
+	sdata->chaosRuntime.players[owner].active[0] = (struct ChaosActivation){
+		.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 1000,
+	};
+	sdata->chaosRuntime.players[owner].numActive = 1;
+}
+
+static void SetupParticleOwnerPool(struct Particle *particles, int count)
+{
+	s_tracker.JitPools.particle = (struct JitPool){
+		.ptrPoolData = particles, .maxItems = count,
+		.itemSize = sizeof(*particles), .poolSize = count * sizeof(*particles),
+	};
+	Chaos_InitParticleOwners();
+}
+
+static void SetupThreadOwnerPool(struct Thread *threads, int count)
+{
+	s_tracker.JitPools.thread = (struct JitPool){
+		.ptrPoolData = threads, .maxItems = count,
+		.itemSize = sizeof(*threads), .poolSize = count * sizeof(*threads),
+	};
+	Chaos_InitThreadOwners();
+}
+
+static void TestPersonalTimeStopOwnership(void)
+{
+	CTR_TEST_SECTION("personal time-stop immunity follows only the receiving controller and its effects");
+	struct BodySwapWorld world;
+	for (int humans = 1; humans <= CHAOS_MAX_HUMAN_PLAYERS; humans++)
+	{
+		for (int owner = 0; owner < humans; owner++)
+		{
+			SeedPersonalTimeStop(&world, humans, owner);
+			struct Particle debris[CHAOS_MAX_HUMAN_PLAYERS + 1] = {0};
+			SetupParticleOwnerPool(debris, len(debris));
+			struct Thread derived[2 * (CHAOS_MAX_HUMAN_PLAYERS + 1)] = {0};
+			SetupThreadOwnerPool(derived, len(derived));
+			for (int slot = 0; slot <= humans; slot++)
+			{
+				struct Thread *driverThread = &world.threads[slot];
+				const bool frozen = slot != owner;
+				CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(driverThread), slot < humans ? slot : -1, "thread attribution distinguishes controller slots from bots");
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(driverThread), frozen, "only the recipient keeps driving during a personal stop");
+				struct Thread mask = {.flags = AKUAKU, .parentThread = driverThread};
+				struct Turbo turbo = {.driver = &world.drivers[slot]};
+				struct Thread fire = {.flags = TURBO, .object = &turbo, .funcThTick = VehTurbo_ThTick};
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(&mask), frozen, "mask orbit and rescue follow their own controller's immunity");
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(&fire), frozen, "boost flames do not exempt other human controllers");
+				struct TrackerWeapon payload = {.instParent = &world.instances[slot]};
+				struct Thread weapon = {.flags = TRACKING, .object = &payload};
+				struct Instance weaponInstance = {.thread = &weapon};
+				weapon.inst = &weaponInstance;
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(&weapon), frozen, "parentless weapons retain their real controller's immunity");
+				struct Thread *explosion = &derived[2 * slot];
+				explosion->flags = BLOWUP;
+				Chaos_InheritThreadOwner(explosion, &weapon);
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(explosion), frozen, "detached explosions retain the originating controller rather than collective human immunity");
+				struct Thread *burst = &derived[2 * slot + 1];
+				burst->flags = BURST;
+				Chaos_InheritThreadOwner(burst, explosion);
+				CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(burst), slot < humans ? slot : -1, "secondary derived effects preserve attribution without a live parent");
+				struct Particle exhaust = {.owner.driverInst = &world.instances[slot], .driverID = -1};
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeParticle(&exhaust), frozen, "kart particle immunity ignores the all-camera render filter");
+				debris[slot].owner.modelID = STATIC_SHOCKWAVE_GREEN;
+				Chaos_InheritParticleOwner(&debris[slot], burst);
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeParticle(&debris[slot]), frozen, "shatter and weapon particles retain attribution independently of their owner union");
+				CTR_TEST_CHECK_EQ(debris[slot].owner.modelID, STATIC_SHOCKWAVE_GREEN, "particle attribution never overwrites shatter payload");
+				Chaos_InheritThreadOwner(burst, NULL);
+				Chaos_InheritParticleOwner(&debris[slot], NULL);
+				CTR_TEST_CHECK(Chaos_ShouldFreezeThread(burst) && Chaos_ShouldFreezeParticle(&debris[slot]), "reassigning derived effects to the world clears their former exemption");
+			}
+			struct Thread unownedHumanTag = {.flags = OTHER | THREAD_FLAG_HUMAN_EFFECT};
+			struct Particle unownedParticleTag = {.flagsAxis = PARTICLE_AXIS_FLAG_HUMAN_EFFECT};
+			CTR_TEST_CHECK(Chaos_ShouldFreezeThread(&unownedHumanTag) && Chaos_ShouldFreezeParticle(&unownedParticleTag), "an old collective-human tag cannot grant personal immunity without a controller");
+			s_tracker.gameMode1 |= PAUSE_1;
+			CTR_TEST_CHECK(Chaos_IsTimeStopImmune(&world.threads[owner]), "game pause retains the recipient's immunity for the frozen scene");
+			s_tracker.gameMode1 &= ~PAUSE_1;
+			Tick(1000);
+			for (int slot = 0; slot <= humans; slot++)
+			{
+				CTR_TEST_CHECK(!Chaos_ShouldFreezeThread(&world.threads[slot]), "all controllers and bots resume when the personal deadline expires");
+			}
+		}
+	}
+
+	CTR_TEST_SECTION("personal immunity follows the controller through Body Swap");
+	SetupPersonalBodySwap(&world, 2, 0);
+	Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 5000, 0);
+	sdata->chaosRuntime.players[1].active[0] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 1000};
+	sdata->chaosRuntime.players[1].numActive = 1;
+	CTR_TEST_CHECK(!Chaos_ShouldFreezeThread(&world.threads[0]) && Chaos_ShouldFreezeThread(&world.threads[1]), "the recipient's borrowed kart is immune, not their original physical body");
+	Chaos_Reset();
+}
+
+static void TestThreadOwnerTable(void)
+{
+	CTR_TEST_SECTION("Chaos thread attribution uses pool slots without occupying Thread padding");
+	struct BodySwapWorld world;
+	SeedPersonalTimeStop(&world, 2, 0);
+	struct Thread threads[192] = {0};
+	const int counts[] = {1, 24, 48, 96, len(threads)};
+	for (int i = 0; i < (int)len(counts); i++)
+	{
+		const int count = counts[i];
+		SetupThreadOwnerPool(threads, count);
+		for (int slot = 0; slot < count; slot++)
+		{
+			threads[slot].flags = OTHER | THREAD_FLAG_HUMAN_EFFECT;
+			CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[slot]), -1, "a new thread pool clears all attribution even when old human tags remain");
+		}
+		threads[0].padding_0x46 = 1234;
+		Chaos_InheritThreadOwner(&threads[0], &world.threads[0]);
+		CTR_TEST_CHECK_EQ(threads[0].padding_0x46, 1234, "assigning attribution never changes generic Thread padding");
+		CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[0]), 0, "the first thread slot retains its originating controller");
+		if (count > 1)
+		{
+			Chaos_InheritThreadOwner(&threads[count - 1], &world.threads[1]);
+			CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[count - 1]), 1, "the last thread slot has independent attribution");
+			CTR_TEST_CHECK(!Chaos_ShouldFreezeThread(&threads[0]) && Chaos_ShouldFreezeThread(&threads[count - 1]), "one controller's detached effects cannot exempt another controller's effects");
+		}
+	}
+
+	struct Particle particle = {0};
+	SetupParticleOwnerPool(&particle, 1);
+	Chaos_InheritParticleOwner(&particle, &threads[0]);
+	CTR_TEST_CHECK(sdata->chaosThreadOwners != sdata->chaosParticleOwners, "thread and particle attribution use separate allocations");
+	Chaos_ClearThreadOwner(&threads[0]);
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[0]), -1, "the birth reset hook clears attribution before a thread slot is recycled");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particle), 0, "derived particle attribution survives reuse of its source thread");
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[len(threads) - 1]), 1, "recycling a thread slot leaves other slots untouched");
+	struct Thread foreign = {.flags = OTHER};
+	Chaos_InheritThreadOwner(&foreign, &world.threads[0]);
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&foreign), -1, "a detached thread outside the pool cannot borrow an owner slot");
+	Chaos_ClearThreadOwner((struct Thread *)((u8 *)threads + 1));
+	Chaos_ClearThreadOwner(&threads[len(threads)]);
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[len(threads) - 1]), 1, "misaligned and out-of-range resets never overwrite valid attribution");
+
+	Chaos_InheritThreadOwner(&threads[0], &world.threads[0]);
+	Chaos_Reset();
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[0]), 0, "race activation resets preserve attribution of still-live derived threads");
+	// Exercise the relocatable table contract, not the platform checkpoint codec.
+	struct Thread relocated[len(threads)];
+	u8 relocatedOwners[len(threads)];
+	memcpy(relocated, threads, sizeof(relocated));
+	memcpy(relocatedOwners, sdata->chaosThreadOwners, sizeof(relocatedOwners));
+	s_tracker.JitPools.thread.ptrPoolData = relocated;
+	sdata->chaosThreadOwners = relocatedOwners;
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&relocated[0]), 0, "restored thread attribution uses the restored pool base");
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&relocated[len(relocated) - 1]), 1, "restoring the table preserves every controller's independent attribution");
+	CTR_TEST_CHECK_EQ(Chaos_ThreadPlayer(&threads[0]), -1, "the former pool address no longer identifies an attributed thread");
+	s_tracker.JitPools.thread = (struct JitPool){0};
+	Chaos_InitThreadOwners();
+	CTR_TEST_CHECK(sdata->chaosThreadOwners == NULL, "an empty thread pool clears the old table reference");
+}
+
+static void TestParticleOwnerTable(void)
+{
+	CTR_TEST_SECTION("Chaos particle attribution uses actual pool slots without changing particle layout");
+	struct BodySwapWorld world;
+	SeedPersonalTimeStop(&world, 2, 0);
+	struct Particle particles[192] = {0};
+	const int counts[] = {1, 32, 64, 128, len(particles)};
+	for (int i = 0; i < (int)len(counts); i++)
+	{
+		const int count = counts[i];
+		SetupParticleOwnerPool(particles, count);
+		for (int slot = 0; slot < count; slot++)
+		{
+			CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particles[slot]), -1, "a new pool clears every sidecar slot, including slots beyond the retail capacity");
+		}
+		Chaos_InheritParticleOwner(&particles[0], &world.threads[0]);
+		CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particles[0]), 0, "the first slot records the originating controller");
+		if (count > 1)
+		{
+			Chaos_InheritParticleOwner(&particles[count - 1], &world.threads[1]);
+			CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particles[count - 1]), 1, "the last slot has independent attribution");
+			CTR_TEST_CHECK(!Chaos_ShouldFreezeParticle(&particles[0]) && Chaos_ShouldFreezeParticle(&particles[count - 1]), "neighboring slot ownership never grants another controller immunity");
+		}
+	}
+
+	const u8 firstOwner = sdata->chaosParticleOwners[0];
+	const struct Particle *misaligned = (const struct Particle *)((const u8 *)particles + 1);
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(misaligned), -1, "an interior pointer cannot alias a particle's owner slot");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particles[len(particles)]), -1, "the first address beyond the pool has no owner slot");
+	struct Particle foreign = {0};
+	Chaos_InheritParticleOwner(&foreign, &world.threads[0]);
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&foreign), -1, "particles outside the active pool cannot borrow sidecar entries");
+	CTR_TEST_CHECK_EQ(sdata->chaosParticleOwners[0], firstOwner, "invalid slot queries leave real particle attribution intact");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(NULL), -1, "a missing particle has no owner");
+
+	CTR_TEST_SECTION("real particle birth clears recycled attribution before reusing a slot");
+	LIST_Clear(&s_tracker.JitPools.particle.free);
+	LIST_AddFront(&s_tracker.JitPools.particle.free, (void *)&particles[0]);
+	struct Particle *recycled = TestRealParticleInit(0, NULL, NULL);
+	CTR_TEST_CHECK(recycled == &particles[0], "birth reuses the same physical particle slot");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(recycled), -1, "birth removes its previous controller's attribution");
+	CTR_TEST_CHECK(Chaos_ShouldFreezeParticle(recycled), "a recycled world particle receives no stale personal immunity");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&particles[len(particles) - 1]), 1, "recycling one slot preserves other particles' ownership");
+
+	CTR_TEST_SECTION("pool-lifetime attribution survives activation resets and relocatable state copies");
+	Chaos_InheritParticleOwner(recycled, &world.threads[0]);
+	Chaos_Reset();
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(recycled), 0, "resetting race activations does not erase attribution of a still-live particle");
+	// Check the sidecar contract in isolation, not the platform checkpoint codec.
+	struct Particle relocated[len(particles)];
+	u8 relocatedOwners[len(particles)];
+	memcpy(relocated, particles, sizeof(relocated));
+	memcpy(relocatedOwners, sdata->chaosParticleOwners, sizeof(relocatedOwners));
+	s_tracker.JitPools.particle.ptrPoolData = relocated;
+	sdata->chaosParticleOwners = relocatedOwners;
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&relocated[0]), 0, "restored attribution uses the restored pool base instead of saved particle addresses");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(&relocated[len(relocated) - 1]), 1, "the last restored slot retains its separate controller");
+	CTR_TEST_CHECK_EQ(Chaos_ParticlePlayer(recycled), -1, "the old pool address no longer identifies a live sidecar slot");
+	s_tracker.JitPools.particle = (struct JitPool){0};
+	Chaos_InitParticleOwners();
+	CTR_TEST_CHECK(sdata->chaosParticleOwners == NULL, "an empty pool releases the resident reference to its old owner table");
+}
+
+static void TestPersonalTimeStopContacts(void)
+{
+	CTR_TEST_SECTION("frozen weapons ignore frozen humans but retain collisions with the immune recipient");
+	struct BodySwapWorld world;
+	SeedPersonalTimeStop(&world, 3, 2);
+	struct Model model = {.id = DYNAMIC_ROCKET};
+	struct TrackerWeapon payload = {.instParent = &world.instances[0]};
+	struct Thread weapon = {.flags = TRACKING, .modelIndex = DYNAMIC_ROCKET, .object = &payload};
+	struct Instance weaponInstance = {.thread = &weapon, .model = &model};
+	weapon.inst = &weaponInstance;
+	CTR_TEST_CHECK(RB_Hazard_CollideWithDrivers(&weaponInstance, 0, 0x2400, NULL) == &world.instances[2], "collision-only traversal skips earlier frozen humans and reaches the recipient");
+	CTR_TEST_CHECK(!Chaos_DeferImpact(CHAOS_IMPACT_MOVING_DRIVER, &weapon, &world.threads[1], NULL), "a frozen human's weapon cannot queue new moving impacts");
+	payload.instParent = &world.instances[2];
+	CTR_TEST_CHECK(Chaos_DeferImpact(CHAOS_IMPACT_MOVING_DRIVER, &weapon, &world.threads[1], NULL), "an immune human's projectile postpones damage to a frozen human");
+	CTR_TEST_CHECK(Chaos_ShouldFreezeThread(&weapon), "an otherwise immune projectile waits after its impact is queued");
+	CTR_TEST_CHECK(!Chaos_DeferDriverDamage(&world.drivers[1], 2, &world.drivers[0], 6), "frozen human attackers cannot queue contact damage");
+	CTR_TEST_CHECK(Chaos_DeferDriverDamage(&world.drivers[1], 2, &world.drivers[2], 6), "the recipient can queue contact damage to another human");
+	const int pending = sdata->chaosRuntime.numDeferredImpacts;
+	Chaos_ResolveDeferredImpacts();
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numDeferredImpacts, pending, "human-target impacts remain deferred for the whole stop");
+	// Damage resumes through the real human state machine, including protection
+	// acquired before resumption; this also avoids its unrelated HUD projection.
+	world.drivers[1].invincibleTimer = 1;
+	Tick(1000);
+	Chaos_ResolveDeferredImpacts();
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numDeferredImpacts, 0, "personal expiry releases the deferred contacts");
+	CTR_TEST_CHECK_EQ(world.drivers[1].kartState, KS_NORMAL, "resumed human damage still respects the victim's current protection");
+	Chaos_Reset();
+
+	CTR_TEST_SECTION("personal mask contacts include other humans exactly once without waking frozen attackers");
+	SeedPersonalTimeStop(&world, 3, 2);
+	g_config.maskDamagesOthers = true;
+	for (int slot = 0; slot <= 3; slot++)
+	{
+		world.threads[slot].driverHitRadius = THREAD_DRIVER_HIT_RADIUS;
+	}
+	world.drivers[0].actionsFlagSet |= ACTION_MASK_WEAPON;
+	Chaos_RecordFrozenMaskContacts(&world.drivers[0]);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numDeferredImpacts, 0, "a frozen human's mask cannot register new contacts");
+	world.drivers[0].actionsFlagSet &= ~ACTION_MASK_WEAPON;
+	world.drivers[2].actionsFlagSet |= ACTION_MASK_WEAPON;
+	Chaos_RecordFrozenMaskContacts(&world.drivers[2]);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numDeferredImpacts, 3, "the immune mask records both frozen humans and the bot");
+	Chaos_RecordFrozenMaskContacts(&world.drivers[2]);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numDeferredImpacts, 3, "repeated overlap never duplicates pending human or bot mask damage");
+	Chaos_Reset();
+}
+
 static void TestTimeStop(void)
 {
 	CTR_TEST_SECTION("Za Warudo caps its own clock and suspends other Chaos timers without catch-up");
@@ -4405,6 +4675,10 @@ int main(void)
 	TestTeleportProgressProjection();
 	TestDefectiveTeleport();
 	TestTimeStop();
+	TestPersonalTimeStopOwnership();
+	TestThreadOwnerTable();
+	TestParticleOwnerTable();
+	TestPersonalTimeStopContacts();
 	TestTimeStopPotionContacts();
 	TestWobbleSteering();
 	TestGravityEffects();

@@ -933,9 +933,9 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 		p = Particle_Init(0, GAME_TRACKER->iconGroup[WARPBALL_PARTICLE_ICON_GROUP], &data.emSet_Warpball[0]);
 
 		tw->ptrParticle = p;
-		if (p != NULL && Chaos_IsHumanThread(d->instSelf->thread))
+		if (p != NULL)
 		{
-			p->flagsAxis |= PARTICLE_AXIS_FLAG_HUMAN_EFFECT;
+			Chaos_InheritParticleOwner(p, d->instSelf->thread);
 		}
 
 		if (p != 0)

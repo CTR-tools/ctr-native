@@ -325,6 +325,7 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 	MEMPACK_PushState();
 
 	JitPool_Init(&gGT->JitPools.thread, (renderBucketSize * 3) >> 7, sizeof(struct Thread), rdata.s_ThreadPool);
+	Chaos_InitThreadOwners();
 	int instanceCount = renderBucketSize >> 5;
 	if (gGT->level1 != NULL && NativeTrackRegistry_Get(NativeTrackLibrary_Current(), gGT->levelID) != NULL)
 	{
@@ -347,6 +348,7 @@ void MainInit_JitPoolsNew(struct GameTracker *gGT)
 
 	int numParticle = poolScale >> 5;
 	JitPool_Init(&gGT->JitPools.particle, numParticle, sizeof(struct Particle), rdata.s_ParticlePool);
+	Chaos_InitParticleOwners();
 	JitPool_Init(&gGT->JitPools.oscillator, numParticle, 0x18, rdata.s_OscillatorPool);
 	JitPool_Init(&gGT->JitPools.rain, poolScale >> 9, sizeof(struct RainLocal), rdata.s_RainPool);
 

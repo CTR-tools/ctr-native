@@ -45,6 +45,20 @@ static int s_deferredNitroBlasts;
 static int s_deferredPotionShatters;
 static struct Thread *s_lastMineDriver;
 static int s_frozenObstacleCollisions;
+static u8 s_chaosOwnerMemory[1024];
+static s32 s_chaosOwnerMemoryUsed;
+
+void *MEMPACK_AllocMem(s32 size, const char *name)
+{
+	(void)name;
+	if (size <= 0 || size > (s32)sizeof(s_chaosOwnerMemory) - s_chaosOwnerMemoryUsed)
+	{
+		CtrTest_Bail("isolated Chaos allocation must fit the owner-table fixture");
+	}
+	void *memory = s_chaosOwnerMemory + s_chaosOwnerMemoryUsed;
+	s_chaosOwnerMemoryUsed += size;
+	return memory;
+}
 
 void RB_GenericMine_ThTick(struct Thread *thread) { (void)thread; }
 void RB_MovingExplosive_ThTick(struct Thread *thread) { (void)thread; }
@@ -821,6 +835,7 @@ struct Particle *Particle_Init(u32 flags, struct IconGroup *icons, struct Partic
 
 static void SetupRace(int trigger)
 {
+	s_chaosOwnerMemoryUsed = 0;
 	s_timeStopCrateSounds = 0;
 	s_timeStopTickSounds = 0;
 	s_timeStopTickFlags = 0;

@@ -221,6 +221,7 @@ struct Thread *PROC_BirthWithObject(ThreadFlags flags, void *funcThTick, const c
 
 	// initialize thread fields
 	th->flags = flags;
+	Chaos_ClearThreadOwner(th);
 	th->cooldownFrameCount = 0;
 	th->funcThDestroy = 0;
 	th->funcThCollide = 0;

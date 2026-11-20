@@ -4107,6 +4107,9 @@ struct sData
 	// the deadcoed pair, which the replay verifier compares every recorded frame.
 	u32 chaosRng;
 	struct ChaosRuntime chaosRuntime;
+	// Pool-lifetime attribution, independent of race activation resets.
+	u8 *chaosThreadOwners;
+	u8 *chaosParticleOwners;
 	struct Model *chaosCharacterModels[len(((struct Data *)0)->MetaDataCharacters)];
 
 	struct NewLoadState newLoad;

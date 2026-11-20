@@ -7,6 +7,8 @@
 #include <platform/native_audio.h>
 
 // Effect operations only; RB_Chaos.c checks activation and driver eligibility.
+static bool Chaos_UsesPersonalPools(void);
+static int Chaos_PlayerPoolCount(void);
 
 enum
 {
@@ -75,21 +77,80 @@ bool Chaos_IsHumanCharacter(int character)
 	return false;
 }
 
-bool Chaos_IsHumanOwnedThread(const struct Thread *thread)
+static u8 *Chaos_AllocatePoolOwners(const struct JitPool *pool)
+{
+	if (pool->maxItems <= 0)
+	{
+		return NULL;
+	}
+	u8 *owners = MEMPACK_AllocMem(pool->maxItems, NULL);
+	memset(owners, 0, pool->maxItems);
+	return owners;
+}
+
+static u8 *Chaos_PoolOwnerSlot(const struct JitPool *pool, u8 *owners, const void *item, size_t itemSize)
+{
+	if (item == NULL || pool->ptrPoolData == NULL || owners == NULL ||
+	    pool->maxItems <= 0 || pool->itemSize != itemSize)
+	{
+		return NULL;
+	}
+	const uintptr_t address = (uintptr_t)item;
+	const uintptr_t base = (uintptr_t)pool->ptrPoolData;
+	if (address < base)
+	{
+		return NULL;
+	}
+	const uintptr_t offset = address - base;
+	const uintptr_t index = offset / pool->itemSize;
+	if (offset % pool->itemSize != 0 || index >= (uintptr_t)pool->maxItems)
+	{
+		return NULL;
+	}
+	return &owners[index];
+}
+
+static u8 *Chaos_ThreadOwnerSlot(const struct Thread *thread)
+{
+	return Chaos_PoolOwnerSlot(&GAME_TRACKER->JitPools.thread, sdata->chaosThreadOwners, thread, sizeof(*thread));
+}
+
+void Chaos_InitThreadOwners(void)
+{
+	sdata->chaosThreadOwners = Chaos_AllocatePoolOwners(&GAME_TRACKER->JitPools.thread);
+}
+
+void Chaos_ClearThreadOwner(struct Thread *thread)
+{
+	u8 *owner = Chaos_ThreadOwnerSlot(thread);
+	if (owner != NULL)
+	{
+		*owner = 0;
+	}
+}
+
+int Chaos_ThreadPlayer(const struct Thread *thread)
 {
 	if (thread == NULL)
 	{
-		return false;
+		return -1;
 	}
-	if (Chaos_IsHumanThread(thread) || (thread->flags & THREAD_FLAG_HUMAN_EFFECT) != 0)
+	if (Chaos_IsHumanThread(thread))
 	{
-		return true;
+		return ((const struct Driver *)thread->object)->driverID;
+	}
+	const u8 *ownerSlot = Chaos_ThreadOwnerSlot(thread);
+	if ((thread->flags & THREAD_FLAG_HUMAN_EFFECT) != 0 && ownerSlot != NULL &&
+	    *ownerSlot > 0 && *ownerSlot <= CHAOS_MAX_HUMAN_PLAYERS)
+	{
+		return *ownerSlot - 1;
 	}
 	const int bucket = thread->flags & 0xff;
 	if (thread->object != NULL && thread->funcThTick == VehTurbo_ThTick && bucket == TURBO)
 	{
 		const struct Driver *driver = ((const struct Turbo *)thread->object)->driver;
-		return driver != NULL && driver->instSelf != NULL && Chaos_IsHumanThread(driver->instSelf->thread);
+		return driver != NULL && driver->instSelf != NULL && Chaos_IsHumanThread(driver->instSelf->thread)
+		    ? driver->driverID : -1;
 	}
 	if (thread->object != NULL && (bucket == MINE || bucket == TRACKING))
 	{
@@ -98,7 +159,7 @@ bool Chaos_IsHumanOwnedThread(const struct Thread *thread)
 		// Level mines also carry a driver pointer; they belong to the world.
 		if (thread->inst == NULL || thread->inst->instDef != NULL || owner == NULL)
 		{
-			return false;
+			return -1;
 		}
 		// Pooled weapon payloads may still contain the previous allocation's owner during birth.
 		for (int i = 0; i < GAME_TRACKER->numPlyrCurrGame; i++)
@@ -106,12 +167,96 @@ bool Chaos_IsHumanOwnedThread(const struct Thread *thread)
 			const struct Driver *driver = GAME_TRACKER->drivers[i];
 			if (driver != NULL && owner == driver->instSelf && (driver->actionsFlagSet & ACTION_BOT) == 0)
 			{
-				return true;
+				return i;
 			}
 		}
+		return -1;
+	}
+	return Chaos_IsHumanThread(thread->parentThread) ? ((const struct Driver *)thread->parentThread->object)->driverID : -1;
+}
+
+bool Chaos_IsHumanOwnedThread(const struct Thread *thread)
+{
+	return thread != NULL &&
+	       ((thread->flags & THREAD_FLAG_HUMAN_EFFECT) != 0 || Chaos_ThreadPlayer(thread) >= 0);
+}
+
+void Chaos_InheritThreadOwner(struct Thread *thread, const struct Thread *source)
+{
+	const int player = Chaos_ThreadPlayer(source);
+	const bool human = Chaos_IsHumanOwnedThread(source);
+	u8 *owner = Chaos_ThreadOwnerSlot(thread);
+	if (owner != NULL)
+	{
+		*owner = player + 1;
+	}
+	thread->flags &= ~THREAD_FLAG_HUMAN_EFFECT;
+	if (human)
+	{
+		thread->flags |= THREAD_FLAG_HUMAN_EFFECT;
+	}
+}
+
+void Chaos_InitParticleOwners(void)
+{
+	sdata->chaosParticleOwners = Chaos_AllocatePoolOwners(&GAME_TRACKER->JitPools.particle);
+}
+
+static u8 *Chaos_ParticleOwnerSlot(const struct Particle *particle)
+{
+	return Chaos_PoolOwnerSlot(&GAME_TRACKER->JitPools.particle, sdata->chaosParticleOwners, particle, sizeof(*particle));
+}
+
+void Chaos_ClearParticleOwner(struct Particle *particle)
+{
+	u8 *owner = Chaos_ParticleOwnerSlot(particle);
+	if (owner != NULL)
+	{
+		*owner = 0;
+	}
+}
+
+int Chaos_ParticlePlayer(const struct Particle *particle)
+{
+	const u8 *owner = Chaos_ParticleOwnerSlot(particle);
+	return owner != NULL && *owner > 0 && *owner <= CHAOS_MAX_HUMAN_PLAYERS ? *owner - 1 : -1;
+}
+
+void Chaos_InheritParticleOwner(struct Particle *particle, const struct Thread *source)
+{
+	u8 *owner = Chaos_ParticleOwnerSlot(particle);
+	if (owner != NULL)
+	{
+		*owner = Chaos_ThreadPlayer(source) + 1;
+	}
+	particle->flagsAxis &= ~PARTICLE_AXIS_FLAG_HUMAN_EFFECT;
+	if (Chaos_IsHumanOwnedThread(source))
+	{
+		particle->flagsAxis |= PARTICLE_AXIS_FLAG_HUMAN_EFFECT;
+	}
+}
+
+static bool Chaos_PlayerHasTimeStop(int player)
+{
+	if (player < 0 || player >= Chaos_PlayerPoolCount())
+	{
 		return false;
 	}
-	return Chaos_IsHumanThread(thread->parentThread);
+	// Do not use Chaos_IsActiveForDriver: pausing must retain immunity, too.
+	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	for (int i = 0; i < pool->numActive; i++)
+	{
+		if (pool->active[i].effect == CHAOS_EFFECT_ZA_WARUDO)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool Chaos_IsTimeStopImmune(const struct Thread *thread)
+{
+	return Chaos_UsesPersonalPools() ? Chaos_PlayerHasTimeStop(Chaos_ThreadPlayer(thread)) : Chaos_IsHumanOwnedThread(thread);
 }
 
 bool Chaos_HasDeferredImpact(const struct Thread *thread)
@@ -129,7 +274,7 @@ bool Chaos_HasDeferredImpact(const struct Thread *thread)
 
 bool Chaos_IsFrozenWorldThread(const struct Thread *thread)
 {
-	return thread != NULL && Chaos_IsTimeStopped() && !Chaos_IsHumanOwnedThread(thread);
+	return thread != NULL && Chaos_IsTimeStopped() && !Chaos_IsTimeStopImmune(thread);
 }
 
 static bool Chaos_IsContactTriggeredMine(const struct Thread *thread)
@@ -149,7 +294,7 @@ bool Chaos_DeferImpact(enum ChaosImpactKind kind, struct Thread *source, struct 
 		return false;
 	}
 	const bool delayedMineContact = kind == CHAOS_IMPACT_MINE_DRIVER && Chaos_IsContactTriggeredMine(source);
-	if (!delayedMineContact && (!Chaos_IsHumanOwnedThread(source) ||
+	if (!delayedMineContact && (!Chaos_IsTimeStopImmune(source) ||
 	    (target != NULL && !Chaos_IsFrozenWorldThread(target))))
 	{
 		return false;
@@ -177,7 +322,7 @@ bool Chaos_DeferImpact(enum ChaosImpactKind kind, struct Thread *source, struct 
 bool Chaos_DeferDriverDamage(struct Driver *victim, int damage, struct Driver *attacker, int reason)
 {
 	if (attacker == NULL || attacker->instSelf == NULL || victim->instSelf == NULL ||
-	    !Chaos_IsHumanThread(attacker->instSelf->thread) || !Chaos_IsFrozenWorldThread(victim->instSelf->thread))
+	    !Chaos_IsTimeStopImmune(attacker->instSelf->thread) || !Chaos_IsFrozenWorldThread(victim->instSelf->thread))
 	{
 		return false;
 	}
@@ -197,7 +342,7 @@ void Chaos_RecordFrozenMaskContacts(struct Driver *attacker)
 {
 	if (!Chaos_IsTimeStopped() || !g_config.maskDamagesOthers ||
 	    (attacker->actionsFlagSet & ACTION_MASK_WEAPON) == 0 || attacker->instSelf == NULL ||
-	    !Chaos_IsHumanThread(attacker->instSelf->thread))
+	    !Chaos_IsTimeStopImmune(attacker->instSelf->thread))
 	{
 		return;
 	}
@@ -345,7 +490,7 @@ bool Chaos_ShouldFreezeThread(const struct Thread *thread)
 		}
 	}
 	const int bucket = thread->flags & 0xff;
-	if (Chaos_IsHumanOwnedThread(thread) || bucket == CAMERA || bucket == HUD || bucket == STARTTEXT)
+	if (Chaos_IsTimeStopImmune(thread) || bucket == CAMERA || bucket == HUD || bucket == STARTTEXT)
 	{
 		return false;
 	}
@@ -432,15 +577,19 @@ void Chaos_CollideFrozenThread(struct Thread *thread)
 
 bool Chaos_ShouldFreezeParticle(const struct Particle *particle)
 {
-	if (!Chaos_IsTimeStopped() || (particle->flagsAxis & PARTICLE_AXIS_FLAG_HUMAN_EFFECT) != 0)
+	if (!Chaos_IsTimeStopped())
 	{
 		return false;
+	}
+	if ((particle->flagsAxis & PARTICLE_AXIS_FLAG_HUMAN_EFFECT) != 0)
+	{
+		return Chaos_UsesPersonalPools() ? !Chaos_PlayerHasTimeStop(Chaos_ParticlePlayer(particle)) : false;
 	}
 	for (int i = 0; i < GAME_TRACKER->numPlyrCurrGame; i++)
 	{
 		const struct Driver *driver = GAME_TRACKER->drivers[i];
 		if (driver != NULL && driver->instSelf != NULL && particle->owner.driverInst == driver->instSelf &&
-		    Chaos_IsHumanThread(driver->instSelf->thread))
+		    Chaos_IsTimeStopImmune(driver->instSelf->thread))
 		{
 			return false;
 		}

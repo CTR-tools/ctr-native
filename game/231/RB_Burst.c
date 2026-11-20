@@ -242,10 +242,7 @@ void RB_Burst_InitVisual(struct Instance *weaponInst)
 	currInst = INSTANCE_BirthWithThread_Stack(&birth);
 
 	t = currInst->thread;
-	if (Chaos_IsHumanOwnedThread(weaponInst->thread))
-	{
-		t->flags |= THREAD_FLAG_HUMAN_EFFECT;
-	}
+	Chaos_InheritThreadOwner(t, weaponInst->thread);
 	burst = t->object;
 	burst->explosion = currInst;
 	currInst->depthBiasNormal -= 2;

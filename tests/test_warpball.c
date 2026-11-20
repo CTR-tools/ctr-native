@@ -12,10 +12,10 @@ u8 *gCTRNativeScratchpadBase;
 static struct Instance *s_spawnedOrb;
 static struct Particle *s_particle;
 
-bool Chaos_IsHumanThread(const struct Thread *thread)
+void Chaos_InheritParticleOwner(struct Particle *particle, const struct Thread *source)
 {
-	return thread != NULL && thread->modelIndex == DYNAMIC_PLAYER && thread->object != NULL &&
-	       (((const struct Driver *)thread->object)->actionsFlagSet & ACTION_BOT) == 0;
+	CTR_TEST_CHECK(particle == s_particle && source == s_defaultDrivers[0].instSelf->thread,
+	               "orb particles inherit ownership from the firing controller");
 }
 bool Chaos_DeferDriverDamage(struct Driver *victim, int damage, struct Driver *attacker, int reason)
 {
