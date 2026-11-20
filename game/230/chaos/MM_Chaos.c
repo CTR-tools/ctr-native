@@ -14,7 +14,7 @@ void MM_MenuProc_Chaos(struct RectMenu *menu)
 	// Triangle: back to the screen before this one.
 	if (row == -1)
 	{
-		if (sdata->chaosSessionNextMenu != NULL)
+		if (!MM_NewLoad_InChain())
 		{
 			MM_Menu_Detach(menu);
 			sdata->chaosSessionNextMenu = NULL;
@@ -32,7 +32,7 @@ void MM_MenuProc_Chaos(struct RectMenu *menu)
 	// Row 0 is "Regular", row 1 is "Chaos".
 	struct ChaosSettings *settings = &sdata->chaosSettings;
 	settings->armed = (row == 1);
-	if (sdata->chaosSessionNextMenu != NULL)
+	if (!MM_NewLoad_InChain())
 	{
 		if (settings->armed)
 		{

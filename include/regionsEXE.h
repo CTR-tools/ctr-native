@@ -4100,7 +4100,7 @@ struct sData
 
 	// Live Chaos rules shared by all modes; Adventure save/load persists them per slot.
 	struct ChaosSettings chaosSettings;
-	// Ordinary menu destination after the Arcade/VS/Battle Chaos prompt.
+	// After the session Chaos prompt: difficulty, or NULL to enter character selection.
 	struct RectMenu *chaosSessionNextMenu;
 
 	// The chaos system's own generator. Separate from sdata->randomNumber and

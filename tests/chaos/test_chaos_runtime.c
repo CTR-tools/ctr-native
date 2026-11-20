@@ -49,7 +49,9 @@ static void TestSessionModes(void)
 				CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, &humans[player]),
 				               "the effect targets every human including players three and four");
 			}
-			CTR_TEST_CHECK(!Chaos_EffectFitsEvent(CHAOS_EFFECT_ARENA_CHAMPIONS) || modes[mode] == ARCADE_MODE,
+			CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_ARENA_CHAMPIONS, s_tracker.gameMode1,
+			                                     s_tracker.cup.cupID, players, g_config.extendedMultiplayer) ||
+			               modes[mode] == ARCADE_MODE,
 			               "bot-only effects are excluded from VS, Battle, relic and crystal events");
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 			Tick(1);

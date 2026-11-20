@@ -1,4 +1,5 @@
 #include <common.h>
+#include <chaos/chaos_event.h>
 #include "../menu-helpers/MM_FullScreenMenu.c"
 
 _Static_assert(LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
@@ -163,9 +164,27 @@ static void Chaos_OnEnter(struct RectMenu *returnMenu)
 	Chaos_BuildSettingRows();
 }
 
+static bool Chaos_EffectIsAvailable(ChaosEffectId effect)
+{
+	const struct GameTracker *tracker = sdata->gGT;
+	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
+	const int players = readOnly ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	// An Adventure file spans every event type, not just the current hub/race.
+	const int mode = (tracker->gameMode1 & ADVENTURE_MODE) != 0
+	                     ? ADVENTURE_MODE : tracker->gameMode1 & ~MAIN_MENU;
+	return ChaosEvent_EffectFits(effect, mode, tracker->cup.cupID, players, g_config.extendedMultiplayer);
+}
+
 static bool Chaos_CanConfirm(void)
 {
-	return sdata->chaosSettings.enabledCount > 0;
+	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
+	{
+		if (sdata->chaosSettings.effects[id] && Chaos_EffectIsAvailable((ChaosEffectId)id))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void MM_ChaosConfig_OnEnter(void)
@@ -190,14 +209,11 @@ void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
 
 static ChaosEffectId Chaos_EffectForRow(int row)
 {
-	if (sdata->chaosMenu.returnMenu == NULL)
-	{
-		return ChaosEffect_FromIndex(row);
-	}
+	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		if (!settings->effects[id])
+		if (!Chaos_EffectIsAvailable((ChaosEffectId)id) || (readOnly && !settings->effects[id]))
 		{
 			continue;
 		}
@@ -256,7 +272,16 @@ static int Chaos_PageRowCount(const struct ChaosMenuState *state)
 	{
 		return state->numSettings;
 	}
-	return state->returnMenu != NULL ? sdata->chaosSettings.enabledCount : CHAOS_EFFECT_COUNT;
+	int count = 0;
+	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
+	{
+		if (Chaos_EffectIsAvailable((ChaosEffectId)id) &&
+		    (state->returnMenu == NULL || sdata->chaosSettings.effects[id]))
+		{
+			count++;
+		}
+	}
+	return count;
 }
 
 // Developer shortcut: Start on an effect launches a disposable Adventure race.
@@ -349,7 +374,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 		if (state->page == CHAOS_PAGE_EFFECTS)
 		{
 			ChaosEffect_Toggle(settings->effects, &settings->enabledCount,
-			                   ChaosEffect_FromIndex(selected));
+			                   Chaos_EffectForRow(selected));
 		}
 		else
 		{

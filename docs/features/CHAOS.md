@@ -12,16 +12,16 @@ including trophy, boss, CTR, relic, crystal and gem-cup challenges.
 
 Enable **Chaos** under **General** in **Options Config**, or set `chaos_mode = true`
 in the `[General]` section of `config.ini` (default: `false`). Then select
-**Arcade**, **VS** or **Battle** from the main menu and choose **Regular**
-or **Chaos**. Regular continues normally; Chaos opens the same rules screen used
-by Adventure. Confirm the rules, then continue through the usual race type,
-player count, character and track selection. With the option disabled, the mode
-prompt is skipped and new session races are Regular. The same option controls
+**Arcade**, **VS** or **Battle** from the main menu. Choose the player count, then choose **Chaos**.
+Confirm the rules, then continue through the difficulty (Arcade), character and track selection. 
+With the option disabled, the mode prompt is skipped and new session races are Regular. The same option controls
 the Chaos prompt when creating a new Adventure.
 
 Chaos supports up to four human players where the underlying mode allows them.
 Effects requiring racing bots are excluded when the event has no bot grid;
 track-path teleports are excluded from Battle and crystal challenges.
+The setup lists only compatible effects, including Body Swap only with multiple
+players. 
 
 ## Starting a Chaos file
 

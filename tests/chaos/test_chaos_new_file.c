@@ -157,6 +157,52 @@ static void TestSessionPrompt(void)
 	}
 }
 
+static void TestSessionCharacterSelectExit(void)
+{
+	CTR_TEST_SECTION("VS and Battle offer Chaos after players and then exit to character selection");
+	const int modes[] = {0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int enabled = 0; enabled <= 1; enabled++)
+		{
+			for (int chaos = 0; chaos <= 1; chaos++)
+			{
+				ResetFixture();
+				sdata->gGT->gameMode1 = modes[mode];
+				sdata->gGT->numPlyrNextGame = 4;
+				g_config.chaosMode = enabled != 0;
+				struct RectMenu players = {0};
+				MM_ChaosSession_Begin(&players, NULL);
+				if (enabled)
+				{
+					CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+					               "the terminal player screen offers the shared prompt");
+					MM_MENU_CHAOS_PROMPT.rowSelected = -1;
+					MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+					CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == NULL && !MM_NewLoad_InChain(),
+					               "Back from a terminal prompt returns to Players, not Adventure");
+					MM_ChaosSession_Begin(&players, NULL);
+					MM_MENU_CHAOS_PROMPT.rowSelected = chaos;
+					MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+					if (chaos)
+					{
+						CTR_TEST_CHECK_EQ(s_setupEntries, 1, "terminal Chaos selection opens the rules editor");
+						MM_ChaosSession_FinishSetup(false);
+						CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+						               "rules Back preserves the terminal mode prompt");
+						MM_ChaosSession_FinishSetup(true);
+					}
+				}
+				CTR_TEST_CHECK_EQ(MM_TITLE_MENU_STATE, TITLE_MENU_STATE_EXITING, "completed selection exits the title menu");
+				CTR_TEST_CHECK_EQ(MM_DESIRED_MENU_INDEX, MM_EXIT_ROUTE_CHARACTER_SELECT, "the terminal prompt resumes character selection");
+				CTR_TEST_CHECK_EQ(sdata->gGT->numPlyrNextGame, 4, "setup preserves the chosen player count");
+				CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == NULL && sdata->chaosSessionNextMenu == NULL,
+				               "the completed prompt leaves no dangling menu links");
+			}
+		}
+	}
+}
+
 static void TestSharedRulesAdventureRestore(void)
 {
 	CTR_TEST_SECTION("loading an Adventure replaces live rules changed in another mode");
@@ -595,6 +641,7 @@ static void TestCustomGhostValidation(void)
 
 int main(void)
 {
+	TestSessionCharacterSelectExit();
 	TestSharedRulesAdventureRestore();
 	TestAdventureChaosGate();
 	TestSessionPromptDisabled();

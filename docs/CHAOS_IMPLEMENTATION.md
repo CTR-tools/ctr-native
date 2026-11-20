@@ -188,6 +188,10 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
   Loading an Adventure restores its saved rules; creating one resets the live
   rules. Only Adventure saves encode them. `MM_ChaosSession.c` owns the
   main-menu prompt and resumes the retail menu chain without an extra recap box.
+  The prompt follows event type and player count; Arcade then resumes difficulty,
+  while VS/Battle exit to character selection. Setup and runtime share
+  `ChaosEvent_EffectFits`; filtered rows map back to stable effect IDs without
+  erasing hidden preferences. Confirm requires a compatible enabled effect.
   Live rules survive retries, cups and mode selection, but are replaced when
   loading or creating an Adventure and reset at application restart.
 - Armed rules add **Chaos Rules** to Adventure and session pause menus.

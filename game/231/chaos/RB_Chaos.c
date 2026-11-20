@@ -2,6 +2,7 @@
 #include <game/Vehicle/VehPhysForce.h>
 #include <game/Vehicle/VehPickupItem.h>
 #include <chaos/chaos_gate.h>
+#include <chaos/chaos_event.h>
 #include <race_field.h>
 #include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
@@ -20,32 +21,17 @@ static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *drive
 	       ChaosEffect_AppliesToDriver(def->scope, driver->driverID, sdata->gGT->numPlyrCurrGame);
 }
 
-static bool Chaos_EffectFitsEvent(ChaosEffectId effect)
-{
-	const ChaosEffectDef *def = ChaosEffect_Def(effect);
-	if (effect == CHAOS_EFFECT_BODY_SWAP && sdata->gGT->numPlyrCurrGame < 2)
-	{
-		return false;
-	}
-	if (effect == CHAOS_EFFECT_YARDRAT_TRAINING || effect == CHAOS_EFFECT_DEFECTIVE_TELEPORT)
-	{
-		return (sdata->gGT->gameMode1 & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0;
-	}
-	const struct GameTracker *tracker = sdata->gGT;
-	return def->scope != CHAOS_SCOPE_BOTS ||
-	       RaceField_BotCount(tracker->gameMode1, tracker->cup.cupID,
-	                          tracker->numPlyrCurrGame, g_config.extendedMultiplayer) > 0;
-}
-
 static ChaosEffectId Chaos_PickEventEffect(void)
 {
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
+	const struct GameTracker *gGT = sdata->gGT;
 	bool effects[CHAOS_EFFECT_COUNT];
 	memcpy(effects, settings->effects, sizeof(effects));
 	int enabledCount = settings->enabledCount;
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)
 	{
-		if (effects[i] && !Chaos_EffectFitsEvent((ChaosEffectId)i))
+		if (effects[i] && !ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
+		                                       gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
 		{
 			effects[i] = false;
 			enabledCount--;
@@ -456,8 +442,11 @@ static void Chaos_EnqueueInstantNotice(const struct ChaosActivation *activation)
 bool Chaos_Activate(ChaosEffectId effect, s32 durationMS)
 {
 	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	if (!Chaos_IsRunning(sdata->gGT) || durationMS <= 0 ||
-	    !ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect) || !Chaos_EffectFitsEvent(effect))
+	const struct GameTracker *gGT = sdata->gGT;
+	if (!Chaos_IsRunning(gGT) || durationMS <= 0 ||
+	    !ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect) ||
+	    !ChaosEvent_EffectFits(effect, gGT->gameMode1, gGT->cup.cupID,
+	                          gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
 	{
 		return false;
 	}
@@ -544,7 +533,8 @@ void Chaos_PublishEffects(void)
 	                             gGT->overlayIndex_Threads, true);
 	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
 	{
-		if (settings->effects[i] && Chaos_EffectFitsEvent((ChaosEffectId)i))
+		if (settings->effects[i] && ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
+		                                               gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
 		{
 			const char *slug = ChaosEffect_Def((ChaosEffectId)i)->slug;
 			const size_t length = strlen(slug);

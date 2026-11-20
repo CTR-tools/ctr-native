@@ -172,6 +172,8 @@ static void EnterSetup(void)
 	sdata->gGT = &s_tracker;
 	s_tracker.backBuffer = &s_buffer;
 	s_tracker.gameMode1 = ADVENTURE_MODE;
+	s_tracker.numPlyrNextGame = 2;
+	s_tracker.numPlyrCurrGame = 2;
 	sdata->gGamepads = &sdata->gamepadSystem;
 	sdata->chaosSettings.durationSeconds = CHAOS_DURATION_DEFAULT_SECONDS;
 	sdata->chaosSettings.triggerIntervalSeconds = CHAOS_TRIGGER_INTERVAL_DEFAULT_SECONDS;
@@ -551,6 +553,78 @@ static void CheckTestRaceGrid(void)
 	                  "the test-race human starts at the back of the Adventure grid");
 }
 
+static void TestCompatibleEffectRows(void)
+{
+	CTR_TEST_SECTION("setup lists and toggles only effects compatible with the selected event and player count");
+	const int modes[] = {ADVENTURE_MODE, ARCADE_MODE, ARCADE_MODE | RELIC_RACE,
+	                     ARCADE_MODE | CRYSTAL_CHALLENGE, 0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= 4; players++)
+		{
+			for (int extended = 0; extended <= 1; extended++)
+			{
+				EnterSetup();
+				s_tracker.gameMode1 = modes[mode] | MAIN_MENU;
+				s_tracker.numPlyrNextGame = players;
+				s_tracker.numPlyrCurrGame = players == 1 ? 2 : 1;
+				g_config.extendedMultiplayer = extended != 0;
+				MM_ChaosConfig_OnEnter();
+				sdata->chaosMenu.page = CHAOS_PAGE_EFFECTS;
+				const bool adventure = (modes[mode] & ADVENTURE_MODE) != 0;
+				const bool bots = (adventure || modes[mode] == ARCADE_MODE) && (players <= 2 || extended);
+				const bool teleports = (modes[mode] & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0;
+				int row = 0;
+				for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
+				{
+					const bool expected = (id != CHAOS_EFFECT_BODY_SWAP || players > 1) &&
+					    (ChaosEffect_Def((ChaosEffectId)id)->scope != CHAOS_SCOPE_BOTS || bots) &&
+					    ((id != CHAOS_EFFECT_YARDRAT_TRAINING && id != CHAOS_EFFECT_DEFECTIVE_TELEPORT) || teleports);
+					CTR_TEST_CHECK(Chaos_EffectIsAvailable((ChaosEffectId)id) == expected,
+					               "availability follows event type and the prospective grid, ignoring title-menu flags");
+					if (expected)
+					{
+						CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row++), id, "filtered rows retain stable catalogue order");
+					}
+				}
+				CTR_TEST_CHECK_EQ(Chaos_PageRowCount(&sdata->chaosMenu), row, "scrolling counts only compatible effects");
+				CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row), CHAOS_EFFECT_NONE, "no effect exists past the filtered list");
+				MM_menuChaosConfig.rowSelected = row - 1;
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK(!sdata->chaosSettings.effects[bots ? CHAOS_EFFECT_KING_CRIMSON : CHAOS_EFFECT_ZA_WARUDO],
+				               "toggling a shifted row edits the mapped effect, not the raw row index");
+				CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, CHAOS_EFFECT_COUNT - 1,
+				                  "hidden preferences remain intact while the cached count tracks the edited effect");
+			}
+		}
+	}
+}
+
+static void TestIncompatibleSelectionCannotConfirm(void)
+{
+	CTR_TEST_SECTION("hidden enabled effects cannot confirm a setup with no compatible selection");
+	EnterSetup();
+	s_tracker.gameMode1 = BATTLE_MODE | MAIN_MENU;
+	s_tracker.numPlyrNextGame = 2;
+	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ARENA_CHAMPIONS] = true;
+	sdata->chaosSettings.enabledCount = 1;
+	MM_ChaosConfig_OpenSession();
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.numSettings - 1;
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK(!Chaos_CanConfirm() && s_sessionFinishes == 0, "a bot-only selection cannot confirm Battle rules");
+	sdata->chaosSettings.effects[CHAOS_EFFECT_BODY_SWAP] = true;
+	sdata->chaosSettings.enabledCount++;
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK_EQ(s_sessionFinishes, 1, "a compatible selected effect enables Confirm");
+	struct RectMenu pause = {0};
+	s_tracker.numPlyrCurrGame = 1;
+	MM_ChaosConfig_OpenReadOnly(&pause);
+	sdata->chaosMenu.page = CHAOS_PAGE_EFFECTS;
+	CTR_TEST_CHECK_EQ(Chaos_PageRowCount(&sdata->chaosMenu), 0,
+	                  "read-only session rules use current players and hide incompatible enabled effects");
+}
+
 static void TestSessionSetup(void)
 {
 	CTR_TEST_SECTION("the shared editor dispatches session confirmation and Back using the live rules");
@@ -636,6 +710,8 @@ static void TestChaosRaceShortcut(void)
 
 int main(void)
 {
+	TestCompatibleEffectRows();
+	TestIncompatibleSelectionCannotConfirm();
 	TestTriggerLayoutAndIntervalRetention();
 	TestEffectsCommitAndPageTransitions();
 	TestConfirmRequiresAnEffect();
