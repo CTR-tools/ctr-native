@@ -290,6 +290,11 @@ void UI_DrawSlideMeter(s16 posX, s16 posY, struct Driver *driver)
 	const int barWidth = UI_SLIDE_METER_BAR_W;
 	const int displayWidth = barWidth - Widescreen_FixedEdgeShift(barWidth);
 	int barHeight = gGT->numPlyrCurrGame >= UI_SLIDE_METER_SPLIT_PLAYER_COUNT ? UI_SLIDE_METER_BAR_H_SPLIT : UI_SLIDE_METER_BAR_H_FULL;
+	if (gGT->numPlyrCurrGame >= UI_SLIDE_METER_SPLIT_PLAYER_COUNT && (driver->driverID & 1) != 0)
+	{
+		// Right-side viewports anchor the bar's left edge beside the lap count.
+		posX -= barWidth - displayWidth;
+	}
 
 	int meterLength = 0;
 	if (driver->turbo_MeterRoomLeft != 0)
