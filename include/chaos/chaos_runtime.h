@@ -85,14 +85,19 @@ struct ChaosIdentity
 	s32 transformRemainingMS;
 };
 
-// Race-only state, captured in SDATA; unique effects in activation order.
-struct ChaosRuntime
+struct ChaosPlayerRuntime
 {
 	struct ChaosActivation active[CHAOS_MAX_ACTIVATIONS];
 	int numActive;
 	struct ChaosActivation instantNotices[CHAOS_MAX_INSTANT_NOTICES];
 	int numInstantNotices;
 	s32 intervalRemainingMS;
+};
+
+// Race-only state, captured in SDATA. Shared Chaos uses only players[0].
+struct ChaosRuntime
+{
+	struct ChaosPlayerRuntime players[CHAOS_MAX_HUMAN_PLAYERS];
 	bool raceInitialized;
 	bool touchingTurboPad[CHAOS_MAX_HUMAN_PLAYERS];
 	struct ChaosControlShuffle controls[CHAOS_MAX_HUMAN_PLAYERS];

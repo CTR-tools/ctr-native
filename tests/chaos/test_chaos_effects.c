@@ -283,8 +283,8 @@ static void TestMyPlanetNeedsMe(void)
 	CTR_TEST_CHECK_EQ(s_launchConversions[2], 0, "bots do not receive the launch");
 	CTR_TEST_CHECK(human.reserves == 500 && human.heldItemID == HELD_ITEM_POTION, "launch preserves inventory and boost reserves");
 	CTR_TEST_CHECK(human.jump_CooldownMS == 100 && human.jump_CoyoteTimerMS == 0, "the one-off impulse does not rewrite normal hop eligibility");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the launch occupies no timed slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "the launch creates an instant announcement");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "the launch occupies no timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "the launch creates an instant announcement");
 	Tick(100);
 	CTR_TEST_CHECK_EQ(s_launchConversions[0], 1, "later Chaos updates do not repeat the launch");
 	Chaos_Activate(CHAOS_EFFECT_HYDRAULICS, 5000);
@@ -296,7 +296,7 @@ static void TestMyPlanetNeedsMe(void)
 	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 5000);
 	Chaos_Activate(CHAOS_EFFECT_FAIR_MODE, 5000);
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_MY_PLANET_NEEDS_ME, 1000), "launch still works at full timed capacity");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, CHAOS_MAX_ACTIVATIONS, "launch preserves unrelated timed effects");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, CHAOS_MAX_ACTIVATIONS, "launch preserves unrelated timed effects");
 	CTR_TEST_CHECK_EQ(s_launchVelocity[0].y, 27576, "Low Gravity does not change the launch impulse");
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 250, "Low Gravity continues to govern the flight");
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 5000);
@@ -571,7 +571,7 @@ static void TestTrySomethingNew(void)
 	               memcmp(&crashMetadata, &data.MetaDataCharacters[CRASH_BANDICOOT], sizeof(crashMetadata)) == 0 &&
 	               memcmp(&cocoMetadata, &data.MetaDataCharacters[COCO_BANDICOOT], sizeof(cocoMetadata)) == 0,
 	               "characters and shared character metadata remain unchanged");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "the class change takes no timed slot and preserves Low Gravity");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the class change takes no timed slot and preserves Low Gravity");
 	Tick(4000);
 	CTR_TEST_CHECK_EQ(human.const_Speed_ClassStat, data.metaPhys[0].value[current] * 150 / 100, "notice expiry does not restore the old class");
 	bool sawCustomMax = current == CUSTOM_MAX;
@@ -683,7 +683,7 @@ static void TestIdentityCrisis(void)
 	               human.posCurr.x == 10 && human.posCurr.y == 20 && human.posCurr.z == 30 && human.kartState == KS_SPINNING,
 	               "identity and class changes preserve inventory, motion, reserves and damage state");
 	CTR_TEST_CHECK_EQ(s_characterModelReads, GAME_CHARACTER_COUNT - 1, "activations perform no further asset reads");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "transformations preserve the timed effect without taking a slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "transformations preserve the timed effect without taking a slot");
 	CTR_TEST_CHECK_EQ(s_transformationSmokeCount, 20 * CHAOS_TRANSFORM_SMOKE_COUNT * 2, "each human receives a complete smoke cloud");
 	human.kartScale = 2.0f;
 	partner.kartScale = 0.5f;
@@ -1095,8 +1095,8 @@ static void TestKingCrimson(void)
 	const struct Driver humans[2] = {world.racers.drivers[0], world.racers.drivers[1]};
 	const struct Driver stopped = world.racers.drivers[3];
 	const struct ChaosActivation active = {.effect = CHAOS_EFFECT_FLY_ME_TO_THE_MOON, .remainingMS = 5432, .elapsedMS = 876};
-	sdata->chaosRuntime.active[0] = active;
-	sdata->chaosRuntime.numActive = 1;
+	sdata->chaosRuntime.players[0].active[0] = active;
+	sdata->chaosRuntime.players[0].numActive = 1;
 	s_tracker.elapsedEventTime = 12000;
 	s_tracker.frozenTimeRemaining = 3000;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_KING_CRIMSON, 1000), "King Crimson activates as an instant effect");
@@ -1112,7 +1112,7 @@ static void TestKingCrimson(void)
 	CTR_TEST_CHECK(bot->reserves == 2345 && bot->turbo_outsideTimer == 400 && bot->clockReceive == 4567 &&
 	               bot->squishTimer == 987 && bot->heldItemID == HELD_ITEM_MISSILE_3X && s_tracker.frozenTimeRemaining == 3000,
 	               "boost fuel, damage, inventory and frozen race-clock duration do not consume skipped time");
-	CTR_TEST_CHECK(sdata->chaosRuntime.numActive == 1 && memcmp(&active, sdata->chaosRuntime.active, sizeof(active)) == 0,
+	CTR_TEST_CHECK(sdata->chaosRuntime.players[0].numActive == 1 && memcmp(&active, sdata->chaosRuntime.players[0].active, sizeof(active)) == 0,
 	               "instant activation preserves existing Chaos timers and uses no timed slot");
 	CTR_TEST_CHECK(Chaos_UsesTimePalette() && !Chaos_IsTimeStopped(), "the short palette treatment does not freeze simulation");
 	CTR_TEST_CHECK_EQ(s_clockSounds, 1, "the shared clock cue plays once");
@@ -1128,7 +1128,7 @@ static void TestKingCrimson(void)
 	CTR_TEST_CHECK(!Chaos_IsTimeStopped() && s_pausedVoices == 0 && Chaos_UsesTimePalette(),
 	               "King Crimson replaces time stop and releases its audio suspension");
 	Chaos_Activate(CHAOS_EFFECT_ZA_WARUDO, 1000);
-	CTR_TEST_CHECK(sdata->chaosRuntime.numInstantNotices == 0,
+	CTR_TEST_CHECK(sdata->chaosRuntime.players[0].numInstantNotices == 0,
 	               "Za Warudo replaces the entire King Crimson notice and its pending presentation");
 	Tick(1000);
 	CTR_TEST_CHECK(!Chaos_UsesTimePalette(), "replacing King Crimson with time stop cancels its unfinished presentation");
@@ -1272,8 +1272,8 @@ static void TestTeleport(void)
 	world.racers.drivers[1].axisRotationY = 0x100;
 	const struct Driver bot = world.racers.drivers[2];
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_YARDRAT_TRAINING, 1000), "Teleport activates as an instant effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "Teleport does not occupy a timed slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "Teleport announces once across both humans");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "Teleport does not occupy a timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "Teleport announces once across both humans");
 	for (int i = 0; i < 2; i++)
 	{
 		const struct Driver *driver = &world.racers.drivers[i];
@@ -1302,10 +1302,10 @@ static void TestTeleport(void)
 		{.effect = CHAOS_EFFECT_SUNDAY_DRIVER, .remainingMS = 5000},
 		{.effect = CHAOS_EFFECT_FAIR_MODE, .remainingMS = 5000},
 	};
-	memcpy(sdata->chaosRuntime.active, fullSlots, sizeof(fullSlots));
-	sdata->chaosRuntime.numActive = CHAOS_MAX_ACTIVATIONS;
+	memcpy(sdata->chaosRuntime.players[0].active, fullSlots, sizeof(fullSlots));
+	sdata->chaosRuntime.players[0].numActive = CHAOS_MAX_ACTIVATIONS;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_YARDRAT_TRAINING, 1000) &&
-	               memcmp(sdata->chaosRuntime.active, fullSlots, sizeof(fullSlots)) == 0,
+	               memcmp(sdata->chaosRuntime.players[0].active, fullSlots, sizeof(fullSlots)) == 0,
 	               "Teleport works at full timed capacity without changing existing activations");
 
 	CTR_TEST_SECTION("Teleport follows the retail branch selection and otherwise takes the main route");
@@ -1480,7 +1480,7 @@ static void TestDefectiveTeleport(void)
 		               driver->heldItemID == HELD_ITEM_MISSILE_3X && driver->numHeldItems == 3,
 		               "free placement preserves canonical motion, turbo and inventory before normal physics or rescue");
 		CTR_TEST_CHECK(s_teleportProbes == 0 && s_identitySounds == sounds + 1 &&
-		               sdata->chaosRuntime.numActive == 0 && sdata->chaosRuntime.numInstantNotices == 1 &&
+		               sdata->chaosRuntime.players[0].numActive == 0 && sdata->chaosRuntime.players[0].numInstantNotices == 1 &&
 		               Chaos_ConsumeCameraBlend(&s_tracker.cameraDC[0]),
 		               "an instant free teleport plays invisibility audio and realigns the camera without a terrain probe or timed slot");
 	}
@@ -1691,10 +1691,10 @@ static void TestTimeStop(void)
 	sdata->chaosSettings.enabledCount++;
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 30000);
 	Tick(32);
-	const struct ChaosActivation gravity = sdata->chaosRuntime.active[0];
-	const int interval = sdata->chaosRuntime.intervalRemainingMS;
+	const struct ChaosActivation gravity = sdata->chaosRuntime.players[0].active[0];
+	const int interval = sdata->chaosRuntime.players[0].intervalRemainingMS;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ZA_WARUDO, 30000), "time stop activates alongside an existing modifier");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].remainingMS, 10000, "time stop is capped at ten seconds");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].remainingMS, 10000, "time stop is capped at ten seconds");
 	CTR_TEST_CHECK(Chaos_IsTimeStopped(), "time stop freezes the world immediately on activation");
 	CTR_TEST_CHECK_EQ(s_clockSounds, 1, "the clock cue plays on activation");
 	Tick(100);
@@ -1721,18 +1721,18 @@ static void TestTimeStop(void)
 	}
 	Tick(8640);
 	CTR_TEST_CHECK_EQ(s_timeStopTickSounds, 6, "ticking stops after six sounds throughout the rest of time stop");
-	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.active[0], sizeof(gravity)) == 0,
+	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.players[0].active[0], sizeof(gravity)) == 0,
 	               "other activation duration, phase and notice clocks stay unchanged");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, interval, "the automatic trigger clock stays frozen");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, interval, "the automatic trigger clock stays frozen");
 	s_tracker.gameMode1 |= PAUSE_1;
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].remainingMS, 200, "game pause also suspends time-stop expiry");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].remainingMS, 200, "game pause also suspends time-stop expiry");
 	s_tracker.gameMode1 &= ~PAUSE_1;
 	Tick(200);
 	CTR_TEST_CHECK(!Chaos_IsTimeStopped(), "time stop ends on its own clock");
 	CTR_TEST_CHECK_EQ(s_timeStopCrateSounds, 1, "expiry does not repeat the delayed cue");
 	Tick(32);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, gravity.remainingMS - 32,
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, gravity.remainingMS - 32,
 	                  "other effects resume by one ordinary frame without accumulated catch-up");
 
 	CTR_TEST_SECTION("time stop freezes bots while preserving human driving and weapons");
@@ -2072,7 +2072,7 @@ static void TestWobbleSteering(void)
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_TOTALLY_SOBER), "Inverted Steering immediately deactivates conflicting Wobble entries");
 	Tick(500);
 	CTR_TEST_CHECK_EQ(PreparedSteering(&human, &pad), 64, "expiry of Inverted Steering returns to live input without reviving Wobble");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "replaced effects do not remain dormant in the activation queue");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "replaced effects do not remain dormant in the activation queue");
 	EnableWobble();
 	Chaos_Activate(CHAOS_EFFECT_MIRROR_MIRROR, 4000);
 	Chaos_Activate(CHAOS_EFFECT_TOTALLY_SOBER, 1000);
@@ -2093,18 +2093,18 @@ static void TestWobbleSteering(void)
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 5000);
 	Chaos_Activate(CHAOS_EFFECT_FAIR_MODE, 5000);
 	Tick(500);
-	const struct ChaosActivation firstHop = sdata->chaosRuntime.active[0];
-	const struct ChaosActivation gravity = sdata->chaosRuntime.active[2];
-	const struct ChaosActivation items = sdata->chaosRuntime.active[3];
+	const struct ChaosActivation firstHop = sdata->chaosRuntime.players[0].active[0];
+	const struct ChaosActivation gravity = sdata->chaosRuntime.players[0].active[2];
+	const struct ChaosActivation items = sdata->chaosRuntime.players[0].active[3];
 	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_TOTALLY_SOBER, 0), "invalid activation cannot cancel conflicting running effects");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "a rejected conflict replacement preserves all running activations");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "a rejected conflict replacement preserves all running activations");
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_TOTALLY_SOBER, 1000), "a conflicting replacement can activate even when all four slots were occupied");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "replacement removes the conflicting effect before adding the new activation");
-	CTR_TEST_CHECK(memcmp(&firstHop, &sdata->chaosRuntime.active[0], sizeof(firstHop)) == 0,
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "replacement removes the conflicting effect before adding the new activation");
+	CTR_TEST_CHECK(memcmp(&firstHop, &sdata->chaosRuntime.players[0].active[0], sizeof(firstHop)) == 0,
 	    "replacement preserves the first unrelated activation and its timers");
-	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.active[1], sizeof(gravity)) == 0,
+	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.players[0].active[1], sizeof(gravity)) == 0,
 	    "replacement preserves unrelated gravity and its ordering");
-	CTR_TEST_CHECK(memcmp(&items, &sdata->chaosRuntime.active[2], sizeof(items)) == 0,
+	CTR_TEST_CHECK(memcmp(&items, &sdata->chaosRuntime.players[0].active[2], sizeof(items)) == 0,
 	    "replacement preserves unrelated item restrictions");
 }
 
@@ -2163,7 +2163,7 @@ static void TestGravityEffects(void)
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 3000);
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 2000);
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 1000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 2, "Heavy Karts replaces Low Gravity but preserves unrelated effects");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 2, "Heavy Karts replaces Low Gravity but preserves unrelated effects");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_FLY_ME_TO_THE_MOON), "replaced Low Gravity entries are permanently deactivated");
 	CTR_TEST_CHECK(Chaos_IsActive(CHAOS_EFFECT_GROUNDED), "gravity replacement leaves No Hopping active");
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3600, "the latest gravity effect takes effect immediately");
@@ -2270,10 +2270,10 @@ static void TestSpeedEffects(void)
 	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 3000);
 	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 3000);
 	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 3000);
-	const struct ChaosActivation gravity = sdata->chaosRuntime.active[0];
+	const struct ChaosActivation gravity = sdata->chaosRuntime.players[0].active[0];
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_GOTTA_GO_FAST, 1000), "Super Speed can replace a refreshed cap");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 2, "replacement removes the cap but keeps the unrelated gravity effect");
-	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.active[0], sizeof(gravity)) == 0, "replacement preserves unrelated timers and order");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 2, "replacement removes the cap but keeps the unrelated gravity effect");
+	CTR_TEST_CHECK(memcmp(&gravity, &sdata->chaosRuntime.players[0].active[0], sizeof(gravity)) == 0, "replacement preserves unrelated timers and order");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_SUNDAY_DRIVER), "replaced caps are deactivated immediately");
 	Tick(1000);
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&human, 12000), 12000, "Super Speed expiry cannot revive replaced caps");
@@ -2704,7 +2704,7 @@ static void TestWumpaDrain(void)
 	TickAndApplyDrivers(1000);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 8, "the expiry frame applies no additional drain");
 	CTR_TEST_CHECK_EQ(partner.numWumpas, 4, "an activation removed at exact expiry cannot apply another pulse");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the drain activation expires normally");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "the drain activation expires normally");
 	TickAndApplyDrivers(2000);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 8, "expired Wumpa Drain cannot remove more fruit");
 	Chaos_Activate(CHAOS_EFFECT_WUMPA_TAX, 500);
@@ -2728,8 +2728,8 @@ static void TestWumpaDrain(void)
 	Chaos_Activate(CHAOS_EFFECT_WUMPA_TAX, 2500);
 	TickAndApplyDrivers(750);
 	Chaos_Activate(CHAOS_EFFECT_WUMPA_TAX, 2500);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "reactivated drain occupies a single slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 0, "reactivated drain resets its pulse clock");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "reactivated drain occupies a single slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 0, "reactivated drain resets its pulse clock");
 	TickAndApplyDrivers(250);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 10, "reactivation cancels the old pending pulse");
 	TickAndApplyDrivers(500);
@@ -2739,7 +2739,7 @@ static void TestWumpaDrain(void)
 	TickAndApplyDrivers(250);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 9, "the superseded clock cannot produce a second pulse");
 	TickAndApplyDrivers(500);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "the old deadline cannot expire the replacement");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the old deadline cannot expire the replacement");
 	TickAndApplyDrivers(250);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 8, "the replacement produces one second pulse");
 	TickAndApplyDrivers(500);
@@ -2750,7 +2750,7 @@ static void TestWumpaDrain(void)
 	TickAndApplyDrivers(250);
 	CTR_TEST_CHECK_EQ(human.numWumpas, 7, "the fresh activation drains only after its own full second");
 	Chaos_Reset();
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "reset removes the activation-owned drain clock");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "reset removes the activation-owned drain clock");
 	CTR_TEST_CHECK_EQ(human.numWumpas, 7, "reset does not restore already drained fruit");
 
 	CTR_TEST_SECTION("drain cadence freezes with race gates and survives resident restoration");
@@ -3125,7 +3125,7 @@ static void TestSmallKartEnergy(void)
 	s_tracker.drivers[1] = &partner;
 	s_tracker.drivers[2] = &bot;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_SMALL_KART_ENERGY, 3000), "Small Kart Energy activates as a timed effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "the small size occupies a timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the small size occupies a timed slot");
 	CTR_TEST_CHECK_EQ(VehPhysForce_ScaleValue(&human, 0xccc), 0x666, "body dimensions shrink to half size");
 	CTR_TEST_CHECK_EQ(VehPhysForce_ScaleValue(&human, human.wheelSize), 0x666, "tires shrink with the body");
 	CTR_TEST_CHECK_EQ(VehPhysForce_ScaleValue(&human, 25), 12, "odd collision radii round toward zero at half size");
@@ -3299,8 +3299,8 @@ static void TestFreshStart(void)
 	s_startGreenSounds = 0;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FRESH_START, 1), "restart duration is the retail countdown rather than the requested Chaos duration");
 	CTR_TEST_CHECK_EQ(s_restartInitializations, 2, "both unfinished humans enter the retail starting state once");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "restart consumes no timed slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "restart uses an instant notice");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "restart consumes no timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "restart uses an instant notice");
 	for (int i = 0; i < 2; i++)
 	{
 		struct Driver *driver = s_tracker.drivers[i];
@@ -3400,8 +3400,8 @@ static void TestYouveGotMail(void)
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_YOUVE_GOT_MAIL, 1000), "You've Got Mail activates as an instant effect");
 	CTR_TEST_CHECK_EQ(s_mailLaunches, 1, "one activation launches exactly one orb");
 	CTR_TEST_CHECK(s_mailSource == &lastBot && s_mailTarget == s_tracker.drivers[1], "the last unfinished bot targets the highest-ranked human");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "mail consumes no timed slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "mail announces through the instant banner");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "mail consumes no timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "mail announces through the instant banner");
 	s_tracker.driversInRaceOrder[3] = NULL;
 	s_tracker.drivers[1]->actionsFlagSet |= ACTION_RACE_FINISHED;
 	s_tracker.drivers[0]->actionsFlagSet |= ACTION_BOT;
@@ -3435,8 +3435,8 @@ static void TestArenaChampions(void)
 	struct Driver *human = s_tracker.drivers[0];
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 9000, "inactive Arena Champions preserves retail bot motion");
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000), "Arena Champions activates as a timed effect when bots are present");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "Arena Champions occupies a timed slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 0, "Arena Champions is not an instant action");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "Arena Champions occupies a timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 0, "Arena Champions is not an instant action");
 	CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHAMPIONS, &bot) &&
 	               Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHAMPIONS, &secondBot), "all unfinished bot slots receive the effect");
 	CTR_TEST_CHECK(!Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHAMPIONS, human), "human slots are excluded");
@@ -3700,7 +3700,7 @@ static void TestClockCurse(void)
 	TickAndApplyDrivers(32);
 	CTR_TEST_CHECK_EQ(human.clockReceive, 32, "the replacement assigns its own remaining duration");
 	TickAndApplyDrivers(32);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the shorter replacement curse leaves no old entry behind");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "the shorter replacement curse leaves no old entry behind");
 	for (int i = 0; i < 4; i++)
 	{
 		TickAndApplyDrivers(32);
@@ -3772,7 +3772,7 @@ static void TestClockCurse(void)
 	human.funcPtrs[DRIVER_FUNC_INIT] = NULL;
 	const int clockSounds = s_clockSounds;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_CLOCKBLOCKED, 1000), "reactivation accepts another curse");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "repeated curses still occupy only one slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "repeated curses still occupy only one slot");
 	CTR_TEST_CHECK(human.funcPtrs[DRIVER_FUNC_INIT] == VehPhysProc_SpinFirst_Init, "reactivation repeats the one-off clock hit");
 	CTR_TEST_CHECK_EQ(s_clockSounds, clockSounds + 1, "reactivation replays the clock sound once");
 	human.funcPtrs[DRIVER_FUNC_INIT] = NULL;
@@ -3930,9 +3930,9 @@ static void TestInstantGifts(void)
 	CTR_TEST_CHECK_EQ(s_juicedSounds, chimesBefore + 1, "reaching ten through normal crediting plays the juiced-up chime once");
 	CTR_TEST_CHECK_EQ(s_defaultDrivers[1].numWumpas, 2, "finished humans receive no gift");
 	CTR_TEST_CHECK_EQ(bot.numWumpas, 3, "bots receive no human gift");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, CHAOS_MAX_ACTIVATIONS, "instant rewards consume no timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, CHAOS_MAX_ACTIVATIONS, "instant rewards consume no timed slot");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_JUICED_UP), "an instant reward is never an ongoing modifier");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "the reward has its own notice");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "the reward has its own notice");
 	static struct DB buffer;
 	u32 uiOT[5];
 	buffer.otMem.uiOT = uiOT;
@@ -3950,10 +3950,10 @@ static void TestInstantGifts(void)
 	Tick(100);
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, CHAOS_MAX_ACTIVATIONS, "only timed effects remain after the instant banner expires");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 0, "expired notices leave no docked entry");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 0, "expired notices leave no docked entry");
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_JUICED_UP, 1000), "Juiced Up remains eligible at ten Wumpas");
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_JUICED_UP, 1000), "one-shot rewards can repeat immediately");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 1, "repeated gifts refresh rather than duplicate their banner");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 1, "repeated gifts refresh rather than duplicate their banner");
 	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_JUICED_UP, 0), "zero-duration requests remain invalid for instant effects");
 	const struct Driver before = s_defaultDrivers[0];
 	Chaos_Activate(CHAOS_EFFECT_IT_IS_I, 1000);
@@ -3970,13 +3970,13 @@ static void TestInstantGifts(void)
 	s_defaultDrivers[0].reserves = 1;
 	s_defaultDrivers[0].fireSpeedCap = 1;
 	Chaos_Activate(CHAOS_EFFECT_RESERVE_INJECTION, 1000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, CHAOS_MAX_INSTANT_NOTICES, "a fifth distinct reward keeps notice storage bounded");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.instantNotices[0].effect, CHAOS_EFFECT_PROVIDENCE, "notice overflow drops the oldest banner");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, CHAOS_MAX_INSTANT_NOTICES, "a fifth distinct reward keeps notice storage bounded");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].instantNotices[0].effect, CHAOS_EFFECT_PROVIDENCE, "notice overflow drops the oldest banner");
 	const struct ChaosRuntime notices = sdata->chaosRuntime;
 	Chaos_Reset();
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, 0, "reset clears instant notices too");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 0, "reset clears instant notices too");
 	sdata->chaosRuntime = notices;
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numInstantNotices, CHAOS_MAX_INSTANT_NOTICES, "resident restore retains instant announcements");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, CHAOS_MAX_INSTANT_NOTICES, "resident restore retains instant announcements");
 	s_tracker.gameMode1 |= CRYSTAL_CHALLENGE;
 	s_defaultDrivers[0].numWumpas = 3;
 	s_defaultDrivers[0].PickupWumpaHUD.numCollected = 2;
@@ -4195,7 +4195,7 @@ static void TestSenileMask(void)
 	Chaos_DrawWrongWayWarnings(&s_tracker);
 	CTR_TEST_CHECK_EQ(s_wrongWayDraws, 2, "false warnings also apply in crystal events without a retail wrong-way HUD path");
 	s_tracker.gameMode1 &= ~CRYSTAL_CHALLENGE;
-	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_SENILE_MASK, 1000) && sdata->chaosRuntime.numActive == 1,
+	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_SENILE_MASK, 1000) && sdata->chaosRuntime.players[0].numActive == 1,
 	    "repeated activation refreshes one timed effect");
 	sdata->XA_State = 0;
 	sdata->voicelineCooldown = 0;

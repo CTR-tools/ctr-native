@@ -1312,15 +1312,15 @@ static void Chaos_RefreshBodySwapModifiers(void)
 		{
 			continue;
 		}
-		if (Chaos_IsActive(CHAOS_EFFECT_BIG_KART_ENERGY))
+		if (Chaos_IsActiveForDriver(CHAOS_EFFECT_BIG_KART_ENERGY, driver))
 		{
 			Chaos_SetKartScale(CHAOS_GIANT_SCALE, driver);
 		}
-		else if (Chaos_IsActive(CHAOS_EFFECT_SMALL_KART_ENERGY))
+		else if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SMALL_KART_ENERGY, driver))
 		{
 			Chaos_SetKartScale(s_chaosSmallScale, driver);
 		}
-		if (Chaos_IsActive(CHAOS_EFFECT_THIS_IS_FIRE))
+		if (Chaos_IsActiveForDriver(CHAOS_EFFECT_THIS_IS_FIRE, driver))
 		{
 			Chaos_UpgradeTurbo(driver);
 		}

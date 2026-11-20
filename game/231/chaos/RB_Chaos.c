@@ -21,6 +21,42 @@ static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *drive
 	       ChaosEffect_AppliesToDriver(def->scope, driver->driverID, sdata->gGT->numPlyrCurrGame);
 }
 
+static bool Chaos_UsesPersonalPools(void)
+{
+	return sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER &&
+	       (sdata->gGT->gameMode1 & ADVENTURE_MODE) == 0;
+}
+
+static int Chaos_PlayerPoolCount(void)
+{
+	if (!Chaos_UsesPersonalPools())
+	{
+		return 1;
+	}
+	const int players = sdata->gGT->numPlyrCurrGame;
+	return players < CHAOS_MAX_HUMAN_PLAYERS ? players : CHAOS_MAX_HUMAN_PLAYERS;
+}
+
+static bool Chaos_ActivationTargetsDriver(ChaosEffectId effect, int player, const struct Driver *driver)
+{
+	if (!Chaos_TargetsDriver(effect, driver))
+	{
+		return false;
+	}
+	if (!Chaos_UsesPersonalPools() || ChaosEffect_Def(effect)->scope != CHAOS_SCOPE_HUMANS)
+	{
+		return true;
+	}
+	return driver->driverID == player;
+}
+
+static bool Chaos_EffectsShareTargets(ChaosEffectId first, int firstPlayer, ChaosEffectId second, int secondPlayer)
+{
+	return firstPlayer == secondPlayer ||
+	       ChaosEffect_Def(first)->scope != CHAOS_SCOPE_HUMANS ||
+	       ChaosEffect_Def(second)->scope != CHAOS_SCOPE_HUMANS;
+}
+
 static ChaosEffectId Chaos_PickEventEffect(void)
 {
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
@@ -86,11 +122,15 @@ bool Chaos_IsTimeStopped(void)
 	{
 		return false;
 	}
-	for (int i = 0; i < runtime->numActive; i++)
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
-		if (runtime->active[i].effect == CHAOS_EFFECT_ZA_WARUDO)
+		const struct ChaosPlayerRuntime *pool = &runtime->players[player];
+		for (int i = 0; i < pool->numActive; i++)
 		{
-			return true;
+			if (pool->active[i].effect == CHAOS_EFFECT_ZA_WARUDO)
+			{
+				return true;
+			}
 		}
 	}
 	return false;
@@ -213,11 +253,15 @@ void Chaos_BeginRace(struct GameTracker *gGT)
 		return;
 	}
 	sdata->chaosRuntime.raceInitialized = true;
-	sdata->chaosRuntime.intervalRemainingMS = Chaos_NextTriggerGap();
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		sdata->chaosRuntime.players[player].intervalRemainingMS = Chaos_NextTriggerGap();
+	}
 }
 
-static void Chaos_OnEffectDeactivated(ChaosEffectId effect)
+static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, int player)
 {
+	const ChaosEffectId effect = activation->effect;
 	if (effect == CHAOS_EFFECT_BODY_SWAP)
 	{
 		Chaos_ReturnBodySwaps();
@@ -230,32 +274,63 @@ static void Chaos_OnEffectDeactivated(ChaosEffectId effect)
 	for (int i = 0; i < sdata->gGT->numPlyrCurrGame && i < (int) len(sdata->gGT->drivers); i++)
 	{
 		struct Driver *driver = sdata->gGT->drivers[i];
-		if (driver != NULL)
+		if (driver != NULL && (!Chaos_UsesPersonalPools() || driver->driverID == player))
 		{
 			Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
 		}
 	}
 }
 
-static void Chaos_RemoveInstantNotice(int index)
+static void Chaos_RemoveInstantNotice(struct ChaosPlayerRuntime *pool, int index)
 {
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	struct ChaosActivation *notice = &runtime->instantNotices[index];
-	memmove(notice, notice + 1, (--runtime->numInstantNotices - index) * sizeof(*notice));
-	memset(&runtime->instantNotices[runtime->numInstantNotices], 0, sizeof(*notice));
+	struct ChaosActivation *notice = &pool->instantNotices[index];
+	memmove(notice, notice + 1, (--pool->numInstantNotices - index) * sizeof(*notice));
+	memset(&pool->instantNotices[pool->numInstantNotices], 0, sizeof(*notice));
 }
 
-static void Chaos_RemoveActivation(int index)
+static void Chaos_RemoveActivation(int player, int index)
 {
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	ChaosEffectId effect = runtime->active[index].effect;
-	int remaining = runtime->numActive - index - 1;
-	memmove(&runtime->active[index], &runtime->active[index + 1], remaining * sizeof(runtime->active[0]));
-	runtime->active[--runtime->numActive] = (struct ChaosActivation){0};
-	Chaos_OnEffectDeactivated(effect);
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	const struct ChaosActivation activation = pool->active[index];
+	int remaining = pool->numActive - index - 1;
+	memmove(&pool->active[index], &pool->active[index + 1], remaining * sizeof(pool->active[0]));
+	pool->active[--pool->numActive] = (struct ChaosActivation){0};
+	Chaos_OnEffectDeactivated(&activation, player);
 }
 
-static void Chaos_RemoveReplacedEffects(ChaosEffectId effect)
+static void Chaos_RemovePlayerReplacedEffects(ChaosEffectId effect, ChaosEffectId replaced, int player, int otherPlayer)
+{
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[otherPlayer];
+	for (int i = 0; i < pool->numInstantNotices;)
+	{
+		const ChaosEffectId notice = pool->instantNotices[i].effect;
+		if (notice == replaced && Chaos_EffectsShareTargets(notice, otherPlayer, effect, player))
+		{
+			Chaos_RemoveInstantNotice(pool, i);
+		}
+		else
+		{
+			i++;
+		}
+	}
+	for (int i = 0; i < pool->numActive;)
+	{
+		const ChaosEffectId active = pool->active[i].effect;
+		const bool replacesJumpEffect = effect == CHAOS_EFFECT_MY_PLANET_NEEDS_ME &&
+		    (active == CHAOS_EFFECT_GROUNDED || active == CHAOS_EFFECT_HYDRAULICS);
+		if ((active == effect || active == replaced || replacesJumpEffect) &&
+		    Chaos_EffectsShareTargets(active, otherPlayer, effect, player))
+		{
+			Chaos_RemoveActivation(otherPlayer, i);
+		}
+		else
+		{
+			i++;
+		}
+	}
+}
+
+static void Chaos_RemoveReplacedEffects(ChaosEffectId effect, int player)
 {
 	ChaosEffectId replaced = CHAOS_EFFECT_NONE;
 	static const ChaosEffectId opposites[][2] = {
@@ -285,36 +360,13 @@ static void Chaos_RemoveReplacedEffects(ChaosEffectId effect)
 	{
 		replaced = CHAOS_EFFECT_FAIR_MODE;
 	}
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	for (int i = 0; i < runtime->numInstantNotices;)
+	for (int otherPlayer = 0; otherPlayer < Chaos_PlayerPoolCount(); otherPlayer++)
 	{
-		struct ChaosActivation *notice = &runtime->instantNotices[i];
-		if (notice->effect == replaced)
-		{
-			Chaos_RemoveInstantNotice(i);
-		}
-		else
-		{
-			i++;
-		}
-	}
-	for (int i = 0; i < runtime->numActive;)
-	{
-		const ChaosEffectId active = runtime->active[i].effect;
-		const bool replacesJumpEffect = effect == CHAOS_EFFECT_MY_PLANET_NEEDS_ME &&
-		    (active == CHAOS_EFFECT_GROUNDED || active == CHAOS_EFFECT_HYDRAULICS);
-		if (active == effect || active == replaced || replacesJumpEffect)
-		{
-			Chaos_RemoveActivation(i);
-		}
-		else
-		{
-			i++;
-		}
+		Chaos_RemovePlayerReplacedEffects(effect, replaced, player, otherPlayer);
 	}
 }
 
-static void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation)
+static void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation, int player)
 {
 	const ChaosEffectId effect = chaosActivation->effect;
 	if (effect == CHAOS_EFFECT_KING_CRIMSON)
@@ -346,7 +398,7 @@ static void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation)
 	for (int i = 0; i < (int)len(sdata->gGT->drivers); i++)
 	{
 		struct Driver *driver = sdata->gGT->drivers[i];
-		if (Chaos_TargetsDriver(effect, driver))
+		if (Chaos_ActivationTargetsDriver(effect, player, driver))
 		{
 			switch ((int)effect)
 			{
@@ -420,61 +472,78 @@ static void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation)
 	}
 }
 
-static void Chaos_EnqueueInstantNotice(const struct ChaosActivation *activation)
+static void Chaos_EnqueueInstantNotice(const struct ChaosActivation *activation, int player)
 {
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	// Refresh duplicates; overflow drops the oldest banner.
-	for (int i = 0; i < runtime->numInstantNotices; i++)
+	for (int otherPlayer = 0; otherPlayer < Chaos_PlayerPoolCount(); otherPlayer++)
 	{
-		if (runtime->instantNotices[i].effect == activation->effect)
+		struct ChaosPlayerRuntime *other = &sdata->chaosRuntime.players[otherPlayer];
+		for (int i = 0; i < other->numInstantNotices; i++)
 		{
-			Chaos_RemoveInstantNotice(i);
-			break;
+			if (other->instantNotices[i].effect == activation->effect &&
+			    Chaos_EffectsShareTargets(activation->effect, player, activation->effect, otherPlayer))
+			{
+				Chaos_RemoveInstantNotice(other, i);
+				break;
+			}
 		}
 	}
-	if (runtime->numInstantNotices == CHAOS_MAX_INSTANT_NOTICES)
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	if (pool->numInstantNotices == CHAOS_MAX_INSTANT_NOTICES)
 	{
-		Chaos_RemoveInstantNotice(0);
+		Chaos_RemoveInstantNotice(pool, 0);
 	}
-	runtime->instantNotices[runtime->numInstantNotices++] = *activation;
+	pool->instantNotices[pool->numInstantNotices++] = *activation;
 }
 
-bool Chaos_Activate(ChaosEffectId effect, s32 durationMS)
+// The shared entry point uses pool zero. Personal trigger wiring is added
+// after the multi-driver effects have their own ownership-aware lifecycle.
+static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int player)
 {
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
 	const struct GameTracker *gGT = sdata->gGT;
-	if (!Chaos_IsRunning(gGT) || durationMS <= 0 ||
+	if (!Chaos_IsRunning(gGT) || durationMS <= 0 || player < 0 || player >= Chaos_PlayerPoolCount() ||
 	    !ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect) ||
 	    !ChaosEvent_EffectFits(effect, gGT->gameMode1, gGT->cup.cupID,
 	                          gGT->numPlyrCurrGame, g_config.extendedMultiplayer))
 	{
 		return false;
 	}
-	Chaos_RemoveReplacedEffects(effect);
+	struct ChaosActivation activation = {
+		.effect = effect,
+	};
+	const bool personal = Chaos_UsesPersonalPools();
+	const struct Driver *recipient = personal ? gGT->drivers[player] : NULL;
+	if (personal && (recipient == NULL ||
+	    (recipient->actionsFlagSet & (ACTION_RACE_FINISHED | ACTION_BOT)) != 0))
+	{
+		return false;
+	}
+	// These effects still use the shared lifecycle until their dedicated step.
+	if (personal && (effect == CHAOS_EFFECT_BODY_SWAP || effect == CHAOS_EFFECT_ZA_WARUDO))
+	{
+		return false;
+	}
+	Chaos_RemoveReplacedEffects(effect, player);
 	if (effect == CHAOS_EFFECT_ZA_WARUDO && durationMS > CHAOS_TIME_STOP_MAX_MS)
 	{
 		durationMS = CHAOS_TIME_STOP_MAX_MS;
 	}
 	const bool instant = ChaosEffect_IsInstant(effect);
-	if (!instant && runtime->numActive == CHAOS_MAX_ACTIVATIONS)
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	if (!instant && pool->numActive == CHAOS_MAX_ACTIVATIONS)
 	{
 		return false;
 	}
-	struct ChaosActivation activation = {
-		.effect = effect,
-		.remainingMS = durationMS,
-		.noticeRemainingMS = CHAOS_ACTIVATION_NOTICE_MS + (instant ? 0 : CHAOS_ACTIVATION_DOCK_MS),
-		.elapsedMS = 0,
-	};
+	activation.remainingMS = durationMS;
+	activation.noticeRemainingMS = CHAOS_ACTIVATION_NOTICE_MS + (instant ? 0 : CHAOS_ACTIVATION_DOCK_MS);
 	if (instant)
 	{
-		Chaos_EnqueueInstantNotice(&activation);
+		Chaos_EnqueueInstantNotice(&activation, player);
 	}
 	else
 	{
-		runtime->active[runtime->numActive++] = activation;
+		pool->active[pool->numActive++] = activation;
 	}
-	Chaos_ApplyOneOff(&activation);
+	Chaos_ApplyOneOff(&activation, player);
 	if (effect == CHAOS_EFFECT_ZA_WARUDO)
 	{
 		Chaos_PlayTimeEffectSound(SOUND_CLOCK);
@@ -484,17 +553,26 @@ bool Chaos_Activate(ChaosEffectId effect, s32 durationMS)
 	return true;
 }
 
+bool Chaos_Activate(ChaosEffectId effect, s32 durationMS)
+{
+	return Chaos_ActivateForPlayer(effect, durationMS, 0);
+}
+
 bool Chaos_IsActive(ChaosEffectId effect)
 {
 	if (ChaosEffect_Def(effect) == NULL || !Chaos_IsRunning(sdata->gGT))
 	{
 		return false;
 	}
-	for (int i = 0; i < sdata->chaosRuntime.numActive; i++)
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
-		if (sdata->chaosRuntime.active[i].effect == effect)
+		const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+		for (int i = 0; i < pool->numActive; i++)
 		{
-			return true;
+			if (pool->active[i].effect == effect)
+			{
+				return true;
+			}
 		}
 	}
 	return false;
@@ -511,12 +589,16 @@ bool Chaos_UsesTimePalette(void)
 		return false;
 	}
 	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	for (int i = 0; i < runtime->numInstantNotices; i++)
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
-		if (runtime->instantNotices[i].effect == CHAOS_EFFECT_KING_CRIMSON &&
-		    runtime->instantNotices[i].elapsedMS < CHAOS_TIME_SKIP_PALETTE_MS)
+		const struct ChaosPlayerRuntime *pool = &runtime->players[player];
+		for (int i = 0; i < pool->numInstantNotices; i++)
 		{
-			return true;
+			if (pool->instantNotices[i].effect == CHAOS_EFFECT_KING_CRIMSON &&
+			    pool->instantNotices[i].elapsedMS < CHAOS_TIME_SKIP_PALETTE_MS)
+			{
+				return true;
+			}
 		}
 	}
 	return false;
@@ -575,7 +657,8 @@ static bool Chaos_ActivateExternalEffect(const char *slug)
 
 static void Chaos_PollExternal(void)
 {
-	if (sdata->chaosRuntime.intervalRemainingMS > 0)
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
+	if (pool->intervalRemainingMS > 0)
 	{
 		return;
 	}
@@ -583,13 +666,29 @@ static void Chaos_PollExternal(void)
 	if (NativeChaosIPC_ReadCommand(command, sizeof(command)) == NATIVE_CHAOS_COMMAND &&
 	    Chaos_ActivateExternalEffect(command))
 	{
-		sdata->chaosRuntime.intervalRemainingMS = Chaos_NextTriggerGap();
+		pool->intervalRemainingMS = Chaos_NextTriggerGap();
 	}
+}
+
+static bool Chaos_HasEffectForDriver(ChaosEffectId effect, const struct Driver *driver)
+{
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+		for (int i = 0; i < pool->numActive; i++)
+		{
+			if (pool->active[i].effect == effect && Chaos_ActivationTargetsDriver(effect, player, driver))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 bool Chaos_IsActiveForDriver(ChaosEffectId effect, const struct Driver *driver)
 {
-	return Chaos_TargetsDriver(effect, driver) && Chaos_IsActive(effect);
+	return Chaos_IsRunning(sdata->gGT) && Chaos_HasEffectForDriver(effect, driver);
 }
 
 int Chaos_GravityForDriver(const struct Driver *driver)
@@ -738,6 +837,31 @@ void Chaos_OnTurboPadContact(struct Driver *driver, bool touching)
 	}
 }
 
+static void Chaos_ApplyPlayerInputRules(int player, const struct Driver *driver, struct GamepadBuffer *pad)
+{
+	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	for (int i = 0; i < pool->numActive; i++)
+	{
+		const ChaosEffectId effect = pool->active[i].effect;
+		if (!Chaos_ActivationTargetsDriver(effect, player, driver))
+		{
+			continue;
+		}
+		if (effect == CHAOS_EFFECT_MIRROR_MIRROR)
+		{
+			pad->stickLX = Chaos_InvertSteering(pad);
+		}
+		else if (effect == CHAOS_EFFECT_TOTALLY_SOBER)
+		{
+			pad->stickLX = Chaos_WobbleSteering(&pool->active[i], pad);
+		}
+		else if (effect == CHAOS_EFFECT_SABOTAGE)
+		{
+			Chaos_DisableBraking(pad);
+		}
+	}
+}
+
 void Chaos_ApplyInputRules(const struct Driver *driver, struct GamepadBuffer *pad)
 {
 	if (!Chaos_IsRunning(sdata->gGT))
@@ -750,26 +874,9 @@ void Chaos_ApplyInputRules(const struct Driver *driver, struct GamepadBuffer *pa
 	{
 		Chaos_RemapControls(&sdata->chaosRuntime.controls[driver->driverID], pad);
 	}
-	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	for (int i = 0; i < runtime->numActive; i++)
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
-		const ChaosEffectId effect = runtime->active[i].effect;
-		if (!Chaos_TargetsDriver(effect, driver))
-		{
-			continue;
-		}
-		if (effect == CHAOS_EFFECT_MIRROR_MIRROR)
-		{
-			pad->stickLX = Chaos_InvertSteering(pad);
-		}
-		else if (effect == CHAOS_EFFECT_TOTALLY_SOBER)
-		{
-			pad->stickLX = Chaos_WobbleSteering(&runtime->active[i], pad);
-		}
-		else if (effect == CHAOS_EFFECT_SABOTAGE)
-		{
-			Chaos_DisableBraking(pad);
-		}
+		Chaos_ApplyPlayerInputRules(player, driver, pad);
 	}
 }
 
@@ -782,24 +889,11 @@ static const struct Driver *Chaos_TopDownDriver(const struct PushBuffer *pushBuf
 	{
 		return NULL;
 	}
-	bool active = false;
-	for (int i = 0; i < sdata->chaosRuntime.numActive; i++)
-	{
-		if (sdata->chaosRuntime.active[i].effect == CHAOS_EFFECT_CLASSIC_GTA)
-		{
-			active = true;
-			break;
-		}
-	}
-	if (!active)
-	{
-		return NULL;
-	}
 	for (int i = 0; i < tracker->numPlyrCurrGame && i < (int)len(tracker->cameraDC); i++)
 	{
 		const struct CameraDC *camera = &tracker->cameraDC[i];
 		const struct Driver *driver = camera->driverToFollow;
-		if (camera->pushBuffer == pushBuffer && Chaos_TargetsDriver(CHAOS_EFFECT_CLASSIC_GTA, driver) &&
+		if (camera->pushBuffer == pushBuffer && Chaos_HasEffectForDriver(CHAOS_EFFECT_CLASSIC_GTA, driver) &&
 		    (driver->actionsFlagSet & ACTION_BOT) == 0)
 		{
 			return driver;
@@ -849,17 +943,13 @@ bool Chaos_HideCameraInstance(const struct PushBuffer *pushBuffer, const struct 
 	return Chaos_TopDownHidesInstance(driver, pushBuffer, instance, nearestDepth, coversKart);
 }
 
-u32 Chaos_ApplyDriver(struct Driver *driver, u32 actions)
+static u32 Chaos_ApplyPlayerDriver(int player, struct Driver *driver, u32 actions)
 {
-	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	if (!Chaos_IsRunning(sdata->gGT))
+	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	for (int i = 0; i < pool->numActive; i++)
 	{
-		return actions;
-	}
-	for (int i = 0; i < runtime->numActive; i++)
-	{
-		const ChaosEffectId effect = runtime->active[i].effect;
-		if (!Chaos_TargetsDriver(effect, driver))
+		const ChaosEffectId effect = pool->active[i].effect;
+		if (!Chaos_ActivationTargetsDriver(effect, player, driver))
 		{
 			continue;
 		}
@@ -881,19 +971,31 @@ u32 Chaos_ApplyDriver(struct Driver *driver, u32 actions)
 		}
 		else if (effect == CHAOS_EFFECT_WUMPA_TAX && !Chaos_IsTimeStopped())
 		{
-			Chaos_TickWumpaDrain(runtime->active[i].elapsedMS, driver);
+			Chaos_TickWumpaDrain(pool->active[i].elapsedMS, driver);
 		}
 	}
 	return actions;
 }
 
-static void Chaos_TickActivations(s32 elapsedMS)
+u32 Chaos_ApplyDriver(struct Driver *driver, u32 actions)
 {
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	const bool timeStopped = Chaos_IsTimeStopped();
-	for (int i = 0; i < runtime->numInstantNotices;)
+	if (!Chaos_IsRunning(sdata->gGT))
 	{
-		struct ChaosActivation *notice = &runtime->instantNotices[i];
+		return actions;
+	}
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		actions = Chaos_ApplyPlayerDriver(player, driver, actions);
+	}
+	return actions;
+}
+
+static void Chaos_TickPlayerActivations(int player, s32 elapsedMS, bool timeStopped)
+{
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	for (int i = 0; i < pool->numInstantNotices;)
+	{
+		struct ChaosActivation *notice = &pool->instantNotices[i];
 		if (timeStopped)
 		{
 			break;
@@ -903,16 +1005,16 @@ static void Chaos_TickActivations(s32 elapsedMS)
 		notice->noticeRemainingMS -= elapsedMS;
 		if (notice->noticeRemainingMS <= 0)
 		{
-			Chaos_RemoveInstantNotice(i);
+			Chaos_RemoveInstantNotice(pool, i);
 		}
 		else
 		{
 			i++;
 		}
 	}
-	for (int i = 0; i < runtime->numActive;)
+	for (int i = 0; i < pool->numActive;)
 	{
-		struct ChaosActivation *entry = &runtime->active[i];
+		struct ChaosActivation *entry = &pool->active[i];
 		if (timeStopped && entry->effect != CHAOS_EFFECT_ZA_WARUDO)
 		{
 			i++;
@@ -921,7 +1023,7 @@ static void Chaos_TickActivations(s32 elapsedMS)
 		Chaos_TickTimeEffectSound(entry, elapsedMS);
 		if (entry->remainingMS <= elapsedMS)
 		{
-			Chaos_RemoveActivation(i);
+			Chaos_RemoveActivation(player, i);
 			continue;
 		}
 		entry->remainingMS -= elapsedMS;
@@ -935,13 +1037,22 @@ static void Chaos_TickActivations(s32 elapsedMS)
 	}
 }
 
+static void Chaos_TickActivations(s32 elapsedMS)
+{
+	const bool timeStopped = Chaos_IsTimeStopped();
+	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
+	{
+		Chaos_TickPlayerActivations(player, elapsedMS, timeStopped);
+	}
+}
+
 void Chaos_Update(struct GameTracker *gGT)
 {
 	if (!Chaos_IsRunning(gGT) || gGT->elapsedTimeMS <= 0)
 	{
 		return;
 	}
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	const bool wasTimeStopped = Chaos_IsTimeStopped();
 	Chaos_TickActivations(gGT->elapsedTimeMS);
@@ -954,12 +1065,12 @@ void Chaos_Update(struct GameTracker *gGT)
 	Chaos_UpdateControlAxes();
 	if (settings->trigger == CHAOS_TRIGGER_EXTERNAL)
 	{
-		if (runtime->intervalRemainingMS > 0)
+		if (pool->intervalRemainingMS > 0)
 		{
-			runtime->intervalRemainingMS -= gGT->elapsedTimeMS;
-			if (runtime->intervalRemainingMS < 0)
+			pool->intervalRemainingMS -= gGT->elapsedTimeMS;
+			if (pool->intervalRemainingMS < 0)
 			{
-				runtime->intervalRemainingMS = 0;
+				pool->intervalRemainingMS = 0;
 			}
 		}
 		Chaos_PollExternal();
@@ -972,14 +1083,14 @@ void Chaos_Update(struct GameTracker *gGT)
 		return;
 	}
 	const s32 durationMS = settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND;
-	runtime->intervalRemainingMS -= gGT->elapsedTimeMS;
-	while (runtime->intervalRemainingMS <= 0)
+	pool->intervalRemainingMS -= gGT->elapsedTimeMS;
+	while (pool->intervalRemainingMS <= 0)
 	{
 		if (durationMS > 0)
 		{
 			const ChaosEffectId effect = Chaos_PickEventEffect();
 			Chaos_Activate(effect, durationMS);
 		}
-		runtime->intervalRemainingMS += Chaos_NextTriggerGap();
+		pool->intervalRemainingMS += Chaos_NextTriggerGap();
 	}
 }

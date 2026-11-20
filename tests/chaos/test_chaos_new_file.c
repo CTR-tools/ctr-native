@@ -302,6 +302,7 @@ static void TestAdventureChaosGate(void)
 
 static void CheckFreshSettings(void)
 {
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_SHARED, "a new Adventure always restores the shared distribution");
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	CTR_TEST_CHECK(!settings->armed, "a new file starts Regular");
 	CTR_TEST_CHECK_EQ(settings->durationSeconds, 10, "duration defaults to ten seconds");
@@ -454,6 +455,7 @@ static void TestNewAfterChaosCreation(void)
  			sdata->advDifficulty = DIFFICULTY_HARD;
 			sdata->chaosSettings.triggerIntervalSeconds = 90;
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
+			sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
 			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount, CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
 
 			g_config.expandedAdventureOptions = expanded != 0;

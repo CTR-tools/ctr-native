@@ -636,6 +636,13 @@ enum ChaosTrigger
 	CHAOS_TRIGGER_COUNT,
 };
 
+enum ChaosDistribution
+{
+	CHAOS_DISTRIBUTION_SHARED,
+	CHAOS_DISTRIBUTION_PER_PLAYER,
+	CHAOS_DISTRIBUTION_COUNT,
+};
+
 enum
 {
 	CHAOS_DURATION_DEFAULT_SECONDS = 10,
@@ -652,6 +659,7 @@ struct ChaosSettings
 	u8 enabledCount;                  // how many entries below are on
 	bool effects[CHAOS_EFFECT_COUNT]; // one entry per effect, in enum order
 	bool armed;
+	u8 distribution;                  // enum ChaosDistribution; session-only, never saved to Adventure
 };
 
 enum ChaosSaveConstants

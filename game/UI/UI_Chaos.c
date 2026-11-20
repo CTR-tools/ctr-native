@@ -18,16 +18,16 @@ enum
 	UI_CHAOS_MAX_ENTRIES = CHAOS_MAX_ACTIVATIONS + CHAOS_MAX_INSTANT_NOTICES,
 };
 
-static int UI_Chaos_CollectEntries(const struct ChaosRuntime *runtime, const struct ChaosActivation **entries)
+static int UI_Chaos_CollectEntries(const struct ChaosPlayerRuntime *pool, const struct ChaosActivation **entries)
 {
 	int count = 0;
-	for (int i = 0; i < runtime->numActive; i++)
+	for (int i = 0; i < pool->numActive; i++)
 	{
-		entries[count++] = &runtime->active[i];
+		entries[count++] = &pool->active[i];
 	}
-	for (int i = 0; i < runtime->numInstantNotices; i++)
+	for (int i = 0; i < pool->numInstantNotices; i++)
 	{
-		entries[count++] = &runtime->instantNotices[i];
+		entries[count++] = &pool->instantNotices[i];
 	}
 	// Older entries first, regardless of which lifecycle owns their storage.
 	for (int i = 1; i < count; i++)
@@ -183,10 +183,10 @@ void UI_Chaos_DrawActivation(struct GameTracker *gGT)
 	{
 		return;
 	}
-	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
 	const struct ChaosActivation *entries[UI_CHAOS_MAX_ENTRIES];
 	Chaos_DrawWrongWayWarnings(gGT);
-	const int count = UI_Chaos_CollectEntries(runtime, entries);
+	const int count = UI_Chaos_CollectEntries(pool, entries);
 	// Runtime activation and notice queues already contain unique effect IDs.
 	int rowY[UI_CHAOS_MAX_ENTRIES];
 	int docked[UI_CHAOS_MAX_DOCKED];

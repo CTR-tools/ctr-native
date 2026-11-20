@@ -43,6 +43,7 @@ static void TestBitsetWireFormat(void)
 	CTR_TEST_CHECK_EQ(live.durationSeconds, 35, "duration decodes from its original halfword");
 	CTR_TEST_CHECK_EQ(live.triggerIntervalSeconds, 65, "interval decodes from its original halfword");
 	CTR_TEST_CHECK_EQ(live.trigger, CHAOS_TRIGGER_INTERVAL, "trigger IDs retain their saved meaning");
+	CTR_TEST_CHECK_EQ(live.distribution, CHAOS_DISTRIBUTION_SHARED, "Adventure decoding clears any personal session variant");
 	CTR_TEST_CHECK_EQ(live.enabledCount, 5, "the enabled count is reconstructed rather than stored");
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
@@ -52,9 +53,10 @@ static void TestBitsetWireFormat(void)
 		CTR_TEST_CHECK(live.effects[id] == expected, "each saved bit maps to its stable named effect, including across byte boundaries");
 	}
 	live.enabledCount = 99;
+	live.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
 	memset(&saved, 0xff, sizeof(saved));
 	ChaosSave_Encode(&live, &saved);
-	CTR_TEST_CHECK(memcmp(&saved, bytes, sizeof(saved)) == 0, "encoding matches the byte fixture and does not persist the cached count");
+	CTR_TEST_CHECK(memcmp(&saved, bytes, sizeof(saved)) == 0, "encoding preserves the byte fixture without persisting session distribution or the cached count");
 }
 
 static void TestUnusedBitsAndZeroEffects(void)
