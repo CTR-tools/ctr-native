@@ -923,7 +923,7 @@ static void Tick(int elapsedMS)
 	Chaos_Update(&s_tracker);
 }
 
-static void EnableInputEffects(void)
+static inline void EnableInputEffects(void)
 {
 	SetupRace(CHAOS_TRIGGER_INTERVAL);
 	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));

@@ -231,6 +231,10 @@ ctr_add_test_suite(test_chaos_effects
     SOURCES chaos/test_chaos_effects.c
 )
 
+ctr_add_test_suite(test_chaos_gifts
+    SOURCES chaos/test_chaos_gifts.c
+)
+
 ctr_add_test_suite(test_warpball
     SOURCES test_warpball.c
 )
