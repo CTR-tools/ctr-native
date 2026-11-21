@@ -9,16 +9,8 @@
 
 enum
 {
-	CHAOS_PERCENT_SCALE = 100,
-	CHAOS_LOW_GRAVITY_DIVISOR = 4,
-	CHAOS_HEAVY_GRAVITY_MULTIPLIER = 3,
-	CHAOS_SUNDAY_DRIVER_SPEED_PERCENT = 70,
-	CHAOS_ARENA_CHAMPIONS_SPEED_PERCENT = 175,
-	CHAOS_SUPER_SPEED_MULTIPLIER = 2,
 	CHAOS_KART_SCALE_NORMAL = 1,
 	CHAOS_GIANT_SCALE = 2,
-	CHAOS_SMALL_FORCE_PERCENT = 70,
-	CHAOS_GIANT_SPEED_PERCENT = 130,
 	CHAOS_LAUNCH_JUMP_MULTIPLIER = 6,
 	CHAOS_WRONG_WAY_CADENCE_MULTIPLIER = 2,
 };
@@ -166,60 +158,4 @@ static void Chaos_LaunchDriver(struct Driver *driver)
 	             verticalSpeed < -maxVerticalSpeed ? -maxVerticalSpeed : (int)verticalSpeed;
 	VehPhysCrash_ConvertVecToSpeed(driver, &velocity);
 	driver->velocity = velocity;
-}
-
-static int Chaos_LowGravity(int gravity)
-{
-	return gravity / CHAOS_LOW_GRAVITY_DIVISOR;
-}
-
-static int Chaos_HeavyGravity(int gravity)
-{
-	return gravity * CHAOS_HEAVY_GRAVITY_MULTIPLIER;
-}
-
-static int Chaos_DefectiveBoostSpeed(const struct Driver *driver, int speed)
-{
-	if (driver->reserves != 0)
-	{
-		// Retail already added the fire bonus; subtract it twice to invert it.
-		speed -= 2 * driver->fireSpeedCap;
-	}
-	return speed > 0 ? speed : 0;
-}
-
-static int Chaos_PercentOf(int value, int percent)
-{
-	return (s64)value * percent / CHAOS_PERCENT_SCALE;
-}
-
-static int Chaos_SuperSpeed(int speed)
-{
-	return speed * CHAOS_SUPER_SPEED_MULTIPLIER;
-}
-
-static void Chaos_ClearReserves(struct Driver *driver)
-{
-	driver->reserves = 0;
-	driver->turbo_outsideTimer = 0;
-}
-
-static int Chaos_KeepReserves(const struct Driver *driver, int reserves)
-{
-	return reserves < driver->reserves ? driver->reserves : reserves;
-}
-
-static u32 Chaos_PreventHopping(struct Driver *driver, u32 actions)
-{
-	driver->jump_TenBuffer = 0;
-	return actions & ~ACTION_JUMP_BUTTON_HELD;
-}
-
-static void Chaos_RequestHop(struct Driver *driver)
-{
-	// Renew for this physics step; normal jump eligibility and force stay intact.
-	if (driver->jump_TenBuffer == 0)
-	{
-		driver->jump_TenBuffer = 1;
-	}
 }

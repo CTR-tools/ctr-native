@@ -513,6 +513,7 @@ static void CaptureLaunchVelocity(struct Driver *driver, Vec3 *velocity)
 #include <game/231/chaos/RB_ChaosExternal.c>
 #include <game/231/chaos/RB_ChaosReposition.c>
 #include <game/231/chaos/RB_ChaosScheduler.c>
+#include <game/231/chaos/RB_ChaosRaceHooks.c>
 #undef VehPhysForce_RotAxisAngle
 #undef VehPhysCrash_ConvertVecToSpeed
 #include <game/231/chaos/RB_Chaos.c>
