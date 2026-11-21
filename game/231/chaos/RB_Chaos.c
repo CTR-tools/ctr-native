@@ -8,6 +8,8 @@
 #include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
 #include "RB_ChaosAudio.h"
+#include "RB_ChaosEffects.h"
+#include "RB_ChaosReposition.h"
 #include "RB_ChaosRuntime.h"
 
 enum
