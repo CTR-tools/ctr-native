@@ -20,8 +20,26 @@ the Chaos prompt when creating a new Adventure.
 Chaos supports up to four human players where the underlying mode allows them.
 Effects requiring racing bots are excluded when the event has no bot grid;
 track-path teleports are excluded from Battle and crystal challenges.
-The setup lists only compatible effects, including Body Swap only with multiple
-players. 
+The setup lists only compatible effects.
+
+### Shared or per player
+
+**Distribution** defaults to **Shared**: one activation affects all eligible humans,
+as in Adventure. **Per player** gives each player its own effects. 
+Duration, trigger, interval and enabled effects remain common settings. 
+Independent selections can coincide.
+The distribution choice is shown only with multiple human players.
+
+- **Interval:** one common cadence, with a separate selection for each player.
+- **Random:** each player has an independent clock and selection.
+- **Pickup:** only the player collecting the pickup receives the effect.
+- **External:** only available with shared distribution at the moment.
+Bot effects still act on the whole bot grid, regardless of who receives them.
+Only one may run at a time. On completion (or instant execution), a shared
+30-second cooldown blocks all bot effects and a 60-second cooldown blocks the
+same effect. Unavailable effects are rerolled when another choice is possible.
+
+Adventure always uses Shared.
 
 ## Starting a Chaos file
 
@@ -45,13 +63,14 @@ Existing Regular files stay Regular.
 | **Duration** | How long timed effects last: 5–60 seconds, in 5-second steps. Default: 10 seconds. Instant effects apply once. |
 | **Trigger** | What causes the next activation; see below. Default: Random. |
 | **Interval** | Gap used by Random, Interval and External: 5–120 seconds, in 5-second steps. Default: 10 seconds. Hidden for Pickup. |
+| **Distribution** | Shared or Per player; available in multiplayer Arcade, VS and Battle only. |
 | **Effects** | Open the list and turn individual effects ON or OFF. All are selected initially. |
 | **Confirm** | Accept these rules. At least one effect must be selected. |
 
 ![Chaos setup with Duration, Trigger, Interval, Effects and Confirm](images/chaos-setup.jpg)
 
 Use Up/Down to navigate, Left/Right to adjust numeric values, and Cross/Circle to
-cycle the trigger, open Effects or toggle an effect. Triangle returns from the
+cycle the trigger or distribution, open Effects or toggle an effect. Triangle returns from the
 effect list to setup. These refer to the game's mapped controller buttons.
 
 ![Chaos effect selection with individual ON and OFF toggles](images/chaos-effect-selection.jpg)
@@ -83,7 +102,7 @@ Activate one randomly selected enabled effect when a human:
 
 ### External
 
-An external application chooses the effect by placing its name in a local file.
+Available with Shared distribution only. An external application chooses the effect by placing its name in a local file.
 The game waits one full Interval from GO, then reads the next request. Each
 successful activation starts a fresh interval. With no request, no effect starts.
 
@@ -159,7 +178,7 @@ Duration 30 seconds with Interval 10 seconds allows several effects at once.
 
 ## During a race
 
-A sound and on-screen banner announce each activation. After a few seconds, its
+With Shared distribution, a sound and on-screen banner announce each activation. After a few seconds, its
 name moves into the smaller list on the right. Instant effects show only the
 initial banner and never dock, even when their gameplay result persists.
 

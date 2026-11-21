@@ -16,6 +16,7 @@ enum
 	UI_CHAOS_SCREEN_MARGIN = 8,
 	UI_CHAOS_FINAL_LAP_HEIGHT = 17,
 	UI_CHAOS_MAX_ENTRIES = CHAOS_MAX_ACTIVATIONS + CHAOS_MAX_INSTANT_NOTICES,
+	UI_CHAOS_MAX_PERSONAL_ENTRIES = UI_CHAOS_MAX_ENTRIES * CHAOS_MAX_HUMAN_PLAYERS,
 };
 
 static int UI_Chaos_CollectEntries(const struct ChaosPlayerRuntime *pool, const struct ChaosActivation **entries)
@@ -176,6 +177,101 @@ static void UI_Chaos_DrawNotice(struct GameTracker *gGT, const struct ChaosActiv
 	                           ot);
 }
 
+static int UI_Chaos_CollectPersonalEntries(int player, int players, const struct ChaosActivation **entries)
+{
+	int count = 0;
+	// Put the viewport's own effects first, then relevant effects from other pools.
+	for (int offset = 0; offset < players; offset++)
+	{
+		const int owner = (player + offset) % players;
+		const struct ChaosActivation *poolEntries[UI_CHAOS_MAX_ENTRIES];
+		const int numEntries = UI_Chaos_CollectEntries(&sdata->chaosRuntime.players[owner], poolEntries);
+		for (int i = numEntries - 1; i >= 0; i--)
+		{
+			const struct ChaosActivation *entry = poolEntries[i];
+			const ChaosEffectDef *def = ChaosEffect_Def(entry->effect);
+			if (def == NULL)
+			{
+				continue;
+			}
+			const bool global = def->scope == CHAOS_SCOPE_BOTS || entry->effect == CHAOS_EFFECT_ZA_WARUDO;
+			const bool partner = entry->effect == CHAOS_EFFECT_BODY_SWAP &&
+			    sdata->chaosRuntime.bodySwapPartner[owner] == player + 1;
+			if (owner == player || global || partner)
+			{
+				entries[count++] = entry;
+			}
+		}
+	}
+	return count;
+}
+
+static bool UI_Chaos_LayoutPersonalRows(const RECT *viewport, int top, int height, int count,
+                                      const struct UI_Chaos_ReservedRow *reserved, int numReserved, int *rowY)
+{
+	int y = viewport->y + top;
+	for (int i = 0; i < count; i++)
+	{
+		y = UI_Chaos_FreeRowY(reserved, numReserved, y, height, true, false);
+		if (y + height > viewport->y + viewport->h - UI_CHAOS_SCREEN_MARGIN)
+		{
+			return false;
+		}
+		rowY[i] = y;
+		y += height;
+	}
+	return true;
+}
+
+static void UI_Chaos_DrawPersonal(struct GameTracker *gGT)
+{
+	struct UI_Chaos_ReservedRow reserved[CHAOS_MAX_HUMAN_PLAYERS * 2];
+	const int numReserved = UI_Chaos_CollectReservedRows(gGT, reserved);
+	for (int player = 0; player < gGT->numPlyrCurrGame && player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+	{
+		const struct Driver *driver = gGT->drivers[player];
+		const RECT *viewport = &gGT->pushBuffer[player].rect;
+		if (driver == NULL || (driver->actionsFlagSet & ACTION_RACE_FINISHED) != 0 || viewport->w <= 0 || viewport->h <= 0)
+		{
+			continue;
+		}
+		const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+		const int count = UI_Chaos_CollectPersonalEntries(player, gGT->numPlyrCurrGame, entries);
+		int rowY[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+		int height = UI_CHAOS_LIST_ROW_HEIGHT;
+		if (!UI_Chaos_LayoutPersonalRows(viewport, UI_CHAOS_LIST_MULTIPLAYER_TOP, height, count, reserved, numReserved, rowY))
+		{
+			// Compact the stack only when restart lights and a full pool require it.
+			while (!UI_Chaos_LayoutPersonalRows(viewport, UI_CHAOS_SCREEN_MARGIN, height, count, reserved, numReserved, rowY))
+			{
+				if (--height == 0)
+				{
+					break;
+				}
+			}
+		}
+		if (height == 0)
+		{
+			continue;
+		}
+		for (int i = 0; i < count; i++)
+		{
+			const struct ChaosActivation *entry = entries[i];
+			const char *name = LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + entry->effect);
+			s32 scale = UI_CHAOS_LIST_SCALE * height / UI_CHAOS_LIST_ROW_HEIGHT;
+			const int width = DecalFont_GetLineWidth((char *)name, FONT_SMALL);
+			const int available = viewport->w - UI_CHAOS_SCREEN_MARGIN * 2;
+			if (width > 0 && width * scale / FP(1.0) > available)
+			{
+				scale = available * FP(1.0) / width;
+			}
+			DecalFont_DrawLineScaledOT((char *)name, viewport->x + viewport->w - UI_CHAOS_SCREEN_MARGIN,
+			                           rowY[i], FONT_SMALL, JUSTIFY_RIGHT | ORANGE, scale,
+			                           &gGT->backBuffer->otMem.uiOT[UI_HUD_ORDERING_SLOT_BEHIND_HUD]);
+		}
+	}
+}
+
 void UI_Chaos_DrawActivation(struct GameTracker *gGT)
 {
 	if (!Chaos_IsRunning(gGT) || (gGT->hudFlags & HUD_FLAG_RACE_HUD) == 0 || gGT->numPlyrCurrGame < 1 ||
@@ -186,6 +282,11 @@ void UI_Chaos_DrawActivation(struct GameTracker *gGT)
 	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
 	const struct ChaosActivation *entries[UI_CHAOS_MAX_ENTRIES];
 	Chaos_DrawWrongWayWarnings(gGT);
+	if (Chaos_UsesPersonalPools())
+	{
+		UI_Chaos_DrawPersonal(gGT);
+		return;
+	}
 	const int count = UI_Chaos_CollectEntries(pool, entries);
 	// Runtime activation and notice queues already contain unique effect IDs.
 	int rowY[UI_CHAOS_MAX_ENTRIES];

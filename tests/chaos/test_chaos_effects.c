@@ -2065,6 +2065,149 @@ static void TestParticleOwnerTable(void)
 	CTR_TEST_CHECK(sdata->chaosParticleOwners == NULL, "an empty pool releases the resident reference to its old owner table");
 }
 
+static void TestPersonalViewportHud(void)
+{
+	CTR_TEST_SECTION("personal HUD keeps full pools in their own viewport and attributes global effects");
+	struct BodySwapWorld world;
+	static struct DB buffer;
+	u32 uiOT[5];
+	buffer.otMem.uiOT = uiOT;
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			SetupPersonalBodySwap(&world, players, 0);
+			s_tracker.gameMode1 = modes[mode];
+			s_tracker.backBuffer = &buffer;
+			s_tracker.hudFlags = HUD_FLAG_RACE_HUD;
+			for (int player = 0; player < players; player++)
+			{
+				s_tracker.pushBuffer[player].rect = (RECT){
+					players > 2 ? (player % 2) * SCREEN_WIDTH / 2 : 0,
+					players > 2 ? (player / 2) * SCREEN_HEIGHT / 2 : player * SCREEN_HEIGHT / players,
+					players > 2 ? SCREEN_WIDTH / 2 : SCREEN_WIDTH,
+					players > 1 ? SCREEN_HEIGHT / 2 : SCREEN_HEIGHT};
+				struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+				pool->numActive = CHAOS_MAX_ACTIVATIONS;
+				pool->numInstantNotices = CHAOS_MAX_INSTANT_NOTICES;
+				for (int i = 0; i < CHAOS_MAX_ACTIVATIONS; i++)
+				{
+					pool->active[i] = (struct ChaosActivation){.effect = CHAOS_EFFECT_MIRROR_MIRROR + i, .remainingMS = 10000};
+				}
+				for (int i = 0; i < CHAOS_MAX_INSTANT_NOTICES; i++)
+				{
+					pool->instantNotices[i] = (struct ChaosActivation){.effect = CHAOS_EFFECT_RESERVE_INJECTION, .noticeRemainingMS = 1000};
+				}
+				const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+				CTR_TEST_CHECK_EQ(UI_Chaos_CollectPersonalEntries(player, players, entries), UI_CHAOS_MAX_ENTRIES, "coincident personal effects do not leak across viewports");
+			}
+			DrawNotice();
+			CTR_TEST_CHECK_EQ(s_noticeDraws, players * UI_CHAOS_MAX_ENTRIES, "each viewport shows all four activations and four notices exactly once");
+			for (int row = 0; row < s_noticeDraws; row++)
+			{
+				const int player = row / UI_CHAOS_MAX_ENTRIES;
+				const RECT *viewport = &s_tracker.pushBuffer[player].rect;
+				const int width = DecalFont_GetLineWidth((char *)s_drawText[row], FONT_SMALL) * s_drawScale[row] / FP(1.0);
+				CTR_TEST_CHECK(s_drawX[row] <= viewport->x + viewport->w && s_drawX[row] - width >= viewport->x, "personal labels stay inside the viewport horizontally");
+				CTR_TEST_CHECK(s_drawY[row] >= viewport->y && s_drawY[row] + UI_CHAOS_LIST_ROW_HEIGHT <= viewport->y + viewport->h, "a full notice stack stays inside the viewport vertically");
+				CTR_TEST_CHECK(s_drawOT[row] == &uiOT[UI_HUD_ORDERING_SLOT_BEHIND_HUD], "personal labels remain behind ordinary race statistics");
+				const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+				UI_Chaos_CollectPersonalEntries(player, players, entries);
+				CTR_TEST_CHECK(strcmp(s_drawText[row], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + entries[row % UI_CHAOS_MAX_ENTRIES]->effect)) == 0, "personal rows show only the effect name, without redundant controller prefixes");
+			}
+			// Presentation fixtures isolate cross-pool visibility from activation eligibility.
+			sdata->chaosRuntime.players[0].active[3].effect = CHAOS_EFFECT_ARENA_CHAMPIONS;
+			if (players > 1)
+			{
+				sdata->chaosRuntime.players[1].active[3].effect = CHAOS_EFFECT_ZA_WARUDO;
+			}
+			for (int player = 0; player < players; player++)
+			{
+				const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+				const int count = UI_Chaos_CollectPersonalEntries(player, players, entries);
+				const struct ChaosActivation *local[UI_CHAOS_MAX_ENTRIES];
+				const int numLocal = UI_Chaos_CollectEntries(&sdata->chaosRuntime.players[player], local);
+				int bots = 0;
+				int timeStops = 0;
+				for (int i = 0; i < count; i++)
+				{
+					bots += entries[i]->effect == CHAOS_EFFECT_ARENA_CHAMPIONS;
+					timeStops += entries[i]->effect == CHAOS_EFFECT_ZA_WARUDO;
+					bool isLocal = false;
+					for (int j = 0; j < numLocal; j++)
+					{
+						isLocal |= entries[i] == local[j];
+					}
+					CTR_TEST_CHECK(isLocal || entries[i]->effect == CHAOS_EFFECT_ARENA_CHAMPIONS || entries[i]->effect == CHAOS_EFFECT_ZA_WARUDO, "only world and bot effects cross an unrelated viewport boundary");
+				}
+				CTR_TEST_CHECK_EQ(bots, 1, "a global bot effect appears once per viewport, including its origin");
+				CTR_TEST_CHECK_EQ(timeStops, players > 1, "time stop is visible to both its recipient and frozen opponents");
+			}
+			struct Icon icon = {0};
+			icon.texLayout.u1 = 16;
+			icon.texLayout.v2 = 32;
+			s_tracker.trafficLightIcon[0] = &icon;
+			for (int player = 0; player < players; player++)
+			{
+				sdata->chaosRuntime.restart[player].active = true;
+				sdata->chaosRuntime.restart[player].timer = DOT_LIGHT_TIMER_RED1;
+			}
+			DrawNotice();
+			int row = 0;
+			for (int player = 0; player < players; player++)
+			{
+				const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+				const int count = UI_Chaos_CollectPersonalEntries(player, players, entries);
+				RECT lights;
+				CTR_TEST_CHECK(DotLights_GetBounds(&s_tracker, player, DOT_LIGHT_TIMER_RED1, &lights), "restart lights provide real viewport bounds");
+				for (int i = 0; i < count; i++, row++)
+				{
+					const int height = UI_CHAOS_LIST_ROW_HEIGHT * s_drawScale[row] / UI_CHAOS_LIST_SCALE;
+					const RECT *viewport = &s_tracker.pushBuffer[player].rect;
+					CTR_TEST_CHECK(s_drawY[row] >= lights.y + lights.h || s_drawY[row] + height <= lights.y, "crowded personal rows avoid restart lights in their viewport");
+					CTR_TEST_CHECK(s_drawY[row] >= viewport->y && s_drawY[row] + height <= viewport->y + viewport->h, "compacting around restart lights never spills into another viewport");
+				}
+			}
+			CTR_TEST_CHECK_EQ(s_noticeDraws, row, "crowding never drops a personal or global row");
+			world.drivers[0].actionsFlagSet |= ACTION_RACE_FINISHED;
+			DrawNotice();
+			for (int row = 0; row < s_noticeDraws; row++)
+			{
+				CTR_TEST_CHECK(s_drawY[row] >= s_tracker.pushBuffer[0].rect.h || s_drawX[row] > s_tracker.pushBuffer[0].rect.w, "finished controllers no longer receive a personal HUD");
+			}
+		}
+	}
+
+	SetupPersonalBodySwap(&world, 4, 0);
+	s_tracker.backBuffer = &buffer;
+	s_tracker.hudFlags = HUD_FLAG_RACE_HUD;
+	for (int player = 0; player < 4; player++)
+	{
+		s_tracker.pushBuffer[player].rect = (RECT){(player % 2) * SCREEN_WIDTH / 2,
+		    (player / 2) * SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+	}
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 10000, 0), "a real personal pair supplies HUD ownership");
+	const int partner = sdata->chaosRuntime.bodySwapPartner[0] - 1;
+	for (int player = 0; player < 4; player++)
+	{
+		const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+		CTR_TEST_CHECK_EQ(UI_Chaos_CollectPersonalEntries(player, 4, entries), player == 0 || player == partner, "Body Swap appears only for its two participants, without duplicating its activation");
+	}
+	DrawNotice();
+	CTR_TEST_CHECK_EQ(s_noticeDraws, 2, "one real pair is drawn once in each participant's viewport");
+	const char *pairLabel = LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BODY_SWAP);
+	CTR_TEST_CHECK(strcmp(s_drawText[0], pairLabel) == 0 && strcmp(s_drawText[1], pairLabel) == 0,
+	               "both Body Swap participants see the effect name without a pair prefix");
+	s_allHumansFinished = true;
+	DrawNotice();
+	CTR_TEST_CHECK_EQ(s_noticeDraws, 0, "personal HUD hides when all humans finish");
+	s_allHumansFinished = false;
+	s_tracker.gameMode1 |= END_OF_RACE;
+	DrawNotice();
+	CTR_TEST_CHECK_EQ(s_noticeDraws, 0, "personal HUD stays hidden in results");
+}
+
 static void TestPersonalTimeStopAudio(void)
 {
 	CTR_TEST_SECTION("personal time-stop audio follows controllers before, during and after activation");
@@ -4801,6 +4944,7 @@ int main(void)
 	TestPersonalTimeStopOwnership();
 	TestThreadOwnerTable();
 	TestPersonalTimeStopAudio();
+	TestPersonalViewportHud();
 	TestPersonalQueuedVoices();
 	TestParticleOwnerTable();
 	TestPersonalTimeStopContacts();

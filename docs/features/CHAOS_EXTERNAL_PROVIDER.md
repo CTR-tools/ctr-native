@@ -3,6 +3,9 @@
 The game's External trigger accepts one effect request at a time by reading an
 externally written file.
 
+External supports Shared distribution only. Per player publishes an empty
+catalogue and does not consume commands; personal external targeting is not supported.
+
 ## Files and format
 
 | File            | Owner             | Contents                                      |
@@ -46,7 +49,8 @@ if (-not (Test-Path -LiteralPath 'chaos/command')) {
 
 ## Timing and consumption
 
-- Requires an armed Chaos Adventure save with trigger **External**.
+- Requires armed Shared Chaos rules in an eligible Adventure or Arcade/VS/Battle
+  event with trigger **External**.
 - Wait one saved interval from GO, then one full interval after each successful
   activation. Only eligible active race time counts; pause, menus, countdown,
   loading, hubs, results and Za Warudo's time stop neither spend the interval nor

@@ -651,6 +651,121 @@ static void TestSessionSetup(void)
 	CTR_TEST_CHECK_EQ(s_testLevel, -1, "the Adventure test shortcut is unavailable in session setup");
 }
 
+static void SelectSetting(enum ChaosSetting setting)
+{
+	for (int row = 0; row < sdata->chaosMenu.numSettings; row++)
+	{
+		if (sdata->chaosMenu.visibleSettings[row] == setting)
+		{
+			MM_menuChaosConfig.rowSelected = row;
+			return;
+		}
+	}
+	CtrTest_Bail("the requested Chaos setting must be visible");
+}
+
+static void TestPersonalDistributionSetup(void)
+{
+	CTR_TEST_SECTION("session distribution preserves common rules and excludes personal External");
+	const int modes[] = {ARCADE_MODE, ARCADE_MODE | RELIC_RACE, ARCADE_MODE | CRYSTAL_CHALLENGE, 0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			EnterSetup();
+			s_tracker.gameMode1 = modes[mode] | MAIN_MENU;
+			s_tracker.numPlyrNextGame = players;
+			MM_ChaosConfig_OpenSession();
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_SHARED, "new rules default to shared distribution");
+			if (players == 1)
+			{
+				sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+				sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+				MM_ChaosConfig_OpenSession();
+				CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_SHARED, "solo setup clears a personal preference from a previous multiplayer session");
+				CTR_TEST_CHECK(!Chaos_HasDistributionChoice() && !Chaos_SettingsArePersonal(), "solo setup uses shared rules without offering distribution");
+				for (int row = 0; row < sdata->chaosMenu.numSettings; row++)
+				{
+					CTR_TEST_CHECK(sdata->chaosMenu.visibleSettings[row] != CHAOS_SETTING_DISTRIBUTION, "solo setup omits the distribution row");
+				}
+				CTR_TEST_CHECK(Chaos_CanConfirm(), "solo External remains confirmable after clearing a personal preference");
+				s_tracker.gameMode1 = modes[mode] | PAUSE_1;
+				s_tracker.numPlyrCurrGame = 1;
+				s_tracker.numPlyrNextGame = 4;
+				struct RectMenu pause = {0};
+				const struct ChaosSettings before = sdata->chaosSettings;
+				MM_ChaosConfig_OpenReadOnly(&pause);
+				CTR_TEST_CHECK(!Chaos_HasDistributionChoice(), "solo pause uses the current player count rather than the next session's count");
+				for (int row = 0; row < sdata->chaosMenu.numSettings; row++)
+				{
+					CTR_TEST_CHECK(sdata->chaosMenu.visibleSettings[row] != CHAOS_SETTING_DISTRIBUTION, "solo pause omits the distribution row");
+				}
+				CTR_TEST_CHECK(memcmp(&before, &sdata->chaosSettings, sizeof(before)) == 0, "opening solo pause does not modify settings");
+				continue;
+			}
+			SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+			const struct ChaosSettings shared = sdata->chaosSettings;
+			Frame(BTN_CROSS, 0);
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_PER_PLAYER, "Cross selects personal distribution for multiplayer session events");
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_INTERVAL, "switching from shared External selects the matching internal Interval trigger");
+			CTR_TEST_CHECK(s_drewInterval, "changing distribution keeps the timed layout coherent in the same frame");
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, shared.durationSeconds, "distribution does not change the common duration");
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.triggerIntervalSeconds, shared.triggerIntervalSeconds, "distribution does not change the common cadence");
+			CTR_TEST_CHECK(memcmp(shared.effects, sdata->chaosSettings.effects, sizeof(shared.effects)) == 0, "changing distribution preserves hidden and visible effect preferences");
+			SelectSetting(CHAOS_SETTING_TRIGGER);
+			Frame(BTN_CROSS, 0);
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_RANDOM, "Cross wraps past unavailable personal External");
+			Frame(0, BTN_LEFT);
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_RANDOM, "directions preserve the existing confirm-only choice controls");
+			Frame(0, BTN_RIGHT);
+			CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_RANDOM, "Right cannot select unavailable personal External either");
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+			SelectSetting(CHAOS_SETTING_CONFIRM);
+			Frame(BTN_CROSS, 0);
+			CTR_TEST_CHECK(s_sessionFinishes == 0 && s_confirmColor == GRAY, "Confirm independently rejects a restored or injected personal External combination");
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
+			Chaos_BuildSettingRows();
+			SelectSetting(CHAOS_SETTING_CONFIRM);
+			Frame(BTN_CROSS, 0);
+			CTR_TEST_CHECK_EQ(s_sessionFinishes, 1, "valid personal rules resume the ordinary session flow");
+
+			s_tracker.gameMode1 = modes[mode] | PAUSE_1;
+			s_tracker.numPlyrCurrGame = players;
+			struct RectMenu pause = {0};
+			const struct ChaosSettings before = sdata->chaosSettings;
+			MM_ChaosConfig_OpenReadOnly(&pause);
+			SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+			Frame(BTN_CROSS, BTN_LEFT);
+			CTR_TEST_CHECK_EQ(Chaos_SettingValue(CHAOS_SETTING_DISTRIBUTION), CHAOS_DISTRIBUTION_PER_PLAYER, "pause rules show the chosen personal distribution");
+			CTR_TEST_CHECK(memcmp(&before, &sdata->chaosSettings, sizeof(before)) == 0, "pause cannot edit distribution or common rules");
+		}
+	}
+
+	EnterSetup();
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+	s_tracker.numPlyrNextGame = 1;
+	MM_ChaosConfig_OnEnter();
+	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 5, "Adventure creation never adds a distribution row");
+	CTR_TEST_CHECK(!Chaos_SettingsArePersonal() && !Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), "Adventure ignores a stale personal preference for effect filtering");
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+	CTR_TEST_CHECK(Chaos_CanConfirm(), "Adventure External remains valid despite a stale personal preference");
+	struct RectMenu pause = {0};
+	MM_ChaosConfig_OpenReadOnly(&pause);
+	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 4, "Adventure pause keeps its original shared rules layout");
+	CTR_TEST_CHECK(!Chaos_SettingsArePersonal(), "Adventure pause never interprets rules as personal");
+
+	s_tracker.gameMode1 = ARCADE_MODE | MAIN_MENU;
+	MM_ChaosConfig_OpenSession();
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_SHARED, "solo Arcade returns to shared rules without a distribution choice");
+	CTR_TEST_CHECK(!Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), "shared Arcade 1P hides Body Swap without clearing its preference");
+	CTR_TEST_CHECK(sdata->chaosSettings.effects[CHAOS_EFFECT_BODY_SWAP], "a hidden Body Swap remains enabled for later personal races");
+	SelectSetting(CHAOS_SETTING_TRIGGER);
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_EXTERNAL, "shared distribution still offers External");
+}
+
 static void TestChaosRaceShortcut(void)
 {
 	CTR_TEST_SECTION("Start tests the highlighted effect only during editable creation");
@@ -722,5 +837,6 @@ int main(void)
 	TestFilteredActiveEffects();
 	TestChaosRaceShortcut();
 	TestSessionSetup();
+	TestPersonalDistributionSetup();
 	return CtrTest_Summary();
 }

@@ -69,6 +69,9 @@ replace each other; pending time-stop impacts resolve before bot relocation.
 ## Time stop
 
 Za Warudo (ID 38, `za-warudo`) is timed and capped at 10,000 ms.
+Shared distribution exempts all humans; personal distribution exempts only its
+recipient controller and forbids concurrent time stops. The rules below describe
+human exemptions collectively for Shared; personal exemptions use exact ownership.
 `Chaos_Update` runs before the event clock and world updates. While stopped,
 only its activation clock advances; other activation/notice/trigger clocks,
 Fresh Start and transformation delays retain their values. Wumpa Tax cannot
@@ -108,14 +111,28 @@ retain their original source until dispatch. Dead participants cannot be recycle
 while referenced. Reset discards pending operations; checkpoints relocate their
 source, target and BSP pointers.
 
-Audio context tags human FX in `ChannelStats.flags`, preserving ownership through
-retail pause backups and quick states. Menu move/back/confirm/locked effects are
+Chaos-owned thread and particle tables store controller attribution by actual
+pool slot, outside generic object layouts. They are allocated alongside their
+MEMPACK pools, cleared at slot birth and preserved through activation resets.
+Checkpoint relocation repairs both table pointers. Collective-human flags remain
+fallbacks for Shared only; they cannot grant personal immunity.
+
+`ChaosAudioOwner` identifies world, UI, unattributed human or a controller.
+`audioOwner` is the nested sound-generation context; `xaOwner` independently
+identifies the playing XA clip. Chaos-owned tables attribute physical channels,
+pause backups and queued voices, without generic `ChannelStats` ownership flags.
+Pause restores attribution even when a channel receives a different physical ID.
+Known-driver voice producers explicitly pass the speaker through
+`Voiceline_RequestPlayOwned`; character identity is never used to guess ownership.
+Personal queue arbitration can bypass frozen entries without consuming them;
+Shared preserves the original head-of-queue policy.
+Menu move/back/confirm/locked effects are
 always exempt from time stop, including opening and closing pause. Menu sound
 matching uses only the low 16-bit sample ID, excluding the instance counter packed
 by `OtherFX_Play_LowLevel`. Positional sounds preserve an enclosing human context,
 including Wumpa collection after its instance loses its thread; weapon sounds
 also inherit live owner identity. Options slider FX/voice previews explicitly
-enter human audio context. The active
+enter UI audio context. The active
 music slider's Aku/Uka preview alone may advance its sequencer and music channels;
 channels resolve their sequence's song-pool slot, leaving race music suspended.
 Other music sequencing and frozen FX lifetimes
@@ -131,7 +148,7 @@ the original image and slightly dimmed for readability.
 HUD colors are untouched in Original and direct/scaled presentation. Race completion/reset
 releases suspension.
 
-`Chaos_PlayTimeEffectSound` preserves human audio context for both time effects.
+`Chaos_PlayTimeEffectSound` uses globally audible UI audio context for both time effects.
 The crate-break cue follows the clock cue after 200 ms through
 `Chaos_TickTimeEffectSound`. Za Warudo additionally plays the retail time-crate
 tick (`0x40`) six times at normal pitch and sample lifetime, spaced 192 ms apart,
@@ -202,6 +219,31 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
 
 ## Runtime and checkpoints
 
+`ChaosRuntime.players[]` owns four timed activations, four instant notices and a
+trigger clock per controller. Shared and Adventure use only `players[0]` as their
+common pool; ownership is implicit in the pool index. `distribution` is session-only
+and excluded from Adventure encoding. Setup and pause expose it only for multiplayer
+sessions.
+Personal External is unavailable in navigation and rejected by Confirm/runtime;
+switching from shared External selects Interval without changing its cadence.
+
+Personal Interval uses a common clock with independent selections; Random uses
+independent clocks; Pickup dispatches to its source controller. Finished or absent
+recipients are excluded. Personal selection removes rejected candidates and retries
+until one succeeds or the finite candidate list is exhausted. Shared selection
+is unchanged. Personal bot effects remain in their source pool but act globally;
+running bot effects block all other bot effects. Completion/instant execution
+starts resident global 30-second and same-effect 60-second cooldowns.
+Body Swap owns one nonoverlapping pair per source pool, with independent deadlines.
+Za Warudo suspends all other pool clocks and bot cooldowns through its expiry frame,
+discarding time-stop overshoot rather than advancing suspended clocks.
+
+Personal HUD collection combines the local pool with global bot/time-stop entries
+and the viewport's Body Swap pair. Compact rows show effect names without controller prefixes and fit
+the actual viewport rectangle, reserving restart-light rows. Shared banners and
+docked lists retain their existing layout. Asset-free presentation tests record
+draw submissions, not pixels; in-game visual validation is still required.
+
 `Chaos_BeginRace` runs after vehicle teleport in `MainGameStart_Initialize`.
 `Chaos_Update` runs before gameplay threads, only after GO in eligible Adventure,
 Arcade, VS and Battle events, with no active menu, debug menu or pending load.
@@ -216,7 +258,7 @@ Use that RNG for scheduling and
 selection rather than retail RNG. Unbreakable's retail weapon interactions can
 still consume retail RNG; do not conceal this by restoring it.
 
-Timed activations are ordered, with at most four unique IDs. Reactivation removes the
+Timed activations are ordered per pool, with at most four unique IDs. Reactivation removes the
 old entry and appends a fresh one, resetting duration, phase, notice and one-off
 behavior. Conflicts use last-activation-wins, as listed in the
 [player guide](features/CHAOS.md#effects). Symmetric conflicts are represented once
@@ -231,7 +273,7 @@ refresh their notice; overflow drops the oldest notice. Zero duration is invalid
 for both kinds. Selection draws from enabled effects allowed in the current
 event with `chaosRng`. Bots-only effects are excluded from relic, crystal,
 time-trial and battle events; this rule also applies to publication and incoming
-requests. There is no live recipient-availability filter. Application excludes
+requests. Shared selection has no live recipient-availability filter. Application excludes
 finished drivers and respects scope; bots-only scope selects slots above the
 human count. Event filtering reuses `RACE_FIELD_NO_BOT_MODES` from race setup.
 

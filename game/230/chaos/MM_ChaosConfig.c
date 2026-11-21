@@ -33,6 +33,21 @@ static bool Chaos_TriggerIsTimed(int trigger)
 	return trigger == CHAOS_TRIGGER_RANDOM || trigger == CHAOS_TRIGGER_INTERVAL || trigger == CHAOS_TRIGGER_EXTERNAL;
 }
 
+static bool Chaos_HasDistributionChoice(void)
+{
+	const struct ChaosMenuState *state = &sdata->chaosMenu;
+	const struct GameTracker *tracker = sdata->gGT;
+	const int players = state->returnMenu != NULL ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	return players > 1 && (state->sessionSetup ||
+	       (state->returnMenu != NULL && (tracker->gameMode1 & ADVENTURE_MODE) == 0));
+}
+
+static bool Chaos_SettingsArePersonal(void)
+{
+	return Chaos_HasDistributionChoice() &&
+	       sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER;
+}
+
 static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 	[CHAOS_SETTING_DURATION] = {
 		.kind = FULLSCREEN_ROW_STEP,
@@ -44,6 +59,8 @@ static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 		.kind = FULLSCREEN_ROW_STEP,
 		.min = CHAOS_INTERVAL_MIN_SECONDS, .max = CHAOS_INTERVAL_MAX_SECONDS,
 		.step = CHAOS_INTERVAL_STEP_SECONDS, .suffix = "s"},
+	[CHAOS_SETTING_DISTRIBUTION] = {
+		.kind = FULLSCREEN_ROW_CHOICE, .numChoices = CHAOS_DISTRIBUTION_COUNT},
 	[CHAOS_SETTING_EFFECTS] = {.kind = FULLSCREEN_ROW_ACTION},
 	[CHAOS_SETTING_CONFIRM] = {.kind = FULLSCREEN_ROW_ACTION},
 };
@@ -51,6 +68,7 @@ static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 static const int s_chaosSettingLabels[CHAOS_SETTING_COUNT] = {
 	[CHAOS_SETTING_DURATION] = LNG_EXPANDED_DURATION,
 	[CHAOS_SETTING_TRIGGER] = LNG_EXPANDED_TRIGGER,
+	[CHAOS_SETTING_DISTRIBUTION] = LNG_EXPANDED_CHAOS_DISTRIBUTION,
 	[CHAOS_SETTING_INTERVAL] = LNG_EXPANDED_INTERVAL,
 	[CHAOS_SETTING_EFFECTS] = LNG_EXPANDED_EFFECTS,
 	[CHAOS_SETTING_CONFIRM] = LNG_EXPANDED_CONFIRM,
@@ -74,6 +92,10 @@ static void Chaos_BuildSettingRows(void)
 
 	for (int setting = 0; setting < CHAOS_SETTING_COUNT; setting++)
 	{
+		if (setting == CHAOS_SETTING_DISTRIBUTION && !Chaos_HasDistributionChoice())
+		{
+			continue;
+		}
 		if (setting == CHAOS_SETTING_CONFIRM && state->returnMenu != NULL)
 		{
 			continue;
@@ -95,6 +117,8 @@ static int Chaos_SettingValue(enum ChaosSetting setting)
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	switch (setting)
 	{
+	case CHAOS_SETTING_DISTRIBUTION:
+		return settings->distribution;
 	case CHAOS_SETTING_DURATION:
 		return settings->durationSeconds;
 	case CHAOS_SETTING_TRIGGER:
@@ -112,11 +136,16 @@ static int Chaos_SettingValue(enum ChaosSetting setting)
 // Shared row operations work on ints; commit only the changed field with its stored type.
 static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 {
-	const struct FullScreenMenu_Row *row = &s_chaosSettings[setting];
+	struct FullScreenMenu_Row spec = s_chaosSettings[setting];
+	// External is the final choice and has no personal provider yet.
+	if (setting == CHAOS_SETTING_TRIGGER && Chaos_SettingsArePersonal())
+	{
+		spec.numChoices = CHAOS_TRIGGER_EXTERNAL;
+	}
 	int value = Chaos_SettingValue(setting);
 	const bool changed = direction == 0
-	                         ? FullScreenMenu_RowActivate(row, &value)
-	                         : FullScreenMenu_RowStep(row, &value, direction);
+	                         ? FullScreenMenu_RowActivate(&spec, &value)
+	                         : FullScreenMenu_RowStep(&spec, &value, direction);
 	if (!changed)
 	{
 		return;
@@ -125,6 +154,13 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 	struct ChaosSettings *settings = &sdata->chaosSettings;
 	switch (setting)
 	{
+	case CHAOS_SETTING_DISTRIBUTION:
+		settings->distribution = (u8)value;
+		if (Chaos_SettingsArePersonal() && settings->trigger == CHAOS_TRIGGER_EXTERNAL)
+		{
+			settings->trigger = CHAOS_TRIGGER_INTERVAL;
+		}
+		break;
 	case CHAOS_SETTING_DURATION:
 		settings->durationSeconds = (u16)value;
 		break;
@@ -149,8 +185,12 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 	}
 }
 
-static void Chaos_OnEnter(struct RectMenu *returnMenu)
+static void Chaos_OnEnter(struct RectMenu *returnMenu, bool sessionSetup)
 {
+	if (sessionSetup && sdata->gGT->numPlyrNextGame == 1)
+	{
+		sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+	}
 	sdata->chaosMenu = (struct ChaosMenuState){
 		.menu = {
 			.stringIndexTitle = RECTMENU_STRING_NONE,
@@ -159,6 +199,7 @@ static void Chaos_OnEnter(struct RectMenu *returnMenu)
 		},
 		.page = CHAOS_PAGE_SETTINGS,
 		.returnMenu = returnMenu,
+		.sessionSetup = sessionSetup,
 	};
 	FullScreenMenu_SetShadedFrame(returnMenu == NULL);
 	Chaos_BuildSettingRows();
@@ -172,12 +213,16 @@ static bool Chaos_EffectIsAvailable(ChaosEffectId effect)
 	// An Adventure file spans every event type, not just the current hub/race.
 	const int mode = (tracker->gameMode1 & ADVENTURE_MODE) != 0
 	                     ? ADVENTURE_MODE : tracker->gameMode1 & ~MAIN_MENU;
-	const bool personal = sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER;
+	const bool personal = Chaos_SettingsArePersonal();
 	return ChaosEvent_EffectFits(effect, mode, tracker->cup.cupID, players, g_config.extendedMultiplayer, personal);
 }
 
 static bool Chaos_CanConfirm(void)
 {
+	if (Chaos_SettingsArePersonal() && sdata->chaosSettings.trigger == CHAOS_TRIGGER_EXTERNAL)
+	{
+		return false;
+	}
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
 		if (sdata->chaosSettings.effects[id] && Chaos_EffectIsAvailable((ChaosEffectId)id))
@@ -190,20 +235,19 @@ static bool Chaos_CanConfirm(void)
 
 void MM_ChaosConfig_OnEnter(void)
 {
-	Chaos_OnEnter(NULL);
+	Chaos_OnEnter(NULL, false);
 }
 
 void MM_ChaosConfig_OpenSession(void)
 {
-	Chaos_OnEnter(NULL);
-	sdata->chaosMenu.sessionSetup = true;
+	Chaos_OnEnter(NULL, true);
 	RECTMENU_ClearInput();
 	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
 }
 
 void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
 {
-	Chaos_OnEnter(returnMenu);
+	Chaos_OnEnter(returnMenu, false);
 	RECTMENU_ClearInput();
 	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
 }
@@ -251,6 +295,12 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 			{
 				choices[i] = LANG_GetString(s_chaosTriggerNames[i]);
 			}
+			spec.choices = choices;
+		}
+		else if (setting == CHAOS_SETTING_DISTRIBUTION)
+		{
+			choices[CHAOS_DISTRIBUTION_SHARED] = LANG_GetString(LNG_EXPANDED_CHAOS_SHARED);
+			choices[CHAOS_DISTRIBUTION_PER_PLAYER] = LANG_GetString(LNG_EXPANDED_CHAOS_PER_PLAYER);
 			spec.choices = choices;
 		}
 		const char *label = LANG_GetString(setting == CHAOS_SETTING_EFFECTS && sdata->chaosMenu.returnMenu != NULL
@@ -389,6 +439,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 				finish = true;
 				break;
 			case CHAOS_SETTING_DURATION:
+			case CHAOS_SETTING_DISTRIBUTION:
 			case CHAOS_SETTING_TRIGGER:
 			case CHAOS_SETTING_INTERVAL:
 				Chaos_EditSetting(state->visibleSettings[selected], 0);
