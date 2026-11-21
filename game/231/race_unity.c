@@ -8,6 +8,7 @@
 #include "chaos/RB_ChaosCamera.c"
 #include "chaos/RB_ChaosControls.c"
 #include "chaos/RB_ChaosRestart.c"
+#include "chaos/RB_ChaosItems.c"
 #include "chaos/RB_ChaosEffects.c"
 #include "chaos/RB_ChaosBodySwap.c"
 #include "chaos/RB_ChaosIdentity.c"

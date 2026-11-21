@@ -506,6 +506,7 @@ static void CaptureLaunchVelocity(struct Driver *driver, Vec3 *velocity)
 #include <game/231/chaos/RB_ChaosCamera.c>
 #include <game/231/chaos/RB_ChaosControls.c>
 #include <game/231/chaos/RB_ChaosRestart.c>
+#include <game/231/chaos/RB_ChaosItems.c>
 #include <game/231/chaos/RB_ChaosEffects.c>
 #include <game/231/chaos/RB_ChaosBodySwap.c>
 #include <game/231/chaos/RB_ChaosIdentity.c>
