@@ -3,7 +3,7 @@
 #include "MM_ChaosTestRace.h"
 #include "../menu-helpers/MM_FullScreenMenu.c"
 
-_Static_assert(LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
+_Static_assert(LNG_EXPANDED_CHAOS_EFFECT_ARENA_CHUMPS - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
                "Chaos effect text IDs must match effect IDs");
 
 // Shared settings: editable during creation/session setup, read-only from pause.

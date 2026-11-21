@@ -15,6 +15,7 @@ enum
 	CHAOS_HEAVY_JUMP_PERCENT = 140,
 	CHAOS_SUNDAY_DRIVER_SPEED_PERCENT = 70,
 	CHAOS_ARENA_CHAMPIONS_SPEED_PERCENT = 175,
+	CHAOS_ARENA_CHUMPS_SPEED_PERCENT = 70,
 	CHAOS_SUPER_SPEED_MULTIPLIER = 2,
 	CHAOS_SMALL_SPEED_PERCENT = 70,
 	CHAOS_GIANT_SPEED_PERCENT = 130,
@@ -128,6 +129,10 @@ int Chaos_SpeedForDriver(const struct Driver *driver, int speed)
 	{
 		speed = Chaos_PercentOf(speed, CHAOS_ARENA_CHAMPIONS_SPEED_PERCENT);
 	}
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHUMPS, driver))
+	{
+		speed = Chaos_PercentOf(speed, CHAOS_ARENA_CHUMPS_SPEED_PERCENT);
+	}
 	return speed;
 }
 
@@ -154,6 +159,10 @@ int Chaos_AccelerationForDriver(const struct Driver *driver, int acceleration)
 	    Chaos_IsActiveForDriver(CHAOS_EFFECT_GOTTA_GO_FAST, driver))
 	{
 		return Chaos_SuperSpeed(acceleration);
+	}
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHUMPS, driver))
+	{
+		return Chaos_PercentOf(acceleration, CHAOS_ARENA_CHUMPS_SPEED_PERCENT);
 	}
 	return acceleration;
 }

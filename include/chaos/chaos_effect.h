@@ -62,7 +62,8 @@ typedef enum {
 	CHAOS_EFFECT_DEFECTIVE_TELEPORT = 37,
 	CHAOS_EFFECT_ZA_WARUDO = 38,
 	CHAOS_EFFECT_KING_CRIMSON = 39,
-
+	CHAOS_EFFECT_ARENA_CHUMPS = 40,
+	
 	// IDs are saved bit positions: append new IDs, never renumber or reuse one.
 	// Growth within the saved bitset capacity does not change its layout.
 	CHAOS_EFFECT_COUNT,
@@ -130,6 +131,7 @@ static const ChaosEffectDef g_chaosEffectDefs[CHAOS_EFFECT_COUNT] =
 	[CHAOS_EFFECT_DEFECTIVE_TELEPORT] = { "defective-teleport", "Defective Teleport", CHAOS_SCOPE_HUMANS },
 	[CHAOS_EFFECT_ZA_WARUDO] = { "za-warudo", "Za Warudo", CHAOS_SCOPE_ALL },
 	[CHAOS_EFFECT_KING_CRIMSON] = { "king-crimson", "King Crimson", CHAOS_SCOPE_BOTS },
+	[CHAOS_EFFECT_ARENA_CHUMPS] = { "arena-chumps", "Arena Chumps", CHAOS_SCOPE_BOTS }
 };
 
 static inline bool ChaosEffect_IsInstant(ChaosEffectId id)

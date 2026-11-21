@@ -4146,6 +4146,49 @@ static void TestArenaChampions(void)
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 9000, "race teardown clears the bot multiplier");
 }
 
+static void TestArenaChumps(void)
+{
+	CTR_TEST_SECTION("Arena Chumps scales bot motion to 70 percent without compounding AI state");
+	SetupRace(CHAOS_TRIGGER_EXTERNAL);
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ARENA_CHUMPS] = true;
+	sdata->chaosSettings.enabledCount++;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strstr(s_externalCatalogue, "arena-chumps\n") != NULL, "Arena Chumps is published even in a botless race");
+	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ARENA_CHUMPS, 1000), "Arena Chumps activates without a bot-availability requirement");
+	Chaos_BeginRace(&s_tracker);
+	struct Driver bot = {.driverID = 2, .actionsFlagSet = ACTION_BOT};
+	struct Driver secondBot = {.driverID = 7, .actionsFlagSet = ACTION_BOT};
+	s_tracker.drivers[2] = &bot;
+	s_tracker.drivers[7] = &secondBot;
+	struct Driver *human = s_tracker.drivers[0];
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 9000, "inactive Arena Chumps preserves retail bot motion");
+	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ARENA_CHUMPS, 1000), "Arena Chumps activates as a timed effect when bots are present");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "Arena Chumps occupies a timed slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numInstantNotices, 0, "Arena Chumps is not an instant action");
+	CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHUMPS, &bot) &&
+	               Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHUMPS, &secondBot), "all unfinished bot slots receive the effect");
+	CTR_TEST_CHECK(!Chaos_IsActiveForDriver(CHAOS_EFFECT_ARENA_CHUMPS, human), "human slots are excluded");
+	const int nominalSpeeds[] = {0, 500, 1000, 9000, 16000, 24000, 25600};
+	for (int i = 0; i < (int)len(nominalSpeeds); i++)
+	{
+		bot.botData.aiPhysics.speedLinear = nominalSpeeds[i];
+		const int actualSpeed = Chaos_SpeedForDriver(&bot, bot.botData.aiPhysics.speedLinear);
+		CTR_TEST_CHECK_EQ(actualSpeed, nominalSpeeds[i] * 70 / 100, "bot motion scales to 70 percent through the full retail speed range");
+		CTR_TEST_CHECK_EQ(bot.botData.aiPhysics.speedLinear, nominalSpeeds[i], "motion scaling leaves persistent AI speed in retail units");
+		CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, bot.botData.aiPhysics.speedLinear), actualSpeed,
+		                  "repeated motion queries never compound the speed multiplier");
+	}
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 6300, "fractional bot speeds use the full 70-percent multiplier before truncation");
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(human, 9000), 9000, "human driving speed remains unchanged");
+	secondBot.actionsFlagSet |= ACTION_RACE_FINISHED;
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&secondBot, 9000), 9000, "finished bots return to retail motion immediately");
+	Tick(1000);
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 9000, "expiry restores retail motion without undoing a modified constant");
+	Chaos_Activate(CHAOS_EFFECT_ARENA_CHUMPS, 1000);
+	Chaos_Reset();
+	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 9000), 9000, "race teardown clears the bot multiplier");
+}
+
 static void TestClassicGTA(void)
 {
 	CTR_TEST_SECTION("Classic GTA provides per-human top-down views and viewport-local cutaways");
@@ -4707,6 +4750,7 @@ int main(void)
 	TestKartParticleScale();
 	TestClassicGTA();
 	TestArenaChampions();
+	TestArenaChumps();
 	TestYouveGotMail();
 	TestFreshStart();
 	TestSenileMask();
