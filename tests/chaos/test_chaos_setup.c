@@ -585,6 +585,7 @@ static void TestCompatibleEffectRows(void)
 				const bool bots = (adventure || modes[mode] == ARCADE_MODE) && (players <= 2 || extended);
 				const bool teleports = (modes[mode] & (BATTLE_MODE | CRYSTAL_CHALLENGE)) == 0;
 				int row = 0;
+				ChaosEffectId lastEffect = CHAOS_EFFECT_NONE;
 				for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 				{
 					const bool expected = (id != CHAOS_EFFECT_BODY_SWAP || players > 1) &&
@@ -595,13 +596,15 @@ static void TestCompatibleEffectRows(void)
 					if (expected)
 					{
 						CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row++), id, "filtered rows retain stable catalogue order");
+						lastEffect = (ChaosEffectId)id;
 					}
 				}
 				CTR_TEST_CHECK_EQ(Chaos_PageRowCount(&sdata->chaosMenu), row, "scrolling counts only compatible effects");
 				CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row), CHAOS_EFFECT_NONE, "no effect exists past the filtered list");
 				MM_menuChaosConfig.rowSelected = row - 1;
 				Frame(BTN_CROSS, 0);
-				CTR_TEST_CHECK(!sdata->chaosSettings.effects[bots ? CHAOS_EFFECT_KING_CRIMSON : CHAOS_EFFECT_ZA_WARUDO],
+				// Derive the expected ID so appending another effect keeps this a mapping check.
+				CTR_TEST_CHECK(!sdata->chaosSettings.effects[lastEffect],
 				               "toggling a shifted row edits the mapped effect, not the raw row index");
 				CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, CHAOS_EFFECT_COUNT - 1,
 				                  "hidden preferences remain intact while the cached count tracks the edited effect");
