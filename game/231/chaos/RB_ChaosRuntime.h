@@ -9,6 +9,8 @@ struct Driver;
 // Race-pool queries shared by the Chaos implementation modules.
 int Chaos_PlayerPoolCount(void);
 bool Chaos_HasEnabledPlayer(void);
+bool Chaos_PlayerCanReceive(int player);
+bool Chaos_ActivateForPlayer(ChaosEffectId effect, int durationMS, int player);
 // Unlike gameplay activation queries, this retains immunity while paused.
 bool Chaos_PlayerHasTimeStop(int player);
 // Includes effects retained while gameplay is paused.

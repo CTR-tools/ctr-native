@@ -14,6 +14,7 @@
 #include "chaos/RB_ChaosIdentity.c"
 #include "chaos/RB_ChaosExternal.c"
 #include "chaos/RB_ChaosReposition.c"
+#include "chaos/RB_ChaosScheduler.c"
 #include "chaos/RB_Chaos.c"
 #include "RB_Instance.c"
 #include "RB_Player.c"
