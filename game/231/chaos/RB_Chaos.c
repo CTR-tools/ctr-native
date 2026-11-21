@@ -8,6 +8,7 @@
 #include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
 #include "RB_ChaosAudio.h"
+#include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
 #include "RB_ChaosReposition.h"
 #include "RB_ChaosRuntime.h"
@@ -130,7 +131,7 @@ static void Chaos_StartBotCooldown(ChaosEffectId effect, s32 elapsedSinceEndMS)
 	}
 }
 
-static bool Chaos_ActivationTargetsDriver(ChaosEffectId effect, int player, const struct Driver *driver)
+bool Chaos_ActivationTargetsDriver(ChaosEffectId effect, int player, const struct Driver *driver)
 {
 	if (!Chaos_TargetsDriver(effect, driver))
 	{
@@ -1033,49 +1034,6 @@ void Chaos_OnTurboPadContact(struct Driver *driver, bool touching)
 	if (entered)
 	{
 		Chaos_OnPickup(driver);
-	}
-}
-
-static void Chaos_ApplyPlayerInputRules(int player, const struct Driver *driver, struct GamepadBuffer *pad)
-{
-	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
-	for (int i = 0; i < pool->numActive; i++)
-	{
-		const ChaosEffectId effect = pool->active[i].effect;
-		if (!Chaos_ActivationTargetsDriver(effect, player, driver))
-		{
-			continue;
-		}
-		if (effect == CHAOS_EFFECT_MIRROR_MIRROR)
-		{
-			pad->stickLX = Chaos_InvertSteering(pad);
-		}
-		else if (effect == CHAOS_EFFECT_TOTALLY_SOBER)
-		{
-			pad->stickLX = Chaos_WobbleSteering(&pool->active[i], pad);
-		}
-		else if (effect == CHAOS_EFFECT_SABOTAGE)
-		{
-			Chaos_DisableBraking(pad);
-		}
-	}
-}
-
-void Chaos_ApplyInputRules(const struct Driver *driver, struct GamepadBuffer *pad)
-{
-	if (!Chaos_IsRunning(sdata->gGT))
-	{
-		return;
-	}
-	// Remap physical controls before filtering the resulting gameplay actions.
-	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_WHO_BOUND_THIS, driver) &&
-	    driver->driverID < (int)len(sdata->chaosRuntime.controls))
-	{
-		Chaos_RemapControls(&sdata->chaosRuntime.controls[driver->driverID], pad);
-	}
-	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
-	{
-		Chaos_ApplyPlayerInputRules(player, driver, pad);
 	}
 }
 
