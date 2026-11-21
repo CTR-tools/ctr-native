@@ -1,8 +1,13 @@
 #include <common.h>
 #include <game/Vehicle/VehPhysForce.h>
 #include "RB_ChaosAudio.h"
+#include "RB_ChaosBodySwap.h"
+#include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
+#include "RB_ChaosIdentity.h"
 #include "RB_ChaosItems.h"
+#include "RB_ChaosReposition.h"
+#include "RB_ChaosRestart.h"
 #include "RB_ChaosRuntime.h"
 
 // Effect operations only; RB_Chaos.c checks activation and driver eligibility.
@@ -158,4 +163,113 @@ static void Chaos_LaunchDriver(struct Driver *driver)
 	             verticalSpeed < -maxVerticalSpeed ? -maxVerticalSpeed : (int)verticalSpeed;
 	VehPhysCrash_ConvertVecToSpeed(driver, &velocity);
 	driver->velocity = velocity;
+}
+
+void Chaos_ApplyOneOff(const struct ChaosActivation *chaosActivation, int player)
+{
+	const ChaosEffectId effect = chaosActivation->effect;
+	if (effect == CHAOS_EFFECT_KING_CRIMSON)
+	{
+		Chaos_UpdateTimeStopAudio();
+		Chaos_ResolveDeferredImpacts();
+		Chaos_SkipBotTime();
+		Chaos_PlayTimeEffectSound(SOUND_CLOCK);
+		return;
+	}
+	if (effect == CHAOS_EFFECT_BODY_SWAP)
+	{
+		if (!Chaos_UsesPersonalPools())
+		{
+			Chaos_BeginBodySwaps();
+		}
+		return;
+	}
+	if (effect == CHAOS_EFFECT_YOUVE_GOT_MAIL)
+	{
+		Chaos_SendWarpball();
+	}
+	if (effect == CHAOS_EFFECT_CLOCKBLOCKED)
+	{
+		// Clock sound needs to be only applied once, otherwise it plays once per player
+		OtherFX_Play(SOUND_CLOCK, 1);
+	}
+	if (effect == CHAOS_EFFECT_IDENTITY_CRISIS)
+	{
+		OtherFX_Play(SOUND_INVISIBILITY, 1);
+	}
+	for (int i = 0; i < (int)len(sdata->gGT->drivers); i++)
+	{
+		struct Driver *driver = sdata->gGT->drivers[i];
+		if (Chaos_ActivationTargetsDriver(effect, player, driver))
+		{
+			switch ((int)effect)
+			{
+				case CHAOS_EFFECT_BIG_KART_ENERGY:
+					Chaos_SetKartScale(CHAOS_GIANT_SCALE, driver);
+					break;
+				case CHAOS_EFFECT_SMALL_KART_ENERGY:
+					Chaos_SetKartScale(s_chaosSmallScale, driver);
+					break;
+				case CHAOS_EFFECT_USE_THIS:
+					Chaos_GiveRandomItem(driver);
+					break;
+				case CHAOS_EFFECT_JUICED_UP:
+					Chaos_GiveWumpas(driver);
+					break;
+				case CHAOS_EFFECT_IT_IS_I:
+					Chaos_GiveMask(driver);
+					break;
+				case CHAOS_EFFECT_PROVIDENCE:
+					Chaos_GiveShield(driver);
+					break;
+				case CHAOS_EFFECT_RESERVE_INJECTION:
+					Chaos_GiveReserves(driver);
+					break;
+				case CHAOS_EFFECT_THIS_IS_FIRE:
+					Chaos_UpgradeTurbo(driver);
+					break;
+				case CHAOS_EFFECT_FRESH_START:
+				{
+					struct ChaosRestart *restart = &sdata->chaosRuntime.restart[driver->driverID];
+					Chaos_EndRestartHold(restart, driver);
+					restart->active = false;
+					restart->pending = true;
+					if (!Chaos_IsBeingRescued(driver))
+					{
+						Chaos_RestartDriver(driver, restart);
+					}
+					break;
+				}
+				case CHAOS_EFFECT_MY_PLANET_NEEDS_ME:
+					Chaos_LaunchDriver(driver);
+					break;
+				case CHAOS_EFFECT_WHO_BOUND_THIS:
+					if (driver->driverID < (int)len(sdata->chaosRuntime.controls))
+					{
+						Chaos_ShuffleControls(&sdata->chaosRuntime.controls[driver->driverID], &GAMEPADS->gamepad[driver->driverID]);
+					}
+					break;
+				case CHAOS_EFFECT_TRY_SOMETHING_NEW:
+					if (driver->driverID < (int)len(sdata->chaosRuntime.engineClass))
+					{
+						Chaos_ChangeDrivingClass(driver);
+					}
+					break;
+				case CHAOS_EFFECT_IDENTITY_CRISIS:
+					Chaos_ChangeIdentity(driver);
+					break;
+				case CHAOS_EFFECT_YARDRAT_TRAINING:
+					Chaos_TeleportDriver(driver);
+					break;
+				case CHAOS_EFFECT_DEFECTIVE_TELEPORT:
+					Chaos_DefectiveTeleportDriver(driver);
+					break;
+				case CHAOS_EFFECT_CLOCKBLOCKED:
+					Chaos_ApplyClockCurse(driver, chaosActivation->remainingMS);
+					break;
+				default:
+					break;
+			}
+		}
+	}
 }
