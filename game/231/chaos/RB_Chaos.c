@@ -8,6 +8,7 @@
 #include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
 #include "RB_ChaosAudio.h"
+#include "RB_ChaosBodySwap.h"
 #include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
 #include "RB_ChaosIdentity.h"
@@ -207,40 +208,6 @@ void Chaos_Init(u32 seed)
 	sdata->chaosRng = seed;
 }
 
-static bool Chaos_CanSwapBody(int slot)
-{
-	const struct Driver *driver = GAME_TRACKER->drivers[slot];
-	return driver != NULL && driver->instSelf != NULL && driver->instSelf->thread != NULL &&
-	       (slot >= GAME_TRACKER->numPlyrCurrGame || Chaos_IsPlayerEnabled(slot)) &&
-	       (driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0;
-}
-
-static int Chaos_CollectBodySwapPartners(int player, int *candidates)
-{
-	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	if (!Chaos_CanSwapBody(player) || runtime->bodySwapPartner[player] != 0)
-	{
-		return 0;
-	}
-	int count = 0;
-	for (int slot = 0; slot < (int)len(GAME_TRACKER->drivers); slot++)
-	{
-		if (slot != player && runtime->bodySwapPartner[slot] == 0 && Chaos_CanSwapBody(slot))
-		{
-			candidates[count++] = slot;
-		}
-	}
-	return count;
-}
-
-static void Chaos_BeginBodySwapPair(int player, int partner)
-{
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	runtime->bodySwapPartner[player] = partner + 1;
-	runtime->bodySwapPartner[partner] = player + 1;
-	Chaos_SwapBodies(player, partner);
-}
-
 bool Chaos_IsTimeStopped(void)
 {
 	const struct GameTracker *tracker = GAME_TRACKER;
@@ -259,24 +226,6 @@ bool Chaos_IsTimeStopped(void)
 		}
 	}
 	return false;
-}
-
-static void Chaos_BeginBodySwaps(void)
-{
-	struct GameTracker *tracker = GAME_TRACKER;
-	Chaos_ReturnBodySwaps();
-	for (int player = 0; player < tracker->numPlyrCurrGame; player++)
-	{
-		int candidates[LOAD_CHARACTER_ID_COUNT];
-		const int count = Chaos_CollectBodySwapPartners(player, candidates);
-		if (count == 0)
-		{
-			continue;
-		}
-		const int partner = candidates[ChaosEffect_NextRandom(&sdata->chaosRng) % count];
-		Chaos_BeginBodySwapPair(player, partner);
-	}
-	Chaos_RefreshBodySwapModifiers();
 }
 
 static void Chaos_RemoveActivation(int player, int index, s32 elapsedSinceEndMS);

@@ -76,6 +76,11 @@ static void Chaos_SetKartScale(float scale, struct Driver *driver)
 	driver->kartScale = scale;
 }
 
+void Chaos_ResetKartScale(struct Driver *driver)
+{
+	Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
+}
+
 static void Chaos_ClearItems(struct Driver *driver)
 {
 	VehPhysProc_RemoveHeldItem(driver);
@@ -247,21 +252,7 @@ int Chaos_EngineClassForDriver(const struct Driver *driver, int engineClass)
 	return engineClass;
 }
 
-static void Chaos_MoveDriverThread(struct Driver *driver, int from, int to)
-{
-	struct Thread *thread = driver->instSelf->thread;
-	struct Thread **link = &GAME_TRACKER->threadBuckets[from].thread;
-	while (*link != thread)
-	{
-		link = &(*link)->siblingThread;
-	}
-	*link = thread->siblingThread;
-	thread->siblingThread = GAME_TRACKER->threadBuckets[to].thread;
-	GAME_TRACKER->threadBuckets[to].thread = thread;
-	thread->flags = (thread->flags & ~0xffu) | to;
-}
-
-static void Chaos_RefreshBodySwapModifiers(void)
+void Chaos_RefreshBodySwapModifiers(void)
 {
 	for (int player = 0; player < GAME_TRACKER->numPlyrCurrGame; player++)
 	{
@@ -281,119 +272,6 @@ static void Chaos_RefreshBodySwapModifiers(void)
 		if (Chaos_IsActiveForDriver(CHAOS_EFFECT_THIS_IS_FIRE, driver))
 		{
 			Chaos_UpgradeTurbo(driver);
-		}
-	}
-}
-
-void Chaos_FollowBody(int player, struct Driver *driver)
-{
-	struct CameraDC *camera = &GAME_TRACKER->cameraDC[player];
-	camera->driverToFollow = driver;
-	camera->flags &= ~CAMERA_FLAG_MASK_GRAB;
-	camera->flags |= CAMERA_FLAG_DIRECTION_CHANGED | CAMERA_FLAG_RESET_RAIN_POS;
-	memset(&camera->BlastedLerp, 0, sizeof(camera->BlastedLerp));
-	camera->heightSmoothing = (struct CameraHeightSmoothing){0};
-	sdata->chaosRuntime.cameraBlendPending[player] = true;
-}
-
-static void Chaos_SwapBodies(int first, int second)
-{
-	struct GameTracker *tracker = GAME_TRACKER;
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	struct Driver *a = tracker->drivers[first];
-	struct Driver *b = tracker->drivers[second];
-	const bool aHuman = first < tracker->numPlyrCurrGame;
-	const bool bHuman = second < tracker->numPlyrCurrGame;
-	const int aEngine = Chaos_EngineClassForDriver(a, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[first]].engineID);
-	const int bEngine = Chaos_EngineClassForDriver(b, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[second]].engineID);
-	const s16 character = GAME_CHARACTER_IDS[first];
-	GAME_CHARACTER_IDS[first] = GAME_CHARACTER_IDS[second];
-	GAME_CHARACTER_IDS[second] = character;
-	tracker->drivers[first] = b;
-	tracker->drivers[second] = a;
-	a->driverID = second;
-	b->driverID = first;
-	// The rank number belongs to the viewport, not the physical kart.
-	struct Instance *bigNum = a->instBigNum;
-	a->instBigNum = b->instBigNum;
-	b->instBigNum = bigNum;
-	// Rank icon animation, unlike the viewport number, follows the kart.
-	s16 rankIcon = data.rankIconsCurr[first];
-	data.rankIconsCurr[first] = data.rankIconsCurr[second];
-	data.rankIconsCurr[second] = rankIcon;
-	rankIcon = data.rankIconsDesired[first];
-	data.rankIconsDesired[first] = data.rankIconsDesired[second];
-	data.rankIconsDesired[second] = rankIcon;
-	rankIcon = data.rankIconsTransitionTimer[first];
-	data.rankIconsTransitionTimer[first] = data.rankIconsTransitionTimer[second];
-	data.rankIconsTransitionTimer[second] = rankIcon;
-	if (aHuman)
-	{
-		tracker->humanPlayerPositions[first] = b->driverRank;
-	}
-	if (bHuman)
-	{
-		tracker->humanPlayerPositions[second] = a->driverRank;
-	}
-
-	const struct ChaosIdentity identity = runtime->identity[first];
-	runtime->identity[first] = runtime->identity[second];
-	runtime->identity[second] = identity;
-	const u8 engine = runtime->engineClass[first];
-	const bool changed = runtime->engineClassChanged[first];
-	runtime->engineClass[first] = runtime->engineClass[second];
-	runtime->engineClassChanged[first] = runtime->engineClassChanged[second];
-	runtime->engineClass[second] = engine;
-	runtime->engineClassChanged[second] = changed;
-	const u8 crossings = runtime->teleportForwardCrossings[first];
-	runtime->teleportForwardCrossings[first] = runtime->teleportForwardCrossings[second];
-	runtime->teleportForwardCrossings[second] = crossings;
-
-	Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, a);
-	Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, b);
-	if (aHuman != bHuman)
-	{
-		struct Driver *human = aHuman ? b : a;
-		struct Driver *bot = aHuman ? a : b;
-		Chaos_MoveDriverThread(human, ROBOT, PLAYER);
-		Chaos_MoveDriverThread(bot, PLAYER, ROBOT);
-		LIST_RemoveMember(&sdata->navBotList[human->botData.botPath], &human->botData.item);
-		VehPhysProc_TakeControl(human);
-		bot->instSelf->thread->modelIndex = DYNAMIC_ROBOT_CAR;
-		BOTS_Driver_Resume(bot);
-	}
-	if (aHuman)
-	{
-		Chaos_ChangeEngineAudio(b, aEngine, bEngine);
-		Chaos_FollowBody(first, b);
-		runtime->touchingTurboPad[first] = false;
-	}
-	if (bHuman)
-	{
-		Chaos_ChangeEngineAudio(a, bEngine, aEngine);
-		Chaos_FollowBody(second, a);
-		runtime->touchingTurboPad[second] = false;
-	}
-}
-
-static void Chaos_ReturnBodySwap(int first)
-{
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	const int second = runtime->bodySwapPartner[first] - 1;
-	runtime->bodySwapPartner[first] = 0;
-	runtime->bodySwapPartner[second] = 0;
-	Chaos_SwapBodies(first, second);
-}
-
-static void Chaos_ReturnBodySwaps(void)
-{
-	struct ChaosRuntime *runtime = &sdata->chaosRuntime;
-	for (int first = 0; first < (int)len(runtime->bodySwapPartner); first++)
-	{
-		const int second = runtime->bodySwapPartner[first] - 1;
-		if (second > first)
-		{
-			Chaos_ReturnBodySwap(first);
 		}
 	}
 }

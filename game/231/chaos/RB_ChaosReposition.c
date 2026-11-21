@@ -1,6 +1,6 @@
 #include <common.h>
 #include <game/Vehicle/VehPhysForce.h>
-#include "RB_ChaosEffects.h"
+#include "RB_ChaosBodySwap.h"
 #include "RB_ChaosReposition.h"
 #include "RB_ChaosRestart.h"
 

@@ -4,6 +4,7 @@
 struct Driver;
 
 void Chaos_SetDrivingClass(struct Driver *driver, int next);
-void Chaos_FollowBody(int player, struct Driver *driver);
+void Chaos_ResetKartScale(struct Driver *driver);
+void Chaos_RefreshBodySwapModifiers(void);
 
 #endif
