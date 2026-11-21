@@ -869,7 +869,7 @@ static void Chaos_PollExternal(void)
 	}
 }
 
-static bool Chaos_HasEffectForDriver(ChaosEffectId effect, const struct Driver *driver)
+bool Chaos_HasEffectForDriver(ChaosEffectId effect, const struct Driver *driver)
 {
 	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
@@ -1077,69 +1077,6 @@ void Chaos_ApplyInputRules(const struct Driver *driver, struct GamepadBuffer *pa
 	{
 		Chaos_ApplyPlayerInputRules(player, driver, pad);
 	}
-}
-
-static const struct Driver *Chaos_TopDownDriver(const struct PushBuffer *pushBuffer)
-{
-	const struct GameTracker *tracker = sdata->gGT;
-	if (pushBuffer == NULL || !sdata->chaosRuntime.raceInitialized || !sdata->chaosSettings.armed ||
-	    !ChaosGate_IsRaceEligible(tracker->gameMode1 & ~PAUSE_ALL, tracker->overlayIndex_Threads,
-	                             tracker->trafficLightsTimer < 1))
-	{
-		return NULL;
-	}
-	for (int i = 0; i < tracker->numPlyrCurrGame && i < (int)len(tracker->cameraDC); i++)
-	{
-		const struct CameraDC *camera = &tracker->cameraDC[i];
-		const struct Driver *driver = camera->driverToFollow;
-		if (camera->pushBuffer == pushBuffer && Chaos_HasEffectForDriver(CHAOS_EFFECT_CLASSIC_GTA, driver) &&
-		    (driver->actionsFlagSet & ACTION_BOT) == 0)
-		{
-			return driver;
-		}
-	}
-	return NULL;
-}
-
-bool Chaos_ApplyCameraRules(struct CameraDC *camera)
-{
-	struct PushBuffer *pushBuffer = camera->pushBuffer;
-	const struct Driver *driver = Chaos_TopDownDriver(pushBuffer);
-	if (driver == NULL || driver != camera->driverToFollow)
-	{
-		return false;
-	}
-	Chaos_SetTopDownCamera(camera, driver);
-	return true;
-}
-
-bool Chaos_HideCameraQuadBlock(const struct PushBuffer *pushBuffer, const struct QuadBlock *block, const struct LevVertex *vertices)
-{
-	const struct Driver *driver = Chaos_TopDownDriver(pushBuffer);
-	if (driver == NULL)
-	{
-		return false;
-	}
-	return Chaos_TopDownHidesQuadBlock(driver, block, vertices);
-}
-
-void Chaos_ApplyLevelVisibilityRules(const struct PushBuffer *pushBuffer, struct VisMem *visibility,
-                                   const struct mesh_info *mesh, int playerIndex)
-{
-	if (Chaos_TopDownDriver(pushBuffer) != NULL)
-	{
-		Chaos_SetTopDownVisibility(visibility, mesh, playerIndex);
-	}
-}
-
-bool Chaos_HideCameraInstance(const struct PushBuffer *pushBuffer, const struct Instance *instance, int nearestDepth, bool coversKart)
-{
-	const struct Driver *driver = Chaos_TopDownDriver(pushBuffer);
-	if (driver == NULL)
-	{
-		return false;
-	}
-	return Chaos_TopDownHidesInstance(driver, pushBuffer, instance, nearestDepth, coversKart);
 }
 
 static u32 Chaos_ApplyPlayerDriver(int player, struct Driver *driver, u32 actions)
