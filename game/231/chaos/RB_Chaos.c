@@ -11,6 +11,7 @@
 #include "RB_ChaosBodySwap.h"
 #include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
+#include "RB_ChaosExternal.h"
 #include "RB_ChaosIdentity.h"
 #include "RB_ChaosReposition.h"
 #include "RB_ChaosRestart.h"
@@ -30,7 +31,7 @@ bool Chaos_IsPlayerEnabled(int player)
 	       !sdata->chaosSettings.disabledPlayers[player];
 }
 
-static bool Chaos_HasEnabledPlayer(void)
+bool Chaos_HasEnabledPlayer(void)
 {
 	for (int player = 0; player < sdata->gGT->numPlyrCurrGame; player++)
 	{
@@ -304,7 +305,7 @@ void Chaos_Reset(void)
 				{
 					Chaos_EndRestartHold(&sdata->chaosRuntime.restart[i], driver);
 				}
-				Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
+				Chaos_ResetKartScale(driver);
 				if (i < (int)len(sdata->chaosRuntime.engineClassChanged) && sdata->chaosRuntime.engineClassChanged[i])
 				{
 					const int defaultClass = GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[driver->driverID]].engineID;
@@ -375,7 +376,7 @@ static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, 
 		struct Driver *driver = sdata->gGT->drivers[i];
 		if (driver != NULL && Chaos_IsPlayerEnabled(i) && (!Chaos_UsesPersonalPools() || driver->driverID == player))
 		{
-			Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
+			Chaos_ResetKartScale(driver);
 		}
 	}
 }
@@ -754,73 +755,6 @@ bool Chaos_UsesTimePalette(void)
 	return false;
 }
 
-void Chaos_PublishEffects(void)
-{
-	const struct ChaosSettings *settings = &sdata->chaosSettings;
-	char catalogue[NATIVE_CHAOS_CATALOGUE_SIZE] = {0};
-	size_t used = 0;
-	const struct GameTracker *gGT = sdata->gGT;
-	const bool eligibleRace = gGT != NULL && !gGT->boolDemoMode && !Chaos_UsesPersonalPools() &&
-	    ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
-	                             gGT->overlayIndex_Threads, true) && Chaos_HasEnabledPlayer();
-	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
-	{
-		if (settings->effects[i] && ChaosEvent_EffectFitsSelection((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
-		                                                        gGT->numPlyrCurrGame, g_config.extendedMultiplayer,
-		                                                        Chaos_UsesPersonalPools(), settings->disabledPlayers))
-		{
-			const char *slug = ChaosEffect_Def((ChaosEffectId)i)->slug;
-			const size_t length = strlen(slug);
-			if (length + 1 >= sizeof(catalogue) - used)
-			{
-				Platform_LogError("[Chaos] Effects catalogue exceeds publication capacity.\n");
-				return;
-			}
-			memcpy(catalogue + used, slug, length);
-			used += length;
-			catalogue[used++] = '\n';
-		}
-	}
-	NativeChaosIPC_WriteEffectsCatalogue(catalogue);
-}
-
-static bool Chaos_ActivateExternalEffect(const char *slug)
-{
-	const struct ChaosSettings *settings = &sdata->chaosSettings;
-	const ChaosEffectId effect = ChaosEffect_FromSlug(slug);
-	if (effect == CHAOS_EFFECT_NONE)
-	{
-		Platform_LogError("[Chaos] Consumed invalid or unknown effect command.\n");
-		return false;
-	}
-	if (!ChaosEffect_IsEnabled(settings->effects, effect))
-	{
-		Platform_LogError("[Chaos] Consumed disabled effect: %s\n", slug);
-		return false;
-	}
-	if (!Chaos_Activate(effect, settings->durationSeconds * CHAOS_MILLISECONDS_PER_SECOND))
-	{
-		Platform_LogError("[Chaos] Consumed effect rejected by runtime: %s\n", slug);
-		return false;
-	}
-	return true;
-}
-
-static void Chaos_PollExternal(void)
-{
-	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[0];
-	if (pool->intervalRemainingMS > 0)
-	{
-		return;
-	}
-	char command[NATIVE_CHAOS_COMMAND_SIZE];
-	if (NativeChaosIPC_ReadCommand(command, sizeof(command)) == NATIVE_CHAOS_COMMAND &&
-	    Chaos_ActivateExternalEffect(command))
-	{
-		pool->intervalRemainingMS = Chaos_NextTriggerGap();
-	}
-}
-
 bool Chaos_HasEffectForDriver(ChaosEffectId effect, const struct Driver *driver)
 {
 	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
@@ -1157,7 +1091,10 @@ void Chaos_Update(struct GameTracker *gGT)
 				pool->intervalRemainingMS = 0;
 			}
 		}
-		Chaos_PollExternal();
+		if (sdata->chaosRuntime.players[0].intervalRemainingMS <= 0 && Chaos_PollExternal())
+		{
+			sdata->chaosRuntime.players[0].intervalRemainingMS = Chaos_NextTriggerGap();
+		}
 		return;
 	}
 
