@@ -247,6 +247,7 @@
 #include "230/config/MM_ControlsConfig.c"
 #include "230/MM_MenuFlow.c"
 #include "230/chaos/MM_Chaos.c"
+#include "230/chaos/MM_ChaosTestRace.c"
 #include "230/chaos/MM_ChaosConfig.c"
 #include "230/MM_QuickRace.c"
 #include "230/MM_Title.c"

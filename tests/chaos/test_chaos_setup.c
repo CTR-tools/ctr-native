@@ -91,6 +91,7 @@ void MM_NewLoad_ReturnFromChaosSetup(void)
 }
 
 // Exercise the real input callback; drawing doubles record submissions, not pixels.
+#include <game/230/chaos/MM_ChaosTestRace.c>
 #include <game/230/chaos/MM_ChaosConfig.c>
 #include <game/MAIN/MainFreeze_Chaos.c>
 
