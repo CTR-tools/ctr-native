@@ -255,6 +255,7 @@ void Voiceline_PoolClear(void);
 void Voiceline_StopAll(void);
 void Voiceline_ToggleEnable(int toggle);
 void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2);
+void Voiceline_RequestPlayOwned(u32 voiceID, u32 characterID, u32 characterID2, const struct Driver *speaker);
 void Voiceline_StartPlay(struct Item *voiceLine);
 void Voiceline_Update(void);
 void Voiceline_PlayWrongWay(struct Driver *driver);
@@ -915,6 +916,8 @@ void MM_MenuProc_AdvDifficulty(struct RectMenu *menu);
 void MM_NewLoad_Advance(struct RectMenu *screen);
 void MM_NewLoad_Retreat(struct RectMenu *screen);
 void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu);
+void MM_ChaosConfig_OpenSession(void);
+void MM_ChaosSession_FinishSetup(bool confirm);
 
 // Index of one of the strings this port appends past the retail .lng table, or
 // RECTMENU_STRING_NONE when the table could not be extended. The indices depend

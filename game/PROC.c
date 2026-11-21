@@ -221,6 +221,7 @@ struct Thread *PROC_BirthWithObject(ThreadFlags flags, void *funcThTick, const c
 
 	// initialize thread fields
 	th->flags = flags;
+	Chaos_ClearThreadOwner(th);
 	th->cooldownFrameCount = 0;
 	th->funcThDestroy = 0;
 	th->funcThCollide = 0;
@@ -596,9 +597,9 @@ void ThTick_RunBucket(struct Thread *thread)
 		}
 		if (Chaos_ShouldFreezeThread(t))
 		{
-			const bool previousAudio = Chaos_SetHumanAudio(true);
+			const enum ChaosAudioOwner previousAudio = Chaos_SetAudioOwner(CHAOS_AUDIO_UI);
 			t = ThTick_RunThreadNative(&context, t, Chaos_CollideFrozenThread);
-			Chaos_SetHumanAudio(previousAudio);
+			Chaos_SetAudioOwner(previousAudio);
 			ThTick_PushPending(pending, &count, t->childThread);
 			continue;
 		}
@@ -616,9 +617,9 @@ void ThTick_RunBucket(struct Thread *thread)
 
 		if (t->funcThTick != NULL)
 		{
-			const bool humanAudio = Chaos_SetHumanAudio(Chaos_IsHumanOwnedThread(t));
+			const enum ChaosAudioOwner previousAudio = Chaos_SetThreadAudio(t);
 			t = ThTick_RunThreadNative(&context, t, t->funcThTick);
-			Chaos_SetHumanAudio(humanAudio);
+			Chaos_SetAudioOwner(previousAudio);
 		}
 
 		ThTick_PushPending(pending, &count, t->childThread);

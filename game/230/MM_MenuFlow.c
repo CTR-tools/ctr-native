@@ -31,6 +31,7 @@ static struct RectMenu s_expandedArcadeMenu = {
 };
 
 #include "MM_NewLoad.c"
+#include "chaos/MM_ChaosSession.c"
 
 s32 MM_TransitionInOut(struct TransitionMeta *meta, s32 framesPassed, s32 numFrames)
 {
@@ -190,6 +191,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 	}
 	// clear flags from game mode
 	CustomCupRace_Clear(&sdata->customCupRace);
+	sdata->chaosSessionNextMenu = NULL;
 	GAME_TRACKER->gameMode1 &= ~(BATTLE_MODE | ADVENTURE_MODE | TIME_TRIAL | ADVENTURE_ARENA | ARCADE_MODE | ADVENTURE_CUP | RELIC_RACE | CRYSTAL_CHALLENGE);
 
 	// clear more game mode flags
@@ -269,8 +271,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 		raceTypeMenu->ptrNextBox_InHierarchy = NULL;
 
 		// set next menu
-		mainMenu->ptrNextBox_InHierarchy = raceTypeMenu;
-		mainMenu->state |= DRAW_NEXT_MENU_IN_HIERARCHY;
+		MM_Menu_Attach(mainMenu, raceTypeMenu);
 		return;
 	}
 
@@ -284,8 +285,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 		}
 
 		// next menu is choosing single+cup
-		mainMenu->ptrNextBox_InHierarchy = &MM_MENU_RACE_TYPE;
-		mainMenu->state |= DRAW_NEXT_MENU_IN_HIERARCHY;
+		MM_Menu_Attach(mainMenu, &MM_MENU_RACE_TYPE);
 		return;
 	}
 
@@ -298,8 +298,7 @@ void MM_MenuProc_Main(struct RectMenu *menu)
 		GAME_TRACKER->gameMode1 |= BATTLE_MODE;
 
 		// set next menu to 2P,3P,4P
-		mainMenu->ptrNextBox_InHierarchy = &MM_MENU_PLAYERS_2P3P4P;
-		mainMenu->state |= DRAW_NEXT_MENU_IN_HIERARCHY;
+		MM_Menu_Attach(mainMenu, &MM_MENU_PLAYERS_2P3P4P);
 		return;
 	}
 		CTR_PSX_CLOBBER("$7");
@@ -441,9 +440,7 @@ void MM_MenuProc_1p2p(struct RectMenu *menu)
 	}
 
 	// go to difficulty box
-	menu->ptrNextBox_InHierarchy = &MM_MENU_DIFFICULTY;
-
-	menu->state |= ONLY_DRAW_TITLE | DRAW_NEXT_MENU_IN_HIERARCHY;
+	MM_ChaosSession_Begin(menu, &MM_MENU_DIFFICULTY);
 	return;
 
 UNINITIALIZED:
@@ -493,10 +490,7 @@ void MM_MenuProc_2p3p4p(struct RectMenu *menu)
 	// row 0 is 2P, row 1 is 3P, row 2 is 4P
 	GAME_TRACKER->numPlyrNextGame = selectedMenu->rowSelected + 2;
 
-	MM_TITLE_MENU_STATE = TITLE_MENU_STATE_EXITING;
-	MM_DESIRED_MENU_INDEX = MM_EXIT_ROUTE_CHARACTER_SELECT;
-
-	selectedMenu->state |= ONLY_DRAW_TITLE;
+	MM_ChaosSession_Begin(selectedMenu, NULL);
 	return;
 
 UNINITIALIZED:

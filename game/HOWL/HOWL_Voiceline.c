@@ -93,7 +93,8 @@ void Voiceline_PoolClear(void)
 	LIST_Clear(&sdata->Voiceline2);
 
 	// put them all on free list
-	LIST_Init(&sdata->Voiceline1, &sdata->voicelinePool[0].item, sizeof(struct VoicelineItem), 8);
+	LIST_Init(&sdata->Voiceline1, &sdata->voicelinePool[0].item, sizeof(struct VoicelineItem), HOWL_VOICELINE_POOL_CAPACITY);
+	memset(sdata->chaosVoicelines, 0, sizeof(sdata->chaosVoicelines));
 
 	Voiceline_ClearTimeStamp();
 }
@@ -278,7 +279,15 @@ queueVoiceline:
 		voiceLine->secondaryCharacterID = characterID2;
 		voiceLine->voiceID = voiceID;
 		voiceLine->startFrame = sdata->gGT->timer;
+		Chaos_TagVoiceline(voiceLine);
 	}
+}
+
+void Voiceline_RequestPlayOwned(u32 voiceID, u32 characterID, u32 characterID2, const struct Driver *speaker)
+{
+	const enum ChaosAudioOwner previous = Chaos_SetDriverAudio(speaker);
+	Voiceline_RequestPlay(voiceID, characterID, characterID2);
+	Chaos_SetAudioOwner(previous);
 }
 
 void Voiceline_StartPlay(struct Item *voiceLine)
@@ -339,7 +348,7 @@ void Voiceline_StartPlay(struct Item *voiceLine)
 	}
 
 	sdata->voicelineCooldown = (s16)(CDSYS_XAGetTrackLength(CDSYS_XA_TYPE_GAME, xaID) / 5) + 0x1e;
-	sdata->chaosRuntime.humanXA = Chaos_IsHumanCharacter(characterID);
+	Chaos_SetVoicelineXA(voiceLineItem);
 }
 
 void Voiceline_PlayWrongWay(struct Driver *driver)
@@ -348,7 +357,7 @@ void Voiceline_PlayWrongWay(struct Driver *driver)
 	sdata->voicelineCooldown = 0x1e;
 	if (CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, voiceID) != 0)
 	{
-		sdata->chaosRuntime.humanXA = true;
+		Chaos_SetDriverXA(driver);
 		sdata->voicelineCooldown += CDSYS_XAGetTrackLength(CDSYS_XA_TYPE_EXTRA, voiceID) / 5;
 	}
 }
@@ -409,7 +418,15 @@ playQueuedVoice:
 	if (sdata->Voiceline2.first != NULL)
 	{
 		struct Item *first = sdata->Voiceline2.first;
-		if (Chaos_IsTimeStopped() && !Chaos_IsHumanCharacter(((struct VoicelineItem *)first)->characterID))
+		while (first != NULL && Chaos_ShouldFreezeVoiceline((struct VoicelineItem *)first))
+		{
+			if (!Chaos_UsesPersonalPools())
+			{
+				return;
+			}
+			first = first->next;
+		}
+		if (first == NULL)
 		{
 			return;
 		}

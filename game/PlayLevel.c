@@ -443,7 +443,7 @@ void PlayLevel_UpdateLapStats(void)
 			int characterID = data.characterIDs[gGT->driversInRaceOrder[currRank - 1]->driverID];
 
 			// Make driver talk
-			Voiceline_RequestPlay(PLAYLEVEL_PASS_VOICELINE, characterID, PLAYLEVEL_VOICELINE_FLAGS);
+			Voiceline_RequestPlayOwned(PLAYLEVEL_PASS_VOICELINE, characterID, PLAYLEVEL_VOICELINE_FLAGS, gGT->driversInRaceOrder[currRank - 1]);
 		}
 		gGT->humanPlayerPositions[driverIndex] = currRank;
 	}

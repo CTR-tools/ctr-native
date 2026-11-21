@@ -47,7 +47,7 @@ struct Instance *RB_Hazard_CollideWithDrivers(struct Instance *weaponInst, s16 p
 			{
 				continue;
 			}
-			if (Chaos_IsFrozenWorldThread(weaponInst->thread) && !Chaos_IsHumanThread(driver->instSelf->thread))
+			if (Chaos_IsFrozenWorldThread(weaponInst->thread) && !Chaos_IsTimeStopImmune(driver->instSelf->thread))
 			{
 				continue;
 			}

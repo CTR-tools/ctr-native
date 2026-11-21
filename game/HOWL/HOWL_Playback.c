@@ -163,6 +163,7 @@ void howl_PauseAudio()
 		*ptrFlag |= 1;
 		*ptrFlag &= ~(2);
 
+		Chaos_BackupAudioChannel(curr, sdata->numBackup_ChannelStats);
 		int *dest = (int *)pausedStats++;
 		int *src = (int *)curr;
 
@@ -267,6 +268,7 @@ void howl_UnPauseAudio()
 		curr->link.links.next = backupNext;
 		curr->link.links.prev = backupPrev;
 		curr->channelID = backupID;
+		Chaos_RestoreAudioChannel(curr, i);
 
 		LIST_RemoveMember(&sdata->channelFree, (struct Item *)curr);
 		LIST_AddBack(&sdata->channelTaken, (struct Item *)curr);

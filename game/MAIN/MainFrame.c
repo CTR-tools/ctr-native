@@ -310,9 +310,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 						{
 							continue;
 						}
-						const bool humanAudio = Chaos_SetHumanAudio(Chaos_IsHumanThread(psVar12));
+						const enum ChaosAudioOwner previousAudio = Chaos_SetThreadAudio(psVar12);
 						VehPickupItem_ShootOnCirclePress((struct Driver *)psVar12->object);
-						Chaos_SetHumanAudio(humanAudio);
+						Chaos_SetAudioOwner(previousAudio);
 					}
 
 					// run all driver funcPtrs,
@@ -335,9 +335,9 @@ void MainFrame_GameLogic(struct GameTracker *gGT, struct GamepadSystem *gGamepad
 
 							if (pcVar5 != 0)
 							{
-								const bool humanAudio = Chaos_SetHumanAudio(Chaos_IsHumanThread(psVar12));
+								const enum ChaosAudioOwner previousAudio = Chaos_SetThreadAudio(psVar12);
 								pcVar5(psVar12, psVar9);
-								Chaos_SetHumanAudio(humanAudio);
+								Chaos_SetAudioOwner(previousAudio);
 							}
 						}
 					}

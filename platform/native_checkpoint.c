@@ -1441,6 +1441,8 @@ internal void NativeCheckpoint_RelocateHowlLists(const struct NativeCheckpointHe
 
 internal void NativeCheckpoint_RelocateSDataPointers(const struct NativeCheckpointHeader *oldHeader, const struct NativeCheckpointHeader *liveHeader)
 {
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.chaosParticleOwners);
+	NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.chaosThreadOwners);
 	for (u32 i = 0; i < len(sdata_static.chaosRuntime.restart); i++)
 	{
 		NativeCheckpoint_RelocatePointerSlot(oldHeader, liveHeader, &sdata_static.chaosRuntime.restart[i].mask);
@@ -1528,6 +1530,7 @@ internal void NativeCheckpoint_RelocateSDataPointers(const struct NativeCheckpoi
 	NativeCheckpoint_RelocatePointerOrImageSlot(oldHeader, liveHeader, &sdata_static.ptrDesiredMenu);
 	NativeCheckpoint_RelocateRectMenu(oldHeader, liveHeader, &sdata_static.chaosMenu.menu);
 	NativeCheckpoint_RelocatePointerOrImageSlot(oldHeader, liveHeader, &sdata_static.chaosMenu.returnMenu);
+	NativeCheckpoint_RelocatePointerOrImageSlot(oldHeader, liveHeader, &sdata_static.chaosSessionNextMenu);
 	NativeCheckpoint_RelocatePointerOrImageSlot(oldHeader, liveHeader, &sdata_static.newLoad.previousMenu);
 	for (u32 i = 0; i < len(sdata_static.newLoad.parentOf); i++)
 	{

@@ -84,8 +84,8 @@ struct OverlayDATA_230 D230 CTR_PSX_MATCH_SECTION(".D230") =
         // Either direction swaps between the two rows, so neither is a dead end.
         .rowsChaosPrompt =
             {
-                {LNG_EXPANDED_CHAOS, 1, 1, 0, 0},
-                {LNG_EXPANDED_REGULAR, 0, 0, 1, 1},
+                {LNG_EXPANDED_REGULAR, 1, 1, 0, 0},
+                {LNG_EXPANDED_CHAOS, 0, 0, 1, 1},
                 {RECTMENU_STRING_NONE},
             },
 

@@ -308,7 +308,7 @@ int main(void)
 	CTR_TEST_CHECK_EQ(s_limits[LNG_BEST_LAP], TEXT_LIMIT_END_RACE_RECORD_LABEL, "the best lap label uses the end-race record limit");
 	CTR_TEST_CHECK_EQ(s_limits[LNG_BEST_TIMES], TEXT_LIMIT_END_RACE_RECORD_LABEL, "the best times label uses the end-race record limit");
 	CTR_TEST_CHECK_EQ(s_limits[LNG_YOUR_TIME], TEXT_LIMIT_END_RACE_RECORD_LABEL, "the your time label uses the end-race record limit");
-	for (int key = LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR; key <= LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON; key++)
+	for (int key = LNG_EXPANDED_CHAOS_EFFECT_MIRROR_MIRROR; key <= LNG_EXPANDED_CHAOS_EFFECT_ARENA_CHUMPS; key++)
 	{
 		CTR_TEST_CHECK_EQ(s_limits[key], TEXT_LIMIT_RACE_MESSAGE, "each Chaos effect name uses the race message limit");
 	}

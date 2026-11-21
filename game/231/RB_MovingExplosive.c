@@ -203,10 +203,7 @@ void RB_MovingExplosive_ThTick(struct Thread *t)
 
 		if (p != 0)
 		{
-			if (Chaos_IsHumanOwnedThread(t))
-			{
-				p->flagsAxis |= PARTICLE_AXIS_FLAG_HUMAN_EFFECT;
-			}
+			Chaos_InheritParticleOwner(p, t);
 			p->axis[0].startVal = (u32)inst->matrix.t[0] << 8;
 			p->axis[1].startVal = (u32)inst->matrix.t[1] << 8;
 			p->axis[2].startVal = (u32)inst->matrix.t[2] << 8;

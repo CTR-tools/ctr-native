@@ -1,10 +1,12 @@
 #include <common.h>
+#include <chaos/chaos_event.h>
+#include "MM_ChaosTestRace.h"
 #include "../menu-helpers/MM_FullScreenMenu.c"
 
-_Static_assert(LNG_EXPANDED_CHAOS_EFFECT_KING_CRIMSON - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
+_Static_assert(LNG_EXPANDED_CHAOS_EFFECT_ARENA_CHUMPS - LNG_EXPANDED_CHAOS_EFFECT_BASE + 1 == CHAOS_EFFECT_COUNT,
                "Chaos effect text IDs must match effect IDs");
 
-// Shared full-screen settings: editable during creation, read-only from pause.
+// Shared settings: editable during creation/session setup, read-only from pause.
 // Page changes draw immediately; leaving the screen happens after drawing.
 static void MM_MenuProc_ChaosConfig(struct RectMenu *menu);
 
@@ -16,8 +18,6 @@ enum
 	CHAOS_INTERVAL_MIN_SECONDS = 5,
 	CHAOS_INTERVAL_MAX_SECONDS = 120,
 	CHAOS_INTERVAL_STEP_SECONDS = 5,
-	CHAOS_TEST_DURATION_SECONDS = 5,
-	CHAOS_TEST_INTERVAL_SECONDS = 10,
 };
 
 static const int s_chaosTriggerNames[CHAOS_TRIGGER_COUNT] = {
@@ -32,6 +32,30 @@ static bool Chaos_TriggerIsTimed(int trigger)
 	return trigger == CHAOS_TRIGGER_RANDOM || trigger == CHAOS_TRIGGER_INTERVAL || trigger == CHAOS_TRIGGER_EXTERNAL;
 }
 
+static int Chaos_MenuPlayerCount(void)
+{
+	const struct GameTracker *tracker = sdata->gGT;
+	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
+	int players = readOnly ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	if (readOnly && (tracker->gameMode1 & (ADVENTURE_MODE | ADVENTURE_ARENA)) == (ADVENTURE_MODE | ADVENTURE_ARENA))
+	{
+		// The hub has one kart even when the saved Adventure races have two players.
+		players = sdata->advMultiplayer.numPlayers;
+	}
+	return players < CHAOS_MAX_HUMAN_PLAYERS ? players : CHAOS_MAX_HUMAN_PLAYERS;
+}
+
+static bool Chaos_HasDistributionChoice(void)
+{
+	return Chaos_MenuPlayerCount() > 1;
+}
+
+static bool Chaos_SettingsArePersonal(void)
+{
+	return Chaos_HasDistributionChoice() &&
+	       sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER;
+}
+
 static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 	[CHAOS_SETTING_DURATION] = {
 		.kind = FULLSCREEN_ROW_STEP,
@@ -43,6 +67,9 @@ static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 		.kind = FULLSCREEN_ROW_STEP,
 		.min = CHAOS_INTERVAL_MIN_SECONDS, .max = CHAOS_INTERVAL_MAX_SECONDS,
 		.step = CHAOS_INTERVAL_STEP_SECONDS, .suffix = "s"},
+	[CHAOS_SETTING_DISTRIBUTION] = {
+		.kind = FULLSCREEN_ROW_CHOICE, .numChoices = CHAOS_DISTRIBUTION_COUNT},
+	[CHAOS_SETTING_PLAYERS] = {.kind = FULLSCREEN_ROW_ACTION},
 	[CHAOS_SETTING_EFFECTS] = {.kind = FULLSCREEN_ROW_ACTION},
 	[CHAOS_SETTING_CONFIRM] = {.kind = FULLSCREEN_ROW_ACTION},
 };
@@ -50,6 +77,8 @@ static const struct FullScreenMenu_Row s_chaosSettings[CHAOS_SETTING_COUNT] = {
 static const int s_chaosSettingLabels[CHAOS_SETTING_COUNT] = {
 	[CHAOS_SETTING_DURATION] = LNG_EXPANDED_DURATION,
 	[CHAOS_SETTING_TRIGGER] = LNG_EXPANDED_TRIGGER,
+	[CHAOS_SETTING_DISTRIBUTION] = LNG_EXPANDED_CHAOS_DISTRIBUTION,
+	[CHAOS_SETTING_PLAYERS] = LNG_PLAYERS,
 	[CHAOS_SETTING_INTERVAL] = LNG_EXPANDED_INTERVAL,
 	[CHAOS_SETTING_EFFECTS] = LNG_EXPANDED_EFFECTS,
 	[CHAOS_SETTING_CONFIRM] = LNG_EXPANDED_CONFIRM,
@@ -58,31 +87,42 @@ static const int s_chaosSettingLabels[CHAOS_SETTING_COUNT] = {
 static const int s_chaosPageTitles[CHAOS_PAGE_COUNT] = {
 	[CHAOS_PAGE_SETTINGS] = LNG_EXPANDED_CHAOS_SETUP_TITLE,
 	[CHAOS_PAGE_EFFECTS] = LNG_EXPANDED_CHAOS_EFFECTS_TITLE,
+	[CHAOS_PAGE_PLAYERS] = LNG_PLAYERS,
 };
 
 static const int s_chaosReadOnlyPageTitles[CHAOS_PAGE_COUNT] = {
 	[CHAOS_PAGE_SETTINGS] = LNG_EXPANDED_CHAOS_RULES,
 	[CHAOS_PAGE_EFFECTS] = LNG_EXPANDED_ACTIVE_EFFECTS,
+	[CHAOS_PAGE_PLAYERS] = LNG_PLAYERS,
 };
 
 static void Chaos_BuildSettingRows(void)
 {
 	struct ChaosMenuState *state = &sdata->chaosMenu;
+	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	state->numSettings = 0;
 
 	for (int setting = 0; setting < CHAOS_SETTING_COUNT; setting++)
 	{
+		if ((setting == CHAOS_SETTING_DISTRIBUTION || setting == CHAOS_SETTING_PLAYERS) && !Chaos_HasDistributionChoice())
+		{
+			continue;
+		}
 		if (setting == CHAOS_SETTING_CONFIRM && state->returnMenu != NULL)
 		{
 			continue;
 		}
-		if (setting == CHAOS_SETTING_INTERVAL && !Chaos_TriggerIsTimed(sdata->chaosSettings.trigger))
+		if (setting == CHAOS_SETTING_INTERVAL && !Chaos_TriggerIsTimed(settings->trigger))
 		{
 			continue;
 		}
 		if (setting == CHAOS_SETTING_EFFECTS)
 		{
 			state->effectsRow = state->numSettings;
+		}
+		if (setting == CHAOS_SETTING_PLAYERS)
+		{
+			state->playersRow = state->numSettings;
 		}
 		state->visibleSettings[state->numSettings++] = (enum ChaosSetting)setting;
 	}
@@ -93,6 +133,8 @@ static int Chaos_SettingValue(enum ChaosSetting setting)
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	switch (setting)
 	{
+	case CHAOS_SETTING_DISTRIBUTION:
+		return settings->distribution;
 	case CHAOS_SETTING_DURATION:
 		return settings->durationSeconds;
 	case CHAOS_SETTING_TRIGGER:
@@ -100,6 +142,7 @@ static int Chaos_SettingValue(enum ChaosSetting setting)
 	case CHAOS_SETTING_INTERVAL:
 		return settings->triggerIntervalSeconds;
 	case CHAOS_SETTING_EFFECTS:
+	case CHAOS_SETTING_PLAYERS:
 	case CHAOS_SETTING_CONFIRM:
 	case CHAOS_SETTING_COUNT:
 	default:
@@ -110,11 +153,16 @@ static int Chaos_SettingValue(enum ChaosSetting setting)
 // Shared row operations work on ints; commit only the changed field with its stored type.
 static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 {
-	const struct FullScreenMenu_Row *row = &s_chaosSettings[setting];
+	struct FullScreenMenu_Row spec = s_chaosSettings[setting];
+	// External is the final choice and has no personal provider yet.
+	if (setting == CHAOS_SETTING_TRIGGER && Chaos_SettingsArePersonal())
+	{
+		spec.numChoices = CHAOS_TRIGGER_EXTERNAL;
+	}
 	int value = Chaos_SettingValue(setting);
 	const bool changed = direction == 0
-	                         ? FullScreenMenu_RowActivate(row, &value)
-	                         : FullScreenMenu_RowStep(row, &value, direction);
+	                         ? FullScreenMenu_RowActivate(&spec, &value)
+	                         : FullScreenMenu_RowStep(&spec, &value, direction);
 	if (!changed)
 	{
 		return;
@@ -123,6 +171,13 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 	struct ChaosSettings *settings = &sdata->chaosSettings;
 	switch (setting)
 	{
+	case CHAOS_SETTING_DISTRIBUTION:
+		settings->distribution = (u8)value;
+		if (Chaos_SettingsArePersonal() && settings->trigger == CHAOS_TRIGGER_EXTERNAL)
+		{
+			settings->trigger = CHAOS_TRIGGER_INTERVAL;
+		}
+		break;
 	case CHAOS_SETTING_DURATION:
 		settings->durationSeconds = (u16)value;
 		break;
@@ -140,6 +195,7 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 		settings->triggerIntervalSeconds = (u16)value;
 		break;
 	case CHAOS_SETTING_EFFECTS:
+	case CHAOS_SETTING_PLAYERS:
 	case CHAOS_SETTING_CONFIRM:
 	case CHAOS_SETTING_COUNT:
 	default:
@@ -147,8 +203,13 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 	}
 }
 
-static void Chaos_OnEnter(struct RectMenu *returnMenu)
+static void Chaos_OnEnter(struct RectMenu *returnMenu, bool sessionSetup)
 {
+	if (returnMenu == NULL && sdata->gGT->numPlyrNextGame == 1)
+	{
+		sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+		sdata->chaosSettings.disabledPlayers[0] = false;
+	}
 	sdata->chaosMenu = (struct ChaosMenuState){
 		.menu = {
 			.stringIndexTitle = RECTMENU_STRING_NONE,
@@ -157,37 +218,82 @@ static void Chaos_OnEnter(struct RectMenu *returnMenu)
 		},
 		.page = CHAOS_PAGE_SETTINGS,
 		.returnMenu = returnMenu,
+		.sessionSetup = sessionSetup,
 	};
 	FullScreenMenu_SetShadedFrame(returnMenu == NULL);
 	Chaos_BuildSettingRows();
 }
 
+static bool Chaos_EffectIsAvailable(ChaosEffectId effect)
+{
+	const struct GameTracker *tracker = sdata->gGT;
+	const int players = Chaos_MenuPlayerCount();
+	// An Adventure file spans every event type, not just the current hub/race.
+	const int mode = (tracker->gameMode1 & ADVENTURE_MODE) != 0
+	                     ? ADVENTURE_MODE : tracker->gameMode1 & ~MAIN_MENU;
+	const bool personal = Chaos_SettingsArePersonal();
+	return ChaosEvent_EffectFitsSelection(effect, mode, tracker->cup.cupID, players, g_config.extendedMultiplayer,
+	                                     personal, sdata->chaosSettings.disabledPlayers);
+}
+
 static bool Chaos_CanConfirm(void)
 {
-	return sdata->chaosSettings.enabledCount > 0;
+	if (Chaos_HasDistributionChoice())
+	{
+		bool anyEnabled = false;
+		for (int player = 0; player < Chaos_MenuPlayerCount(); player++)
+		{
+			anyEnabled |= !sdata->chaosSettings.disabledPlayers[player];
+		}
+		if (!anyEnabled)
+		{
+			return false;
+		}
+	}
+	if (Chaos_SettingsArePersonal() && sdata->chaosSettings.trigger == CHAOS_TRIGGER_EXTERNAL)
+	{
+		return false;
+	}
+	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
+	{
+		if (sdata->chaosSettings.effects[id] && Chaos_EffectIsAvailable((ChaosEffectId)id))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void MM_ChaosConfig_OnEnter(void)
 {
-	Chaos_OnEnter(NULL);
+	Chaos_OnEnter(NULL, false);
 }
 
-void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
+void MM_ChaosConfig_OpenSession(void)
 {
-	Chaos_OnEnter(returnMenu);
+	Chaos_OnEnter(NULL, true);
 	RECTMENU_ClearInput();
 	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
 }
 
+void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
+{
+	Chaos_OnEnter(returnMenu, false);
+	RECTMENU_ClearInput();
+	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
+}
+
+static bool Chaos_EffectRowIsVisible(ChaosEffectId effect)
+{
+	return Chaos_EffectIsAvailable(effect) &&
+	       (sdata->chaosMenu.returnMenu == NULL || sdata->chaosSettings.effects[effect]);
+}
+
 static ChaosEffectId Chaos_EffectForRow(int row)
 {
-	if (sdata->chaosMenu.returnMenu == NULL)
-	{
-		return ChaosEffect_FromIndex(row);
-	}
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		if (!sdata->chaosSettings.effects[id])
+		if (!Chaos_EffectRowIsVisible((ChaosEffectId)id))
 		{
 			continue;
 		}
@@ -204,7 +310,12 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 {
 	(void)context;
 	(void)selected;
-	if (sdata->chaosMenu.page == CHAOS_PAGE_EFFECTS)
+	if (sdata->chaosMenu.page == CHAOS_PAGE_PLAYERS)
+	{
+		FullScreenMenu_DrawRowLabel(LANG_GetString(LNG_PLAYER_1 + row), y, ot);
+		FullScreenMenu_DrawOnOff(!sdata->chaosSettings.disabledPlayers[row], y, ot);
+	}
+	else if (sdata->chaosMenu.page == CHAOS_PAGE_EFFECTS)
 	{
 		const ChaosEffectId effect = Chaos_EffectForRow(row);
 		FullScreenMenu_DrawRowLabel(LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + effect), y, ot);
@@ -226,6 +337,12 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 			}
 			spec.choices = choices;
 		}
+		else if (setting == CHAOS_SETTING_DISTRIBUTION)
+		{
+			choices[CHAOS_DISTRIBUTION_SHARED] = LANG_GetString(LNG_EXPANDED_CHAOS_SHARED);
+			choices[CHAOS_DISTRIBUTION_PER_PLAYER] = LANG_GetString(LNG_EXPANDED_CHAOS_PER_PLAYER);
+			spec.choices = choices;
+		}
 		const char *label = LANG_GetString(setting == CHAOS_SETTING_EFFECTS && sdata->chaosMenu.returnMenu != NULL
 		                                       ? LNG_EXPANDED_ACTIVE_EFFECTS : s_chaosSettingLabels[setting]);
 		if (setting == CHAOS_SETTING_CONFIRM && !Chaos_CanConfirm())
@@ -242,54 +359,29 @@ static void Chaos_DrawRow(const void *context, int row, int y, bool selected, ui
 
 static int Chaos_PageRowCount(const struct ChaosMenuState *state)
 {
+	if (state->page == CHAOS_PAGE_PLAYERS)
+	{
+		return Chaos_MenuPlayerCount();
+	}
 	if (state->page == CHAOS_PAGE_SETTINGS)
 	{
 		return state->numSettings;
 	}
-	return state->returnMenu != NULL ? sdata->chaosSettings.enabledCount : CHAOS_EFFECT_COUNT;
-}
-
-// Developer shortcut: Start on an effect launches a disposable Adventure race.
-static void Chaos_TestRace(ChaosEffectId effect)
-{
-	struct GameTracker *gGT = sdata->gGT;
-	sdata->chaosSettings = (struct ChaosSettings){
-		.durationSeconds = CHAOS_TEST_DURATION_SECONDS,
-		.triggerIntervalSeconds = CHAOS_TEST_INTERVAL_SECONDS,
-		.trigger = CHAOS_TRIGGER_INTERVAL,
-		.armed = true,
-		.enabledCount = 1,
-	};
-	sdata->chaosSettings.effects[effect] = true;
-	MM_NewLoad_FinishChaosSetup();
-	// Unwind creation normally, then load directly instead of visiting the garage.
-	MM_TITLE_MENU_STATE = TITLE_MENU_STATE_IN_MENU;
-	sdata->newLoad.previousMenu = NULL;
-	MM_Title_CameraReset();
-	MM_Title_KillThread();
-	MM_QuickRace_SetupRace();
-	gGT->gameMode1 = ADVENTURE_MODE;
-	// A previous Adventure reward would select the podium overlay during loading.
-	gGT->podiumRewardID = NOFUNC;
-	GAMEPROG_NewProfile_InsideAdv(&GAME_ADV_PROGRESS);
-	GAME_ADV_PROGRESS.characterID = CRASH_BANDICOOT;
-	GAMEPROG_ResetAdvMultiplayer(&sdata->advMultiplayer);
-	// This shortcut skips the warp pad that normally seeds the Adventure grid.
-	for (int i = 0; i < (int)len(sdata->kartSpawnOrderArray); i++)
+	int count = 0;
+	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		sdata->kartSpawnOrderArray[i] = (char)(len(sdata->kartSpawnOrderArray) - 1 - i);
+		if (Chaos_EffectRowIsVisible((ChaosEffectId)id))
+		{
+			count++;
+		}
 	}
-	sdata->advProfileIndex = 0xffff;
-	gGT->currLEV = N_SANITY_BEACH;
-	RECTMENU_ClearInput();
-	sdata->ptrDesiredMenu = NULL;
-	RECTMENU_Hide(&sdata->chaosMenu.menu);
-	MainRaceTrack_RequestLoad(CRASH_COVE);
+	return count;
 }
 
 static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 {
 	struct GameTracker *gGT = sdata->gGT;
+	struct ChaosSettings *settings = &sdata->chaosSettings;
 	uint32_t *ot = gGT->backBuffer->otMem.uiOT;
 	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[0];
 	struct ChaosMenuState *state = &sdata->chaosMenu;
@@ -309,7 +401,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	ChaosEffectId testEffect = CHAOS_EFFECT_NONE;
 
 	FullScreenMenu_NavScroll(pad, &state->scroll[state->page], &selected, Chaos_PageRowCount(state));
-	if (!readOnly && state->page == CHAOS_PAGE_EFFECTS && g_config.chaosQuickRace &&
+	if (!readOnly && !state->sessionSetup && state->page == CHAOS_PAGE_EFFECTS && g_config.chaosQuickRace &&
 	    (pad->buttonsTapped & BTN_START) != 0)
 	{
 		testEffect = Chaos_EffectForRow(selected);
@@ -326,24 +418,33 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	}
 
 	const bool effectsAction = state->page == CHAOS_PAGE_SETTINGS && state->visibleSettings[selected] == CHAOS_SETTING_EFFECTS;
+	const bool playersAction = state->page == CHAOS_PAGE_SETTINGS && state->visibleSettings[selected] == CHAOS_SETTING_PLAYERS;
 	const bool confirmDisabled = state->page == CHAOS_PAGE_SETTINGS &&
 	                             state->visibleSettings[selected] == CHAOS_SETTING_CONFIRM && !Chaos_CanConfirm();
 	if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0 && confirmDisabled)
 	{
 		OtherFX_Play(MENU_SFX_LOCKED, 1);
 	}
-	if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0 && (!readOnly || effectsAction) && !confirmDisabled)
+	if ((pad->buttonsTapped & (BTN_CROSS | BTN_CIRCLE)) != 0 && (!readOnly || effectsAction || playersAction) && !confirmDisabled)
 	{
 		OtherFX_Play(1, 1);
-		if (state->page == CHAOS_PAGE_EFFECTS)
+		if (state->page == CHAOS_PAGE_PLAYERS)
 		{
-			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount,
-			                   ChaosEffect_FromIndex(selected));
+			settings->disabledPlayers[selected] = !settings->disabledPlayers[selected];
+		}
+		else if (state->page == CHAOS_PAGE_EFFECTS)
+		{
+			ChaosEffect_Toggle(settings->effects, &settings->enabledCount,
+			                   Chaos_EffectForRow(selected));
 		}
 		else
 		{
 			switch (state->visibleSettings[selected])
 			{
+			case CHAOS_SETTING_PLAYERS:
+				state->page = CHAOS_PAGE_PLAYERS;
+				selected = 0;
+				break;
 			case CHAOS_SETTING_EFFECTS:
 				state->page = CHAOS_PAGE_EFFECTS;
 				selected = 0;
@@ -352,6 +453,7 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 				finish = true;
 				break;
 			case CHAOS_SETTING_DURATION:
+			case CHAOS_SETTING_DISTRIBUTION:
 			case CHAOS_SETTING_TRIGGER:
 			case CHAOS_SETTING_INTERVAL:
 				Chaos_EditSetting(state->visibleSettings[selected], 0);
@@ -365,10 +467,10 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 	if ((pad->buttonsTapped & BTN_TRIANGLE) != 0)
 	{
 		OtherFX_Play(2, 1);
-		if (state->page == CHAOS_PAGE_EFFECTS)
+		if (state->page != CHAOS_PAGE_SETTINGS)
 		{
+			selected = state->page == CHAOS_PAGE_PLAYERS ? state->playersRow : state->effectsRow;
 			state->page = CHAOS_PAGE_SETTINGS;
-			selected = state->effectsRow;
 		}
 		else
 		{
@@ -391,11 +493,18 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 
 	if (testEffect != CHAOS_EFFECT_NONE)
 	{
-		Chaos_TestRace(testEffect);
+		MM_ChaosTestRace_Start(testEffect);
 	}
 	else if (finish)
 	{
-		MM_NewLoad_FinishChaosSetup();
+		if (state->sessionSetup)
+		{
+			MM_ChaosSession_FinishSetup(true);
+		}
+		else
+		{
+			MM_NewLoad_FinishChaosSetup();
+		}
 	}
 	else if (leave)
 	{
@@ -403,6 +512,10 @@ static void MM_MenuProc_ChaosConfig(struct RectMenu *menu)
 		{
 			RECTMENU_ClearInput();
 			sdata->ptrDesiredMenu = state->returnMenu;
+		}
+		else if (state->sessionSetup)
+		{
+			MM_ChaosSession_FinishSetup(false);
 		}
 		else
 		{

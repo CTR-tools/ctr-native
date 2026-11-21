@@ -3,6 +3,12 @@
 The game's External trigger accepts one effect request at a time by reading an
 externally written file.
 
+External supports Shared distribution only. Per player publishes an empty
+catalogue and does not consume commands; personal external targeting is not supported.
+With Shared distribution, the Players selection filters human-scoped effects, including
+provider requests. Bot/world effects remain global. Body Swap is omitted from the
+catalogue if the selected players and bot grid cannot form a pair.
+
 ## Files and format
 
 | File            | Owner             | Contents                                      |
@@ -16,7 +22,8 @@ be shorter than 128 bytes; oversized input and embedded NUL bytes are rejected.
 
 The game creates `chaos/` and atomically publishes `effects` via `effects.tmp`
 at game initialization and in `Chaos_BeginRace()`, never in frame updates.
-The list reflects the save's selection and current event for any trigger; it is
+The list reflects the Adventure save's or Arcade/VS/Battle session's selection
+and current event for any trigger; it is
 empty outside eligible races, when Chaos is unarmed or when no selected effect
 applies. It is not a readiness signal or heartbeat. Execution validates
 eligibility again, including whether an unfinished target remains.
@@ -45,7 +52,8 @@ if (-not (Test-Path -LiteralPath 'chaos/command')) {
 
 ## Timing and consumption
 
-- Requires an armed Chaos Adventure save with trigger **External**.
+- Requires armed Shared Chaos rules in an eligible Adventure or Arcade/VS/Battle
+  event with trigger **External**.
 - Wait one saved interval from GO, then one full interval after each successful
   activation. Only eligible active race time counts; pause, menus, countdown,
   loading, hubs, results and Za Warudo's time stop neither spend the interval nor

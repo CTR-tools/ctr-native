@@ -451,7 +451,7 @@ u32 Music_AsyncParseBanks(void)
 		{
 			goto PARSE_FINISH;
 		}
-		if (sdata->chaosSettings.armed && (gGT->gameMode1 & ADVENTURE_MODE) != 0 &&
+		if (sdata->chaosSettings.armed && (gGT->gameMode1 & TIME_TRIAL) == 0 &&
 		    level < GEM_STONE_VALLEY)
 		{
 			Bank_EnsureOtherFX(HOWL_SFX_SWISH);

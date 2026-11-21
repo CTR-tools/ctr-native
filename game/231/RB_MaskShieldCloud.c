@@ -448,7 +448,7 @@ void RB_ShieldDark_ThTick_Grow(struct Thread *th)
 	}
 	if (!(player->actionsFlagSet & ACTION_BOT))
 	{
-		Voiceline_RequestPlay(13, GAME_CHARACTER_IDS[player->driverID], 0x10);
+		Voiceline_RequestPlayOwned(13, GAME_CHARACTER_IDS[player->driverID], 0x10, player);
 	}
 
 	// Inherit the complete world transform before initializing the projectile's motion.

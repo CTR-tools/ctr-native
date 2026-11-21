@@ -11,7 +11,7 @@ struct Instance *LinkedCollide_Radius(struct Instance *objInst, struct Thread *_
 	// if thread valid, loop through every thread in the linked list until there are no more threads
 	while (thBucket != 0)
 	{
-		if (Chaos_IsFrozenWorldThread(_objTh) && !Chaos_IsHumanThread(thBucket))
+		if (Chaos_IsFrozenWorldThread(_objTh) && !Chaos_IsTimeStopImmune(thBucket))
 		{
 			thBucket = thBucket->siblingThread;
 			continue;
@@ -69,7 +69,7 @@ struct Instance *LinkedCollide_Hitbox(struct Instance *objInst, struct Thread *_
 	// Loop over thBucket Linked List
 	for (; thBucket != 0; thBucket = thBucket->siblingThread)
 	{
-		if (Chaos_IsFrozenWorldThread(_objTh) && !Chaos_IsHumanThread(thBucket))
+		if (Chaos_IsFrozenWorldThread(_objTh) && !Chaos_IsTimeStopImmune(thBucket))
 		{
 			continue;
 		}

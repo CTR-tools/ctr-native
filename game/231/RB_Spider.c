@@ -249,7 +249,7 @@ void RB_Spider_CollideDrivers(struct Thread *t)
 		if (RB_Hazard_HurtDriver(victim, 1, 0, 0) && wasNotSpinning)
 		{
 			OtherFX_Play(0x7b, 1);
-			Voiceline_RequestPlay(1, GAME_CHARACTER_IDS[victim->driverID], 0x10);
+			Voiceline_RequestPlayOwned(1, GAME_CHARACTER_IDS[victim->driverID], 0x10, victim);
 		}
 		return;
 	}

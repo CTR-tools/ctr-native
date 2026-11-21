@@ -84,27 +84,46 @@ struct ChaosIdentity
 	s32 transformRemainingMS;
 };
 
-// Race-only state, captured in SDATA; unique effects in activation order.
-struct ChaosRuntime
+struct ChaosPlayerRuntime
 {
 	struct ChaosActivation active[CHAOS_MAX_ACTIVATIONS];
 	int numActive;
 	struct ChaosActivation instantNotices[CHAOS_MAX_INSTANT_NOTICES];
 	int numInstantNotices;
 	s32 intervalRemainingMS;
+};
+
+enum ChaosAudioOwner
+{
+	CHAOS_AUDIO_WORLD,
+	CHAOS_AUDIO_UI,
+	// Human-owned effects without a known controller remain shared-only.
+	CHAOS_AUDIO_HUMAN,
+	CHAOS_AUDIO_PLAYER_1,
+	CHAOS_AUDIO_PLAYER_2,
+	CHAOS_AUDIO_PLAYER_3,
+	CHAOS_AUDIO_PLAYER_4,
+};
+
+// Race-only state, captured in SDATA. Shared Chaos uses only players[0].
+struct ChaosRuntime
+{
+	struct ChaosPlayerRuntime players[CHAOS_MAX_HUMAN_PLAYERS];
+	s32 botCooldownMS;
+	s32 botEffectCooldownMS[CHAOS_EFFECT_COUNT];
 	bool raceInitialized;
-	bool touchingTurboPad[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
-	struct ChaosControlShuffle controls[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	bool touchingTurboPad[CHAOS_MAX_HUMAN_PLAYERS];
+	struct ChaosControlShuffle controls[CHAOS_MAX_HUMAN_PLAYERS];
 	u8 engineClass[LOAD_CHARACTER_ID_COUNT];
 	bool engineClassChanged[LOAD_CHARACTER_ID_COUNT];
-	struct ChaosRestart restart[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	struct ChaosRestart restart[CHAOS_MAX_HUMAN_PLAYERS];
 	struct ChaosIdentity identity[LOAD_CHARACTER_ID_COUNT];
 	// Partner slot plus one; zero means this controller owns its original kart.
 	u8 bodySwapPartner[LOAD_CHARACTER_ID_COUNT];
-	bool cameraBlendPending[ADV_MULTIPLAYER_NUM_PLAYERS_MAX];
+	bool cameraBlendPending[CHAOS_MAX_HUMAN_PLAYERS];
 	u8 teleportForwardCrossings[LOAD_CHARACTER_ID_COUNT];
-	bool humanAudioContext;
-	bool humanXA;
+	enum ChaosAudioOwner audioOwner;
+	enum ChaosAudioOwner xaOwner;
 	int numDeferredImpacts;
 	struct ChaosDeferredImpact deferredImpacts[CHAOS_MAX_DEFERRED_IMPACTS];
 };

@@ -108,7 +108,7 @@ void UI_JumpMeter_Update(struct Driver *driver)
 	{
 		if ((UI_JUMP_METER_LANDING_VOICELINE_MIN < driver->jump_LandingBoost) && (driver->jumpMeter < UI_JUMP_METER_LANDING_VOICELINE_CUTOFF))
 		{
-			Voiceline_RequestPlay(UI_JUMP_METER_LANDING_VOICELINE_ID, data.characterIDs[driver->driverID], UI_JUMP_METER_LANDING_VOICELINE_FLAGS);
+			Voiceline_RequestPlayOwned(UI_JUMP_METER_LANDING_VOICELINE_ID, data.characterIDs[driver->driverID], UI_JUMP_METER_LANDING_VOICELINE_FLAGS, driver);
 		}
 
 		driver->jumpMeter = driver->jump_LandingBoost;

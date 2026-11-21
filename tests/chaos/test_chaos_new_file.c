@@ -1,5 +1,6 @@
 #include <shared/ctr_test.h>
 #include <common.h>
+#include <chaos/chaos_save.h>
 #include <platform/custom-tracks/native_track_library.h>
 #include <platform/custom-tracks/native_track_records.h>
 
@@ -64,27 +65,259 @@ b32 MainGameEnd_IsCoopRace(struct GameTracker *gGT)
 #include <game/GAMEPROG.c>
 // Begin is file-static: include its actual module to catch a missing reset at the caller.
 #include <game/230/MM_NewLoad.c>
+#include <game/230/chaos/MM_ChaosSession.c>
 #include <game/230/chaos/MM_Chaos.c>
+
+void MM_ChaosConfig_OpenSession(void)
+{
+	s_setupEntries++;
+}
+
+void RECTMENU_ClearInput(void) {}
 
 static void ResetFixture(void)
 {
+	static struct GameTracker tracker;
 	memset(&sdata_static, 0, sizeof(sdata_static));
 	memset(&D230, 0, sizeof(D230));
 	memset(&g_config, 0, sizeof(g_config));
+	memset(&tracker, 0, sizeof(tracker));
+	sdata->gGT = &tracker;
+	tracker.gameMode1 = ADVENTURE_MODE;
 	sdata->ptrActiveMenu = &MM_MENU_MAIN;
 	s_setupEntries = 0;
 	s_titleReturns = 0;
 	s_coop = false;
 }
 
+static void TestSessionPromptDisabled(void)
+{
+	CTR_TEST_SECTION("disabled session Chaos skips setup and cannot reuse previously armed rules");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE};
+	for (int i = 0; i < (int)len(modes); i++)
+	{
+		ResetFixture();
+		sdata->gGT->gameMode1 = modes[i];
+		sdata->chaosSettings.armed = true;
+		sdata->chaosSettings.durationSeconds = 15;
+		sdata->chaosSessionNextMenu = &MM_MENU_CHAOS_PROMPT;
+		struct RectMenu next = {0};
+		MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == &next && next.ptrPrevBox_InHierarchy == &MM_MENU_MAIN,
+		               "the disabled option preserves the ordinary menu route");
+		CTR_TEST_CHECK(!sdata->chaosSettings.armed && sdata->chaosSessionNextMenu == NULL,
+		               "a hidden prompt cannot leave an earlier Chaos session armed");
+		CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, 15, "skipping the prompt retains the chosen rule values");
+		CTR_TEST_CHECK_EQ(s_setupEntries, 0, "the disabled option never opens setup");
+	}
+}
+
+static void TestSessionPrompt(void)
+{
+	CTR_TEST_SECTION("Arcade, VS and Battle share the live Chaos rules");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE};
+	for (int i = 0; i < (int)len(modes); i++)
+	{
+		ResetFixture();
+		GAMEPROG_ResetChaosSettings(&sdata->chaosSettings);
+		sdata->gGT->gameMode1 = modes[i];
+		g_config.chaosMode = true;
+		struct RectMenu next = {0};
+		MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+		               "each supported session opens the shared mode prompt");
+		CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 0, "a new session defaults to the first row, Regular");
+		MM_MENU_CHAOS_PROMPT.rowSelected = 1;
+		MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+		CTR_TEST_CHECK_EQ(s_setupEntries, 1, "Chaos opens the shared settings screen");
+		sdata->chaosSettings.durationSeconds = 15;
+		MM_ChaosSession_FinishSetup(false);
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+		               "Back from settings returns to the mode prompt without advancing");
+		MM_ChaosSession_FinishSetup(true);
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == &next && next.ptrPrevBox_InHierarchy == &MM_MENU_MAIN,
+		               "Confirm resumes the ordinary menu chain without adding a recap box");
+		sdata->gGT->gameMode1 = modes[(i + 1) % len(modes)];
+		MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
+		CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, 15, "rules survive another mode selection in this session");
+		CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 1, "another mode reuses the armed live rules");
+		MM_MENU_CHAOS_PROMPT.rowSelected = 0;
+		MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+		CTR_TEST_CHECK(!sdata->chaosSettings.armed, "Regular disarms the live rules");
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == &next, "Regular skips setup and continues normally");
+		MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
+		MM_MENU_CHAOS_PROMPT.rowSelected = -1;
+		MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+		CTR_TEST_CHECK((MM_MENU_MAIN.state & DRAW_NEXT_MENU_IN_HIERARCHY) == 0 && sdata->chaosSessionNextMenu == NULL,
+		               "Back from the prompt returns to the main menu and clears its pending destination");
+		CTR_TEST_CHECK(MM_MENU_MAIN.ptrNextBox_InHierarchy == NULL &&
+		               MM_MENU_CHAOS_PROMPT.ptrPrevBox_InHierarchy == NULL &&
+		               MM_MENU_CHAOS_PROMPT.ptrNextBox_InHierarchy == NULL,
+		               "Back detaches the prompt from both directions of the menu hierarchy");
+	}
+}
+
+static void TestSessionCharacterSelectExit(void)
+{
+	CTR_TEST_SECTION("VS and Battle offer Chaos after players and then exit to character selection");
+	const int modes[] = {0, BATTLE_MODE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int enabled = 0; enabled <= 1; enabled++)
+		{
+			for (int chaos = 0; chaos <= 1; chaos++)
+			{
+				ResetFixture();
+				sdata->gGT->gameMode1 = modes[mode];
+				sdata->gGT->numPlyrNextGame = 4;
+				g_config.chaosMode = enabled != 0;
+				struct RectMenu players = {0};
+				MM_ChaosSession_Begin(&players, NULL);
+				if (enabled)
+				{
+					CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+					               "the terminal player screen offers the shared prompt");
+					MM_MENU_CHAOS_PROMPT.rowSelected = -1;
+					MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+					CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == NULL && !MM_NewLoad_InChain(),
+					               "Back from a terminal prompt returns to Players, not Adventure");
+					MM_ChaosSession_Begin(&players, NULL);
+					MM_MENU_CHAOS_PROMPT.rowSelected = chaos;
+					MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+					if (chaos)
+					{
+						CTR_TEST_CHECK_EQ(s_setupEntries, 1, "terminal Chaos selection opens the rules editor");
+						MM_ChaosSession_FinishSetup(false);
+						CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
+						               "rules Back preserves the terminal mode prompt");
+						MM_ChaosSession_FinishSetup(true);
+					}
+				}
+				CTR_TEST_CHECK_EQ(MM_TITLE_MENU_STATE, TITLE_MENU_STATE_EXITING, "completed selection exits the title menu");
+				CTR_TEST_CHECK_EQ(MM_DESIRED_MENU_INDEX, MM_EXIT_ROUTE_CHARACTER_SELECT, "the terminal prompt resumes character selection");
+				CTR_TEST_CHECK_EQ(sdata->gGT->numPlyrNextGame, 4, "setup preserves the chosen player count");
+				CTR_TEST_CHECK(players.ptrNextBox_InHierarchy == NULL && sdata->chaosSessionNextMenu == NULL,
+				               "the completed prompt leaves no dangling menu links");
+			}
+		}
+	}
+}
+
+static void TestSharedRulesAdventureRestore(void)
+{
+	CTR_TEST_SECTION("loading an Adventure replaces live rules changed in another mode");
+	ResetFixture();
+	GAMEPROG_ResetChaosSettings(&sdata->chaosSettings);
+	CTR_TEST_CHECK(!sdata->chaosSettings.armed && sdata->chaosSettings.enabledCount > 0,
+	               "shared rules initialize with usable defaults and Regular selected");
+	sdata->chaosSettings.armed = true;
+	sdata->chaosSettings.durationSeconds = 55;
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+	sdata->chaosSettings.disabledPlayers[0] = true;
+	struct ChaosSettingsSaved saved;
+	ChaosSave_Encode(&sdata->chaosSettings, &saved);
+	const struct ChaosSettingsSaved original = saved;
+	sdata->gGT->gameMode1 = ARCADE_MODE;
+	g_config.chaosMode = true;
+	struct RectMenu next = {0};
+	MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
+	CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 1, "Arcade reuses the previously loaded live rules");
+	sdata->chaosSettings.durationSeconds = 15;
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+	memset(sdata->chaosSettings.disabledPlayers, 0, sizeof(sdata->chaosSettings.disabledPlayers));
+	MM_MENU_CHAOS_PROMPT.rowSelected = 0;
+	MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+	CTR_TEST_CHECK(!sdata->chaosSettings.armed, "Regular in Arcade disarms the live rules");
+	CTR_TEST_CHECK(memcmp(&saved, &original, sizeof(saved)) == 0, "changing live rules does not write the saved slot");
+	sdata->gGT->gameMode1 = ADVENTURE_MODE;
+	ChaosSave_Decode(&saved, &sdata->chaosSettings);
+	CTR_TEST_CHECK(sdata->chaosSettings.armed, "loading the Adventure restores its saved Chaos activation");
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, 55, "loading replaces the rules edited in Arcade");
+	CTR_TEST_CHECK(sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER && sdata->chaosSettings.disabledPlayers[0], "loading Adventure restores its saved distribution and selected players");
+	sdata->chaosSettings.armed = false;
+	ChaosSave_Encode(&sdata->chaosSettings, &saved);
+	sdata->chaosSettings.armed = true;
+	ChaosSave_Decode(&saved, &sdata->chaosSettings);
+	CTR_TEST_CHECK(!sdata->chaosSettings.armed, "loading a Regular Adventure disarms rules left active by Arcade");
+}
+
+static void TestAdventureChaosGate(void)
+{
+	CTR_TEST_SECTION("General's Chaos option gates Adventure independently of Expanded Options");
+	for (int expanded = 0; expanded <= 1; expanded++)
+	{
+		for (int enabled = 0; enabled <= 1; enabled++)
+		{
+			ResetFixture();
+			g_config.expandedAdventureOptions = expanded != 0;
+			g_config.chaosMode = enabled != 0;
+			MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
+			if (expanded)
+			{
+				CTR_TEST_CHECK_EQ(sdata->newLoad.step, NEWLOAD_STEP_DIFFICULTY, "Expanded Options still starts with difficulty");
+				MM_MenuProc_AdvDifficulty(&D230.menuDifficulty);
+			}
+			if (enabled)
+			{
+				CTR_TEST_CHECK_EQ(sdata->newLoad.step, NEWLOAD_STEP_CHAOS, "the General toggle offers Chaos with or without expanded setup");
+				CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 0, "Adventure starts on Regular even when Mode is the first screen");
+				if (!expanded)
+				{
+					MM_MENU_CHAOS_PROMPT.rowSelected = -1;
+					MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+					CTR_TEST_CHECK(!MM_NewLoad_InChain() && MM_MENU_ADVENTURE.ptrNextBox_InHierarchy == NULL,
+					               "Back from a standalone Mode screen returns cleanly to New/Load");
+					MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
+				}
+				MM_MENU_CHAOS_PROMPT.rowSelected = 1;
+				MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
+			}
+			if (expanded)
+			{
+				CTR_TEST_CHECK_EQ(sdata->newLoad.step, NEWLOAD_STEP_PLAYERS, "only Expanded Options offers player selection");
+				MM_NewLoad_Advance(&MM_MENU_PLAYERS_1P2P);
+			}
+			CTR_TEST_CHECK_EQ(s_setupEntries, enabled, "only an enabled Chaos choice opens Adventure rules setup");
+			if (enabled)
+			{
+				CTR_TEST_CHECK(sdata->ptrDesiredMenu == &MM_MENU_CHAOS_CONFIG, "Chaos opens the shared editor before leaving creation");
+				MM_NewLoad_ReturnFromChaosSetup();
+				CTR_TEST_CHECK(sdata->ptrDesiredMenu == &MM_MENU_MAIN && MM_NewLoad_InChain(),
+				               "Back from rules preserves the active creation chain");
+				MM_NewLoad_FinishChaosSetup();
+			}
+			CTR_TEST_CHECK(!MM_NewLoad_InChain() && MM_DESIRED_MENU_INDEX == MM_EXIT_ROUTE_ADV_NEW,
+			               "all option combinations finish through normal Adventure creation");
+			CTR_TEST_CHECK(sdata->chaosSettings.armed == (enabled != 0), "the new Adventure retains the selected Chaos state");
+			CTR_TEST_CHECK((sdata->newLoad.previousMenu != NULL) == (expanded != 0),
+			               "only expanded character selection needs a return destination; the garage route does not");
+			if (expanded)
+			{
+				MM_NewLoad_OnCharacterSelectExit(false);
+				CTR_TEST_CHECK(D230.menuDifficulty.ptrNextBox_InHierarchy ==
+				                   (enabled ? &MM_MENU_CHAOS_PROMPT : &MM_MENU_PLAYERS_1P2P),
+				               "character-select Back rebuilds only the enabled Adventure steps");
+				MM_NewLoad_Retreat(&MM_MENU_PLAYERS_1P2P);
+				CTR_TEST_CHECK_EQ(sdata->newLoad.step, enabled ? NEWLOAD_STEP_CHAOS : NEWLOAD_STEP_DIFFICULTY,
+				                  "Back from Players skips Chaos when its General option is disabled");
+			}
+		}
+	}
+}
+
 static void CheckFreshSettings(void)
 {
+	CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, CHAOS_DISTRIBUTION_SHARED, "a new Adventure always restores the shared distribution");
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	CTR_TEST_CHECK(!settings->armed, "a new file starts Regular");
-	CTR_TEST_CHECK_EQ(settings->durationSeconds, CHAOS_DURATION_DEFAULT_SECONDS, "duration starts at its default");
-	CTR_TEST_CHECK_EQ(settings->triggerIntervalSeconds, CHAOS_TRIGGER_INTERVAL_DEFAULT_SECONDS, "interval starts at its default");
+	CTR_TEST_CHECK_EQ(settings->durationSeconds, 10, "duration defaults to ten seconds");
+	CTR_TEST_CHECK_EQ(settings->triggerIntervalSeconds, 10, "interval defaults to ten seconds");
 	CTR_TEST_CHECK_EQ(settings->trigger, CHAOS_TRIGGER_RANDOM, "trigger starts at its default");
 	CTR_TEST_CHECK_EQ(settings->enabledCount, CHAOS_EFFECT_COUNT, "all default effects are counted");
+	for (int player = 0; player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+	{
+		CTR_TEST_CHECK(!settings->disabledPlayers[player], "a new Adventure re-enables every player");
+	}
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)
 	{
 		CTR_TEST_CHECK(settings->effects[i], "every effect starts selected");
@@ -130,7 +363,7 @@ static void TestDifficultyChoices(void)
 			MM_MenuProc_AdvDifficulty(&D230.menuDifficulty);
 			CTR_TEST_CHECK_EQ(sdata->advDifficulty, choices[row], "the selected level is recorded");
 			CTR_TEST_CHECK((D230.menuDifficulty.state & USE_SMALL_FONT) == 0, "the difficulty recap uses the large font");
-			CTR_TEST_CHECK_EQ(sdata->newLoad.step, NEWLOAD_STEP_CHAOS, "selection advances to Mode");
+			CTR_TEST_CHECK_EQ(sdata->newLoad.step, NEWLOAD_STEP_PLAYERS, "with Chaos disabled, selection skips Mode and advances to Players");
 		}
 	}
 }
@@ -217,10 +450,11 @@ static void TestNewAfterChaosCreation(void)
 	{
 			ResetFixture();
 			g_config.expandedAdventureOptions = true;
+			g_config.chaosMode = true;
 			MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
 			MM_MenuProc_AdvDifficulty(&D230.menuDifficulty);
 			MM_MENU_CHAOS_PROMPT.funcState = RECTMENU_FUNC_STATE_INPUT;
-			MM_MENU_CHAOS_PROMPT.rowSelected = 0;
+			MM_MENU_CHAOS_PROMPT.rowSelected = 1;
 			MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
 			MM_NewLoad_Advance(&MM_MENU_PLAYERS_1P2P);
 			CTR_TEST_CHECK(sdata->chaosSettings.armed, "the preceding creation really selected Chaos");
@@ -230,9 +464,12 @@ static void TestNewAfterChaosCreation(void)
  			sdata->advDifficulty = DIFFICULTY_HARD;
 			sdata->chaosSettings.triggerIntervalSeconds = 90;
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
+			sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+			memset(sdata->chaosSettings.disabledPlayers, true, sizeof(sdata->chaosSettings.disabledPlayers));
 			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount, CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
 
 			g_config.expandedAdventureOptions = expanded != 0;
+			g_config.chaosMode = expanded != 0;
 			s_setupEntries = 0;
 			sdata->ptrDesiredMenu = NULL;
 			// Clearing only armed here would leave the previous file's custom settings.
@@ -267,12 +504,13 @@ static void ReachCharacterSelect(bool expanded, bool chaos, int playerCount)
 {
 	ResetFixture();
 	g_config.expandedAdventureOptions = expanded;
+	g_config.chaosMode = expanded;
 	MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
 	if (expanded)
 	{
 		MM_MenuProc_AdvDifficulty(&D230.menuDifficulty);
 		MM_MENU_CHAOS_PROMPT.funcState = RECTMENU_FUNC_STATE_INPUT;
-		MM_MENU_CHAOS_PROMPT.rowSelected = chaos ? 0 : 1;
+		MM_MENU_CHAOS_PROMPT.rowSelected = chaos;
 		MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
 	}
 	if (expanded)
@@ -299,7 +537,7 @@ static void TestCharacterSelectBackPreservesChoices(void)
 			memset(&D230, 0, sizeof(D230));
 			MM_NewLoad_OnCharacterSelectExit(false);
 			CTR_TEST_CHECK_EQ(s_titleReturns, 1, "Back starts the title return transition once");
-			CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, chaos ? 0 : 1, "the collapsed Mode row keeps the chosen mode");
+			CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, chaos, "the collapsed Mode row keeps the chosen mode");
 			CTR_TEST_CHECK_EQ(MM_MENU_PLAYERS_1P2P.rowSelected, players - 1, "Players keeps the chosen player count");
 			CTR_TEST_CHECK(MM_MENU_ADVENTURE.ptrNextBox_InHierarchy == &D230.menuDifficulty &&
 			                   D230.menuDifficulty.ptrNextBox_InHierarchy == &MM_MENU_CHAOS_PROMPT,
@@ -312,7 +550,7 @@ static void TestCharacterSelectBackPreservesChoices(void)
 			CTR_TEST_CHECK(sdata->chaosSettings.armed == (chaos != 0), "Back preserves the actual mode as well as its display");
 
 			MM_NewLoad_Retreat(&MM_MENU_PLAYERS_1P2P);
-			CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, chaos ? 0 : 1, "retreat to Mode keeps its previous selection");
+			CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, chaos, "retreat to Mode keeps its previous selection");
 			CTR_TEST_CHECK(MM_MENU_CHAOS_PROMPT.ptrNextBox_InHierarchy == NULL, "retreat removes the Players link");
 			MM_NewLoad_Retreat(&MM_MENU_CHAOS_PROMPT);
 			CTR_TEST_CHECK((D230.menuDifficulty.state & USE_SMALL_FONT) != 0, "returning to Difficulty restores compact rows");
@@ -346,9 +584,11 @@ static void TestResidentCreationRestore(void)
 	ResetFixture();
 	CTR_TEST_CHECK(!MM_NewLoad_InChain(), "zero-initialized resident state has no active creation");
 	g_config.expandedAdventureOptions = true;
+	g_config.chaosMode = true;
 	MM_NewLoad_Begin(&MM_MENU_ADVENTURE);
 	MM_MenuProc_AdvDifficulty(&D230.menuDifficulty);
 	MM_MENU_CHAOS_PROMPT.funcState = RECTMENU_FUNC_STATE_INPUT;
+	MM_MENU_CHAOS_PROMPT.rowSelected = 1;
 	MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
 	MM_MENU_PLAYERS_1P2P.rowSelected = 1;
 	MM_NewLoad_Advance(&MM_MENU_PLAYERS_1P2P);
@@ -376,7 +616,7 @@ static void TestResidentCreationRestore(void)
 	memcpy(&D230, &overlay, sizeof(overlay));
 	MM_NewLoad_OnCharacterSelectExit(false);
 	CTR_TEST_CHECK(MM_NewLoad_InChain(), "a saved character-select return context is available again after restore");
-	CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 0, "the restored return keeps Chaos selected");
+	CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 1, "the restored return keeps Chaos selected");
 	CTR_TEST_CHECK_EQ(MM_MENU_PLAYERS_1P2P.rowSelected, 1, "the restored return keeps 2P selected");
 	MM_NewLoad_Retreat(&MM_MENU_PLAYERS_1P2P);
 	MM_NewLoad_Retreat(&MM_MENU_CHAOS_PROMPT);
@@ -413,6 +653,11 @@ static void TestCustomGhostValidation(void)
 
 int main(void)
 {
+	TestSessionCharacterSelectExit();
+	TestSharedRulesAdventureRestore();
+	TestAdventureChaosGate();
+	TestSessionPromptDisabled();
+	TestSessionPrompt();
 	TestCustomGhostValidation();
 	TestAdventureBotDifficulty();
 	TestAdventureTimeLimits();

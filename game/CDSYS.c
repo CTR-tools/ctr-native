@@ -627,7 +627,7 @@ static int CDSYS_XAPlayNative(int categoryID, int xaID, bool localizedOnly)
 		return 0;
 	}
 	sdata->XA_State = XA_PLAYING;
-	sdata->chaosRuntime.humanXA = false;
+	sdata->chaosRuntime.xaOwner = CHAOS_AUDIO_WORLD;
 	sdata->XA_Playing_Index = xaID;
 	sdata->XA_Playing_Category = categoryID;
 	sdata->XA_VolumeBitshift = volume;
@@ -689,7 +689,7 @@ int CDSYS_XAPlay(int categoryID, int xaID)
 	}
 
 	sdata->XA_State = XA_STARTING;
-	sdata->chaosRuntime.humanXA = false;
+	sdata->chaosRuntime.xaOwner = CHAOS_AUDIO_WORLD;
 
 	int vol = sdata->vol_Voice;
 	if (categoryID == CDSYS_XA_TYPE_MUSIC)

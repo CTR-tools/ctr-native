@@ -3,15 +3,20 @@
 
 #include <namespace_Memcard.h>
 
+static inline bool ChaosSave_IsSupported(const struct ChaosSettingsSaved *saved)
+{
+	return saved->format == CHAOS_SAVE_FORMAT_V1 || saved->format == CHAOS_SAVE_FORMAT_V2;
+}
+
 static inline bool ChaosSave_IsArmed(const struct ChaosSettingsSaved *saved)
 {
-	return saved->format == CHAOS_SAVE_FORMAT_V1 && saved->armed != 0;
+	return ChaosSave_IsSupported(saved) && saved->armed != 0;
 }
 
 static inline void ChaosSave_Decode(const struct ChaosSettingsSaved *saved, struct ChaosSettings *settings)
 {
 	memset(settings, 0, sizeof(*settings));
-	if (saved->format != CHAOS_SAVE_FORMAT_V1)
+	if (!ChaosSave_IsSupported(saved))
 	{
 		return;
 	}
@@ -25,6 +30,15 @@ static inline void ChaosSave_Decode(const struct ChaosSettingsSaved *saved, stru
 		settings->effects[id] = (saved->effectBits[id / 8] & (1u << (id % 8))) != 0;
 	}
 	settings->enabledCount = (u8)ChaosEffect_CountEnabled(settings->effects);
+	if (saved->format == CHAOS_SAVE_FORMAT_V2)
+	{
+		settings->distribution = saved->v2.distribution < CHAOS_DISTRIBUTION_COUNT
+		                             ? saved->v2.distribution : CHAOS_DISTRIBUTION_SHARED;
+		for (int player = 0; player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+		{
+			settings->disabledPlayers[player] = saved->v2.disabledPlayers[player] != 0;
+		}
+	}
 }
 
 static inline void ChaosSave_Encode(const struct ChaosSettings *settings, struct ChaosSettingsSaved *saved)
@@ -41,6 +55,20 @@ static inline void ChaosSave_Encode(const struct ChaosSettings *settings, struct
 		if (settings->effects[id])
 		{
 			saved->effectBits[id / 8] |= (u8)(1u << (id % 8));
+		}
+	}
+	// Keep default rules byte-compatible with V1. V2 reuses only its unused tail.
+	if (settings->distribution == CHAOS_DISTRIBUTION_PER_PLAYER)
+	{
+		saved->v2.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+		saved->format = CHAOS_SAVE_FORMAT_V2;
+	}
+	for (int player = 0; player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+	{
+		if (settings->disabledPlayers[player])
+		{
+			saved->v2.disabledPlayers[player] = true;
+			saved->format = CHAOS_SAVE_FORMAT_V2;
 		}
 	}
 }

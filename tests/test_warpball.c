@@ -12,10 +12,10 @@ u8 *gCTRNativeScratchpadBase;
 static struct Instance *s_spawnedOrb;
 static struct Particle *s_particle;
 
-bool Chaos_IsHumanThread(const struct Thread *thread)
+void Chaos_InheritParticleOwner(struct Particle *particle, const struct Thread *source)
 {
-	return thread != NULL && thread->modelIndex == DYNAMIC_PLAYER && thread->object != NULL &&
-	       (((const struct Driver *)thread->object)->actionsFlagSet & ACTION_BOT) == 0;
+	CTR_TEST_CHECK(particle == s_particle && source == s_defaultDrivers[0].instSelf->thread,
+	               "orb particles inherit ownership from the firing controller");
 }
 bool Chaos_DeferDriverDamage(struct Driver *victim, int damage, struct Driver *attacker, int reason)
 {
@@ -115,7 +115,7 @@ struct Instance *INSTANCE_BirthWithThread(s32 model, const char *name, s32 pool,
 }
 void GAMEPAD_ShockFreq(struct Driver *driver, int frames, int value) { (void)driver; (void)frames; (void)value; }
 void GAMEPAD_ShockForce1(struct Driver *driver, int frames, int value) { (void)driver; (void)frames; (void)value; }
-void Voiceline_RequestPlay(u32 sound, u32 character, u32 flags) { (void)sound; (void)character; (void)flags; }
+void Voiceline_RequestPlayOwned(u32 sound, u32 character, u32 flags, const struct Driver *speaker) { (void)sound; (void)character; (void)flags; (void)speaker; }
 void PROC_DestroyInstance(struct Thread *thread) { (void)thread; }
 
 s32 MixRNG_Scramble(void) { CtrTest_Bail("orb launch needs no retail RNG"); return 0; }

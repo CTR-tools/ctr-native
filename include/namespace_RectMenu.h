@@ -228,6 +228,8 @@ enum ChaosSetting
 	CHAOS_SETTING_DURATION,
 	CHAOS_SETTING_TRIGGER,
 	CHAOS_SETTING_INTERVAL,
+	CHAOS_SETTING_DISTRIBUTION,
+	CHAOS_SETTING_PLAYERS,
 	CHAOS_SETTING_EFFECTS,
 	CHAOS_SETTING_CONFIRM,
 	CHAOS_SETTING_COUNT,
@@ -237,6 +239,7 @@ enum ChaosPage
 {
 	CHAOS_PAGE_SETTINGS,
 	CHAOS_PAGE_EFFECTS,
+	CHAOS_PAGE_PLAYERS,
 	CHAOS_PAGE_COUNT,
 };
 
@@ -255,16 +258,18 @@ struct ChaosMenuState
 	struct RectMenu menu;
 	// Non-NULL selects the read-only pause view and its return destination.
 	struct RectMenu *returnMenu;
+	bool sessionSetup;
 	enum ChaosPage page;
 	struct FullScreenMenu_Scroll scroll[CHAOS_PAGE_COUNT];
 	enum ChaosSetting visibleSettings[CHAOS_SETTING_COUNT];
 	int numSettings;
 	int effectsRow;
+	int playersRow;
 };
 
 enum
 {
-	CHAOS_PAUSE_ROW_CAPACITY = 6, // five actions and a terminator
+	CHAOS_PAUSE_ROW_CAPACITY = 9, // seven retail Battle actions, Chaos Rules and a terminator
 };
 
 CTR_STATIC_ASSERT(sizeof(struct MenuRow) == 6);

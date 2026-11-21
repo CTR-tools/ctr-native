@@ -19,16 +19,26 @@ static struct ChannelStats s_channel;
 static int s_mixedVolume;
 static struct GameTracker s_tracker;
 static bool s_freezeAudio;
-static bool s_previewHumanAudio;
+static bool s_previewUIAudio;
 static int s_previewSound;
 static int s_localizedReads;
 static bool s_localizedAvailable;
 
-bool Chaos_SetHumanAudio(bool human)
+enum ChaosAudioOwner Chaos_SetAudioOwner(enum ChaosAudioOwner owner)
 {
-	const bool previous = sdata->chaosRuntime.humanAudioContext;
-	sdata->chaosRuntime.humanAudioContext = human;
+	const enum ChaosAudioOwner previous = sdata->chaosRuntime.audioOwner;
+	sdata->chaosRuntime.audioOwner = owner;
 	return previous;
+}
+
+void Chaos_BackupAudioChannel(const struct ChannelStats *channel, int index)
+{
+	sdata->chaosPausedAudioChannels[index] = sdata->chaosAudioChannels[channel->channelID];
+}
+
+void Chaos_RestoreAudioChannel(const struct ChannelStats *channel, int index)
+{
+	sdata->chaosAudioChannels[channel->channelID] = sdata->chaosPausedAudioChannels[index];
 }
 
 bool Chaos_ShouldFreezeAudioChannel(const struct ChannelStats *channel)
@@ -108,7 +118,7 @@ void Smart_ExitCriticalSection(void) {}
 struct ChannelStats *Channel_AllocSlot_AntiSpam(s16 sound, u8 antiSpam, int flags, struct ChannelAttr *attr)
 {
 	(void)sound; (void)antiSpam;
-	s_previewHumanAudio = sdata->chaosRuntime.humanAudioContext;
+	s_previewUIAudio = sdata->chaosRuntime.audioOwner == CHAOS_AUDIO_UI;
 	s_previewSound = sound;
 	s_channel = (struct ChannelStats){ .flags = 1 };
 	LIST_Clear(&sdata->channelTaken);
@@ -150,7 +160,7 @@ void CseqMusic_Stop(u16 song) { (void)song; }
 int CseqMusic_Start(u16 song, int p2, struct SongSet *set, int p4, int p5)
 {
 	(void)song; (void)p2; (void)set; (void)p4; (void)p5;
-	s_previewHumanAudio = sdata->chaosRuntime.humanAudioContext;
+	s_previewUIAudio = sdata->chaosRuntime.audioOwner == CHAOS_AUDIO_UI;
 	return 0;
 }
 u32 Music_GetHighestSongPlayIndex(void) { return 0; }
@@ -263,10 +273,14 @@ int main(void)
 	CTR_TEST_CHECK_EQ(sdata->channelAttrNew[0].pitch, 4096, "initial playback uses the sound's base pitch");
 
 	CTR_TEST_SECTION("real pause and slider paths preserve boosted gain and support muting");
+	sdata->chaosAudioChannels[0] = CHAOS_AUDIO_PLAYER_3;
 	howl_PauseAudio();
 	CTR_TEST_CHECK_EQ(sdata->numBackup_ChannelStats, 1, "pause backs up the boosted effect channel");
 	sdata->channelAttrNew[0].audioL = 0;
+	sdata->chaosAudioChannels[0] = CHAOS_AUDIO_WORLD;
 	howl_UnPauseAudio();
+	CTR_TEST_CHECK(sdata->chaosAudioChannels[0] == CHAOS_AUDIO_PLAYER_3,
+	    "real pause and resume reconnect the Chaos ownership backup independently of reused channel metadata");
 	CTR_TEST_CHECK_EQ(sdata->channelAttrNew[0].audioL, 7570, "resume restores boosted gain through the real attribute initializer");
 	CTR_TEST_CHECK_EQ(sdata->numBackup_ChannelStats, 0, "resume consumes the channel backup");
 	howl_VolumeSet(HOWL_VOLUME_TYPE_FX, 100);
@@ -322,14 +336,14 @@ int main(void)
 	const int rows[] = {HOWL_VOLUME_TYPE_FX, HOWL_VOLUME_TYPE_MUSIC, HOWL_VOLUME_TYPE_VOICE};
 	for (int i = 0; i < (int)len(rows); i++)
 	{
-		s_previewHumanAudio = false;
+		s_previewUIAudio = false;
 		OptionsMenu_TestSound(rows[i], true);
-		CTR_TEST_CHECK(s_previewHumanAudio, "effect, music and voice preview launch in human audio context");
-		CTR_TEST_CHECK(!sdata->chaosRuntime.humanAudioContext, "slider playback restores the previous world audio context");
+		CTR_TEST_CHECK(s_previewUIAudio, "effect, music and voice preview launch in UI audio context");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_WORLD, "slider playback restores the previous world audio context");
 	}
-	Chaos_SetHumanAudio(true);
+	Chaos_SetAudioOwner(CHAOS_AUDIO_PLAYER_2);
 	OptionsMenu_TestSound(HOWL_VOLUME_TYPE_VOICE, false);
-	CTR_TEST_CHECK(sdata->chaosRuntime.humanAudioContext, "stopping preview preserves an enclosing human audio context");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_PLAYER_2, "stopping preview preserves the exact enclosing controller's audio context");
 	CTR_TEST_SECTION("voice preview without a followed racer");
 	s_tracker.gameMode1 = MAIN_MENU;
 	s_tracker.cameraDC[0].driverToFollow = NULL;

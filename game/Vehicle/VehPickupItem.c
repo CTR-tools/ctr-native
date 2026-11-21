@@ -719,7 +719,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 			PlaySound3D(SOUND_BOMB_LAUNCH, weaponInst);
 			if ((d->actionsFlagSet & ACTION_BOT) == 0)
 			{
-				Voiceline_RequestPlay(VOICELINE_BOMB_LAUNCH, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+				Voiceline_RequestPlayOwned(VOICELINE_BOMB_LAUNCH, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 			}
 		}
 		else
@@ -741,7 +741,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 			PlaySound3D(SOUND_MISSILE_LAUNCH, weaponInst);
 			if ((d->actionsFlagSet & ACTION_BOT) == 0)
 			{
-				Voiceline_RequestPlay(VOICELINE_MISSILE_LAUNCH, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+				Voiceline_RequestPlayOwned(VOICELINE_MISSILE_LAUNCH, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 			}
 		}
 
@@ -794,7 +794,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 
 		if ((d->actionsFlagSet & ACTION_BOT) == 0)
 		{
-			Voiceline_RequestPlay(VOICELINE_CLOCK, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+			Voiceline_RequestPlayOwned(VOICELINE_CLOCK, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 		}
 
 		for (i = 0; i < CLOCK_DRIVER_COUNT; i++)
@@ -916,7 +916,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 		// if human and not AI (AIs can not use Warpball)
 		if ((d->actionsFlagSet & ACTION_BOT) == 0)
 		{
-			Voiceline_RequestPlay(VOICELINE_WARPBALL, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+			Voiceline_RequestPlayOwned(VOICELINE_WARPBALL, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 		}
 
 		tw->soundIDCount = 0;
@@ -933,9 +933,9 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 		p = Particle_Init(0, GAME_TRACKER->iconGroup[WARPBALL_PARTICLE_ICON_GROUP], &data.emSet_Warpball[0]);
 
 		tw->ptrParticle = p;
-		if (p != NULL && Chaos_IsHumanThread(d->instSelf->thread))
+		if (p != NULL)
 		{
-			p->flagsAxis |= PARTICLE_AXIS_FLAG_HUMAN_EFFECT;
+			Chaos_InheritParticleOwner(p, d->instSelf->thread);
 		}
 
 		if (p != 0)
@@ -1036,7 +1036,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 
 		if ((d->actionsFlagSet & ACTION_BOT) == 0)
 		{
-			Voiceline_RequestPlay(VOICELINE_MINE_DROP, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+				Voiceline_RequestPlayOwned(VOICELINE_MINE_DROP, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 		}
 
 		mw->velocity.x = 0;
@@ -1216,7 +1216,7 @@ static void VehPickupItem_ShootTargeted(struct Driver *d, s32 weaponID, s32 flag
 
 		if ((d->actionsFlagSet & ACTION_BOT) == 0)
 		{
-			Voiceline_RequestPlay(VOICELINE_MINE_DROP, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY);
+			Voiceline_RequestPlayOwned(VOICELINE_MINE_DROP, GAME_CHARACTER_IDS[d->driverID], VOICELINE_WEAPON_PRIORITY, d);
 		}
 
 		RB_MinePool_Add(mw);

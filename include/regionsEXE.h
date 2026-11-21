@@ -3898,7 +3898,7 @@ struct sData
 
 	// 800961c4
 	// eight members, 0x10 each
-	struct VoicelineItem voicelinePool[8];
+	struct VoicelineItem voicelinePool[HOWL_VOICELINE_POOL_CAPACITY];
 
 	// 80096244
 	int timeSet1[0x10];
@@ -4098,14 +4098,21 @@ struct sData
 	// Zero means the character's default; otherwise the engine class plus one.
 	u8 selectedEngineClass[4];
 
-	// Chaos settings of the profile in use. Initialised on New, configured at creation,
-	// and mirrored to/from the card extension on save/load.
+	// Live Chaos rules shared by all modes; Adventure save/load persists them per slot.
 	struct ChaosSettings chaosSettings;
+	// After the session Chaos prompt: difficulty, or NULL to enter character selection.
+	struct RectMenu *chaosSessionNextMenu;
 
 	// The chaos system's own generator. Separate from sdata->randomNumber and
 	// the deadcoed pair, which the replay verifier compares every recorded frame.
 	u32 chaosRng;
 	struct ChaosRuntime chaosRuntime;
+	// Pool-lifetime attribution, independent of race activation resets.
+	u8 *chaosThreadOwners;
+	u8 *chaosParticleOwners;
+	enum ChaosAudioOwner chaosAudioChannels[NUM_SFX_CHANNELS];
+	enum ChaosAudioOwner chaosPausedAudioChannels[NUM_SFX_CHANNELS];
+	enum ChaosAudioOwner chaosVoicelines[HOWL_VOICELINE_POOL_CAPACITY];
 	struct Model *chaosCharacterModels[len(((struct Data *)0)->MetaDataCharacters)];
 
 	struct NewLoadState newLoad;

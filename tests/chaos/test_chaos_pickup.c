@@ -58,7 +58,7 @@ void Vector_SpecLightSpin3D(struct Instance *inst, const SVec3 *rot, const SVec3
 }
 void PlaySound3D(u32 sound, struct Instance *inst) { (void)sound; (void)inst; }
 int OtherFX_Play(u32 sound, int flags) { (void)sound; (void)flags; return 0; }
-void Voiceline_RequestPlay(u32 sound, u32 character, u32 flags) { (void)sound; (void)character; (void)flags; }
+void Voiceline_RequestPlayOwned(u32 sound, u32 character, u32 flags, const struct Driver *speaker) { (void)sound; (void)character; (void)flags; (void)speaker; }
 int MixRNG_Scramble(void) { return 0; }
 int MATH_Sin(u32 angle) { (void)angle; return 0; }
 void CTC2(u32 value, s32 reg) { (void)value; (void)reg; }

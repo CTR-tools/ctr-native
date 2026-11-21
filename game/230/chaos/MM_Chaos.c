@@ -1,8 +1,6 @@
 #include <common.h>
 
-// The Chaos prompt is one step of the new-file chain in MM_MenuFlow.c, between
-// the Adventure new/load menu and the racer-count screen. Attaching it, advancing
-// past it and backing out of it are all done there, with the other steps.
+// Share the prompt between Adventure creation and the session-only menu flow.
 
 void MM_MenuProc_Chaos(struct RectMenu *menu)
 {
@@ -16,6 +14,12 @@ void MM_MenuProc_Chaos(struct RectMenu *menu)
 	// Triangle: back to the screen before this one.
 	if (row == -1)
 	{
+		if (!MM_NewLoad_InChain())
+		{
+			MM_Menu_Detach(menu);
+			sdata->chaosSessionNextMenu = NULL;
+			return;
+		}
 		MM_NewLoad_Retreat(menu);
 		return;
 	}
@@ -25,8 +29,21 @@ void MM_MenuProc_Chaos(struct RectMenu *menu)
 		return;
 	}
 
-	// Row 0 is "Chaos", row 1 is "Regular".
-	sdata->chaosSettings.armed = (row == 0);
+	// Row 0 is "Regular", row 1 is "Chaos".
+	struct ChaosSettings *settings = &sdata->chaosSettings;
+	settings->armed = (row == 1);
+	if (!MM_NewLoad_InChain())
+	{
+		if (settings->armed)
+		{
+			MM_ChaosConfig_OpenSession();
+		}
+		else
+		{
+			MM_ChaosSession_FinishSetup(true);
+		}
+		return;
+	}
 
 	MM_NewLoad_Advance(menu);
 }

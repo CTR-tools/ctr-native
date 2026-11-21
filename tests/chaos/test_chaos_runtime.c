@@ -15,8 +15,65 @@ void Music_Stop(void) {}
 
 static s32 LatestNoticeRemaining(void)
 {
-	const struct ChaosRuntime *runtime = &sdata->chaosRuntime;
+	const struct ChaosPlayerRuntime *runtime = &sdata->chaosRuntime.players[0];
 	return runtime->numActive > 0 ? runtime->active[runtime->numActive - 1].noticeRemainingMS : 0;
+}
+
+static void CheckSuspended(void);
+
+static void TestSessionModes(void)
+{
+	CTR_TEST_SECTION("session rules run in Arcade, VS and Battle for one to four humans");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE | LIFE_LIMIT, ARCADE_MODE | RELIC_RACE,
+	                     ARCADE_MODE | CRYSTAL_CHALLENGE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			SetupRace(CHAOS_TRIGGER_INTERVAL);
+			Chaos_Reset();
+			s_tracker.gameMode1 = modes[mode];
+			s_tracker.numPlyrCurrGame = players;
+			struct Driver humans[CHAOS_MAX_HUMAN_PLAYERS] = {0};
+			for (int player = 0; player < players; player++)
+			{
+				humans[player].driverID = player;
+				s_tracker.drivers[player] = &humans[player];
+			}
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(sdata->chaosRuntime.raceInitialized, "armed live rules initialize in every supported mode");
+			Tick(5000);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "the session interval activates its selected effect");
+			for (int player = 0; player < players; player++)
+			{
+				CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, &humans[player]),
+				               "the effect targets every human including players three and four");
+			}
+			CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_ARENA_CHAMPIONS, s_tracker.gameMode1,
+			                                     s_tracker.cup.cupID, players, g_config.extendedMultiplayer, false) ||
+			               modes[mode] == ARCADE_MODE,
+			               "bot-only effects are excluded from VS, Battle, relic and crystal events");
+			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
+			Tick(1);
+			Chaos_OnTurboPadContact(&humans[players - 1], true);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 0, "the last human's turbo pad triggers Chaos too");
+			Tick(1);
+			Chaos_OnTurboPadContact(&humans[players - 1], true);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 1, "staying on a pad does not retrigger");
+			s_tracker.gameMode1 |= PAUSE_1;
+			CheckSuspended();
+			s_tracker.gameMode1 &= ~PAUSE_1;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "retry clears effects while retaining session rules");
+			s_tracker.gameMode1 = TIME_TRIAL;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(!sdata->chaosRuntime.raceInitialized, "armed session rules cannot initialize in Time Trial");
+			s_tracker.gameMode1 = modes[mode];
+			s_tracker.boolDemoMode = true;
+			Chaos_BeginRace(&s_tracker);
+			CTR_TEST_CHECK(!sdata->chaosRuntime.raceInitialized, "attract-mode demos never inherit session Chaos");
+		}
+	}
 }
 
 static void TestIntervalCadence(void)
@@ -27,23 +84,23 @@ static void TestIntervalCadence(void)
 	Chaos_Reset();
 	MainGameStart_Initialize(&s_tracker, true);
 	CTR_TEST_CHECK(s_teleported && sdata->chaosRuntime.raceInitialized, "the actual race-start callback initializes Chaos after teleporting");
-	CTR_TEST_CHECK(!g_config.expandedAdventureOptions, "the creation prompt is disabled in this fixture");
+	CTR_TEST_CHECK(!g_config.chaosMode, "the creation prompt is disabled in this fixture");
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the countdown cannot activate an effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "the countdown does not consume trigger time");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "the countdown cannot activate an effect");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "the countdown does not consume trigger time");
 	s_tracker.trafficLightsTimer = 0;
 	Tick(4992);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "Interval waits for the whole first gap");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "Interval waits for the whole first gap");
 	Tick(32);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "an armed file activates despite the disabled creation prompt");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "Interval chooses from selected effects only");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 30000, "a new activation starts with its full duration");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 4976, "frame overshoot is retained rather than drifting the cadence");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "an armed file activates despite the disabled creation prompt");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "Interval chooses from selected effects only");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 30000, "a new activation starts with its full duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 4976, "frame overshoot is retained rather than drifting the cadence");
 	Tick(4976);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "Interval replaces an already active effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 30000, "repeated selection resets the duration");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 0, "repeated selection resets the elapsed time");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "the second boundary returns to the original cadence");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "Interval replaces an already active effect");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 30000, "repeated selection resets the duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 0, "repeated selection resets the elapsed time");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "the second boundary returns to the original cadence");
 }
 
 static void TestIndependentExpiryAndOrder(void)
@@ -56,29 +113,29 @@ static void TestIndependentExpiryAndOrder(void)
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_GOTTA_GO_FAST, 100), "an unrelated later effect can overlap");
 	Tick(50);
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 300), "a repeated activation replaces the old entry");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 2, "reactivation does not add a duplicate slot");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].effect, CHAOS_EFFECT_GOTTA_GO_FAST, "unrelated effects keep their relative order");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 50, "reactivation leaves unrelated timers unchanged");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "reactivation becomes the newest entry");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].elapsedMS, 0, "reactivation resets its phase");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].noticeRemainingMS, CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS, "reactivation restarts its notification");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 2, "reactivation does not add a duplicate slot");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].effect, CHAOS_EFFECT_GOTTA_GO_FAST, "unrelated effects keep their relative order");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 50, "reactivation leaves unrelated timers unchanged");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "reactivation becomes the newest entry");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].elapsedMS, 0, "reactivation resets its phase");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].noticeRemainingMS, CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS, "reactivation restarts its notification");
 	Tick(50);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "only the entry reaching its exact expiry is removed");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 250, "compaction preserves the replacement timer");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "only the entry reaching its exact expiry is removed");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 250, "compaction preserves the replacement timer");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_GOTTA_GO_FAST), "an expired effect no longer reports active");
 	Tick(100);
 	CTR_TEST_CHECK(Chaos_IsActive(CHAOS_EFFECT_FLY_ME_TO_THE_MOON), "the superseded expiry cannot stop the replacement");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 150, "replacement continues from its new activation time");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 150, "replacement continues from its new activation time");
 	Tick(150);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "the last timer expires exactly at zero");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "the last timer expires exactly at zero");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_FLY_ME_TO_THE_MOON), "no active status remains after final expiry");
 
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 100);
 	Chaos_Activate(CHAOS_EFFECT_GOTTA_GO_FAST, 300);
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 200);
 	Tick(100);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].effect, CHAOS_EFFECT_GOTTA_GO_FAST, "removing the oldest entry preserves the next effect's order");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[1].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "the newest effect remains last after compaction");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].effect, CHAOS_EFFECT_GOTTA_GO_FAST, "removing the oldest entry preserves the next effect's order");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[1].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "the newest effect remains last after compaction");
 }
 
 static void CheckSuspended(void)
@@ -103,9 +160,9 @@ static void TestGatesAndPause(void)
 		s_tracker.gameMode1 = ADVENTURE_MODE | blocked[i];
 		CheckSuspended();
 	}
-	s_tracker.gameMode1 = ARCADE_MODE;
+	s_tracker.gameMode1 = ARCADE_MODE | TIME_TRIAL;
 	CheckSuspended();
-	s_tracker.gameMode1 = BATTLE_MODE;
+	s_tracker.gameMode1 = BATTLE_MODE | MAIN_MENU;
 	CheckSuspended();
 	s_tracker.gameMode1 = ADVENTURE_MODE;
 	s_tracker.overlayIndex_Threads = OVERLAY_INDEX_ADV_HUB;
@@ -121,8 +178,8 @@ static void TestGatesAndPause(void)
 	CheckSuspended();
 	sdata->chaosSettings.armed = true;
 	Tick(1000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 9000, "resuming consumes only the next gameplay delta");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 4000, "the trigger resumes its remaining gap");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 9000, "resuming consumes only the next gameplay delta");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 4000, "the trigger resumes its remaining gap");
 	const int variants[] = {RELIC_RACE, CRYSTAL_CHALLENGE, ADVENTURE_CUP, (int)ADVENTURE_BOSS};
 	for (int i = 0; i < (int)len(variants); i++)
 	{
@@ -149,42 +206,42 @@ static void TestCapacityAndValidation(void)
 	}
 	sdata->chaosSettings.effects[CHAOS_EFFECT_MIRROR_MIRROR] = true;
 	const struct ChaosRuntime full = sdata->chaosRuntime;
-	CTR_TEST_CHECK_EQ(full.numActive, 4, "four distinct effects fill the array");
+	CTR_TEST_CHECK_EQ(full.players[0].numActive, 4, "four distinct effects fill the array");
 	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_MIRROR_MIRROR, 9999), "a full queue rejects a fifth distinct effect");
 	CTR_TEST_CHECK(memcmp(&full, &sdata->chaosRuntime, sizeof(full)) == 0, "overflow preserves existing activations");
 	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 0), "invalid reactivation cannot remove the running effect");
 	CTR_TEST_CHECK(memcmp(&full, &sdata->chaosRuntime, sizeof(full)) == 0, "invalid reactivation preserves all timers");
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 9999), "reactivation succeeds at full capacity");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "reactivation keeps the array at capacity without duplicates");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[3].remainingMS, 9999, "reactivation replaces the old duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "reactivation keeps the array at capacity without duplicates");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[3].remainingMS, 9999, "reactivation replaces the old duration");
 	for (int i = 0; i < 3; i++)
 	{
-		CTR_TEST_CHECK(memcmp(&full.active[i + 1], &sdata->chaosRuntime.active[i], sizeof(full.active[0])) == 0,
+		CTR_TEST_CHECK(memcmp(&full.players[0].active[i + 1], &sdata->chaosRuntime.players[0].active[i], sizeof(full.players[0].active[0])) == 0,
 		    "reactivation preserves every unrelated entry");
 	}
 	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
 	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
 	sdata->chaosSettings.enabledCount = 1;
-	sdata->chaosRuntime.intervalRemainingMS = 1;
+	sdata->chaosRuntime.players[0].intervalRemainingMS = 1;
 	const u32 rng = sdata->chaosRng;
 	Tick(1);
 	CTR_TEST_CHECK(sdata->chaosRng != rng, "a scheduled event chooses an effect even at capacity");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[3].remainingMS, 30000, "Interval can refresh an effect at capacity");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "a scheduled refresh retains the configured gap");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[3].remainingMS, 30000, "Interval can refresh an effect at capacity");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "a scheduled refresh retains the configured gap");
 	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = false;
 	sdata->chaosSettings.effects[CHAOS_EFFECT_MIRROR_MIRROR] = true;
-	sdata->chaosRuntime.intervalRemainingMS = 1;
+	sdata->chaosRuntime.players[0].intervalRemainingMS = 1;
 	const int sounds = s_activationSounds;
 	const u32 beforeRejectedChoice = sdata->chaosRng;
 	Tick(1);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "a scheduled fifth distinct effect cannot evict running effects");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "a scheduled fifth distinct effect cannot evict running effects");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_MIRROR_MIRROR), "capacity also rejects a distinct scheduled effect");
 	CTR_TEST_CHECK_EQ(s_activationSounds, sounds, "a rejected scheduled activation cannot announce");
 	CTR_TEST_CHECK(sdata->chaosRng != beforeRejectedChoice, "a rejected scheduled event still consumes its effect choice");
 	sdata->chaosSettings.effects[CHAOS_EFFECT_MIRROR_MIRROR] = false;
 	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
 	Tick(5003);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "expired unrelated effects leave only the refreshed effect");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "expired unrelated effects leave only the refreshed effect");
 	sdata->chaosSettings.effects[CHAOS_EFFECT_MIRROR_MIRROR] = true;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_MIRROR_MIRROR, 1000), "a freed slot can accept a new effect");
 }
@@ -201,14 +258,14 @@ static void TestResetAndInvalidSettings(void)
 	const struct ChaosSettings settings = sdata->chaosSettings;
 	const u32 rng = sdata->chaosRng;
 	Chaos_BeginRace(&s_tracker);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "retry cannot inherit running activations");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "retry starts a fresh first interval");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "retry cannot inherit running activations");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "retry starts a fresh first interval");
 	CTR_TEST_CHECK(memcmp(&settings, &sdata->chaosSettings, sizeof(settings)) == 0, "race setup does not modify creation settings");
 	CTR_TEST_CHECK_EQ(sdata->chaosRng, rng, "race reset does not reseed the dedicated generator");
 	Chaos_Reset();
 	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000), "a race must initialize before accepting activations");
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "teardown cannot restart the engine through an update");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "teardown cannot restart the engine through an update");
 	sdata->chaosSettings.armed = false;
 	Chaos_BeginRace(&s_tracker);
 	CTR_TEST_CHECK(!sdata->chaosRuntime.raceInitialized, "a Regular file never initializes Chaos");
@@ -221,17 +278,17 @@ static void TestResetAndInvalidSettings(void)
 	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
 	sdata->chaosSettings.enabledCount = 0;
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "an empty armed file produces no activation");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "an empty armed file produces no activation");
 	CTR_TEST_CHECK(sdata->chaosSettings.armed, "an empty selection never reclassifies the file as Regular");
 	CTR_TEST_CHECK_EQ(sdata->chaosRng, 0, "empty selection consumes no random choice");
 	sdata->chaosSettings.triggerIntervalSeconds = 0;
 	Chaos_BeginRace(&s_tracker);
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "a zero saved interval cannot spin a scheduling loop");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "a zero saved interval cannot spin a scheduling loop");
 	SetupRace(CHAOS_TRIGGER_INTERVAL);
 	sdata->chaosSettings.durationSeconds = 0;
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "zero saved duration cannot create expired entries");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "zero saved duration cannot create expired entries");
 	CTR_TEST_CHECK_EQ(sdata->chaosRng, 0, "invalid duration does not draw RNG");
 	for (int trigger = 0; trigger < CHAOS_TRIGGER_COUNT; trigger++)
 	{
@@ -241,7 +298,7 @@ static void TestResetAndInvalidSettings(void)
 		}
 		SetupRace(trigger);
 		Tick(5000);
-		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "contact and external triggers do not fall back to timed scheduling");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "contact and external triggers do not fall back to timed scheduling");
 	}
 }
 
@@ -253,12 +310,12 @@ static void TestPickupTrigger(void)
 	struct Driver partner = {.driverID = 1};
 	struct Driver bot = {.driverID = 2, .actionsFlagSet = ACTION_BOT};
 	CTR_TEST_CHECK(Chaos_OnPickup(&human), "a human pickup activates a selected effect");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "Pickup draws only from enabled effects");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 30000, "Pickup uses the configured duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].effect, CHAOS_EFFECT_FLY_ME_TO_THE_MOON, "Pickup draws only from enabled effects");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 30000, "Pickup uses the configured duration");
 	Tick(250);
 	CTR_TEST_CHECK(Chaos_OnPickup(&partner), "the co-op partner can trigger Pickup");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "another pickup refreshes the same effect without duplicates");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 0, "a new pickup restarts the effect phase");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "another pickup refreshes the same effect without duplicates");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 0, "a new pickup restarts the effect phase");
 	const u32 rng = sdata->chaosRng;
 	CTR_TEST_CHECK(!Chaos_OnPickup(&bot), "bot pickups cannot activate effects");
 	CTR_TEST_CHECK(!Chaos_OnPickup(NULL), "missing drivers cannot activate effects");
@@ -271,8 +328,8 @@ static void TestPickupTrigger(void)
 		s_tracker.gameMode1 = ADVENTURE_MODE | blocked[i];
 		CTR_TEST_CHECK(!Chaos_OnPickup(&human), "race gates block pickup activation");
 	}
-	s_tracker.gameMode1 = ARCADE_MODE;
-	CTR_TEST_CHECK(!Chaos_OnPickup(&human), "Arcade retains ordinary pickup behavior");
+	s_tracker.gameMode1 = ARCADE_MODE | TIME_TRIAL;
+	CTR_TEST_CHECK(!Chaos_OnPickup(&human), "Time Trial retains ordinary pickup behavior");
 	s_tracker.gameMode1 = ADVENTURE_MODE;
 	for (int trigger = 0; trigger < CHAOS_TRIGGER_COUNT; trigger++)
 	{
@@ -300,7 +357,7 @@ static void TestPickupTrigger(void)
 		sdata->chaosSettings.effects[fillers[i]] = false;
 	}
 	CTR_TEST_CHECK(Chaos_OnPickup(&human), "Pickup can refresh a selected effect at capacity");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "Pickup replacement does not exceed capacity");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "Pickup replacement does not exceed capacity");
 	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = false;
 	sdata->chaosSettings.effects[CHAOS_EFFECT_WUMPA_TAX] = true;
 	const struct ChaosRuntime full = sdata->chaosRuntime;
@@ -320,7 +377,7 @@ static void TestPickupTrigger(void)
 	Tick(100);
 	VehPhysForce_CollideDrivers(&thread, &human);
 	CTR_TEST_CHECK_EQ(s_activationSounds, 1, "remaining on a turbo pad cannot retrigger");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].elapsedMS, 100, "sustained pad contact cannot reset effect timers");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].elapsedMS, 100, "sustained pad contact cannot reset effect timers");
 	human.stepFlagSet = COLL_STEP_TRIGGER_SUPER_TURBO_PAD;
 	VehPhysForce_CollideDrivers(&thread, &human);
 	CTR_TEST_CHECK_EQ(s_activationSounds, 1, "moving between connected normal and super pads is one traversal");
@@ -382,13 +439,13 @@ static void TestRandomTrigger(void)
 	EnableInputEffects();
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_RANDOM;
 	Chaos_BeginRace(&s_tracker);
-	const int firstGap = sdata->chaosRuntime.intervalRemainingMS;
+	const int firstGap = sdata->chaosRuntime.players[0].intervalRemainingMS;
 	CTR_TEST_CHECK(firstGap >= 1500 && firstGap <= 5000, "the first Random gap is between 30 and 100 percent of the configured interval");
 	Tick(firstGap - 1);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 0, "Random waits for its initial gap instead of activating immediately");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "Random waits for its initial gap instead of activating immediately");
 	Tick(1);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "Random activates at its first deadline");
-	const ChaosEffectId first = sdata->chaosRuntime.active[0].effect;
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "Random activates at its first deadline");
+	const ChaosEffectId first = sdata->chaosRuntime.players[0].active[0].effect;
 	struct Driver driver = {.driverID = 0};
 	CTR_TEST_CHECK(Chaos_IsActiveForDriver(first, &driver), "a Random activation reaches the gameplay effect query");
 	CTR_TEST_CHECK(first == CHAOS_EFFECT_MIRROR_MIRROR || first == CHAOS_EFFECT_GROUNDED,
@@ -404,13 +461,13 @@ static void TestRandomTrigger(void)
 	bool varied = false;
 	for (int i = 0; i < 32; i++)
 	{
-		const int gap = sdata->chaosRuntime.intervalRemainingMS;
+		const int gap = sdata->chaosRuntime.players[0].intervalRemainingMS;
 		CTR_TEST_CHECK(gap >= 1500 && gap <= 5000, "every new Random gap stays within the configured bounds");
 		varied |= gap != firstGap;
 		int surviving = 0;
-		for (int entry = 0; entry < sdata->chaosRuntime.numActive; entry++)
+		for (int entry = 0; entry < sdata->chaosRuntime.players[0].numActive; entry++)
 		{
-			if (sdata->chaosRuntime.active[entry].remainingMS > gap)
+			if (sdata->chaosRuntime.players[0].active[entry].remainingMS > gap)
 			{
 				surviving++;
 			}
@@ -418,20 +475,20 @@ static void TestRandomTrigger(void)
 		const int soundsBefore = s_activationSounds;
 		const struct ChaosRuntime before = sdata->chaosRuntime;
 		Tick(gap);
-		const ChaosEffectId selected = sdata->chaosRuntime.active[sdata->chaosRuntime.numActive - 1].effect;
+		const ChaosEffectId selected = sdata->chaosRuntime.players[0].active[sdata->chaosRuntime.players[0].numActive - 1].effect;
 		bool refreshed = false;
-		for (int entry = 0; entry < before.numActive; entry++)
+		for (int entry = 0; entry < before.players[0].numActive; entry++)
 		{
-			refreshed |= before.active[entry].effect == selected && before.active[entry].remainingMS > gap;
+			refreshed |= before.players[0].active[entry].effect == selected && before.players[0].active[entry].remainingMS > gap;
 		}
-		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, surviving + (refreshed ? 0 : 1), "Random replaces a matching survivor or adds a distinct effect");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, surviving + (refreshed ? 0 : 1), "Random replaces a matching survivor or adds a distinct effect");
 		CTR_TEST_CHECK_EQ(s_activationSounds, soundsBefore + 1, "every accepted Random activation announces once");
 		CTR_TEST_CHECK_EQ(LatestNoticeRemaining(), CHAOS_ACTIVATION_NOTICE_MS + CHAOS_ACTIVATION_DOCK_MS, "a Random refresh starts a fresh announcement");
-		for (int entry = 0; entry < sdata->chaosRuntime.numActive; entry++)
+		for (int entry = 0; entry < sdata->chaosRuntime.players[0].numActive; entry++)
 		{
-			for (int other = entry + 1; other < sdata->chaosRuntime.numActive; other++)
+			for (int other = entry + 1; other < sdata->chaosRuntime.players[0].numActive; other++)
 			{
-				CTR_TEST_CHECK(sdata->chaosRuntime.active[entry].effect != sdata->chaosRuntime.active[other].effect,
+				CTR_TEST_CHECK(sdata->chaosRuntime.players[0].active[entry].effect != sdata->chaosRuntime.players[0].active[other].effect,
 				    "Random scheduling never creates duplicate effect IDs");
 			}
 		}
@@ -439,12 +496,12 @@ static void TestRandomTrigger(void)
 	CTR_TEST_CHECK(varied, "Random does not silently use a fixed Interval cadence");
 	const struct ChaosRuntime saved = sdata->chaosRuntime;
 	const u32 savedRng = sdata->chaosRng;
-	Tick(saved.intervalRemainingMS);
+	Tick(saved.players[0].intervalRemainingMS);
 	const struct ChaosRuntime expected = sdata->chaosRuntime;
 	const u32 expectedRng = sdata->chaosRng;
 	sdata->chaosRuntime = saved;
 	sdata->chaosRng = savedRng;
-	Tick(saved.intervalRemainingMS);
+	Tick(saved.players[0].intervalRemainingMS);
 	CTR_TEST_CHECK(memcmp(&expected, &sdata->chaosRuntime, sizeof(expected)) == 0, "restoring Random state reproduces the next effect and gap");
 	CTR_TEST_CHECK_EQ(sdata->chaosRng, expectedRng, "Random uses the captured dedicated RNG stream");
 	CTR_TEST_CHECK_EQ(sdata->randomNumber, 0, "Random scheduling leaves retail RNG untouched");
@@ -454,7 +511,7 @@ static void TestRandomTrigger(void)
 	bool longGap = false;
 	for (int i = 0; i < 32; i++)
 	{
-		const int gap = sdata->chaosRuntime.intervalRemainingMS;
+		const int gap = sdata->chaosRuntime.players[0].intervalRemainingMS;
 		CTR_TEST_CHECK(gap >= 36000 && gap <= 120000, "long configured intervals retain the full Random range");
 		longGap |= gap > 90000;
 		Tick(gap);
@@ -525,7 +582,7 @@ static void TestActivationNotice(void)
 	Tick(320);
 	DrawNotice();
 	CTR_TEST_CHECK(strcmp(s_noticeText, LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_GROUNDED)) == 0, "the newest activation replaces the displayed name");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 2, "replacing the announcement preserves both running effects");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 2, "replacing the announcement preserves both running effects");
 	const struct ChaosRuntime beforeReject = sdata->chaosRuntime;
 	Chaos_Activate(CHAOS_EFFECT_FAIR_MODE, 1000);
 	CTR_TEST_CHECK_EQ(s_activationSounds, 2, "a rejected activation does not request a sound");
@@ -680,7 +737,47 @@ static void TestHudVisibilityAndDockLimit(void)
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 4, "1P uses the same four-effect docked limit");
 	CTR_TEST_CHECK(strcmp(s_drawText[0], LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_SUNDAY_DRIVER)) == 0, "the latest newly docked effect occupies the first row");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 4, "the HUD preserves all four running activations");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 4, "the HUD preserves all four running activations");
+}
+
+static void TestFourPlayerHudReservations(void)
+{
+	CTR_TEST_SECTION("3P and 4P reserve all Final Lap and restart-light rows");
+	for (int players = 3; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+	{
+		SetupRace(CHAOS_TRIGGER_EXTERNAL);
+		s_tracker.gameMode1 = BATTLE_MODE;
+		s_tracker.numPlyrCurrGame = players;
+		static struct DB buffer;
+		u32 uiOT[5];
+		buffer.otMem.uiOT = uiOT;
+		s_tracker.backBuffer = &buffer;
+		s_tracker.hudFlags = HUD_FLAG_RACE_HUD;
+		struct Icon icon = {0};
+		icon.texLayout.u1 = 16;
+		icon.texLayout.v2 = 32;
+		s_tracker.trafficLightIcon[0] = &icon;
+		for (int player = 0; player < players; player++)
+		{
+			s_tracker.pushBuffer[player].rect = (RECT){
+				(player % 2) * SCREEN_WIDTH / 2, (player / 2) * SCREEN_HEIGHT / 2,
+				SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+			sdata->finalLapTextTimer[player] = 30;
+			sdata->chaosRuntime.restart[player].active = true;
+			sdata->chaosRuntime.restart[player].timer = DOT_LIGHT_TIMER_RED1;
+		}
+		struct UI_Chaos_ReservedRow reserved[CHAOS_MAX_HUMAN_PLAYERS * 2];
+		CTR_TEST_CHECK_EQ(UI_Chaos_CollectReservedRows(&s_tracker, reserved), players * 2,
+		                  "each human contributes both reserved HUD rows");
+		CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 10000), "Battle can announce a session effect");
+		DrawNotice();
+		CTR_TEST_CHECK_EQ(s_noticeDraws, 1, "the shared announcement renders with every player's HUD reservations");
+		for (int row = 0; row < players * 2; row++)
+		{
+			CTR_TEST_CHECK(s_noticeY >= reserved[row].bottom || s_noticeY + UI_CHAOS_BANNER_ROW_HEIGHT <= reserved[row].top,
+			               "the announcement avoids all four players' reserved rows");
+		}
+	}
 }
 
 static void TestHudLayeringAndSoloStack(void)
@@ -794,7 +891,7 @@ static void TestNotificationRows(void)
 	Tick(1000);
 	const s32 firstNoticeTime = LatestNoticeRemaining();
 	Chaos_Activate(CHAOS_EFFECT_GROUNDED, 20000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].noticeRemainingMS, firstNoticeTime,
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].noticeRemainingMS, firstNoticeTime,
 	                  "a second activation does not replace or restart the first announcement");
 	Tick(320);
 	sdata->finalLapTextTimer[0] = 1;
@@ -880,27 +977,27 @@ static void TestExternalCommands(void)
 	CTR_TEST_CHECK(strcmp(s_externalCatalogue, "fly-me-to-the-moon\n") == 0, "the catalogue contains only enabled stable slugs");
 	s_tracker.trafficLightsTimer = 100;
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "countdown does not spend the initial interval");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "countdown does not spend the initial interval");
 	s_tracker.trafficLightsTimer = 0;
 	Tick(4999);
 	CTR_TEST_CHECK_EQ(s_externalReads, 0, "the whole initial interval must elapse");
 	Tick(1);
 	CTR_TEST_CHECK(s_externalCommand == NULL, "activation consumes the pending command");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 30000, "external activation receives the full duration");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "successful activation restarts a full interval");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 30000, "external activation receives the full duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "successful activation restarts a full interval");
 	s_externalCommand = "fly-me-to-the-moon";
 	s_tracker.gameMode1 |= PAUSE_ALL;
 	Tick(5000);
 	CTR_TEST_CHECK(s_externalCommand != NULL, "pause preserves the next request");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "pause freezes the activation interval");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "pause freezes the activation interval");
 	s_tracker.gameMode1 &= ~PAUSE_ALL;
 	Tick(5001);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.numActive, 1, "external reactivation preserves unique IDs");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.active[0].remainingMS, 30000, "reactivation refreshes the saved duration");
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 5000, "frame overshoot cannot shorten the next interval");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 1, "external reactivation preserves unique IDs");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].active[0].remainingMS, 30000, "reactivation refreshes the saved duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 5000, "frame overshoot cannot shorten the next interval");
 
 	Tick(5000);
-	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 0, "an empty slot leaves the provider ready");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 0, "an empty slot leaves the provider ready");
 	const char *invalid[] = {"", "missing", "big-kart-energy", "fly-me-to-the-moon 2", "effect fly-me-to-the-moon", "reset", "status"};
 	s_externalErrors = 0;
 	for (size_t i = 0; i < len(invalid); i++)
@@ -908,7 +1005,7 @@ static void TestExternalCommands(void)
 		s_externalCommand = invalid[i];
 		Tick(1);
 		CTR_TEST_CHECK(s_externalCommand == NULL, "invalid and disabled requests are consumed");
-		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.intervalRemainingMS, 0, "rejections do not restart the interval");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].intervalRemainingMS, 0, "rejections do not restart the interval");
 	}
 	CTR_TEST_CHECK_EQ(s_externalErrors, len(invalid), "each rejected command is logged");
 	s_externalCommand = "fly-me-to-the-moon";
@@ -973,7 +1070,7 @@ static void TestBotEffectEventScope(void)
 	struct Driver finishedBot = {.driverID = 2, .actionsFlagSet = ACTION_BOT | ACTION_RACE_FINISHED};
 	s_tracker.drivers[2] = &finishedBot;
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000), "finished bots do not prevent activating Arena Champions");
-	const int botlessEvents[] = {RELIC_RACE, CRYSTAL_CHALLENGE, TIME_TRIAL, BATTLE_MODE};
+	const int botlessEvents[] = {RELIC_RACE, CRYSTAL_CHALLENGE, BATTLE_MODE};
 	for (int i = 0; i < (int)len(botlessEvents); i++)
 	{
 		s_tracker.gameMode1 = ADVENTURE_MODE | botlessEvents[i];
@@ -985,7 +1082,7 @@ static void TestBotEffectEventScope(void)
 		CTR_TEST_CHECK(Chaos_OnPickup(s_tracker.drivers[0]), "event filtering retains human pickup effects");
 		CTR_TEST_CHECK(Chaos_IsActive(CHAOS_EFFECT_FLY_ME_TO_THE_MOON), "pickup selection draws from the event's eligible enabled effects");
 		sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
-		sdata->chaosRuntime.intervalRemainingMS = 1;
+		sdata->chaosRuntime.players[0].intervalRemainingMS = 1;
 		Tick(1);
 		CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_ARENA_CHAMPIONS), "interval selection excludes bot effects in botless event types");
 	}
@@ -1039,6 +1136,8 @@ static void TestLocalizedVoiceFallback(void)
 
 int main(void)
 {
+	TestSessionModes();
+	TestFourPlayerHudReservations();
 	TestBodySwapPlayerCount();
 	TestLocalizedVoiceFallback();
 	TestBotEffectEventScope();

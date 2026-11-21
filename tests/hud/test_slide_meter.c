@@ -48,8 +48,9 @@ void VehFire_Increment(struct Driver *driver, int reserves, u32 type, int fireLe
 	(void)fireLevel;
 }
 
-void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2)
+void Voiceline_RequestPlayOwned(u32 voiceID, u32 characterID, u32 characterID2, const struct Driver *speaker)
 {
+	(void)speaker;
 	(void)voiceID;
 	(void)characterID;
 	(void)characterID2;

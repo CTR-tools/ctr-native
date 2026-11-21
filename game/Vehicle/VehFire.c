@@ -58,7 +58,7 @@ void VehFire_Audio(struct Driver *driver, int speed_cap)
 
 	volume = VEH_FIRE_AUDIO_VOLUME_HIGH;
 	distortion = VEH_FIRE_AUDIO_DISTORT_HIGH;
-	Voiceline_RequestPlay(VEH_FIRE_VOICELINE_HIGH_BOOST_ID, GAME_CHARACTER_IDS[audioDriver->driverID], VEH_FIRE_VOICELINE_PRIORITY);
+	Voiceline_RequestPlayOwned(VEH_FIRE_VOICELINE_HIGH_BOOST_ID, GAME_CHARACTER_IDS[audioDriver->driverID], VEH_FIRE_VOICELINE_PRIORITY, audioDriver);
 	CTR_PSX_KEEP_VALUE(volume);
 	volumeFlags = volume << HOWL_SFX_VOLUME_SHIFT;
 	goto AudioFlags;

@@ -84,4 +84,5 @@ commit message.
 - Don't overexplain and don't repeat explanations over and over in comments.
 - Don't reinvent the wheel, don't duplicate code. Try to reuse pre-existing functionality where it makes sense. 
 - Extracting common functionality into a shared helper is allowed when it makes sense.
-- Put new code where it belongs, not in random files because it seems conveniente. If necessary, you can create new thematic files with clear responsibilites.
+- Put new code where it belongs, not in random files because it seems conveniente. If necessary, you can create new thematic files with clear responsibilities.
+- Favor readable booleans or array of booleans over integer masks.

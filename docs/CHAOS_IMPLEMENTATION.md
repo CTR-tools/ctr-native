@@ -8,6 +8,8 @@
 | Save encoding and runtime layouts             | `include/chaos/chaos_save.h`, `include/namespace_Memcard.h`, `include/chaos/chaos_runtime.h` |
 | Eligibility and runtime                       | `include/chaos/chaos_gate.h`, `game/231/chaos/RB_Chaos.c`                                    |
 | Effect implementations                        | `game/231/chaos/RB_ChaosEffects.c`                                                      |
+| Thread and particle ownership                 | `game/231/chaos/RB_ChaosOwnership.c`                                                   |
+| Audio attribution, freezing and effect cues   | `game/231/chaos/RB_ChaosAudio.c`                                                       |
 | Shared driving-class constant loader          | `game/Vehicle/VehBirth_Consts.c` (included by `VehBirth.c`)                       |
 | Creation flow and shared settings screen      | `game/230/MM_NewLoad.c`, `game/230/chaos/MM_ChaosConfig.c`                             |
 | Pause entry and HUD                           | `game/MAIN/MainFreeze_Chaos.c`, `game/UI/UI_Chaos.c`                             |
@@ -31,6 +33,11 @@ sharing `Chaos_TargetsDriver` for recipient checks. `RB_ChaosEffects.c` owns
 effect operations, effect-specific state updates and queries, start-light drawing,
 and Senile Mask warnings/voice. Body Swap pair selection and finish-line eligibility
 stay in the runtime; returning the selected pairs is an effect operation.
+`RB_ChaosRuntime.h` declares the pool queries shared by effects and audio, including
+the time-stop query that retains immunity during pause. `RB_ChaosAudio.h` declares
+engine changes and time-effect cues for the other Chaos modules. Spatial audio
+inherits the caller's context only when its instance has no attributed owner;
+ordinary thread audio continues to select the world context in that case.
 Gameplay hooks check activation and applicability before invoking operations;
 effect-specific adapters also query activation where needed. Operations retain their
 gameplay conditions (terrain, fuel, pickup queues). The gameplay hooks preserve modifier
@@ -69,6 +76,9 @@ replace each other; pending time-stop impacts resolve before bot relocation.
 ## Time stop
 
 Za Warudo (ID 38, `za-warudo`) is timed and capped at 10,000 ms.
+Shared distribution exempts all humans; personal distribution exempts only its
+recipient controller and forbids concurrent time stops. The rules below describe
+human exemptions collectively for Shared; personal exemptions use exact ownership.
 `Chaos_Update` runs before the event clock and world updates. While stopped,
 only its activation clock advances; other activation/notice/trigger clocks,
 Fresh Start and transformation delays retain their values. Wumpa Tax cannot
@@ -108,14 +118,28 @@ retain their original source until dispatch. Dead participants cannot be recycle
 while referenced. Reset discards pending operations; checkpoints relocate their
 source, target and BSP pointers.
 
-Audio context tags human FX in `ChannelStats.flags`, preserving ownership through
-retail pause backups and quick states. Menu move/back/confirm/locked effects are
+Chaos-owned thread and particle tables store controller attribution by actual
+pool slot, outside generic object layouts. They are allocated alongside their
+MEMPACK pools, cleared at slot birth and preserved through activation resets.
+Checkpoint relocation repairs both table pointers. Collective-human flags remain
+fallbacks for Shared only; they cannot grant personal immunity.
+
+`ChaosAudioOwner` identifies world, UI, unattributed human or a controller.
+`audioOwner` is the nested sound-generation context; `xaOwner` independently
+identifies the playing XA clip. Chaos-owned tables attribute physical channels,
+pause backups and queued voices, without generic `ChannelStats` ownership flags.
+Pause restores attribution even when a channel receives a different physical ID.
+Known-driver voice producers explicitly pass the speaker through
+`Voiceline_RequestPlayOwned`; character identity is never used to guess ownership.
+Personal queue arbitration can bypass frozen entries without consuming them;
+Shared preserves the original head-of-queue policy.
+Menu move/back/confirm/locked effects are
 always exempt from time stop, including opening and closing pause. Menu sound
 matching uses only the low 16-bit sample ID, excluding the instance counter packed
 by `OtherFX_Play_LowLevel`. Positional sounds preserve an enclosing human context,
 including Wumpa collection after its instance loses its thread; weapon sounds
 also inherit live owner identity. Options slider FX/voice previews explicitly
-enter human audio context. The active
+enter UI audio context. The active
 music slider's Aku/Uka preview alone may advance its sequencer and music channels;
 channels resolve their sequence's song-pool slot, leaving race music suspended.
 Other music sequencing and frozen FX lifetimes
@@ -131,7 +155,7 @@ the original image and slightly dimmed for readability.
 HUD colors are untouched in Original and direct/scaled presentation. Race completion/reset
 releases suspension.
 
-`Chaos_PlayTimeEffectSound` preserves human audio context for both time effects.
+`Chaos_PlayTimeEffectSound` uses globally audible UI audio context for both time effects.
 The crate-break cue follows the clock cue after 200 ms through
 `Chaos_TickTimeEffectSound`. Za Warudo additionally plays the retail time-crate
 tick (`0x40`) six times at normal pitch and sample lifetime, spaced 192 ms apart,
@@ -162,6 +186,21 @@ Each V1 Chaos entry contains:
 | `0x06` | 16-byte enabled-effect bitset            |
 | `0x16` | `u16 format = 0x0143` (`'C'`, version 1) |
 
+V2 keeps the same 24-byte slot, timing fields and effect IDs. It assigns the unused
+tail of the V1 bitset to player options:
+
+| Offset | V2 contents |
+|--------|-------------|
+| `0x06` | 11-byte enabled-effect bitset (88 effect IDs) |
+| `0x11` | `u8 distribution` |
+| `0x12` | Four `u8 disabledPlayers` values, normalized to live booleans |
+| `0x16` | `u16 format = 0x0243` (`'C'`, version 2) |
+
+V1 decodes as Shared with all players enabled, ignoring its unused tail. The writer
+retains V1 for Shared/all-enabled rules and uses V2 only for nondefault player options.
+Older builds do not recognize V2 Chaos rules. Neither version changes the retail
+profile, other extension fields or slot offsets.
+
 Effect ID `n` maps to bit `n % 8` of byte `n / 8`, least-significant bit first.
 Append IDs; never renumber or reuse them. Slugs are stable external identifiers.
 The live settings use `bool effects[CHAOS_EFFECT_COUNT]` and derived
@@ -170,19 +209,31 @@ and cleared on rewrite, so new effects start disabled in existing saves.
 
 `armed` distinguishes Chaos from Regular even with an empty selection. Missing
 or unsupported format tags decode to unarmed, empty settings. Normal save/load
-preserves the selected slot's settings; deleting a slot zeroes them. Only V1 is
-supported. Field/trigger encoding changes or growth beyond 128 effects require a
+preserves the selected slot's settings; deleting a slot zeroes them. V1 and V2 are
+supported. Field/trigger encoding changes or growth beyond V2's 88 effects require a
 new format and migration; `namespace_Memcard.h` assertions pin the layout.
 
 ## Profile and menu integration
 
 - Every New resets the live settings to Regular with all implemented effects
-  selected. `expanded_options` controls the creation prompt; loaded files use
-  `chaosSettings.armed`. Settings are immutable once the file is created.
+  selected. General's `chaos_mode` controls the creation prompt; loaded files use
+  `chaosSettings.armed`. Adventure does not edit rules once the file is created.
 - Creation retains choices when navigating Back, including across the character
   selection overlay. Confirm requires a selected effect; this does not reinterpret
   an existing armed, empty file as Regular.
-- Armed Adventure files add **Chaos Rules** to hub/race/gem-cup pause menus.
+- All modes use the live `chaosSettings`, initialized to Regular at boot.
+  General's `chaos_mode` offers their Regular/Chaos prompt (off by default);
+  disabling it skips setup and disarms session rules on the next mode selection.
+  Loading an Adventure restores its saved rules; creating one resets the live
+  rules. Only Adventure saves encode them. `MM_ChaosSession.c` owns the
+  main-menu prompt and resumes the retail menu chain without an extra recap box.
+  The prompt follows event type and player count; Arcade then resumes difficulty,
+  while VS/Battle exit to character selection. Setup and runtime share
+   `ChaosEvent_EffectFitsSelection`; filtered rows map back to stable effect IDs without
+  erasing hidden preferences. Confirm requires a compatible enabled effect.
+  Live rules survive retries, cups and mode selection, but are replaced when
+  loading or creating an Adventure and reset at application restart.
+- Armed rules add **Chaos Rules** to Adventure and session pause menus.
   The shared setup screen is read-only, without Confirm. **Active Effects** lists
   enabled effects, not currently running activations, without ON/OFF controls.
 - Custom menu strings live in `RECTMENU_Text.c`; `RECTMENU_GetString` handles
@@ -190,9 +241,54 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
 
 ## Runtime and checkpoints
 
+`ChaosRuntime.players[]` owns four timed activations, four instant notices and a
+trigger clock per controller. Shared uses only `players[0]` as its common pool;
+ownership is implicit in the pool index. `distribution` selects the same runtime
+paths in Adventure and session modes. Setup and pause expose it only with multiple
+human players.
+`disabledPlayers[]` is a boolean array: zero means every player
+participates. The multiplayer Players page edits it, pause displays it read-only,
+and Confirm requires at least one present participant. Solo setup re-enables player 1.
+Adventure persists distribution and exclusions through the V2 encoding above.
+In the Adventure hub, the read-only viewer uses `advMultiplayer.numPlayers` for
+row visibility and effect compatibility: the hub's live kart count is always one,
+even for a two-player save. It does not change the hub's actual player count.
+
+Human-scoped activation targets, one-off operations and Pickup sources respect
+the selection in both distributions. Personal Random skips excluded clocks;
+Interval retains the common pool-zero clock even if player 1 is excluded. Shared
+pool zero is never mistaken for player 1's personal eligibility. Bot/world scope
+and time-stop immunity remain unchanged. Body Swap excludes disabled humans from
+both ends of a pair; setup, selection and External publication filter the effect
+when the prospective grid has no eligible partner. Personal HUD still shows
+global effects in excluded viewports. These settings are captured with resident
+SDATA; as with other layout changes, cross-build checkpoint compatibility is not promised.
+
+Personal External is unavailable in navigation and rejected by Confirm/runtime;
+switching from shared External selects Interval without changing its cadence.
+
+Personal Interval uses a common clock with independent selections; Random uses
+independent clocks; Pickup dispatches to its source controller. Finished or absent
+recipients are excluded. Personal selection removes rejected candidates and retries
+until one succeeds or the finite candidate list is exhausted. Shared selection
+is unchanged. Personal bot effects remain in their source pool but act globally;
+running bot effects block all other bot effects. Completion/instant execution
+starts resident global 30-second and same-effect 60-second cooldowns.
+Body Swap owns one nonoverlapping pair per source pool, with independent deadlines.
+Za Warudo suspends all other pool clocks and bot cooldowns through its expiry frame,
+discarding time-stop overshoot rather than advancing suspended clocks.
+
+Personal HUD collection combines the local pool with global bot/time-stop entries
+and the viewport's Body Swap pair. Compact rows show effect names without controller prefixes and fit
+the actual viewport rectangle, reserving restart-light rows. Shared banners and
+docked lists retain their existing layout. Asset-free presentation tests record
+draw submissions, not pixels; in-game visual validation is still required.
+
 `Chaos_BeginRace` runs after vehicle teleport in `MainGameStart_Initialize`.
-`Chaos_Update` runs before gameplay threads, only after GO in eligible Adventure
-races, with no active menu, debug menu or pending load. Pause freezes timers.
+`Chaos_Update` runs before gameplay threads, only after GO in eligible Adventure,
+Arcade, VS and Battle events, with no active menu, debug menu or pending load.
+Time Trial and demos are excluded. Pause freezes timers. Per-human runtime and
+HUD reservation arrays support four players; bot-only effects require a bot grid.
 Race end, retry teardown and level-load stage 0 clear runtime before driver reuse;
 settings and the dedicated `chaosRng` survive. `Chaos_Init(seed)` initializes the
 generator once at process startup; the host supplies a seed from SDL's
@@ -202,7 +298,7 @@ Use that RNG for scheduling and
 selection rather than retail RNG. Unbreakable's retail weapon interactions can
 still consume retail RNG; do not conceal this by restoring it.
 
-Timed activations are ordered, with at most four unique IDs. Reactivation removes the
+Timed activations are ordered per pool, with at most four unique IDs. Reactivation removes the
 old entry and appends a fresh one, resetting duration, phase, notice and one-off
 behavior. Conflicts use last-activation-wins, as listed in the
 [player guide](features/CHAOS.md#effects). Symmetric conflicts are represented once
@@ -217,7 +313,7 @@ refresh their notice; overflow drops the oldest notice. Zero duration is invalid
 for both kinds. Selection draws from enabled effects allowed in the current
 event with `chaosRng`. Bots-only effects are excluded from relic, crystal,
 time-trial and battle events; this rule also applies to publication and incoming
-requests. There is no live recipient-availability filter. Application excludes
+requests. Shared selection has no live recipient-availability filter. Application excludes
 finished drivers and respects scope; bots-only scope selects slots above the
 human count. Event filtering reuses `RACE_FIELD_NO_BOT_MODES` from race setup.
 
@@ -258,10 +354,10 @@ guarantee teardown.
 | Effect                     | Hook and constraints                                                                                                                                                                    |
 |----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Mirror, Mirror | Mirror the resolved axis around the calibrated center. |
-| Grounded | Clear resolved manual hop latch/buffer after input resolution; preserve drift, forced jumps and cloud ownership. |
+| Grounded | Clear resolved manual hop latch/buffer after input resolution and reduce gravity to 70%; preserve drift, forced jumps and cloud ownership. |
 | Totally Sober | Two-second sine wave at 75% of controller range, clamped; phase uses captured activation elapsed time. |
-| Fly Me to the Moon / Heavy Metal | Derive gravity from the live constant at 1/4 or 3× before terrain multipliers; preserve jump impulse and terminal velocity. |
-| Sunday Driver / Gotta Go Fast | Scale the resolved forward target to 70% without a class-based cap / double forward target and positive acceleration. Preserve reverse and the retail `0x6400` target limit. |
+| Fly Me to the Moon / Heavy Metal | Derive gravity from the live constant at 1/4 or 2× before terrain multipliers; Heavy Metal raises jump force to 140%. Preserve terminal velocity. |
+| Sunday Driver / Gotta Go Fast | Scale the resolved forward target to 70% without a class-based cap / double forward target and positive acceleration. Sunday Driver also reduces gravity to 80% and raises jump force to 120%. Preserve reverse and the retail `0x6400` target limit. |
 | Hole in the Tank | Clear both fuel timers in the driver-input hook; later retail grants survive until the next application. |
 | Fair Mode | Clear inventory, pending launch and roulette before item processing; deployed effects remain active. |
 | Wumpa Tax | Remove one credited fruit per crossed game second, at most once per frame; preserve pending HUD awards and stop at zero. No pulse at activation or expiry. |
@@ -276,6 +372,7 @@ Scale calculations belong in `VehPhysForce.c`; Chaos sets driver targets. Retail
 interpolation owns body growth/squash/stretch. Giant-vs-smaller collisions use
 retail squish damage with protection, skip normal bounce after a successful
 squash and queue the forced hop; equal scales keep ordinary collision.
+Gravity and jump-force modifiers from concurrently active effects multiply in a fixed order.
 
 `Chaos_GiveRandomItem` owns inventory replacement, uniform selection from an
 explicit list of distinct Race2 items and mask choice. It passes the resolved
