@@ -24,8 +24,8 @@ The setup lists only compatible effects.
 
 ### Shared or per player
 
-**Distribution** defaults to **Shared**: one activation affects all eligible humans,
-as in Adventure. **Per player** gives each player its own effects. 
+**Distribution** defaults to **Shared**: one activation affects all eligible humans.
+**Per player** gives each player its own effects.
 Duration, trigger, interval and enabled effects remain common settings. 
 Independent selections can coincide.
 The distribution choice is shown only with multiple human players.
@@ -39,11 +39,9 @@ Only one may run at a time. On completion (or instant execution), a shared
 30-second cooldown blocks all bot effects and a 60-second cooldown blocks the
 same effect. Unavailable effects are rerolled when another choice is possible.
 
-Adventure always uses Shared.
-
 ### Choosing the players
 
-In multiplayer Arcade, VS and Battle, open **Players** in the Chaos rules to
+In multiplayer, open **Players** in the Chaos rules to
 turn Chaos ON or OFF for each human player. Everyone starts ON; at least one
 player must remain ON to confirm. The selection works with both distributions:
 
@@ -75,8 +73,8 @@ Existing Regular files stay Regular.
 | **Duration** | How long timed effects last: 5–60 seconds, in 5-second steps. Default: 10 seconds. Instant effects apply once. |
 | **Trigger** | What causes the next activation; see below. Default: Random. |
 | **Interval** | Gap used by Random, Interval and External: 5–120 seconds, in 5-second steps. Default: 10 seconds. Hidden for Pickup. |
-| **Distribution** | Shared or Per player; available in multiplayer Arcade, VS and Battle only. |
-| **Players** | Choose which human players receive Chaos effects; multiplayer sessions only. |
+| **Distribution** | Shared or Per player; shown with multiple human players. |
+| **Players** | Choose which human players receive Chaos effects; shown with multiple human players. |
 | **Effects** | Open the list and turn individual effects ON or OFF. All are selected initially. |
 | **Confirm** | Accept these rules. At least one compatible effect and one player must be selected. |
 
@@ -89,7 +87,7 @@ effect list to setup. These refer to the game's mapped controller buttons.
 ![Chaos effect selection with individual ON and OFF toggles](images/chaos-effect-selection.jpg)
 
 **Adventure rules are fixed once the file is created.** To play with another trigger,
-duration, interval or selection, create another Adventure file.
+duration, interval, distribution or player/effect selection, create another Adventure file.
 
 ## Triggers
 

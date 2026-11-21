@@ -43,11 +43,10 @@ static void TestBitsetWireFormat(void)
 	CTR_TEST_CHECK_EQ(live.durationSeconds, 35, "duration decodes from its original halfword");
 	CTR_TEST_CHECK_EQ(live.triggerIntervalSeconds, 65, "interval decodes from its original halfword");
 	CTR_TEST_CHECK_EQ(live.trigger, CHAOS_TRIGGER_INTERVAL, "trigger IDs retain their saved meaning");
-	CTR_TEST_CHECK_EQ(live.distribution, CHAOS_DISTRIBUTION_SHARED, "Adventure decoding clears any personal session variant");
+	CTR_TEST_CHECK_EQ(live.distribution, CHAOS_DISTRIBUTION_SHARED, "legacy Adventure files default to shared distribution");
 	for (int player = 0; player < CHAOS_MAX_HUMAN_PLAYERS; player++)
 	{
-		CTR_TEST_CHECK(!live.disabledPlayers[player], "Adventure decoding clears every session-only player exclusion");
-		live.disabledPlayers[player] = true;
+		CTR_TEST_CHECK(!live.disabledPlayers[player], "legacy Adventure files enable every player");
 	}
 	CTR_TEST_CHECK_EQ(live.enabledCount, 5, "the enabled count is reconstructed rather than stored");
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
@@ -58,10 +57,77 @@ static void TestBitsetWireFormat(void)
 		CTR_TEST_CHECK(live.effects[id] == expected, "each saved bit maps to its stable named effect, including across byte boundaries");
 	}
 	live.enabledCount = 99;
-	live.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
 	memset(&saved, 0xff, sizeof(saved));
 	ChaosSave_Encode(&live, &saved);
-	CTR_TEST_CHECK(memcmp(&saved, bytes, sizeof(saved)) == 0, "encoding preserves the byte fixture without persisting session distribution, exclusions or the cached count");
+	CTR_TEST_CHECK(memcmp(&saved, bytes, sizeof(saved)) == 0, "default player options preserve the V1 byte fixture without persisting the cached count");
+}
+
+static void TestPlayerOptionsEncoding(void)
+{
+	CTR_TEST_SECTION("V2 persists distribution and boolean player options without moving save slots");
+	const bool selections[][CHAOS_MAX_HUMAN_PLAYERS] = {
+		{false, false, false, false}, {true, false, false, false},
+		{false, true, false, false}, {false, false, true, false},
+		{false, false, false, true}, {true, false, true, false},
+		{true, true, true, true},
+	};
+	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+	{
+		for (int selection = 0; selection < (int)len(selections); selection++)
+		{
+			struct ChaosSettings original = {
+				.armed = true, .durationSeconds = 35, .triggerIntervalSeconds = 65,
+				.trigger = CHAOS_TRIGGER_INTERVAL, .distribution = distribution,
+			};
+			memcpy(original.disabledPlayers, selections[selection], sizeof(original.disabledPlayers));
+			for (int effect = 0; effect < CHAOS_EFFECT_COUNT; effect++)
+			{
+				original.effects[effect] = effect % 2 == 0;
+			}
+			original.enabledCount = ChaosEffect_CountEnabled(original.effects);
+			struct ChaosSettingsSaved saved;
+			memset(&saved, 0xff, sizeof(saved));
+			ChaosSave_Encode(&original, &saved);
+			const bool legacy = distribution == CHAOS_DISTRIBUTION_SHARED && selection == 0;
+			CTR_TEST_CHECK_EQ(saved.format, legacy ? CHAOS_SAVE_FORMAT_V1 : CHAOS_SAVE_FORMAT_V2, "only nondefault player options require V2");
+			CTR_TEST_CHECK(ChaosSave_IsArmed(&saved), "profile-slot detection recognizes armed V1 and V2 entries");
+			struct ChaosSettings restored;
+			memset(&restored, 0xff, sizeof(restored));
+			ChaosSave_Decode(&saved, &restored);
+			CTR_TEST_CHECK_EQ(restored.distribution, distribution, "the selected distribution survives saving and loading");
+			CTR_TEST_CHECK(memcmp(restored.disabledPlayers, original.disabledPlayers, sizeof(original.disabledPlayers)) == 0, "all four player toggles survive saving and loading");
+			CTR_TEST_CHECK(memcmp(restored.effects, original.effects, sizeof(original.effects)) == 0, "player metadata does not overwrite effect bits");
+			CTR_TEST_CHECK_EQ(restored.enabledCount, original.enabledCount, "saved player metadata never becomes enabled effects");
+			CTR_TEST_CHECK(restored.durationSeconds == 35 && restored.triggerIntervalSeconds == 65 && restored.trigger == CHAOS_TRIGGER_INTERVAL, "V2 preserves the original timing fields");
+			for (int bit = CHAOS_EFFECT_COUNT; bit < CHAOS_SAVE_V2_EFFECT_CAPACITY; bit++)
+			{
+				CTR_TEST_CHECK((saved.v2.effectBits[bit / 8] & (1u << (bit % 8))) == 0, "unused V2 effect bits remain clear");
+			}
+		}
+	}
+	const u8 bytes[24] = {
+		35, 0, 65, 0, 2, 1, 1, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
+		0, 1, 1, 0, 1, 0, 0x43, 2,
+	};
+	struct ChaosSettingsSaved saved;
+	memcpy(&saved, bytes, sizeof(saved));
+	struct ChaosSettings restored;
+	ChaosSave_Decode(&saved, &restored);
+	CTR_TEST_CHECK(restored.armed && restored.distribution == CHAOS_DISTRIBUTION_PER_PLAYER &&
+	               restored.disabledPlayers[0] && !restored.disabledPlayers[1] && restored.disabledPlayers[2] &&
+	               !restored.disabledPlayers[3], "the fixed V2 fixture has stable byte-sized player fields");
+	ChaosSave_Encode(&restored, &saved);
+	CTR_TEST_CHECK(memcmp(&saved, bytes, sizeof(saved)) == 0, "V2 round-trips the exact 24-byte wire fixture");
+	saved.v2.distribution = 0xff;
+	saved.v2.disabledPlayers[0] = 0xff;
+	ChaosSave_Decode(&saved, &restored);
+	CTR_TEST_CHECK(restored.distribution == CHAOS_DISTRIBUTION_SHARED && restored.disabledPlayers[0], "invalid distributions fall back to Shared and stored toggles normalize to booleans");
+	saved.format = CHAOS_SAVE_FORMAT_V1;
+	ChaosSave_Decode(&saved, &restored);
+	CTR_TEST_CHECK(restored.distribution == CHAOS_DISTRIBUTION_SHARED && !restored.disabledPlayers[0], "V1 ignores bytes that only V2 assigns to player options");
+	ChaosSave_Encode(&restored, &saved);
+	CTR_TEST_CHECK(saved.format == CHAOS_SAVE_FORMAT_V1 && saved.v2.distribution == 0 && saved.v2.disabledPlayers[0] == 0, "writing default options clears metadata from a previous V2 slot");
 }
 
 static void TestUnusedBitsAndZeroEffects(void)
@@ -107,7 +173,7 @@ static void TestEmptyAndUnsupportedEntries(void)
 	CTR_TEST_CHECK(!ChaosSave_IsArmed(&saved) && !live.armed, "a zeroed retail extension is Regular");
 	CTR_TEST_CHECK_EQ(live.enabledCount, 0, "a zeroed extension cannot enable any effects");
 	memset(&saved, 0xff, sizeof(saved));
-	saved.format = 0x0243;
+	saved.format = 0x0343;
 	ChaosSave_Decode(&saved, &live);
 	CTR_TEST_CHECK(!ChaosSave_IsArmed(&saved) && !live.armed, "an unsupported format cannot arm a file");
 	CTR_TEST_CHECK_EQ(live.durationSeconds, 0, "an unsupported format discards its duration");
@@ -131,7 +197,8 @@ static void TestSlotIsolation(void)
 	memset(&card, 0xa5, sizeof(card));
 	for (int slot = 0; slot < MEMCARD_ADV_PROFILE_COUNT; slot++)
 	{
-		struct ChaosSettings live = {.armed = true, .durationSeconds = (u16)(10 + slot)};
+		struct ChaosSettings live = {.armed = true, .durationSeconds = (u16)(10 + slot), .distribution = slot % CHAOS_DISTRIBUTION_COUNT};
+		live.disabledPlayers[slot] = true;
 		live.effects[CHAOS_EFFECT_MIRROR_MIRROR] = true;
 		ChaosSave_Encode(&live, &card.extension.chaos[slot]);
 	}
@@ -161,6 +228,7 @@ int main(void)
 {
 	TestAdventureDifficultyEncoding();
 	TestBitsetWireFormat();
+	TestPlayerOptionsEncoding();
 	TestUnusedBitsAndZeroEffects();
 	TestEmptyAndUnsupportedEntries();
 	TestSlotIsolation();

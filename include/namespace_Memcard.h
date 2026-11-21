@@ -659,26 +659,39 @@ struct ChaosSettings
 	u8 enabledCount;                  // how many entries below are on
 	bool effects[CHAOS_EFFECT_COUNT]; // one entry per effect, in enum order
 	bool armed;
-	u8 distribution;                  // enum ChaosDistribution; session-only, never saved to Adventure
-	bool disabledPlayers[CHAOS_MAX_HUMAN_PLAYERS]; // session-only; zero keeps everyone enabled
+	u8 distribution;                  // enum ChaosDistribution
+	bool disabledPlayers[CHAOS_MAX_HUMAN_PLAYERS]; // zero keeps everyone enabled
 };
 
 enum ChaosSaveConstants
 {
 	CHAOS_SAVE_EFFECT_BYTES = 16,
 	CHAOS_SAVE_EFFECT_CAPACITY = CHAOS_SAVE_EFFECT_BYTES * 8,
+	// V2 keeps the slot size by assigning V1's unused tail to byte-sized options.
+	CHAOS_SAVE_V2_EFFECT_BYTES = CHAOS_SAVE_EFFECT_BYTES - 1 - CHAOS_MAX_HUMAN_PLAYERS,
+	CHAOS_SAVE_V2_EFFECT_CAPACITY = CHAOS_SAVE_V2_EFFECT_BYTES * 8,
 	// Low byte identifies Chaos ('C'); high byte is the format version.
 	CHAOS_SAVE_FORMAT_V1 = 0x0143,
+	CHAOS_SAVE_FORMAT_V2 = 0x0243,
 };
 
-// Fixed 24-byte disk entry. Unassigned effect bits are always written as zero.
+// Fixed 24-byte disk entry. Only V2 interprets the tail as player options.
 struct ChaosSettingsSaved
 {
 	u16 durationSeconds;
 	u16 triggerIntervalSeconds;
 	u8 trigger;
 	u8 armed;
-	u8 effectBits[CHAOS_SAVE_EFFECT_BYTES];
+	union
+	{
+		u8 effectBits[CHAOS_SAVE_EFFECT_BYTES];
+		struct
+		{
+			u8 effectBits[CHAOS_SAVE_V2_EFFECT_BYTES];
+			u8 distribution;
+			u8 disabledPlayers[CHAOS_MAX_HUMAN_PLAYERS];
+		} v2;
+	};
 	u16 format;
 };
 
@@ -717,12 +730,14 @@ CTR_STATIC_ASSERT(OFFSETOF(struct AdvProgress, name) == 0x18);
 CTR_STATIC_ASSERT(sizeof(struct AdvProgress) == 0x50);
 CTR_STATIC_ASSERT(sizeof(struct MemcardProfile) == 0x1600);
 // Only the disk shape is pinned; catalogue growth leaves the slot stride alone.
-CTR_STATIC_ASSERT((int)CHAOS_EFFECT_COUNT <= (int)CHAOS_SAVE_EFFECT_CAPACITY);
+CTR_STATIC_ASSERT((int)CHAOS_EFFECT_COUNT <= (int)CHAOS_SAVE_V2_EFFECT_CAPACITY);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, durationSeconds) == 0x0);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, triggerIntervalSeconds) == 0x2);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, trigger) == 0x4);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, armed) == 0x5);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, effectBits) == 0x6);
+CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, v2.distribution) == 0x11);
+CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, v2.disabledPlayers) == 0x12);
 CTR_STATIC_ASSERT(OFFSETOF(struct ChaosSettingsSaved, format) == 0x16);
 CTR_STATIC_ASSERT(sizeof(struct ChaosSettingsSaved) == 0x18);
 CTR_STATIC_ASSERT(OFFSETOF(struct MemcardExtension, chaos) == 0x10);

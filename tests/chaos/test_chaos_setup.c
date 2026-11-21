@@ -234,7 +234,7 @@ static void TestTriggerLayoutAndIntervalRetention(void)
 		const bool timed = expectedTrigger == CHAOS_TRIGGER_RANDOM || expectedTrigger == CHAOS_TRIGGER_INTERVAL ||
 		                   expectedTrigger == CHAOS_TRIGGER_EXTERNAL;
 		CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, expectedTrigger, "Cross cycles the stored trigger");
-		CTR_TEST_CHECK_EQ(s_drawnRows, timed ? 5 : 4, "the destination layout is drawn in the same frame");
+		CTR_TEST_CHECK_EQ(s_drawnRows, timed ? 7 : 6, "the destination layout includes multiplayer options in the same frame");
 		CTR_TEST_CHECK(s_drewInterval == timed, "Interval is present only for timed triggers");
 		CTR_TEST_CHECK(s_drewEffects && s_drewConfirm, "Effects and Confirm remain visible after every trigger change");
 		CTR_TEST_CHECK_EQ(sdata->chaosSettings.triggerIntervalSeconds, 25, "hiding Interval never loses its value");
@@ -253,7 +253,7 @@ static void TestEffectsCommitAndPageTransitions(void)
 {
 	CTR_TEST_SECTION("effect toggles commit directly and Back draws the destination page");
 	EnterSetup();
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECTS_TITLE), "opening Effects draws its title immediately");
 	CTR_TEST_CHECK_EQ(s_drawnRows, FULLSCREEN_MENU_MAX_VISIBLE_ROWS, "Effects uses the shared visible-row limit");
@@ -264,10 +264,10 @@ static void TestEffectsCommitAndPageTransitions(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, CHAOS_EFFECT_COUNT - 1, "the cached count changes with the toggle");
 	Frame(BTN_TRIANGLE, 0);
 	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_SETUP_TITLE), "Back draws Settings immediately");
-	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 3, "Back selects the Effects action");
-	CTR_TEST_CHECK_EQ(s_drawnRows, 5, "the return frame contains all settings rows");
+	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.effectsRow, "Back selects the Effects action");
+	CTR_TEST_CHECK_EQ(s_drawnRows, 7, "the return frame contains all multiplayer settings rows");
 	CTR_TEST_CHECK_EQ(s_returns, 0, "Effects Back stays inside the setup screen");
-	MM_menuChaosConfig.rowSelected = 4;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.numSettings - 1;
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK_EQ(s_finishes, 1, "Confirm proceeds once");
 	CTR_TEST_CHECK(s_drewBeforeExit, "Confirm draws before handing control back to the chain");
@@ -337,7 +337,7 @@ static void TestResidentRestore(void)
 	// region. Leaving page/scroll/cache state file-static breaks this round trip.
 	MM_menuChaosConfig.rowSelected = 1;
 	Frame(BTN_CROSS, 0); // Pickup hides Interval.
-	MM_menuChaosConfig.rowSelected = 2;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(BTN_CROSS, 0); // Effects.
 	MM_menuChaosConfig.rowSelected = CHAOS_EFFECT_COUNT - 1;
 	Frame(BTN_CROSS, 0);
@@ -359,10 +359,10 @@ static void TestResidentRestore(void)
 	CTR_TEST_CHECK(!sdata->chaosSettings.effects[CHAOS_EFFECT_COUNT - 1], "the saved toggle survives without a stale value mirror");
 	CTR_TEST_CHECK(MM_menuChaosConfig.funcPtr == MM_MenuProc_ChaosConfig, "the resident menu retains its input callback");
 	Frame(BTN_TRIANGLE, 0);
-	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 2, "Back uses the saved Effects action position");
-	CTR_TEST_CHECK_EQ(s_drawnRows, 4, "Back resumes the saved untimed layout");
+	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.effectsRow, "Back uses the saved Effects action position");
+	CTR_TEST_CHECK_EQ(s_drawnRows, 6, "Back resumes the saved multiplayer untimed layout");
 	CTR_TEST_CHECK(!s_drewInterval && s_drewEffects && s_drewConfirm, "the restored row cache agrees with the restored trigger");
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.numSettings - 1;
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK_EQ(s_finishes, 1, "Confirm still proceeds from the restored layout");
 }
@@ -446,9 +446,9 @@ static void TestReadOnlyPauseView(void)
 		Frame(0, BTN_RIGHT);
 	}
 	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_CHAOS_RULES), "pause uses the Chaos Rules title");
-	CTR_TEST_CHECK_EQ(s_drawnRows, 4, "the timed read-only page contains the values and Effects");
+	CTR_TEST_CHECK_EQ(s_drawnRows, 6, "the timed read-only page includes distribution, players and Effects");
 	CTR_TEST_CHECK(!s_drewConfirm && s_drewInterval && s_drewEffects, "the pause view has no creation Confirm action");
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "Active Effects draws immediately in the read-only view");
 	for (int effect = 0; effect < CHAOS_EFFECT_COUNT; effect++)
@@ -459,7 +459,7 @@ static void TestReadOnlyPauseView(void)
 	CTR_TEST_CHECK(sdata->chaosMenu.scroll[CHAOS_PAGE_EFFECTS].offset > 0, "the read-only effect list still scrolls to the last effect");
 	CTR_TEST_CHECK(memcmp(before, &sdata->chaosSettings, sizeof(before)) == 0, "confirm buttons and directions cannot change any saved parameter or flag");
 	Frame(BTN_TRIANGLE, 0);
-	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 3, "Effects Back returns to its Settings action");
+	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.effectsRow, "Effects Back returns to its Settings action");
 	CTR_TEST_CHECK(sdata->ptrDesiredMenu == NULL, "Effects Back stays inside the viewer");
 	Frame(BTN_TRIANGLE, 0);
 	CTR_TEST_CHECK(sdata->ptrDesiredMenu == &pause, "Settings Back returns to the original pause menu");
@@ -469,7 +469,7 @@ static void TestReadOnlyPauseView(void)
 
 	// All players may inspect pause settings, matching the parent pause menu.
 	MM_ChaosConfig_OpenReadOnly(&pause);
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	sdata->gGamepads->gamepad[0].buttonsTapped = 0;
 	sdata->AnyPlayerTap = BTN_CROSS;
 	MM_MenuProc_ChaosConfig(&MM_menuChaosConfig);
@@ -483,7 +483,7 @@ static void TestReadOnlyPauseView(void)
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
 	MM_ChaosConfig_OpenReadOnly(&pause);
 	Frame(0, 0);
-	CTR_TEST_CHECK(s_drewInterval && s_drawnRows == 4, "External shows Interval in the pause rules");
+	CTR_TEST_CHECK(s_drewInterval && s_drawnRows == 6, "External shows Interval and multiplayer options in the pause rules");
 	const u16 externalInterval = sdata->chaosSettings.triggerIntervalSeconds;
 	MM_menuChaosConfig.rowSelected = 2;
 	Frame(0, BTN_RIGHT);
@@ -492,8 +492,8 @@ static void TestReadOnlyPauseView(void)
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 	MM_ChaosConfig_OpenReadOnly(&pause);
 	Frame(0, 0);
-	CTR_TEST_CHECK_EQ(s_drawnRows, 3, "untimed triggers omit Interval in the pause view too");
-	MM_menuChaosConfig.rowSelected = 2;
+	CTR_TEST_CHECK_EQ(s_drawnRows, 5, "untimed triggers omit Interval in the multiplayer pause view too");
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(BTN_CROSS, 0);
 	static struct sData snapshot;
 	memcpy(&snapshot, &sdata_static, sizeof(snapshot));
@@ -516,9 +516,9 @@ static void TestFilteredActiveEffects(void)
 	sdata->chaosSettings.enabledCount = 3;
 	struct RectMenu pause = {0};
 	MM_ChaosConfig_OpenReadOnly(&pause);
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(0, 0);
-	CTR_TEST_CHECK(s_drawnLabels[3] == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "the Rules action names the filtered page");
+	CTR_TEST_CHECK(s_drawnLabels[sdata->chaosMenu.effectsRow] == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "the Rules action names the filtered page");
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK_EQ(s_drawnRows, 3, "disabled effects do not leave rows or gaps");
 	CTR_TEST_CHECK(s_drawnLabels[0] == LANG_GetString(LNG_EXPANDED_CHAOS_EFFECT_BASE + CHAOS_EFFECT_GROUNDED), "the first visible row maps past the disabled first effect");
@@ -533,7 +533,7 @@ static void TestFilteredActiveEffects(void)
 	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
 	sdata->chaosSettings.enabledCount = 0;
 	MM_ChaosConfig_OpenReadOnly(&pause);
-	MM_menuChaosConfig.rowSelected = 3;
+	MM_menuChaosConfig.rowSelected = sdata->chaosMenu.effectsRow;
 	Frame(BTN_CROSS, 0);
 	CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_EXPANDED_ACTIVE_EFFECTS), "an empty selection still opens Active Effects");
 	CTR_TEST_CHECK_EQ(s_drawnRows, 0, "an empty selection draws no effect rows");
@@ -541,7 +541,7 @@ static void TestFilteredActiveEffects(void)
 	Frame(BTN_DOWN | BTN_CROSS, 0);
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, 0, "navigation and confirm on an empty list cannot enable an effect");
 	Frame(BTN_TRIANGLE, 0);
-	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, 3, "Back works from the empty list");
+	CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.effectsRow, "Back works from the empty list");
 }
 
 static void CheckTestRaceGrid(void)
@@ -755,14 +755,14 @@ static void TestPersonalDistributionSetup(void)
 	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
 	s_tracker.numPlyrNextGame = 1;
 	MM_ChaosConfig_OnEnter();
-	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 5, "Adventure creation never adds a distribution row");
-	CTR_TEST_CHECK(!Chaos_SettingsArePersonal() && !Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), "Adventure ignores a stale personal preference for effect filtering");
+	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 5, "solo Adventure creation omits the multiplayer rows");
+	CTR_TEST_CHECK(!Chaos_SettingsArePersonal() && !Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), "solo Adventure setup returns to shared distribution");
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
-	CTR_TEST_CHECK(Chaos_CanConfirm(), "Adventure External remains valid despite a stale personal preference");
+	CTR_TEST_CHECK(Chaos_CanConfirm(), "solo Adventure External remains valid after the distribution reset");
 	struct RectMenu pause = {0};
 	MM_ChaosConfig_OpenReadOnly(&pause);
-	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 4, "Adventure pause keeps its original shared rules layout");
-	CTR_TEST_CHECK(!Chaos_SettingsArePersonal(), "Adventure pause never interprets rules as personal");
+	CTR_TEST_CHECK_EQ(sdata->chaosMenu.numSettings, 6, "two-player Adventure pause exposes the multiplayer rules");
+	CTR_TEST_CHECK(!Chaos_SettingsArePersonal(), "Adventure pause shows the selected shared distribution");
 
 	s_tracker.gameMode1 = ARCADE_MODE | MAIN_MENU;
 	MM_ChaosConfig_OpenSession();
@@ -775,10 +775,85 @@ static void TestPersonalDistributionSetup(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_EXTERNAL, "shared distribution still offers External");
 }
 
+static void TestAdventureDistributionSetup(void)
+{
+	CTR_TEST_SECTION("Adventure creation offers personal distribution with the same External restriction");
+	EnterSetup();
+	CTR_TEST_CHECK(Chaos_HasDistributionChoice(), "two-player Adventure creation exposes distribution without a session setup flag");
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+	SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK(Chaos_SettingsArePersonal() && sdata->chaosSettings.trigger == CHAOS_TRIGGER_INTERVAL, "personal Adventure replaces External with Interval");
+	sdata->chaosSettings.disabledPlayers[0] = true;
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_EXTERNAL;
+	SelectSetting(CHAOS_SETTING_CONFIRM);
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK(s_finishes == 0 && s_confirmColor == GRAY, "Adventure cannot confirm a restored personal External combination");
+	sdata->chaosSettings.trigger = CHAOS_TRIGGER_INTERVAL;
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK_EQ(s_finishes, 1, "Adventure can confirm personal rules with only player two participating");
+	CTR_TEST_CHECK_EQ(s_sessionFinishes, 0, "Adventure confirmation keeps its own creation flow");
+	struct RectMenu pause = {0};
+	MM_ChaosConfig_OpenReadOnly(&pause);
+	SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK(Chaos_SettingsArePersonal(), "Adventure pause presents personal distribution without changing it");
+	SelectSetting(CHAOS_SETTING_PLAYERS);
+	Frame(BTN_CROSS, 0);
+	CTR_TEST_CHECK(sdata->chaosMenu.page == CHAOS_PAGE_PLAYERS && s_drawnRows == 2, "Adventure pause exposes its two saved player toggles");
+}
+
+static void TestAdventureHubRules(void)
+{
+	CTR_TEST_SECTION("Adventure hub rules use the saved race player count rather than the single hub kart");
+	for (int players = 1; players <= ADV_MULTIPLAYER_NUM_PLAYERS_MAX; players++)
+	{
+		for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+		{
+			EnterSetup();
+			s_tracker.gameMode1 = ADVENTURE_MODE | ADVENTURE_ARENA | PAUSE_1;
+			s_tracker.numPlyrCurrGame = 1;
+			s_tracker.numPlyrNextGame = 1;
+			sdata->advMultiplayer.numPlayers = players;
+			sdata->chaosSettings.distribution = distribution;
+			sdata->chaosSettings.disabledPlayers[1] = true;
+			const struct ChaosSettings before = sdata->chaosSettings;
+			struct RectMenu pause = {0};
+			MM_ChaosConfig_OpenReadOnly(&pause);
+			CTR_TEST_CHECK_EQ(Chaos_MenuPlayerCount(), players, "the hub viewer reads the saved Adventure player count");
+			CTR_TEST_CHECK_EQ(Chaos_HasDistributionChoice(), players > 1, "co-op hub rules expose distribution while solo hub rules omit it");
+			CTR_TEST_CHECK_EQ(Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), players > 1, "hub effect filtering uses the saved grid even when player two is excluded");
+			if (players > 1)
+			{
+				SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+				Frame(BTN_CROSS, BTN_RIGHT);
+				CTR_TEST_CHECK_EQ(Chaos_SettingValue(CHAOS_SETTING_DISTRIBUTION), distribution, "the co-op hub displays the saved distribution without editing it");
+				SelectSetting(CHAOS_SETTING_PLAYERS);
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK_EQ(s_drawnRows, 2, "the co-op hub lists both players despite having one kart");
+				CTR_TEST_CHECK(s_drawnLabels[1] == LANG_GetString(LNG_PLAYER_2), "the second saved player is visible in the hub rules");
+				MM_menuChaosConfig.rowSelected = 1;
+				Frame(BTN_CROSS, BTN_LEFT);
+				Frame(BTN_TRIANGLE, 0);
+				CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.playersRow, "Back returns from the hub player list to its action row");
+			}
+			else
+			{
+				for (int row = 0; row < sdata->chaosMenu.numSettings; row++)
+				{
+					CTR_TEST_CHECK(sdata->chaosMenu.visibleSettings[row] != CHAOS_SETTING_PLAYERS, "solo hub rules do not offer multiplayer options");
+				}
+			}
+			CTR_TEST_CHECK(memcmp(&before, &sdata->chaosSettings, sizeof(before)) == 0, "inspecting hub rules cannot modify distribution or player toggles");
+			CTR_TEST_CHECK_EQ(s_tracker.numPlyrCurrGame, 1, "the rules viewer never changes the hub's actual player count");
+		}
+	}
+}
+
 static void TestPlayerSelection(void)
 {
 	CTR_TEST_SECTION("player selection works with both distributions and remains read-only in pause");
-	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | CRYSTAL_CHALLENGE};
+	const int modes[] = {ADVENTURE_MODE, ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | CRYSTAL_CHALLENGE};
 	for (int mode = 0; mode < (int)len(modes); mode++)
 	{
 		for (int players = 2; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
@@ -790,7 +865,14 @@ static void TestPlayerSelection(void)
 				s_tracker.numPlyrNextGame = players;
 				s_tracker.numPlyrCurrGame = 1;
 				sdata->chaosSettings.distribution = distribution;
-				MM_ChaosConfig_OpenSession();
+				if ((modes[mode] & ADVENTURE_MODE) != 0)
+				{
+					MM_ChaosConfig_OnEnter();
+				}
+				else
+				{
+					MM_ChaosConfig_OpenSession();
+				}
 				SelectSetting(CHAOS_SETTING_PLAYERS);
 				const int playersRow = MM_menuChaosConfig.rowSelected;
 				Frame(BTN_CROSS, 0);
@@ -937,6 +1019,8 @@ int main(void)
 	TestChaosRaceShortcut();
 	TestSessionSetup();
 	TestPersonalDistributionSetup();
+	TestAdventureDistributionSetup();
+	TestAdventureHubRules();
 	TestPlayerSelection();
 	return CtrTest_Summary();
 }

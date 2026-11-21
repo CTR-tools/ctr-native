@@ -212,6 +212,8 @@ static void TestSharedRulesAdventureRestore(void)
 	               "shared rules initialize with usable defaults and Regular selected");
 	sdata->chaosSettings.armed = true;
 	sdata->chaosSettings.durationSeconds = 55;
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+	sdata->chaosSettings.disabledPlayers[0] = true;
 	struct ChaosSettingsSaved saved;
 	ChaosSave_Encode(&sdata->chaosSettings, &saved);
 	const struct ChaosSettingsSaved original = saved;
@@ -221,6 +223,8 @@ static void TestSharedRulesAdventureRestore(void)
 	MM_ChaosSession_Begin(&MM_MENU_MAIN, &next);
 	CTR_TEST_CHECK_EQ(MM_MENU_CHAOS_PROMPT.rowSelected, 1, "Arcade reuses the previously loaded live rules");
 	sdata->chaosSettings.durationSeconds = 15;
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+	memset(sdata->chaosSettings.disabledPlayers, 0, sizeof(sdata->chaosSettings.disabledPlayers));
 	MM_MENU_CHAOS_PROMPT.rowSelected = 0;
 	MM_MenuProc_Chaos(&MM_MENU_CHAOS_PROMPT);
 	CTR_TEST_CHECK(!sdata->chaosSettings.armed, "Regular in Arcade disarms the live rules");
@@ -229,6 +233,7 @@ static void TestSharedRulesAdventureRestore(void)
 	ChaosSave_Decode(&saved, &sdata->chaosSettings);
 	CTR_TEST_CHECK(sdata->chaosSettings.armed, "loading the Adventure restores its saved Chaos activation");
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, 55, "loading replaces the rules edited in Arcade");
+	CTR_TEST_CHECK(sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER && sdata->chaosSettings.disabledPlayers[0], "loading Adventure restores its saved distribution and selected players");
 	sdata->chaosSettings.armed = false;
 	ChaosSave_Encode(&sdata->chaosSettings, &saved);
 	sdata->chaosSettings.armed = true;
@@ -309,6 +314,10 @@ static void CheckFreshSettings(void)
 	CTR_TEST_CHECK_EQ(settings->triggerIntervalSeconds, 10, "interval defaults to ten seconds");
 	CTR_TEST_CHECK_EQ(settings->trigger, CHAOS_TRIGGER_RANDOM, "trigger starts at its default");
 	CTR_TEST_CHECK_EQ(settings->enabledCount, CHAOS_EFFECT_COUNT, "all default effects are counted");
+	for (int player = 0; player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+	{
+		CTR_TEST_CHECK(!settings->disabledPlayers[player], "a new Adventure re-enables every player");
+	}
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)
 	{
 		CTR_TEST_CHECK(settings->effects[i], "every effect starts selected");
@@ -456,6 +465,7 @@ static void TestNewAfterChaosCreation(void)
 			sdata->chaosSettings.triggerIntervalSeconds = 90;
 			sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 			sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
+			memset(sdata->chaosSettings.disabledPlayers, true, sizeof(sdata->chaosSettings.disabledPlayers));
 			ChaosEffect_Toggle(sdata->chaosSettings.effects, &sdata->chaosSettings.enabledCount, CHAOS_EFFECT_FLY_ME_TO_THE_MOON);
 
 			g_config.expandedAdventureOptions = expanded != 0;

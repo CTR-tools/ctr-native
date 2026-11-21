@@ -33,20 +33,22 @@ static bool Chaos_TriggerIsTimed(int trigger)
 	return trigger == CHAOS_TRIGGER_RANDOM || trigger == CHAOS_TRIGGER_INTERVAL || trigger == CHAOS_TRIGGER_EXTERNAL;
 }
 
-static bool Chaos_HasDistributionChoice(void)
-{
-	const struct ChaosMenuState *state = &sdata->chaosMenu;
-	const struct GameTracker *tracker = sdata->gGT;
-	const int players = state->returnMenu != NULL ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
-	return players > 1 && (state->sessionSetup ||
-	       (state->returnMenu != NULL && (tracker->gameMode1 & ADVENTURE_MODE) == 0));
-}
-
 static int Chaos_MenuPlayerCount(void)
 {
 	const struct GameTracker *tracker = sdata->gGT;
-	const int players = sdata->chaosMenu.returnMenu != NULL ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
+	int players = readOnly ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	if (readOnly && (tracker->gameMode1 & (ADVENTURE_MODE | ADVENTURE_ARENA)) == (ADVENTURE_MODE | ADVENTURE_ARENA))
+	{
+		// The hub has one kart even when the saved Adventure races have two players.
+		players = sdata->advMultiplayer.numPlayers;
+	}
 	return players < CHAOS_MAX_HUMAN_PLAYERS ? players : CHAOS_MAX_HUMAN_PLAYERS;
+}
+
+static bool Chaos_HasDistributionChoice(void)
+{
+	return Chaos_MenuPlayerCount() > 1;
 }
 
 static bool Chaos_SettingsArePersonal(void)
@@ -204,7 +206,7 @@ static void Chaos_EditSetting(enum ChaosSetting setting, int direction)
 
 static void Chaos_OnEnter(struct RectMenu *returnMenu, bool sessionSetup)
 {
-	if (sessionSetup && sdata->gGT->numPlyrNextGame == 1)
+	if (returnMenu == NULL && sdata->gGT->numPlyrNextGame == 1)
 	{
 		sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
 		sdata->chaosSettings.disabledPlayers[0] = false;
@@ -226,8 +228,7 @@ static void Chaos_OnEnter(struct RectMenu *returnMenu, bool sessionSetup)
 static bool Chaos_EffectIsAvailable(ChaosEffectId effect)
 {
 	const struct GameTracker *tracker = sdata->gGT;
-	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
-	const int players = readOnly ? tracker->numPlyrCurrGame : tracker->numPlyrNextGame;
+	const int players = Chaos_MenuPlayerCount();
 	// An Adventure file spans every event type, not just the current hub/race.
 	const int mode = (tracker->gameMode1 & ADVENTURE_MODE) != 0
 	                     ? ADVENTURE_MODE : tracker->gameMode1 & ~MAIN_MENU;

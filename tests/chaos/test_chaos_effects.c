@@ -1060,6 +1060,35 @@ static void TestParticipantSpecialEffects(void)
 	}
 }
 
+static void TestAdventureParticipantEffects(void)
+{
+	CTR_TEST_SECTION("Adventure player selection isolates karts while Body Swap and time stop keep their rules");
+	struct BodySwapWorld world;
+	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+	{
+		SetupPersonalBodySwap(&world, 2, 1);
+		s_tracker.gameMode1 = ADVENTURE_MODE;
+		sdata->chaosSettings.distribution = distribution;
+		sdata->chaosSettings.disabledPlayers[0] = true;
+		sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+		const int owner = distribution == CHAOS_DISTRIBUTION_SHARED ? 0 : 1;
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_SMALL_KART_ENERGY, 2000, owner), "Adventure can change only the participating player's kart");
+		CTR_TEST_CHECK(world.drivers[0].kartScale == 1.0f && world.drivers[1].kartScale == 0.5f, "the excluded Adventure player keeps its original scale");
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 2000, owner), "the selected co-op player can borrow a bot without borrowing the excluded human");
+		CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[0] && s_tracker.drivers[1] == &world.drivers[2], "Adventure Body Swap leaves the excluded controller on its own body");
+		CTR_TEST_CHECK(s_tracker.drivers[1]->kartScale == 0.5f, "the selected Adventure controller retains size effects while possessing a bot");
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, owner), "Adventure can activate time stop through either distribution");
+		CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(s_tracker.drivers[0]->instSelf->thread), distribution == CHAOS_DISTRIBUTION_PER_PLAYER, "the excluded human follows the chosen time-stop immunity rule");
+		CTR_TEST_CHECK(!Chaos_ShouldFreezeThread(s_tracker.drivers[1]->instSelf->thread), "the selected Adventure recipient remains immune on the borrowed body");
+		CTR_TEST_CHECK(Chaos_ShouldFreezeThread(s_tracker.drivers[2]->instSelf->thread), "Adventure time stop still freezes the bot occupying the recipient's original body");
+		Tick(1000);
+		CTR_TEST_CHECK(!Chaos_IsTimeStopped() && sdata->chaosRuntime.bodySwapPartner[1] != 0, "time-stop expiry resumes rather than expires the suspended Adventure pair");
+		Tick(2000);
+		CTR_TEST_CHECK(s_tracker.drivers[1] == &world.drivers[1] && world.drivers[1].kartScale == 1.0f, "Adventure expiry returns the selected kart and scale");
+		CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[0] && !Chaos_IsPlayerEnabled(0), "Adventure cleanup preserves both the excluded kart and the saved selection");
+	}
+}
+
 static void TestPersonalBodySwapPairs(void)
 {
 	CTR_TEST_SECTION("personal Body Swap keeps disjoint pairs with independent owners and deadlines");
@@ -1123,7 +1152,7 @@ static void TestPersonalBodySwapEligibility(void)
 	SetupPersonalBodySwap(&world, 1, 1);
 	CTR_TEST_CHECK(ChaosEvent_EffectFits(CHAOS_EFFECT_BODY_SWAP, ARCADE_MODE, 0, 1, false, true), "personal solo Arcade allows Body Swap with a bot partner");
 	CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_BODY_SWAP, ARCADE_MODE, 0, 1, false, false), "shared solo Arcade retains its existing Body Swap filter");
-	CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_BODY_SWAP, ADVENTURE_MODE, 0, 1, false, true), "Adventure ignores stale personal preferences for compatibility");
+	CTR_TEST_CHECK(ChaosEvent_EffectFits(CHAOS_EFFECT_BODY_SWAP, ADVENTURE_MODE, 0, 1, false, true), "personal Adventure uses the same bot-partner compatibility as Arcade");
 	CTR_TEST_CHECK(!ChaosEvent_EffectFits(CHAOS_EFFECT_BODY_SWAP, BATTLE_MODE, 0, 1, false, true), "solo events without bots cannot offer a partner");
 	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 1000, 0), "a solo recipient can possess a bot");
 	CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[1] && (world.drivers[1].actionsFlagSet & ACTION_BOT) == 0, "the borrowed kart becomes the recipient's human-controlled body");
@@ -5025,6 +5054,7 @@ int main(void)
 	TestBodySwap();
 	TestPersonalBodySwapPairs();
 	TestParticipantSpecialEffects();
+	TestAdventureParticipantEffects();
 	TestPersonalBodySwapEligibility();
 	TestPersonalBodySwapLifecycle();
 	TestTeleport();

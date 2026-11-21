@@ -18,7 +18,7 @@ enum
 bool Chaos_IsPlayerEnabled(int player)
 {
 	return player >= 0 && player < CHAOS_MAX_HUMAN_PLAYERS &&
-	       ((sdata->gGT->gameMode1 & ADVENTURE_MODE) != 0 || !sdata->chaosSettings.disabledPlayers[player]);
+	       !sdata->chaosSettings.disabledPlayers[player];
 }
 
 static bool Chaos_HasEnabledPlayer(void)
@@ -44,8 +44,7 @@ static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *drive
 
 bool Chaos_UsesPersonalPools(void)
 {
-	return sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER &&
-	       (sdata->gGT->gameMode1 & ADVENTURE_MODE) == 0;
+	return sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER;
 }
 
 static int Chaos_PlayerPoolCount(void)

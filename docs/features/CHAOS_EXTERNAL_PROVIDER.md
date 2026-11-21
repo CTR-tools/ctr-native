@@ -5,7 +5,7 @@ externally written file.
 
 External supports Shared distribution only. Per player publishes an empty
 catalogue and does not consume commands; personal external targeting is not supported.
-In Shared sessions, the Players selection filters human-scoped effects, including
+With Shared distribution, the Players selection filters human-scoped effects, including
 provider requests. Bot/world effects remain global. Body Swap is omitted from the
 catalogue if the selected players and bot grid cannot form a pair.
 

@@ -1,4 +1,5 @@
 #include <chaos/chaos_fixture.h>
+#include <chaos/chaos_save.h>
 
 // Exercise the internal player-pool entry point; the public API uses pool zero.
 static struct Driver s_humans[CHAOS_MAX_HUMAN_PLAYERS];
@@ -29,7 +30,9 @@ static void SetupPersonalWorld(int mode, int players)
 static void TestSelectedPlayers(void)
 {
 	CTR_TEST_SECTION("shared and personal effects respect participant exclusions without requiring player one");
-	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | RELIC_RACE, ARCADE_MODE | CRYSTAL_CHALLENGE};
+	const int modes[] = {ADVENTURE_MODE, ADVENTURE_MODE | RELIC_RACE, ADVENTURE_MODE | CRYSTAL_CHALLENGE,
+	                     ADVENTURE_MODE | ADVENTURE_CUP, ADVENTURE_MODE | ADVENTURE_BOSS,
+	                     ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | RELIC_RACE, ARCADE_MODE | CRYSTAL_CHALLENGE};
 	for (int mode = 0; mode < (int)len(modes); mode++)
 	{
 		for (int players = 2; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
@@ -73,14 +76,13 @@ static void TestSelectedPlayers(void)
 	SetupPersonalWorld(ADVENTURE_MODE, 2);
 	sdata->chaosSettings.disabledPlayers[0] = true;
 	sdata->chaosSettings.disabledPlayers[1] = true;
-	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000), "Adventure ignores stale session-only participant exclusions");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[0]), 25, "Adventure still reaches player one");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 25, "Adventure still reaches the co-op player");
+	CTR_TEST_CHECK(!Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000), "Adventure respects a selection with no participating player");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[0]), 100, "an excluded Adventure player keeps ordinary gravity");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 100, "an excluded co-op player keeps ordinary gravity too");
 }
 
-static void TestSelectedPlayerTriggers(void)
+static void CheckSelectedPlayerTriggers(int mode)
 {
-	CTR_TEST_SECTION("participant selection gates Pickup and personal clocks but not the shared pool-zero cadence");
 	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
 	{
 		for (int trigger = 0; trigger < CHAOS_TRIGGER_COUNT; trigger++)
@@ -89,7 +91,7 @@ static void TestSelectedPlayerTriggers(void)
 			{
 				continue;
 			}
-			SetupPersonalWorld(0, 4);
+			SetupPersonalWorld(mode, 4);
 			sdata->chaosSettings.distribution = distribution;
 			sdata->chaosSettings.trigger = trigger;
 			memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
@@ -129,9 +131,21 @@ static void TestSelectedPlayerTriggers(void)
 	}
 }
 
+static void TestSelectedPlayerTriggers(void)
+{
+	CTR_TEST_SECTION("participant selection gates every trigger in sessions and Adventure variants");
+	const int modes[] = {0, ADVENTURE_MODE, ADVENTURE_MODE | RELIC_RACE,
+	                     ADVENTURE_MODE | CRYSTAL_CHALLENGE, ADVENTURE_MODE | ADVENTURE_CUP,
+	                     ADVENTURE_MODE | ADVENTURE_BOSS};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		CheckSelectedPlayerTriggers(modes[mode]);
+	}
+}
+
 static void TestParticipantCatalogue(void)
 {
-	CTR_TEST_SECTION("External catalogue reflects the participant selection without changing Adventure");
+	CTR_TEST_SECTION("External catalogue reflects the participant selection in every mode");
 	SetupPersonalWorld(0, 2);
 	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
 	sdata->chaosSettings.disabledPlayers[0] = true;
@@ -146,14 +160,46 @@ static void TestParticipantCatalogue(void)
 	CTR_TEST_CHECK(s_externalCatalogue[0] == 0, "no participating players produces an empty provider catalogue");
 	s_tracker.gameMode1 = ADVENTURE_MODE;
 	Chaos_PublishEffects();
-	CTR_TEST_CHECK(strstr(s_externalCatalogue, "body-swap\n") != NULL, "Adventure publication ignores stale session exclusions");
+	CTR_TEST_CHECK(s_externalCatalogue[0] == 0, "Adventure publication respects the same participant exclusions");
+	sdata->chaosSettings.disabledPlayers[1] = false;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strstr(s_externalCatalogue, "body-swap\n") != NULL, "one selected Adventure human can borrow a bot");
+}
+
+static void TestAdventureSavedRules(void)
+{
+	CTR_TEST_SECTION("saved Adventure rules restore their distribution and recipients into the real runtime");
+	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+	{
+		SetupPersonalWorld(ADVENTURE_MODE, 2);
+		sdata->chaosSettings.distribution = distribution;
+		sdata->chaosSettings.disabledPlayers[0] = true;
+		memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+		sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
+		sdata->chaosSettings.enabledCount = 1;
+		struct ChaosSettingsSaved saved;
+		ChaosSave_Encode(&sdata->chaosSettings, &saved);
+		memset(&sdata->chaosSettings, 0, sizeof(sdata->chaosSettings));
+		ChaosSave_Decode(&saved, &sdata->chaosSettings);
+		Chaos_BeginRace(&s_tracker);
+		CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[0]) && Chaos_OnPickup(&s_humans[1]), "loaded Adventure rules reject the excluded pickup and accept player two's pickup");
+		CTR_TEST_CHECK_EQ(Chaos_PlayerPoolCount(), distribution == CHAOS_DISTRIBUTION_SHARED ? 1 : 2, "loaded distribution selects the correct number of runtime pools");
+		CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[0]), 100, "loading keeps the excluded Adventure driver unaffected");
+		CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 25, "loading applies the saved rule to the selected Adventure driver");
+		Chaos_BeginRace(&s_tracker);
+		CTR_TEST_CHECK(Chaos_OnPickup(&s_humans[1]), "restarting Adventure retains the restored player selection");
+		s_tracker.gameMode1 |= ADVENTURE_ARENA;
+		CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[1]) && !Chaos_IsActiveForDriver(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, &s_humans[1]), "player options do not enable Chaos in the Adventure hub");
+	}
 }
 
 static void TestPersonalIsolation(void)
 {
 	CTR_TEST_SECTION("personal activations and coincident effects are isolated across 1-4 controllers");
 	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | RELIC_RACE,
-	                     ARCADE_MODE | CRYSTAL_CHALLENGE};
+	                     ARCADE_MODE | CRYSTAL_CHALLENGE, ADVENTURE_MODE, ADVENTURE_MODE | RELIC_RACE,
+	                     ADVENTURE_MODE | CRYSTAL_CHALLENGE, ADVENTURE_MODE | ADVENTURE_CUP,
+	                     ADVENTURE_MODE | ADVENTURE_BOSS};
 	for (int mode = 0; mode < (int)len(modes); mode++)
 	{
 		for (int players = 1; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
@@ -446,11 +492,11 @@ static void TestPoolTimersAndRestore(void)
 
 static void TestSharedPoolSelection(void)
 {
-	CTR_TEST_SECTION("shared and Adventure rules use only the first pool");
+	CTR_TEST_SECTION("shared rules use only the first pool, including in Adventure");
 	EnableInputEffects();
-	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_PER_PLAYER;
-	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_MIRROR_MIRROR, 1000), "Adventure keeps shared activation even with stale personal settings");
-	CTR_TEST_CHECK_EQ(Chaos_PlayerPoolCount(), 1, "Adventure always selects the single shared pool");
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_MIRROR_MIRROR, 1000), "Adventure preserves shared activation when selected");
+	CTR_TEST_CHECK_EQ(Chaos_PlayerPoolCount(), 1, "shared Adventure selects the single shared pool");
 	for (int player = 0; player < s_tracker.numPlyrCurrGame; player++)
 	{
 		CTR_TEST_CHECK(Chaos_IsActiveForDriver(CHAOS_EFFECT_MIRROR_MIRROR, s_tracker.drivers[player]),
@@ -829,6 +875,7 @@ int main(void)
 	TestSelectedPlayers();
 	TestSelectedPlayerTriggers();
 	TestParticipantCatalogue();
+	TestAdventureSavedRules();
 	TestPersonalIsolation();
 	TestPersonalConflictsAndRefresh();
 	TestPersonalInputAndOneOff();

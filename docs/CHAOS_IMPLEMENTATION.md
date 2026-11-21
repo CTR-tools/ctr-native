@@ -179,6 +179,21 @@ Each V1 Chaos entry contains:
 | `0x06` | 16-byte enabled-effect bitset            |
 | `0x16` | `u16 format = 0x0143` (`'C'`, version 1) |
 
+V2 keeps the same 24-byte slot, timing fields and effect IDs. It assigns the unused
+tail of the V1 bitset to player options:
+
+| Offset | V2 contents |
+|--------|-------------|
+| `0x06` | 11-byte enabled-effect bitset (88 effect IDs) |
+| `0x11` | `u8 distribution` |
+| `0x12` | Four `u8 disabledPlayers` values, normalized to live booleans |
+| `0x16` | `u16 format = 0x0243` (`'C'`, version 2) |
+
+V1 decodes as Shared with all players enabled, ignoring its unused tail. The writer
+retains V1 for Shared/all-enabled rules and uses V2 only for nondefault player options.
+Older builds do not recognize V2 Chaos rules. Neither version changes the retail
+profile, other extension fields or slot offsets.
+
 Effect ID `n` maps to bit `n % 8` of byte `n / 8`, least-significant bit first.
 Append IDs; never renumber or reuse them. Slugs are stable external identifiers.
 The live settings use `bool effects[CHAOS_EFFECT_COUNT]` and derived
@@ -187,8 +202,8 @@ and cleared on rewrite, so new effects start disabled in existing saves.
 
 `armed` distinguishes Chaos from Regular even with an empty selection. Missing
 or unsupported format tags decode to unarmed, empty settings. Normal save/load
-preserves the selected slot's settings; deleting a slot zeroes them. Only V1 is
-supported. Field/trigger encoding changes or growth beyond 128 effects require a
+preserves the selected slot's settings; deleting a slot zeroes them. V1 and V2 are
+supported. Field/trigger encoding changes or growth beyond V2's 88 effects require a
 new format and migration; `namespace_Memcard.h` assertions pin the layout.
 
 ## Profile and menu integration
@@ -207,7 +222,7 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
   main-menu prompt and resumes the retail menu chain without an extra recap box.
   The prompt follows event type and player count; Arcade then resumes difficulty,
   while VS/Battle exit to character selection. Setup and runtime share
-  `ChaosEvent_EffectFits`; filtered rows map back to stable effect IDs without
+   `ChaosEvent_EffectFitsSelection`; filtered rows map back to stable effect IDs without
   erasing hidden preferences. Confirm requires a compatible enabled effect.
   Live rules survive retries, cups and mode selection, but are replaced when
   loading or creating an Adventure and reset at application restart.
@@ -220,14 +235,17 @@ new format and migration; `namespace_Memcard.h` assertions pin the layout.
 ## Runtime and checkpoints
 
 `ChaosRuntime.players[]` owns four timed activations, four instant notices and a
-trigger clock per controller. Shared and Adventure use only `players[0]` as their
-common pool; ownership is implicit in the pool index. `distribution` is session-only
-and excluded from Adventure encoding. Setup and pause expose it only for multiplayer
-sessions.
-`disabledPlayers[]` is another session-only boolean array: zero means every player
+trigger clock per controller. Shared uses only `players[0]` as its common pool;
+ownership is implicit in the pool index. `distribution` selects the same runtime
+paths in Adventure and session modes. Setup and pause expose it only with multiple
+human players.
+`disabledPlayers[]` is a boolean array: zero means every player
 participates. The multiplayer Players page edits it, pause displays it read-only,
 and Confirm requires at least one present participant. Solo setup re-enables player 1.
-Adventure ignores stale exclusions; its fixed save entry does not encode them.
+Adventure persists distribution and exclusions through the V2 encoding above.
+In the Adventure hub, the read-only viewer uses `advMultiplayer.numPlayers` for
+row visibility and effect compatibility: the hub's live kart count is always one,
+even for a two-player save. It does not change the hub's actual player count.
 
 Human-scoped activation targets, one-off operations and Pickup sources respect
 the selection in both distributions. Personal Random skips excluded clocks;

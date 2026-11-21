@@ -14,7 +14,7 @@ static inline bool ChaosEvent_EffectFits(ChaosEffectId effect, int gameMode1, s3
 	}
 	if (effect == CHAOS_EFFECT_BODY_SWAP && players < 2)
 	{
-		return personal && (gameMode1 & ADVENTURE_MODE) == 0 &&
+		return personal &&
 		       RaceField_BotCount(gameMode1, cupID, players, extendedMultiplayer) > 0;
 	}
 	if (effect == CHAOS_EFFECT_YARDRAT_TRAINING || effect == CHAOS_EFFECT_DEFECTIVE_TELEPORT)
@@ -32,7 +32,7 @@ static inline bool ChaosEvent_EffectFitsSelection(ChaosEffectId effect, int game
 	{
 		return false;
 	}
-	if (effect != CHAOS_EFFECT_BODY_SWAP || (gameMode1 & ADVENTURE_MODE) != 0)
+	if (effect != CHAOS_EFFECT_BODY_SWAP)
 	{
 		return true;
 	}
