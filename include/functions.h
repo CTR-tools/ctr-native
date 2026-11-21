@@ -255,6 +255,7 @@ void Voiceline_PoolClear(void);
 void Voiceline_StopAll(void);
 void Voiceline_ToggleEnable(int toggle);
 void Voiceline_RequestPlay(u32 voiceID, u32 characterID, u32 characterID2);
+void Voiceline_RequestPlayOwned(u32 voiceID, u32 characterID, u32 characterID2, const struct Driver *speaker);
 void Voiceline_StartPlay(struct Item *voiceLine);
 void Voiceline_Update(void);
 void Voiceline_PlayWrongWay(struct Driver *driver);

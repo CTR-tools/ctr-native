@@ -76,9 +76,10 @@ enum HowlSfxParam
 enum HowlChannelFlag
 {
 	HOWL_CHANNEL_GAIN_DOUBLE = 0x10,
-	HOWL_CHANNEL_HUMAN_AUDIO = 0x20,
 };
 
+
+enum { HOWL_VOICELINE_POOL_CAPACITY = 8 };
 
 enum HowlChannelType
 {

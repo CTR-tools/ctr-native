@@ -88,7 +88,7 @@ static void PickupBots_SetCooldown(struct Driver *bot)
 
 static void PickupBots_PlayVoice(u32 voiceID, struct Driver *attacker, struct Driver *victim)
 {
-	Voiceline_RequestPlay(voiceID, data.characterIDs[attacker->driverID], data.characterIDs[victim->driverID]);
+	Voiceline_RequestPlayOwned(voiceID, data.characterIDs[attacker->driverID], data.characterIDs[victim->driverID], attacker);
 }
 
 static void PickupBots_UpdateArcade(void)

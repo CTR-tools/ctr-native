@@ -3898,7 +3898,7 @@ struct sData
 
 	// 800961c4
 	// eight members, 0x10 each
-	struct VoicelineItem voicelinePool[8];
+	struct VoicelineItem voicelinePool[HOWL_VOICELINE_POOL_CAPACITY];
 
 	// 80096244
 	int timeSet1[0x10];
@@ -4110,6 +4110,9 @@ struct sData
 	// Pool-lifetime attribution, independent of race activation resets.
 	u8 *chaosThreadOwners;
 	u8 *chaosParticleOwners;
+	enum ChaosAudioOwner chaosAudioChannels[NUM_SFX_CHANNELS];
+	enum ChaosAudioOwner chaosPausedAudioChannels[NUM_SFX_CHANNELS];
+	enum ChaosAudioOwner chaosVoicelines[HOWL_VOICELINE_POOL_CAPACITY];
 	struct Model *chaosCharacterModels[len(((struct Data *)0)->MetaDataCharacters)];
 
 	struct NewLoadState newLoad;

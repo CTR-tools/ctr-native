@@ -94,6 +94,18 @@ struct ChaosPlayerRuntime
 	s32 intervalRemainingMS;
 };
 
+enum ChaosAudioOwner
+{
+	CHAOS_AUDIO_WORLD,
+	CHAOS_AUDIO_UI,
+	// Human-owned effects without a known controller remain shared-only.
+	CHAOS_AUDIO_HUMAN,
+	CHAOS_AUDIO_PLAYER_1,
+	CHAOS_AUDIO_PLAYER_2,
+	CHAOS_AUDIO_PLAYER_3,
+	CHAOS_AUDIO_PLAYER_4,
+};
+
 // Race-only state, captured in SDATA. Shared Chaos uses only players[0].
 struct ChaosRuntime
 {
@@ -111,8 +123,8 @@ struct ChaosRuntime
 	u8 bodySwapPartner[LOAD_CHARACTER_ID_COUNT];
 	bool cameraBlendPending[CHAOS_MAX_HUMAN_PLAYERS];
 	u8 teleportForwardCrossings[LOAD_CHARACTER_ID_COUNT];
-	bool humanAudioContext;
-	bool humanXA;
+	enum ChaosAudioOwner audioOwner;
+	enum ChaosAudioOwner xaOwner;
 	int numDeferredImpacts;
 	struct ChaosDeferredImpact deferredImpacts[CHAOS_MAX_DEFERRED_IMPACTS];
 };

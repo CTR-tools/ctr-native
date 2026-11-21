@@ -115,7 +115,7 @@ struct Instance *INSTANCE_BirthWithThread(s32 model, const char *name, s32 pool,
 }
 void GAMEPAD_ShockFreq(struct Driver *driver, int frames, int value) { (void)driver; (void)frames; (void)value; }
 void GAMEPAD_ShockForce1(struct Driver *driver, int frames, int value) { (void)driver; (void)frames; (void)value; }
-void Voiceline_RequestPlay(u32 sound, u32 character, u32 flags) { (void)sound; (void)character; (void)flags; }
+void Voiceline_RequestPlayOwned(u32 sound, u32 character, u32 flags, const struct Driver *speaker) { (void)sound; (void)character; (void)flags; (void)speaker; }
 void PROC_DestroyInstance(struct Thread *thread) { (void)thread; }
 
 s32 MixRNG_Scramble(void) { CtrTest_Bail("orb launch needs no retail RNG"); return 0; }

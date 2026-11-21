@@ -357,10 +357,7 @@ static void TestTimeStopAcrossPools(void)
 		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000, player), "each pool has a duration to suspend");
 		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_RESERVE_INJECTION, 1000, player), "each pool has a notice to suspend");
 	}
-	// Personal Za Warudo activation is still gated. Seed its entry to verify the
-	// common pool traversal independently of the pending immunity implementation.
-	struct ChaosPlayerRuntime *timePool = &sdata->chaosRuntime.players[1];
-	timePool->active[timePool->numActive++] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 50};
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 50, 1), "a real personal activation starts time stop outside the first pool");
 	CTR_TEST_CHECK(Chaos_IsTimeStopped(), "world time stop is detected outside the first pool");
 	Tick(50);
 	CTR_TEST_CHECK(!Chaos_IsTimeStopped(), "the time-stop entry expires in its containing pool");
@@ -382,6 +379,81 @@ static void SelectPersonalEffect(ChaosEffectId effect)
 	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
 	sdata->chaosSettings.effects[effect] = true;
 	sdata->chaosSettings.enabledCount = 1;
+}
+
+static void TestPersonalTimeStopContention(void)
+{
+	CTR_TEST_SECTION("personal time stop rejects concurrent activations and resumes exact clocks after expiry");
+	for (int humans = 1; humans <= CHAOS_MAX_HUMAN_PLAYERS; humans++)
+	{
+		for (int owner = 0; owner < humans; owner++)
+		{
+			SetupPersonalWorld(ARCADE_MODE, humans);
+			for (int player = 0; player < humans; player++)
+			{
+				Chaos_ActivateForPlayer(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 2000, player);
+				Chaos_ActivateForPlayer(CHAOS_EFFECT_RESERVE_INJECTION, 1000, player);
+				sdata->chaosRuntime.players[player].intervalRemainingMS = 100 + player;
+			}
+			sdata->chaosRuntime.botCooldownMS = 700;
+			sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS] = 900;
+			CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 100, owner), "any available controller can receive personal time stop");
+			for (int player = 0; player < humans; player++)
+			{
+				CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, player), "neither the owner nor another controller can refresh or overlap time stop");
+				CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[player]), "pickups cannot activate effects during another time stop");
+			}
+			const struct ChaosRuntime saved = sdata->chaosRuntime;
+			Tick(50);
+			const struct ChaosRuntime advanced = sdata->chaosRuntime;
+			sdata->chaosRuntime = saved;
+			Tick(50);
+			CTR_TEST_CHECK(memcmp(&advanced, &sdata->chaosRuntime, sizeof(advanced)) == 0, "restored time-stop state advances deterministically");
+			Tick(100);
+			CTR_TEST_CHECK(!Chaos_IsTimeStopped(), "an overshooting frame expires only the time-stop activation");
+			for (int player = 0; player < humans; player++)
+			{
+				const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+				CTR_TEST_CHECK_EQ(pool->active[0].remainingMS, 2000, "all other effects, including the recipient's, retain their full duration through expiry");
+				CTR_TEST_CHECK_EQ(pool->instantNotices[0].elapsedMS, 0, "instant notices remain suspended through time-stop overshoot");
+				CTR_TEST_CHECK_EQ(pool->intervalRemainingMS, 100 + player, "personal trigger clocks cannot catch up suspended time");
+			}
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 700, "the global bot cooldown remains suspended through expiry");
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS], 900, "per-effect bot cooldowns remain suspended through expiry");
+			Tick(10);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[owner].active[0].remainingMS, 1990, "the recipient's other effect resumes on the next ordinary frame");
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 690, "bot cooldowns resume without catch-up");
+			CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 100, (owner + 1) % humans), "a new recipient can stop time after the previous activation ends");
+			Chaos_Reset();
+			CTR_TEST_CHECK(!Chaos_IsTimeStopped() && s_pausedVoices == 0 && !s_pausedXA, "reset clears the personal time stop and backend audio suspension");
+		}
+	}
+	const int triggers[] = {CHAOS_TRIGGER_INTERVAL, CHAOS_TRIGGER_RANDOM, CHAOS_TRIGGER_PICKUP};
+	for (int i = 0; i < (int)len(triggers); i++)
+	{
+		SetupPersonalWorld(ARCADE_MODE, 4);
+		SelectPersonalEffect(CHAOS_EFFECT_ZA_WARUDO);
+		sdata->chaosSettings.trigger = triggers[i];
+		for (int player = 0; player < 4; player++)
+		{
+			sdata->chaosRuntime.players[player].intervalRemainingMS = 50;
+		}
+		if (triggers[i] == CHAOS_TRIGGER_PICKUP)
+		{
+			for (int player = 0; player < 4; player++)
+			{
+				CTR_TEST_CHECK_EQ(Chaos_OnPickup(&s_humans[player]), player == 0, "same-frame pickups select only the first time-stop recipient");
+			}
+		}
+		else
+		{
+			Tick(50);
+		}
+		for (int player = 0; player < 4; player++)
+		{
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, player == 0, "simultaneously due personal triggers cannot create concurrent time stops");
+		}
+	}
 }
 
 static void TestPersonalInterval(void)
@@ -575,7 +647,8 @@ static void TestPersonalSelectionAndEligibility(void)
 		}
 	}
 	CTR_TEST_CHECK(differentSelections, "common Interval cadence does not copy one selection into every pool");
-	SelectPersonalEffect(CHAOS_EFFECT_ZA_WARUDO);
+	SelectPersonalEffect(CHAOS_EFFECT_ARENA_CHAMPIONS);
+	sdata->chaosRuntime.botCooldownMS = 200000;
 	Tick(100000);
 	for (int player = 0; player < 4; player++)
 	{
@@ -644,6 +717,7 @@ int main(void)
 	TestPoolTimersAndRestore();
 	TestSharedPoolSelection();
 	TestTimeStopAcrossPools();
+	TestPersonalTimeStopContention();
 	TestPersonalInterval();
 	TestPersonalRandom();
 	TestPersonalPickupAndReroll();

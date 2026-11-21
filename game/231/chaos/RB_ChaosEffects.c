@@ -7,7 +7,6 @@
 #include <platform/native_audio.h>
 
 // Effect operations only; RB_Chaos.c checks activation and driver eligibility.
-static bool Chaos_UsesPersonalPools(void);
 static int Chaos_PlayerPoolCount(void);
 
 enum
@@ -63,18 +62,6 @@ bool Chaos_IsHumanThread(const struct Thread *thread)
 	}
 	const struct Driver *driver = thread->object;
 	return driver->driverID < GAME_TRACKER->numPlyrCurrGame && (driver->actionsFlagSet & ACTION_BOT) == 0;
-}
-
-bool Chaos_IsHumanCharacter(int character)
-{
-	for (int i = 0; i < GAME_TRACKER->numPlyrCurrGame; i++)
-	{
-		if (GAME_CHARACTER_IDS[i] == character)
-		{
-			return true;
-		}
-	}
-	return false;
 }
 
 static u8 *Chaos_AllocatePoolOwners(const struct JitPool *pool)
@@ -597,19 +584,98 @@ bool Chaos_ShouldFreezeParticle(const struct Particle *particle)
 	return true;
 }
 
-bool Chaos_SetHumanAudio(bool human)
+enum ChaosAudioOwner Chaos_SetAudioOwner(enum ChaosAudioOwner owner)
 {
-	const bool previous = sdata->chaosRuntime.humanAudioContext;
-	sdata->chaosRuntime.humanAudioContext = human;
+	const enum ChaosAudioOwner previous = sdata->chaosRuntime.audioOwner;
+	sdata->chaosRuntime.audioOwner = owner;
 	return previous;
+}
+
+enum ChaosAudioOwner Chaos_SetThreadAudio(const struct Thread *thread)
+{
+	const int player = Chaos_ThreadPlayer(thread);
+	return Chaos_SetAudioOwner(player >= 0 ? CHAOS_AUDIO_PLAYER_1 + player :
+	    Chaos_IsHumanOwnedThread(thread) ? CHAOS_AUDIO_HUMAN : CHAOS_AUDIO_WORLD);
+}
+
+static bool Chaos_ShouldFreezeAudioOwner(enum ChaosAudioOwner owner)
+{
+	if (owner == CHAOS_AUDIO_WORLD)
+	{
+		return true;
+	}
+	return owner != CHAOS_AUDIO_UI && Chaos_UsesPersonalPools() &&
+	    !Chaos_PlayerHasTimeStop((int)owner - CHAOS_AUDIO_PLAYER_1);
+}
+
+static enum ChaosAudioOwner Chaos_DriverAudioOwner(const struct Driver *driver)
+{
+	const bool human = driver != NULL && driver->driverID < GAME_TRACKER->numPlyrCurrGame && (driver->actionsFlagSet & ACTION_BOT) == 0;
+	return human ? CHAOS_AUDIO_PLAYER_1 + driver->driverID : CHAOS_AUDIO_WORLD;
+}
+
+enum ChaosAudioOwner Chaos_SetDriverAudio(const struct Driver *driver)
+{
+	return Chaos_SetAudioOwner(Chaos_DriverAudioOwner(driver));
+}
+
+static int Chaos_VoicelineIndex(const struct VoicelineItem *voice)
+{
+	const uintptr_t offset = (uintptr_t)voice - (uintptr_t)sdata->voicelinePool;
+	return offset < sizeof(sdata->voicelinePool) && offset % sizeof(*voice) == 0 ? (int)(offset / sizeof(*voice)) : -1;
+}
+
+void Chaos_TagVoiceline(const struct VoicelineItem *voice)
+{
+	const int index = Chaos_VoicelineIndex(voice);
+	if (index >= 0)
+	{
+		sdata->chaosVoicelines[index] = sdata->chaosRuntime.audioOwner;
+	}
+}
+
+static enum ChaosAudioOwner Chaos_VoicelineAudio(const struct VoicelineItem *voice)
+{
+	const int index = Chaos_VoicelineIndex(voice);
+	return index >= 0 ? sdata->chaosVoicelines[index] : CHAOS_AUDIO_WORLD;
+}
+
+bool Chaos_ShouldFreezeVoiceline(const struct VoicelineItem *voice)
+{
+	return Chaos_IsTimeStopped() && Chaos_ShouldFreezeAudioOwner(Chaos_VoicelineAudio(voice));
+}
+
+void Chaos_SetVoicelineXA(const struct VoicelineItem *voice)
+{
+	sdata->chaosRuntime.xaOwner = Chaos_VoicelineAudio(voice);
+}
+
+void Chaos_SetDriverXA(const struct Driver *driver)
+{
+	sdata->chaosRuntime.xaOwner = Chaos_DriverAudioOwner(driver);
 }
 
 void Chaos_TagAudioChannel(struct ChannelStats *channel)
 {
-	channel->flags &= ~HOWL_CHANNEL_HUMAN_AUDIO;
-	if (sdata->chaosRuntime.humanAudioContext)
+	if (channel->channelID < len(sdata->chaosAudioChannels))
 	{
-		channel->flags |= HOWL_CHANNEL_HUMAN_AUDIO;
+		sdata->chaosAudioChannels[channel->channelID] = sdata->chaosRuntime.audioOwner;
+	}
+}
+
+void Chaos_BackupAudioChannel(const struct ChannelStats *channel, int index)
+{
+	if (index >= 0 && index < (int)len(sdata->chaosPausedAudioChannels) && channel->channelID < len(sdata->chaosAudioChannels))
+	{
+		sdata->chaosPausedAudioChannels[index] = sdata->chaosAudioChannels[channel->channelID];
+	}
+}
+
+void Chaos_RestoreAudioChannel(const struct ChannelStats *channel, int index)
+{
+	if (index >= 0 && index < (int)len(sdata->chaosPausedAudioChannels) && channel->channelID < len(sdata->chaosAudioChannels))
+	{
+		sdata->chaosAudioChannels[channel->channelID] = sdata->chaosPausedAudioChannels[index];
 	}
 }
 
@@ -653,12 +719,13 @@ bool Chaos_ShouldFreezeAudioChannel(const struct ChannelStats *channel)
 			    channel->soundID == EngineClass_AudioClass(Chaos_EngineClassForDriver(driver, GAME_CHARACTER_METADATA[GAME_CHARACTER_IDS[i]].engineID)) *
 			        CHAOS_ENGINE_AUDIO_CLASS_STRIDE + i)
 			{
-				return false;
+				return Chaos_UsesPersonalPools() && !Chaos_PlayerHasTimeStop(i);
 			}
 		}
 		return true;
 	}
-	return (channel->flags & HOWL_CHANNEL_HUMAN_AUDIO) == 0;
+	return channel->channelID >= len(sdata->chaosAudioChannels) ||
+	    Chaos_ShouldFreezeAudioOwner(sdata->chaosAudioChannels[channel->channelID]);
 }
 
 void Chaos_UpdateTimeStopAudio(void)
@@ -672,14 +739,14 @@ void Chaos_UpdateTimeStopAudio(void)
 			paused |= 1u << channel->channelID;
 		}
 	}
-	NativeAudio_SetPausedVoices(paused, Chaos_IsTimeStopped() && !sdata->chaosRuntime.humanXA);
+	NativeAudio_SetPausedVoices(paused, Chaos_IsTimeStopped() && Chaos_ShouldFreezeAudioOwner(sdata->chaosRuntime.xaOwner));
 }
 
 static void Chaos_PlayTimeEffectSound(int sound)
 {
-	const bool previous = Chaos_SetHumanAudio(true);
+	const enum ChaosAudioOwner previous = Chaos_SetAudioOwner(CHAOS_AUDIO_UI);
 	OtherFX_Play(sound, 1);
-	Chaos_SetHumanAudio(previous);
+	Chaos_SetAudioOwner(previous);
 }
 
 static void Chaos_TickTimeEffectSound(const struct ChaosActivation *entry, s32 elapsedMS)
@@ -739,6 +806,10 @@ bool Chaos_PlayWrongWayVoice(void)
 	for (int i = 0; i < gGT->numPlyrCurrGame; i++)
 	{
 		struct Driver *driver = gGT->drivers[i];
+		if (Chaos_IsTimeStopped() && Chaos_UsesPersonalPools() && !Chaos_PlayerHasTimeStop(i))
+		{
+			continue;
+		}
 		if (Chaos_OverridesWrongWayWarning(driver) && (driver->actionsFlagSet & ACTION_DRIVING_WRONG_WAY) == 0)
 		{
 			Chaos_PlaySenileVoice(driver);

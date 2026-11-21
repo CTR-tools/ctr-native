@@ -23,7 +23,7 @@ static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *drive
 	       ChaosEffect_AppliesToDriver(def->scope, driver->driverID, sdata->gGT->numPlyrCurrGame);
 }
 
-static bool Chaos_UsesPersonalPools(void)
+bool Chaos_UsesPersonalPools(void)
 {
 	return sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER &&
 	       (sdata->gGT->gameMode1 & ADVENTURE_MODE) == 0;
@@ -623,11 +623,6 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 	const bool personal = Chaos_UsesPersonalPools();
 	if (personal && (!Chaos_PlayerCanReceive(player) || Chaos_IsTimeStopped() ||
 	    (ChaosEffect_Def(effect)->scope == CHAOS_SCOPE_BOTS && Chaos_BotEffectBlocked(effect))))
-	{
-		return false;
-	}
-	// Personal time-stop immunity is adapted in the next special-effect step.
-	if (personal && effect == CHAOS_EFFECT_ZA_WARUDO)
 	{
 		return false;
 	}

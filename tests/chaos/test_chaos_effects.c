@@ -1849,11 +1849,8 @@ static void TestTimeStopPotionContacts(void)
 static void SeedPersonalTimeStop(struct BodySwapWorld *world, int humans, int owner)
 {
 	SetupPersonalBodySwap(world, humans, 1);
-	// Exercise immunity before enabling personal activation: audio is adapted next.
-	sdata->chaosRuntime.players[owner].active[0] = (struct ChaosActivation){
-		.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 1000,
-	};
-	sdata->chaosRuntime.players[owner].numActive = 1;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, owner), "personal time stop activates through the production entry point");
 }
 
 static void SetupParticleOwnerPool(struct Particle *particles, int count)
@@ -1938,8 +1935,8 @@ static void TestPersonalTimeStopOwnership(void)
 	CTR_TEST_SECTION("personal immunity follows the controller through Body Swap");
 	SetupPersonalBodySwap(&world, 2, 0);
 	Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 5000, 0);
-	sdata->chaosRuntime.players[1].active[0] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 1000};
-	sdata->chaosRuntime.players[1].numActive = 1;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, 1), "the recipient can stop time while borrowing a different kart");
 	CTR_TEST_CHECK(!Chaos_ShouldFreezeThread(&world.threads[0]) && Chaos_ShouldFreezeThread(&world.threads[1]), "the recipient's borrowed kart is immune, not their original physical body");
 	Chaos_Reset();
 }
@@ -2066,6 +2063,132 @@ static void TestParticleOwnerTable(void)
 	s_tracker.JitPools.particle = (struct JitPool){0};
 	Chaos_InitParticleOwners();
 	CTR_TEST_CHECK(sdata->chaosParticleOwners == NULL, "an empty pool releases the resident reference to its old owner table");
+}
+
+static void TestPersonalTimeStopAudio(void)
+{
+	CTR_TEST_SECTION("personal time-stop audio follows controllers before, during and after activation");
+	struct BodySwapWorld world;
+	for (int humans = 1; humans <= CHAOS_MAX_HUMAN_PLAYERS; humans++)
+	{
+		for (int owner = 0; owner < humans; owner++)
+		{
+			SeedPersonalTimeStop(&world, humans, owner);
+			sdata->chaosRuntime.players[owner].numActive = 0;
+			struct ChannelStats channels[CHAOS_MAX_HUMAN_PLAYERS + 1] = {0};
+			Voiceline_PoolClear();
+			for (int slot = 0; slot <= humans; slot++)
+			{
+				struct ChannelStats *channel = &channels[slot];
+				channel->channelID = slot + 1;
+				channel->type = HOWL_CHANNEL_TYPE_OTHER_FX;
+				channel->soundID = HOWL_SFX_TNT_EXPLOSION;
+				// Identical characters must not merge ownership of pending voices.
+				data.characterIDs[slot] = 0;
+				const enum ChaosAudioOwner previous = Chaos_SetThreadAudio(&world.threads[slot]);
+				Chaos_TagAudioChannel(channel);
+				struct VoicelineItem *voice = &sdata->voicelinePool[slot];
+				voice->characterID = 0;
+				Chaos_TagVoiceline(voice);
+				const enum ChaosAudioOwner preview = Chaos_SetAudioOwner(CHAOS_AUDIO_UI);
+				CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_UI, "menu previews do not inherit one controller's ownership");
+				Chaos_SetAudioOwner(preview);
+				const enum ChaosAudioOwner expectedOwner = slot < humans ? CHAOS_AUDIO_PLAYER_1 + slot : CHAOS_AUDIO_WORLD;
+				CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, expectedOwner, "nested preview restoration restores the exact requesting controller or world context");
+				Chaos_SetAudioOwner(previous);
+				CTR_TEST_CHECK(!Chaos_ShouldFreezeAudioChannel(channel), "pre-existing audio plays normally before time stop");
+			}
+			CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, owner), "time stop filters channels that were created before its actual activation");
+			for (int slot = 0; slot <= humans; slot++)
+			{
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeAudioChannel(&channels[slot]), slot != owner, "sounds created before activation exempt only the receiving controller");
+				struct ChannelStats engine = {.type = HOWL_CHANNEL_TYPE_ENGINE_FX,
+				    .soundID = EngineClass_AudioClass(Chaos_EngineClassForDriver(&world.drivers[slot], GAME_CHARACTER_METADATA[0].engineID)) * CHAOS_ENGINE_AUDIO_CLASS_STRIDE + slot};
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeAudioChannel(&engine), slot != owner, "engine ownership follows the receiving controller rather than character identity");
+				struct VoicelineItem *voice = &sdata->voicelinePool[slot];
+				CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeVoiceline(voice), slot != owner, "queued duplicate-character voices retain the requesting controller");
+				Chaos_SetVoicelineXA(voice);
+				Chaos_UpdateTimeStopAudio();
+				CTR_TEST_CHECK_EQ(s_pausedXA, slot != owner, "an already-playing XA clip freezes unless it belongs to the recipient");
+				Chaos_SetDriverXA(&world.drivers[slot]);
+				Chaos_UpdateTimeStopAudio();
+				CTR_TEST_CHECK_EQ(s_pausedXA, slot != owner, "mask warnings use the actual driver instead of collective human immunity");
+			}
+			Chaos_BackupAudioChannel(&channels[owner], 0);
+			struct ChannelStats restored = channels[owner];
+			restored.channelID = 10;
+			Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
+			Chaos_TagAudioChannel(&restored);
+			Chaos_RestoreAudioChannel(&restored, 0);
+			CTR_TEST_CHECK(!Chaos_ShouldFreezeAudioChannel(&restored), "pause restoration preserves ownership when the backend assigns a different channel ID");
+			Chaos_TagAudioChannel(&channels[owner]);
+			CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&channels[owner]), "channel reuse clears a former recipient's immunity");
+			Chaos_SetAudioOwner(CHAOS_AUDIO_UI);
+			Chaos_TagAudioChannel(&restored);
+			Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
+			CTR_TEST_CHECK(!Chaos_ShouldFreezeAudioChannel(&restored), "unattributed UI and time-effect cues remain audible in personal mode");
+			const u8 flags = restored.flags;
+			Chaos_SetAudioOwner(CHAOS_AUDIO_HUMAN);
+			Chaos_TagAudioChannel(&restored);
+			Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
+			CTR_TEST_CHECK_EQ(restored.flags, flags, "Chaos audio ownership never changes generic channel flags");
+			CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&restored), "a collective-human owner without a controller cannot grant personal immunity");
+			s_tracker.gameMode1 |= PAUSE_1;
+			CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&channels[owner]), "opening pause does not release frozen world audio");
+			s_tracker.gameMode1 &= ~PAUSE_1;
+			Tick(1000);
+			Chaos_UpdateTimeStopAudio();
+			CTR_TEST_CHECK(!Chaos_IsTimeStopped() && !s_pausedXA && s_pausedVoices == 0, "expiry releases world channels and XA together");
+		}
+	}
+}
+
+static void TestPersonalQueuedVoices(void)
+{
+	CTR_TEST_SECTION("queued XA retains its requesting controller and skips frozen voices without consuming them");
+	struct BodySwapWorld world;
+	SeedPersonalTimeStop(&world, 2, 1);
+	Voiceline_PoolClear();
+	sdata->boolCanPlayVoicelines = true;
+	s_tracker.frameTimer_MainFrame_ResetDB = 100;
+	data.characterIDs[0] = data.characterIDs[1] = 0;
+	data.voiceID[0] = data.voiceID[1] = 2;
+	s16 clip = 7;
+	data.voiceData[0].voiceSet[2].num = 1;
+	data.voiceData[0].voiceSet[2].ptr = &clip;
+	// The triggering thread and speaking driver need not be the same kart.
+	enum ChaosAudioOwner previous = Chaos_SetThreadAudio(&world.threads[0]);
+	Voiceline_RequestPlayOwned(0, 0, 0, &world.drivers[1]);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_PLAYER_1, "requesting another driver's voice restores the enclosing thread's context");
+	Chaos_SetAudioOwner(previous);
+	previous = Chaos_SetThreadAudio(&world.threads[1]);
+	Voiceline_RequestPlayOwned(1, 0, 0, &world.drivers[0]);
+	Chaos_SetAudioOwner(previous);
+	struct Item *frozen = sdata->Voiceline2.first;
+	CTR_TEST_CHECK(frozen != NULL && frozen->next != NULL, "two different requests for the same character retain separate queue entries");
+	Voiceline_Update();
+	CTR_TEST_CHECK(sdata->Voiceline2.first == frozen && frozen->next == NULL, "the immune voice behind a frozen head plays without consuming or reordering the frozen request");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.xaOwner, CHAOS_AUDIO_PLAYER_2, "the actual XA playback path restores the queued controller instead of guessing from duplicate characters");
+	Chaos_UpdateTimeStopAudio();
+	CTR_TEST_CHECK(!s_pausedXA, "the selected recipient's queued XA remains audible");
+	sdata->voicelineCooldown = 0;
+	Voiceline_Update();
+	CTR_TEST_CHECK(sdata->Voiceline2.first == frozen, "a frozen-only queue remains pending throughout time stop");
+	Tick(1000);
+	Voiceline_Update();
+	CTR_TEST_CHECK(sdata->Voiceline2.first == NULL && sdata->chaosRuntime.xaOwner == CHAOS_AUDIO_PLAYER_1, "the other controller's queued request resumes after time stop expires");
+	data.voiceData[0].voiceSet[2].ptr = NULL;
+	data.voiceData[0].voiceSet[2].num = 0;
+
+	CTR_TEST_SECTION("personal false-mask warnings do not let frozen controllers occupy the XA channel");
+	SetupPersonalBodySwap(&world, 2, 0);
+	sdata->chaosSettings.effects[CHAOS_EFFECT_SENILE_MASK] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+	Chaos_ActivateForPlayer(CHAOS_EFFECT_SENILE_MASK, 5000, 0);
+	Chaos_ActivateForPlayer(CHAOS_EFFECT_SENILE_MASK, 5000, 1);
+	Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, 1);
+	CTR_TEST_CHECK(Chaos_PlayWrongWayVoice() && s_voiceDriver == &world.drivers[1], "the first frozen Senile Mask owner cannot prevent the immune owner's warning");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.xaOwner, CHAOS_AUDIO_PLAYER_2, "the selected mask warning retains the immune controller for mixer filtering");
 }
 
 static void TestPersonalTimeStopContacts(void)
@@ -2373,10 +2496,10 @@ static void TestTimeStop(void)
 	CTR_TEST_SECTION("audio ownership pauses world and music channels and survives channel reuse");
 	struct ChannelStats world = {.channelID = 3, .type = HOWL_CHANNEL_TYPE_OTHER_FX, .soundID = HOWL_SFX_TNT_EXPLOSION};
 	struct ChannelStats music = {.channelID = 4, .type = HOWL_CHANNEL_TYPE_MUSIC};
-	Chaos_SetHumanAudio(true);
+	Chaos_SetAudioOwner(CHAOS_AUDIO_HUMAN);
 	Chaos_TagAudioChannel(&world);
 	CTR_TEST_CHECK(!Chaos_ShouldFreezeAudioChannel(&world), "human sounds stay audible");
-	Chaos_SetHumanAudio(false);
+	Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
 	Chaos_TagAudioChannel(&world);
 	CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&world), "reusing a human channel for a world sound removes the old exemption");
 	const int menuSounds[] = {MENU_SFX_MOVE, MENU_SFX_BACK, MENU_SFX_CONFIRM, MENU_SFX_LOCKED};
@@ -2401,9 +2524,9 @@ static void TestTimeStop(void)
 		menu.type = HOWL_CHANNEL_TYPE_MUSIC;
 		CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&menu), "music sharing a menu sound number still freezes");
 	}
-	Chaos_SetHumanAudio(true);
+	Chaos_SetAudioOwner(CHAOS_AUDIO_HUMAN);
 	Chaos_TagAudioChannel(&music);
-	Chaos_SetHumanAudio(false);
+	Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
 	CTR_TEST_CHECK(Chaos_ShouldFreezeAudioChannel(&music), "music cannot inherit a human channel exemption");
 	CTR_TEST_SECTION("audio slider previews continue while race music remains frozen");
 	sdata->OptionSlider_BoolPlay = true;
@@ -2428,7 +2551,7 @@ static void TestTimeStop(void)
 	sdata->channelTaken.first = &world.link.item;
 	Chaos_UpdateTimeStopAudio();
 	CTR_TEST_CHECK(s_pausedVoices == (1u << 3) && s_pausedXA, "the backend receives the frozen voices and XA pause state");
-	sdata->chaosRuntime.humanXA = true;
+	sdata->chaosRuntime.xaOwner = CHAOS_AUDIO_HUMAN;
 	Chaos_UpdateTimeStopAudio();
 	CTR_TEST_CHECK(!s_pausedXA, "human XA voices remain audible");
 	s_tracker.gameMode1 |= END_OF_RACE;
@@ -4677,6 +4800,8 @@ int main(void)
 	TestTimeStop();
 	TestPersonalTimeStopOwnership();
 	TestThreadOwnerTable();
+	TestPersonalTimeStopAudio();
+	TestPersonalQueuedVoices();
 	TestParticleOwnerTable();
 	TestPersonalTimeStopContacts();
 	TestTimeStopPotionContacts();

@@ -657,7 +657,7 @@ int OtherFX_Play(u32 soundID, int flags)
 	}
 	if (soundID == 0x3c)
 	{
-		CTR_TEST_CHECK(sdata->chaosRuntime.humanAudioContext, "the time-stop cue remains audible while world sounds pause");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_UI, "the time-stop cue remains audible while world sounds pause");
 		s_timeStopCrateSounds++;
 		return 0;
 	}
@@ -692,7 +692,7 @@ int OtherFX_Play_LowLevel(u32 soundID, u8 antiSpam, u32 flags)
 {
 	if (soundID == 0x40)
 	{
-		CTR_TEST_CHECK(sdata->chaosRuntime.humanAudioContext, "time-stop ticks remain audible while world audio is suspended");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_UI, "time-stop ticks remain audible while world audio is suspended");
 		if (s_timeStopTickSounds == 0)
 		{
 			LIST_AddBack(&sdata->channelTaken, &s_timeStopTickChannel.link.item);
