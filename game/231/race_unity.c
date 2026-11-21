@@ -9,6 +9,7 @@
 #include "chaos/RB_ChaosControls.c"
 #include "chaos/RB_ChaosRestart.c"
 #include "chaos/RB_ChaosEffects.c"
+#include "chaos/RB_ChaosIdentity.c"
 #include "chaos/RB_ChaosReposition.c"
 #include "chaos/RB_Chaos.c"
 #include "RB_Instance.c"
