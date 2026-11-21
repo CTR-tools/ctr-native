@@ -932,7 +932,7 @@ static inline void EnableInputEffects(void)
 	sdata->chaosSettings.enabledCount = 2;
 }
 
-static void DrawNotice(void)
+static inline void DrawNotice(void)
 {
 	s_noticeDraws = 0;
 	UI_Chaos_DrawActivation(&s_tracker);
