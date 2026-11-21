@@ -289,11 +289,11 @@ static void TestMyPlanetNeedsMe(void)
 	Chaos_Activate(CHAOS_EFFECT_FAIR_MODE, 5000);
 	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_MY_PLANET_NEEDS_ME, 1000), "launch still works at full timed capacity");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, CHAOS_MAX_ACTIVATIONS, "launch preserves unrelated timed effects");
-	CTR_TEST_CHECK_EQ(s_launchVelocity[0].y, 27576, "Low Gravity does not change the launch impulse");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 250, "Low Gravity continues to govern the flight");
+	CTR_TEST_CHECK(s_launchVelocity[0].y > 27576 && s_launchVelocity[0].y < 33090, "Sunday Driver increases the launch impulse within the speed limit");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 200, "Low Gravity combines with Sunday Driver during flight");
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 5000);
 	Chaos_Activate(CHAOS_EFFECT_MY_PLANET_NEEDS_ME, 1000);
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3000, "Heavy Karts also remains effective after launch");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1600, "Heavy Metal combines with Sunday Driver after launch");
 	human.actionsFlagSet |= ACTION_RACE_FINISHED;
 	const int launches = s_launchConversions[0];
 	Chaos_Activate(CHAOS_EFFECT_MY_PLANET_NEEDS_ME, 1000);
@@ -3717,7 +3717,7 @@ static void TestGiantKarts(void)
 	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 1000);
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&human, 10000), 9100, "Sunday Driver scales the giant's 130-percent forward target to 70 percent");
 	CTR_TEST_CHECK_EQ(bot.kartScale, 0, "bot keeps the retail scale");
-	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1300, "normal, forced and spring jumps gain 30 percent impulse");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1560, "giant and Sunday Driver jump bonuses multiply");
 	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&bot, 1000), 1000, "bots retain normal jump force");
 	struct Thread botThread = {0};
 	struct Instance botInst = {.thread = &botThread};
@@ -3807,7 +3807,7 @@ static void TestSmallKartEnergy(void)
 	CTR_TEST_CHECK_EQ(humanInst.scale.x, 0xccc, "activation preserves the existing scale interpolation");
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&human, 10000), 7000, "forward speed targets fall to seventy percent");
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&human, -2000), -2000, "reverse speed follows the existing size-effect convention");
-	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 4596), 3217, "jump force falls to seventy percent without altering constants");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 4596), 4596, "small karts retain normal jump force");
 	CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&bot, 10000), 10000, "bots keep normal speed targets");
 	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&bot, 4596), 4596, "bots keep normal jump force");
 	CTR_TEST_CHECK(!VehPhysCrash_TrySquashSmallerKart(&human, &partner), "equally small humans do not squash each other");

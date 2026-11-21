@@ -31,23 +31,24 @@ static void TestGravityEffects(void)
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "final expiry immediately uses the current baseline rather than a stale snapshot");
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 3000);
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 3000);
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3600, "reactivating Heavy Karts does not compound gravity");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 2400, "reactivating Heavy Karts does not compound gravity");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 800), 1120, "Heavy Metal raises jump force to 140 percent");
 	CTR_TEST_CHECK_EQ(human.const_JumpForce, 800, "Heavy Karts changes gravity without disabling the jump impulse");
 	human.const_Gravity = 32767;
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 98301, "effective gravity remains a full integer rather than overflowing the stored halfword");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 65534, "effective gravity remains a full integer rather than overflowing the stored halfword");
 	human.const_Gravity = 1200;
 	const struct ChaosRuntime saved = sdata->chaosRuntime;
 	s_tracker.gameMode1 |= PAUSE_1;
 	Tick(5000);
 	CTR_TEST_CHECK(memcmp(&saved, &sdata->chaosRuntime, sizeof(saved)) == 0, "pause freezes gravity effect lifetimes");
 	s_tracker.gameMode1 &= ~PAUSE_1;
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3600, "unpausing retains the gravity modifier");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 2400, "unpausing retains the gravity modifier");
 	human.actionsFlagSet = ACTION_RACE_FINISHED;
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "finished humans immediately use normal gravity");
 	human.actionsFlagSet = 0;
 	Tick(3000);
 	sdata->chaosRuntime = saved;
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3600, "resident restoration needs no separate baseline repair");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 2400, "resident restoration needs no separate baseline repair");
 	Chaos_Reset();
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "reset leaves no modified driver constants behind");
 
@@ -60,15 +61,15 @@ static void TestGravityEffects(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 2, "Heavy Karts replaces Low Gravity but preserves unrelated effects");
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_FLY_ME_TO_THE_MOON), "replaced Low Gravity entries are permanently deactivated");
 	CTR_TEST_CHECK(Chaos_IsActive(CHAOS_EFFECT_GROUNDED), "gravity replacement leaves No Hopping active");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 3600, "the latest gravity effect takes effect immediately");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1680, "Grounded multiplies Heavy Metal gravity by 70 percent");
 	Tick(1000);
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "expiry of Heavy Karts cannot revive replaced Low Gravity");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 840, "expiry of Heavy Metal leaves Grounded gravity active");
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 3000);
 	Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000);
 	CTR_TEST_CHECK(!Chaos_IsActive(CHAOS_EFFECT_HEAVY_METAL), "Low Gravity also permanently deactivates Heavy Karts");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 300, "Low Gravity can replace Heavy Karts without multiplying modified values");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 210, "Low Gravity replaces Heavy Metal and combines with Grounded");
 	Tick(1000);
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "expiry of Low Gravity cannot revive replaced Heavy Karts");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 840, "expiry of Low Gravity leaves Grounded gravity active");
 	Chaos_Reset();
 	Chaos_BeginRace(&s_tracker);
 	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 1000);
@@ -77,6 +78,34 @@ static void TestGravityEffects(void)
 	CTR_TEST_CHECK_EQ(human.jump_TenBuffer, 10, "Heavy Karts retains the retail hop buffer");
 	s_tracker.gameMode1 |= ADVENTURE_ARENA;
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1200, "Adventure hubs cannot receive gravity modifiers");
+}
+
+static void TestJumpRebalance(void)
+{
+	CTR_TEST_SECTION("jump and gravity modifiers combine without changing stored constants");
+	SetupRace(CHAOS_TRIGGER_EXTERNAL);
+	sdata->chaosSettings.effects[CHAOS_EFFECT_SUNDAY_DRIVER] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_GROUNDED] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_HEAVY_METAL] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_SMALL_KART_ENERGY] = true;
+	sdata->chaosSettings.enabledCount += 4;
+	struct Driver human = {.driverID = 0, .const_Gravity = 1000, .const_JumpForce = 1000};
+	struct Driver bot = {.driverID = 2, .actionsFlagSet = ACTION_BOT, .const_Gravity = 1000};
+	Chaos_Activate(CHAOS_EFFECT_SUNDAY_DRIVER, 5000);
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 800, "Sunday Driver reduces gravity to 80 percent");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1200, "Sunday Driver raises jump force to 120 percent");
+	Chaos_Activate(CHAOS_EFFECT_GROUNDED, 5000);
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 560, "Grounded and Sunday Driver multiply gravity");
+	Chaos_Activate(CHAOS_EFFECT_HEAVY_METAL, 5000);
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&human), 1120, "Heavy Metal combines with both gravity reductions");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1680, "Heavy Metal and Sunday Driver multiply jump force");
+	Chaos_Activate(CHAOS_EFFECT_SMALL_KART_ENERGY, 5000);
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1680, "Small Kart Energy does not reduce jump force");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&bot), 1000, "combined effects do not change bot gravity");
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&bot, 1000), 1000, "combined effects do not change bot jump force");
+	CTR_TEST_CHECK(human.const_Gravity == 1000 && human.const_JumpForce == 1000, "modifiers leave driver constants intact");
+	Chaos_Reset();
+	CTR_TEST_CHECK_EQ(Chaos_JumpForceForDriver(&human, 1000), 1000, "reset restores normal jump force");
 }
 
 static void TestSpeedEffects(void)
@@ -188,6 +217,7 @@ static void TestSpeedEffects(void)
 int main(void)
 {
 	TestGravityEffects();
+	TestJumpRebalance();
 	TestSpeedEffects();
 	return CtrTest_Summary();
 }

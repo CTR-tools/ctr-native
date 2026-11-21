@@ -354,10 +354,10 @@ guarantee teardown.
 | Effect                     | Hook and constraints                                                                                                                                                                    |
 |----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Mirror, Mirror | Mirror the resolved axis around the calibrated center. |
-| Grounded | Clear resolved manual hop latch/buffer after input resolution; preserve drift, forced jumps and cloud ownership. |
+| Grounded | Clear resolved manual hop latch/buffer after input resolution and reduce gravity to 70%; preserve drift, forced jumps and cloud ownership. |
 | Totally Sober | Two-second sine wave at 75% of controller range, clamped; phase uses captured activation elapsed time. |
-| Fly Me to the Moon / Heavy Metal | Derive gravity from the live constant at 1/4 or 3× before terrain multipliers; preserve jump impulse and terminal velocity. |
-| Sunday Driver / Gotta Go Fast | Scale the resolved forward target to 70% without a class-based cap / double forward target and positive acceleration. Preserve reverse and the retail `0x6400` target limit. |
+| Fly Me to the Moon / Heavy Metal | Derive gravity from the live constant at 1/4 or 2× before terrain multipliers; Heavy Metal raises jump force to 140%. Preserve terminal velocity. |
+| Sunday Driver / Gotta Go Fast | Scale the resolved forward target to 70% without a class-based cap / double forward target and positive acceleration. Sunday Driver also reduces gravity to 80% and raises jump force to 120%. Preserve reverse and the retail `0x6400` target limit. |
 | Hole in the Tank | Clear both fuel timers in the driver-input hook; later retail grants survive until the next application. |
 | Fair Mode | Clear inventory, pending launch and roulette before item processing; deployed effects remain active. |
 | Wumpa Tax | Remove one credited fruit per crossed game second, at most once per frame; preserve pending HUD awards and stop at zero. No pulse at activation or expiry. |
@@ -372,6 +372,7 @@ Scale calculations belong in `VehPhysForce.c`; Chaos sets driver targets. Retail
 interpolation owns body growth/squash/stretch. Giant-vs-smaller collisions use
 retail squish damage with protection, skip normal bounce after a successful
 squash and queue the forced hop; equal scales keep ordinary collision.
+Gravity and jump-force modifiers from concurrently active effects multiply in a fixed order.
 
 `Chaos_GiveRandomItem` owns inventory replacement, uniform selection from an
 explicit list of distinct Race2 items and mask choice. It passes the resolved

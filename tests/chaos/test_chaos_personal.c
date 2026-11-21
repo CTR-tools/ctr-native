@@ -243,14 +243,14 @@ static void TestPersonalConflictsAndRefresh(void)
 	Tick(100);
 	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_HEAVY_METAL, 2000, 1), "one player can replace low gravity with heavy gravity");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[1].numActive, 1, "a personal opposite replaces an entry within its own pool");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 300, "only the recipient receives heavy gravity");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 200, "only the recipient receives heavy gravity");
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[0]), 25, "another recipient retains low gravity");
 	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 3000, 2), "refresh accepts an existing owner's effect");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[2].numActive, 1, "refresh never adds a duplicate entry to its pool");
 	Tick(900);
 	CTR_TEST_CHECK(sdata->chaosRuntime.players[0].numActive == 0 && sdata->chaosRuntime.players[3].numActive == 0,
 	               "unrefreshed owners expire at their own boundary");
-	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 300, "the opposite keeps its own replacement timer");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 200, "the opposite keeps its own replacement timer");
 	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[2]), 25, "the refreshed copy survives the other owners' expiry");
 }
 

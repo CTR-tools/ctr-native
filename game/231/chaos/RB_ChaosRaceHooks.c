@@ -8,11 +8,15 @@ enum
 {
 	CHAOS_PERCENT_SCALE = 100,
 	CHAOS_LOW_GRAVITY_DIVISOR = 4,
-	CHAOS_HEAVY_GRAVITY_MULTIPLIER = 3,
+	CHAOS_HEAVY_GRAVITY_MULTIPLIER = 2,
+	CHAOS_GROUNDED_GRAVITY_PERCENT = 70,
+	CHAOS_SUNDAY_GRAVITY_PERCENT = 80,
+	CHAOS_SUNDAY_JUMP_PERCENT = 120,
+	CHAOS_HEAVY_JUMP_PERCENT = 140,
 	CHAOS_SUNDAY_DRIVER_SPEED_PERCENT = 70,
 	CHAOS_ARENA_CHAMPIONS_SPEED_PERCENT = 175,
 	CHAOS_SUPER_SPEED_MULTIPLIER = 2,
-	CHAOS_SMALL_FORCE_PERCENT = 70,
+	CHAOS_SMALL_SPEED_PERCENT = 70,
 	CHAOS_GIANT_SPEED_PERCENT = 130,
 };
 
@@ -74,14 +78,22 @@ static void Chaos_RequestHop(struct Driver *driver)
 
 int Chaos_GravityForDriver(const struct Driver *driver)
 {
-	const int gravity = driver->const_Gravity;
+	int gravity = driver->const_Gravity;
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, driver))
 	{
-		return Chaos_LowGravity(gravity);
+		gravity = Chaos_LowGravity(gravity);
 	}
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_HEAVY_METAL, driver))
 	{
-		return Chaos_HeavyGravity(gravity);
+		gravity = Chaos_HeavyGravity(gravity);
+	}
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_GROUNDED, driver))
+	{
+		gravity = Chaos_PercentOf(gravity, CHAOS_GROUNDED_GRAVITY_PERCENT);
+	}
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SUNDAY_DRIVER, driver))
+	{
+		gravity = Chaos_PercentOf(gravity, CHAOS_SUNDAY_GRAVITY_PERCENT);
 	}
 	return gravity;
 }
@@ -102,7 +114,7 @@ int Chaos_SpeedForDriver(const struct Driver *driver, int speed)
 	}
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SMALL_KART_ENERGY, driver))
 	{
-		speed = Chaos_PercentOf(speed, CHAOS_SMALL_FORCE_PERCENT);
+		speed = Chaos_PercentOf(speed, CHAOS_SMALL_SPEED_PERCENT);
 	}
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SUNDAY_DRIVER, driver))
 	{
@@ -123,11 +135,15 @@ int Chaos_JumpForceForDriver(const struct Driver *driver, int force)
 {
 	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_BIG_KART_ENERGY, driver))
 	{
-		return Chaos_PercentOf(force, CHAOS_GIANT_SPEED_PERCENT);
+		force = Chaos_PercentOf(force, CHAOS_GIANT_SPEED_PERCENT);
 	}
-	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SMALL_KART_ENERGY, driver))
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_SUNDAY_DRIVER, driver))
 	{
-		return Chaos_PercentOf(force, CHAOS_SMALL_FORCE_PERCENT);
+		force = Chaos_PercentOf(force, CHAOS_SUNDAY_JUMP_PERCENT);
+	}
+	if (Chaos_IsActiveForDriver(CHAOS_EFFECT_HEAVY_METAL, driver))
+	{
+		force = Chaos_PercentOf(force, CHAOS_HEAVY_JUMP_PERCENT);
 	}
 	return force;
 }
