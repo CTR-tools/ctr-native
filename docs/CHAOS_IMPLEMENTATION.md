@@ -224,6 +224,21 @@ trigger clock per controller. Shared and Adventure use only `players[0]` as thei
 common pool; ownership is implicit in the pool index. `distribution` is session-only
 and excluded from Adventure encoding. Setup and pause expose it only for multiplayer
 sessions.
+`disabledPlayers[]` is another session-only boolean array: zero means every player
+participates. The multiplayer Players page edits it, pause displays it read-only,
+and Confirm requires at least one present participant. Solo setup re-enables player 1.
+Adventure ignores stale exclusions; its fixed save entry does not encode them.
+
+Human-scoped activation targets, one-off operations and Pickup sources respect
+the selection in both distributions. Personal Random skips excluded clocks;
+Interval retains the common pool-zero clock even if player 1 is excluded. Shared
+pool zero is never mistaken for player 1's personal eligibility. Bot/world scope
+and time-stop immunity remain unchanged. Body Swap excludes disabled humans from
+both ends of a pair; setup, selection and External publication filter the effect
+when the prospective grid has no eligible partner. Personal HUD still shows
+global effects in excluded viewports. These settings are captured with resident
+SDATA; as with other layout changes, cross-build checkpoint compatibility is not promised.
+
 Personal External is unavailable in navigation and rejected by Confirm/runtime;
 switching from shared External selects Interval without changing its cadence.
 

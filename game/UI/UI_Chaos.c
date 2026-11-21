@@ -197,7 +197,7 @@ static int UI_Chaos_CollectPersonalEntries(int player, int players, const struct
 			const bool global = def->scope == CHAOS_SCOPE_BOTS || entry->effect == CHAOS_EFFECT_ZA_WARUDO;
 			const bool partner = entry->effect == CHAOS_EFFECT_BODY_SWAP &&
 			    sdata->chaosRuntime.bodySwapPartner[owner] == player + 1;
-			if (owner == player || global || partner)
+			if ((Chaos_IsPlayerEnabled(player) && (owner == player || partner)) || global)
 			{
 				entries[count++] = entry;
 			}

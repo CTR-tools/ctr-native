@@ -660,6 +660,7 @@ struct ChaosSettings
 	bool effects[CHAOS_EFFECT_COUNT]; // one entry per effect, in enum order
 	bool armed;
 	u8 distribution;                  // enum ChaosDistribution; session-only, never saved to Adventure
+	bool disabledPlayers[CHAOS_MAX_HUMAN_PLAYERS]; // session-only; zero keeps everyone enabled
 };
 
 enum ChaosSaveConstants

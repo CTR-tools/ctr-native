@@ -15,11 +15,30 @@ enum
 	CHAOS_BOT_EFFECT_COOLDOWN_MS = 60000,
 };
 
+bool Chaos_IsPlayerEnabled(int player)
+{
+	return player >= 0 && player < CHAOS_MAX_HUMAN_PLAYERS &&
+	       ((sdata->gGT->gameMode1 & ADVENTURE_MODE) != 0 || !sdata->chaosSettings.disabledPlayers[player]);
+}
+
+static bool Chaos_HasEnabledPlayer(void)
+{
+	for (int player = 0; player < sdata->gGT->numPlyrCurrGame; player++)
+	{
+		if (Chaos_IsPlayerEnabled(player))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool Chaos_TargetsDriver(ChaosEffectId effect, const struct Driver *driver)
 {
 	const ChaosEffectDef *def = ChaosEffect_Def(effect);
 	return def != NULL && driver != NULL &&
 	       (driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0 &&
+	       (def->scope != CHAOS_SCOPE_HUMANS || Chaos_IsPlayerEnabled(driver->driverID)) &&
 	       ChaosEffect_AppliesToDriver(def->scope, driver->driverID, sdata->gGT->numPlyrCurrGame);
 }
 
@@ -41,7 +60,7 @@ static int Chaos_PlayerPoolCount(void)
 
 static bool Chaos_PlayerCanReceive(int player)
 {
-	if (player < 0 || player >= Chaos_PlayerPoolCount())
+	if (player < 0 || player >= Chaos_PlayerPoolCount() || !Chaos_IsPlayerEnabled(player))
 	{
 		return false;
 	}
@@ -124,8 +143,9 @@ static ChaosEffectId Chaos_PickEventEffect(void)
 	int enabledCount = settings->enabledCount;
 	for (int i = 0; i < CHAOS_EFFECT_COUNT; i++)
 	{
-		if (effects[i] && !ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
-		                                       gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
+		if (effects[i] && !ChaosEvent_EffectFitsSelection((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
+		                                                gGT->numPlyrCurrGame, g_config.extendedMultiplayer,
+		                                                Chaos_UsesPersonalPools(), settings->disabledPlayers))
 		{
 			effects[i] = false;
 			enabledCount--;
@@ -167,6 +187,7 @@ static bool Chaos_CanSwapBody(int slot)
 {
 	const struct Driver *driver = GAME_TRACKER->drivers[slot];
 	return driver != NULL && driver->instSelf != NULL && driver->instSelf->thread != NULL &&
+	       (slot >= GAME_TRACKER->numPlyrCurrGame || Chaos_IsPlayerEnabled(slot)) &&
 	       (driver->actionsFlagSet & ACTION_RACE_FINISHED) == 0;
 }
 
@@ -383,7 +404,7 @@ static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, 
 	for (int i = 0; i < sdata->gGT->numPlyrCurrGame && i < (int) len(sdata->gGT->drivers); i++)
 	{
 		struct Driver *driver = sdata->gGT->drivers[i];
-		if (driver != NULL && (!Chaos_UsesPersonalPools() || driver->driverID == player))
+		if (driver != NULL && Chaos_IsPlayerEnabled(i) && (!Chaos_UsesPersonalPools() || driver->driverID == player))
 		{
 			Chaos_SetKartScale(CHAOS_KART_SCALE_NORMAL, driver);
 		}
@@ -611,9 +632,11 @@ static bool Chaos_ActivateForPlayer(ChaosEffectId effect, s32 durationMS, int pl
 {
 	const struct GameTracker *gGT = sdata->gGT;
 	if (!Chaos_IsRunning(gGT) || durationMS <= 0 || player < 0 || player >= Chaos_PlayerPoolCount() ||
+	    !Chaos_HasEnabledPlayer() ||
 	    !ChaosEffect_IsEnabled(sdata->chaosSettings.effects, effect) ||
-	    !ChaosEvent_EffectFits(effect, gGT->gameMode1, gGT->cup.cupID,
-	                          gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
+	    !ChaosEvent_EffectFitsSelection(effect, gGT->gameMode1, gGT->cup.cupID,
+	                                   gGT->numPlyrCurrGame, g_config.extendedMultiplayer,
+	                                   Chaos_UsesPersonalPools(), sdata->chaosSettings.disabledPlayers))
 	{
 		return false;
 	}
@@ -770,11 +793,12 @@ void Chaos_PublishEffects(void)
 	const struct GameTracker *gGT = sdata->gGT;
 	const bool eligibleRace = gGT != NULL && !gGT->boolDemoMode && !Chaos_UsesPersonalPools() &&
 	    ChaosGate_IsRaceEligible(gGT->gameMode1 & ~(PAUSE_ALL | LOADING),
-	                             gGT->overlayIndex_Threads, true);
+	                             gGT->overlayIndex_Threads, true) && Chaos_HasEnabledPlayer();
 	for (int i = 0; settings->armed && eligibleRace && i < CHAOS_EFFECT_COUNT; i++)
 	{
-		if (settings->effects[i] && ChaosEvent_EffectFits((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
-		                                               gGT->numPlyrCurrGame, g_config.extendedMultiplayer, Chaos_UsesPersonalPools()))
+		if (settings->effects[i] && ChaosEvent_EffectFitsSelection((ChaosEffectId)i, gGT->gameMode1, gGT->cup.cupID,
+		                                                        gGT->numPlyrCurrGame, g_config.extendedMultiplayer,
+		                                                        Chaos_UsesPersonalPools(), settings->disabledPlayers))
 		{
 			const char *slug = ChaosEffect_Def((ChaosEffectId)i)->slug;
 			const size_t length = strlen(slug);
@@ -969,6 +993,7 @@ bool Chaos_OnPickup(struct Driver *driver)
 	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	if (settings->trigger != CHAOS_TRIGGER_PICKUP || !Chaos_IsRunning(sdata->gGT) ||
 	    driver == NULL || (driver->actionsFlagSet & (ACTION_RACE_FINISHED | ACTION_BOT)) != 0 ||
+	    !Chaos_IsPlayerEnabled(driver->driverID) ||
 	    !ChaosEffect_AppliesToDriver(CHAOS_SCOPE_HUMANS, driver->driverID, sdata->gGT->numPlyrCurrGame) ||
 	    settings->durationSeconds == 0)
 	{

@@ -1,7 +1,6 @@
 #include <chaos/chaos_fixture.h>
 
-// Exercise the internal player-pool entry point before personal triggers and
-// multi-driver effects are wired into the menu. The public API remains shared.
+// Exercise the internal player-pool entry point; the public API uses pool zero.
 static struct Driver s_humans[CHAOS_MAX_HUMAN_PLAYERS];
 
 static void SetupPersonalWorld(int mode, int players)
@@ -25,6 +24,129 @@ static void SetupPersonalWorld(int mode, int players)
 		sdata->chaosSettings.effects[effect] = true;
 	}
 	sdata->chaosSettings.enabledCount = CHAOS_EFFECT_COUNT;
+}
+
+static void TestSelectedPlayers(void)
+{
+	CTR_TEST_SECTION("shared and personal effects respect participant exclusions without requiring player one");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | RELIC_RACE, ARCADE_MODE | CRYSTAL_CHALLENGE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 2; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+			{
+				SetupPersonalWorld(modes[mode], players);
+				sdata->chaosSettings.distribution = distribution;
+				const int selected = players - 1;
+				const int owner = distribution == CHAOS_DISTRIBUTION_SHARED ? 0 : selected;
+				for (int player = 0; player < selected; player++)
+				{
+					sdata->chaosSettings.disabledPlayers[player] = true;
+				}
+				CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000, owner), "an enabled recipient can receive gravity even with player one disabled");
+				CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_MIRROR_MIRROR, 1000, owner), "input effects use the same participant selection");
+				CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_RESERVE_INJECTION, 1000, owner), "instant gifts use the same participant selection");
+				for (int player = 0; player < players; player++)
+				{
+					CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[player]), player == selected ? 25 : 100, "only participating controllers receive physics modifiers");
+					struct GamepadBuffer pad = {.stickLX = 100};
+					Chaos_ApplyInputRules(&s_humans[player], &pad);
+					CTR_TEST_CHECK_EQ(pad.stickLX, player == selected ? 156 : 100, "excluded controllers keep their own input unchanged");
+					CTR_TEST_CHECK_EQ(s_humans[player].reserves, player == selected ? CHAOS_INJECTION_RESERVES : 1, "excluded controllers do not receive instant gifts");
+				}
+				const u32 rng = sdata->chaosRng;
+				CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[0]), "an excluded player's pickup never triggers even a shared activation");
+				CTR_TEST_CHECK_EQ(sdata->chaosRng, rng, "excluded pickups do not consume random selections");
+				if (distribution == CHAOS_DISTRIBUTION_PER_PLAYER)
+				{
+					CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, 0), "an excluded player cannot originate a global personal effect");
+					CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[0].numActive, 0, "excluded personal pools remain empty");
+				}
+				Chaos_BeginRace(&s_tracker);
+				CTR_TEST_CHECK(sdata->chaosSettings.disabledPlayers[0], "restarting a race preserves participant rules");
+				sdata->chaosSettings.disabledPlayers[selected] = true;
+				CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, owner), "a setup with no participating players cannot activate global effects");
+			}
+		}
+	}
+	SetupPersonalWorld(ADVENTURE_MODE, 2);
+	sdata->chaosSettings.disabledPlayers[0] = true;
+	sdata->chaosSettings.disabledPlayers[1] = true;
+	CTR_TEST_CHECK(Chaos_Activate(CHAOS_EFFECT_FLY_ME_TO_THE_MOON, 1000), "Adventure ignores stale session-only participant exclusions");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[0]), 25, "Adventure still reaches player one");
+	CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[1]), 25, "Adventure still reaches the co-op player");
+}
+
+static void TestSelectedPlayerTriggers(void)
+{
+	CTR_TEST_SECTION("participant selection gates Pickup and personal clocks but not the shared pool-zero cadence");
+	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+	{
+		for (int trigger = 0; trigger < CHAOS_TRIGGER_COUNT; trigger++)
+		{
+			if (distribution == CHAOS_DISTRIBUTION_PER_PLAYER && trigger == CHAOS_TRIGGER_EXTERNAL)
+			{
+				continue;
+			}
+			SetupPersonalWorld(0, 4);
+			sdata->chaosSettings.distribution = distribution;
+			sdata->chaosSettings.trigger = trigger;
+			memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+			sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
+			sdata->chaosSettings.enabledCount = 1;
+			for (int player = 0; player < 4; player++)
+			{
+				sdata->chaosSettings.disabledPlayers[player] = player != 3;
+				sdata->chaosRuntime.players[player].intervalRemainingMS = 100;
+			}
+			if (trigger == CHAOS_TRIGGER_PICKUP)
+			{
+				CTR_TEST_CHECK(!Chaos_OnPickup(&s_humans[0]), "disabled pickups cannot advance shared or personal scheduling");
+				CTR_TEST_CHECK(Chaos_OnPickup(&s_humans[3]), "an enabled player's pickup can trigger either distribution");
+			}
+			else if (trigger == CHAOS_TRIGGER_EXTERNAL)
+			{
+				CTR_TEST_CHECK(Chaos_ActivateExternalEffect("fly-me-to-the-moon"), "shared External still works with player one excluded");
+			}
+			else
+			{
+				Tick(100);
+			}
+			for (int player = 0; player < 4; player++)
+			{
+				CTR_TEST_CHECK_EQ(Chaos_GravityForDriver(&s_humans[player]), player == 3 ? 25 : 100, "every trigger affects only the selected recipient");
+				if (distribution == CHAOS_DISTRIBUTION_PER_PLAYER && player != 3)
+				{
+					CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].numActive, 0, "no trigger fills an excluded personal pool");
+					if (trigger == CHAOS_TRIGGER_RANDOM)
+					{
+						CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[player].intervalRemainingMS, 100, "Random does not advance an excluded controller's clock");
+					}
+				}
+			}
+		}
+	}
+}
+
+static void TestParticipantCatalogue(void)
+{
+	CTR_TEST_SECTION("External catalogue reflects the participant selection without changing Adventure");
+	SetupPersonalWorld(0, 2);
+	sdata->chaosSettings.distribution = CHAOS_DISTRIBUTION_SHARED;
+	sdata->chaosSettings.disabledPlayers[0] = true;
+	memset(sdata->chaosSettings.effects, 0, sizeof(sdata->chaosSettings.effects));
+	sdata->chaosSettings.effects[CHAOS_EFFECT_FLY_ME_TO_THE_MOON] = true;
+	sdata->chaosSettings.effects[CHAOS_EFFECT_BODY_SWAP] = true;
+	sdata->chaosSettings.enabledCount = 2;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strcmp(s_externalCatalogue, "fly-me-to-the-moon\n") == 0, "Shared publishes human effects with player one excluded but filters Body Swap without a partner");
+	sdata->chaosSettings.disabledPlayers[1] = true;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(s_externalCatalogue[0] == 0, "no participating players produces an empty provider catalogue");
+	s_tracker.gameMode1 = ADVENTURE_MODE;
+	Chaos_PublishEffects();
+	CTR_TEST_CHECK(strstr(s_externalCatalogue, "body-swap\n") != NULL, "Adventure publication ignores stale session exclusions");
 }
 
 static void TestPersonalIsolation(void)
@@ -704,6 +826,9 @@ static void TestBotTriggerContention(void)
 
 int main(void)
 {
+	TestSelectedPlayers();
+	TestSelectedPlayerTriggers();
+	TestParticipantCatalogue();
 	TestPersonalIsolation();
 	TestPersonalConflictsAndRefresh();
 	TestPersonalInputAndOneOff();

@@ -38,6 +38,15 @@ void MM_ChaosSession_FinishSetup(bool confirm)
 
 const char *LANG_GetString(s32 index)
 {
+	static const char *players[] = {"PLAYER 1", "PLAYER 2", "PLAYER 3", "PLAYER 4"};
+	if (index == LNG_PLAYERS)
+	{
+		return "PLAYERS";
+	}
+	if (index >= LNG_PLAYER_1 && index <= LNG_PLAYER_4)
+	{
+		return players[index - LNG_PLAYER_1];
+	}
 	static char values[LNG_EXPANDED_STRING_COUNT][24];
 	if (index < LNG_EXPANDED_STRING_BASE || index >= LNG_EXPANDED_STRING_END)
 	{
@@ -766,6 +775,96 @@ static void TestPersonalDistributionSetup(void)
 	CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, CHAOS_TRIGGER_EXTERNAL, "shared distribution still offers External");
 }
 
+static void TestPlayerSelection(void)
+{
+	CTR_TEST_SECTION("player selection works with both distributions and remains read-only in pause");
+	const int modes[] = {ARCADE_MODE, 0, BATTLE_MODE, ARCADE_MODE | CRYSTAL_CHALLENGE};
+	for (int mode = 0; mode < (int)len(modes); mode++)
+	{
+		for (int players = 2; players <= CHAOS_MAX_HUMAN_PLAYERS; players++)
+		{
+			for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+			{
+				EnterSetup();
+				s_tracker.gameMode1 = modes[mode] | MAIN_MENU;
+				s_tracker.numPlyrNextGame = players;
+				s_tracker.numPlyrCurrGame = 1;
+				sdata->chaosSettings.distribution = distribution;
+				MM_ChaosConfig_OpenSession();
+				SelectSetting(CHAOS_SETTING_PLAYERS);
+				const int playersRow = MM_menuChaosConfig.rowSelected;
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK_EQ(sdata->chaosMenu.page, CHAOS_PAGE_PLAYERS, "Players opens its own submenu");
+				CTR_TEST_CHECK_EQ(s_drawnRows, players, "setup shows exactly the selected next-game players");
+				CTR_TEST_CHECK(s_drawnTitle == LANG_GetString(LNG_PLAYERS), "the submenu uses the localized Players title");
+				const struct ChaosSettings before = sdata->chaosSettings;
+				for (int player = 0; player < players; player++)
+				{
+					CTR_TEST_CHECK(!sdata->chaosSettings.disabledPlayers[player], "every present player starts enabled");
+					CTR_TEST_CHECK(s_drawnLabels[player] == LANG_GetString(LNG_PLAYER_1 + player), "each row identifies the correct player");
+					MM_menuChaosConfig.rowSelected = player;
+					Frame(BTN_CROSS, 0);
+					CTR_TEST_CHECK(sdata->chaosSettings.disabledPlayers[player], "Cross disables only the selected player");
+				}
+				Frame(BTN_TRIANGLE, 0);
+				CTR_TEST_CHECK_EQ(sdata->chaosMenu.page, CHAOS_PAGE_SETTINGS, "Back returns from Players to settings");
+				CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, playersRow, "Back restores the Players action row");
+				SelectSetting(CHAOS_SETTING_CONFIRM);
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK(s_sessionFinishes == 0 && s_confirmColor == GRAY, "Confirm requires at least one participating player");
+				SelectSetting(CHAOS_SETTING_PLAYERS);
+				Frame(BTN_CROSS, 0);
+				MM_menuChaosConfig.rowSelected = players - 1;
+				Frame(BTN_CIRCLE, 0);
+				CTR_TEST_CHECK(!sdata->chaosSettings.disabledPlayers[players - 1], "Circle can re-enable the last player without enabling player one");
+				Frame(BTN_TRIANGLE, 0);
+				CTR_TEST_CHECK(Chaos_CanConfirm(), "one participating player is sufficient in either distribution");
+				CTR_TEST_CHECK_EQ(sdata->chaosSettings.durationSeconds, before.durationSeconds, "player selection does not change duration");
+				CTR_TEST_CHECK_EQ(sdata->chaosSettings.trigger, before.trigger, "player selection does not change the trigger");
+				CTR_TEST_CHECK_EQ(sdata->chaosSettings.distribution, distribution, "player selection does not change distribution");
+				CTR_TEST_CHECK(memcmp(before.effects, sdata->chaosSettings.effects, sizeof(before.effects)) == 0, "player selection preserves the effect catalogue");
+				bool exclusions[CHAOS_MAX_HUMAN_PLAYERS];
+				memcpy(exclusions, sdata->chaosSettings.disabledPlayers, sizeof(exclusions));
+				SelectSetting(CHAOS_SETTING_DISTRIBUTION);
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK(memcmp(exclusions, sdata->chaosSettings.disabledPlayers, sizeof(exclusions)) == 0, "switching distribution preserves the selected participants");
+				if (modes[mode] == BATTLE_MODE || (modes[mode] & CRYSTAL_CHALLENGE) != 0)
+				{
+					CTR_TEST_CHECK(!Chaos_EffectIsAvailable(CHAOS_EFFECT_BODY_SWAP), "one participating human without bots cannot offer Body Swap");
+				}
+
+				s_tracker.gameMode1 = modes[mode] | PAUSE_1;
+				s_tracker.numPlyrCurrGame = players;
+				s_tracker.numPlyrNextGame = 1;
+				struct RectMenu pause = {0};
+				const struct ChaosSettings rules = sdata->chaosSettings;
+				MM_ChaosConfig_OpenReadOnly(&pause);
+				SelectSetting(CHAOS_SETTING_PLAYERS);
+				Frame(BTN_CROSS, 0);
+				CTR_TEST_CHECK_EQ(s_drawnRows, players, "pause lists current players rather than the next session's count");
+				for (int player = 0; player < players; player++)
+				{
+					MM_menuChaosConfig.rowSelected = player;
+					Frame(BTN_CROSS | BTN_CIRCLE, BTN_LEFT);
+				}
+				CTR_TEST_CHECK(memcmp(&rules, &sdata->chaosSettings, sizeof(rules)) == 0, "pause cannot change participant toggles or other rules");
+				Frame(BTN_TRIANGLE, 0);
+				CTR_TEST_CHECK_EQ(MM_menuChaosConfig.rowSelected, sdata->chaosMenu.playersRow, "pause Back returns to Players instead of leaving the rules");
+			}
+		}
+	}
+	EnterSetup();
+	s_tracker.gameMode1 = ARCADE_MODE | MAIN_MENU;
+	s_tracker.numPlyrNextGame = 1;
+	sdata->chaosSettings.disabledPlayers[0] = true;
+	MM_ChaosConfig_OpenSession();
+	CTR_TEST_CHECK(!sdata->chaosSettings.disabledPlayers[0] && Chaos_CanConfirm(), "solo setup re-enables player one after a multiplayer exclusion");
+	for (int row = 0; row < sdata->chaosMenu.numSettings; row++)
+	{
+		CTR_TEST_CHECK(sdata->chaosMenu.visibleSettings[row] != CHAOS_SETTING_PLAYERS, "solo setup omits the unnecessary Players submenu");
+	}
+}
+
 static void TestChaosRaceShortcut(void)
 {
 	CTR_TEST_SECTION("Start tests the highlighted effect only during editable creation");
@@ -838,5 +937,6 @@ int main(void)
 	TestChaosRaceShortcut();
 	TestSessionSetup();
 	TestPersonalDistributionSetup();
+	TestPlayerSelection();
 	return CtrTest_Summary();
 }

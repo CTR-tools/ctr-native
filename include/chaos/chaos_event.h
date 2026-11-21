@@ -24,4 +24,25 @@ static inline bool ChaosEvent_EffectFits(ChaosEffectId effect, int gameMode1, s3
 	return def->scope != CHAOS_SCOPE_BOTS || RaceField_BotCount(gameMode1, cupID, players, extendedMultiplayer) > 0;
 }
 
+static inline bool ChaosEvent_EffectFitsSelection(ChaosEffectId effect, int gameMode1, s32 cupID,
+                                                int players, bool extendedMultiplayer, bool personal,
+                                                const bool *disabledPlayers)
+{
+	if (!ChaosEvent_EffectFits(effect, gameMode1, cupID, players, extendedMultiplayer, personal))
+	{
+		return false;
+	}
+	if (effect != CHAOS_EFFECT_BODY_SWAP || (gameMode1 & ADVENTURE_MODE) != 0)
+	{
+		return true;
+	}
+	int participants = 0;
+	for (int player = 0; player < players && player < CHAOS_MAX_HUMAN_PLAYERS; player++)
+	{
+		participants += !disabledPlayers[player];
+	}
+	return participants >= 2 || (participants == 1 &&
+	       RaceField_BotCount(gameMode1, cupID, players, extendedMultiplayer) > 0);
+}
+
 #endif

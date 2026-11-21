@@ -68,6 +68,11 @@ typedef enum {
 	CHAOS_EFFECT_COUNT,
 } ChaosEffectId;
 
+enum ChaosPlayerConstants
+{
+	CHAOS_MAX_HUMAN_PLAYERS = 4,
+};
+
 // Who an effect touches; driver slots below the player count are human-owned.
 enum ChaosEffectScope
 {

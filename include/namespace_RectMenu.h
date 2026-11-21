@@ -229,6 +229,7 @@ enum ChaosSetting
 	CHAOS_SETTING_TRIGGER,
 	CHAOS_SETTING_INTERVAL,
 	CHAOS_SETTING_DISTRIBUTION,
+	CHAOS_SETTING_PLAYERS,
 	CHAOS_SETTING_EFFECTS,
 	CHAOS_SETTING_CONFIRM,
 	CHAOS_SETTING_COUNT,
@@ -238,6 +239,7 @@ enum ChaosPage
 {
 	CHAOS_PAGE_SETTINGS,
 	CHAOS_PAGE_EFFECTS,
+	CHAOS_PAGE_PLAYERS,
 	CHAOS_PAGE_COUNT,
 };
 
@@ -262,6 +264,7 @@ struct ChaosMenuState
 	enum ChaosSetting visibleSettings[CHAOS_SETTING_COUNT];
 	int numSettings;
 	int effectsRow;
+	int playersRow;
 };
 
 enum

@@ -1007,6 +1007,59 @@ static void SetupPersonalBodySwap(struct BodySwapWorld *world, int humans, int b
 	sdata->chaosSettings.trigger = CHAOS_TRIGGER_PICKUP;
 }
 
+static void TestParticipantSpecialEffects(void)
+{
+	CTR_TEST_SECTION("Body Swap excludes nonparticipants while bot effects and time stop remain global");
+	struct BodySwapWorld world;
+	for (int distribution = 0; distribution < CHAOS_DISTRIBUTION_COUNT; distribution++)
+	{
+		SetupPersonalBodySwap(&world, 4, 0);
+		sdata->chaosSettings.distribution = distribution;
+		sdata->chaosSettings.disabledPlayers[0] = true;
+		sdata->chaosSettings.disabledPlayers[1] = true;
+		const int owner = distribution == CHAOS_DISTRIBUTION_SHARED ? 0 : 2;
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_SMALL_KART_ENERGY, 2000, owner), "size changes activate for participating controllers");
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 1000, owner), "two selected humans can form a pair in either distribution");
+		CTR_TEST_CHECK(s_tracker.drivers[0] == &world.drivers[0] && s_tracker.drivers[1] == &world.drivers[1], "excluded controllers cannot be borrowed as Body Swap partners");
+		CTR_TEST_CHECK(s_tracker.drivers[2] == &world.drivers[3] && s_tracker.drivers[3] == &world.drivers[2], "only the selected pair swaps controller ownership");
+		CTR_TEST_CHECK(world.drivers[0].kartScale == 1.0f && world.drivers[1].kartScale == 1.0f, "excluded karts keep their scale through a swap");
+		CTR_TEST_CHECK(s_tracker.drivers[2]->kartScale == 0.5f, "size follows the selected controller through Body Swap");
+		Tick(2000);
+		for (int player = 0; player < 4; player++)
+		{
+			CTR_TEST_CHECK(s_tracker.drivers[player] == &world.drivers[player] && world.drivers[player].kartScale == 1.0f, "expiry restores selected bodies and scales without moving excluded players");
+		}
+
+		SetupPersonalBodySwap(&world, 2, 0);
+		s_tracker.gameMode1 = BATTLE_MODE;
+		sdata->chaosSettings.distribution = distribution;
+		sdata->chaosSettings.disabledPlayers[0] = true;
+		const int onlyOwner = distribution == CHAOS_DISTRIBUTION_SHARED ? 0 : 1;
+		CTR_TEST_CHECK(!Chaos_ActivateForPlayer(CHAOS_EFFECT_BODY_SWAP, 1000, onlyOwner), "Body Swap cannot use an excluded human when no bots or selected partners exist");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.players[onlyOwner].numActive, 0, "a missing eligible partner does not consume a timed slot");
+
+		SetupPersonalBodySwap(&world, 4, 1);
+		sdata->chaosSettings.distribution = distribution;
+		sdata->chaosSettings.disabledPlayers[0] = true;
+		sdata->chaosSettings.disabledPlayers[1] = true;
+		sdata->chaosSettings.disabledPlayers[3] = true;
+		sdata->chaosSettings.effects[CHAOS_EFFECT_ARENA_CHAMPIONS] = true;
+		sdata->chaosSettings.effects[CHAOS_EFFECT_ZA_WARUDO] = true;
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 2000, owner), "an enabled recipient can still originate a bot effect");
+		CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&world.drivers[4], 100), 175, "participant exclusions never filter the bot grid");
+		CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ZA_WARUDO, 1000, owner), "an enabled recipient can still stop global time");
+		CTR_TEST_CHECK(Chaos_ShouldFreezeThread(&world.threads[4]), "time stop continues to freeze the bot world");
+		for (int player = 0; player < 4; player++)
+		{
+			const bool frozen = distribution == CHAOS_DISTRIBUTION_PER_PLAYER && player != 2;
+			CTR_TEST_CHECK_EQ(Chaos_ShouldFreezeThread(&world.threads[player]), frozen, "excluded humans follow ordinary shared or personal time-stop immunity, not the opt-out toggle");
+		}
+		Tick(1000);
+		CTR_TEST_CHECK(!Chaos_IsTimeStopped(), "time stop expires normally despite participant exclusions");
+		CTR_TEST_CHECK_EQ(Chaos_SpeedForDriver(&world.drivers[4], 100), 175, "bot effects remain globally active after the time-stop suspension");
+	}
+}
+
 static void TestPersonalBodySwapPairs(void)
 {
 	CTR_TEST_SECTION("personal Body Swap keeps disjoint pairs with independent owners and deadlines");
@@ -2206,6 +2259,43 @@ static void TestPersonalViewportHud(void)
 	s_tracker.gameMode1 |= END_OF_RACE;
 	DrawNotice();
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 0, "personal HUD stays hidden in results");
+}
+
+static void TestExcludedPlayerHud(void)
+{
+	CTR_TEST_SECTION("excluded personal viewports retain global effects without showing local effects");
+	struct BodySwapWorld world;
+	SetupPersonalBodySwap(&world, 4, 1);
+	sdata->chaosSettings.disabledPlayers[1] = true;
+	sdata->chaosSettings.disabledPlayers[3] = true;
+	struct ChaosPlayerRuntime *first = &sdata->chaosRuntime.players[0];
+	first->numActive = 2;
+	first->active[0] = (struct ChaosActivation){.effect = CHAOS_EFFECT_MIRROR_MIRROR, .remainingMS = 1000};
+	first->active[1] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ARENA_CHAMPIONS, .remainingMS = 1000};
+	sdata->chaosRuntime.players[2].numActive = 1;
+	sdata->chaosRuntime.players[2].active[0] = (struct ChaosActivation){.effect = CHAOS_EFFECT_ZA_WARUDO, .remainingMS = 1000};
+	static struct DB buffer;
+	u32 uiOT[5] = {0};
+	buffer.otMem.uiOT = uiOT;
+	s_tracker.backBuffer = &buffer;
+	s_tracker.hudFlags = HUD_FLAG_RACE_HUD;
+	for (int player = 0; player < 4; player++)
+	{
+		s_tracker.pushBuffer[player].rect = (RECT){(player % 2) * SCREEN_WIDTH / 2,
+		    (player / 2) * SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2};
+		const struct ChaosActivation *entries[UI_CHAOS_MAX_PERSONAL_ENTRIES];
+		const int count = UI_Chaos_CollectPersonalEntries(player, 4, entries);
+		CTR_TEST_CHECK_EQ(count, player == 0 ? 3 : 2, "every viewport includes bot effects and time stop, but only the owner includes its steering effect");
+		if (!Chaos_IsPlayerEnabled(player))
+		{
+			for (int entry = 0; entry < count; entry++)
+			{
+				CTR_TEST_CHECK(ChaosEffect_Def(entries[entry]->effect)->scope != CHAOS_SCOPE_HUMANS, "excluded viewports contain only global labels");
+			}
+		}
+	}
+	DrawNotice();
+	CTR_TEST_CHECK_EQ(s_noticeDraws, 9, "global labels are drawn once in every viewport, including the two excluded ones");
 }
 
 static void TestPersonalTimeStopAudio(void)
@@ -4934,6 +5024,7 @@ int main(void)
 	TestIdentityCrisis();
 	TestBodySwap();
 	TestPersonalBodySwapPairs();
+	TestParticipantSpecialEffects();
 	TestPersonalBodySwapEligibility();
 	TestPersonalBodySwapLifecycle();
 	TestTeleport();
@@ -4945,6 +5036,7 @@ int main(void)
 	TestThreadOwnerTable();
 	TestPersonalTimeStopAudio();
 	TestPersonalViewportHud();
+	TestExcludedPlayerHud();
 	TestPersonalQueuedVoices();
 	TestParticleOwnerTable();
 	TestPersonalTimeStopContacts();

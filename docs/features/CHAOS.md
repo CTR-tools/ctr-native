@@ -41,6 +41,18 @@ same effect. Unavailable effects are rerolled when another choice is possible.
 
 Adventure always uses Shared.
 
+### Choosing the players
+
+In multiplayer Arcade, VS and Battle, open **Players** in the Chaos rules to
+turn Chaos ON or OFF for each human player. Everyone starts ON; at least one
+player must remain ON to confirm. The selection works with both distributions:
+
+- **Shared:** ordinary effects apply only to the selected players.
+- **Per player:** only selected players receive draws; excluded players do not
+  advance a Random clock or trigger effects through Pickup.
+- Excluded players cannot trigger Pickup in Shared either.
+- Bot/world effects remain global. 
+
 ## Starting a Chaos file
 
 1. Enable **Chaos** under **General** in the in-game **Options Config** menu,
@@ -64,8 +76,9 @@ Existing Regular files stay Regular.
 | **Trigger** | What causes the next activation; see below. Default: Random. |
 | **Interval** | Gap used by Random, Interval and External: 5–120 seconds, in 5-second steps. Default: 10 seconds. Hidden for Pickup. |
 | **Distribution** | Shared or Per player; available in multiplayer Arcade, VS and Battle only. |
+| **Players** | Choose which human players receive Chaos effects; multiplayer sessions only. |
 | **Effects** | Open the list and turn individual effects ON or OFF. All are selected initially. |
-| **Confirm** | Accept these rules. At least one effect must be selected. |
+| **Confirm** | Accept these rules. At least one compatible effect and one player must be selected. |
 
 ![Chaos setup with Duration, Trigger, Interval, Effects and Confirm](images/chaos-setup.jpg)
 
