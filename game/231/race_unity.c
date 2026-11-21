@@ -7,6 +7,7 @@
 #include "chaos/RB_ChaosTimeStop.c"
 #include "chaos/RB_ChaosCamera.c"
 #include "chaos/RB_ChaosControls.c"
+#include "chaos/RB_ChaosRestart.c"
 #include "chaos/RB_ChaosEffects.c"
 #include "chaos/RB_ChaosReposition.c"
 #include "chaos/RB_Chaos.c"

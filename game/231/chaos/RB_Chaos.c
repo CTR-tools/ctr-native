@@ -11,6 +11,7 @@
 #include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
 #include "RB_ChaosReposition.h"
+#include "RB_ChaosRestart.h"
 #include "RB_ChaosRuntime.h"
 
 enum
