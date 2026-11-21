@@ -1,20 +1,13 @@
 #include <common.h>
-#include <game/Vehicle/VehPhysForce.h>
 #include <game/Vehicle/VehPickupItem.h>
 #include <chaos/chaos_gate.h>
 #include <chaos/chaos_event.h>
-#include <race_field.h>
 #include <platform/native_audio.h>
-#include <platform/chaos/native_chaos_ipc.h>
-#include <platform/native_log.h>
 #include "RB_ChaosAudio.h"
 #include "RB_ChaosBodySwap.h"
 #include "RB_ChaosControls.h"
 #include "RB_ChaosEffects.h"
-#include "RB_ChaosExternal.h"
 #include "RB_ChaosIdentity.h"
-#include "RB_ChaosItems.h"
-#include "RB_ChaosReposition.h"
 #include "RB_ChaosRestart.h"
 #include "RB_ChaosRuntime.h"
 #include "RB_ChaosScheduler.h"
@@ -24,6 +17,7 @@ enum
 	CHAOS_TIME_STOP_MAX_MS = 10000,
 	CHAOS_BOT_COOLDOWN_MS = 30000,
 	CHAOS_BOT_EFFECT_COOLDOWN_MS = 60000,
+	CHAOS_TIME_SKIP_PALETTE_MS = 500,
 };
 
 bool Chaos_IsPlayerEnabled(int player)
