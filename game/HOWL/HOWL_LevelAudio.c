@@ -385,11 +385,7 @@ void PlaySound3D(u32 soundID, struct Instance *inst)
 
 	GTE_AudioLR_Inst(&gGT->pushBuffer[closestCamera].matrix_Camera, dir[closestCamera]);
 
-	const enum ChaosAudioOwner previousAudio = Chaos_SetThreadAudio(inst->thread);
-	if (sdata->chaosRuntime.audioOwner == CHAOS_AUDIO_WORLD)
-	{
-		Chaos_SetAudioOwner(previousAudio);
-	}
+	const enum ChaosAudioOwner previousAudio = Chaos_SetSpatialAudio(inst->thread);
 	OtherFX_Play_LowLevel(soundID & 0xffff, 1, PlaySound3D_BuildFlags(gGT, closestCamera, closestDistance, PlaySound3D_CalculateLR(dir[closestCamera])));
 	Chaos_SetAudioOwner(previousAudio);
 }
@@ -457,11 +453,7 @@ void PlaySound3D_Flags(u32 *flags, u32 soundID, struct Instance *inst)
 	modifyFlags = PlaySound3D_Flags_BuildFlags(gGT, closestCamera, closestDistance, PlaySound3D_CalculateLR(dir[closestCamera]));
 	if (*flags == 0)
 	{
-		const enum ChaosAudioOwner previousAudio = Chaos_SetThreadAudio(inst->thread);
-		if (sdata->chaosRuntime.audioOwner == CHAOS_AUDIO_WORLD)
-		{
-			Chaos_SetAudioOwner(previousAudio);
-		}
+		const enum ChaosAudioOwner previousAudio = Chaos_SetSpatialAudio(inst->thread);
 		*flags = OtherFX_Play_LowLevel(soundID & 0xffff, 0, modifyFlags);
 		Chaos_SetAudioOwner(previousAudio);
 	}

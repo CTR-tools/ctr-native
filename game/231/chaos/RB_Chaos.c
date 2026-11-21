@@ -4,8 +4,11 @@
 #include <chaos/chaos_gate.h>
 #include <chaos/chaos_event.h>
 #include <race_field.h>
+#include <platform/native_audio.h>
 #include <platform/chaos/native_chaos_ipc.h>
 #include <platform/native_log.h>
+#include "RB_ChaosAudio.h"
+#include "RB_ChaosRuntime.h"
 
 enum
 {
@@ -47,7 +50,7 @@ bool Chaos_UsesPersonalPools(void)
 	return sdata->chaosSettings.distribution == CHAOS_DISTRIBUTION_PER_PLAYER;
 }
 
-static int Chaos_PlayerPoolCount(void)
+int Chaos_PlayerPoolCount(void)
 {
 	if (!Chaos_UsesPersonalPools())
 	{
@@ -55,6 +58,23 @@ static int Chaos_PlayerPoolCount(void)
 	}
 	const int players = sdata->gGT->numPlyrCurrGame;
 	return players < CHAOS_MAX_HUMAN_PLAYERS ? players : CHAOS_MAX_HUMAN_PLAYERS;
+}
+
+bool Chaos_PlayerHasTimeStop(int player)
+{
+	if (player < 0 || player >= Chaos_PlayerPoolCount())
+	{
+		return false;
+	}
+	const struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
+	for (int i = 0; i < pool->numActive; i++)
+	{
+		if (pool->active[i].effect == CHAOS_EFFECT_ZA_WARUDO)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 static bool Chaos_PlayerCanReceive(int player)
@@ -228,13 +248,9 @@ bool Chaos_IsTimeStopped(void)
 	}
 	for (int player = 0; player < Chaos_PlayerPoolCount(); player++)
 	{
-		const struct ChaosPlayerRuntime *pool = &runtime->players[player];
-		for (int i = 0; i < pool->numActive; i++)
+		if (Chaos_PlayerHasTimeStop(player))
 		{
-			if (pool->active[i].effect == CHAOS_EFFECT_ZA_WARUDO)
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 	return false;
@@ -258,7 +274,7 @@ static void Chaos_BeginBodySwaps(void)
 	Chaos_RefreshBodySwapModifiers();
 }
 
-static void Chaos_RemoveActivation(int player, int index);
+static void Chaos_RemoveActivation(int player, int index, s32 elapsedSinceEndMS);
 
 static void Chaos_EndPersonalBodySwap(int slot)
 {
@@ -274,7 +290,7 @@ static void Chaos_EndPersonalBodySwap(int slot)
 		{
 			if (pool->active[i].effect == CHAOS_EFFECT_BODY_SWAP)
 			{
-				Chaos_RemoveActivation(player, i);
+				Chaos_RemoveActivation(player, i, 0);
 				return;
 			}
 		}
@@ -380,10 +396,10 @@ void Chaos_BeginRace(struct GameTracker *gGT)
 	}
 }
 
-static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, int player)
+static void Chaos_OnEffectDeactivated(const struct ChaosActivation *activation, int player, s32 elapsedSinceEndMS)
 {
 	const ChaosEffectId effect = activation->effect;
-	Chaos_StartBotCooldown(effect, 0);
+	Chaos_StartBotCooldown(effect, elapsedSinceEndMS);
 	if (effect == CHAOS_EFFECT_BODY_SWAP)
 	{
 		if (!Chaos_UsesPersonalPools())
@@ -417,14 +433,14 @@ static void Chaos_RemoveInstantNotice(struct ChaosPlayerRuntime *pool, int index
 	memset(&pool->instantNotices[pool->numInstantNotices], 0, sizeof(*notice));
 }
 
-static void Chaos_RemoveActivation(int player, int index)
+static void Chaos_RemoveActivation(int player, int index, s32 elapsedSinceEndMS)
 {
 	struct ChaosPlayerRuntime *pool = &sdata->chaosRuntime.players[player];
 	const struct ChaosActivation activation = pool->active[index];
 	int remaining = pool->numActive - index - 1;
 	memmove(&pool->active[index], &pool->active[index + 1], remaining * sizeof(pool->active[0]));
 	pool->active[--pool->numActive] = (struct ChaosActivation){0};
-	Chaos_OnEffectDeactivated(&activation, player);
+	Chaos_OnEffectDeactivated(&activation, player, elapsedSinceEndMS);
 }
 
 static void Chaos_RemovePlayerReplacedEffects(ChaosEffectId effect, ChaosEffectId replaced, int player, int otherPlayer)
@@ -450,7 +466,7 @@ static void Chaos_RemovePlayerReplacedEffects(ChaosEffectId effect, ChaosEffectI
 		if ((active == effect || active == replaced || replacesJumpEffect) &&
 		    Chaos_EffectsShareTargets(active, otherPlayer, effect, player))
 		{
-			Chaos_RemoveActivation(otherPlayer, i);
+			Chaos_RemoveActivation(otherPlayer, i, 0);
 		}
 		else
 		{
@@ -1204,10 +1220,8 @@ static void Chaos_TickPlayerActivations(int player, s32 elapsedMS, bool timeStop
 		Chaos_TickTimeEffectSound(entry, elapsedMS);
 		if (entry->remainingMS <= elapsedMS)
 		{
-			const ChaosEffectId effect = entry->effect;
 			const s32 overshootMS = elapsedMS - entry->remainingMS;
-			Chaos_RemoveActivation(player, i);
-			Chaos_StartBotCooldown(effect, overshootMS);
+			Chaos_RemoveActivation(player, i, overshootMS);
 			continue;
 		}
 		entry->remainingMS -= elapsedMS;

@@ -757,6 +757,10 @@ static void TestBotCooldowns(void)
 	Chaos_BeginRace(&s_tracker);
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 0, "race restart clears global cooldown");
 	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_KING_CRIMSON], 0, "race restart clears per-effect cooldowns");
+	CTR_TEST_CHECK(Chaos_ActivateForPlayer(CHAOS_EFFECT_ARENA_CHAMPIONS, 1000, 2), "a restarted race can start a new timed bot effect");
+	Tick(61000);
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botCooldownMS, 0, "expiry clamps the global cooldown when the frame overshoots its whole duration");
+	CTR_TEST_CHECK_EQ(sdata->chaosRuntime.botEffectCooldownMS[CHAOS_EFFECT_ARENA_CHAMPIONS], 0, "expiry also clamps the entire per-effect cooldown without restarting it");
 }
 
 static void TestPersonalTimerSuspensionAndExternal(void)

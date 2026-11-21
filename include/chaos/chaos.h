@@ -33,6 +33,7 @@ bool Chaos_ShouldFreezeThread(const struct Thread *thread);
 bool Chaos_ShouldFreezeParticle(const struct Particle *particle);
 enum ChaosAudioOwner Chaos_SetAudioOwner(enum ChaosAudioOwner owner);
 enum ChaosAudioOwner Chaos_SetThreadAudio(const struct Thread *thread);
+enum ChaosAudioOwner Chaos_SetSpatialAudio(const struct Thread *thread);
 enum ChaosAudioOwner Chaos_SetDriverAudio(const struct Driver *driver);
 void Chaos_TagVoiceline(const struct VoicelineItem *voice);
 bool Chaos_ShouldFreezeVoiceline(const struct VoicelineItem *voice);

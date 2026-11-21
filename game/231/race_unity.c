@@ -2,6 +2,8 @@
 
 #include "R231.c"
 #include "D231.c"
+#include "chaos/RB_ChaosOwnership.c"
+#include "chaos/RB_ChaosAudio.c"
 #include "chaos/RB_ChaosEffects.c"
 #include "chaos/RB_Chaos.c"
 #include "RB_Instance.c"

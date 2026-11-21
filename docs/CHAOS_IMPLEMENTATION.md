@@ -8,6 +8,8 @@
 | Save encoding and runtime layouts             | `include/chaos/chaos_save.h`, `include/namespace_Memcard.h`, `include/chaos/chaos_runtime.h` |
 | Eligibility and runtime                       | `include/chaos/chaos_gate.h`, `game/231/chaos/RB_Chaos.c`                                    |
 | Effect implementations                        | `game/231/chaos/RB_ChaosEffects.c`                                                      |
+| Thread and particle ownership                 | `game/231/chaos/RB_ChaosOwnership.c`                                                   |
+| Audio attribution, freezing and effect cues   | `game/231/chaos/RB_ChaosAudio.c`                                                       |
 | Shared driving-class constant loader          | `game/Vehicle/VehBirth_Consts.c` (included by `VehBirth.c`)                       |
 | Creation flow and shared settings screen      | `game/230/MM_NewLoad.c`, `game/230/chaos/MM_ChaosConfig.c`                             |
 | Pause entry and HUD                           | `game/MAIN/MainFreeze_Chaos.c`, `game/UI/UI_Chaos.c`                             |
@@ -31,6 +33,11 @@ sharing `Chaos_TargetsDriver` for recipient checks. `RB_ChaosEffects.c` owns
 effect operations, effect-specific state updates and queries, start-light drawing,
 and Senile Mask warnings/voice. Body Swap pair selection and finish-line eligibility
 stay in the runtime; returning the selected pairs is an effect operation.
+`RB_ChaosRuntime.h` declares the pool queries shared by effects and audio, including
+the time-stop query that retains immunity during pause. `RB_ChaosAudio.h` declares
+engine changes and time-effect cues for the other Chaos modules. Spatial audio
+inherits the caller's context only when its instance has no attributed owner;
+ordinary thread audio continues to select the world context in that case.
 Gameplay hooks check activation and applicability before invoking operations;
 effect-specific adapters also query activation where needed. Operations retain their
 gameplay conditions (terrain, fuel, pickup queues). The gameplay hooks preserve modifier

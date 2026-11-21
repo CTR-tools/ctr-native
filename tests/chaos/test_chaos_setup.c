@@ -604,6 +604,21 @@ static void TestCompatibleEffectRows(void)
 				               "toggling a shifted row edits the mapped effect, not the raw row index");
 				CTR_TEST_CHECK_EQ(sdata->chaosSettings.enabledCount, CHAOS_EFFECT_COUNT - 1,
 				                  "hidden preferences remain intact while the cached count tracks the edited effect");
+
+				struct RectMenu pause = {0};
+				s_tracker.numPlyrCurrGame = players;
+				MM_ChaosConfig_OpenReadOnly(&pause);
+				sdata->chaosMenu.page = CHAOS_PAGE_EFFECTS;
+				row = 0;
+				for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
+				{
+					if (Chaos_EffectIsAvailable((ChaosEffectId)id) && sdata->chaosSettings.effects[id])
+					{
+						CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row++), id, "read-only rows skip both incompatible effects and the disabled preference");
+					}
+				}
+				CTR_TEST_CHECK_EQ(Chaos_PageRowCount(&sdata->chaosMenu), row, "read-only scrolling uses the same filtered list as row selection");
+				CTR_TEST_CHECK_EQ(Chaos_EffectForRow(row), CHAOS_EFFECT_NONE, "read-only mapping ends at the reported row count");
 			}
 		}
 	}

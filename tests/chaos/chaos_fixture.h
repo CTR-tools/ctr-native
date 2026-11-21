@@ -500,6 +500,8 @@ static void CaptureLaunchVelocity(struct Driver *driver, Vec3 *velocity)
 #define VehPhysForce_RotAxisAngle TestTeleportMatrix
 #include <game/231/RB_Warpball_Path.c>
 #include <game/231/RB_Hazard.c>
+#include <game/231/chaos/RB_ChaosOwnership.c>
+#include <game/231/chaos/RB_ChaosAudio.c>
 #include <game/231/chaos/RB_ChaosEffects.c>
 #undef VehPhysForce_RotAxisAngle
 #undef VehPhysCrash_ConvertVecToSpeed

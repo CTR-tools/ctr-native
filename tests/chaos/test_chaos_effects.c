@@ -2327,6 +2327,50 @@ static void TestExcludedPlayerHud(void)
 	CTR_TEST_CHECK_EQ(s_noticeDraws, 9, "global labels are drawn once in every viewport, including the two excluded ones");
 }
 
+static void TestSpatialAudioContext(void)
+{
+	CTR_TEST_SECTION("spatial audio falls back to the caller without changing ordinary thread attribution");
+	struct BodySwapWorld world;
+	SetupPersonalBodySwap(&world, 2, 1);
+	struct Thread unattributedHuman = {.flags = THREAD_FLAG_HUMAN_EFFECT};
+	const enum ChaosAudioOwner contexts[] = {
+		CHAOS_AUDIO_WORLD, CHAOS_AUDIO_UI, CHAOS_AUDIO_HUMAN,
+		CHAOS_AUDIO_PLAYER_1, CHAOS_AUDIO_PLAYER_2, CHAOS_AUDIO_PLAYER_3, CHAOS_AUDIO_PLAYER_4,
+	};
+	for (int i = 0; i < (int)len(contexts); i++)
+	{
+		Chaos_SetAudioOwner(contexts[i]);
+		enum ChaosAudioOwner previous = Chaos_SetSpatialAudio(&world.threads[2]);
+		CTR_TEST_CHECK_EQ(previous, contexts[i], "spatial attribution returns the exact enclosing context");
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, contexts[i], "a world instance inherits the caller's spatial audio context");
+		Chaos_SetAudioOwner(previous);
+
+		previous = Chaos_SetSpatialAudio(NULL);
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, contexts[i], "an instance without a thread also inherits the spatial context");
+		Chaos_SetAudioOwner(previous);
+
+		previous = Chaos_SetThreadAudio(&world.threads[2]);
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_WORLD, "ordinary world thread audio never borrows the caller's immunity");
+		Chaos_SetAudioOwner(previous);
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, contexts[i], "ordinary thread audio restores the caller after playback");
+
+		previous = Chaos_SetSpatialAudio(&unattributedHuman);
+		CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, CHAOS_AUDIO_HUMAN, "collective human ownership overrides the fallback without inventing a controller");
+		Chaos_SetAudioOwner(previous);
+		for (int player = 0; player < 2; player++)
+		{
+			previous = Chaos_SetSpatialAudio(&world.threads[player]);
+			struct ChannelStats channel = {.channelID = 1};
+			Chaos_TagAudioChannel(&channel);
+			const enum ChaosAudioOwner expected = CHAOS_AUDIO_PLAYER_1 + player;
+			CTR_TEST_CHECK_EQ(sdata->chaosAudioChannels[1], expected, "an attributed spatial sound tags its actual controller rather than the caller");
+			Chaos_SetAudioOwner(previous);
+			CTR_TEST_CHECK_EQ(sdata->chaosRuntime.audioOwner, contexts[i], "nested player spatial audio restores the enclosing context");
+		}
+	}
+	Chaos_SetAudioOwner(CHAOS_AUDIO_WORLD);
+}
+
 static void TestPersonalTimeStopAudio(void)
 {
 	CTR_TEST_SECTION("personal time-stop audio follows controllers before, during and after activation");
@@ -5064,6 +5108,7 @@ int main(void)
 	TestTimeStop();
 	TestPersonalTimeStopOwnership();
 	TestThreadOwnerTable();
+	TestSpatialAudioContext();
 	TestPersonalTimeStopAudio();
 	TestPersonalViewportHud();
 	TestExcludedPlayerHud();

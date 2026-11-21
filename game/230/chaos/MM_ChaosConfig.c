@@ -284,13 +284,17 @@ void MM_ChaosConfig_OpenReadOnly(struct RectMenu *returnMenu)
 	sdata->ptrDesiredMenu = &sdata->chaosMenu.menu;
 }
 
+static bool Chaos_EffectRowIsVisible(ChaosEffectId effect)
+{
+	return Chaos_EffectIsAvailable(effect) &&
+	       (sdata->chaosMenu.returnMenu == NULL || sdata->chaosSettings.effects[effect]);
+}
+
 static ChaosEffectId Chaos_EffectForRow(int row)
 {
-	const bool readOnly = sdata->chaosMenu.returnMenu != NULL;
-	const struct ChaosSettings *settings = &sdata->chaosSettings;
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		if (!Chaos_EffectIsAvailable((ChaosEffectId)id) || (readOnly && !settings->effects[id]))
+		if (!Chaos_EffectRowIsVisible((ChaosEffectId)id))
 		{
 			continue;
 		}
@@ -367,8 +371,7 @@ static int Chaos_PageRowCount(const struct ChaosMenuState *state)
 	int count = 0;
 	for (int id = 0; id < CHAOS_EFFECT_COUNT; id++)
 	{
-		if (Chaos_EffectIsAvailable((ChaosEffectId)id) &&
-		    (state->returnMenu == NULL || sdata->chaosSettings.effects[id]))
+		if (Chaos_EffectRowIsVisible((ChaosEffectId)id))
 		{
 			count++;
 		}
