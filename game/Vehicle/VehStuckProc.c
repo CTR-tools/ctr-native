@@ -82,7 +82,7 @@ static inline void VehStuckProc_MaskGrab_SearchBsp(struct Driver *d, struct Scra
 	sps->Input1.pos.z = (s16)CTR_MipsSra(d->posCurr.z, FRACTIONAL_BITS_8);
 
 	sps->Union.QuadBlockColl.searchFlags = 0;
-	if (GAME_TRACKER->numPlyrCurrGame < 3)
+	if (GAME_TRACKER->numPlyrCurrGame < 3 || sdata->highDetailSplitScreenLevel)
 	{
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
 	}

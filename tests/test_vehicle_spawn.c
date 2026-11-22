@@ -9,7 +9,10 @@ u8 *gCTRNativeScratchpadBase;
 
 #include <game/Vehicle/VehBirth.c>
 
-// Only appearance initialization runs; allocation, terrain and motion are doubled.
+static bool s_testCollisionSearch;
+static u32 s_searchFlags;
+
+// Allocation, terrain and motion are doubled.
 struct Terrain *VehAfterColl_GetTerrain(u32 terrainType)
 {
 	static struct Terrain terrain;
@@ -19,19 +22,31 @@ struct Terrain *VehAfterColl_GetTerrain(u32 terrainType)
 
 void COLL_SearchBSP_CallbackQUADBLK(const SVec3 *top, const SVec3 *bottom, struct ScratchpadStruct *sps, s32 radius)
 {
-	(void)top; (void)bottom; (void)sps; (void)radius;
-	CtrTest_Bail("appearance initialization must not search level geometry");
+	(void)top; (void)bottom; (void)radius;
+	if (!s_testCollisionSearch)
+	{
+		CtrTest_Bail("appearance initialization must not search level geometry");
+	}
+	s_searchFlags = sps->Union.QuadBlockColl.searchFlags;
+	sps->boolDidTouchQuadblock = true;
+	sps->hit.plane.normal.y = FP_ONE;
 }
 u32 VehFrameInst_GetNumAnimFrames(struct Instance *inst, int animIndex)
 {
 	(void)inst; (void)animIndex;
-	CtrTest_Bail("appearance initialization must not read model animations");
-	return 0;
+	if (!s_testCollisionSearch)
+	{
+		CtrTest_Bail("appearance initialization must not read model animations");
+	}
+	return 1;
 }
 int VehFrameInst_GetStartFrame(int animIndex, int numFrames)
 {
 	(void)animIndex; (void)numFrames;
-	CtrTest_Bail("appearance initialization must not read model animations");
+	if (!s_testCollisionSearch)
+	{
+		CtrTest_Bail("appearance initialization must not read model animations");
+	}
 	return 0;
 }
 s16 *AH_WarpPad_GetSpawnPosRot(s16 *posData)
@@ -167,10 +182,41 @@ static void TestOxideBirthWheels(void)
 	sdata->gGT = NULL;
 }
 
+static void TestSpawnCollisionLod(void)
+{
+	CTR_TEST_SECTION("Spawn collision detail follows the loaded level, not just player count");
+	struct mesh_info mesh = {0};
+	struct Level level = {.ptr_mesh_info = &mesh};
+	struct GameTracker tracker = {.level1 = &level};
+	struct Instance instance = {0};
+	struct Driver driver = {.instSelf = &instance};
+	_Alignas(4) u8 scratchpad[0x1000] = {0};
+	sdata->gGT = &tracker;
+	gCTRNativeScratchpadBase = scratchpad;
+	s_testCollisionSearch = true;
+	for (int players = 1; players <= 4; players++)
+	{
+		tracker.numPlyrCurrGame = players;
+		for (int highDetail = 0; highDetail <= 1; highDetail++)
+		{
+			sdata->highDetailSplitScreenLevel = highDetail;
+			VehBirth_TeleportSelf(&driver, 0, 0);
+			CTR_TEST_CHECK_EQ(s_searchFlags, players < 3 || highDetail ? COLL_SEARCH_HIGH_LOD : 0,
+			                  "high-detail split-screen spawns use high-detail collision while retail 3/4P retains low detail");
+			CTR_TEST_CHECK_EQ(driver.AxisAngle2_normalVec.y, FP_ONE, "spawn keeps the collision normal for kart orientation");
+		}
+	}
+	s_testCollisionSearch = false;
+	sdata->highDetailSplitScreenLevel = false;
+	sdata->gGT = NULL;
+	gCTRNativeScratchpadBase = NULL;
+}
+
 int main(void)
 {
 	TestSpawnScale();
 	TestCharacterWheels();
 	TestOxideBirthWheels();
+	TestSpawnCollisionLod();
 	return CtrTest_Summary();
 }
