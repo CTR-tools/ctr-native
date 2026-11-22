@@ -511,7 +511,8 @@ void UI_RenderFrame_Racing()
 					    iconPtr,
 
 					    // position
-					    (int)hudStructPtr[UI_HUD_SLOT_BIG1].x, (int)hudStructPtr[UI_HUD_SLOT_BIG1].y,
+					    UI_PosSuffixNumberX(hudStructPtr[UI_HUD_SLOT_RANK].x, hudStructPtr[UI_HUD_SLOT_BIG1].x, playerStruct),
+					    (int)hudStructPtr[UI_HUD_SLOT_BIG1].y,
 
 					    &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT,
 

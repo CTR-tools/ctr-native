@@ -72,6 +72,7 @@ ctr_add_test_suite(test_carousel SOURCES menu-helpers/test_carousel.c)
 ctr_add_test_suite(test_lap_clock SOURCES test_lap_clock.c)
 ctr_add_test_suite(test_native_text_vertices SOURCES graphics/test_native_text_vertices.c)
 ctr_add_test_suite(test_slide_meter SOURCES hud/test_slide_meter.c)
+ctr_add_test_suite(test_pos_suffix SOURCES hud/test_pos_suffix.c)
 
 ctr_add_test_suite(test_disc_images
     SOURCES test_disc_images.c

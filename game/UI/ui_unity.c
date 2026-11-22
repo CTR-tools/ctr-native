@@ -8,6 +8,7 @@
 #include "UI_Lerp2D.c"
 #include "UI_Clock.c"
 #include "UI_RaceHud.c"
+#include "UI_PosSuffix.c"
 #include "UI_Weapon.c"
 #include "UI_DrawNum.c"
 #include "UI_Speedometer.c"

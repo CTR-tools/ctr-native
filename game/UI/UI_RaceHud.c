@@ -61,9 +61,6 @@ enum
 	UI_TRACKER_MISSILE_FILL_COLOR1 = 0x30005b5b,
 	UI_TRACKER_MISSILE_FILL_COLOR2 = 0x3000bbff,
 
-	UI_POS_SUFFIX_BIG_NUM_Z_BASE = 0x100,
-	UI_POS_SUFFIX_3P4P_BIG_NUM_X_OFFSET = 0x10,
-	UI_POS_SUFFIX_3P4P_BIG_NUM_Y_OFFSET = 4,
 	UI_LAP_COUNT_SPLIT_PLAYER_COUNT = 3,
 	UI_LAP_COUNT_TEXT_Y_OFFSET = 8,
 	UI_LAP_COUNT_MESSAGE_BUFFER_SIZE = 24,
@@ -537,42 +534,6 @@ UpdateTrackerState:
 	    screenPosX - (x >> UI_TRACKER_BG_X_SHIFT), screenPosY - ((y * UI_TRACKER_BG_Y_SCALE) >> UI_TRACKER_BG_Y_SHIFT),
 
 	    &gGT->backBuffer->primMem, gGT->pushBuffer[driverID].ptrOT, UI_TRACKER_BG_TRANSPARENCY, x, y, bgColor, screenPosX);
-}
-
-void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags)
-{
-	int currRank;
-	struct GameTracker *gGT = sdata->gGT;
-
-	// If you're not in Battle Mode
-	if ((gGT->gameMode1 & BATTLE_MODE) == 0)
-	{
-		// Get the rank you're in (1st, 2nd, 3rd, etc)
-		currRank = d->driverRank;
-	}
-	else
-	{
-		// get the rank that the battle team is in
-		currRank = gGT->battleSetup.finishedRankOfEachTeam[d->BattleHUD.teamID];
-	}
-
-	// Draw the suffix of your current position
-	DecalFont_DrawLine(sdata->lngStrings[data.stringIndexSuffix[currRank]], posX, posY, FONT_BIG, flags);
-
-	// setting posZ changes which number draws
-	if (d->instBigNum != 0)
-	{
-		s16 bigNumDepth = d->driverRank + UI_POS_SUFFIX_BIG_NUM_Z_BASE;
-
-		d->instBigNum->matrix.t[2] = bigNumDepth;
-		if (gGT->numPlyrCurrGame > 2)
-		{
-			d->instBigNum->matrix.t[0] = UI_ConvertX_2(posX - UI_POS_SUFFIX_3P4P_BIG_NUM_X_OFFSET, bigNumDepth);
-			d->instBigNum->matrix.t[1] = UI_ConvertY_2(posY + UI_POS_SUFFIX_3P4P_BIG_NUM_Y_OFFSET, bigNumDepth);
-		}
-	}
-
-	return;
 }
 
 void UI_DrawLapCount(s16 posX, int posY, int unusedScale, struct Driver *d)
