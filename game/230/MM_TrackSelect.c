@@ -1008,7 +1008,7 @@ trackSelectionMenuDone:
 			rowBaseX = (u16)rowTransition->currX;
 			rowCalc += MM_TRACK_SELECT_ROW_X_OFFSET;
 			rowBaseX += rowCalc;
-			rowCalc = (rowSin * (MM_TRACK_SELECT_ROW_Y_RADIUS >> 3)) << 3;
+			rowCalc = (s32)((u32)(rowSin * (MM_TRACK_SELECT_ROW_Y_RADIUS >> 3)) << 3);
 			CTR_PSX_KEEP_VALUE(rowCalc);
 			rowCalc >>= MM_TRACK_SELECT_ROW_Y_SHIFT;
 			CTR_PSX_COPY_VALUE(rowX, rowBaseX);

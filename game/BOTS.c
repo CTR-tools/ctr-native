@@ -87,19 +87,33 @@ enum
 	BOTS_NAV_SPECIAL_INDEX_MASK = 0xf,
 };
 
-static s16 BOTS_PathChangePathID(s16 changeOpcode)
+static __inline__ s16 BOTS_PathChangePathID(s16 changeOpcode)
 {
 	return (s16)CTR_MipsSra(changeOpcode, BOTS_PATH_CHANGE_PATH_SHIFT);
 }
 
-static s16 BOTS_PathChangeFrameIndex(s16 changeOpcode)
+static __inline__ s16 BOTS_PathChangeFrameIndex(s16 changeOpcode)
 {
 	return changeOpcode & BOTS_PATH_CHANGE_FRAME_MASK;
 }
 
-static s16 BOTS_PathChangeCap(void)
+static __inline__ s16 BOTS_PathChangeCap(void)
 {
 	return (s16)CTR_MipsSll(BOTS_NAV_PATH_COUNT, BOTS_PATH_CHANGE_PATH_SHIFT);
+}
+
+static __inline__ s32 BOTS_GetInitialNavPath(u32 rawPath)
+{
+	s32 path = (s8)rawPath;
+
+#ifdef CTR_NATIVE
+	// NOTE(aalhendi): The RNG endpoint can select path 3, beyond the three
+	// owned paths. Start native's existing fallback search at the last path.
+	if ((u32)path >= BOTS_NAV_PATH_COUNT)
+		path = BOTS_NAV_PATH_COUNT - 1;
+#endif
+
+	return path;
 }
 
 int BOTS_Adv_NumTimesLostEvent(int numLost)
@@ -403,7 +417,7 @@ static inline void BOTS_Adv_CopySpawnOrder(const u8 *source)
 	memcpy(BOTS_KART_ORDER, source, sizeof(sdata->kartSpawnOrderArray));
 }
 
-internal s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
+static __inline__ s32 BOTS_GetTrackDistanceToFinish(struct GameTracker *gGT)
 {
 #if defined(CTR_NATIVE)
 	// NOTE(aalhendi): Menu-storage/wrong-warp can leave stale bot threads in
@@ -1440,21 +1454,19 @@ void BOTS_Killplane(struct Thread *botThread)
 
 void BOTS_ThTick_Drive(struct Thread *botThread)
 {
-	int elapsedMilliseconds;
-	int speedApprox;
+	struct GameTracker *entryTracker = GAME_TRACKER;
+	int navFrameFlags = 0;
+	int navFrameSpecialBits = 0;
+	int local_3c = 0;
 	u32 local_38;
-	s16 tireColorStep;
+	int elapsedMilliseconds = entryTracker->elapsedTimeMS;
+	int speedApprox;
+	s32 tireColorStep;
 	struct NavFrame *navFrameCurr;
 	struct NavFrame *navFrameNext; // psVar21
-	struct DriverCollisionSearch driverSearch;
-	struct Thread *hitThread;
-	int deltaPosThisFrame; // iVar4
-	int navFrameFlags;
-	int navFrameSpecialBits;
+	int deltaPosThisFrame;         // iVar4
 	int gravity;
-	s16 navDist; // sVar7
-	int local_3c;
-	b32 useGroundedNavDistance;
+	u8 useGroundedNavDistance;
 	int iVar15;
 	int iVar3;
 	int navActionFlags;
@@ -1462,18 +1474,19 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	int percentage; // iVar13
 	int iVar4_lifetime_3;
 	s16 iVar3_lifetime_2;
-	u8 cmp1;
-	u8 cmp2;
 	int badnessRecieveTimer;
 	int iVar4_lifetime_2;
 	int uVar11;
 	s16 camRot;
-	struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 	struct Driver *botDriver = (struct Driver *)botThread->object;     // iVar17
 	struct Instance *botInstance = (struct Instance *)botThread->inst; // iVar22
-	struct GameTracker *gGT = sdata->gGT;
 
-	// local_34 = gGT->elapsedTimeMS;
+	// NOTE(aalhendi): retail initializes this after the driver/instance
+	// loads, not at its declaration; GCC 2.8.1 emits the initializer in
+	// statement order, which also restores the original temp numbering.
+	local_38 = 1;
+
+	// local_34 = GAME_TRACKER->elapsedTimeMS;
 
 #if 0
 	if(botDriver->driverID != 0)
@@ -1487,81 +1500,73 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 
 	if (botDriver->botData.weaponCooldown != 0)
 	{
-		botDriver->botData.weaponCooldown = (s16)CTR_MipsSubLo((u16)botDriver->botData.weaponCooldown, 1);
+		--botDriver->botData.weaponCooldown;
 	}
 
-	if (botDriver->pendingDamageType == 0)
-	{
-		if (((botDriver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (botDriver->botData.weaponCooldown != 0))
-		{
-			botDriver->botData.weaponCooldown = (s16)CTR_MipsSubLo((u16)botDriver->botData.weaponCooldown, 1);
-		}
-	}
-	else
+	if (botDriver->pendingDamageType != 0)
 	{
 		BOTS_ChangeState(botDriver, botDriver->pendingDamageType, botDriver->pendingDamageAttacker, botDriver->pendingDamageReasonByte);
 	}
-
-	elapsedMilliseconds = gGT->elapsedTimeMS; // local_34
-
-	botDriver->reserves = (s16)CTR_MipsSubLo((u16)botDriver->reserves, elapsedMilliseconds);
-	if (botDriver->reserves < 0)
-	{
-		botDriver->reserves = 0;
-	}
-
-	botDriver->turbo_outsideTimer = (s16)CTR_MipsSubLo((u16)botDriver->turbo_outsideTimer, elapsedMilliseconds);
-	if (botDriver->turbo_outsideTimer < 0)
-	{
-		botDriver->turbo_outsideTimer = 0;
-	}
-
-	botDriver->squishTimer = (s16)CTR_MipsSubLo((u16)botDriver->squishTimer, elapsedMilliseconds);
-	if (botDriver->squishTimer < 0)
-	{
-		botDriver->squishTimer = 0;
-	}
-
-	botDriver->burnTimer = (s16)CTR_MipsSubLo((u16)botDriver->burnTimer, elapsedMilliseconds);
-	if (botDriver->burnTimer < 0)
-	{
-		botDriver->burnTimer = 0;
-	}
-
-	botDriver->clockReceive = (s16)CTR_MipsSubLo((u16)botDriver->clockReceive, elapsedMilliseconds);
-	if (botDriver->clockReceive < 0)
-	{
-		botDriver->clockReceive = 0;
-	}
-
-	botDriver->botData.aiPhysics.driftTarget = 0;
-	botDriver->kartState = KS_NORMAL;
-
-	botDriver->actionsFlagSetPrevFrame = botDriver->actionsFlagSet;
-	botDriver->actionsFlagSet &= ~(ACTION_DROPPING_MINE | ACTION_JUMP_STARTED | ACTION_STARTED_TOUCH_GROUND);
-
-	speedApprox = botDriver->speedApprox; // iVar4
-
-	if (speedApprox < 0)
-	{
-		speedApprox = CTR_MipsNegLo(speedApprox);
-	}
-
-	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
-	{
-		speedApprox = CTR_MipsAddLo(speedApprox, DRIVER_TIRE_COLOR_SPEED_AIRBORNE_BONUS);
-	}
 	else
 	{
-		speedApprox = CTR_MipsSra(CTR_MipsSll(speedApprox, 1), 1);
+		if (((botDriver->actionsFlagSet & ACTION_RACE_FINISHED) == 0) && (botDriver->botData.weaponCooldown != 0))
+		{
+			--botDriver->botData.weaponCooldown;
+		}
 	}
 
-	// NOTE(aalhendi): Retail initializes this boost scale before catch-up can overwrite it.
-	local_38 = 1;
-	tireColorStep = (s16)CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo(CTR_MipsMulLo(speedApprox, DRIVER_TIRE_COLOR_SPEED_WEIGHT),
-	                                                           CTR_MipsMulLo(botDriver->tireColorCycleStep, DRIVER_TIRE_COLOR_STEP_WEIGHT)),
-	                                             3),
-	                                 0xC);
+
+	{
+		s32 timerDelta = CTR_MipsNegLo(elapsedMilliseconds);
+		botDriver->reserves = (s16)CTR_MipsAddLo((u16)botDriver->reserves, timerDelta);
+		if (botDriver->reserves < 0)
+		{
+			botDriver->reserves = 0;
+		}
+
+		botDriver->turbo_outsideTimer = (s16)CTR_MipsAddLo((u16)botDriver->turbo_outsideTimer, timerDelta);
+		if (botDriver->turbo_outsideTimer < 0)
+		{
+			botDriver->turbo_outsideTimer = 0;
+		}
+
+		botDriver->squishTimer = (s16)CTR_MipsAddLo((u16)botDriver->squishTimer, timerDelta);
+		if (botDriver->squishTimer < 0)
+		{
+			botDriver->squishTimer = 0;
+		}
+
+		botDriver->burnTimer = (s16)CTR_MipsAddLo((u16)botDriver->burnTimer, timerDelta);
+		if (botDriver->burnTimer < 0)
+		{
+			botDriver->burnTimer = 0;
+		}
+
+		botDriver->clockReceive = (s16)CTR_MipsAddLo((u16)botDriver->clockReceive, timerDelta);
+		if (botDriver->clockReceive < 0)
+		{
+			botDriver->clockReceive = 0;
+		}
+	}
+
+	{
+		speedApprox = abs(botDriver->speedApprox);
+		botDriver->botData.aiPhysics.driftTarget = 0;
+		botDriver->kartState = KS_NORMAL;
+
+		botDriver->actionsFlagSetPrevFrame = botDriver->actionsFlagSet;
+		botDriver->actionsFlagSet &= ~(ACTION_DROPPING_MINE | ACTION_JUMP_STARTED | ACTION_STARTED_TOUCH_GROUND);
+
+		if ((botDriver->actionsFlagSetPrevFrame & ACTION_TOUCH_GROUND) != 0)
+			speedApprox = CTR_MipsSra(CTR_MipsSll(speedApprox, 1), 1);
+		else
+			speedApprox = CTR_MipsAddLo(speedApprox, DRIVER_TIRE_COLOR_SPEED_AIRBORNE_BONUS);
+	}
+
+	{
+		s32 weightedStep = (s32)((u32)botDriver->tireColorCycleStep * DRIVER_TIRE_COLOR_STEP_WEIGHT);
+		tireColorStep = CTR_MipsSra(CTR_MipsSll(CTR_MipsAddLo((s32)((u32)speedApprox * DRIVER_TIRE_COLOR_SPEED_WEIGHT), weightedStep), 3), 0xC);
+	}
 	botDriver->tireColorCycleStep = tireColorStep;
 
 	if ((botDriver->actionsFlagSetPrevFrame & ACTION_ACCEL_PREVENTION) == 0)
@@ -1590,20 +1595,24 @@ void BOTS_ThTick_Drive(struct Thread *botThread)
 	}
 UpdateTireColorTimer:
 
-	if ((botDriver->tireColorCycleTimer < 1) && ((botDriver->tireColor & 1) == 0))
+	if ((botDriver->tireColorCycleTimer > 0) || ((botDriver->tireColor & 1) != 0))
 	{
-		botDriver->tireColorCycleTimer = DRIVER_TIRE_COLOR_TIMER_RESET;
-		botDriver->tireColor = DRIVER_TIRE_COLOR_DARK;
+		botDriver->tireColor = DRIVER_TIRE_COLOR_DEFAULT;
 	}
 	else
 	{
-		botDriver->tireColor = DRIVER_TIRE_COLOR_DEFAULT;
+		botDriver->tireColorCycleTimer = DRIVER_TIRE_COLOR_TIMER_RESET;
+		botDriver->tireColor = DRIVER_TIRE_COLOR_DARK;
 	}
 
 	navFrameCurr = &botDriver->botData.estimateNavFrame; // psVar19
 
 
-	if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
+	if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) != 0)
+	{
+		navFrameNext = botDriver->botData.botNavFrame;
+	}
+	else
 	{
 		int pathID;
 		navFrameCurr = botDriver->botData.botNavFrame;
@@ -1611,655 +1620,761 @@ UpdateTireColorTimer:
 
 		pathID = botDriver->botData.botPath;
 
-		if (navFrameNext >= sdata->NavPath_ptrHeader[pathID]->last)
+		if (navFrameNext >= BOT_NAV_HEADERS[pathID]->last)
 		{
-			navFrameNext = sdata->NavPath_ptrNavFrameArray[pathID];
+			navFrameNext = BOT_NAV_FRAMES[pathID];
+		}
+	}
+
+
+	// NOTE(aalhendi): Depth-2 scoping lets GCC 2.8.1's preserve_temp_slots
+	// preserve the address-taken collision structs to level 1 and free the
+	// unCEIL'd 60B pool (32 + 16 + 12) at the outer block exit, matching
+	// retail's 88(sp) home for both blast rot and the final ground probe.
+	{
+		{
+			struct DriverCollisionSearch driverSearch;
+			struct Thread *hitThread;
+
+			// NOTE(aalhendi): retail carries a 16-byte untouched pool slot at
+			// caller sp 0x38..0x47 between the search struct and selfVelocity;
+			// GCC 2.8.1 allocates unreferenced BLKmode locals without a
+			// liveness check, matching the original source's unused local.
+			Vec3 otherVelocity;
+
+			driverSearch.bucket.pos.x = (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8);
+			driverSearch.bucket.pos.y = (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8);
+			driverSearch.bucket.pos.z = (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8);
+			driverSearch.bucket.bestDistSq = 0x7fffffff;
+			driverSearch.bucket.th = NULL;
+
+			if ((botThread->flags & (THREAD_FLAG_DEAD | THREAD_FLAG_DISABLE_COLLISION)) == 0)
+			{
+				if (botThread->modelIndex == DYNAMIC_PLAYER)
+				{
+					PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
+					PROC_CollidePointWithBucket(GAME_TRACKER->threadBuckets[ROBOT].thread, &driverSearch.bucket);
+				}
+				else if (botThread->modelIndex == DYNAMIC_ROBOT_CAR)
+				{
+					PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
+				}
+			}
+
+			hitThread = driverSearch.bucket.th;
+			if (hitThread != NULL)
+			{
+				int combinedRadius = CTR_MipsAddLo(botThread->driverHitRadius, hitThread->driverHitRadius);
+				if (driverSearch.bucket.bestDistSq < CTR_MipsMulLo(combinedRadius, combinedRadius))
+				{
+					Vec3 selfVelocity;
+					selfVelocity.x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.aiPhysics.accel.x);
+					selfVelocity.y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.aiPhysics.accel.y);
+					selfVelocity.z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.aiPhysics.accel.z);
+					VehPhysCrash_AnyTwoCars(botThread, &driverSearch, &selfVelocity);
+				}
+			}
+		}
+	}
+
+	if (botDriver->botData.ai_progress_cooldown != 0)
+	{
+		goto HoldBotBeforeRaceOrCooldown;
+	}
+	{
+		int trafficLightsTimer = GAME_TRACKER->trafficLightsTimer;
+
+		if (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE)
+		{
+			// Oxide starts moving 480 milliseconds before the other bots.
+			if (0 < CTR_MipsSubLo(trafficLightsTimer, 0x1e0))
+			{
+				goto HoldBotBeforeRaceOrCooldown;
+			}
+		}
+		else if (0 < trafficLightsTimer)
+		{
+			goto HoldBotBeforeRaceOrCooldown;
+		}
+	}
+	goto DriveActiveAfterStartGate;
+
+HoldBotBeforeRaceOrCooldown:
+{
+	botInstance->scale.z = 0xccc;
+	botInstance->scale.y = 0xccc;
+	botInstance->scale.x = 0xccc;
+
+	botDriver->botData.aiPhysics.speedLinear = 0;
+
+	if (botDriver->botData.ai_progress_cooldown != 0)
+	{
+		botDriver->botData.ai_progress_cooldown--;
+	}
+
+	deltaPosThisFrame = botDriver->botData.navProgressRemainder;
+	goto DriveAdvanceNavAfterStartGate;
+}
+
+DriveActiveAfterStartGate:
+{
+	u32 botFlags;
+	int speedCap = 0x6400;
+	if ((GAME_TRACKER->boolDemoMode != 0) && ((botDriver->botData.botFlags & BOT_FLAG_DEMO_CAMERA_STARTED) == 0) && (botThread->modelIndex == DYNAMIC_PLAYER))
+	{
+		botDriver->botData.botFlags |= BOT_FLAG_DEMO_CAMERA_STARTED;
+		CAM_EndOfRace(&GAME_TRACKER->cameraDC[botDriver->driverID], botDriver);
+	}
+
+	if ((botDriver->botData.botFlags & BOT_FLAG_STARTLINE_INIT_DONE) == 0)
+	{
+		// first frame of race
+		botDriver->botData.botFlags |= BOT_FLAG_STARTLINE_INIT_DONE;
+
+		if (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE)
+		{ // if oxide, then talk
+			Voiceline_RequestPlay(0, 0xf, 0x10);
+		}
+
+		if (( // if in front row & 25% chance
+		        (BOTS_KART_ORDER[botDriver->driverID] < 3) && ((RngDeadCoed(&BOTS_ADV_RNG) & 0xFF) < 0x40)) ||
+		    (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE))
+		{ // start the race with a boost
+			VehFire_Increment(botDriver, 0x2d0, 1, 0x180);
+
+			VehFire_Audio(botDriver, 0x180);
+		}
+	}
+
+	// between these start and end tags, there's confusing variable lifetime that needs to be looked at closer.
+
+	botFlags = botDriver->botData.botFlags; // uVar8
+
+	// if path change is requested, but not started (BOSS ONLY)
+	if ((botFlags & (BOT_FLAG_BOSS_PATH_REQUESTED | BOT_FLAG_BOSS_PATH_ACTIVE)) == BOT_FLAG_BOSS_PATH_REQUESTED)
+	{
+		s16 changeOpcode = navFrameNext->pathChangeOpcode;
+		s16 newPathID = BOTS_PathChangePathID(changeOpcode);
+		s16 cap = BOTS_PathChangeCap(); // 0xC00, cant have path[3]
+
+		if ((changeOpcode < cap) && (newPathID == botDriver->botData.desiredPath_BossOnly))
+		{
+			s16 oldPathID;
+			struct NavFrame *firstNavFrameOnPath;
+			// record that change is requested (boss only)
+			botDriver->botData.botFlags = botFlags | BOT_FLAG_BOSS_PATH_ACTIVE;
+
+			oldPathID = botDriver->botData.botPath;
+
+			LIST_RemoveMember(&BOTS_NAV_LIST[oldPathID], &botDriver->botData.item);
+			botDriver->botData.botPath = newPathID;
+			LIST_AddFront(&BOTS_NAV_LIST[newPathID], &botDriver->botData.item);
+
+			firstNavFrameOnPath = BOT_NAV_FRAMES[newPathID];
+			botDriver->botData.botNavFrame = &firstNavFrameOnPath[BOTS_PathChangeFrameIndex(changeOpcode)];
+
+			BOTS_SetRotation(botDriver, 0);
+
+			navFrameNext = botDriver->botData.botNavFrame;
+			navFrameCurr = &botDriver->botData.estimateNavFrame;
 		}
 	}
 	else
 	{
-		navFrameNext = botDriver->botData.botNavFrame;
-	}
-
-
-	CTR_SET_VEC3(CTR_VECTOR_DATA(&(driverSearch.bucket.pos)), (s16)CTR_MipsSra(botDriver->posCurr.x, FRACTIONAL_BITS_8),
-	             (s16)CTR_MipsSra(botDriver->posCurr.y, FRACTIONAL_BITS_8), (s16)CTR_MipsSra(botDriver->posCurr.z, FRACTIONAL_BITS_8));
-	driverSearch.bucket.th = NULL;
-	driverSearch.bucket.bestDistSq = 0x7fffffff;
-
-	if ((botThread->flags & (THREAD_FLAG_DEAD | THREAD_FLAG_DISABLE_COLLISION)) == 0)
-	{
-		if (botThread->modelIndex == DYNAMIC_PLAYER)
+		if (BOTS_RACE_START_AI_COLLISION_DELAY_FRAMES < sdata->aiCollisionDelayFrameCount)
 		{
-			PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
-			PROC_CollidePointWithBucket(gGT->threadBuckets[ROBOT].thread, &driverSearch.bucket);
-		}
-		else if (botThread->modelIndex == DYNAMIC_ROBOT_CAR)
-		{
-			PROC_CollidePointWithBucket(botThread->siblingThread, &driverSearch.bucket);
-		}
-	}
-
-	hitThread = driverSearch.bucket.th;
-	if (hitThread != NULL)
-	{
-		int combinedRadius = CTR_MipsAddLo(botThread->driverHitRadius, hitThread->driverHitRadius);
-		if (driverSearch.bucket.bestDistSq < CTR_MipsMulLo(combinedRadius, combinedRadius))
-		{
-			Vec3 selfVelocity;
-			selfVelocity.x = CTR_MipsAddLo(botDriver->xSpeed, botDriver->botData.aiPhysics.accel.x);
-			selfVelocity.y = CTR_MipsAddLo(botDriver->ySpeed, botDriver->botData.aiPhysics.accel.y);
-			selfVelocity.z = CTR_MipsAddLo(botDriver->zSpeed, botDriver->botData.aiPhysics.accel.z);
-			VehPhysCrash_AnyTwoCars(botThread, &driverSearch, &selfVelocity);
-		}
-	}
-
-
-	if (botDriver->botData.ai_progress_cooldown == 0)
-	{
-		u32 botFlags;
-		int trafficLightsTimer = gGT->trafficLightsTimer;
-
-		if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE) // check is oxide
-		{
-			// Pretend there is less time (oxide is a cheater)
-			trafficLightsTimer = CTR_MipsSubLo(trafficLightsTimer, 0x1e0);
-		}
-
-		if (0 < trafficLightsTimer)
-		{
-			goto HoldBotBeforeRaceOrCooldown; // if race not started, then skip
-		}
-
-		if ((gGT->boolDemoMode != 0) && ((botDriver->botData.botFlags & BOT_FLAG_DEMO_CAMERA_STARTED) == 0) && (botThread->modelIndex == DYNAMIC_PLAYER))
-		{
-			botDriver->botData.botFlags |= BOT_FLAG_DEMO_CAMERA_STARTED;
-			CAM_EndOfRace(&gGT->cameraDC[botDriver->driverID], botDriver);
-		}
-
-		if ((botDriver->botData.botFlags & BOT_FLAG_STARTLINE_INIT_DONE) == 0)
-		{
-			// first frame of race
-			botDriver->botData.botFlags |= BOT_FLAG_STARTLINE_INIT_DONE;
-
-			if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
-			{ // if oxide, then talk
-				Voiceline_RequestPlay(0, 0xf, 0x10);
-			}
-
-			if (( // if in front row & 25% chance
-			        (sdata->kartSpawnOrderArray[botDriver->driverID] < 3) && ((RngDeadCoed(&sdata->advRng) & 0xFF) < 0x40)) ||
-			    (data.characterIDs[botDriver->driverID] == NITROS_OXIDE))
-			{ // start the race with a boost
-				VehFire_Increment(botDriver, 0x2d0, 1, 0x180);
-
-				VehFire_Audio(botDriver, 0x180);
-			}
-		}
-
-		// between these start and end tags, there's confusing variable lifetime that needs to be looked at closer.
-
-		botFlags = botDriver->botData.botFlags; // uVar8
-
-		// if path change is requested, but not started (BOSS ONLY)
-		if ((botFlags & (BOT_FLAG_BOSS_PATH_REQUESTED | BOT_FLAG_BOSS_PATH_ACTIVE)) == BOT_FLAG_BOSS_PATH_REQUESTED)
-		{
-			s16 changeOpcode = navFrameNext->pathChangeOpcode;
-			s16 newPathID = BOTS_PathChangePathID(changeOpcode);
-			s16 newFrameIndex = BOTS_PathChangeFrameIndex(changeOpcode);
-			s16 cap = BOTS_PathChangeCap(); // 0xC00, cant have path[3]
-
-			if ((changeOpcode < cap) && (newPathID == botDriver->botData.desiredPath_BossOnly))
+			struct Driver *otherDriver = NULL; // iVar4
+			if ((botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
 			{
-				s16 oldPathID;
-				struct NavFrame *firstNavFrameOnPath;
-				// record that change is requested (boss only)
-				botDriver->botData.botFlags = botFlags | BOT_FLAG_BOSS_PATH_ACTIVE;
+				// NOTE(aalhendi): retail tracks the closest point distance as
+				// a signed 16-bit value (sign-test and compare use the <<16
+				// halfword forms) and reads numPoints unsigned; valid path and
+				// point-count domains fit both widths.
+				s16 sVar7 = 1000;
+				struct BotData *botData;
 
-				oldPathID = botDriver->botData.botPath;
-				botDriver->botData.botPath = newPathID;
+				for (botData = (struct BotData *)LIST_GetFirstItem(&BOTS_NAV_LIST[botDriver->botData.botPath]); botData != NULL;
+				     botData = (struct BotData *)LIST_GetNextItem((struct Item *)botData))
+				{
+					int iVar13;
+					s16 sVar9;
+					struct Driver *driverFromBotData = (struct Driver *)((char *)botData - offsetof(struct Driver, botData));
 
-				LIST_RemoveMember(&sdata->navBotList[oldPathID], &botDriver->botData.item);
-				LIST_AddFront(&sdata->navBotList[newPathID], &botDriver->botData.item);
+					if (driverFromBotData == botDriver)
+					{
+						continue;
+					}
 
-				firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
-				botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex];
 
-				BOTS_SetRotation(botDriver, 0);
+					// Find the signed index difference between nav frames on this path.
+					// NOTE(aalhendi): read navFrame via the other driver so both
+					// frame loads use the driver base, as in retail.
+					iVar13 = (int)(driverFromBotData->botData.botNavFrame - botDriver->botData.botNavFrame);
+					sVar9 = (s16)iVar13;
 
-				navFrameNext = botDriver->botData.botNavFrame;
-				navFrameCurr = &botDriver->botData.estimateNavFrame;
+					// if "other" botData driver is behind "this" botDriver driver,
+					if (sVar9 < 0)
+					{
+						// assume number of points "away" is large (add track length)
+						sVar9 = (s16)(iVar13 + (u16)BOT_NAV_HEADERS[botDriver->botData.botPath]->numPoints);
+					}
+
+					// find closest "other" botData driver
+					// that is AHEAD of "this" botDriver driver
+					if (sVar9 < sVar7)
+					{
+						// save number of points ahead,
+						// and save pointer to other driver
+						sVar7 = sVar9;
+						otherDriver = driverFromBotData;
+					}
+				}
+
+				// If two drivers are within 3 navframe points of each other
+				if ((otherDriver != NULL) && (sVar7 < 3))
+				{
+					int diff = CTR_MipsSubLo(botDriver->distanceToFinish_curr, otherDriver->distanceToFinish_curr);
+
+					// if "this" bot is closer to finish than "other" bot, do nothing,
+					// because "diff" will be incremented largely and fail the <0x200 check
+					if (diff < 0)
+					{
+						diff = CTR_MipsAddLo(diff, BOTS_GetTrackDistanceToFinish(GAME_TRACKER));
+					}
+
+					// if "this" bot driver is behind "other" driver, and very close to them,
+					// while also being on the same nav path, then change the nav path
+					if (diff < 0x200)
+					{
+						s16 changeOpcode = navFrameNext->pathChangeOpcode;
+						s16 cap = BOTS_PathChangeCap(); // 0xC00, cant have path[3]
+
+						if (changeOpcode < cap)
+						{
+							struct NavFrame *firstNavFrameOnPath;
+							s16 oldPathID = botDriver->botData.botPath;
+							s16 newPathID;
+
+							LIST_RemoveMember(&BOTS_NAV_LIST[oldPathID], &botDriver->botData.item);
+							newPathID = BOTS_PathChangePathID(changeOpcode);
+							botDriver->botData.botPath = newPathID;
+							LIST_AddFront(&BOTS_NAV_LIST[newPathID], &botDriver->botData.item);
+
+							firstNavFrameOnPath = BOT_NAV_FRAMES[newPathID];
+							botDriver->botData.botNavFrame = &firstNavFrameOnPath[BOTS_PathChangeFrameIndex(changeOpcode)];
+
+							BOTS_SetRotation(botDriver, 0);
+
+							navFrameNext = botDriver->botData.botNavFrame;
+							navFrameCurr = &botDriver->botData.estimateNavFrame;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// puVar5 = GAME_TRACKER but different?
+
+	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) != 0)
+	{
+		struct Driver *bestDriverRank;
+		int botVelocity; // iVar3
+		struct Terrain *botTerrain;
+		int decelSpeed;
+		int levelID;
+		botDriver->actionsFlagSet &= ~ACTION_AIRBORNE;
+
+		if ((GAME_TRACKER->gameMode1 & RELIC_RACE) != 0)
+			bestDriverRank = sdata->bestRobotRank;
+		else
+			bestDriverRank = sdata->bestHumanRank;
+
+
+		if ((bestDriverRank != NULL) && (bestDriverRank != botDriver))
+		{
+			s16 difficultyStat; // sVar7
+			int distToFinish;
+			int lapIndex;
+			int botLapIndex;
+			int bestProgressBase;
+			int botProgressBase;
+			int bestTrackProgress;
+			int botTrackProgress;
+			int complexDifficultyStat;
+			int absComplexDifficulty;
+			int otherDifficultyStat; // iVar13
+			int iVar9;
+			int bestDriverWumpaCount;
+			int turboMult;
+			int netSpeedStat;
+			int additionalVelocity;
+			s16 driverRank = botDriver->driverRank; // uVar8
+			b8 isInAdvArcadeOrVSCup = false;        // bVar1
+
+			if (((GAME_TRACKER->gameMode1 & ADVENTURE_CUP) != 0) || ((GAME_TRACKER->gameMode2 & CUP_ANY_KIND) != 0))
+			{
+				isInAdvArcadeOrVSCup = true;
+			}
+
+			if (GAME_TRACKER->drivers[0]->driverRank < driverRank)
+			{
+				driverRank--;
+			}
+
+			if (1 < GAME_TRACKER->numPlyrCurrGame && GAME_TRACKER->drivers[1]->driverRank <= driverRank)
+			{
+				driverRank--;
+			}
+
+			if (((GAME_TRACKER->gameMode1 & ADVENTURE_CUP) != 0) || ((GAME_TRACKER->gameMode2 & CUP_ANY_KIND) != 0))
+			{
+				driverRank = BOTS_ACCEL_ORDER[botDriver->driverID];
+				if (sdata->accelerateOrder[0] < 2)
+				{
+					driverRank--;
+				}
+				if (sdata->accelerateOrder[1] < 2)
+				{
+					driverRank--;
+				}
+			}
+
+
+			if (bestDriverRank->lapIndex == 0)
+			{
+				difficultyStat = sdata->arcade_difficultyParams[0xB];
+			}
+			else
+			{
+				if (bestDriverRank->lapIndex != GAME_TRACKER->numLaps - 1)
+				{
+					difficultyStat = sdata->arcade_difficultyParams[0xC];
+				}
+				else
+				{
+					difficultyStat = sdata->arcade_difficultyParams[0xD];
+				}
+			}
+
+			// NOTE(aalhendi): reusing complexDifficultyStat for the rank+lap
+			// sum keeps it multi-set (REG_N_SETS==2, killing GCC 2.8.1's
+			// sched1 birthing_insn_p boost) and gives it a longer live range
+			// than bestTrackProgress so bestTrackProgress takes a2 and
+			// complexDifficultyStat takes a3 as in retail.
+			{
+				s16 *arcadeParam = sdata->arcade_difficultyParams + driverRank;
+				complexDifficultyStat = *arcadeParam + difficultyStat;
+			}
+			distToFinish = BOTS_GetTrackDistanceToFinish(GAME_TRACKER); // iVar3
+
+			// NOTE(aalhendi): base temps + single-def sums for both
+			// progress chains: storing the base difference straight into
+			// the progress variable makes one long two-def pseudo, which
+			// pushes its allocation turn past distToFinish's and leaves
+			// the whole difficulty register family one slot high; a short
+			// base temp plus a single-def sum matches retail's
+			// leg-temp/variable split (leg1 and sum in different registers).
+			// NOTE(aalhendi): the base subtraction is spelled inline (the
+			// same unsigned-wrap semantics as CTR_MipsSubLo) so the
+			// expand passes the variable's pseudo as the subu target: a
+			// CTR_MipsSubLo call returns through its own result temp,
+			// and the per-arm reads of that temp leave it multi-use, so
+			// the copy into the variable's home survives and the two
+			// arms' addus read different base registers — the post-reload
+			// cross-jump then cannot merge the arms' [mflo; addu] tails
+			// into retail's single join tail. With the direct target both
+			// arms read one base pseudo and the tails merge.
+			bestProgressBase = (s32)((u32)distToFinish - (u32)bestDriverRank->distanceToFinish_curr);
+			lapIndex = bestDriverRank->lapIndex;
+			// NOTE(aalhendi): each arm sums directly; the product stays
+			// anonymous inside the arm expression (per-arm mult, shared
+			// mflo/addu tail by cross-jumping, as retail), and lapIndex
+			// stays single-def so its load is not hoisted.
+			if ((bestDriverRank->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
+				bestTrackProgress = CTR_MipsAddLo(bestProgressBase, CTR_MipsMulLo(CTR_MipsSubLo(lapIndex, 1), distToFinish));
+			else
+				bestTrackProgress = CTR_MipsAddLo(bestProgressBase, CTR_MipsMulLo(lapIndex, distToFinish));
+
+			botProgressBase = (s32)((u32)distToFinish - (u32)botDriver->distanceToFinish_curr);
+			botLapIndex = botDriver->lapIndex;
+			if ((botDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
+				botTrackProgress = CTR_MipsAddLo(botProgressBase, CTR_MipsMulLo(CTR_MipsSubLo(botLapIndex, 1), distToFinish));
+			else
+				botTrackProgress = CTR_MipsAddLo(botProgressBase, CTR_MipsMulLo(botLapIndex, distToFinish));
+
+			// Compare completed track progress, then apply rank/lap difficulty.
+			complexDifficultyStat = CTR_MipsSubLo(CTR_MipsSubLo(bestTrackProgress, botTrackProgress), complexDifficultyStat);
+
+
+			// NOTE(aalhendi): retail keeps the >=1 progress arms inline and
+			// branches the behind-bot [0x9] arms out of line, with the
+			// final-lap sum as the fallthrough of the lap comparison.
+			if (isInAdvArcadeOrVSCup && ((s16)driverRank == 0))
+			{
+				if (1 <= complexDifficultyStat)
+				{
+					if (GAME_TRACKER->numLaps - 1 <= botDriver->lapIndex)
+					{
+						// NOTE(aalhendi): one decay of the params pointer:
+						// two separate sdata->cup_difficultyParams reads
+						// expand to two pointer loads, and GCC 2.8.1's
+						// post-reload hard-reg CSE converts the second
+						// into a move that cross-jumping threads through
+						// both sum arms; a single local keeps retail's
+						// one-register shared tail (both lh via one
+						// pointer register).
+						s16 *cupDifficulty = sdata->cup_difficultyParams;
+						otherDifficultyStat = cupDifficulty[0x8] + cupDifficulty[0xA];
+					}
+					else
+					{
+						otherDifficultyStat = sdata->cup_difficultyParams[0x8];
+					}
+				}
+				else
+				{
+					otherDifficultyStat = sdata->arcade_difficultyParams[0x9];
+				}
+			}
+			else
+			{
+				if (1 <= complexDifficultyStat)
+				{
+					if (GAME_TRACKER->numLaps - 1 <= botDriver->lapIndex)
+					{
+						// NOTE(aalhendi): same single-decay form as the
+						// cup sum arm above, for the arcade table.
+						s16 *arcadeDifficulty = sdata->arcade_difficultyParams;
+						otherDifficultyStat = arcadeDifficulty[0x8] + arcadeDifficulty[0xA];
+					}
+					else
+					{
+						otherDifficultyStat = sdata->arcade_difficultyParams[0x8];
+					}
+				}
+				else
+				{
+					otherDifficultyStat = sdata->arcade_difficultyParams[0x9];
+				}
+			}
+			// NOTE(aalhendi): retail emits the vendor absidi2 form (bgez on
+			// the source, move in the delay slot, negu) — the copy-then-
+			// conditional-negate spelling makes GCC's expand_abs fallback
+			// emit extra copies.
+			// NOTE(aalhendi): dedicated single-set temp for the first abs.
+			// Storing it into botVelocity makes the abs destination
+			// multi-set, which blocks GCC 2.8.1 sched1's birthing boost,
+			// so the division magic materializes after the abs block at
+			// the join and the dispatch arms lose their lui delay-slot
+			// fills; a single-set temp restores retail's join order.
+			absComplexDifficulty = abs(complexDifficultyStat);
+			iVar9 = abs(otherDifficultyStat);
+
+			botVelocity = CTR_MipsSra(CTR_MipsMulLo(iVar9, ((s32)(CTR_MipsSll(CTR_MipsAddLo(absComplexDifficulty, 0x80), 0xc)) / 0xa00)), 0xc);
+			local_38 = 0 < complexDifficultyStat;
+			botVelocity = CTR_MipsAddLo(botVelocity, CTR_MipsMulLo(((s32)(CTR_MipsSll(botVelocity, 3)) / 100), CTR_MipsSubLo(7, driverRank)));
+
+			if (iVar9 < botVelocity)
+			{
+				botVelocity = iVar9;
+			}
+			if (otherDifficultyStat < 0)
+			{
+				botVelocity = CTR_MipsNegLo(iVar9);
+			}
+
+			bestDriverWumpaCount = bestDriverRank->numWumpas; // iVar15, assume max of 9?
+			if (9 < bestDriverWumpaCount)
+			{
+				bestDriverWumpaCount = 9;
+			}
+
+			turboMult = bestDriverRank->turboConst; // iVar13, max of 5
+			if (5 < turboMult)
+			{
+				turboMult = 5;
+			}
+
+			netSpeedStat = CTR_MipsSubLo(
+			    ((s32)(CTR_MipsSll(CTR_MipsSubLo(bestDriverRank->const_AccelSpeed_ClassStat, bestDriverRank->const_Speed_ClassStat), 0xc)) / 5), 1);
+
+			{
+				int speedTerm;
+				bestDriverWumpaCount = (s32)((u32)bestDriverWumpaCount * (u32)netSpeedStat) / 10;
+				speedTerm = (s32)((u32)bestDriverRank->const_Speed_ClassStat << 3) / 10;
+				additionalVelocity =
+				    (s32)((u32)speedTerm + (u32)CTR_MipsSra((s32)((u32)bestDriverWumpaCount + (u32)((u32)turboMult * (u32)netSpeedStat)), 0xc));
+			}
+
+			if (additionalVelocity > 0x6900)
+			{
+				additionalVelocity = 0x6900;
+			}
+
+			botVelocity = CTR_MipsAddLo(botVelocity, additionalVelocity);
+
+			// NOTE(aalhendi): retail branches the >= arm inline, so the high
+			// clamp is the taken-fallthrough side of the comparison.
+			if (0x5dc1 <= botVelocity)
+			{
+				botVelocity = 24000;
+			}
+			else
+			{
+				if (botVelocity < 0x1c20)
+				{
+					botVelocity = 0x1c20;
+				}
 			}
 		}
 		else
 		{
-			if (BOTS_RACE_START_AI_COLLISION_DELAY_FRAMES < sdata->aiCollisionDelayFrameCount)
-			{
-				struct Driver *otherDriver = NULL; // iVar4
-				if ((botFlags & BOT_FLAG_ESTIMATE_NAV) == 0)
-				{
-					int iVar3 = 1000;
-					s16 sVar7 = 1000;
-					struct BotData *botData;
-
-					for (botData = (struct BotData *)LIST_GetFirstItem(&sdata->navBotList[botDriver->botData.botPath]); botData != NULL;
-					     botData = (struct BotData *)LIST_GetNextItem((struct Item *)botData), sVar7 = (s16)iVar3)
-					{
-						int iVar13;
-						struct Driver *driverFromBotData = (struct Driver *)((char *)botData - offsetof(struct Driver, botData));
-
-						if (driverFromBotData == botDriver)
-						{
-							continue;
-						}
-
-
-						// Find the signed index difference between nav frames on this path.
-						iVar13 = (int)(botData->botNavFrame - botDriver->botData.botNavFrame);
-
-						// if "other" botData driver is behind "this" botDriver driver,
-						if (iVar13 < 0)
-						{
-							// assume number of points "away" is large (add track length)
-							iVar13 = CTR_MipsAddLo(iVar13, sdata->NavPath_ptrHeader[botDriver->botData.botPath]->numPoints);
-						}
-
-						// find closest "other" botData driver
-						// that is AHEAD of "this" botDriver driver
-						if (iVar13 < iVar3)
-						{
-							// save number of points ahead,
-							// and save pointer to other driver
-							iVar3 = iVar13;
-							otherDriver = driverFromBotData;
-						}
-					}
-
-					// If two drivers are within 3 navframe points of each other
-					if ((otherDriver != NULL) && (sVar7 < 3))
-					{
-						int diff = CTR_MipsSubLo(botDriver->distanceToFinish_curr, otherDriver->distanceToFinish_curr);
-
-						// if "this" bot is closer to finish than "other" bot, do nothing,
-						// because "diff" will be incremented largely and fail the <0x200 check
-						if (diff < 0)
-						{
-							diff = CTR_MipsAddLo(diff, BOTS_GetTrackDistanceToFinish(gGT));
-						}
-
-						// if "this" bot driver is behind "other" driver, and very close to them,
-						// while also being on the same nav path, then change the nav path
-						if (diff < 0x200)
-						{
-							s16 changeOpcode = navFrameNext->pathChangeOpcode;
-							s16 newPathID = BOTS_PathChangePathID(changeOpcode);
-							s16 newFrameIndex = BOTS_PathChangeFrameIndex(changeOpcode);
-							s16 cap = BOTS_PathChangeCap(); // 0xC00, cant have path[3]
-
-							if (changeOpcode < cap)
-							{
-								struct NavFrame *firstNavFrameOnPath;
-								s16 oldPathID = botDriver->botData.botPath;
-								botDriver->botData.botPath = newPathID;
-
-								LIST_RemoveMember(&sdata->navBotList[oldPathID], &botDriver->botData.item);
-								LIST_AddFront(&sdata->navBotList[newPathID], &botDriver->botData.item);
-
-								firstNavFrameOnPath = sdata->NavPath_ptrNavFrameArray[newPathID];
-								botDriver->botData.botNavFrame = &firstNavFrameOnPath[newFrameIndex & BOTS_PATH_CHANGE_FRAME_MASK];
-
-								BOTS_SetRotation(botDriver, 0);
-
-								navFrameNext = botDriver->botData.botNavFrame;
-								navFrameCurr = &botDriver->botData.estimateNavFrame;
-							}
-						}
-					}
-				}
-			}
+			botVelocity = GAME_TRACKER->constVal_9000;
 		}
 
-		// puVar5 = gGT but different?
-
-		if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
+		// NOTE(aalhendi): retail tests reserves!=0 first with the boost arms
+		// inline and the boost-active arm as the fallthrough.
+		if (botDriver->reserves != 0)
 		{
-			int ZYsqr = CTR_MipsAddLo(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, botDriver->botData.aiPhysics.speedLinear),
-			                          CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, botDriver->botData.aiPhysics.speedY));
-
-			if (0x2b110000 < ZYsqr) // sqrZY
+			if ((botDriver->botData.botFlags & BOT_FLAG_NAV_BOOST_ACTIVE) != 0)
 			{
-				int ZY = SquareRoot0_stub(ZYsqr);
-
-				int zVel = CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, 0x6900); // iVar3
-
-#if 0 // in the OG game
-				if (ZY == 0)
-				{
-					//trap(0x1c00);
-				}
-				if ((ZY == -1) && (zVel == -0x80000000))
-				{
-					//trap(0x1800);
-				}
-#endif
-				int yVel = CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, 0x6900); // iVar15
-#if 0                                                                                  // in the OG game
-				if (ZY == 0)
-				{
-					//trap(0x1c00);
-				}
-				if ((ZY == -1) && (yVel == -0x80000000))
-				{
-					//trap(0x1800);
-				}
-#endif
-				botDriver->botData.aiPhysics.speedLinear = CTR_MipsDiv(zVel, ZY);
-				botDriver->botData.aiPhysics.speedY = CTR_MipsDiv(yVel, ZY);
+				botVelocity = CTR_MipsAddLo(botDriver->fireSpeedCap, 10000);
+			}
+			else
+			{
+				botVelocity = CTR_MipsAddLo(botVelocity, botDriver->fireSpeedCap);
 			}
 		}
 		else
 		{
-			struct Driver *bestDriverRank;
-			int botVelocity; // iVar3
-			struct Terrain *botTerrain;
-			int velocityAccountingForTerrain;
-			int levelID;
-			botDriver->actionsFlagSet &= ~ACTION_AIRBORNE;
+			botDriver->botData.botFlags &= ~BOT_FLAG_NAV_BOOST_ACTIVE;
+		}
 
-			bestDriverRank = sdata->bestHumanRank; // iVar4
+		if (botDriver->clockReceive != 0 || botDriver->squishTimer != 0)
+		{
+			botVelocity = CTR_MipsSra((s32)((u32)(botVelocity) * (u32)(0xc00)), 0xc);
+		}
 
-			if ((gGT->gameMode1 & RELIC_RACE) != 0)
+		// NOTE(aalhendi): retail tests the damage flag !=0 with the damage
+		// arms inline; the tnt/cloud penalty is the out-of-line else.
+		if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
+		{
+			botDriver->botData.aiPhysics.turboMeter = 0;
+
+			if (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE)
 			{
-				bestDriverRank = sdata->bestRobotRank;
-			}
+				int damagedVelocityPenalty = CTR_MipsSra(botDriver->const_DamagedSpeed, 2); // iVar4
 
-
-			if ((bestDriverRank == NULL) || (bestDriverRank == botDriver))
-			{
-				botVelocity = gGT->constVal_9000;
-			}
-			else
-			{
-				s16 difficultyStat; // sVar7
-				int distToFinish;
-				int lapIndex;
-				int botLapIndex;
-				int complexDifficultyStat;
-				int otherDifficultyStat; // iVar13
-				int iVar9;
-				int bestDriverWumpaCount;
-				int turboMult;
-				int netSpeedStat;
-				int additionalVelocity;
-				int driverRank = botDriver->driverRank; // uVar8
-				b32 isInAdvArcadeOrVSCup = false;       // bVar1
-
-				if (((gGT->gameMode1 & ADVENTURE_CUP) != 0) || ((gGT->gameMode2 & CUP_ANY_KIND) != 0))
-				{
-					isInAdvArcadeOrVSCup = true;
-				}
-
-				if (gGT->drivers[0]->driverRank < botDriver->driverRank)
-				{
-					driverRank--;
-				}
-
-				if (1 < gGT->numPlyrCurrGame && gGT->drivers[1]->driverRank <= driverRank)
-				{
-					driverRank--;
-				}
-
-				if (isInAdvArcadeOrVSCup)
-				{
-					driverRank = sdata->accelerateOrder[botDriver->driverID];
-					if (sdata->accelerateOrder[0] < 2)
-					{
-						driverRank--;
-					}
-					if (sdata->accelerateOrder[1] < 2)
-					{
-						driverRank--;
-					}
-				}
-
-
-				if (bestDriverRank->lapIndex == 0)
-				{
-					difficultyStat = sdata->arcade_difficultyParams[0xB];
-				}
-				else
-				{
-					if (bestDriverRank->lapIndex == gGT->numLaps - 1)
-					{
-						difficultyStat = sdata->arcade_difficultyParams[0xD];
-					}
-					else
-					{
-						difficultyStat = sdata->arcade_difficultyParams[0xC];
-					}
-				}
-
-				distToFinish = BOTS_GetTrackDistanceToFinish(gGT); // iVar3
-
-				lapIndex = bestDriverRank->lapIndex; // uVar20
-
-				if ((bestDriverRank->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
-				{
-					lapIndex--;
-				}
-
-				botLapIndex = botDriver->lapIndex; // uVar18
-
-				if ((botDriver->actionsFlagSet & ACTION_BEHIND_START_LINE) != 0)
-				{
-					botLapIndex--;
-				}
-
-				// not super meaningful, probably just a difficulty statistic
-				complexDifficultyStat = CTR_MipsSubLo(
-				    CTR_MipsSubLo(CTR_MipsAddLo(CTR_MipsSubLo(distToFinish, bestDriverRank->distanceToFinish_curr), CTR_MipsMulLo(lapIndex, distToFinish)),
-				                  CTR_MipsAddLo(CTR_MipsSubLo(distToFinish, botDriver->distanceToFinish_curr), CTR_MipsMulLo(botLapIndex, distToFinish))),
-				    CTR_MipsAddLo(sdata->arcade_difficultyParams[driverRank], difficultyStat));
-
-
-				if (isInAdvArcadeOrVSCup && ((driverRank & 0xffff) == 0))
-				{
-					if (complexDifficultyStat < 1)
-					{
-						otherDifficultyStat = sdata->arcade_difficultyParams[0x9];
-					}
-					else
-					{
-						if (botDriver->lapIndex < gGT->numLaps - 1)
-						{
-							otherDifficultyStat = sdata->cup_difficultyParams[0x8];
-						}
-						else
-						{
-							otherDifficultyStat = sdata->cup_difficultyParams[0x8] + sdata->cup_difficultyParams[0xA];
-						}
-					}
-				}
-				else
-				{
-					if (complexDifficultyStat < 1)
-					{
-						otherDifficultyStat = sdata->arcade_difficultyParams[0x9];
-					}
-					else
-					{
-						if (gGT->numLaps - 1 <= botDriver->lapIndex)
-						{
-							otherDifficultyStat = sdata->arcade_difficultyParams[0x8] + sdata->arcade_difficultyParams[0xA];
-						}
-						else
-						{
-							otherDifficultyStat = sdata->arcade_difficultyParams[0x8];
-						}
-					}
-				}
-				botVelocity = complexDifficultyStat; // iVar3
-				if (complexDifficultyStat < 0)
-				{
-					botVelocity = CTR_MipsNegLo(complexDifficultyStat);
-				}
-				iVar9 = otherDifficultyStat;
-				if (otherDifficultyStat < 0)
-				{
-					iVar9 = CTR_MipsNegLo(otherDifficultyStat);
-				}
-
-				botVelocity = CTR_MipsSra(CTR_MipsMulLo(iVar9, CTR_MipsDiv(CTR_MipsSll(CTR_MipsAddLo(botVelocity, 0x80), 0xc), 0xa00)), 0xc);
-				local_38 = 0 < complexDifficultyStat;
-				botVelocity = CTR_MipsAddLo(botVelocity, CTR_MipsMulLo(CTR_MipsDiv(CTR_MipsSll(botVelocity, 3), 100), CTR_MipsSubLo(7, driverRank)));
-
-				if (iVar9 < botVelocity)
-				{
-					botVelocity = iVar9;
-				}
-				if (otherDifficultyStat < 0)
-				{
-					botVelocity = CTR_MipsNegLo(iVar9);
-				}
-
-				bestDriverWumpaCount = bestDriverRank->numWumpas; // iVar15, assume max of 9?
-				if (9 < bestDriverWumpaCount)
-				{
-					bestDriverWumpaCount = 9;
-				}
-
-				turboMult = bestDriverRank->turboConst; // iVar13, max of 5
-				if (5 < turboMult)
-				{
-					turboMult = 5;
-				}
-
-				netSpeedStat = CTR_MipsSubLo(
-				    CTR_MipsDiv(CTR_MipsSll(CTR_MipsSubLo(bestDriverRank->const_AccelSpeed_ClassStat, bestDriverRank->const_Speed_ClassStat), 0xc), 5), 1);
-
-				additionalVelocity = CTR_MipsAddLo(
-				    CTR_MipsDiv(CTR_MipsSll(bestDriverRank->const_Speed_ClassStat, 3), 10),
-				    CTR_MipsSra(CTR_MipsAddLo(CTR_MipsDiv(CTR_MipsMulLo(bestDriverWumpaCount, netSpeedStat), 10), CTR_MipsMulLo(turboMult, netSpeedStat)),
-				                0xc));
-
-				if (additionalVelocity > 0x6900)
-				{
-					additionalVelocity = 0x6900;
-				}
-
-				botVelocity = CTR_MipsAddLo(botVelocity, additionalVelocity);
-
-				if (botVelocity < 0x5dc1)
-				{
-					if (botVelocity < 0x1c20)
-					{
-						botVelocity = 0x1c20;
-					}
-				}
-				else
-				{
-					botVelocity = 24000;
-				}
-			}
-
-			if (botDriver->reserves == 0)
-			{
-				botDriver->botData.botFlags &= ~BOT_FLAG_NAV_BOOST_ACTIVE;
+				botVelocity = CTR_MipsSubLo(botVelocity, damagedVelocityPenalty);
 			}
 			else
 			{
-				if ((botDriver->botData.botFlags & BOT_FLAG_NAV_BOOST_ACTIVE) == 0)
+				botVelocity = CTR_MipsSubLo(botVelocity, botDriver->const_DamagedSpeed);
+			}
+		}
+		else
+		{
+			if (botDriver->instTntRecv != NULL || botDriver->thCloud != NULL)
+			{
+				int damagedVelocityPenalty = CTR_MipsSra(botDriver->const_DamagedSpeed, 1); // iVar4
+
+				botVelocity = CTR_MipsSubLo(botVelocity, damagedVelocityPenalty);
+			}
+		}
+		if (botVelocity < 0)
+		{
+			botVelocity = 0;
+		}
+
+		botTerrain = botDriver->terrainMeta1; // iVar15
+
+		botDriver->botData.aiPhysics.speedLinear =
+		    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
+		                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_PedalFriction_Forward, botTerrain->botFrictionScale), 8)); // iVar4
+
+		if (botDriver->botData.aiPhysics.speedLinear < 0)
+		{
+			botDriver->botData.aiPhysics.speedLinear = 0;
+		}
+
+		if (0x6900 < botVelocity)
+		{
+			botVelocity = 0x6900;
+		}
+
+		// NOTE(aalhendi): one velocity variable from the difficulty blend
+		// through the fireSpeed store; its web crosses the squish MATH_Sin
+		// call, which forces GCC 2.8.1's allocator to a callee-saved home
+		// (retail s0). The decel half-speed value is its own temp so its
+		// mid-chain def does not split the web.
+		botVelocity = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->bot.fields.targetSpeedScale), 8); // iVar4
+
+		// NOTE(aalhendi): retail tests the decel flag !=0 with the decel
+		// arms inline; the plain acceleration check is the out-of-line else.
+		if ((botTerrain->bot.fields.speedFlags & TERRAIN_BOT_FLAG_DECEL_TO_TARGET_SPEED) != 0)
+		{
+			if (botDriver->botData.aiPhysics.speedLinear < botVelocity)
+			{
+				goto ApplyTerrainAcceleration;
+			}
+
+			decelSpeed = CTR_MipsSra(botDriver->botData.aiPhysics.speedLinear, 1);
+			botDriver->botData.aiPhysics.speedLinear = decelSpeed;
+			if (decelSpeed < botVelocity)
+			{
+				botDriver->botData.aiPhysics.speedLinear = botVelocity;
+				goto CheckAccelerationTowardTerrainTarget;
+			}
+		}
+		else
+		{
+		CheckAccelerationTowardTerrainTarget:
+			if (botDriver->botData.aiPhysics.speedLinear < botVelocity)
+			{
+				// NOTE(aalhendi): retail sign-extends each class-stat accel load
+				// in place (lh), which needs a plain int lifetime, not s16.
+				int accel; // sVar7
+			ApplyTerrainAcceleration:;
+
+				// NOTE(aalhendi): retail branches the low-reserves arm away,
+				// keeping the reserves accel inline.
+				if (botDriver->reserves >= 1)
 				{
-					botVelocity = CTR_MipsAddLo(botVelocity, botDriver->fireSpeedCap);
+					accel = botDriver->const_Accel_Reserves;
 				}
 				else
 				{
-					botVelocity = CTR_MipsAddLo(botDriver->fireSpeedCap, 10000);
+					accel = botDriver->const_Accel_ClassStat;
 				}
-			}
+				accel = CTR_MipsSra(CTR_MipsMulLo(accel, botTerrain->bot.fields.accelerationScale), 8);
 
-			if (botDriver->clockReceive != 0 || botDriver->squishTimer != 0)
-			{
-				botVelocity = CTR_MipsSra(CTR_MipsMulLo(botVelocity, 0xc00), 0xc);
-			}
-
-			if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
-			{
-				if (botDriver->instTntRecv != NULL || botDriver->thCloud != NULL)
+				if (botDriver->botData.botAccel != 0)
 				{
-					int damagedVelocityPenalty = CTR_MipsSra(botDriver->const_DamagedSpeed, 1); // iVar4
+					botDriver->botData.botAccel--;
+					accel = CTR_MipsSra(
+					    CTR_MipsMulLo(accel, CTR_MipsSubLo(0x100, CTR_MipsMulLo(sdata->AI_AccelFrameSteps, BOTS_ACCEL_ORDER[botDriver->driverID]))), 8);
+				}
 
-					botVelocity = CTR_MipsSubLo(botVelocity, damagedVelocityPenalty);
+				botDriver->botData.aiPhysics.speedLinear = CTR_MipsAddLo(botDriver->botData.aiPhysics.speedLinear, accel);
+			}
+		}
+
+		levelID = GAME_TRACKER->levelID; // iVar3
+
+		if ((levelID == HOT_AIR_SKYWAY || levelID == PAPU_PYRAMID) || levelID == POLAR_PASS)
+		{
+			// NOTE(aalhendi): retail selects the level's throttle row with a
+			// byte-scaled offset into the s16 table (row steps 6/12/18), keeps
+			// the table base live across the row tests, re-reads levelID from
+			// GAME_TRACKER for those tests, and truncates the nav-frame
+			// index to s16 before comparing it with the row entry.
+			s16 *botThrottle = data.botsThrottle;
+			s16 *botThrottleRow;
+			s16 navFrameIndexOnPath;
+			int pathByteOffset = 2 * botDriver->botData.botPath;
+			int throttleOffset;
+			int throttleLevelID = GAME_TRACKER->levelID;
+
+			if (throttleLevelID != POLAR_PASS)
+			{
+				if (throttleLevelID != PAPU_PYRAMID)
+				{
+					if (throttleLevelID == SLIDE_COLISEUM)
+					{
+						throttleOffset = pathByteOffset + 18;
+					}
+					else
+					{
+						throttleOffset = pathByteOffset;
+					}
+				}
+				else
+				{
+					throttleOffset = pathByteOffset + 12;
 				}
 			}
 			else
+			{
+				throttleOffset = pathByteOffset + 6;
+			}
+
+			navFrameIndexOnPath = (s16)(navFrameCurr - BOT_NAV_FRAMES[botDriver->botData.botPath]);
+			botThrottleRow = (s16 *)((u8 *)botThrottle + throttleOffset);
+			tireColorStep = *botThrottleRow;
+
+			if ((tireColorStep <= navFrameIndexOnPath) && (navFrameIndexOnPath < tireColorStep + 0xb) &&
+			    (9000 < botDriver->botData.aiPhysics.speedLinear))
 			{
 				botDriver->botData.aiPhysics.turboMeter = 0;
 
-				if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
-				{
-					int damagedVelocityPenalty = CTR_MipsSra(botDriver->const_DamagedSpeed, 2); // iVar4
-
-					botVelocity = CTR_MipsSubLo(botVelocity, damagedVelocityPenalty);
-				}
-				else
-				{
-					botVelocity = CTR_MipsSubLo(botVelocity, botDriver->const_DamagedSpeed);
-				}
-			}
-			if (botVelocity < 0)
-			{
-				botVelocity = 0;
-			}
-
-			botTerrain = botDriver->terrainMeta1; // iVar15
-
-			botDriver->botData.aiPhysics.speedLinear =
-			    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
-			                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_PedalFriction_Forward, botTerrain->botFrictionScale), 8)); // iVar4
-
-			if (botDriver->botData.aiPhysics.speedLinear < 0)
-			{
-				botDriver->botData.aiPhysics.speedLinear = 0;
-			}
-
-			if (0x6900 < botVelocity)
-			{
-				botVelocity = 0x6900;
-			}
-
-			velocityAccountingForTerrain = CTR_MipsSra(CTR_MipsMulLo(botVelocity, botTerrain->bot.fields.targetSpeedScale), 8); // iVar4
-
-			if ((botTerrain->bot.fields.speedFlags & TERRAIN_BOT_FLAG_DECEL_TO_TARGET_SPEED) == 0)
-			{
-			CheckAccelerationTowardTerrainTarget:
-				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
-				{
-					s16 accel; // sVar7
-				ApplyTerrainAcceleration:;
-
-					if (botDriver->reserves < 1)
-					{
-						accel = botDriver->const_Accel_ClassStat;
-					}
-					else
-					{
-						accel = botDriver->const_Accel_Reserves;
-					}
-					botVelocity = CTR_MipsSra(CTR_MipsMulLo(accel, botTerrain->bot.fields.accelerationScale), 8);
-
-					if (botDriver->botData.botAccel != 0)
-					{
-						botDriver->botData.botAccel--;
-						botVelocity = CTR_MipsSra(CTR_MipsMulLo(botVelocity, CTR_MipsSubLo(0x100, CTR_MipsMulLo(sdata->AI_AccelFrameSteps,
-						                                                                                        sdata->accelerateOrder[botDriver->driverID]))),
-						                          8);
-					}
-
-					botDriver->botData.aiPhysics.speedLinear = CTR_MipsAddLo(botDriver->botData.aiPhysics.speedLinear, botVelocity);
-				}
-			}
-			else
-			{
-				botVelocity = CTR_MipsSra(botDriver->botData.aiPhysics.speedLinear, 1);
-
-				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
-				{
-					goto ApplyTerrainAcceleration;
-				}
-
-				botDriver->botData.aiPhysics.speedLinear = botVelocity;
-				if (botVelocity < velocityAccountingForTerrain)
-				{
-					botDriver->botData.aiPhysics.speedLinear = velocityAccountingForTerrain;
-					goto CheckAccelerationTowardTerrainTarget;
-				}
-			}
-
-			levelID = gGT->levelID; // iVar3
-
-			if ((levelID == HOT_AIR_SKYWAY || levelID == PAPU_PYRAMID) || levelID == POLAR_PASS)
-			{
-				int navFrameIndexOnPath;
-				int botPathIndex = botDriver->botData.botPath; // iVar3
-
-				if (levelID == POLAR_PASS)
-				{
-					botPathIndex = CTR_MipsAddLo(botPathIndex, 3);
-				}
-				else
-				{
-					if (levelID == PAPU_PYRAMID)
-					{
-						botPathIndex = CTR_MipsAddLo(botPathIndex, 6);
-					}
-					else if (levelID == SLIDE_COLISEUM)
-					{
-						botPathIndex = CTR_MipsAddLo(botPathIndex, 9);
-					}
-				}
-
-				navFrameIndexOnPath = (int)(navFrameCurr - sdata->NavPath_ptrNavFrameArray[botDriver->botData.botPath]);
-
-				if ((data.botsThrottle[botPathIndex] <= navFrameIndexOnPath) && (navFrameIndexOnPath < CTR_MipsAddLo(data.botsThrottle[botPathIndex], 0xb)) &&
-				    (9000 < botDriver->botData.aiPhysics.speedLinear))
-				{
-					botDriver->botData.aiPhysics.turboMeter = 0;
-
-					botDriver->botData.aiPhysics.speedLinear =
-					    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear, CTR_MipsAddLo(100, botDriver->const_Accel_ClassStat));
-				}
-			}
-
-			if ((u8)0x80u < navFrameCurr->rot[3])
-			{
-				velocityAccountingForTerrain = CTR_MipsAddLo(velocityAccountingForTerrain, botDriver->const_SlopeForwardSpeedBonus);
-
-				if (botDriver->botData.aiPhysics.speedLinear < velocityAccountingForTerrain)
-				{
-					u32 var = (u32)navFrameCurr->rot[3];
-					int sinOfAngle = MATH_Sin(CTR_MipsSll(var, 4));
-
-					botDriver->botData.aiPhysics.speedLinear =
-					    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
-					                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_Gravity, sinOfAngle), 0xc)); // force on a slope due to gravity
-				}
-
-				botDriver->fireSpeed = velocityAccountingForTerrain;
+				botDriver->botData.aiPhysics.speedLinear =
+				    CTR_MipsSubLo(CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear, 100), botDriver->const_Accel_ClassStat);
 			}
 		}
 
-		if (0x6400 < botDriver->botData.aiPhysics.speedLinear)
+		if ((u8)0x80u < navFrameCurr->rot[3])
 		{
-			botDriver->botData.aiPhysics.speedLinear = 0x6400;
-		}
+			botVelocity = CTR_MipsAddLo(botVelocity, botDriver->const_SlopeForwardSpeedBonus);
 
-		deltaPosThisFrame = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, elapsedMilliseconds), 5); // iVar4
-		if (deltaPosThisFrame < 0)
-		{
-			deltaPosThisFrame = 0;
+			if (botDriver->botData.aiPhysics.speedLinear < botVelocity)
+			{
+				u32 var = (u32)navFrameCurr->rot[3];
+				int sinOfAngle = MATH_Sin(CTR_MipsSll(var, 4));
+
+				botDriver->botData.aiPhysics.speedLinear =
+				    CTR_MipsSubLo(botDriver->botData.aiPhysics.speedLinear,
+				                  CTR_MipsSra(CTR_MipsMulLo(botDriver->const_Gravity, sinOfAngle), 0xc)); // force on a slope due to gravity
+			}
+
+			botDriver->fireSpeed = botVelocity;
 		}
-		deltaPosThisFrame = CTR_MipsAddLo(deltaPosThisFrame, botDriver->botData.navProgressRemainder);
 	}
 	else
 	{
-	HoldBotBeforeRaceOrCooldown:
-		botInstance->scale.x = 0xccc;
-		botInstance->scale.y = 0xccc;
-		botInstance->scale.z = 0xccc;
+		// NOTE(aalhendi): spelling the sum inline (same unsigned-wrap
+		// semantics as CTR_MipsAddLo) targets ZY directly without an
+		// inline-call temp, so ZY stays one multi-block pseudo across
+		// SquareRoot0_stub and gets a1 on both sides as in retail.
+		int ZY = (s32)((u32)CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, botDriver->botData.aiPhysics.speedLinear) +
+		               (u32)CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, botDriver->botData.aiPhysics.speedY));
 
-		botDriver->botData.aiPhysics.speedLinear = 0;
-
-		if (botDriver->botData.ai_progress_cooldown != 0)
+		if (0x2b110000 < ZY) // sqrZY
 		{
-			botDriver->botData.ai_progress_cooldown--;
+			int newSpeedLinear;
+			int newSpeedY;
+			ZY = SquareRoot0_stub(ZY);
+			newSpeedLinear = CTR_MipsDiv((s32)((u32)(botDriver->botData.aiPhysics.speedLinear) * (u32)(0x6900)), ZY);
+			newSpeedY = CTR_MipsDiv((s32)((u32)(botDriver->botData.aiPhysics.speedY) * (u32)(0x6900)), ZY);
+			botDriver->botData.aiPhysics.speedLinear = newSpeedLinear;
+			botDriver->botData.aiPhysics.speedY = newSpeedY;
 		}
-
-		deltaPosThisFrame = botDriver->botData.navProgressRemainder;
 	}
 
-	navFrameFlags = navFrameCurr->flags;
-	navFrameSpecialBits = navFrameCurr->specialBits;
+	// NOTE(aalhendi): retail keeps the cap as a constant-equiv pseudo
+	// across the ground/air calls so reload materializes li t3,25600 once
+	// and reuses t3 for both the compare and the clamp store.
+	if (speedCap < botDriver->botData.aiPhysics.speedLinear)
+	{
+		botDriver->botData.aiPhysics.speedLinear = speedCap;
+	}
+
+	{
+		// NOTE(aalhendi): Retail keeps the explicit register copy between the
+		// shift and the >=0 clamp branch; pinned GCC 2.8.1 -O2 folds any plain
+		// C copy in both cse2 and combine, so reuse the existing copy helper.
+		int rawStep = CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedLinear, elapsedMilliseconds), 5);
+		int frameStep;
+		CTR_PSX_COPY_VALUE(frameStep, rawStep);
+		deltaPosThisFrame = CTR_MipsAddLo(botDriver->botData.navProgressRemainder, (frameStep < 0) ? 0 : frameStep);
+	}
+}
+
+DriveAdvanceNavAfterStartGate:;
+
+
+	navFrameFlags |= navFrameCurr->flags;
+	navFrameSpecialBits |= navFrameCurr->specialBits;
 	// local_3c == 0
 	if ((navFrameSpecialBits & BOTS_NAV_SPECIAL_MOON_GRAVITY) != 0)
 	{
@@ -2267,13 +2382,13 @@ UpdateTireColorTimer:
 	}
 
 
-	if ((botDriver->botData.botFlags & BOT_FLAG_MOON_GRAVITY) == 0)
+	if ((botDriver->botData.botFlags & BOT_FLAG_MOON_GRAVITY) != 0)
 	{
-		gravity = botDriver->const_Gravity;
+		gravity = ((s32)((s32)((u32)(botDriver->const_Gravity) * (u32)(41))) / 100);
 	}
 	else
 	{
-		gravity = CTR_MipsDiv(CTR_MipsMulLo(botDriver->const_Gravity, 41), 100);
+		gravity = botDriver->const_Gravity;
 	}
 
 	botDriver->botData.aiPhysics.speedY =
@@ -2288,43 +2403,50 @@ UpdateTireColorTimer:
 	    CTR_MipsAddLo(botDriver->botData.positionBackup.y, CTR_MipsSra(CTR_MipsMulLo(botDriver->botData.aiPhysics.speedY, elapsedMilliseconds), 5));
 
 
-	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
+	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) != 0)
 	{
-		navDist = navFrameCurr->distToNextNavXZ;
+		iVar3 = navFrameCurr->distToNextNavXYZ;
 	}
 	else
 	{
-		navDist = navFrameCurr->distToNextNavXYZ;
+		iVar3 = navFrameCurr->distToNextNavXZ;
 	}
 
-	local_3c = 0;
+	iVar15 = CTR_MipsSra(deltaPosThisFrame, 8);
 	useGroundedNavDistance = false;
 	if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_RAMP_PHYS) != 0)
 	{
 		local_3c = navFrameCurr->specialBits;
 	}
-	iVar15 = CTR_MipsSra(deltaPosThisFrame, 8);
 
 
-	for (iVar3 = navDist; iVar3 <= iVar15; /* decrement inside loop */)
+	for (; iVar3 <= iVar15; /* decrement inside loop */)
 	{
 		int index;
-		int uVar8;
-		s16 nextNavDist; // sVar7
-		u8 compare;
-		navFrameCurr = navFrameNext;
+
+		// NOTE(aalhendi): retail reads the path index first, then consumes
+		// the loop-carried Sll(iVar3,8) for the progress subtraction; the
+		// preheader/backedge-delay placement of that shift follows from this
+		// statement order (pinned-compiler probe).
+		index = botDriver->botData.botPath; // index = iVar13
+
+		// NOTE(aalhendi): with the iVar15 subtraction hoisted between the
+		// index read and the progress subtraction, sched1 ties resolve so
+		// the loop-head block opens [sll; lh; subu] — reorg then moves the
+		// sll into the backedge delay slot, leaving retail's [lh; subu]
+		// head with every load delay slot filled from the block itself
+		// (no nop before the loop test).
+		iVar15 = CTR_MipsSubLo(iVar15, iVar3);
 
 		deltaPosThisFrame = CTR_MipsSubLo(deltaPosThisFrame, CTR_MipsSll(iVar3, 8));
 
-		index = botDriver->botData.botPath; // index = iVar13
+		navFrameCurr = navFrameNext;
 
 		navFrameNext = NAVFRAME_GETNEXTFRAME(navFrameCurr);
 
-		iVar15 = CTR_MipsSubLo(iVar15, iVar3);
-
-		if (navFrameNext >= sdata->NavPath_ptrHeader[index]->last)
+		if (navFrameNext >= BOT_NAV_HEADERS[index]->last)
 		{
-			navFrameNext = sdata->NavPath_ptrNavFrameArray[index];
+			navFrameNext = BOT_NAV_FRAMES[index];
 		}
 
 		if ((CTR_MipsSra(botDriver->botData.positionBackup.y, 8) < navFrameNext->pos.y) && ((navFrameCurr->flags & BOTS_NAV_FLAG_KILLPLANE) != 0))
@@ -2336,41 +2458,36 @@ UpdateTireColorTimer:
 		navFrameSpecialBits |= navFrameCurr->specialBits;
 
 
-		if ((botDriver->botData.botFlags & BOT_FLAG_BOSS_PATH_ACTIVE) == 0)
+		if ((botDriver->botData.botFlags & BOT_FLAG_BOSS_PATH_ACTIVE) != 0)
 		{
-			uVar8 = ~BOT_FLAG_ESTIMATE_NAV;
+			botDriver->botData.botFlags &= ~(BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_BOSS_PATH_REQUESTED | BOT_FLAG_BOSS_PATH_ACTIVE);
 		}
 		else
 		{
-			uVar8 = ~(BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_BOSS_PATH_REQUESTED | BOT_FLAG_BOSS_PATH_ACTIVE);
+			botDriver->botData.botFlags &= ~BOT_FLAG_ESTIMATE_NAV;
 		}
-
-		botDriver->botData.botFlags &= uVar8;
 
 
 		// MUST be unsigned,
 		// this makes a range-value check, and makes negatives positive,
 		// so its really checking value between 0x31 and 0x31+0x9e
-		compare = navFrameCurr->rot[3] - 0x31;
-		if (!useGroundedNavDistance && (0x9e < compare))
+		if (!useGroundedNavDistance && (0x9e < (u8)(navFrameCurr->rot[3] - 0x31)))
 		{
 			if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 			{
-				nextNavDist = navFrameCurr->distToNextNavXZ;
+				iVar3 = navFrameCurr->distToNextNavXZ;
 			}
 			else
 			{
-				nextNavDist = navFrameCurr->distToNextNavXYZ;
+				iVar3 = navFrameCurr->distToNextNavXYZ;
 			}
 		}
 		else
 		{
 			useGroundedNavDistance = true;
 
-			nextNavDist = navFrameCurr->distToNextNavXZ;
+			iVar3 = navFrameCurr->distToNextNavXZ;
 		}
-
-		iVar3 = nextNavDist;
 
 		if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_RAMP_PHYS) != 0)
 		{
@@ -2379,6 +2496,8 @@ UpdateTireColorTimer:
 	}
 
 	botDriver->botData.navProgressRemainder = deltaPosThisFrame;
+
+	botDriver->actionsFlagSet &= ~(ACTION_ENGINE_ECHO | ACTION_BACK_SKID | ACTION_FRONT_SKID);
 
 	navActionFlags = ((navFrameFlags & BOTS_NAV_FLAG_BACK_SKID) != 0) ? ACTION_BACK_SKID : 0;
 
@@ -2389,11 +2508,13 @@ UpdateTireColorTimer:
 
 	if ((navFrameFlags & BOTS_NAV_FLAG_FRONT_SKID) != 0)
 	{
-		navActionFlags |= ACTION_FRONT_SKID;
+		int frontSkidFlags = botDriver->actionsFlagSet | ACTION_FRONT_SKID;
+		botDriver->actionsFlagSet = frontSkidFlags | navActionFlags;
 	}
-
-	botDriver->actionsFlagSet &= ~(ACTION_ENGINE_ECHO | ACTION_BACK_SKID | ACTION_FRONT_SKID);
-	botDriver->actionsFlagSet |= navActionFlags;
+	else
+	{
+		botDriver->actionsFlagSet = botDriver->actionsFlagSet | navActionFlags;
+	}
 
 	terrain = VehAfterColl_GetTerrain(((u8)navFrameCurr->flags) >> 3);
 
@@ -2402,13 +2523,13 @@ UpdateTireColorTimer:
 	if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_REFLECTIVE) != 0)
 	{
 		s16 vertSplit;
-		if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_INDEX_MASK) == 0)
+		if ((navFrameCurr->specialBits & BOTS_NAV_SPECIAL_INDEX_MASK) != 0)
 		{
-			vertSplit = gGT->level1->splitLines[0];
+			vertSplit = GAME_TRACKER->level1->splitLines[1];
 		}
 		else
 		{
-			vertSplit = gGT->level1->splitLines[1];
+			vertSplit = GAME_TRACKER->level1->splitLines[0];
 		}
 
 		botInstance->vertSplit = vertSplit;
@@ -2418,74 +2539,62 @@ UpdateTireColorTimer:
 
 	if (((navFrameCurr->specialBits & (BOTS_NAV_SPECIAL_RAMP_PHYS | BOTS_NAV_SPECIAL_REFLECTIVE)) == 0) && (botThread->modelIndex != DYNAMIC_GHOST))
 	{
-		int transparency = CTR_MipsMulLo(navFrameCurr->specialBits & BOTS_NAV_SPECIAL_INDEX_MASK, 0x9c00);
+		// NOTE(aalhendi): retail computes index*0x9c00 as (index<<8)*0x9c;
+		// GCC 2.8.1 emits the observed sll8/sll10/addu/sll3/subu/sll2 chain
+		// only from this factoring (x*0x9c00 alone selects a shorter chain).
+		int transparency;
+		navActionFlags = (s32)((u32)(navFrameCurr->specialBits & BOTS_NAV_SPECIAL_INDEX_MASK) << 8);
+		transparency = (s32)((u32)navActionFlags * (u32)(0x9c));
 
-		botDriver->alphaScaleBackup = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo((u16)botDriver->alphaScaleBackup, 100), transparency), 8);
+		botDriver->alphaScaleBackup = (s16)CTR_MipsSra(CTR_MipsAddLo((s32)((u32)((u16)botDriver->alphaScaleBackup) * (u32)(100)), transparency), 8);
 
-		botInstance->alphaScale = (s16)CTR_MipsSra(CTR_MipsAddLo(CTR_MipsMulLo((u16)botInstance->alphaScale, 100), transparency), 8);
+		botInstance->alphaScale = (s16)CTR_MipsSra(CTR_MipsAddLo((s32)((u32)((u16)botInstance->alphaScale) * (u32)(100)), transparency), 8);
 	}
 
-	if (((botDriver->actionsFlagSet & ACTION_FRONT_SKID) == 0) || ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) == 0))
+	if (((botDriver->actionsFlagSet & ACTION_FRONT_SKID) != 0) && ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) != 0))
+	{
+		botDriver->actionsFlagSet |= ACTION_TURBO_INPUT_LATCH;
+		botDriver->botData.aiPhysics.turboMeter = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.turboMeter, elapsedMilliseconds);
+
+		if ((botDriver->botData.aiPhysics.turboMeter >= 0xb41) && (botDriver->botData.aiPhysics.fireLevel < 6))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 6;
+			botDriver->turbo_MeterRoomLeft = 0;
+			VehFire_Increment(botDriver, 0x2d0, 2, (s32)((u32)local_38 * 0x180u));
+		}
+		else if ((botDriver->botData.aiPhysics.turboMeter >= 0x961) && (botDriver->botData.aiPhysics.fireLevel < 5))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 5;
+			botDriver->turbo_MeterRoomLeft = 0xa0;
+		}
+		else if ((botDriver->botData.aiPhysics.turboMeter >= 0x781) && (botDriver->botData.aiPhysics.fireLevel < 4))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 4;
+			botDriver->turbo_MeterRoomLeft = 0;
+			VehFire_Increment(botDriver, 0x1e0, 2, CTR_MipsSll(local_38, 8));
+		}
+		else if ((botDriver->botData.aiPhysics.turboMeter >= 0x5a1) && (botDriver->botData.aiPhysics.fireLevel < 3))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 3;
+			botDriver->turbo_MeterRoomLeft = 0xa0;
+		}
+		else if ((botDriver->botData.aiPhysics.turboMeter >= 0x3c1) && (botDriver->botData.aiPhysics.fireLevel < 2))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 2;
+			botDriver->turbo_MeterRoomLeft = 0;
+			VehFire_Increment(botDriver, 0xf0, 2, CTR_MipsSll(local_38, 7));
+		}
+		else if ((botDriver->botData.aiPhysics.turboMeter >= 0x1e1) && (botDriver->botData.aiPhysics.fireLevel < 1))
+		{
+			botDriver->botData.aiPhysics.fireLevel = 1;
+			botDriver->turbo_MeterRoomLeft = 0xa0;
+		}
+	}
+	else
 	{
 		botDriver->turbo_MeterRoomLeft = 0;
 		botDriver->botData.aiPhysics.turboMeter = 0;
 		botDriver->botData.aiPhysics.fireLevel = 0;
-	}
-	else
-	{
-		int uVar6;
-		botDriver->actionsFlagSet |= ACTION_TURBO_INPUT_LATCH;
-		botDriver->botData.aiPhysics.turboMeter = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.turboMeter, elapsedMilliseconds);
-
-		// this ugly tree of ifs may have been a switch perhaps?
-		if ((botDriver->botData.aiPhysics.turboMeter < 0xb41) || (5 < botDriver->botData.aiPhysics.fireLevel))
-		{
-			if ((botDriver->botData.aiPhysics.turboMeter < 0x961) || (uVar6 = 5, 4 < botDriver->botData.aiPhysics.fireLevel))
-			{
-				if ((botDriver->botData.aiPhysics.turboMeter < 0x781) || (3 < botDriver->botData.aiPhysics.fireLevel))
-				{
-					if ((0x5a0 < botDriver->botData.aiPhysics.turboMeter) && (uVar6 = 3, botDriver->botData.aiPhysics.fireLevel < 3))
-					{
-						goto SetTurboChargeThreshold;
-					}
-					if ((botDriver->botData.aiPhysics.turboMeter < 0x3c1) || (1 < botDriver->botData.aiPhysics.fireLevel))
-					{
-						if ((0x1e0 < botDriver->botData.aiPhysics.turboMeter) && (uVar6 = 1, botDriver->botData.aiPhysics.fireLevel < 1))
-						{
-							goto SetTurboChargeThreshold;
-						}
-					}
-					else
-					{
-						// trigger a turbo boost?
-						botDriver->botData.aiPhysics.fireLevel = 2;
-						botDriver->turbo_MeterRoomLeft = 0;
-						VehFire_Increment(botDriver, 0xf0, 2, CTR_MipsSll(local_38, 7));
-					}
-				}
-				else
-				{
-					// trigger a turbo boost?
-					botDriver->botData.aiPhysics.fireLevel = 4;
-					botDriver->turbo_MeterRoomLeft = 0;
-					VehFire_Increment(botDriver, 0x1e0, 2, CTR_MipsSll(local_38, 8));
-				}
-			}
-			else
-			{
-			SetTurboChargeThreshold:
-				// trigger a turbo boost?
-				botDriver->botData.aiPhysics.fireLevel = uVar6;
-				botDriver->turbo_MeterRoomLeft = 0xa0;
-			}
-		}
-		else
-		{
-			// trigger a turbo boost?
-			botDriver->botData.aiPhysics.fireLevel = 6;
-			botDriver->turbo_MeterRoomLeft = 0;
-			VehFire_Increment(botDriver, 0x2d0, 2, CTR_MipsMulLo(local_38, 0x180));
-		}
 	}
 
 	if ((navFrameFlags & BOTS_NAV_FLAG_SUPER_TURBO) != 0)
@@ -2511,20 +2620,20 @@ UpdateTireColorTimer:
 
 		navFrameNext = NAVFRAME_GETNEXTFRAME(navFrameCurr);
 
-		if (navFrameNext >= sdata->NavPath_ptrHeader[botPath]->last)
+		if (navFrameNext >= BOT_NAV_HEADERS[botPath]->last)
 		{
-			navFrameNext = sdata->NavPath_ptrNavFrameArray[botPath];
+			navFrameNext = BOT_NAV_FRAMES[botPath];
 		}
 	}
 
 
-	if (iVar3 == 0)
+	if (iVar3 != 0)
 	{
-		percentage = 0;
+		percentage = CTR_MipsDiv(CTR_MipsSll(iVar15, 0xc), iVar3);
 	}
 	else
 	{
-		percentage = CTR_MipsDiv(CTR_MipsSll(iVar15, 0xc), iVar3);
+		percentage = 0;
 	}
 
 	botDriver->posPrev.x = botDriver->posCurr.x;
@@ -2548,23 +2657,55 @@ UpdateTireColorTimer:
 		int preAccelZ;
 		int preX;
 		int preZ;
+		int accelXRaw;
+		int accelZRaw;
+		// NOTE(aalhendi): the halvings read one fresh field load while the
+		// round-two X/Z adds read a second, separately-issued load of the
+		// still-pre-halve field (a store to another aiPhysics field keeps
+		// the two reads from merging), so the emitted stream keeps the
+		// load/sra in the load's own register and re-materializes the
+		// pre-halve value for the adds through the copy the compiler's
+		// post-reload pass substitutes for the second load; the round-two
+		// y-axis accel read forwards to the still-live +0x5dc load because
+		// nothing stores there after the zero. The round-two X add is also
+		// issued before the round-two Y add: the X chain's register pair
+		// is born first, so local allocation keeps it in v0 (v1 for the Y
+		// chain), which is what keeps the velocity.x test reload and the
+		// velocity.z load placement downstream of it in the retail order.
 		botDriver->botData.aiPhysics.accel.y = 0;
 		botDriver->botData.aiPhysics.velocity.x = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.x, botDriver->botData.aiPhysics.accel.x);
 		botDriver->botData.aiPhysics.velocity.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.aiPhysics.accel.y);
+		accelXRaw = botDriver->botData.aiPhysics.accel.x; // iVar3
 		botDriver->botData.aiPhysics.velocity.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.z, botDriver->botData.aiPhysics.accel.z);
-		preAccelX = botDriver->botData.aiPhysics.accel.x; // iVar3
-		preAccelZ = botDriver->botData.aiPhysics.accel.z; // iVar15
-		botDriver->botData.aiPhysics.accel.x = CTR_MipsSra(botDriver->botData.aiPhysics.accel.x, 1);
-		botDriver->botData.aiPhysics.accel.z = CTR_MipsSra(botDriver->botData.aiPhysics.accel.z, 1);
-		botDriver->botData.aiPhysics.velocity.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.aiPhysics.accel.y);
+		preAccelX = botDriver->botData.aiPhysics.accel.x;
+		accelZRaw = botDriver->botData.aiPhysics.accel.z; // iVar15
+		botDriver->botData.aiPhysics.accel.x = CTR_MipsSra(accelXRaw, 1);
+		preAccelZ = botDriver->botData.aiPhysics.accel.z;
+		botDriver->botData.aiPhysics.accel.z = CTR_MipsSra(accelZRaw, 1);
 
 		botDriver->botData.aiPhysics.velocity.x = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.x, preAccelX);
+		botDriver->botData.aiPhysics.velocity.y = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.y, botDriver->botData.aiPhysics.accel.y);
 		botDriver->botData.aiPhysics.velocity.z = CTR_MipsAddLo(botDriver->botData.aiPhysics.velocity.z, preAccelZ);
 
 		preX = botDriver->botData.aiPhysics.velocity.x; // iVar3
 		if (preX != 0)
 		{
-			if (preX < 1)
+			if (0 < preX)
+			{
+				botDriver->botData.aiPhysics.velocity.x = CTR_MipsSubLo(preX, 0x444);
+				if (0 <= CTR_MipsSubLo(preX, 0x444))
+				{
+					if (botDriver->botData.aiPhysics.accel.x == 0)
+					{
+						botDriver->botData.aiPhysics.accel.x = -0x444;
+					}
+				}
+				else
+				{
+					botDriver->botData.aiPhysics.velocity.x = 0;
+				}
+			}
+			else
 			{
 				botDriver->botData.aiPhysics.velocity.x = CTR_MipsAddLo(preX, 0x444);
 				if (0 < CTR_MipsAddLo(preX, 0x444))
@@ -2579,26 +2720,26 @@ UpdateTireColorTimer:
 					}
 				}
 			}
-			else
-			{
-				botDriver->botData.aiPhysics.velocity.x = CTR_MipsSubLo(preX, 0x444);
-				if (CTR_MipsSubLo(preX, 0x444) < 0)
-				{
-					botDriver->botData.aiPhysics.velocity.x = 0;
-				}
-				else
-				{
-					if (botDriver->botData.aiPhysics.accel.x == 0)
-					{
-						botDriver->botData.aiPhysics.accel.x = -0x444;
-					}
-				}
-			}
 		}
 		preZ = botDriver->botData.aiPhysics.velocity.z; // iVar3
 		if (preZ != 0)
 		{
-			if (preZ < 1)
+			if (0 < preZ)
+			{
+				botDriver->botData.aiPhysics.velocity.z = CTR_MipsSubLo(preZ, 0x444);
+				if (0 <= CTR_MipsSubLo(preZ, 0x444))
+				{
+					if (botDriver->botData.aiPhysics.accel.z == 0)
+					{
+						botDriver->botData.aiPhysics.accel.z = -0x444;
+					}
+				}
+				else
+				{
+					botDriver->botData.aiPhysics.velocity.z = 0;
+				}
+			}
+			else
 			{
 				botDriver->botData.aiPhysics.velocity.z = CTR_MipsAddLo(preZ, 0x444);
 				if (0 < CTR_MipsAddLo(preZ, 0x444))
@@ -2613,21 +2754,6 @@ UpdateTireColorTimer:
 					}
 				}
 			}
-			else
-			{
-				botDriver->botData.aiPhysics.velocity.z = CTR_MipsSubLo(preZ, 0x444);
-				if (CTR_MipsSubLo(preZ, 0x444) < 0)
-				{
-					botDriver->botData.aiPhysics.velocity.z = 0;
-				}
-				else
-				{
-					if (botDriver->botData.aiPhysics.accel.z == 0)
-					{
-						botDriver->botData.aiPhysics.accel.z = -0x444;
-					}
-				}
-			}
 		}
 		if ((botDriver->botData.aiPhysics.velocity.x == 0) && (botDriver->botData.aiPhysics.velocity.z == 0))
 		{
@@ -2635,36 +2761,30 @@ UpdateTireColorTimer:
 		}
 	}
 
-	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) == 0)
+	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) != 0)
 	{
-		botDriver->botData.ai_quadblock_checkpointIndex = navFrameCurr->goBackCount;
-	}
-	else
-	{
-		s16 probeY;
-		s16 probeX;
-		s16 probeZ;
+		struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
+		int probeY;
 		SVec3 probeTop;
 		SVec3 probeBottom;
-		int deltaRotY = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), CTR_MipsSll(navFrameCurr->rot[1], 4)) & 0xfff;
+		int rotCurrY = (s32)((u32)navFrameCurr->rot[1] << 4);
+		int deltaRotY = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), rotCurrY) & 0xfff;
 		if (0x7ff < deltaRotY)
 		{
 			deltaRotY = CTR_MipsSubLo(deltaRotY, 0x1000);
 		}
 
-		botDriver->botData.aiRot.y = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[1], 4), CTR_MipsSra(CTR_MipsMulLo(deltaRotY, percentage), 0xc)) & 0xfff;
+		botDriver->botData.aiRot.y = CTR_MipsAddLo(rotCurrY, CTR_MipsSra(CTR_MipsMulLo(deltaRotY, percentage), 0xc)) & 0xfff;
 
-		probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
-		probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
-		probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
-		probeTop.x = probeX;
+		probeTop.x = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
+		probeY = CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
 		probeTop.y = (s16)CTR_MipsSubLo(probeY, 0x100);
-		probeTop.z = probeZ;
-		probeBottom.x = probeX;
+		probeTop.z = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
+		probeBottom.x = probeTop.x;
 		probeBottom.y = (s16)CTR_MipsAddLo(probeY, 0x80);
-		probeBottom.z = probeZ;
+		probeBottom.z = probeTop.z;
 
-		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+		sps->ptr_mesh_info = GAME_TRACKER->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
 		sps->Union.QuadBlockColl.quadFlagsIgnored = QUADBLOCK_FLAG_NO_COLLISION_RESPONSE;
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
@@ -2679,10 +2799,19 @@ UpdateTireColorTimer:
 
 			VehPhysForce_RotAxisAngle(&botInstance->matrix, CTR_VECTOR_DATA(&(sps->hit.plane.normal)), botDriver->botData.aiRot.y);
 
-			botDriver->AxisAngle3_normalVec = sps->hit.plane.normal;
+			botDriver->AxisAngle3_normalVec.x = sps->hit.plane.normal.x;
+			botDriver->AxisAngle3_normalVec.y = sps->hit.plane.normal.y;
+			botDriver->AxisAngle3_normalVec.z = sps->hit.plane.normal.z;
 
+			// NOTE(aalhendi): retail packs the bytes straight from the three
+			// halfword loads in x,y,z order; the shared helper's nested inline
+			// arguments reorder the loads, so this call site spells the packed
+			// value out directly.
 			botInstance->compressedNormalAndDriverIndex =
-			    INST_CompressNormalVectorAndDriverIndex(sps->hit.plane.normal.x, sps->hit.plane.normal.y, sps->hit.plane.normal.z, botDriver->driverID);
+			    (((u32)(u16)sps->hit.plane.normal.x >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) |
+			    ((((u32)(u16)sps->hit.plane.normal.y >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Y_SHIFT) |
+			    ((((u32)(u16)sps->hit.plane.normal.z >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Z_SHIFT) |
+			    (((u32)(u8)botDriver->driverID + INST_COMPRESSED_DRIVER_INDEX_OFFSET) << INST_COMPRESSED_DRIVER_INDEX_SHIFT);
 
 			if ((sps->hit.ptrQuadblock->quadFlags & QUADBLOCK_FLAG_KILL_PLANE) != 0)
 			{
@@ -2690,42 +2819,115 @@ UpdateTireColorTimer:
 			}
 		}
 	}
-	deltaPosThisFrame = CTR_MipsSra(deltaPosThisFrame, 8);
+	else
+	{
+		botDriver->botData.ai_quadblock_checkpointIndex = navFrameCurr->goBackCount;
+	}
 	if (botDriver->botData.positionBackup.y < botDriver->quadBlockHeight)
 	{
 		u32 oldBotFlags = botDriver->botData.botFlags; // uVar8
 		botDriver->botData.botFlags &= ~BOT_FLAG_MOON_GRAVITY;
 
-		if ((navFrameCurr->flags & BOTS_NAV_FLAG_KILLPLANE) == 0)
+		if ((navFrameCurr->flags & BOTS_NAV_FLAG_KILLPLANE) != 0)
 		{
-			if ((oldBotFlags & BOT_FLAG_DAMAGE_ACTIVE) == 0)
+			BOTS_Killplane(botThread);
+		}
+		else
+		{
+			if ((oldBotFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
 			{
+				u32 bounceCount;
+				s32 bounceSpeed;
+				if (((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0))
+				{
+					int iVar3 = navFrameCurr->distToNextNavXZ;
+					if (iVar3 != 0)
+					{
+#if 0
+						if (iVar3 == 0)
+						{
+							trap(0x1c00);
+						}
+						if ((iVar3 == -1) && (deltaPosThisFrame * navFrameCurr->distToNextNavXYZ == -0x80000000))
+						{
+							trap(0x1800);
+						}
+#endif
+						botDriver->botData.navProgressRemainder =
+						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(CTR_MipsSra(deltaPosThisFrame, 8), navFrameCurr->distToNextNavXYZ), iVar3), 8);
+					}
+				}
+				bounceSpeed = CTR_MipsSra(CTR_MipsNegLo(botDriver->botData.aiPhysics.speedY), 1);
+
+				botDriver->botData.aiPhysics.speedY = bounceSpeed;
+
+				if (bounceSpeed < 0)
+				{
+					botDriver->botData.aiPhysics.speedY = CTR_MipsNegLo(bounceSpeed);
+				}
+
+				bounceCount = botDriver->botData.blastBounceCount + 1;
+				botDriver->botData.blastBounceCount = (u8)bounceCount;
+
+				switch (botDriver->botData.aiDamageState)
+				{
+				case BOTS_DAMAGE_STATE_SPIN:
+				{
+					botDriver->actionsFlagSet |= ACTION_BACK_SKID | ACTION_FRONT_SKID;
+					break;
+				}
+				case BOTS_DAMAGE_STATE_BLAST:
+				{
+					if (2 < (u8)bounceCount)
+					{
+						botDriver->botData.ai_progress_cooldown = 10;
+						botDriver->botData.aiPhysics.speedLinear = 0;
+						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
+					}
+					break;
+				}
+				default:
+				{
+					break;
+				}
+				}
+
+				botDriver->botData.positionBackup.y = botDriver->quadBlockHeight;
+			}
+			else
+			{
+				s32 groundSpeed;
 				if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
 				{
 					int iVar3;
 					s16 sVar7;
 					if (botDriver->instSelf->thread->modelIndex == DYNAMIC_PLAYER)
 					{
-						u32 echo;
 						int flags;
 						int mapped = VehCalc_MapToRange(CTR_MipsSubLo(botDriver->jumpHeightCurr, botDriver->jumpHeightPrev), 0x300, 0x1400, 0x4b, 200); // uVar8
 
+						int clamped = mapped;
 						int volume; // uVar20
-						if (mapped < 0)
+						if (clamped < 0)
 						{
-							volume = 0;
+							clamped = 0;
+						}
+						else if (0xff < clamped)
+						{
+							clamped = 0xff;
+						}
+						volume = clamped & 0xff;
+
+						flags = volume << 16;
+
+						if ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0)
+						{
+							flags |= 0x1008080;
 						}
 						else
 						{
-							volume = mapped & 0xff;
-
-							if (0xff < mapped)
-							{
-								volume = 0xff;
-							}
+							flags |= 0x8080;
 						}
-						echo = ((botDriver->actionsFlagSet & ACTION_ENGINE_ECHO) != 0);
-						flags = (int)HowlSfx_Pack(HOWL_SFX_LR_CENTER, HOWL_SFX_DISTORTION_NONE, volume, echo);
 
 						OtherFX_Play_LowLevel(7, 1, flags);
 					}
@@ -2743,49 +2945,42 @@ UpdateTireColorTimer:
 						}
 #endif
 						botDriver->botData.navProgressRemainder =
-						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(deltaPosThisFrame, navFrameCurr->distToNextNavXYZ), iVar3), 8);
+						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(CTR_MipsSra(deltaPosThisFrame, 8), navFrameCurr->distToNextNavXYZ), iVar3), 8);
 					}
 					sVar7 = botDriver->jump_LandingBoost;
 
-					if (sVar7 < 0x5a1)
+					if (0x5a0 < sVar7)
 					{
-						if (0x3c0 < sVar7)
-						{
-							deltaPosThisFrame = CTR_MipsMulLo(local_38, 0x60);
-							goto doFireIncrement;
-						}
-						else if (0x280 < sVar7)
-						{
-							deltaPosThisFrame = 0;
-							goto doFireIncrement;
-						}
+						VehFire_Increment(botDriver, 0x2d0, 2, (s32)((u32)(local_38) * (u32)(0xc0)));
 					}
-					else
+					else if (0x3c0 < sVar7)
 					{
-						deltaPosThisFrame = CTR_MipsMulLo(local_38, 0xc0);
-					doFireIncrement:
-						VehFire_Increment(botDriver, 0x2d0, 2, deltaPosThisFrame);
+						VehFire_Increment(botDriver, 0x2d0, 2, (s32)((u32)(local_38) * (u32)(0x60)));
+					}
+					else if (0x280 < sVar7)
+					{
+						VehFire_Increment(botDriver, 0x2d0, 2, 0);
 					}
 
 					botDriver->actionsFlagSet |= ACTION_STARTED_TOUCH_GROUND;
 				}
-				deltaPosThisFrame = CTR_MipsSubLo(botDriver->quadBlockHeight, botDriver->posPrev.y);
+				groundSpeed = (s32)((u32)botDriver->quadBlockHeight - (u32)botDriver->posPrev.y);
 
 				botDriver->botData.positionBackup.y = botDriver->quadBlockHeight;
 
-				botDriver->botData.aiPhysics.speedY = deltaPosThisFrame;
+				botDriver->botData.aiPhysics.speedY = groundSpeed;
 
 				if ((navFrameFlags & BOTS_NAV_FLAG_JUMP) != 0 || (botDriver->instTntRecv != NULL))
 				{
-					int oldActionsFlags = botDriver->actionsFlagSet;
+					int newActionsFlags = botDriver->actionsFlagSet | ACTION_JUMP_STARTED;
 
-					botDriver->actionsFlagSet |= ACTION_JUMP_STARTED;
+					botDriver->actionsFlagSet = newActionsFlags;
 
-					botDriver->botData.aiPhysics.speedY = CTR_MipsAddLo(deltaPosThisFrame, 0x1400);
+					botDriver->botData.aiPhysics.speedY = CTR_MipsAddLo(groundSpeed, 0x1400);
 
 					if (botThread->modelIndex == DYNAMIC_PLAYER)
 					{
-						OtherFX_Play_Echo(8, 1, (oldActionsFlags & ACTION_ENGINE_ECHO) != 0);
+						OtherFX_Play_Echo(8, 1, (newActionsFlags & ACTION_ENGINE_ECHO) != 0);
 					}
 				}
 				if (16000 < botDriver->botData.aiPhysics.speedY)
@@ -2793,80 +2988,26 @@ UpdateTireColorTimer:
 					botDriver->botData.aiPhysics.speedY = 16000;
 				}
 
-				if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) == 0)
+				if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_MASK) != 0)
+				{
+					botDriver->kartState = KS_DRIFTING;
+
+					if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_LEFT) != 0)
+					{
+						botDriver->botData.aiPhysics.driftTarget = -0x2aa;
+					}
+					else
+					{
+						botDriver->botData.aiPhysics.driftTarget = 0x2aa;
+					}
+				}
+				else
 				{
 					botDriver->botData.aiPhysics.driftTarget = 0;
 
 					botDriver->kartState = KS_NORMAL;
 				}
-				else
-				{
-					botDriver->kartState = KS_DRIFTING;
-
-					if ((navFrameFlags & BOTS_NAV_FLAG_DRIFT_LEFT) == 0)
-					{
-						botDriver->botData.aiPhysics.driftTarget = 0x2aa;
-					}
-					else
-					{
-						botDriver->botData.aiPhysics.driftTarget = -0x2aa;
-					}
-				}
 			}
-			else
-			{
-				u8 bVar10;
-				if (((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0))
-				{
-					int iVar3 = navFrameCurr->distToNextNavXZ;
-					if (iVar3 != 0)
-					{
-#if 0
-						if (iVar3 == 0)
-						{
-							trap(0x1c00);
-						}
-						if ((iVar3 == -1) && (deltaPosThisFrame * navFrameCurr->distToNextNavXYZ == -0x80000000))
-						{
-							trap(0x1800);
-						}
-#endif
-						botDriver->botData.navProgressRemainder =
-						    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(deltaPosThisFrame, navFrameCurr->distToNextNavXYZ), iVar3), 8);
-					}
-				}
-				deltaPosThisFrame = CTR_MipsSra(CTR_MipsNegLo(botDriver->botData.aiPhysics.speedY), 1);
-
-				botDriver->botData.aiPhysics.speedY = deltaPosThisFrame;
-
-				if (deltaPosThisFrame < 0)
-				{
-					botDriver->botData.aiPhysics.speedY = CTR_MipsNegLo(deltaPosThisFrame);
-				}
-
-				bVar10 = (u8)CTR_MipsAddLo(botDriver->botData.blastBounceCount, 1);
-				botDriver->botData.blastBounceCount = bVar10;
-
-				if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_SPIN)
-				{
-					botDriver->actionsFlagSet |= ACTION_BACK_SKID | ACTION_FRONT_SKID;
-				}
-				else
-				{
-					if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_BLAST && (2 < bVar10))
-					{
-						botDriver->botData.ai_progress_cooldown = 10;
-						botDriver->botData.aiPhysics.speedLinear = 0;
-						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
-					}
-				}
-
-				botDriver->botData.positionBackup.y = botDriver->quadBlockHeight;
-			}
-		}
-		else
-		{
-			BOTS_Killplane(botThread);
 		}
 
 		botDriver->jump_LandingBoost = 0;
@@ -2889,7 +3030,8 @@ UpdateTireColorTimer:
 					trap(0x1800);
 				}
 #endif
-				botDriver->botData.navProgressRemainder = CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(deltaPosThisFrame, navFrameCurr->distToNextNavXZ), iVar3), 8);
+				botDriver->botData.navProgressRemainder =
+				    CTR_MipsSll(CTR_MipsDiv(CTR_MipsMulLo(CTR_MipsSra(deltaPosThisFrame, 8), navFrameCurr->distToNextNavXZ), iVar3), 8);
 			}
 		}
 
@@ -2906,9 +3048,10 @@ UpdateTireColorTimer:
 		iVar4_lifetime_3 = 0x60;
 	}
 
-	iVar3_lifetime_2 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
-	if (botDriver->botData.aiPhysics.driftTarget < botDriver->botData.aiPhysics.mulDrift)
+	iVar3_lifetime_2 = botDriver->botData.aiPhysics.mulDrift;
+	if (botDriver->botData.aiPhysics.driftTarget < iVar3_lifetime_2)
 	{
+		iVar3_lifetime_2 = (s16)(u16)(iVar3_lifetime_2 - iVar4_lifetime_3);
 		botDriver->botData.aiPhysics.mulDrift = iVar3_lifetime_2;
 
 		if (iVar3_lifetime_2 < botDriver->botData.aiPhysics.driftTarget)
@@ -2918,11 +3061,11 @@ UpdateTireColorTimer:
 	}
 	else
 	{
-		iVar4_lifetime_3 = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, iVar4_lifetime_3);
+		iVar3_lifetime_2 = (s16)(u16)(iVar3_lifetime_2 + iVar4_lifetime_3);
 
-		botDriver->botData.aiPhysics.mulDrift = iVar4_lifetime_3;
+		botDriver->botData.aiPhysics.mulDrift = iVar3_lifetime_2;
 
-		if (botDriver->botData.aiPhysics.driftTarget < iVar4_lifetime_3)
+		if (botDriver->botData.aiPhysics.driftTarget < iVar3_lifetime_2)
 		{
 			botDriver->botData.aiPhysics.mulDrift = botDriver->botData.aiPhysics.driftTarget;
 		}
@@ -2931,125 +3074,122 @@ UpdateTireColorTimer:
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
 	{
-		u8 newKartState; // uVar2
 		s16 sVar7 = botDriver->botData.aiDamageState;
-		if (sVar7 == BOTS_DAMAGE_STATE_BLAST)
+		switch (sVar7)
+		{
+		case BOTS_DAMAGE_STATE_SPIN:
+		{
+			botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, (u16)botDriver->botData.aiPhysics.squishCooldown);
+			botDriver->botData.aiPhysics.squishCooldown = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
+			if (botDriver->botData.aiPhysics.squishCooldown < 0x100)
+			{
+				botDriver->botData.aiPhysics.squishCooldown = 0;
+				botDriver->botData.aiPhysics.mulDrift = 0;
+				botDriver->botData.aiPhysics.speedLinear = 0;
+				botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
+			}
+			botDriver->kartState = 3;
+			break;
+		}
+		case BOTS_DAMAGE_STATE_BLAST:
 		{
 			botDriver->botData.aiPhysics.rotXZ = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, 1);
+			break;
 		}
-		else
+		case BOTS_DAMAGE_STATE_SQUISH:
 		{
-			if (sVar7 < BOTS_DAMAGE_STATE_SQUISH)
+			s16 rotXZNew;
+			botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, (u16)botDriver->botData.aiPhysics.squishCooldown);
+			botDriver->botData.aiPhysics.squishCooldown = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
+			if (botDriver->botData.aiPhysics.squishCooldown < 0x200)
 			{
-				if (sVar7 == BOTS_DAMAGE_STATE_SPIN)
-				{
-					u16 squishCooldownMaybe = (u16)botDriver->botData.aiPhysics.squishCooldown;
-					int alsoSquishCooldownMaybe = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
-					botDriver->botData.aiPhysics.squishCooldown = alsoSquishCooldownMaybe;
-					botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, squishCooldownMaybe);
-					if (alsoSquishCooldownMaybe < 0x100)
-					{
-						botDriver->botData.aiPhysics.squishCooldown = 0;
-						botDriver->botData.aiPhysics.mulDrift = 0;
-						botDriver->botData.aiPhysics.speedLinear = 0;
-						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
-					}
-					newKartState = 3;
-					botDriver->kartState = newKartState;
-				}
+				botDriver->botData.aiPhysics.squishCooldown = 0;
+				botDriver->botData.aiPhysics.mulDrift = 0;
 			}
-			else
+			rotXZNew = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
+			botDriver->botData.aiPhysics.rotXZ = rotXZNew;
+			if (rotXZNew < 1)
 			{
-				if (sVar7 == BOTS_DAMAGE_STATE_SQUISH)
+				botDriver->botData.aiPhysics.speedY = 0x1400;
+				botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
+				botDriver->actionsFlagSet |= ACTION_JUMP_STARTED;
+			}
+			break;
+		}
+		case BOTS_DAMAGE_STATE_MASK_GRAB:
+		{
+			s16 iVar4;
+			struct Thread *plant = botDriver->plantEatingMe;
+
+			struct Instance *plantInst = plant->inst;
+
+			if (botDriver->botData.aiPhysics.rotXZ < 0xb40)
+			{
+				// NOTE(aalhendi): Retail stack homes require the input SVECTOR
+				// to be declared before the output VECTOR; GCC 2.8.1 assigns
+				// these kept slots in declaration order (0x28/0x30).
+				SVECTOR v;
+				VECTOR v2;
+				s32 l3;
+				int camDriverXDelta;
+				int camY;
+				int driverY;
+				int camDriverYDelta;
+				int camDriverZDelta;
+				int rotY;
+				int rotX;
+				if ((plant != NULL) && (plant->object != NULL) && (((struct Plant *)plant->object)->side != 0))
 				{
-					u16 sVar7 = (u16)botDriver->botData.aiPhysics.squishCooldown;
-					int iVar4 = CTR_MipsSubLo(botDriver->botData.aiPhysics.squishCooldown, 0xc);
-					botDriver->botData.aiPhysics.squishCooldown = iVar4;
-					botDriver->botData.aiPhysics.mulDrift = (s16)CTR_MipsAddLo((u16)botDriver->botData.aiPhysics.mulDrift, sVar7);
-					if (iVar4 < 0x200)
-					{
-						botDriver->botData.aiPhysics.squishCooldown = 0;
-						botDriver->botData.aiPhysics.mulDrift = 0;
-					}
-					iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
-					botDriver->botData.aiPhysics.rotXZ = iVar4;
-					if (iVar4 <= 0)
-					{
-						botDriver->botData.aiPhysics.speedY = 0x1400;
-						botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
-						botDriver->actionsFlagSet |= ACTION_JUMP_STARTED;
-					}
+					v.vx = -0xfa;
 				}
 				else
 				{
-					if (sVar7 == BOTS_DAMAGE_STATE_MASK_GRAB)
-					{
-						int iVar4;
-						struct Thread *plant = botDriver->plantEatingMe;
-
-						struct Instance *plantInst = plant->inst;
-
-						if (botDriver->botData.aiPhysics.rotXZ < 0xb40)
-						{
-							VECTOR v2;
-							s32 l3;
-							int camDriverXDelta;
-							int camY;
-							int driverY;
-							int camDriverZDelta;
-							int rotY;
-							int rotX;
-							SVECTOR v;
-							v.vx = 0xfa;
-							if ((plant->object != NULL) && (((struct Plant *)plant->object)->side != 0))
-							{
-								v.vx = -0xfa;
-							}
-							v.vy = 0;
-							v.vz = 0x2ee;
-
-							SetRotMatrix(&plantInst->matrix);
-							SetTransMatrix(&plantInst->matrix);
-
-
-							RotTrans(&v, &v2, &l3);
-
-							gGT->pushBuffer[botDriver->driverID].pos.x = v2.vx;
-							gGT->pushBuffer[botDriver->driverID].pos.y = CTR_MipsAddLo(plantInst->matrix.t[1], 0xc0);
-							gGT->pushBuffer[botDriver->driverID].pos.z = v2.vz;
-
-							camDriverXDelta = CTR_MipsSubLo(v2.vx, plantInst->matrix.t[0]);
-							camY = gGT->pushBuffer[botDriver->driverID].pos.y;
-							driverY = plantInst->matrix.t[1];
-							camDriverZDelta = CTR_MipsSubLo(v2.vz, plantInst->matrix.t[2]);
-
-							rotY = ratan2(camDriverXDelta, camDriverZDelta);
-							gGT->pushBuffer[botDriver->driverID].rot.y = rotY;
-
-							rotX = SquareRoot0_stub(
-							    CTR_MipsAddLo(CTR_MipsMulLo(camDriverXDelta, camDriverXDelta), CTR_MipsMulLo(camDriverZDelta, camDriverZDelta)));
-							rotX = ratan2(CTR_MipsSubLo(camY, driverY), rotX);
-
-							gGT->pushBuffer[botDriver->driverID].rot.x = CTR_MipsSubLo(0x800, rotX);
-							gGT->pushBuffer[botDriver->driverID].rot.z = 0;
-						}
-
-						botDriver->botData.aiPhysics.speedLinear = 0;
-						iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
-						botDriver->botData.aiPhysics.rotXZ = iVar4;
-						newKartState = 5;
-						if (iVar4 < 1)
-						{
-							botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
-							botInstance->flags &= ~HIDE_MODEL;
-							botDriver->botData.ai_progress_cooldown = 1;
-							BOTS_MaskGrab(botThread);
-							newKartState = 5;
-						}
-						botDriver->kartState = newKartState;
-					}
+					v.vx = 0xfa;
 				}
+				v.vy = 0;
+				v.vz = 0x2ee;
+
+				SetRotMatrix(&plantInst->matrix);
+				SetTransMatrix(&plantInst->matrix);
+
+
+				RotTrans(&v, &v2, &l3);
+
+				GAME_TRACKER->pushBuffer[botDriver->driverID].pos.x = v2.vx;
+				GAME_TRACKER->pushBuffer[botDriver->driverID].pos.y = (u16)plantInst->matrix.t[1] + 0xc0;
+				GAME_TRACKER->pushBuffer[botDriver->driverID].pos.z = v2.vz;
+
+				camDriverXDelta = CTR_MipsSubLo(v2.vx, plantInst->matrix.t[0]);
+				camY = GAME_TRACKER->pushBuffer[botDriver->driverID].pos.y;
+				driverY = plantInst->matrix.t[1];
+				camDriverYDelta = CTR_MipsSubLo(camY, driverY);
+				camDriverZDelta = CTR_MipsSubLo(v2.vz, plantInst->matrix.t[2]);
+
+				rotY = ratan2(camDriverXDelta, camDriverZDelta);
+				GAME_TRACKER->pushBuffer[botDriver->driverID].rot.y = rotY;
+
+				rotX = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsMulLo(camDriverXDelta, camDriverXDelta), CTR_MipsMulLo(camDriverZDelta, camDriverZDelta)));
+				rotX = ratan2(camDriverYDelta, rotX);
+
+				GAME_TRACKER->pushBuffer[botDriver->driverID].rot.x = 0x800 - rotX;
+				GAME_TRACKER->pushBuffer[botDriver->driverID].rot.z = 0;
 			}
+
+			botDriver->botData.aiPhysics.speedLinear = 0;
+			iVar4 = (s16)CTR_MipsSubLo((u16)botDriver->botData.aiPhysics.rotXZ, elapsedMilliseconds);
+			botDriver->botData.aiPhysics.rotXZ = iVar4;
+			if (iVar4 < 1)
+			{
+				botDriver->botData.botFlags &= ~(BOT_FLAG_DAMAGE_ACTIVE | BOT_FLAG_DAMAGE_SUPPRESS_EMITTER);
+				botInstance->flags &= ~HIDE_MODEL;
+				botDriver->botData.ai_progress_cooldown = 1;
+				BOTS_MaskGrab(botThread);
+			}
+			botDriver->kartState = 5;
+			break;
+		}
+		default:
+			break;
 		}
 	}
 
@@ -3059,7 +3199,7 @@ UpdateTireColorTimer:
 
 		if (botDriver->forcedJumpType != FORCED_JUMP_HIGH)
 		{
-			turtleJumpForce = CTR_MipsDiv(turtleJumpForce, 2);
+			turtleJumpForce = ((s32)(turtleJumpForce) / 2);
 		}
 
 		if (botDriver->botData.aiPhysics.speedY < turtleJumpForce)
@@ -3071,13 +3211,15 @@ UpdateTireColorTimer:
 	}
 
 	if (((navFrameSpecialBits & BOTS_NAV_SPECIAL_RAMP_PHYS) != 0) &&
-	    ((0x1c1f < botDriver->botData.aiPhysics.speedLinear) || (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)))
+	    ((0x1c1f < botDriver->botData.aiPhysics.speedLinear) || (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE)))
 	{
-		int iVar4 = (local_3c & BOTS_NAV_SPECIAL_INDEX_MASK);
-		botDriver->botData.aiPhysics.speedY = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys2[iVar4];
-		botDriver->botData.aiPhysics.speedLinear = sdata->NavPath_ptrHeader[botDriver->botData.botPath]->rampPhys1[iVar4];
+		// NOTE(aalhendi): retail expands the header subscript before the
+		// masked spill read, so the mask stays inline in both accesses
+		// (pinned-compiler probe).
+		botDriver->botData.aiPhysics.speedY = BOT_NAV_HEADERS[botDriver->botData.botPath]->rampPhys2[local_3c & BOTS_NAV_SPECIAL_INDEX_MASK];
+		botDriver->botData.aiPhysics.speedLinear = BOT_NAV_HEADERS[botDriver->botData.botPath]->rampPhys1[local_3c & BOTS_NAV_SPECIAL_INDEX_MASK];
 
-		if (data.characterIDs[botDriver->driverID] == NITROS_OXIDE)
+		if (GAME_CHARACTER_IDS[botDriver->driverID] == NITROS_OXIDE)
 		{
 			botDriver->botData.aiPhysics.squishCooldown = 0;
 			botDriver->botData.aiPhysics.mulDrift = 0;
@@ -3086,167 +3228,168 @@ UpdateTireColorTimer:
 	}
 
 	// MUST be unsigned, same reason as the other -0x31
-	cmp1 = navFrameCurr->rot[3] - 0x31;
-	cmp2 = navFrameNext->rot[3] - 0x31;
-
-	if ((0x9e < cmp1) && (0x9e < cmp2))
+	if ((0x9e < (u8)(navFrameCurr->rot[3] - 0x31)) && (0x9e < (u8)(navFrameNext->rot[3] - 0x31)))
 	{
 		int other_uVar8;
-		b32 bVar1;
-		s16 sVar7;
-		b32 other_bVar1;
+		int rotCurr4;
+		int rotNext4;
 		if (((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) == 0) && ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) != 0))
 		{
 			// Lerp nav-frame rotation through the shortest signed 12-bit delta.
-			int uVar8 = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[0], 4), CTR_MipsSll(navFrameCurr->rot[0], 4)) & 0xfff;
-			if (0x7ff < uVar8)
+			rotCurr4 = (s32)((u32)navFrameCurr->rot[0] << 4);
+			rotNext4 = (s32)((u32)navFrameNext->rot[0] << 4);
+			other_uVar8 = (s32)((u32)rotNext4 - (u32)rotCurr4) & 0xfff;
+			if (0x7ff < other_uVar8)
 			{
-				uVar8 = CTR_MipsSubLo(uVar8, 0x1000);
+				other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
 			}
 
-			botDriver->botData.aiRot.x = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[0], 4), CTR_MipsSra(CTR_MipsMulLo(uVar8, percentage), 0xc)) & 0xfff;
+			botDriver->botData.aiRot.x = CTR_MipsAddLo(rotCurr4, CTR_MipsSra(CTR_MipsMulLo(other_uVar8, percentage), 0xc)) & 0xfff;
 
-			uVar8 = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[2], 4), CTR_MipsSll(navFrameCurr->rot[2], 4)) & 0xfff;
-			if (0x7ff < uVar8)
+			rotCurr4 = (s32)((u32)navFrameCurr->rot[2] << 4);
+			rotNext4 = (s32)((u32)navFrameNext->rot[2] << 4);
+			other_uVar8 = (s32)((u32)rotNext4 - (u32)rotCurr4) & 0xfff;
+			if (0x7ff < other_uVar8)
 			{
-				uVar8 = CTR_MipsSubLo(uVar8, 0x1000);
+				other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
 			}
 
-			botDriver->botData.aiRot.z = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[2], 4), CTR_MipsSra(CTR_MipsMulLo(uVar8, percentage), 0xc)) & 0xfff;
+			botDriver->botData.aiRot.z = CTR_MipsAddLo(rotCurr4, CTR_MipsSra(CTR_MipsMulLo(other_uVar8, percentage), 0xc)) & 0xfff;
 		}
 
-		other_uVar8 = CTR_MipsSubLo(CTR_MipsSll(navFrameNext->rot[1], 4), CTR_MipsSll(navFrameCurr->rot[1], 4)) & 0xfff;
+		rotCurr4 = (s32)((u32)navFrameCurr->rot[1] << 4);
+		rotNext4 = (s32)((u32)navFrameNext->rot[1] << 4);
+		other_uVar8 = (s32)((u32)rotNext4 - (u32)rotCurr4) & 0xfff;
 		if (0x7ff < other_uVar8)
 		{
 			other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
 		}
 
-		botDriver->botData.aiRot.y = CTR_MipsAddLo(CTR_MipsSll(navFrameCurr->rot[1], 4), CTR_MipsSra(CTR_MipsMulLo(other_uVar8, percentage), 0xc)) & 0xfff;
+		botDriver->botData.aiRot.y = CTR_MipsAddLo(rotCurr4, CTR_MipsSra(CTR_MipsMulLo(other_uVar8, percentage), 0xc)) & 0xfff;
 
 		if ((botDriver->botData.botFlags & BOT_FLAG_ESTIMATE_NAV) != 0)
 		{
 			other_uVar8 = 0;
 		}
 
-		other_uVar8 = CTR_MipsSubLo(CTR_MipsSll(other_uVar8, 1), botDriver->turnAngleCurr) & 0xfff;
+		other_uVar8 = (s32)((u32)other_uVar8 << 1);
+		other_uVar8 = (s32)((u32)other_uVar8 - (u32)botDriver->turnAngleCurr) & 0xfff;
 
-		bVar1 = other_uVar8 < 0x21;
 		if (0x7ff < other_uVar8)
 		{
 			other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
-			bVar1 = other_uVar8 < 0x21;
 		}
-		if (bVar1)
-		{
-			if (other_uVar8 < -0x20)
-			{
-				other_uVar8 = -0x20;
-			}
-		}
-		else
+		if (0x20 < other_uVar8)
 		{
 			other_uVar8 = 0x20;
 		}
-		other_uVar8 = (s16)CTR_MipsAddLo((u16)botDriver->turnAngleCurr, other_uVar8);
-		botDriver->turnAngleCurr = other_uVar8;
-
-
-		if (botDriver->botData.aiPhysics.driftTarget == 0)
+		else if (other_uVar8 < -0x20)
 		{
-			other_uVar8 &= 0xfff;
-			sVar7 = other_uVar8;
-			botDriver->botData.aiPhysics.simpTurnState = sVar7;
-			if (0x7ff < other_uVar8)
-			{
-				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(sVar7, 0x1000);
-			}
-			sVar7 = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 2);
+			other_uVar8 = -0x20;
 		}
-		else
 		{
-			int uVar11 = CTR_MipsNegLo((u16)botDriver->botData.aiPhysics.mulDrift) & 0xfff;
+			int turnAngle = CTR_MipsAddLo((u16)botDriver->turnAngleCurr, other_uVar8);
+			botDriver->turnAngleCurr = (s16)turnAngle;
 
-			botDriver->botData.aiPhysics.simpTurnState = uVar11;
-			if (0x7ff < uVar11)
+			if (botDriver->botData.aiPhysics.driftTarget != 0)
 			{
-				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(uVar11, 0x1000);
-			}
+				int uVar11 = CTR_MipsNegLo((u16)botDriver->botData.aiPhysics.mulDrift) & 0xfff;
 
-			sVar7 = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 3);
+				botDriver->botData.aiPhysics.simpTurnState = uVar11;
+				if (0x7ff < uVar11)
+				{
+					botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(uVar11, 0x1000);
+				}
+
+				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 3);
+			}
+			else
+			{
+				int uVar11 = turnAngle & 0xfff;
+				botDriver->botData.aiPhysics.simpTurnState = uVar11;
+				if (0x7ff < uVar11)
+				{
+					botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSubLo(uVar11, 0x1000);
+				}
+
+				botDriver->botData.aiPhysics.simpTurnState = (s16)CTR_MipsSra(botDriver->botData.aiPhysics.simpTurnState, 2);
+			}
 		}
-		botDriver->botData.aiPhysics.simpTurnState = sVar7;
 
 		other_uVar8 = CTR_MipsSubLo(botDriver->botData.aiPhysics.simpTurnState, botDriver->wheelRotation) & 0xfff;
-		other_bVar1 = other_uVar8 < 0x21;
 
 		if (0x7ff < other_uVar8)
 		{
 			other_uVar8 = CTR_MipsSubLo(other_uVar8, 0x1000);
-			other_bVar1 = other_uVar8 < 0x21;
 		}
-		sVar7 = other_uVar8;
-		if (other_bVar1)
+		if (0x20 < other_uVar8)
 		{
-			if (other_uVar8 < -0x20)
-			{
-				sVar7 = -0x20;
-			}
+			other_uVar8 = 0x20;
 		}
-		else
+		else if (other_uVar8 < -0x20)
 		{
-			sVar7 = 0x20;
+			other_uVar8 = -0x20;
 		}
 
-		botDriver->wheelRotation = (s16)CTR_MipsAddLo((u16)botDriver->wheelRotation, sVar7);
+		botDriver->wheelRotation = (s16)CTR_MipsAddLo((u16)botDriver->wheelRotation, other_uVar8);
 		botDriver->simpTurnState = (s8)(u8)botDriver->botData.aiPhysics.simpTurnState;
 	}
 
 	botDriver->rotCurr.x = botDriver->botData.aiRot.x;
-	botDriver->rotCurr.y = botDriver->botData.aiRot.y;
-	botDriver->rotCurr.z = botDriver->botData.aiRot.z;
+	badnessRecieveTimer = (u16)botDriver->botData.aiRot.y;
+	iVar4_lifetime_3 = (u16)botDriver->botData.aiRot.z;
+	botDriver->rotCurr.y = (s16)badnessRecieveTimer;
+	botDriver->rotCurr.z = (s16)iVar4_lifetime_3;
 
-	badnessRecieveTimer = botDriver->clockReceive; // iVar4
-
-	if (badnessRecieveTimer == 0)
 	{
-		badnessRecieveTimer = botDriver->squishTimer;
-		if (badnessRecieveTimer == 0)
+		int effectTimer = botDriver->clockReceive;
+
+		if ((effectTimer != 0) || ((effectTimer = botDriver->squishTimer) != 0) || (botDriver->thCloud != NULL))
 		{
-			if (botDriver->thCloud != NULL)
+			int wiggleTimer;
+			int wiggleAngle;
+
+			if (effectTimer != 0)
 			{
-				badnessRecieveTimer = CTR_MipsSll(gGT->timer, 2);
-
-				goto badEffectKartWiggle;
+				wiggleTimer = effectTimer;
 			}
+			else
+			{
+				wiggleTimer = CTR_MipsSll(GAME_TRACKER->timer, 2);
+			}
+
+			wiggleAngle = (s32)((u32)(wiggleTimer) * (u32)(0xc));
+			iVar4_lifetime_2 = CTR_MipsSra((s32)((u32)(MATH_Sin(wiggleAngle)) * (u32)(50)), 10);
+			navActionFlags = CTR_MipsSra((s32)((u32)(MATH_Cos(wiggleAngle)) * (u32)(50)), 10);
+
+			// NOTE(aalhendi): Retail loads SV0 directly from the computed wiggle
+			// values; the upper halves of the packed pair and of VZ0 are ignored
+			// by MVMVA, so the truncated SVECTOR object is not needed here.
+			MTC2(CTR_PackS16Pair(iVar4_lifetime_2, 0), 0);
+			MTC2(navActionFlags, 1);
+			CTR_GteLoadDelay();
+
+			gte_mvmva(1, 0, 0, 3, 0);
+
+			iVar4_lifetime_2 = MFC2(25);
+			wiggleTimer = MFC2(26);
+			navActionFlags = MFC2(27);
+
+			botDriver->botData.aiPhysics.turboMeter = 0;
+
+			botDriver->rotCurr.x = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.x, iVar4_lifetime_2);
+			botDriver->rotCurr.y = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.y, wiggleTimer);
+			botDriver->rotCurr.z = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.z, navActionFlags);
 		}
-	}
-	else
-	{
-		int wiggleX;
-		int wiggleZ;
-		SVECTOR wiggle;
-	badEffectKartWiggle:;
-		wiggleX = CTR_MipsSra(CTR_MipsMulLo(MATH_Sin(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
-		wiggleZ = CTR_MipsSra(CTR_MipsMulLo(MATH_Cos(CTR_MipsMulLo(badnessRecieveTimer, 0xc)), 50), 10);
-		wiggle.vx = (s16)wiggleX;
-		wiggle.vy = 0;
-		wiggle.vz = (s16)wiggleZ;
-		wiggle.pad = 0;
-
-		CTR_GteLoadSV0(&wiggle);
-		gte_mvmva(1, 0, 0, 3, 0);
-
-		botDriver->botData.aiPhysics.turboMeter = 0;
-
-		botDriver->rotCurr.x = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.x, (s16)MFC2(25));
-		botDriver->rotCurr.y = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.y, (s16)MFC2(26));
-		botDriver->rotCurr.z = (s16)CTR_MipsAddLo((u16)botDriver->rotCurr.z, (s16)MFC2(27));
 	}
 
 	if ((botDriver->botData.botFlags & (BOT_FLAG_ESTIMATE_NAV | BOT_FLAG_FREE_PHYSICS)) == 0)
 	{
-		MATRIX m;
+		// NOTE(aalhendi): input rotation declared before the output matrix;
+		// GCC 2.8.1 assigns the kept slots in declaration order (rot 0x28,
+		// m 0x30), and rot then exact-reuses the freed camera slot.
 		SVec3 rot;
+		MATRIX m;
 		rot.x = (s16)CTR_MipsSll(navFrameCurr->rot[0], 4);
 		rot.y = (s16)CTR_MipsSll(navFrameCurr->rot[1], 4);
 		rot.z = (s16)CTR_MipsSll(navFrameCurr->rot[2], 4);
@@ -3258,7 +3401,15 @@ UpdateTireColorTimer:
 		botDriver->AxisAngle3_normalVec.y = m.m[1][1];
 		botDriver->AxisAngle3_normalVec.z = m.m[2][1];
 
-		botInstance->compressedNormalAndDriverIndex = INST_CompressNormalVectorAndDriverIndex(m.m[0][1], m.m[1][1], m.m[2][1], botDriver->driverID);
+		// NOTE(aalhendi): retail packs the bytes straight from the three
+		// halfword loads in x,y,z order; the shared helper's nested inline
+		// arguments reorder the loads, so this call site spells the packed
+		// value out directly (same pattern as the quadblock probe site).
+		botInstance->compressedNormalAndDriverIndex =
+		    (((u32)(u16)m.m[0][1] >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) |
+		    ((((u32)(u16)m.m[1][1] >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Y_SHIFT) |
+		    ((((u32)(u16)m.m[2][1] >> INST_COMPRESSED_NORMAL_SHIFT) & INST_COMPRESSED_NORMAL_MASK) << INST_COMPRESSED_NORMAL_Z_SHIFT) |
+		    (((u32)(u8)botDriver->driverID + INST_COMPRESSED_DRIVER_INDEX_OFFSET) << INST_COMPRESSED_DRIVER_INDEX_SHIFT);
 	}
 
 	ConvertRotToMatrix(&botInstance->matrix, SVec3Slot_AsVec3(&botDriver->rotCurr));
@@ -3270,9 +3421,7 @@ UpdateTireColorTimer:
 
 	botDriver->angle = botDriver->rotCurr.y;
 
-	botDriver->speedApprox = botDriver->botData.aiPhysics.speedLinear;
-
-	botDriver->speed = botDriver->botData.aiPhysics.speedLinear;
+	botDriver->speed = botDriver->speedApprox = (s16)botDriver->botData.aiPhysics.speedLinear;
 	botDriver->jumpHeightPrev = botDriver->jumpHeightCurr;
 	botDriver->axisRotationX = botDriver->botData.aiRot.y & 0xfff;
 
@@ -3309,77 +3458,68 @@ UpdateTireColorTimer:
 
 	badnessRecieveTimer = botDriver->clockReceive;
 
+	// NOTE(aalhendi): Retail tests the timers in place, falls through to the
+	// active-timer update, and reaches the no-badness branch by a forward jump.
 	if (badnessRecieveTimer == 0)
 	{
 		badnessRecieveTimer = botDriver->squishTimer;
 		if (badnessRecieveTimer == 0)
 		{
-			u16 uVar11;
-			if (0x100 < botDriver->speedApprox)
-			{
-				botDriver->hazardTimer = (s16)CTR_MipsSubLo((u16)botDriver->hazardTimer, elapsedMilliseconds);
-			}
-
-			uVar11 = (u16)botDriver->hazardTimer & 0xfffe;
-			botDriver->hazardTimer = (s16)uVar11;
-
-			if ((s16)uVar11 >= 0)
-			{
-				botDriver->hazardTimer = -2;
-			}
-			goto FinishHazardTimerUpdate;
+			goto NoReceivedBadnessHazard;
 		}
 	}
 
-	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) == 0)
+	if ((botDriver->actionsFlagSet & ACTION_TOUCH_GROUND) != 0)
 	{
-		int iVar4 = botDriver->speedApprox;
-		if (iVar4 < 0)
+		if (0x100 < abs(botDriver->speedApprox))
 		{
-			iVar4 = CTR_MipsNegLo(iVar4);
-		}
-
-		if (iVar4 < 0x101)
-		{
-			goto CheckExistingHazardTimer;
-		}
-
-		if (badnessRecieveTimer < 0)
-		{
-			badnessRecieveTimer = CTR_MipsNegLo(badnessRecieveTimer);
-		}
-	StoreNegativeHazardTimer:
-		botDriver->hazardTimer = (s16)CTR_MipsNegLo(badnessRecieveTimer);
-	}
-	else
-	{
-		int iVar4 = botDriver->speedApprox;
-
-		if (iVar4 < 0)
-		{
-			iVar4 = CTR_MipsNegLo(iVar4);
-		}
-
-		if (iVar4 < 0x101)
-		{
-		CheckExistingHazardTimer:
-			badnessRecieveTimer = botDriver->hazardTimer;
-			if (0 < badnessRecieveTimer)
-			{
-				goto StoreNegativeHazardTimer;
-			}
+			botDriver->hazardTimer = (s16)abs(badnessRecieveTimer);
 		}
 		else
 		{
-			if (badnessRecieveTimer < 0)
+			badnessRecieveTimer = botDriver->hazardTimer;
+			if (0 < badnessRecieveTimer)
 			{
-				badnessRecieveTimer = CTR_MipsNegLo(badnessRecieveTimer);
+				botDriver->hazardTimer = (s16)CTR_MipsNegLo(badnessRecieveTimer);
 			}
-			botDriver->hazardTimer = (s16)badnessRecieveTimer;
+		}
+	}
+	else
+	{
+		if (0x100 < abs(botDriver->speedApprox))
+		{
+			botDriver->hazardTimer = (s16)CTR_MipsNegLo(abs(badnessRecieveTimer));
+		}
+		else
+		{
+			badnessRecieveTimer = botDriver->hazardTimer;
+			if (0 < badnessRecieveTimer)
+			{
+				botDriver->hazardTimer = (s16)CTR_MipsNegLo(badnessRecieveTimer);
+			}
 		}
 	}
 
 	botDriver->hazardTimer = (s16)((u16)botDriver->hazardTimer | 1); // increment it by 1 if even.
+	goto FinishHazardTimerUpdate;
+
+NoReceivedBadnessHazard:
+	{
+		if (0x100 < botDriver->speedApprox)
+		{
+			botDriver->hazardTimer = (s16)CTR_MipsSubLo((u16)botDriver->hazardTimer, elapsedMilliseconds);
+		}
+
+		// NOTE(aalhendi): retail masks with signed ~1 (-2) directly on
+		// the s16 field so the loaded -2 constant is reused by the >=0
+		// clamp store (sh v1) without cross-jumping against the |1 store.
+		botDriver->hazardTimer &= ~1;
+
+		if (botDriver->hazardTimer >= 0)
+		{
+			botDriver->hazardTimer = -2;
+		}
+	}
 
 FinishHazardTimerUpdate:
 
@@ -3400,20 +3540,35 @@ FinishHazardTimerUpdate:
 
 	VehFrameProc_Driving(botThread, botDriver);
 
-	if (((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0) && (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_BLAST))
+	if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_ACTIVE) != 0)
 	{
-		SVec3 rot;
-		rot.x = (s16)CTR_MipsSll(botDriver->botData.aiPhysics.rotXZ, 8);
-		rot.z = 0;
-		rot.y = (s16)CTR_MipsMulLo(botDriver->botData.aiPhysics.rotXZ, 0xe0);
+		if (botDriver->botData.aiDamageState == BOTS_DAMAGE_STATE_BLAST)
+		{
+			SVec3 rot;
+			MATRIX *rotXZPtr;
+			MATRIX *rotXYZPtr;
 
-		ConvertRotToMatrix(&sdata->rotXZ, &rot);
+			rot.x = (s16)CTR_MipsSll(botDriver->botData.aiPhysics.rotXZ, 8);
+			rot.y = (s16)(s32)((u32)(botDriver->botData.aiPhysics.rotXZ) * (u32)(0xe0));
+			rot.z = 0;
 
-		MATH_MatrixMul(&sdata->rotXYZ, &botInstance->matrix, &sdata->rotXZ);
+			// NOTE(aalhendi): Retail materializes rotXZ and rotXYZ as two
+			// independent absolute symbol loads rather than folding
+			// rotXYZ = rotXZ - 32; forgetting rotXZPtr after ConvertRotToMatrix
+			// keeps both addresses plain C and lets reorg fill bne's delay slot.
+			rotXZPtr = &sdata_static.rotXZ;
 
-		MATH_MatrixMul(&botInstance->matrix, &sdata->rotXYZ, &data.identity);
+			ConvertRotToMatrix(rotXZPtr, &rot);
 
-		botInstance->matrix.t[1] = CTR_MipsAddLo(botInstance->matrix.t[1], 0x20);
+			CTR_PSX_FORGET_VALUE(rotXZPtr);
+			rotXYZPtr = &sdata_static.rotXYZ;
+
+			MATH_MatrixMul(rotXYZPtr, &botInstance->matrix, rotXZPtr);
+
+			MATH_MatrixMul(&botInstance->matrix, rotXYZPtr, &data.identity);
+
+			botInstance->matrix.t[1] = CTR_MipsAddLo(botInstance->matrix.t[1], 0x20);
+		}
 	}
 
 	if ((botDriver->botData.botFlags & BOT_FLAG_DAMAGE_SUPPRESS_EMITTER) == 0)
@@ -3426,33 +3581,33 @@ FinishHazardTimerUpdate:
 		EngineSound_Player(botDriver);
 	}
 
-	camRot = CTR_MipsSubLo(botDriver->angle, botDriver->botData.ai_rotY_608) & 0xfff;
+	camRot = (s16)(((u16)botDriver->angle - (u16)botDriver->botData.ai_rotY_608) & 0xfff);
 
-	botDriver->rotCurr.w = (s16)CTR_MipsNegLo(camRot);
+	botDriver->rotCurr.w = (s16)(-camRot);
 
 	if (0x7ff < camRot)
 	{
 		camRot |= 0xf000;
 	}
 
-	botDriver->botData.ai_rotY_608 = (s16)CTR_MipsAddLo((u16)botDriver->botData.ai_rotY_608, CTR_MipsSra(camRot, 3));
+	botDriver->botData.ai_rotY_608 = (s16)((u16)botDriver->botData.ai_rotY_608 + CTR_MipsSra(camRot, 3));
 	botDriver->botData.ai_rotY_608 &= 0xfff;
 
 	if (botThread->modelIndex == DYNAMIC_PLAYER)
 	{
+		struct ScratchpadStruct *sps = CTR_SCRATCHPAD_PTR(struct ScratchpadStruct, 0x108);
 		SVec3 probeTop;
 		SVec3 probeBottom;
-		s16 probeX = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
-		s16 probeY = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
-		s16 probeZ = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
-		probeTop.x = probeX;
+		int probeY;
+		probeTop.x = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.x, botDriver->botData.aiPhysics.velocity.x), 8);
+		probeY = CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.y, botDriver->botData.aiPhysics.velocity.y), 8);
 		probeTop.y = (s16)CTR_MipsSubLo(probeY, 0x100);
-		probeTop.z = probeZ;
-		probeBottom.x = probeX;
+		probeTop.z = (s16)CTR_MipsSra(CTR_MipsAddLo(botDriver->botData.positionBackup.z, botDriver->botData.aiPhysics.velocity.z), 8);
+		probeBottom.x = probeTop.x;
 		probeBottom.y = (s16)CTR_MipsAddLo(probeY, 0x40);
-		probeBottom.z = probeZ;
+		probeBottom.z = probeTop.z;
 
-		sps->ptr_mesh_info = gGT->level1->ptr_mesh_info;
+		sps->ptr_mesh_info = GAME_TRACKER->level1->ptr_mesh_info;
 		sps->Union.QuadBlockColl.quadFlagsWanted = QUADBLOCK_FLAG_GROUND;
 		sps->Union.QuadBlockColl.quadFlagsIgnored = 0;
 		sps->Union.QuadBlockColl.searchFlags = COLL_SEARCH_HIGH_LOD;
@@ -3838,7 +3993,7 @@ struct Driver *BOTS_Driver_Init(int driverID)
 	CTR_PSX_LOAD_UNSIGNED_BYTE(rawPath, pathSlot, 0, (u8)*pathSlot);
 	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(headers, "sdata_static+2944", BOT_NAV_HEADERS);
 	CTR_PSX_OBSERVE_VALUE(rawPath);
-	navPathIndex = (s8)rawPath;
+	navPathIndex = BOTS_GetInitialNavPath(rawPath);
 	CTR_PSX_KEEP_VALUE(navPathIndex);
 	{
 		register s32 headerOffset CTR_PSX_REGISTER("$2") = CTR_MipsSll((s16)navPathIndex, 2);
@@ -3935,7 +4090,7 @@ void BOTS_Driver_Convert(struct Driver *driver)
 	CTR_PSX_LOAD_UNSIGNED_BYTE(rawPath, pathSlot, 0, (u8)*pathSlot);
 	CTR_PSX_ADD_SYMBOL_LOW_IN_PLACE(headers, "sdata_static+2944", BOT_NAV_HEADERS);
 	CTR_PSX_OBSERVE_VALUE(rawPath);
-	navPathIndex = (s8)rawPath;
+	navPathIndex = BOTS_GetInitialNavPath(rawPath);
 	CTR_PSX_KEEP_VALUE(navPathIndex);
 	{
 		register s32 headerOffset CTR_PSX_REGISTER("$2") = CTR_MipsSll((s16)navPathIndex, 2);

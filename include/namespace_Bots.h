@@ -28,7 +28,7 @@ struct NavFrame
 	// 0x2000: echo sound
 	// 0x4000: ???
 	// 0x8000: instance split-line
-	s16 flags;
+	u16 flags;
 
 	// 0x10
 	s16 pathChangeOpcode;
