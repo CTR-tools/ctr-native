@@ -257,6 +257,7 @@ extern struct AdventureCup ctr_data_AdvCups[5] asm("data+14196");
 extern s16 ctr_data_rankIconsCurr[8] asm("data+22824");
 extern __typeof__(data.rankIconsDesired) ctr_data_rankIconsDesired asm("data+22808");
 extern s16 ctr_data_rankIconsTransitionTimer[8] asm("data+22840");
+extern s16 ctr_data_EndOfRace_Camera_Size[] asm("data+1552");
 extern s32 ctr_data_RelicTime[54] asm("data+22944");
 extern Point ctr_data_speedometerBG_vertData[2][14] asm("data+23244");
 extern u16 ctr_sdata_finalLapTextTimer[4] asm("sdata_static+820");

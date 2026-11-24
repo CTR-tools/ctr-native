@@ -24,6 +24,7 @@
 #include "RenderWeather/RedBeaker_RenderRain.c"
 #include "RenderWeather/RenderWeather.c"
 
+#include "CAM/CAM_SkyboxGlow.c"
 #include "CAM.c"
 
 #include "BOTS.c"

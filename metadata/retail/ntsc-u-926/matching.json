@@ -4127,6 +4127,75 @@
       "linked_block": {}
     },
     {
+      "name": "cam-skybox-glow",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_SkyboxGlow",
+      "end_symbol": "CAM_ClearScreen",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM/CAM_SkyboxGlow.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x8001004c",
+        "rodata_size": 60
+      },
+      "function_rodata_addresses": {
+        "CAM_SkyboxGlow": "0x8001004c"
+      }
+    },
+    {
+      "name": "cam-thtick",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "CAM_ThTick",
+      "end_symbol": "CDSYS_Init",
+      "symbol_prefix": "CAM_",
+      "source": "game/CAM.c",
+      "include_directories": [
+        "include"
+      ],
+      "forced_includes": [
+        "tools/matching/retail_bindings.h"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80010088",
+        "rodata_size": 68
+      },
+      "function_rodata_addresses": {
+        "CAM_ThTick": "0x80010088"
+      },
+      "link_symbols": {
+        "CAM_FindClosestQuadblock": "0x800188a8",
+        "CAM_FollowDriver_AngleAxis": "0x80019128",
+        "CAM_FollowDriver_TrackPath": "0x800198f8",
+        "CAM_LookAtPosition": "0x80019e7c",
+        "CAM_FollowDriver_Spin360": "0x80019f58",
+        "CAM_FollowDriver_Normal": "0x8001a0bc",
+        "CAM_MapRange_PosPoints": "0x8001b254"
+      }
+    },
+    {
       "name": "cam-setup",
       "kind": "resident",
       "artifact": "exe",

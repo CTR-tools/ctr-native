@@ -7,303 +7,6 @@ enum
 };
 
 
-static u32 CAM_SkyboxGlow_PrimAddr(const void *prim)
-{
-	return CtrGpu_PrimToOTLink24(prim);
-}
-
-static u32 CAM_SkyboxGlow_PackXY(s32 x, s32 y)
-{
-	return ((u32)(u16)x) | ((u32)(u16)y << 16);
-}
-
-static u32 CAM_SkyboxGlow_LerpColor(u32 from, u32 to, s32 ratio)
-{
-	s32 r = (u8)from + ((((s32)(u8)to - (s32)(u8)from) * ratio) >> 12);
-	s32 g = (u8)(from >> 8) + ((((s32)(u8)(to >> 8) - (s32)(u8)(from >> 8)) * ratio) >> 12);
-	s32 b = (u8)(from >> 16) + ((((s32)(u8)(to >> 16) - (s32)(u8)(from >> 16)) * ratio) >> 12);
-
-	return ((u32)(u8)r) | ((u32)(u8)g << 8) | ((u32)(u8)b << 16);
-}
-
-static s32 CAM_SkyboxGlow_FixedRatio(s32 numerator, s32 denominator)
-{
-	// NOTE(aalhendi): Clipping can have negative numerators; preserve the
-	// CPU's wrapping shift without signed-left-shift undefined behavior.
-	return CTR_MipsSll(numerator, 12) / denominator;
-}
-
-static s32 CAM_SkyboxGlow_ScreenX(s32 screenWidth, s32 ratio)
-{
-	return (screenWidth * ratio) >> 12;
-}
-
-static s32 CAM_SkyboxGlow_Div2TowardZero(s32 value)
-{
-	// prevent implicit unsigned promotion by casting to s32 before the rightsift -penta3
-	return (s32)(value + ((u32)value >> 31)) >> 1;
-}
-
-static s32 CAM_SkyboxGlow_CalcCenterY(struct PushBuffer *pb)
-{
-	s32 pitch = (pb->rot.x - 0x800) * 0x78;
-	s32 height = (s16)pb->rect.h;
-
-	if (pitch < 0)
-	{
-		pitch += 0x3ff;
-	}
-
-	return (pitch >> 10) + CAM_SkyboxGlow_Div2TowardZero(height);
-}
-
-static s32 CAM_SkyboxGlow_CalcTilt(struct PushBuffer *pb)
-{
-	s32 cosine = MATH_Cos(pb->rot.z);
-	if (cosine == 0)
-	{
-		cosine = 1;
-	}
-
-	{
-		s32 ratio = CTR_MipsSll(MATH_Sin(pb->rot.z), 12) / cosine;
-		s32 shifted = (s32)((u32)ratio << 8);
-		shifted >>= 12;
-
-		return CAM_SkyboxGlow_Div2TowardZero(-shifted);
-	}
-}
-
-static void CAM_SkyboxGlow_EmitG3(struct PrimMem *primMem, u32 *ot, u32 color0, u32 xy0, u32 color1, u32 xy1, u32 color2, u32 xy2)
-{
-	POLY_G3 *poly = primMem->cursor;
-
-	CtrGpu_WriteColorCode(&poly->r0, CtrGpu_PackColorCode(color0, 0x30));
-	CtrGpu_WritePackedXY(&poly->x0, xy0);
-	CtrGpu_WriteColorCode(&poly->r1, color1 & 0xffffff);
-	CtrGpu_WritePackedXY(&poly->x1, xy1);
-	CtrGpu_WriteColorCode(&poly->r2, color2 & 0xffffff);
-	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	poly->tag = CtrGpu_PackOTTag(*ot, 0x06000000);
-	*ot = CAM_SkyboxGlow_PrimAddr(poly);
-
-	primMem->cursor = poly + 1;
-}
-
-static void CAM_SkyboxGlow_EmitG4(struct PrimMem *primMem, u32 *ot, u32 color0, u32 xy0, u32 color1, u32 xy1, u32 color2, u32 xy2, u32 color3, u32 xy3)
-{
-	POLY_G4 *poly = primMem->cursor;
-
-	CtrGpu_WriteColorCode(&poly->r0, CtrGpu_PackColorCode(color0, 0x38));
-	CtrGpu_WritePackedXY(&poly->x0, xy0);
-	CtrGpu_WriteColorCode(&poly->r1, color1 & 0xffffff);
-	CtrGpu_WritePackedXY(&poly->x1, xy1);
-	CtrGpu_WriteColorCode(&poly->r2, color2 & 0xffffff);
-	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	CtrGpu_WriteColorCode(&poly->r3, color3 & 0xffffff);
-	CtrGpu_WritePackedXY(&poly->x3, xy3);
-	poly->tag = CtrGpu_PackOTTag(*ot, 0x08000000);
-	*ot = CAM_SkyboxGlow_PrimAddr(poly);
-
-	primMem->cursor = poly + 1;
-}
-
-static void CAM_SkyboxGlow_EmitF3(struct PrimMem *primMem, u32 *ot, u32 color, u32 xy0, u32 xy1, u32 xy2)
-{
-	POLY_F3 *poly = primMem->cursor;
-
-	CtrGpu_WriteColorCode(&poly->r0, CtrGpu_PackColorCode(color, 0x20));
-	CtrGpu_WritePackedXY(&poly->x0, xy0);
-	CtrGpu_WritePackedXY(&poly->x1, xy1);
-	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	poly->tag = CtrGpu_PackOTTag(*ot, 0x04000000);
-	*ot = CAM_SkyboxGlow_PrimAddr(poly);
-
-	primMem->cursor = poly + 1;
-}
-
-static void CAM_SkyboxGlow_EmitF4(struct PrimMem *primMem, u32 *ot, u32 color, u32 xy0, u32 xy1, u32 xy2, u32 xy3)
-{
-	POLY_F4 *poly = primMem->cursor;
-
-	CtrGpu_WriteColorCode(&poly->r0, CtrGpu_PackColorCode(color, 0x28));
-	CtrGpu_WritePackedXY(&poly->x0, xy0);
-	CtrGpu_WritePackedXY(&poly->x1, xy1);
-	CtrGpu_WritePackedXY(&poly->x2, xy2);
-	CtrGpu_WritePackedXY(&poly->x3, xy3);
-	poly->tag = CtrGpu_PackOTTag(*ot, 0x05000000);
-	*ot = CAM_SkyboxGlow_PrimAddr(poly);
-
-	primMem->cursor = poly + 1;
-}
-
-static s32 CAM_SkyboxGlow_HasClearGradient(s32 gradientIndex)
-{
-	return gradientIndex == 0 && sdata->gGT->level1->clearColor[2].enable != 0;
-}
-
-static u32 CAM_SkyboxGlow_ClearGradientColor(void)
-{
-	return *(u32 *)&sdata->gGT->level1->clearColor[2].rgb[0] & 0xffffff;
-}
-
-void CAM_SkyboxGlow(struct SkyboxGlowGradient *grad, struct PushBuffer *pb, struct PrimMem *primMem, u32 *ptrOT)
-{
-	s32 tilt = CAM_SkyboxGlow_CalcTilt(pb);
-	s32 centerY1 = CAM_SkyboxGlow_CalcCenterY(pb);
-	s32 centerY2 = CAM_SkyboxGlow_CalcCenterY(pb);
-	s32 screenWidth = (s16)pb->rect.w;
-	u32 screenWidthXY = (u16)screenWidth;
-
-	{
-		s32 i;
-		for (i = 0; i < 3; i++, grad++)
-		{
-			s32 toLeft = centerY2 - grad->pointTo - tilt;
-			s32 toRight = centerY2 - grad->pointTo + tilt;
-			s32 fromLeft = centerY1 - grad->pointFrom - tilt;
-			s32 fromRight = centerY1 - grad->pointFrom + tilt;
-			u32 colorFrom = grad->colorFrom & 0xffffff;
-			u32 colorTo = grad->colorTo & 0xffffff;
-			u32 mask = 0;
-
-			if (toLeft >= 0)
-			{
-				mask |= 1;
-			}
-			if (toRight >= 0)
-			{
-				mask |= 2;
-			}
-			if (fromLeft >= 0)
-			{
-				mask |= 4;
-			}
-			if (fromRight >= 0)
-			{
-				mask |= 8;
-			}
-
-			switch (mask)
-			{
-			case 1:
-			{
-				s32 leftRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - toLeft);
-				s32 rightRatio = CAM_SkyboxGlow_FixedRatio(toLeft, toLeft - toRight);
-				u32 leftColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, leftRatio);
-				u32 rightX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, rightRatio);
-
-				CAM_SkyboxGlow_EmitG3(primMem, ptrOT, leftColor, 0, colorTo, CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, rightX);
-				break;
-			}
-			case 2:
-			{
-				s32 rightRatio = CAM_SkyboxGlow_FixedRatio(fromRight, fromRight - toRight);
-				s32 leftRatio = CAM_SkyboxGlow_FixedRatio(toLeft, toLeft - toRight);
-				u32 rightColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, rightRatio);
-				u32 leftX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, leftRatio);
-
-				CAM_SkyboxGlow_EmitG3(primMem, ptrOT, colorTo, leftX, rightColor, screenWidthXY, colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-				break;
-			}
-			case 3:
-			{
-				s32 leftRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - toLeft);
-				s32 rightRatio = CAM_SkyboxGlow_FixedRatio(fromRight, fromRight - toRight);
-				u32 leftColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, leftRatio);
-				u32 rightColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, rightRatio);
-
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, leftColor, 0, rightColor, screenWidthXY, colorTo, CAM_SkyboxGlow_PackXY(0, toLeft), colorTo,
-				                      CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-				break;
-			}
-			case 5:
-			{
-				s32 fromRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - fromRight);
-				s32 toRatio = CAM_SkyboxGlow_FixedRatio(toLeft, toLeft - toRight);
-				u32 fromX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, fromRatio);
-				u32 toX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, toRatio);
-
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, colorFrom, CAM_SkyboxGlow_PackXY(0, fromLeft), colorFrom, fromX, colorTo,
-				                      CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, toX);
-
-				if (CAM_SkyboxGlow_HasClearGradient(i))
-				{
-					CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, 0, CAM_SkyboxGlow_PackXY(0, fromLeft));
-				}
-				break;
-			}
-			case 7:
-			{
-				s32 fromRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - fromRight);
-				s32 rightRatio = CAM_SkyboxGlow_FixedRatio(fromRight, fromRight - toRight);
-				u32 fromX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, fromRatio);
-				u32 rightColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, rightRatio);
-
-				CAM_SkyboxGlow_EmitG3(primMem, ptrOT, colorFrom, CAM_SkyboxGlow_PackXY(0, fromLeft), colorFrom, fromX, rightColor, screenWidthXY);
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, colorFrom, CAM_SkyboxGlow_PackXY(0, fromLeft), rightColor, screenWidthXY, colorTo,
-				                      CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-
-				if (CAM_SkyboxGlow_HasClearGradient(i))
-				{
-					CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, 0, CAM_SkyboxGlow_PackXY(0, fromLeft));
-				}
-				break;
-			}
-			case 10:
-			{
-				s32 fromRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - fromRight);
-				s32 toRatio = CAM_SkyboxGlow_FixedRatio(toLeft, toLeft - toRight);
-				u32 fromX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, fromRatio);
-				u32 toX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, toRatio);
-				u32 fromRightXY = CAM_SkyboxGlow_PackXY(screenWidth, fromRight);
-
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, colorFrom, fromX, colorFrom, fromRightXY, colorTo, toX, colorTo,
-				                      CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-
-				if (CAM_SkyboxGlow_HasClearGradient(i))
-				{
-					CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, screenWidthXY, fromRightXY);
-				}
-				break;
-			}
-			case 11:
-			{
-				s32 fromRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - fromRight);
-				s32 leftRatio = CAM_SkyboxGlow_FixedRatio(fromLeft, fromLeft - toLeft);
-				u32 fromX = (u16)CAM_SkyboxGlow_ScreenX(screenWidth, fromRatio);
-				u32 leftColor = CAM_SkyboxGlow_LerpColor(colorFrom, colorTo, leftRatio);
-				u32 fromRightXY = CAM_SkyboxGlow_PackXY(screenWidth, fromRight);
-
-				CAM_SkyboxGlow_EmitG3(primMem, ptrOT, leftColor, 0, colorFrom, fromX, colorFrom, fromRightXY);
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, leftColor, 0, colorFrom, fromRightXY, colorTo, CAM_SkyboxGlow_PackXY(0, toLeft), colorTo,
-				                      CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-
-				if (CAM_SkyboxGlow_HasClearGradient(i))
-				{
-					CAM_SkyboxGlow_EmitF3(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), fromX, screenWidthXY, fromRightXY);
-				}
-				break;
-			}
-			case 15:
-			{
-				u32 fromRightXY = CAM_SkyboxGlow_PackXY(screenWidth, fromRight);
-
-				CAM_SkyboxGlow_EmitG4(primMem, ptrOT, colorFrom, CAM_SkyboxGlow_PackXY(0, fromLeft), colorFrom, fromRightXY, colorTo,
-				                      CAM_SkyboxGlow_PackXY(0, toLeft), colorTo, CAM_SkyboxGlow_PackXY(screenWidth, toRight));
-
-				if (CAM_SkyboxGlow_HasClearGradient(i))
-				{
-					CAM_SkyboxGlow_EmitF4(primMem, ptrOT, CAM_SkyboxGlow_ClearGradientColor(), 0, screenWidthXY, CAM_SkyboxGlow_PackXY(0, fromLeft),
-					                      fromRightXY);
-				}
-				break;
-			}
-			}
-		}
-	}
-}
-
 void CAM_ClearScreen(struct GameTracker *gGT)
 {
 	TILE *tile = gGT->backBuffer->primMem.cursor;
@@ -1564,57 +1267,55 @@ s32 CAM_MapRange_PosPoints(SVec3 *pos1, SVec3 *pos2, SVec3 *currPos)
 	}
 }
 
+#ifdef CTR_NATIVE
+#define CAM_WRITE_U16_ALIGNED(dst, value) CTR_WriteU16LE((dst), (value))
+#else
+#define CAM_WRITE_U16_ALIGNED(dst, value) (*(u16 *)(dst) = (u16)(value))
+#endif
+
 void CAM_ThTick(struct Thread *t)
 {
-	s16 sVar1;
-	s32 bVar2;
-	u16 uVar4;
-	s16 sVar5;
-	s16 sVar6;
-	s32 iVar7;
-	s32 iVar8;
-	u32 uVar9;
-	u32 uVar10;
-	struct PVS *psVar11;
-	s32 *piVar12;
-	struct Instance **ppsVar13;
+	struct CameraDC *cDC = (struct CameraDC *)t->inst;
+	struct GameTracker *gGT = GAME_TRACKER;
+	struct Driver *d = cDC->driverToFollow;
+	struct PushBuffer *pb = cDC->pushBuffer;
+	struct CameraScratchWork *scratchWork = CTR_SCRATCHPAD_PTR(struct CameraScratchWork, 0x108);
+	// NOTE(aalhendi): Retail keeps the zoom-clamp bound 2 in a1 across the
+	// prologue check while keeping later literal shifts/compares immediate.
+	s32 maxZoom CTR_PSX_GLOBAL_REGISTER_HINT("$5");
+	struct ZoomData *ptrZoomData;
 	struct SpawnType1 *psVar14;
 	struct CheckpointNode *psVar15;
-	u32 uVar16;
-	s32 iVar17;
-	s32 iVar18;
 	s16 *psVar19;
 	s16 *psVar20;
 	s16 *psVar21;
-	u32 uVar22;
-	struct CameraDC *cDC;
-	struct PushBuffer *pb;
-	struct ZoomData *ptrZoomData;
-	struct Driver *d;
-	s16 *scratchpad;
-	s32 iVar24;
-	s32 iVar25;
+	s16 sVar6;
+	s32 tmpA2;
+	SVec3 stackMemPos;
 
-	struct GameTracker *gGT = sdata->gGT;
-	struct CameraScratchWork *scratchWork = CTR_SCRATCHPAD_PTR(struct CameraScratchWork, 0x108);
-	scratchpad = (s16 *)scratchWork;
 	{
-		struct CameraScratch *camThTick = &scratchWork->camera;
-		cDC = (struct CameraDC *)t->inst;
-		d = cDC->driverToFollow;
-		pb = cDC->pushBuffer;
+		u32 flags;
 
-		if ((cDC->flags & CAMERA_FLAG_FROZEN) != 0)
+		// NOTE(aalhendi): sched2 otherwise hoists lw v0,112(s1) ahead of the
+		// driver/pushBuffer loads, dropping retail's load-delay nop.
+		CTR_PSX_LOAD_WORD_DELAYED(flags, cDC->flags);
+		if ((flags & CAMERA_FLAG_FROZEN) != 0)
 		{
 			return;
 		}
+	}
+	maxZoom = 2;
+	// NOTE(aalhendi): Invalidate reload_cse_regs so constant 2 is not
+	// substituted into the later sll 2 / sltiu 2 instructions.
+	CTR_PSX_FORGET_VALUE(maxZoom);
 
-		if (((((gGT->gameMode1 & (PAUSE_ALL | START_OF_RACE | MAIN_MENU | GAME_CUTSCENE)) == 0) && (d->instSelf->thread->funcThTick == 0)) &&
-		     ((d->actionsFlagSet & ACTION_BOT) == 0)) &&
-		    (((d->kartState != KS_WARP_PAD && (d->kartState != KS_FREEZE)) &&
-		      (((gGT->gameMode2 & 4) == 0 && ((sdata->gGamepads->gamepad[cDC->cameraID].buttonsTapped & BTN_L2_one) != 0))))))
+	if (((gGT->gameMode1 & (PAUSE_ALL | START_OF_RACE | MAIN_MENU | GAME_CUTSCENE)) == 0) && (d->instSelf->thread->funcThTick == 0) &&
+	    ((d->actionsFlagSet & ACTION_BOT) == 0) && (d->kartState != KS_WARP_PAD))
+	{
+		if ((d->kartState != KS_FREEZE) && ((gGT->gameMode2 & 4) == 0) && ((GAMEPADS->gamepad[cDC->cameraID].buttonsTapped & BTN_L2_one) != 0))
 		{
-			uVar4 = cDC->zoomToggleState + 1;
+			u16 uVar4 = (u16)(cDC->zoomToggleState + 1);
+
 			cDC->zoomToggleState = uVar4;
 			if (1 < uVar4)
 			{
@@ -1622,31 +1323,27 @@ void CAM_ThTick(struct Thread *t)
 			}
 
 			// NOTE(aalhendi): Retail clamps before this check, making this branch dead in this flow.
-			if (cDC->zoomToggleState == 2)
-			{
-				cDC->cameraMode = 0xf;
-			}
-			else
+			if (cDC->zoomToggleState != maxZoom)
 			{
 				cDC->nearOrFar = cDC->zoomToggleState;
 				cDC->cameraMode = 0;
 			}
+			else
+			{
+				cDC->cameraMode = 0xf;
+			}
 		}
+	}
 
-		ptrZoomData = &data.NearCam4x3;
-		if (gGT->numPlyrCurrGame == 2)
-		{
-			ptrZoomData = &data.NearCam8x3;
-		}
+	ptrZoomData = &(&data.NearCam4x3)[(s16)cDC->nearOrFar * 2];
+	if (GAME_TRACKER->numPlyrCurrGame == 2)
+	{
+		ptrZoomData++;
+	}
 
-		ptrZoomData = &ptrZoomData[cDC->nearOrFar * 2];
-
-		if ((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) == 0)
-		{
-			goto SkipNewCameraEOR;
-		}
-
-		psVar14 = gGT->level1->ptrSpawnType1;
+	if ((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) != 0)
+	{
+		psVar14 = GAME_TRACKER->level1->ptrSpawnType1;
 
 		psVar21 = 0;
 		if (psVar14->count < 3)
@@ -1656,44 +1353,54 @@ void CAM_ThTick(struct Thread *t)
 
 		{
 			void **ptrs = ST1_GETPOINTERS(psVar14);
-			psVar19 = ptrs[ST1_CAMERA_EOR];
+			psVar20 = ptrs[ST1_CAMERA_EOR];
 
 			// number of EOR cameras
-			sVar6 = *psVar19;
+			sVar6 = *psVar20++;
 
-			// advance to first EOR
-			psVar20 = psVar19 + 1;
+			stackMemPos.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
+			stackMemPos.y = (s16)CTR_MipsSra(d->posCurr.y, 8);
+			stackMemPos.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
 
 			if (sVar6 != 0)
 			{
-				uVar22 = (u32)d->checkpoint.currentIndex;
-
-				// pointer to modeID in EOR camera
-				psVar19 += 2;
-
 				for (; sVar6 != 0; sVar6--)
 				{
+					s32 mode;
+					s16 respawnPoint;
+
+					psVar19 = psVar20 + 1;
+					// NOTE(aalhendi): Keep psVar19 alive across the stride step so
+					// global.c preserves retail's a1/a2 assignment for psVar19/psVar20.
+					CTR_PSX_KEEP_VALUE_RELAXED(psVar19);
+
 					// camera mode
-					iVar7 = (s32)*psVar19;
-					if (iVar7 < 0)
-					{
-						iVar7 = -iVar7;
-					}
+					mode = *psVar19;
 
 					// respawnPoint
-					uVar16 = (u32)*psVar20;
+					respawnPoint = *psVar20;
 
 					// +2 to include respawnPoint and modeID
-					psVar20 = (s16 *)((s32)psVar19 + data.EndOfRace_Camera_Size[iVar7] + 2);
+					psVar20 = psVar19 + 1;
 
-					psVar15 = &gGT->level1->ptr_restart_points[uVar16];
+					mode = abs(mode);
 
-					if ((uVar22 == uVar16) || (uVar22 == psVar15->nextIndex_forward) || (uVar22 == psVar15->nextIndex_left) ||
-					    (uVar22 == psVar15->nextIndex_backward) || (uVar22 == psVar15->nextIndex_right))
+					psVar20 = (s16 *)((u8 *)psVar20 + GAME_DATA_NAME(EndOfRace_Camera_Size)[(s16)mode]);
+
+					if (d->checkpoint.currentIndex == respawnPoint)
 					{
 						psVar21 = psVar19;
 					}
-					psVar19 = psVar20 + 1;
+					else
+					{
+						psVar15 = (struct CheckpointNode *)((size_t)(respawnPoint * (s32)sizeof(struct CheckpointNode)) +
+						                                    (size_t)GAME_TRACKER_RELOAD()->level1->ptr_restart_points);
+						if ((d->checkpoint.currentIndex == psVar15->nextIndex_forward) || (d->checkpoint.currentIndex == psVar15->nextIndex_left) ||
+						    (d->checkpoint.currentIndex == psVar15->nextIndex_backward) || (d->checkpoint.currentIndex == psVar15->nextIndex_right))
+						{
+							psVar21 = psVar19;
+						}
+					}
 				}
 			}
 
@@ -1703,23 +1410,19 @@ void CAM_ThTick(struct Thread *t)
 				goto SkipNewCameraEOR;
 			}
 
-			cDC->currEOR = (void *)psVar21;
+			cDC->currEOR = psVar21;
 
-			sVar6 = *psVar21;
-			psVar19 = psVar21 + 1;
-			sVar5 = sVar6;
-			if (sVar6 < 0)
 			{
-				sVar5 = -sVar6;
+				s16 eorMode = *psVar21++;
+				cDC->cameraMode = (s16)abs(eorMode);
+				cDC->flags |= CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
+				cDC->flags &= ~CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
+				if (eorMode < 0)
+				{
+					cDC->flags |= CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
+				}
+				cDC->flags |= CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
 			}
-			cDC->cameraMode = sVar5;
-			uVar22 = cDC->flags & ~CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
-			cDC->flags = uVar22 | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
-			if (sVar6 < 0)
-			{
-				cDC->flags = uVar22 | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED | CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
-			}
-			cDC->flags = cDC->flags | CAMERA_FLAG_ARCADE_END_OF_RACE_ACTIVE;
 
 			switch (cDC->cameraMode)
 			{
@@ -1733,424 +1436,384 @@ void CAM_ThTick(struct Thread *t)
 				cDC->heightSmoothing.startOffset = 0;
 				break;
 			case 3:
-				pb->pos.x = *psVar19;
-				pb->pos.y = psVar21[2];
-				pb->pos.z = psVar21[3];
-				pb->rot.x = psVar21[4];
-				pb->rot.y = psVar21[5];
-				pb->rot.z = psVar21[6];
-				CTR_WriteU16LE(&cDC->action, (u16)*psVar19);
-				CTR_WriteU16LE((u8 *)&cDC->action + 2, (u16)psVar21[2]);
-				cDC->mode = psVar21[3];
-				CTR_WriteU16LE(&cDC->unk0xC, (u16)psVar21[4]);
-				CTR_WriteU16LE((u8 *)&cDC->unk0xC + 2, (u16)psVar21[5]);
-				cDC->desiredRot.x = psVar21[6];
+				pb->pos.x = psVar21[0];
+				pb->pos.y = psVar21[1];
+				pb->pos.z = psVar21[2];
+				pb->rot.x = psVar21[3];
+				pb->rot.y = psVar21[4];
+				pb->rot.z = psVar21[5];
+				CAM_WRITE_U16_ALIGNED((u8 *)&cDC->action + 0, (u16)psVar21[0]);
+				CAM_WRITE_U16_ALIGNED((u8 *)&cDC->action + 2, (u16)psVar21[1]);
+				cDC->mode = psVar21[2];
+				CAM_WRITE_U16_ALIGNED((u8 *)&cDC->unk0xC + 0, (u16)psVar21[3]);
+				CAM_WRITE_U16_ALIGNED((u8 *)&cDC->unk0xC + 2, (u16)psVar21[4]);
+				cDC->desiredRot.x = psVar21[5];
 				break;
 			case 4:
-				pb->pos.x = *psVar19;
-				pb->pos.y = psVar21[2];
-				pb->pos.z = psVar21[3];
+				pb->pos.x = psVar21[0];
+				pb->pos.y = psVar21[1];
+				pb->pos.z = psVar21[2];
 				break;
 			case 7:
-				(cDC->transitionTo).pos.x = *psVar19;
-				sVar6 = psVar21[2];
-				uVar22 = cDC->flags & ~CAMERA_FLAG_TRACK_PATH_FACE_DRIVER;
-				cDC->flags = uVar22;
-				(cDC->transitionTo).pos.y = sVar6;
-				if (psVar21[3] != 0)
+				(cDC->transitionTo).pos.x = *psVar21++;
+				(cDC->transitionTo).pos.y = psVar21[0];
+				cDC->flags &= ~CAMERA_FLAG_TRACK_PATH_FACE_DRIVER;
+				if (psVar21[1] != 0)
 				{
-					cDC->flags = uVar22 | CAMERA_FLAG_TRACK_PATH_FACE_DRIVER;
+					cDC->flags |= CAMERA_FLAG_TRACK_PATH_FACE_DRIVER;
 				}
 				break;
 			case 8:
 			case 14:
-				cDC->driverOffset_CamEyePos.x = *psVar19;
-				cDC->driverOffset_CamEyePos.y = psVar21[2];
-				cDC->driverOffset_CamEyePos.z = psVar21[3];
+				cDC->driverOffset_CamEyePos.x = psVar21[0];
+				cDC->driverOffset_CamEyePos.y = psVar21[1];
+				cDC->driverOffset_CamEyePos.z = psVar21[2];
 
-				cDC->driverOffset_CamLookAtPos.x = psVar21[4];
-				cDC->driverOffset_CamLookAtPos.y = psVar21[5];
-				cDC->driverOffset_CamLookAtPos.z = psVar21[6];
+				cDC->driverOffset_CamLookAtPos.x = psVar21[3];
+				cDC->driverOffset_CamLookAtPos.y = psVar21[4];
+				cDC->driverOffset_CamLookAtPos.z = psVar21[5];
 
-				// driverOffset_CamEyePos
-				sVar6 = *psVar19;
-				sVar5 = psVar21[2];
-				sVar1 = psVar21[3];
-
-				iVar7 = VehCalc_MapToRange((s32)sVar6 * (s32)sVar6 + (s32)sVar5 * (s32)sVar5 + (s32)sVar1 * (s32)sVar1, 0x10000, 0x190000, 0x80, 0xf0);
-
-				cDC->angleAxisLerpRatio = (s16)iVar7;
+				cDC->angleAxisLerpRatio = (s16)VehCalc_MapToRange(cDC->driverOffset_CamEyePos.x * cDC->driverOffset_CamEyePos.x +
+				                                                      cDC->driverOffset_CamEyePos.y * cDC->driverOffset_CamEyePos.y +
+				                                                      cDC->driverOffset_CamEyePos.z * cDC->driverOffset_CamEyePos.z,
+				                                                  0x10000, 0x190000, 0x80, 0xf0);
 				break;
 			case 9:
 			case 13:
-				sVar6 = *psVar19;
-				psVar15 = gGT->level1->ptr_restart_points;
+			{
+				s32 nodeIdx = *psVar21++;
+				cDC->trackPathNode = GAME_TRACKER->level1->ptr_restart_points + nodeIdx;
 				cDC->trackPathProgress = 0;
-				cDC->trackPathNode = psVar15 + sVar6;
-				(cDC->transitionTo).pos.x = psVar21[2];
-				(cDC->transitionTo).pos.y = psVar21[3];
-				(cDC->transitionTo).pos.z = psVar21[4];
-				(cDC->transitionTo).rot.x = psVar21[5];
-				(cDC->transitionTo).rot.y = psVar21[6];
-				(cDC->transitionTo).rot.z = psVar21[7];
-				cDC->eorModeData.trackPathSpeed = psVar21[8];
+				(cDC->transitionTo).pos.x = *psVar21++;
+				(cDC->transitionTo).pos.y = *psVar21++;
+				(cDC->transitionTo).pos.z = *psVar21++;
+				(cDC->transitionTo).rot.x = *psVar21++;
+				(cDC->transitionTo).rot.y = *psVar21++;
+				(cDC->transitionTo).rot.z = *psVar21++;
+				cDC->eorModeData.trackPathSpeed = *psVar21;
 				break;
+			}
 
 			// Spin360
 			case 10:
-
+			{
+				s16 val;
 				// spinSpeed
-				sVar6 = *psVar19;
-
-				psVar19 = psVar21 + 2;
+				val = *psVar21++;
 				goto LAB_8001b928;
-
 			case 11:
-				sVar6 = (s16)pb->distanceToScreen_CURR;
-				pb->pos.x = *psVar19;
-				pb->pos.y = psVar21[2];
-				pb->pos.z = psVar21[3];
-				psVar19 = psVar21 + 5;
-				sVar6 = psVar21[4] - sVar6;
+			{
+				s16 dist = (s16)pb->distanceToScreen_CURR;
+				pb->pos.x = psVar21[0];
+				pb->pos.y = psVar21[1];
+				pb->pos.z = psVar21[2];
+				psVar21 += 3;
+				val = *psVar21++ - dist;
+			}
 			LAB_8001b928:
-				(cDC->transitionTo).pos.x = sVar6;
-				(cDC->transitionTo).pos.y = *psVar19;
-				(cDC->transitionTo).pos.z = psVar19[1];
+				(cDC->transitionTo).pos.x = val;
+				(cDC->transitionTo).pos.y = psVar21[0];
+				(cDC->transitionTo).pos.z = psVar21[1];
 				break;
+			}
 			case 12:
-				(cDC->transitionTo).pos.x = *psVar19;
-				(cDC->transitionTo).pos.y = psVar21[2];
-				(cDC->transitionTo).pos.z = psVar21[3];
-				(cDC->transitionTo).rot.x = psVar21[4];
-				(cDC->transitionTo).rot.y = psVar21[5];
-				(cDC->transitionTo).rot.z = psVar21[6];
-				cDC->eorModeData.pointPath.endPos.x = psVar21[7];
-				cDC->eorModeData.pointPath.endPos.y = psVar21[8];
-				cDC->eorModeData.pointPath.endPos.z = psVar21[9];
-				cDC->eorModeData.pointPath.speed = psVar21[10];
+				(cDC->transitionTo).pos.x = psVar21[0];
+				(cDC->transitionTo).pos.y = psVar21[1];
+				(cDC->transitionTo).pos.z = psVar21[2];
+				(cDC->transitionTo).rot.x = psVar21[3];
+				(cDC->transitionTo).rot.y = psVar21[4];
+				(cDC->transitionTo).rot.z = psVar21[5];
+				cDC->eorModeData.pointPath.endPos.x = psVar21[6];
+				cDC->eorModeData.pointPath.endPos.y = psVar21[7];
+				cDC->eorModeData.pointPath.endPos.z = psVar21[8];
+				cDC->eorModeData.pointPath.speed = psVar21[9];
+				break;
+
+			// first-person cameras take no end-of-race record data
+			case 15:
+			case 16:
+				break;
 			}
-
-		SkipNewCameraEOR:
-
-			pb->distanceToScreen_PREV = pb->distanceToScreen_CURR;
-			sVar6 = cDC->cameraMode;
-
-			if (sVar6 != 0)
-			{
-				sVar5 = cDC->cameraMode;
-				cDC->BlastedLerp.framesRemaining = 0;
-
-				if (sVar6 != 0)
-				{
-					if (sVar6 == 4)
-					{
-					LAB_8001c11c:
-						CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
-						psVar21 = scratchpad;
-					LAB_8001c128:
-						scratchpad = psVar21;
-					}
-					else
-					{
-						psVar21 = scratchpad;
-						if (sVar6 == 10)
-						{
-							CAM_FollowDriver_Spin360(cDC, scratchWork, d, &pb->pos, &pb->rot);
-							goto LAB_8001c128;
-						}
-						if (sVar6 != 0xb)
-						{
-							if (sVar6 == 0xc)
-							{
-								if (cDC->cameraModePrev != 0xc)
-								{
-									cDC->transitionFrame = 0;
-								}
-
-								{
-									SVec3 stackMemPos;
-
-									stackMemPos.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
-									stackMemPos.y = (s16)CTR_MipsSra(d->posCurr.y, 8);
-									stackMemPos.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
-
-									iVar8 = CAM_MapRange_PosPoints(&cDC->transitionTo.pos, &cDC->transitionTo.rot, &stackMemPos);
-
-									iVar17 = (s32)cDC->eorModeData.pointPath.speed;
-
-									stackMemPos.x = cDC->eorModeData.pointPath.endPos.x - (cDC->transitionTo).rot.x;
-									stackMemPos.y = cDC->eorModeData.pointPath.endPos.y - (cDC->transitionTo).rot.y;
-									stackMemPos.z = cDC->eorModeData.pointPath.endPos.z - (cDC->transitionTo).rot.z;
-
-									iVar7 = iVar17;
-									if (iVar17 < 0)
-									{
-										iVar7 = -iVar17;
-									}
-									if (iVar17 < 0)
-									{
-										stackMemPos.x = -stackMemPos.x;
-										stackMemPos.y = -stackMemPos.y;
-										stackMemPos.z = -stackMemPos.z;
-									}
-
-									iVar24 = SquareRoot0_stub(CTR_MipsAddLo(
-									    CTR_MipsAddLo(CAM_MulLo((s32)stackMemPos.x, (s32)stackMemPos.x), CAM_MulLo((s32)stackMemPos.y, (s32)stackMemPos.y)),
-									    CAM_MulLo((s32)stackMemPos.z, (s32)stackMemPos.z)));
-
-									iVar18 = cDC->trackPathProgress << 0xc;
-									iVar25 = iVar18 / iVar24;
-									/*
-									if (iVar24 == 0)
-									{
-									    trap(0x1c00);
-									}
-									if ((iVar24 == -1) && (iVar18 == -0x80000000))
-									{
-									    trap(0x1800);
-									}
-									*/
-									cDC->trackPathProgress = cDC->trackPathProgress + (((cDC->transitionFrame * 0x1000) / 0x1e) * iVar7 >> 0xc);
-									if (iVar8 < 1)
-									{
-										if (iVar25 < 0x1001)
-										{
-											if (cDC->transitionFrame < 0x1e)
-											{
-												cDC->transitionFrame = cDC->transitionFrame + 1;
-											}
-										}
-										else if (cDC->transitionFrame != 0)
-										{
-											cDC->transitionFrame = cDC->transitionFrame + -1;
-										}
-									}
-									else
-									{
-										cDC->trackPathProgress = 0;
-										cDC->transitionFrame = 0;
-									}
-									psVar21 = CTR_VECTOR_DATA(&((cDC->transitionTo).rot));
-									if (iVar17 < 0)
-									{
-										psVar21 = CTR_VECTOR_DATA(&(cDC->eorModeData.pointPath.endPos));
-									}
-									pb->pos.x = psVar21[0] + (s16)((stackMemPos.x * iVar25) >> 0xc);
-									pb->pos.y = psVar21[1] + (s16)((stackMemPos.y * iVar25) >> 0xc);
-									pb->pos.z = psVar21[2] + (s16)((stackMemPos.z * iVar25) >> 0xc);
-									goto LAB_8001c11c;
-								}
-							}
-							if (sVar6 == 7)
-							{
-								pb->pos.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
-								pb->pos.y = (cDC->transitionTo).pos.x + (s16)CTR_MipsSra(d->posCurr.y, 8);
-								pb->pos.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
-								sVar6 = (cDC->transitionTo).pos.y;
-								pb->rot.y = 0;
-								pb->rot.z = 0;
-								pb->rot.x = sVar6 + 0x400;
-								psVar21 = scratchpad;
-								if ((cDC->flags & CAMERA_FLAG_TRACK_PATH_FACE_DRIVER) != 0)
-								{
-									pb->rot.y = d->angle + 0x800;
-								}
-							}
-							else if ((u16)(sVar5 - 0xfU) < 2)
-							{
-								pb->pos.x = sdata->FirstPersonCamera.posOffset.x + (s16)CTR_MipsSra(d->posCurr.x, 8);
-								pb->pos.y = sdata->FirstPersonCamera.posOffset.y + (s16)CTR_MipsSra(d->posCurr.y, 8);
-								pb->pos.z = sdata->FirstPersonCamera.posOffset.z + (s16)CTR_MipsSra(d->posCurr.z, 8);
-
-								pb->rot.x = sdata->FirstPersonCamera.rotOffset.x + (d->rotCurr).x;
-								if (cDC->cameraMode == 0x10)
-								{
-									pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + d->angle;
-								}
-								else
-								{
-									pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + (d->rotCurr).y;
-								}
-								pb->rot.z = sdata->FirstPersonCamera.rotOffset.z + (d->rotCurr).z;
-							}
-							else
-							{
-								if ((sVar6 == 8) || (sVar6 == 0xe))
-								{
-									if ((d->botData.botFlags & 2U) == 0)
-									{
-										if ((cDC->botFlagsPrevFrame & 2) != 0)
-										{
-											cDC->flags = cDC->flags | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
-										}
-										CAM_FollowDriver_AngleAxis(cDC, d, CameraScratchWork_AsAngleAxis(scratchWork), &pb->pos, &pb->rot);
-									}
-									else
-									{
-										if ((cDC->botFlagsPrevFrame & 2) == 0)
-										{
-											cDC->flags = cDC->flags | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
-										}
-										CAM_FollowDriver_Normal(cDC, d, &pb->pos, scratchWork, ptrZoomData);
-									}
-									cDC->botFlagsPrevFrame = d->botData.botFlags;
-									goto LAB_8001c150;
-								}
-								if ((cDC->cameraMode == 9) || (psVar21 = scratchpad, cDC->cameraMode == 0xd))
-								{
-									if ((gGT->level1->cnt_restart_points != 0) && ((gGT->gameMode1 & PAUSE_ALL) == 0))
-									{
-										SVec3 *trackPathPos = &scratchWork->trackPathPos;
-										SVec3 *trackPathLookaheadPos = &scratchWork->trackPathLookaheadPos;
-
-
-										uVar9 = CAM_FollowDriver_TrackPath(cDC, trackPathPos, cDC->eorModeData.trackPathSpeed, 1);
-
-										iVar7 = -0xc0;
-										if (-1 < cDC->eorModeData.trackPathSpeed)
-										{
-											iVar7 = 0xc0;
-										}
-
-										uVar10 = CAM_FollowDriver_TrackPath(cDC, trackPathLookaheadPos, iVar7, 0);
-
-										// interpolate two rotations
-
-										iVar8 = ((s32)((((uVar10 - uVar9) + 0x800U) & 0xfff) - 0x800) >> 1);
-										camThTick->rot.x = 0x800;
-										camThTick->rot.y = (s16)uVar9 + (s16)iVar8;
-										camThTick->rot.z = 0;
-
-										// interpolate two positions
-										trackPathPos->x = (s16)(((s32)trackPathPos->x + (s32)trackPathLookaheadPos->x) >> 1);
-										trackPathPos->y = (s16)(((s32)trackPathPos->y + (s32)trackPathLookaheadPos->y) >> 1);
-										trackPathPos->z = (s16)(((s32)trackPathPos->z + (s32)trackPathLookaheadPos->z) >> 1);
-										ConvertRotToMatrix(&camThTick->matrix, &camThTick->rot);
-										gte_SetRotMatrix(&camThTick->matrix);
-										CTR_GteLoadSVec3V0(&cDC->transitionTo.pos);
-										gte_rtv0();
-
-										{
-											VECTOR pathOffset;
-											CTR_GteStoreMAC(&pathOffset.vx);
-											uVar9 = pathOffset.vx;
-											iVar7 = pathOffset.vy;
-											iVar8 = pathOffset.vz;
-
-											pb->pos.x = trackPathPos->x + (s16)uVar9;
-											pb->pos.y = trackPathPos->y + (s16)iVar7;
-											pb->pos.z = trackPathPos->z + (s16)iVar8;
-											pb->rot.x = camThTick->rot.x + cDC->transitionTo.rot.x;
-											pb->rot.y = camThTick->rot.y + cDC->transitionTo.rot.y;
-											pb->rot.z = camThTick->rot.z + cDC->transitionTo.rot.z;
-										}
-									}
-									psVar21 = scratchpad;
-									if (cDC->cameraMode == 0xd)
-									{
-										goto LAB_8001c11c;
-									}
-								}
-							}
-							goto LAB_8001c128;
-						}
-
-						CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
-
-						iVar7 = SquareRoot0_stub(CTR_MipsAddLo(CAM_MulLo(camThTick->dir.x, camThTick->dir.x), CAM_MulLo(camThTick->dir.z, camThTick->dir.z)));
-						iVar17 = (s32)(cDC->transitionTo).pos.x;
-						iVar24 = (iVar7 - (cDC->transitionTo).pos.y) * iVar17;
-						iVar8 = (s32)(cDC->transitionTo).pos.z;
-						iVar7 = iVar24 / iVar8;
-						/*
-						if (iVar8 == 0)
-						{
-						    trap(0x1c00);
-						}
-						if ((iVar8 == -1) && (iVar24 == -0x80000000))
-						{
-						    trap(0x1800);
-						}
-						*/
-						bVar2 = iVar17 < iVar7;
-						if (iVar7 < 0)
-						{
-							iVar7 = 0;
-							bVar2 = iVar17 < 0;
-						}
-						if (bVar2)
-						{
-							iVar7 = iVar17;
-						}
-						pb->distanceToScreen_PREV = pb->distanceToScreen_CURR + iVar7;
-					}
-
-					{
-						Vec3 cameraProbePos;
-						cameraProbePos.x = (s32)pb->pos.x;
-						cameraProbePos.y = (s32)pb->pos.y;
-						cameraProbePos.z = (s32)pb->pos.z;
-
-						CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &cameraProbePos);
-						goto LAB_8001c150;
-					}
-				}
-			}
-
-			CAM_FollowDriver_Normal(cDC, d, &pb->pos, scratchWork, ptrZoomData);
-
-		LAB_8001c150:
-			cDC->cameraModePrev = cDC->cameraMode;
-
-			if (cDC->ptrQuadBlock != 0)
-			{
-				psVar11 = cDC->ptrQuadBlock->pvs;
-				if ((psVar11 != 0) && (piVar12 = psVar11->visLeafSrc, piVar12 != 0))
-				{
-					cDC->visLeafSrc = piVar12;
-					gGT->unk1cac[1] = cDC->ptrQuadBlock - gGT->level1->ptr_mesh_info->ptrQuadBlockArray;
-				}
-				if (cDC->ptrQuadBlock != 0)
-				{
-					psVar11 = cDC->ptrQuadBlock->pvs;
-					if ((psVar11 != 0) && (piVar12 = psVar11->visFaceSrc, piVar12 != 0))
-					{
-						cDC->visFaceSrc = piVar12;
-					}
-					if (cDC->ptrQuadBlock != 0)
-					{
-						psVar11 = cDC->ptrQuadBlock->pvs;
-						if ((psVar11 != 0) && (ppsVar13 = psVar11->visInstSrc, ppsVar13 != 0))
-						{
-							cDC->visInstSrc = ppsVar13;
-						}
-						if (((cDC->ptrQuadBlock != 0) && (psVar11 = cDC->ptrQuadBlock->pvs, psVar11 != 0)) && (piVar12 = psVar11->visExtraSrc, piVar12 != 0))
-						{
-							if ((gGT->level1->configFlags & 4) == 0)
-							{
-								cDC->visOVertSrc = piVar12;
-							}
-							else
-							{
-								cDC->visSCVertSrc = piVar12;
-							}
-						}
-					}
-				}
-			}
-
-			if (cDC->quadBlockSearchHit == false)
-			{
-				cDC->visLeafSrc = 0;
-				cDC->visFaceSrc = 0;
-			}
-
-			if ((cDC->flags & CAMERA_FLAG_RESET_RAIN_POS) != 0)
-			{
-				gGT->rainBuffer[cDC->cameraID].cameraPos = pb->pos;
-				cDC->flags &= ~CAMERA_FLAG_RESET_RAIN_POS;
-			}
-			cDC->flags &= ~(CAMERA_FLAG_DIRECTION_CHANGED | CAMERA_FLAG_FIRE_SPEED_ZOOM);
 		}
 	}
+
+SkipNewCameraEOR:
+
+	pb->distanceToScreen_PREV = pb->distanceToScreen_CURR;
+
+	if (cDC->cameraMode != 0)
+	{
+		cDC->BlastedLerp.framesRemaining = 0;
+	}
+
+	if (cDC->cameraMode == 0)
+	{
+		CAM_FollowDriver_Normal(cDC, d, &pb->pos, scratchWork, ptrZoomData);
+	}
+	else
+	{
+		u16 modeU = (u16)cDC->cameraMode;
+
+		if (cDC->cameraMode == 4)
+		{
+			CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
+		}
+		else if (cDC->cameraMode == 10)
+		{
+			// NOTE(aalhendi): sched2 ties stack-arg &pb->rot with a0..a3 moves
+			// in calls.c's order; staging a0..a3 first places addiu v0,s2,6 last.
+			register struct CameraDC *rA0 CTR_PSX_REGISTER("$4") = cDC;
+			register struct CameraScratchWork *rA1 CTR_PSX_REGISTER("$5") = scratchWork;
+			register struct Driver *rA2 CTR_PSX_REGISTER("$6") = d;
+			register SVec3 *rA3 CTR_PSX_REGISTER("$7") = &pb->pos;
+			SVec3 *rot = &pb->rot;
+
+			CTR_PSX_DEPEND_VALUE(rot, rA3);
+			CAM_FollowDriver_Spin360(rA0, rA1, rA2, rA3, rot);
+		}
+		else if (cDC->cameraMode == 0xb)
+		{
+			s32 dist;
+			s32 zoomDelta;
+
+			CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
+
+			dist = SquareRoot0_stub(scratchWork->camera.dir.x * scratchWork->camera.dir.x + scratchWork->camera.dir.z * scratchWork->camera.dir.z);
+			tmpA2 = dist - (cDC->transitionTo).pos.y;
+			zoomDelta = (tmpA2 * (s32)(cDC->transitionTo).pos.x) / (s32)(cDC->transitionTo).pos.z;
+
+			if (zoomDelta < 0)
+			{
+				zoomDelta = 0;
+			}
+			if (zoomDelta > (s32)(cDC->transitionTo).pos.x)
+			{
+				zoomDelta = (s32)(cDC->transitionTo).pos.x;
+			}
+			pb->distanceToScreen_PREV = pb->distanceToScreen_CURR + zoomDelta;
+
+			scratchWork->camera.pos.x = pb->pos.x;
+			scratchWork->camera.pos.y = pb->pos.y;
+			scratchWork->camera.pos.z = pb->pos.z;
+			CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &scratchWork->camera.pos);
+			goto LAB_8001c150;
+		}
+		else if (cDC->cameraMode == 0xc)
+		{
+			s32 mapRange;
+			s32 speed;
+			s32 speedAbs;
+			s32 progress;
+			s32 totalDist;
+			s32 ratio;
+			s16 *basePos;
+
+			if (cDC->cameraModePrev != 0xc)
+			{
+				cDC->transitionFrame = 0;
+			}
+
+			stackMemPos.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
+			stackMemPos.y = (s16)CTR_MipsSra(d->posCurr.y, 8);
+			stackMemPos.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
+
+			mapRange = CAM_MapRange_PosPoints(&cDC->transitionTo.pos, &cDC->transitionTo.rot, &stackMemPos);
+
+			speed = (s32)cDC->eorModeData.pointPath.speed;
+
+			stackMemPos.x = cDC->eorModeData.pointPath.endPos.x - (cDC->transitionTo).rot.x;
+			stackMemPos.y = cDC->eorModeData.pointPath.endPos.y - (cDC->transitionTo).rot.y;
+			stackMemPos.z = cDC->eorModeData.pointPath.endPos.z - (cDC->transitionTo).rot.z;
+
+			speedAbs = abs(speed);
+			if (speed < 0)
+			{
+				stackMemPos.x = -stackMemPos.x;
+				stackMemPos.y = -stackMemPos.y;
+				stackMemPos.z = -stackMemPos.z;
+			}
+
+			totalDist = SquareRoot0_stub(stackMemPos.x * stackMemPos.x + stackMemPos.y * stackMemPos.y + stackMemPos.z * stackMemPos.z);
+			progress = cDC->trackPathProgress;
+			cDC->trackPathProgress = progress + (((cDC->transitionFrame * 0x1000) / 0x1e) * speedAbs >> 0xc);
+			ratio = CTR_MipsSll(progress, 0xc) / totalDist;
+			if (mapRange > 0)
+			{
+				cDC->trackPathProgress = 0;
+				cDC->transitionFrame = 0;
+			}
+			else if (ratio > 0x1000)
+			{
+				if (cDC->transitionFrame != 0)
+				{
+					cDC->transitionFrame = cDC->transitionFrame + -1;
+				}
+			}
+			else if (cDC->transitionFrame < 0x1e)
+			{
+				cDC->transitionFrame = cDC->transitionFrame + 1;
+			}
+
+			basePos = CTR_VECTOR_DATA(&((cDC->transitionTo).rot));
+			if (speed < 0)
+			{
+				basePos = CTR_VECTOR_DATA(&(cDC->eorModeData.pointPath.endPos));
+			}
+			pb->pos.x = basePos[0] + (s16)((stackMemPos.x * ratio) >> 0xc);
+			pb->pos.y = basePos[1] + (s16)((stackMemPos.y * ratio) >> 0xc);
+			pb->pos.z = basePos[2] + (s16)((stackMemPos.z * ratio) >> 0xc);
+			CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
+		}
+		else if (cDC->cameraMode == 7)
+		{
+			s16 rotX;
+
+			pb->pos.x = (s16)CTR_MipsSra(d->posCurr.x, 8);
+			pb->pos.y = (cDC->transitionTo).pos.x + (s16)CTR_MipsSra(d->posCurr.y, 8);
+			pb->pos.z = (s16)CTR_MipsSra(d->posCurr.z, 8);
+			rotX = (cDC->transitionTo).pos.y;
+			pb->rot.y = 0;
+			pb->rot.z = 0;
+			pb->rot.x = rotX + 0x400;
+			if ((cDC->flags & CAMERA_FLAG_TRACK_PATH_FACE_DRIVER) != 0)
+			{
+				pb->rot.y = d->angle + 0x800;
+			}
+		}
+		else if ((u16)(modeU - 0xfU) < 2)
+		{
+			pb->pos.x = sdata->FirstPersonCamera.posOffset.x + (s16)CTR_MipsSra(d->posCurr.x, 8);
+			pb->pos.y = sdata->FirstPersonCamera.posOffset.y + (s16)CTR_MipsSra(d->posCurr.y, 8);
+			pb->pos.z = sdata->FirstPersonCamera.posOffset.z + (s16)CTR_MipsSra(d->posCurr.z, 8);
+
+			if (cDC->cameraMode == 0x10)
+			{
+				pb->rot.x = sdata->FirstPersonCamera.rotOffset.x + (d->rotCurr).x;
+				pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + d->angle;
+			}
+			else
+			{
+				pb->rot.x = sdata->FirstPersonCamera.rotOffset.x + (d->rotCurr).x;
+				pb->rot.y = sdata->FirstPersonCamera.rotOffset.y + (d->rotCurr).y;
+			}
+			pb->rot.z = sdata->FirstPersonCamera.rotOffset.z + (d->rotCurr).z;
+		}
+		else if ((cDC->cameraMode == 8) || (cDC->cameraMode == 0xe))
+		{
+			struct Driver *botDriver = d;
+
+			if ((d->botData.botFlags & 2U) != 0)
+			{
+				if ((cDC->botFlagsPrevFrame & 2) == 0)
+				{
+					cDC->flags = cDC->flags | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
+				}
+				CAM_FollowDriver_Normal(cDC, d, &pb->pos, scratchWork, ptrZoomData);
+			}
+			else
+			{
+				if ((cDC->botFlagsPrevFrame & 2) != 0)
+				{
+					cDC->flags = cDC->flags | CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
+				}
+				CAM_FollowDriver_AngleAxis(cDC, d, CameraScratchWork_AsAngleAxis(scratchWork), &pb->pos, &pb->rot);
+			}
+			cDC->botFlagsPrevFrame = botDriver->botData.botFlags;
+			goto LAB_8001c150;
+		}
+		else if ((cDC->cameraMode == 9) || (cDC->cameraMode == 0xd))
+		{
+			if ((GAME_TRACKER->level1->cnt_restart_points != 0) && ((GAME_TRACKER->gameMode1 & PAUSE_ALL) == 0))
+			{
+				u32 ang1 = CAM_FollowDriver_TrackPath(cDC, &scratchWork->trackPathPos, cDC->eorModeData.trackPathSpeed, 1);
+				u32 ang2 = CAM_FollowDriver_TrackPath(cDC, &scratchWork->trackPathLookaheadPos, (cDC->eorModeData.trackPathSpeed >= 0) ? 0xc0 : -0xc0, 0);
+				tmpA2 = (s32)(((ang2 - ang1) + 0x800U) & 0xfff) - 0x800;
+
+				scratchWork->camera.rot.x = 0x800;
+				scratchWork->camera.rot.y = (s16)ang1 + (s16)(tmpA2 >> 1);
+				scratchWork->camera.rot.z = 0;
+
+				// interpolate two positions
+				scratchWork->trackPathPos.x = (s16)(((s32)scratchWork->trackPathPos.x + (s32)scratchWork->trackPathLookaheadPos.x) >> 1);
+				scratchWork->trackPathPos.y = (s16)(((s32)scratchWork->trackPathPos.y + (s32)scratchWork->trackPathLookaheadPos.y) >> 1);
+				scratchWork->trackPathPos.z = (s16)(((s32)scratchWork->trackPathPos.z + (s32)scratchWork->trackPathLookaheadPos.z) >> 1);
+				ConvertRotToMatrix(&scratchWork->camera.matrix, &scratchWork->camera.rot);
+				CTR_GteLoadRotMatrix(&scratchWork->camera.matrix);
+				CTR_GteLoadSVec3V0(&cDC->transitionTo.pos);
+				CTR_GteLoadDelay();
+				gte_rtv0();
+
+				{
+					s32 macY;
+
+					ang1 = MFC2(25);
+					macY = (s32)MFC2(26);
+					tmpA2 = (s32)MFC2(27);
+
+					pb->pos.x = scratchWork->trackPathPos.x + (s32)ang1;
+					pb->pos.y = scratchWork->trackPathPos.y + macY;
+					pb->pos.z = scratchWork->trackPathPos.z + tmpA2;
+					pb->rot.x = scratchWork->camera.rot.x + cDC->transitionTo.rot.x;
+					pb->rot.y = scratchWork->camera.rot.y + cDC->transitionTo.rot.y;
+					pb->rot.z = scratchWork->camera.rot.z + cDC->transitionTo.rot.z;
+				}
+			}
+			if (cDC->cameraMode == 0xd)
+			{
+				CAM_LookAtPosition(scratchWork, &d->posCurr, &pb->pos, &pb->rot);
+			}
+		}
+
+		scratchWork->camera.pos.x = pb->pos.x;
+		scratchWork->camera.pos.y = pb->pos.y;
+		scratchWork->camera.pos.z = pb->pos.z;
+
+		CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &scratchWork->camera.pos);
+	}
+
+LAB_8001c150:
+	cDC->cameraModePrev = cDC->cameraMode;
+
+	if (cDC->ptrQuadBlock != 0)
+	{
+		if ((cDC->ptrQuadBlock->pvs != 0) && (cDC->ptrQuadBlock->pvs->visLeafSrc != 0))
+		{
+			cDC->visLeafSrc = cDC->ptrQuadBlock->pvs->visLeafSrc;
+			GAME_TRACKER->unk1cac[1] = cDC->ptrQuadBlock - GAME_TRACKER->level1->ptr_mesh_info->ptrQuadBlockArray;
+		}
+		if ((cDC->ptrQuadBlock != 0) && (cDC->ptrQuadBlock->pvs != 0) && (cDC->ptrQuadBlock->pvs->visFaceSrc != 0))
+		{
+			cDC->visFaceSrc = cDC->ptrQuadBlock->pvs->visFaceSrc;
+		}
+		if ((cDC->ptrQuadBlock != 0) && (cDC->ptrQuadBlock->pvs != 0) && (cDC->ptrQuadBlock->pvs->visInstSrc != 0))
+		{
+			cDC->visInstSrc = cDC->ptrQuadBlock->pvs->visInstSrc;
+		}
+		if (((cDC->ptrQuadBlock != 0) && (cDC->ptrQuadBlock->pvs != 0)) && (cDC->ptrQuadBlock->pvs->visExtraSrc != 0))
+		{
+			if ((GAME_TRACKER->level1->configFlags & 4) == 0)
+			{
+				cDC->visOVertSrc = cDC->ptrQuadBlock->pvs->visExtraSrc;
+			}
+			else
+			{
+				cDC->visSCVertSrc = cDC->ptrQuadBlock->pvs->visExtraSrc;
+			}
+		}
+	}
+
+	if (cDC->quadBlockSearchHit == false)
+	{
+		cDC->visLeafSrc = 0;
+		cDC->visFaceSrc = 0;
+	}
+
+	if ((cDC->flags & CAMERA_FLAG_RESET_RAIN_POS) != 0)
+	{
+		GAME_TRACKER->rainBuffer[cDC->cameraID].cameraPos.x = pb->pos.x;
+		GAME_TRACKER->rainBuffer[cDC->cameraID].cameraPos.y = pb->pos.y;
+		GAME_TRACKER->rainBuffer[cDC->cameraID].cameraPos.z = pb->pos.z;
+		cDC->flags &= ~CAMERA_FLAG_RESET_RAIN_POS;
+	}
+	cDC->flags &= ~(CAMERA_FLAG_DIRECTION_CHANGED | CAMERA_FLAG_FIRE_SPEED_ZOOM);
 }
