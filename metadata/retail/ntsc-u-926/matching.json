@@ -4278,16 +4278,8 @@
       "kind": "resident",
       "artifact": "exe",
       "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
-      "code_intervals": [
-        {
-          "start_symbol": "CAM_LookAtPosition",
-          "end_symbol": "CAM_FollowDriver_Normal"
-        },
-        {
-          "start_symbol": "CAM_MapRange_PosPoints",
-          "end_symbol": "CAM_ThTick"
-        }
-      ],
+      "start_symbol": "CAM_LookAtPosition",
+      "end_symbol": "CAM_ThTick",
       "symbol_prefix": "CAM_",
       "source": "game/CAM.c",
       "include_directories": ["include"],
@@ -4295,7 +4287,12 @@
       "compiler_flags": ["-O2", "-G8", "-msoft-float"],
       "small_data_limit": 8,
       "aspsx_version": "2.77",
-      "linked_block": {}
+      "linked_block": {},
+      "link_symbols": {
+        "CAM_FindClosestQuadblock": "0x800188a8",
+        "CAM_ProcessTransition": "0x80018fec",
+        "CAM_StartLine_FlyIn": "0x800194c8"
+      }
     },
     {
       "name": "ui-render-frame-racing",

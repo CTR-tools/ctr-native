@@ -699,12 +699,27 @@ extern int doCOP2(int op);
 	}
 
 // mfc2 9, 10, 11
+#ifdef CTR_NATIVE
 #define gte_stsv(r0)                                \
 	{                                               \
 		CTR_WriteU16LE((char *)(r0), MFC2(9));      \
 		CTR_WriteU16LE((char *)(r0) + 2, MFC2(10)); \
 		CTR_WriteU16LE((char *)(r0) + 4, MFC2(11)); \
 	}
+#else
+// NOTE(aalhendi): Match PsyQ inline_c.h's pipelined gte_stsv on retail MIPS
+// (mfc2 $t4..$t6 followed by sh stores) instead of byte-wise CTR_WriteU16LE.
+#define gte_stsv(r0)                     \
+	__asm__ volatile("mfc2 $12,$9\n\t"   \
+	                 "mfc2 $13,$10\n\t"  \
+	                 "mfc2 $14,$11\n\t"  \
+	                 "sh $12,0(%0)\n\t"  \
+	                 "sh $13,2(%0)\n\t"  \
+	                 "sh $14,4(%0)"      \
+	                 :                   \
+	                 : "r"(r0)           \
+	                 : "$12", "$13", "$14", "memory")
+#endif
 
 // mfc2 9,10
 #define gte_stbv(r0)                           \

@@ -863,222 +863,194 @@ void CAM_SetDesiredPosRot(struct CameraDC *cDC, const SVec3 *pos, const SVec3 *r
 
 void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *pushBufferPos, struct CameraScratchWork *scratchWork, struct ZoomData *zoom)
 {
-	struct PushBuffer *pb = (struct PushBuffer *)pushBufferPos;
-	struct ScratchpadStruct *sps = (struct ScratchpadStruct *)scratchWork;
-	struct CameraScratch *cam = &scratchWork->camera;
-	struct GameTracker *gGT = sdata->gGT;
-	struct GamepadBuffer *pad = &sdata->gGamepads->gamepad[d->driverID];
-	s8 state;
+	// NOTE(aalhendi): Use pushBufferPos directly instead of a local pb copy;
+	// a separate local shortens pb's live range and swaps retail's s3/s4 (d/pb)
+	// allocation in GCC 2.8.1 global.c.
+#define pb ((struct PushBuffer *)pushBufferPos)
 	s16 uVar8;
-	s16 sVar10;
+	s32 sVar10;
 	u32 backupFlags;
-	s32 x;
-	s32 x_00;
-	u32 uVar11;
-	s32 iVar12;
-	u32 uVar13;
-	s32 iVar14;
+	s32 blend;
 	SVec3 local_40;
 	SVec3 local_38;
 	struct FlyInData flyInData;
 
 	// backup flags
-	backupFlags = cDC->flags;
-
-	// disable Reverse Cam flag,
-	// assuming you dont hold R2
-	cDC->flags &= ~CAMERA_FLAG_REVERSE;
-
-	if (
-	    // If this is human and not AI
-	    ((d->actionsFlagSet & ACTION_BOT) == 0) &&
-
-	    // If not drawing intro-race cutscene
-	    ((gGT->gameMode1 & START_OF_RACE) == 0) &&
-
-	    // If you are holding R2
-	    ((pad->buttonsHeldCurrFrame & 0x200) != 0))
 	{
-		// Reverse the camera
-		cDC->flags |= CAMERA_FLAG_REVERSE;
-	}
+		u32 origFlags = cDC->flags;
 
-	// if camera just changed direction
-	// (either forward to reverse, or reverse to forward)
-	if (backupFlags != cDC->flags)
-	{
-		cDC->flags |= CAMERA_FLAG_DIRECTION_CHANGED;
+		// disable Reverse Cam flag,
+		// assuming you dont hold R2
+		cDC->flags &= ~CAMERA_FLAG_REVERSE;
+
+		if (
+		    // If this is human and not AI
+		    ((d->actionsFlagSet & ACTION_BOT) == 0) &&
+
+		    // If not drawing intro-race cutscene
+		    ((GAME_TRACKER->gameMode1 & START_OF_RACE) == 0) &&
+
+		    // If you are holding R2
+		    ((GAMEPADS->gamepad[d->driverID].buttonsHeldCurrFrame & 0x200) != 0))
+		{
+			// Reverse the camera
+			cDC->flags |= CAMERA_FLAG_REVERSE;
+		}
+
+		// if camera just changed direction
+		// (either forward to reverse, or reverse to forward)
+		if (origFlags != cDC->flags)
+		{
+			cDC->flags |= CAMERA_FLAG_DIRECTION_CHANGED;
+		}
 	}
 
 	// 0 = forwards
 	// 0x800 = backwards
 	sVar10 = ((cDC->flags & CAMERA_FLAG_REVERSE) != 0) * 0x800;
 
-	// if camera angle was not just changed
-	if ((cDC->flags & CAMERA_FLAG_DIRECTION_CHANGED) == 0)
+	// if camera angle changed
+	if ((cDC->flags & CAMERA_FLAG_DIRECTION_CHANGED) != 0)
 	{
 		// absolute value driver speed
-		x = (s32)d->speedApprox;
-
-		if (x < 0)
-		{
-			x = -x;
-		}
-
-		// driver speed slower than camera speed
-		if (x < cDC->cameraMoveSpeed)
-		{
-			// transition inward
-			uVar13 = (u32)zoom->percentage2;
-			uVar11 = (u32)zoom->percentage1;
-		}
-
-		// driver speed faster than camera
-		else
-		{
-			// transition outward
-			uVar13 = (u32)zoom->percentage1;
-			uVar11 = (u32)zoom->percentage1;
-		}
-		cDC->cameraMoveSpeed = (s32)(uVar11 * cDC->cameraMoveSpeed + (0x100 - uVar13) * x) >> 8;
+		cDC->cameraMoveSpeed = abs(d->speedApprox);
 	}
 
-	// if camera angle changed
+	// if camera angle was not just changed
 	else
 	{
 		// absolute value driver speed
-		x = (s32)d->speedApprox;
-		if (x < 0)
-		{
-			x = -x;
-		}
+		s32 speed = abs(d->speedApprox);
 
-		cDC->cameraMoveSpeed = x;
+		// driver speed slower than camera speed
+		if (speed < cDC->cameraMoveSpeed)
+		{
+			cDC->cameraMoveSpeed = (s32)((u32)zoom->percentage1 * cDC->cameraMoveSpeed + (0x100 - (u32)zoom->percentage2) * speed) >> 8;
+		}
+		else
+		{
+			cDC->cameraMoveSpeed = (s32)((u32)zoom->percentage1 * cDC->cameraMoveSpeed + (0x100 - (u32)zoom->percentage1) * speed) >> 8;
+		}
 	}
 
 	uVar8 = 0;
-	if (gGT->numPlyrCurrGame != 2)
+	if (GAME_TRACKER->numPlyrCurrGame != 2)
 	{
 		uVar8 = 0xff9c;
 	}
 
-	cam->rot.x = uVar8;
+	scratchWork->camera.rot.x = uVar8;
 
 	// 0x20e
 	// camera RotY
-	cam->rot.y = (d->rotCurr.w + d->angle + 0x800 + sVar10) & 0xfff;
+	scratchWork->camera.rot.y = (d->angle + 0x800 + d->rotCurr.w + sVar10) & 0xfff;
 
-	cam->rot.z = cDC->desiredRot.x * -2;
+	scratchWork->camera.rot.z = (s16)((-(u32)(u16)cDC->desiredRot.x) << 1);
 
 	// convert 3 rotation shorts into rotation matrix
-	ConvertRotToMatrix(&cam->matrix, &cam->rot);
+	ConvertRotToMatrix(&scratchWork->camera.matrix, &scratchWork->camera.rot);
 
-	if (((cDC->flags & CAMERA_FLAG_FIRE_SPEED_ZOOM) != 0) && (x = (s32)((u32)d->fireSpeedCap << 0x10) >> 0x14, cDC->fireSpeedZoom.timer < x))
+	if ((cDC->flags & CAMERA_FLAG_FIRE_SPEED_ZOOM) != 0)
 	{
-		cDC->fireSpeedZoom.timer = x;
+		s32 fireTimer = (s32)((u32)(u16)d->fireSpeedCap << 0x10) >> 0x14;
+		if (cDC->fireSpeedZoom.timer < fireTimer)
+		{
+			cDC->fireSpeedZoom.timer = fireTimer;
+		}
 	}
-	cam->rot.x = 0;
-	cam->rot.y = 0;
+	scratchWork->camera.rot.x = 0;
+	scratchWork->camera.rot.y = 0;
 
 	uVar8 = VehCalc_MapToRange(cDC->cameraMoveSpeed, (s32)zoom->speedMin, (s32)zoom->speedMax, (s32)zoom->distMin, (s32)zoom->distMax);
 
-	cam->rot.z = uVar8;
+	scratchWork->camera.rot.z = uVar8;
 
-	if (cDC->fireSpeedZoom.timer == 0)
+	if (cDC->fireSpeedZoom.timer != 0)
 	{
-		if (cDC->fireSpeedZoom.distanceOffset != 0)
-		{
-			cDC->fireSpeedZoom.distanceOffset -= gGT->elapsedTimeMS * 0x10;
-
-			if (cDC->fireSpeedZoom.distanceOffset < 0)
-			{
-				cDC->fireSpeedZoom.distanceOffset = 0;
-			}
-		}
-	}
-	else
-	{
-		cDC->fireSpeedZoom.distanceOffset += gGT->elapsedTimeMS * 0x40;
+		cDC->fireSpeedZoom.distanceOffset += GAME_TRACKER->elapsedTimeMS * 0x40;
 		if (cDC->fireSpeedZoom.distanceOffset > 0x6000)
 		{
 			cDC->fireSpeedZoom.distanceOffset = 0x6000;
 		}
 
-		cDC->fireSpeedZoom.timer -= gGT->elapsedTimeMS;
+		cDC->fireSpeedZoom.timer -= GAME_TRACKER->elapsedTimeMS;
 		if (cDC->fireSpeedZoom.timer < 0)
 		{
 			cDC->fireSpeedZoom.timer = 0;
 		}
 	}
-	cam->rot.z += cDC->fireSpeedZoom.distanceOffset >> 8;
+	else if (cDC->fireSpeedZoom.distanceOffset != 0)
+	{
+		cDC->fireSpeedZoom.distanceOffset -= GAME_TRACKER->elapsedTimeMS * 0x10;
 
-	gte_SetRotMatrix(&cam->matrix);
-	CTR_GteLoadSVec3V0(&cam->rot);
+		if (cDC->fireSpeedZoom.distanceOffset < 0)
+		{
+			cDC->fireSpeedZoom.distanceOffset = 0;
+		}
+	}
+	scratchWork->camera.rot.z += cDC->fireSpeedZoom.distanceOffset >> 8;
+
+	CTR_GteLoadRotMatrix(&scratchWork->camera.matrix);
+	CTR_GteLoadSVec3V0(&scratchWork->camera.rot);
+	CTR_GteLoadDelay();
 	gte_rtv0();
-	CTR_GteStoreMAC(CTR_VECTOR_DATA(&(cam->pos)));
+	CTR_PSX_STORE_COP2_VEC3(&scratchWork->camera.pos.x, 25, 26, 27);
 
-	cam->rot.x = 0;
-	cam->rot.y = 0x40;
-	cam->rot.z = 0;
+	scratchWork->camera.rot.x = 0;
+	scratchWork->camera.rot.y = 0x40;
+	scratchWork->camera.rot.z = 0;
 
-	CTR_GteLoadSVec3V0(&cam->rot);
+	CTR_GteLoadSVec3V0(&scratchWork->camera.rot);
+	CTR_GteLoadDelay();
 	gte_rtv0();
-	CTR_GteStoreMAC(CTR_VECTOR_DATA(&(scratchWork->sideOffset)));
+	CTR_PSX_STORE_COP2_VEC3(&scratchWork->sideOffset.x, 25, 26, 27);
 
-	cam->delta.x = CTR_MipsSra(d->posCurr.x, 8);
-	cam->delta.y = CTR_MipsSra(d->posCurr.y, 8);
-	cam->delta.z = CTR_MipsSra(d->posCurr.z, 8);
+	scratchWork->camera.delta.x = CTR_MipsSra(d->posCurr.x, 8);
+	scratchWork->camera.delta.y = CTR_MipsSra(d->posCurr.y, 8);
+	scratchWork->camera.delta.z = CTR_MipsSra(d->posCurr.z, 8);
 
-	cam->delta.x += scratchWork->sideOffset.x;
-	cam->delta.z += scratchWork->sideOffset.z;
-	cam->pos.x += cam->delta.x;
+	scratchWork->camera.delta.x += scratchWork->sideOffset.x;
+	scratchWork->camera.delta.z += scratchWork->sideOffset.z;
+	scratchWork->camera.pos.x += scratchWork->camera.delta.x;
 
 
 	// mask-grab
 	if ((cDC->flags & CAMERA_FLAG_MASK_GRAB) != 0)
 	{
-		cam->pos.y = CTR_MipsSra(d->quadBlockHeight, 8) + (s32)cDC->maskGrabHeightOffset + (s32)zoom->vertDistance;
+		scratchWork->camera.pos.y = CTR_MipsSra(d->quadBlockHeight, 8) + (s32)cDC->maskGrabHeightOffset + (s32)zoom->vertDistance;
 	}
 
 	else
 	{
-		cam->pos.y += cam->delta.y + (s32)zoom->vertDistance;
+		scratchWork->camera.pos.y += scratchWork->camera.delta.y + (s32)zoom->vertDistance;
 	}
 
-	cam->pos.z += cam->delta.z;
+	scratchWork->camera.pos.z += scratchWork->camera.delta.z;
 
 	uVar8 = 0;
-	if (gGT->numPlyrCurrGame != 2)
+	if (GAME_TRACKER->numPlyrCurrGame != 2)
 	{
 		uVar8 = 0xff9c;
 	}
 
 	// rotX
-	cam->rot.x = uVar8;
-
-	// rotZ
-	cam->rot.z = 0;
+	scratchWork->camera.rot.x = uVar8;
 
 	// rotY
-	cam->rot.y = (d->rotCurr.w + d->angle + d->turnAngleCurr + 0x800 + sVar10) & 0xfff;
+	scratchWork->camera.rot.y = (((s16)(d->rotCurr.w + 0x800) + d->angle) + d->turnAngleCurr + sVar10) & 0xfff;
+
+	// rotZ
+	scratchWork->camera.rot.z = 0;
 
 	// convert 3 rotation shorts into rotation matrix
-	ConvertRotToMatrix(&cam->matrix, &cam->rot);
+	ConvertRotToMatrix(&scratchWork->camera.matrix, &scratchWork->camera.rot);
 
-	// if racer is not damaged,
-	// slight-down view angle
-	if ((d->actionsFlagSet & ACTION_WARP) == 0)
-	{
-		cDC->damagePitchOffset -= 8;
-		if (cDC->damagePitchOffset < -0x20)
-		{
-			cDC->damagePitchOffset = -0x20;
-		}
-	}
+	scratchWork->camera.rot.x = 0;
+	scratchWork->camera.rot.y = 0;
 
 	// if racer is damaged,
 	// straight-forward angle
-	else
+	if ((d->actionsFlagSet & ACTION_WARP) != 0)
 	{
 		cDC->damagePitchOffset += 8;
 		if (cDC->damagePitchOffset > 0)
@@ -1087,184 +1059,179 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		}
 	}
 
-	// Z, Y, X
-	cam->rot.z = cDC->damagePitchOffset;
-	cam->rot.y = 0;
-	cam->rot.x = 0;
+	// if racer is not damaged,
+	// slight-down view angle
+	else
+	{
+		cDC->damagePitchOffset -= 8;
+		if (cDC->damagePitchOffset < -0x20)
+		{
+			cDC->damagePitchOffset = -0x20;
+		}
+	}
 
-	gte_SetRotMatrix(&cam->matrix);
+	// Z
+	scratchWork->camera.rot.z = cDC->damagePitchOffset;
 
-	CTR_GteLoadSVec3V0(&cam->rot);
+	CTR_GteLoadRotMatrix(&scratchWork->camera.matrix);
+
+	CTR_GteLoadSVec3V0(&scratchWork->camera.rot);
+	CTR_GteLoadDelay();
 	gte_rtv0();
-	CTR_GteStoreS16Triplet(CTR_VECTOR_DATA(&(cam->rot)));
+	gte_stsv(&scratchWork->camera.rot);
 
-	cam->delta.x += (s32)cam->rot.x;
-	cam->delta.z += (s32)cam->rot.z;
-	cam->delta.y += (s32)cam->rot.y + (s32)zoom->angle[2];
+	scratchWork->camera.delta.x += (s32)scratchWork->camera.rot.x;
+	scratchWork->camera.delta.y += (s32)scratchWork->camera.rot.y + (s32)zoom->angle[2];
+	scratchWork->camera.delta.z += (s32)scratchWork->camera.rot.z;
 
 	cDC->desiredRot.x = ((zoom->angle[1] * (s32)cDC->desiredRot.x) + ((0x100 - (s32)zoom->angle[1]) * (s32)d->rotCurr.z)) >> 8;
 
 
-	state = d->kartState;
-
-	if (state == KS_MASK_GRABBED)
+	if (d->kartState == KS_MASK_GRABBED)
 	{
 		// pushBuffer position
-		cam->pos.x = (s32)pb->pos.x;
-		cam->pos.y = (s32)pb->pos.y;
-		cam->pos.z = (s32)pb->pos.z;
+		scratchWork->camera.pos.x = (s32)pb->pos.x;
+		scratchWork->camera.pos.y = (s32)pb->pos.y;
+		scratchWork->camera.pos.z = (s32)pb->pos.z;
 
+		cDC->heightSmoothing.currentOffset = 0;
 		cDC->heightSmoothing.startOffset = 0;
 		cDC->heightSmoothing.framesRemaining = 0;
-		cDC->heightSmoothing.currentOffset = 0;
 	}
 
-	if (state == KS_ENGINE_REVVING)
+	if (d->kartState == KS_ENGINE_REVVING)
 	{
+		cDC->heightSmoothing.currentOffset = 0;
 		cDC->heightSmoothing.startOffset = 0;
 		cDC->heightSmoothing.framesRemaining = 0;
-		cDC->heightSmoothing.currentOffset = 0;
 	}
 
 	if ((d->kartState != KS_BLASTED) && ((d->actionsFlagSet & ACTION_TOUCH_GROUND) != 0) && (cDC->BlastedLerp.boolLerpPending != 0))
 	{
-		cDC->BlastedLerp.boolLerpPending = 0;
+		cDC->BlastedLerp.desiredPos.x = cDC->cameraPos.x - (s16)scratchWork->camera.pos.x;
+		cDC->BlastedLerp.desiredPos.y = cDC->cameraPos.y - (s16)scratchWork->camera.pos.y;
+		cDC->BlastedLerp.desiredPos.z = cDC->cameraPos.z - (s16)scratchWork->camera.pos.z;
 
-		cDC->BlastedLerp.desiredRot.x = cDC->lookAtPos.x - (s16)cam->delta.x;
-		cDC->BlastedLerp.desiredRot.y = cDC->lookAtPos.y - (s16)cam->delta.y;
-		cDC->BlastedLerp.desiredRot.z = cDC->lookAtPos.z - (s16)cam->delta.z;
-
-		cDC->BlastedLerp.desiredPos.x = cDC->cameraPos.x - (s16)cam->pos.x;
-		cDC->BlastedLerp.desiredPos.y = cDC->cameraPos.y - (s16)cam->pos.y;
-		cDC->BlastedLerp.desiredPos.z = cDC->cameraPos.z - (s16)cam->pos.z;
+		cDC->BlastedLerp.desiredRot.x = cDC->lookAtPos.x - (s16)scratchWork->camera.delta.x;
+		cDC->BlastedLerp.desiredRot.y = cDC->lookAtPos.y - (s16)scratchWork->camera.delta.y;
+		cDC->BlastedLerp.desiredRot.z = cDC->lookAtPos.z - (s16)scratchWork->camera.delta.z;
 
 		cDC->BlastedLerp.framesRemaining = 8;
-	}
-
-	// if not arcade end-of-race
-	if (((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) == 0) && (cDC->cameraMode == 0))
-	{
-		if ((d->kartState != KS_BLASTED) && (cDC->BlastedLerp.boolLerpPending == 0))
-		{
-			goto LAB_8001a8c0;
-		}
-
-		if (cDC->BlastedLerp.boolLerpPending == 0)
-		{
-			cDC->BlastedLerp.unkOffset[0] = cDC->lookAtPos.y - cDC->cameraPos.y;
-			cDC->BlastedLerp.unkOffset[1] = cDC->cameraPos.y - CTR_MipsSra(d->quadBlockHeight, 8);
-		}
-
-		cDC->BlastedLerp.boolLerpPending = 1;
-
-		if ((cDC->cameraPos.y < cam->pos.y) && (x = (s32)cDC->BlastedLerp.unkOffset[1] + CTR_MipsSra(d->quadBlockHeight, 8), x < cam->pos.y))
-		{
-			cam->pos.y = x;
-		}
-
-	LAB_8001a8b0:
-
-		if (cDC->BlastedLerp.boolLerpPending == 0)
-		{
-			goto LAB_8001a8c0;
-		}
+		cDC->BlastedLerp.boolLerpPending = 0;
 	}
 
 	// if this is arcade end-of-race
-	else
+	if (((cDC->flags & CAMERA_FLAG_ARCADE_END_OF_RACE_REQUESTED) != 0) || (cDC->cameraMode != 0))
 	{
 		if (cDC->BlastedLerp.boolLerpPending != 0)
 		{
-			cDC->BlastedLerp.boolLerpPending = 0;
+			cDC->BlastedLerp.desiredPos.x = cDC->cameraPos.x - (s16)scratchWork->camera.pos.x;
+			cDC->BlastedLerp.desiredPos.y = cDC->cameraPos.y - (s16)scratchWork->camera.pos.y;
+			cDC->BlastedLerp.desiredPos.z = cDC->cameraPos.z - (s16)scratchWork->camera.pos.z;
 
-			cDC->BlastedLerp.desiredRot.x = cDC->lookAtPos.x - (s16)cam->delta.x;
-			cDC->BlastedLerp.desiredRot.y = cDC->lookAtPos.y - (s16)cam->delta.y;
-			cDC->BlastedLerp.desiredRot.z = cDC->lookAtPos.z - (s16)cam->delta.z;
-
-			cDC->BlastedLerp.desiredPos.x = cDC->cameraPos.x - (s16)cam->pos.x;
-			cDC->BlastedLerp.desiredPos.y = cDC->cameraPos.y - (s16)cam->pos.y;
-			cDC->BlastedLerp.desiredPos.z = cDC->cameraPos.z - (s16)cam->pos.z;
+			cDC->BlastedLerp.desiredRot.x = cDC->lookAtPos.x - (s16)scratchWork->camera.delta.x;
+			cDC->BlastedLerp.desiredRot.y = cDC->lookAtPos.y - (s16)scratchWork->camera.delta.y;
+			cDC->BlastedLerp.desiredRot.z = cDC->lookAtPos.z - (s16)scratchWork->camera.delta.z;
 
 			cDC->BlastedLerp.framesRemaining = 8;
-
-			goto LAB_8001a8b0;
+			cDC->BlastedLerp.boolLerpPending = 0;
 		}
-
-	LAB_8001a8c0:
-
-		// if frame countdown is not finished
-		if (cDC->BlastedLerp.framesRemaining != 0)
+	}
+	else
+	{
+		if ((d->kartState == KS_BLASTED) || (cDC->BlastedLerp.boolLerpPending != 0))
 		{
-			cam->pos.x += (cDC->BlastedLerp.desiredPos.x * cDC->BlastedLerp.framesRemaining) >> 3;
-			cam->pos.y += (cDC->BlastedLerp.desiredPos.y * cDC->BlastedLerp.framesRemaining) >> 3;
-			cam->pos.z += (cDC->BlastedLerp.desiredPos.z * cDC->BlastedLerp.framesRemaining) >> 3;
+			if (cDC->BlastedLerp.boolLerpPending == 0)
+			{
+				cDC->BlastedLerp.unkOffset[0] = cDC->lookAtPos.y - cDC->cameraPos.y;
+				cDC->BlastedLerp.unkOffset[1] = cDC->cameraPos.y - CTR_MipsSra(d->quadBlockHeight, 8);
+			}
 
-			cam->delta.x += (cDC->BlastedLerp.desiredRot.x * cDC->BlastedLerp.framesRemaining) >> 3;
-			cam->delta.y += (cDC->BlastedLerp.desiredRot.y * cDC->BlastedLerp.framesRemaining) >> 3;
-			cam->delta.z += (cDC->BlastedLerp.desiredRot.z * cDC->BlastedLerp.framesRemaining) >> 3;
+			cDC->BlastedLerp.boolLerpPending = 1;
 
-			// decrease frame countdown
-			cDC->BlastedLerp.framesRemaining--;
+			if (scratchWork->camera.pos.y > cDC->cameraPos.y)
+			{
+				s32 maxY = (s32)cDC->BlastedLerp.unkOffset[1] + CTR_MipsSra(d->quadBlockHeight, 8);
+				if (maxY < scratchWork->camera.pos.y)
+				{
+					scratchWork->camera.pos.y = maxY;
+				}
+			}
 		}
 	}
 
-	CAM_FindClosestQuadblock(sps, cDC, d, &cam->pos);
+	// if frame countdown is not finished
+	if (cDC->BlastedLerp.boolLerpPending == 0 && cDC->BlastedLerp.framesRemaining != 0)
+	{
+		scratchWork->camera.pos.x += (cDC->BlastedLerp.desiredPos.x * cDC->BlastedLerp.framesRemaining) >> 3;
+		scratchWork->camera.pos.y += (cDC->BlastedLerp.desiredPos.y * cDC->BlastedLerp.framesRemaining) >> 3;
+		scratchWork->camera.pos.z += (cDC->BlastedLerp.desiredPos.z * cDC->BlastedLerp.framesRemaining) >> 3;
+
+		scratchWork->camera.delta.x += (cDC->BlastedLerp.desiredRot.x * cDC->BlastedLerp.framesRemaining) >> 3;
+		scratchWork->camera.delta.y += (cDC->BlastedLerp.desiredRot.y * cDC->BlastedLerp.framesRemaining) >> 3;
+		scratchWork->camera.delta.z += (cDC->BlastedLerp.desiredRot.z * cDC->BlastedLerp.framesRemaining) >> 3;
+
+		// decrease frame countdown
+		cDC->BlastedLerp.framesRemaining--;
+	}
+
+	CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &scratchWork->camera.pos);
 
 	{
-		struct QuadBlock *quad = sps->hit.ptrQuadblock;
-		if ((sps->boolDidTouchQuadblock == 0) || ((quad->quadFlags & CAM_FOLLOW_DRIVER_QUAD_FLAGS_SKIP_TERRAIN_HEIGHT) != 0))
+		if ((((struct ScratchpadStruct *)scratchWork)->boolDidTouchQuadblock != 0) &&
+		    ((((struct ScratchpadStruct *)scratchWork)->hit.ptrQuadblock->quadFlags & CAM_FOLLOW_DRIVER_QUAD_FLAGS_SKIP_TERRAIN_HEIGHT) == 0))
 		{
-			if (cam->pos.y < (s32)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8))
-			{
-				cDC->heightSmoothing.framesRemaining = 8;
-				cDC->heightSmoothing.startOffset = cDC->heightSmoothing.currentOffset;
-				cam->pos.y = (s32)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8);
-
-				goto LAB_8001ab04;
-			}
-
-			cDC->heightSmoothing.framesRemaining = 8;
-			cDC->heightSmoothing.startOffset = (s16)cam->pos.y - (s16)CTR_MipsSra(d->posCurr.y, 8);
-		}
-
-		else
-		{
-			state = (s8)quad->terrain_type;
+			u8 terrain = ((struct ScratchpadStruct *)scratchWork)->hit.ptrQuadblock->terrain_type;
+			s32 minY;
+			s32 smoothFrames;
 
 			// Mud, Water, or FastWater
-			if (((state == 0xe) || (state == 4)) || (state == 0xd))
+			if (((terrain == 0xe) || (terrain == 4)) || (terrain == 0xd))
 			{
 				scratchWork->collision.terrainHeightFloor = 0;
 			}
 
-			x = (s32)scratchWork->collision.terrainHeightFloor + (s32)zoom->vertDistance;
-			if (cam->pos.y < x)
+			minY = (s32)scratchWork->collision.terrainHeightFloor + (s32)zoom->vertDistance;
+			if (scratchWork->camera.pos.y < minY)
 			{
-				cam->pos.y = x;
+				scratchWork->camera.pos.y = minY;
 			}
 
-			x = cDC->heightSmoothing.framesRemaining;
-			if (x != 0)
+			smoothFrames = cDC->heightSmoothing.framesRemaining;
+			if (smoothFrames != 0)
 			{
-				cam->pos.y =
-
-				    ((8 - x) * cam->pos.y + x * ((s32)cDC->heightSmoothing.startOffset + CTR_MipsSra(d->posCurr.y, 8))) >> 3;
+				scratchWork->camera.pos.y =
+				    ((8 - smoothFrames) * scratchWork->camera.pos.y + smoothFrames * ((s32)cDC->heightSmoothing.startOffset + CTR_MipsSra(d->posCurr.y, 8))) >>
+				    3;
 
 				cDC->heightSmoothing.framesRemaining += -1;
 			}
 		}
-		cDC->heightSmoothing.currentOffset = (s16)cam->pos.y - CTR_MipsSra(d->posCurr.y, 8);
+		else
+		{
+			if (scratchWork->camera.pos.y < (s32)cDC->heightSmoothing.currentOffset + CTR_MipsSra(d->posCurr.y, 8))
+			{
+				cDC->heightSmoothing.framesRemaining = 8;
+				cDC->heightSmoothing.startOffset = cDC->heightSmoothing.currentOffset;
+				scratchWork->camera.pos.y = (s32)cDC->heightSmoothing.startOffset + CTR_MipsSra(d->posCurr.y, 8);
+				goto LAB_8001ab04;
+			}
+
+			cDC->heightSmoothing.framesRemaining = 8;
+			cDC->heightSmoothing.startOffset = (s16)scratchWork->camera.pos.y - (s16)CTR_MipsSra(d->posCurr.y, 8);
+		}
+		cDC->heightSmoothing.currentOffset = (s16)scratchWork->camera.pos.y - CTR_MipsSra(d->posCurr.y, 8);
 	LAB_8001ab04:
 
 		// if mask grabs you when you're underwater
-		if (((gGT->level1->configFlags & 2) != 0) && (cam->pos.y < zoom->vertDistance))
+		if (((GAME_TRACKER->level1->configFlags & 2) != 0) && (scratchWork->camera.pos.y < zoom->vertDistance))
 		{
-			cam->pos.y = zoom->vertDistance;
+			scratchWork->camera.pos.y = zoom->vertDistance;
 		}
 
 		if (cDC->BlastedLerp.boolLerpPending != 0)
 		{
-			cam->delta.y = cam->pos.y + (s32) * (s16 *)((s32)cDC + 0xc8);
+			scratchWork->camera.delta.y = scratchWork->camera.pos.y + (s32) * (s16 *)((s32)cDC + 0xc8);
 		}
 
 		if (d->kartState == KS_MASK_GRABBED)
@@ -1272,13 +1239,13 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 			pb->rot.z -= (pb->rot.z >> 3);
 
 			// camera dirX, cameraPosX minus driverPosX
-			cam->dir.x = (s32)pb->pos.x - CTR_MipsSra(d->posCurr.x, 8);
+			scratchWork->camera.dir.x = (s32)pb->pos.x - CTR_MipsSra(d->posCurr.x, 8);
 
 			// camera dirY, cameraPosY minus driverPosY, plus something else
-			cam->dir.y = (s32)pb->pos.y - (CTR_MipsSra(d->posCurr.y, 8) + (s32)zoom->angle[2]);
+			scratchWork->camera.dir.y = (s32)pb->pos.y - (CTR_MipsSra(d->posCurr.y, 8) + (s32)zoom->angle[2]);
 
 			// camera dirZ, cameraPosZ minus driverPosZ
-			cam->dir.z = (s32)pb->pos.z - CTR_MipsSra(d->posCurr.z, 8);
+			scratchWork->camera.dir.z = (s32)pb->pos.z - CTR_MipsSra(d->posCurr.z, 8);
 
 			if (pb->rot.x < 0x800)
 			{
@@ -1293,54 +1260,52 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		// if not mask grab
 		else
 		{
-			x = cam->pos.z - cam->delta.z;
+			s32 dist;
 
 			// camera direction
-			cam->dir.z = x;
-			cam->dir.x = cam->pos.x - cam->delta.x;
-			cam->dir.y = cam->pos.y - cam->delta.y;
+			scratchWork->camera.dir.x = scratchWork->camera.pos.x - scratchWork->camera.delta.x;
+			scratchWork->camera.dir.y = scratchWork->camera.pos.y - scratchWork->camera.delta.y;
+			scratchWork->camera.dir.z = scratchWork->camera.pos.z - scratchWork->camera.delta.z;
 
 			// camera rotation
-			x_00 = ratan2(cam->dir.x, x);
-			pb->rot.y = (s16)x_00;
+			pb->rot.y = (s16)ratan2(scratchWork->camera.dir.x, scratchWork->camera.dir.z);
 
-			x_00 = SquareRoot0_stub(CTR_MipsAddLo(CAM_MulLo(cam->dir.x, cam->dir.x), CAM_MulLo(cam->dir.z, cam->dir.z)));
+			dist = SquareRoot0_stub(CTR_MipsAddLo(CTR_MipsMulLo(scratchWork->camera.dir.x, scratchWork->camera.dir.x),
+			                                      CTR_MipsMulLo(scratchWork->camera.dir.z, scratchWork->camera.dir.z)));
 
-			x_00 = ratan2(cam->dir.y, x_00);
-			pb->rot.x = 0x800 - (s16)x_00;
+			pb->rot.x = 0x800 - (s16)ratan2(scratchWork->camera.dir.y, dist);
 
-			pb->rot.z = (s16)CTR_MipsSra(CAM_MulLo((s32)zoom->angle[0], (s32)cDC->desiredRot.x), 8);
+			pb->rot.z = (s16)CTR_MipsSra(CTR_MipsMulLo((s32)zoom->angle[0], (s32)cDC->desiredRot.x), 8);
 		}
 
 		// something with pushBuffer position
-		cam->posCopy.x = cam->pos.x - (s32)pb->pos.x;
-		cam->posCopy.y = cam->pos.y - (s32)pb->pos.y;
-		cam->posCopy.z = cam->pos.z - (s32)pb->pos.z;
+		scratchWork->camera.posCopy.x = scratchWork->camera.pos.x - (s32)pb->pos.x;
+		scratchWork->camera.posCopy.y = scratchWork->camera.pos.y - (s32)pb->pos.y;
+		scratchWork->camera.posCopy.z = scratchWork->camera.pos.z - (s32)pb->pos.z;
 
-		cDC->pushBufferPosCorrection.x -= (cam->pos.x - cDC->cameraPos.x);
-		cDC->pushBufferPosCorrection.y -= (cam->pos.y - cDC->cameraPos.y);
-		cDC->pushBufferPosCorrection.z -= (cam->pos.z - cDC->cameraPos.z);
+		cDC->pushBufferPosCorrection.x -= (scratchWork->camera.pos.x - cDC->cameraPos.x);
+		cDC->pushBufferPosCorrection.y -= (scratchWork->camera.pos.y - cDC->cameraPos.y);
+		cDC->pushBufferPosCorrection.z -= (scratchWork->camera.pos.z - cDC->cameraPos.z);
 
 		if (cDC->pushBufferPosCorrection.x > 2)
 		{
 			cDC->pushBufferPosCorrection.x = 2;
 		}
-		if (cDC->pushBufferPosCorrection.y > 2)
-		{
-			cDC->pushBufferPosCorrection.y = 2;
-		}
-		if (cDC->pushBufferPosCorrection.z > 2)
-		{
-			cDC->pushBufferPosCorrection.z = 2;
-		}
-
 		if (cDC->pushBufferPosCorrection.x < -2)
 		{
 			cDC->pushBufferPosCorrection.x = -2;
 		}
+		if (cDC->pushBufferPosCorrection.y > 2)
+		{
+			cDC->pushBufferPosCorrection.y = 2;
+		}
 		if (cDC->pushBufferPosCorrection.y < -2)
 		{
 			cDC->pushBufferPosCorrection.y = -2;
+		}
+		if (cDC->pushBufferPosCorrection.z > 2)
+		{
+			cDC->pushBufferPosCorrection.z = 2;
 		}
 		if (cDC->pushBufferPosCorrection.z < -2)
 		{
@@ -1350,17 +1315,17 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		if (d->kartState != KS_MASK_GRABBED)
 		{
 			// pushBuffer position
-			pb->pos.x += (s16)cam->posCopy.x + cDC->pushBufferPosCorrection.x;
-			pb->pos.y += (s16)cam->posCopy.y + cDC->pushBufferPosCorrection.y;
-			pb->pos.z += (s16)cam->posCopy.z + cDC->pushBufferPosCorrection.z;
+			pb->pos.x += (s16)scratchWork->camera.posCopy.x + cDC->pushBufferPosCorrection.x;
+			pb->pos.y += (s16)scratchWork->camera.posCopy.y + cDC->pushBufferPosCorrection.y;
+			pb->pos.z += (s16)scratchWork->camera.posCopy.z + cDC->pushBufferPosCorrection.z;
 		}
 
-		cDC->cameraPos.x = cam->pos.x;
-		cDC->cameraPos.y = cam->pos.y;
-		cDC->cameraPos.z = cam->pos.z;
-		cDC->lookAtPos.x = cam->delta.x;
-		cDC->lookAtPos.y = cam->delta.y;
-		cDC->lookAtPos.z = cam->delta.z;
+		cDC->cameraPos.x = scratchWork->camera.pos.x;
+		cDC->cameraPos.y = scratchWork->camera.pos.y;
+		cDC->cameraPos.z = scratchWork->camera.pos.z;
+		cDC->lookAtPos.x = scratchWork->camera.delta.x;
+		cDC->lookAtPos.y = scratchWork->camera.delta.y;
+		cDC->lookAtPos.z = scratchWork->camera.delta.z;
 
 		// backup flags (again)
 		backupFlags = cDC->flags;
@@ -1369,7 +1334,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 
 		if (
 		    // transitioning, end-race battle, intro-race
-		    ((backupFlags & (CAMERA_FLAG_TRANSITION_AWAY | CAMERA_FLAG_BATTLE_END_OF_RACE)) == 0) && ((gGT->gameMode1 & START_OF_RACE) == 0))
+		    ((backupFlags & (CAMERA_FLAG_TRANSITION_AWAY | CAMERA_FLAG_BATTLE_END_OF_RACE)) == 0) && ((GAME_TRACKER->gameMode1 & START_OF_RACE) == 0))
 		{
 			return;
 		}
@@ -1381,7 +1346,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 			CAM_FollowDriver_Spin360(cDC, scratchWork, d, &local_40, &local_38);
 
 			// reverse interpolation of fly-in [0x1000 to 0]
-			x = 0x1000 - cDC->transitionBlend;
+			blend = 0x1000 - cDC->transitionBlend;
 		}
 
 		// if not end-of-race battle
@@ -1400,44 +1365,44 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 				local_38.z = cDC->transitionTo.rot.z;
 
 				// interpolate fly-in [0 to 0x1000]
-				x = cDC->transitionBlend;
+				blend = cDC->transitionBlend;
 			}
 
 			// if startline camera
 			else
 			{
-				struct SpawnType1 *st1 = gGT->level1->ptrSpawnType1;
-				void **pointers = ST1_GETPOINTERS(st1);
-				u8 *cameraPath = pointers[ST1_CAMERA_PATH];
-				s32 flyInDone = 0;
+				struct SpawnType1 *st1 = GAME_TRACKER->level1->ptrSpawnType1;
+				s16 flyInDone = 0;
 
+				// run fly-in animation
+				if (st1->count >= 4)
+				{
+					u8 *cameraPath = ((void **)ST1_GETPOINTERS(st1))[ST1_CAMERA_PATH];
+					s16 flyInFrame;
+
+					flyInData.frameCount2 = 0x8e;
+					flyInData.ptrStart = cameraPath;
+					flyInData.ptrEnd = cameraPath + 0x354;
+					flyInData.frameCount1 = 0x96;
+
+					// which frame of fly-in you are in
+					flyInFrame = 0xa5 - cDC->transitionFrame;
+
+					if (flyInFrame > 0x96)
+					{
+						flyInFrame = 0x96;
+					}
+
+					CAM_StartLine_FlyIn(&flyInData, 0x96, flyInFrame, &local_40, &local_38);
+
+					blend = (s32)cDC->transitionBlend;
+				}
 				// No camera + No ghosts (battle maps)
-				if (st1->count < 4)
+				else
 				{
 					// startline fly-in is done
 					flyInDone = 1;
-					x = 0x1000;
-				}
-
-				// run fly-in animation
-				else
-				{
-					flyInData.ptrEnd = cameraPath + 0x354;
-					flyInData.ptrStart = cameraPath;
-					flyInData.frameCount1 = 0x96;
-					flyInData.frameCount2 = 0x8e;
-
-					// which frame of fly-in you are in
-					x = 0xa5 - (u16)cDC->transitionFrame;
-
-					if ((s16)x > 0x96)
-					{
-						x = 0x96;
-					}
-
-					CAM_StartLine_FlyIn(&flyInData, 0x96, x, &local_40, &local_38);
-
-					x = (s32)cDC->transitionBlend;
+					blend = 0x1000;
 				}
 
 				if (cDC->transitionFrame < 1)
@@ -1446,7 +1411,7 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 				}
 
 				// Press Triangle
-				if ((pad->buttonsTapped & BTN_TRIANGLE) != 0)
+				if ((GAMEPADS->gamepad[d->driverID].buttonsTapped & BTN_TRIANGLE) != 0)
 				{
 					cDC->flags |= CAMERA_FLAG_RESET_RAIN_POS | CAMERA_FLAG_DIRECTION_CHANGED;
 					flyInDone = 1;
@@ -1455,47 +1420,48 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 				// if startline fly-in is done
 				if (flyInDone)
 				{
-					gGT->hudFlags |= HUD_FLAG_RACE_HUD | HUD_FLAG_RENDER_LESS;
+					struct GameTracker *gGT = GAME_TRACKER;
+					gGT->hudFlags |= HUD_FLAG_RACE_HUD;
 					gGT->gameMode1 &= ~(START_OF_RACE);
+					GAME_TRACKER->hudFlags |= HUD_FLAG_RENDER_LESS;
 				}
 			}
 		}
 
 		// use camera pos+rot, TransitionTo pos+rot, camera pos+rot, and interpolation
-		CAM_ProcessTransition(&pb->pos, &pb->rot, &local_40, &local_38, &pb->pos, &pb->rot, x);
+		CAM_ProcessTransition(&pb->pos, &pb->rot, &local_40, &local_38, &pb->pos, &pb->rot, blend);
 
-		cam->pos.x = (s32)pb->pos.x;
-		cam->pos.y = (s32)pb->pos.y;
-		cam->pos.z = (s32)pb->pos.z;
+		scratchWork->camera.pos.x = (s32)pb->pos.x;
+		scratchWork->camera.pos.y = (s32)pb->pos.y;
+		scratchWork->camera.pos.z = (s32)pb->pos.z;
 
-		CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &cam->pos);
+		CAM_FindClosestQuadblock((struct ScratchpadStruct *)scratchWork, cDC, d, &scratchWork->camera.pos);
 
-		x = cDC->transitionFrameCount;
-		iVar14 = cDC->transitionFrameCount;
-
-		if (iVar14 != 0)
 		{
-			iVar12 = (s32)cDC->transitionFrame;
+			s32 totalFrames = (s32)cDC->transitionFrameCount;
 
-			if (iVar12 <= iVar14)
+			if (totalFrames != 0)
 			{
-				x = x >> 1;
+				s32 curFrame = (s32)cDC->transitionFrame;
 
-				if (iVar12 < x)
+				if (curFrame <= totalFrames)
 				{
-					// Sine(angle)
-					x = MATH_Sin(0x400 - (iVar12 << 10) / x);
+					s32 halfFrames = totalFrames / 2;
 
-					cDC->transitionBlend = (s16)(x / 2) + 0x800;
-				}
-				else
-				{
-					iVar14 = (iVar12 - iVar14) * 0x400;
+					if (curFrame < halfFrames)
+					{
+						// Sine(angle)
+						s32 s = MATH_Sin(0x400 - (curFrame << 10) / halfFrames);
 
-					// Cosine(angle)
-					x = MATH_Cos(iVar14 / x);
+						cDC->transitionBlend = (s16)(s / 2) + 0x800;
+					}
+					else
+					{
+						// Cosine(angle)
+						s32 c = MATH_Cos(((curFrame - totalFrames) * 0x400) / halfFrames);
 
-					cDC->transitionBlend = 0x800 - (s16)(x / 2);
+						cDC->transitionBlend = 0x800 - (s16)(c / 2);
+					}
 				}
 			}
 		}
@@ -1507,34 +1473,29 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		// like Load/Save that moves and comes back
 		if ((backupFlags & CAMERA_FLAG_TRANSITION_AWAY) != 0)
 		{
-			// if not transitioning back to player
-			if ((backupFlags & CAMERA_FLAG_TRANSITION_BACK) == 0)
+			// if transitioning back to player
+			if ((backupFlags & CAMERA_FLAG_TRANSITION_BACK) != 0)
 			{
-				// Definitely >, not >=,
-				// or else the transition is off-by-one,
-
-				// |= 0x800, stop transitioning away from player,
-				// sit stationary away from player, wait before moving back
-
-				cDC->transitionFrame++;
-				if (cDC->transitionFrame > cDC->transitionFrameCount)
+				if (cDC->transitionFrame > 0)
 				{
-					cDC->transitionFrame = cDC->transitionFrameCount;
-					cDC->flags |= CAMERA_FLAG_TRANSITION_HOLD;
-					return;
+					cDC->transitionFrame--;
+				}
+				else
+				{
+					cDC->flags &= ~(CAMERA_FLAG_TRANSITION_AWAY | CAMERA_FLAG_TRANSITION_BACK | CAMERA_FLAG_TRANSITION_HOLD);
 				}
 			}
-
-			// if transitioning back to player
+			// if not transitioning back to player
 			else
 			{
-				// definitely do < 0, not == 0,
-				// or else the transition is off-by-one
-
-				// &= ~(0xE00), remove transition flags
-
-				// optimization
-				goto CountdownTransitionFrame;
+				if (cDC->transitionFrame < cDC->transitionFrameCount)
+				{
+					cDC->transitionFrame++;
+				}
+				else
+				{
+					cDC->flags |= CAMERA_FLAG_TRANSITION_HOLD;
+				}
 			}
 		}
 
@@ -1542,26 +1503,17 @@ void CAM_FollowDriver_Normal(struct CameraDC *cDC, struct Driver *d, SVec3 *push
 		// like startline camera
 		else
 		{
-			// If game is paused
-			if ((gGT->gameMode1 & PAUSE_ALL) != 0)
+			// If game is not paused
+			if ((GAME_TRACKER->gameMode1 & PAUSE_ALL) == 0)
 			{
-				return;
-			}
-
-		CountdownTransitionFrame:
-
-			cDC->transitionFrame--;
-			if (cDC->transitionFrame < 0)
-			{
-				// This is normally not here,
-				// but saves byte budget
-				cDC->flags &= ~(CAMERA_FLAG_TRANSITION_AWAY | CAMERA_FLAG_TRANSITION_BACK | CAMERA_FLAG_TRANSITION_HOLD);
-
-				cDC->transitionFrame = 0;
-				return;
+				if (cDC->transitionFrame > 0)
+				{
+					cDC->transitionFrame--;
+				}
 			}
 		}
 	}
+#undef pb
 }
 
 // NOTE(aalhendi): The stack vectors have word-aligned XY pairs. Retail loads
