@@ -3439,6 +3439,54 @@
       }
     },
     {
+      "name": "main-entry",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "main",
+      "end_symbol": "MainRaceTrack_StartLoad",
+      "symbol_prefix": "",
+      "source": "game/MAIN/MainMain.c",
+      "include_directories": [
+        "include"
+      ],
+      "compiler_flags": [
+        "-O2",
+        "-G8",
+        "-msoft-float"
+      ],
+      "small_data_limit": 8,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80011594",
+        "rodata_size": 20
+      },
+      "function_rodata_addresses": {
+        "main": "0x80011594"
+      },
+      "forced_includes": [
+        "tools/matching/namespaces/main-entry/retail_symbols.h"
+      ],
+      "link_symbols": {
+        "_gp": "0x8008cf6c",
+        "ctr_main_gameState": "0x8008d0f4",
+        "ctr_main_loadStage": "0x8008d0f8",
+        "ctr_main_levIdToLoad": "0x8008d0fc",
+        "ctr_main_addBits0": "0x8008d100",
+        "ctr_main_remBits0": "0x8008d104",
+        "ctr_main_addBits8": "0x8008d108",
+        "ctr_main_remBits8": "0x8008d10c",
+        "ctr_main_gGT": "0x8008d2ac",
+        "ctr_main_gGS": "0x8008d2b0",
+        "ctr_main_drawSyncPtr": "0x8008d3f8",
+        "ctr_main_vlcLoaded": "0x8008d400",
+        "ctr_main_bigfile1": "0x8008d86c",
+        "ctr_main_lngStrings": "0x8008d878",
+        "ctr_main_boolDraw3DAdvMask": "0x8008d888",
+        "ctr_main_boolSoundPaused": "0x8008d8a4"
+      }
+    },
+    {
       "name": "main-race-track",
       "kind": "resident",
       "artifact": "exe",

@@ -112,7 +112,7 @@ void ElimBG_SaveScreenshot_Full(struct GameTracker *gGT);
 
 // gamepad
 void GAMEPAD_Init(struct GamepadSystem *gGamepads);
-void GAMEPAD_SetMainMode(void);
+void GAMEPAD_SetMainMode(struct GamepadSystem *gGamepads);
 void GAMEPAD_PollVsync(struct GamepadSystem *gGamepads);
 s32 GAMEPAD_GetNumConnected(struct GamepadSystem *gGamepads);
 s32 GAMEPAD_ProcessHold(struct GamepadSystem *gGamepads);
@@ -399,7 +399,7 @@ void CTR_PSX_REGCALL_SBANK(0x38c0) CTR_PSX_PRESERVES_AT44 AnimateWaterVertex(voi
 #endif
 void RenderLists_PreInit(void);
 void RenderBucket_InitDepthGTE(void);
-void MainFrame_ResetDB(struct GameTracker *gGT);
+void MainFrame_ResetDB(struct GameTracker *gGT, struct GamepadSystem *gGamepads);
 void MainFrame_InitVideoSTR(u32 boolPlayVideoStr, RECT *r, s16 posX, s16 posY);
 void MainFrame_VisMemFullFrame(struct GameTracker *gGT, struct Level *level);
 void MainFrame_RequestMaskHint(s16 hintId, s16 interruptWarpPad);

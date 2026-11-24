@@ -6,6 +6,29 @@
 #include <platform/native_savestate.h>
 #endif
 
+#ifndef MAIN_GAME_STATE
+#define MAIN_GAME_STATE     (sdata->mainGameState)
+#define MAIN_LOAD_STAGE     (sdata->Loading.stage)
+#define MAIN_LEV_ID_TO_LOAD (sdata->Loading.Lev_ID_To_Load)
+#define MAIN_ADD_BITS_0     (sdata->Loading.OnBegin.AddBitsConfig0)
+#define MAIN_REM_BITS_0     (sdata->Loading.OnBegin.RemBitsConfig0)
+#define MAIN_ADD_BITS_8     (sdata->Loading.OnBegin.AddBitsConfig8)
+#define MAIN_REM_BITS_8     (sdata->Loading.OnBegin.RemBitsConfig8)
+#define MAIN_GT             (sdata->gGT)
+#define MAIN_GS             (sdata->gGamepads)
+#define MAIN_DRAW_SYNC_PTR  (sdata->MainDrawCb_DrawSyncPtr)
+#define MAIN_VLC_LOADED     (sdata->bool_IsLoaded_VlcTable)
+#define MAIN_BIGFILE_1      (sdata->ptrBigfile1)
+#define MAIN_LNG_STRINGS    (sdata->lngStrings)
+#define MAIN_ADV_MASK_3D    (sdata->boolDraw3D_AdvMask)
+#define MAIN_SOUND_PAUSED   (sdata->boolSoundPaused)
+#define MAIN_S_NDI_WORD     (*(const u32 *)sdata->s_ndi_needToRename)
+#define MAIN_PAUSE_STATE    (sdata->pause_state)
+#define MAIN_XA_STATE       (sdata->XA_State)
+#define MAIN_FRAME_COUNTER  (sdata->frameCounter)
+#define MAIN_MENU_STATE     (sdata->mainMenuState)
+#endif
+
 #if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
 static struct NativePerfFrameInfo MainPerf_FrameInfo(struct GameTracker *gGT)
 {
@@ -51,456 +74,14 @@ static struct NativeReplaySchedulerFrameInfo MainReplayScheduler_FrameInfo(struc
 }
 #endif
 
-#ifdef CTR_NATIVE
-u32 CTR_Main(void)
-#else
-u32 main(void)
-#endif
+// NOTE(aalhendi): Retail compiles state-0 initialization inline inside main
+// (0x8003c614-0x8003c984). Native also exports StateZero() so host harnesses
+// can observe boot initialization directly.
+static inline void Main_StateZeroBody(void)
 {
-	u32 AddBitsConfig0;
-	u32 RemBitsConfig0;
-	u32 AddBitsConfig8;
-	u32 RemBitsConfig8;
-	int iVar8;
-	u32 gameMode1;
-	u32 gameMode2;
-	u32 uVar12;
-
-	struct GameTracker *gGT;
-	gGT = sdata->gGT;
-
-	struct GamepadSystem *gGS;
-	gGS = sdata->gGamepads;
-
-	// NOTE(aalhendi): Retail main calls __main before the state loop. Native has
-	// no linked __main body, so keep this as a CTR_NATIVE-only divergence.
-#ifndef CTR_NATIVE
-	__main();
-#endif
-
-	do
-	{
-#ifndef CTR_NATIVE
-		// wont happen under normal conditions
-		if (sdata->mainGameState == 5)
-		{
-			MainKillGame_StopCTR();
-			return 0;
-		}
-#endif
-
-		LOAD_NextQueuedFile();
-		CDSYS_XAPauseAtEnd();
-
-		switch (sdata->mainGameState)
-		{
-		// Initialize Game (happens once)
-		case 0:
-			StateZero();
-			break;
-
-		// Happens on first frame that loading ends
-		case 1:
-
-			ElimBG_Deactivate(gGT);
-
-			MainStats_RestartRaceCountLoss();
-			Voiceline_ClearTimeStamp();
-
-			// Disable End-Of-Race menu
-			gGT->gameMode1 &= ~END_OF_RACE;
-
-			if (gGT->levelID == MAIN_MENU_LEVEL)
-			{
-				if (RaceFlag_IsFullyOffScreen())
-				{
-					RaceFlag_SetFullyOnScreen();
-				}
-			}
-
-			else
-			{
-				if (RaceFlag_IsFullyOnScreen())
-				{
-					RaceFlag_BeginTransition(2);
-				}
-			}
-
-			DropRain_Reset(gGT);
-			GAMEPROG_GetPtrHighScoreTrack();
-			MainInit_FinalizeInit(gGT);
-			GAMEPAD_GetNumConnected(gGS);
-
-			sdata->boolSoundPaused = 0;
-			VehBirth_EngineAudio_AllPlayers();
-
-			// 9 = intro cutscene
-			// 10 = traffic lights
-			// 11 = racing
-
-			// Arcade-Style track starts with intro cutscene
-			uVar12 = 9;
-
-			if (
-			    // If Level ID is less than 18, it's one of the race tracks
-			    (gGT->levelID < NITRO_COURT) || (
-			                                        // Battle-Style track starts with traffic lights
-			                                        uVar12 = 10,
-			                                        // Level ID >= 18 and < 23
-			                                        // Battle tracks
-			                                        gGT->levelID - NITRO_COURT < 7))
-			{
-				Audio_SetState_Safe(uVar12);
-			}
-			sdata->mainGameState = 3;
-			gGT->clockEffectEnabled &= 0xfffe;
-			break;
-
-		// Reset stage, reset music
-		case 2:
-			Audio_SetState_Safe(1);
-			MEMPACK_PopState();
-
-			// ignore threads, because we PopState,
-			// so the threadpool will reset anyway
-			LevInstDef_RePack(gGT->level1->ptr_mesh_info, 0);
-
-			sdata->mainGameState = 1;
-			break;
-
-		// Main Gameplay Update
-		// Makes up all normal interaction with the game
-		case 3:
-
-			// if loading, or gameplay interrupted
-			if (sdata->Loading.stage != LOAD_IDLE)
-			{
-				if (RaceFlag_IsFullyOnScreen() || (gGT->levelID == NAUGHTY_DOG_CRATE) || (sdata->pause_state != 0))
-				{
-					gGT->gameMode1 |= LOADING;
-				}
-
-				iVar8 = sdata->Loading.stage;
-
-				// elapsed milliseconds per frame, locked 32 here
-				// impacts speed of flag wave during "loading...", but does not impact speed of flying text
-				gGT->elapsedTimeMS = 32;
-
-				// if loading VLC
-				if (iVar8 == LOAD_VLC)
-				{
-					// if VLC is not loaded, quit
-					// we know when it's done from a load callback
-					if (sdata->bool_IsLoaded_VlcTable != 1)
-					{
-						break;
-					}
-
-					// if == 1, finish the loading
-					goto FinishLoading;
-				}
-
-				// if restarting race
-				if (iVar8 == LOAD_RESTART)
-				{
-					if (RaceFlag_IsFullyOnScreen())
-					{
-						// reinitialize world,
-						// does not reinitialize pools
-						sdata->mainGameState = 2;
-
-						// no loading, and no interruption
-						sdata->Loading.stage = LOAD_IDLE;
-
-						// Turn off the "Loading..." flag
-						gGT->gameMode1 &= ~LOADING;
-						break;
-					}
-
-					// if not fully on-screen, do not BREAK,
-					// keep rendering the scene
-				}
-
-				// if waiting for checkered flag to cover screen,
-				// right before loading the next requested level
-				else if (iVar8 == -4)
-				{
-					RemBitsConfig8 = sdata->Loading.OnBegin.RemBitsConfig8;
-					AddBitsConfig8 = sdata->Loading.OnBegin.AddBitsConfig8;
-					RemBitsConfig0 = sdata->Loading.OnBegin.RemBitsConfig0;
-					AddBitsConfig0 = sdata->Loading.OnBegin.AddBitsConfig0;
-
-					if (RaceFlag_IsFullyOnScreen())
-					{
-						sdata->Loading.OnBegin.AddBitsConfig0 = 0;
-						sdata->Loading.OnBegin.RemBitsConfig0 = 0;
-						sdata->Loading.OnBegin.AddBitsConfig8 = 0;
-						sdata->Loading.OnBegin.RemBitsConfig8 = 0;
-
-						gameMode2 = gGT->gameMode2;
-
-						gGT->hudFlags &= HUD_FLAG_CLEAR_INTRO_RACE_TITLE_BARS_MASK;
-
-						gameMode1 = gGT->gameMode1;
-						gGT->gameMode2 = gameMode2 | AddBitsConfig8;
-						gGT->gameMode1 = gameMode1 | AddBitsConfig0;
-						gGT->gameMode1 = (gameMode1 | AddBitsConfig0) & ~RemBitsConfig0;
-						gGT->gameMode2 = (gameMode2 | AddBitsConfig8) & ~RemBitsConfig8;
-
-						MainRaceTrack_StartLoad(sdata->Loading.Lev_ID_To_Load);
-					}
-
-					else if (RaceFlag_IsFullyOffScreen())
-					{
-						RaceFlag_BeginTransition(1);
-					}
-
-					// do not BREAK,
-					// keep rendering the scene
-				}
-
-				// if something is being loaded
-				else
-				{
-					sdata->Loading.stage = LOAD_TenStages(gGT, iVar8, sdata->ptrBigfile1);
-
-					// If just finished loading stage 9
-					if (sdata->Loading.stage == LOAD_FINISHED)
-					{
-						if ((gGT->levelID == MAIN_MENU_LEVEL) || (gGT->levelID == SCRAPBOOK))
-						{
-							MainLoadVLC();
-
-							// start loading VLC (scroll up to iVar8 == LOAD_VLC)
-							sdata->Loading.stage = LOAD_VLC;
-							break;
-						}
-
-					FinishLoading:
-						// loading is finished,
-						// initialize world and pools,
-						// remove LOADING... flag from gGT
-						sdata->Loading.stage = LOAD_IDLE;
-						sdata->mainGameState = 1;
-						gGT->gameMode1 &= ~LOADING;
-						break;
-					}
-
-					// else, do not BREAK,
-					// keep rendering the scene
-					// which is the checkered flag
-				}
-			}
-
-			// =========== Main Game Loop ======================
-
-			if ((
-			        // Check value of traffic lights
-			        (-960 < gGT->trafficLightsTimer) &&
-			        // if not drawing intro race cutscene and if not paused
-			        ((gGT->gameMode1 & (START_OF_RACE | PAUSE_ALL)) == 0)) &&
-			    (
-			        // amount of milliseconds on Traffic Lights - elapsed milliseconds per frame, ~32
-			        iVar8 = gGT->trafficLightsTimer - gGT->elapsedTimeMS,
-			        // decrease amount of time on Traffic Lights
-			        gGT->trafficLightsTimer = iVar8,
-			        // if countdown has gone down far enough for traffic lights to go off-screen
-			        iVar8 < -960))
-			{
-				// set a floor value, so countdown can't go farther negative
-				gGT->trafficLightsTimer = 0xfffffc40;
-			}
-
-			// frame counter, not represented in common.h currently
-			sdata->frameCounter++;
-
-			// Process all gamepad input
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-			{
-				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(gGT);
-
-				if (NativeReplayScheduler_BeginFrame(&replayFrameInfo) != 0)
-				{
-					return 0;
-				}
-				NativeSaveState_BeginFrame();
-				gGT = sdata->gGT;
-				gGS = sdata->gGamepads;
-			}
-			{
-				struct NativePerfFrameInfo perfFrameInfo = MainPerf_FrameInfo(gGT);
-
-				NativePerf_BeginFrame(&perfFrameInfo);
-			}
-#endif
-			GAMEPAD_ProcessAnyoneVars(gGS);
-
-			// Start new frame (ClearOTagR)
-			MainFrame_ResetDB(gGT);
-
-			if (
-			    // If you're in Demo Mode
-			    (gGT->boolDemoMode != 0) &&
-
-			    (
-			        // Turn off HUD
-			        gGT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK,
-			        // if game is not loading
-			        sdata->Loading.stage == LOAD_IDLE))
-			{
-				// All this code is for the 30-second timer within Demo Mode
-				// To see 30-second timer in Main Menu, go to FUN_00001604 in 230.c
-				// pressing (or holding) any button sets it to zero
-
-				gGT->demoCountdownTimer--;
-
-				// check to see if time ran out
-				if (gGT->demoCountdownTimer < 1)
-				{
-					// leave demo mode, go to main menu
-					gGT->boolDemoMode = 0;
-					gGT->numPlyrNextGame = 1;
-					sdata->mainMenuState = MAIN_MENU_TITLE;
-
-				LAB_8003ce08:
-					MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
-				}
-
-				// if time remains on the timer
-				else
-				{
-					// if any button is pressed by anyone
-					if (gGS->anyoneHeldCurr != 0)
-					{
-						// leave demo mode
-						gGT->boolDemoMode = 0;
-						goto LAB_8003ce08;
-					}
-				}
-
-				// if numPlyrCurrGame is 1
-				if (gGT->numPlyrCurrGame == 1)
-				{
-					// Draw text near top of screen
-					uVar12 = 0x23;
-				}
-
-				// if this is multiplayer
-				else
-				{
-					// draw text halfway to top of screen
-					uVar12 = 100;
-				}
-
-				DecalFont_DrawMultiLine(sdata->lngStrings[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, uVar12, 0x200, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
-			}
-
-			if ((gGT->gameMode1 & LOADING) == 0)
-			{
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-				NativePerf_BeginScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
-#endif
-				MainFrame_GameLogic(gGT, gGS);
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-				NativePerf_EndScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
-#endif
-			}
-
-			// If you are in demo mode
-			if (gGT->boolDemoMode != '\0')
-			{
-				// Turn off HUD
-				gGT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK;
-			}
-
-			// reset vsync calls between drawsync
-			gGT->vSync_between_drawSync = 0;
-
-
-#ifdef CTR_NATIVE
-			Platform_BeginFrame();
-#endif
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-			NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
-#endif
-			MainFrame_RenderFrame(gGT, gGS);
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-			NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
-#endif
-#ifdef CTR_NATIVE
-			Platform_EndFrame();
-#endif
-
-
-			// if mask is talking in Adventure Hub
-			if (sdata->boolDraw3D_AdvMask != 0)
-			{
-				AH_MaskHint_Update();
-			}
-#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
-			{
-				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(gGT);
-
-				if (NativeReplayScheduler_EndFrame(&replayFrameInfo) != 0)
-				{
-					return 0;
-				}
-			}
-			{
-				struct NativePerfFrameInfo perfFrameInfo = MainPerf_FrameInfo(gGT);
-
-				NativePerf_EndFrame(&perfFrameInfo);
-			}
-#endif
-			break;
-
-#ifndef CTR_NATIVE
-		// In theory, this is left over from the demos,
-		// which would "timeout" and restart after sitting idle
-		case 4:
-
-			// erase all data past the
-			// last 3 bookmarks, if there
-			// that many exist
-			MEMPACK_PopState();
-			MEMPACK_PopState();
-			MEMPACK_PopState();
-
-			CTR_ErrorScreen(0, 0, 0);
-			Music_Stop();
-
-			// clear backup, destroy music, destroy all fx
-			howl_StopAudio(1, 1, 1);
-			Bank_DestroyAll();
-			howl_Disable();
-
-			GAMEPAD_SetMainMode();
-
-			// Set vsync to 2 FPS
-			VSync(30);
-
-			// reboot game
-			sdata->mainGameState = 0;
-#endif
-		}
-	} while (true);
-}
-
-// NOTE(aalhendi): Source split of retail main's state-0 body
-// 0x8003c614-0x8003c984.
-// By separating this, it can be overwritten dynamically (oxide fix).
-void StateZero()
-{
-	u16 *clockEffect;
 	u32 vramSize;
 
-	struct GameTracker *gGT;
-	gGT = sdata->gGT;
-
-	struct GamepadSystem *gGS;
-	gGS = sdata->gGamepads;
-
-	memset(gGT, 0, sizeof(*gGT));
+	memset(MAIN_GT, 0, sizeof(*MAIN_GT));
 
 	// Set Video Mode to NTSC
 	SetVideoMode(0);
@@ -519,59 +100,66 @@ void StateZero()
 
 	SetDispMask(1);
 
-	SetDefDrawEnv(&gGT->db[0].drawEnv, 0, 0, 0x200, 0xd8);
-	SetDefDrawEnv(&gGT->db[1].drawEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[0].dispEnv, 0, 0x128, 0x200, 0xd8);
-	SetDefDispEnv(&gGT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
+	SetDefDrawEnv(&MAIN_GT->db[0].drawEnv, 0, 0, 0x200, 0xd8);
+	SetDefDrawEnv(&MAIN_GT->db[1].drawEnv, 0, 0x128, 0x200, 0xd8);
+	SetDefDispEnv(&MAIN_GT->db[0].dispEnv, 0, 0x128, 0x200, 0xd8);
+	SetDefDispEnv(&MAIN_GT->db[1].dispEnv, 0, 0, 0x200, 0xd8);
 
-	gGT->db[0].dispEnv.screen.x = 0;
-	gGT->db[0].dispEnv.screen.y = 0xc;
-	gGT->db[0].dispEnv.screen.w = 0x100;
-	gGT->db[0].dispEnv.screen.h = 0xd8;
+	MAIN_GT->db[0].dispEnv.screen.x = 0;
+	MAIN_GT->db[0].dispEnv.screen.y = 0xc;
+	MAIN_GT->db[0].dispEnv.screen.w = 0x100;
+	MAIN_GT->db[0].dispEnv.screen.h = 0xd8;
 
-	gGT->db[1].dispEnv.screen.x = 0;
-	gGT->db[1].dispEnv.screen.y = 0xc;
-	gGT->db[1].dispEnv.screen.w = 0x100;
-	gGT->db[1].dispEnv.screen.h = 0xd8;
+	MAIN_GT->db[1].dispEnv.screen.x = 0;
+	MAIN_GT->db[1].dispEnv.screen.y = 0xc;
+	MAIN_GT->db[1].dispEnv.screen.w = 0x100;
+	MAIN_GT->db[1].dispEnv.screen.h = 0xd8;
 
-	gGT->db[0].drawEnv.isbg = 1;
-	gGT->db[0].drawEnv.r0 = 0;
-	gGT->db[0].drawEnv.g0 = 0;
-	gGT->db[0].drawEnv.b0 = 0;
+	MAIN_GT->db[0].drawEnv.isbg = 1;
+	MAIN_GT->db[0].drawEnv.r0 = 0;
+	MAIN_GT->db[0].drawEnv.g0 = 0;
+	MAIN_GT->db[0].drawEnv.b0 = 0;
 
-	gGT->db[1].drawEnv.isbg = 1;
-	gGT->db[1].drawEnv.r0 = 0;
-	gGT->db[1].drawEnv.g0 = 0;
-	gGT->db[1].drawEnv.b0 = 0;
+	MAIN_GT->db[1].drawEnv.isbg = 1;
+	MAIN_GT->db[1].drawEnv.r0 = 0;
+	MAIN_GT->db[1].drawEnv.g0 = 0;
+	MAIN_GT->db[1].drawEnv.b0 = 0;
 
 	// default number of lives in battle
 	// this is left over from prototypes, useless in retail
-	gGT->battleLifeLimit = 5;
+	MAIN_GT->battleLifeLimit = 5;
 
-	// 30 second counter?
-	gGT->constVal_9000 = 9000;
+	// 30 second counter
+	MAIN_GT->constVal_9000 = 9000;
+
+	MAIN_GT->battleSetup.enabledWeapons |= BATTLE_DEFAULT_WEAPON_FLAGS;
 
 	// set lap count to 3
-	gGT->numLaps = 3;
-
-	gGT->battleSetup.enabledWeapons |= BATTLE_DEFAULT_WEAPON_FLAGS;
-	gGT->numPlyrCurrGame = 1;
-	gGT->numPlyrNextGame = 1;
-	*(u32 *)&gGT->battleSetup.teamOfEachPlayer = 0x3020100;
+	MAIN_GT->numLaps = 3;
+	MAIN_GT->numPlyrCurrGame = 1;
+	MAIN_GT->numPlyrNextGame = 1;
+#ifdef CTR_NATIVE
+	MAIN_GT->battleSetup.teamOfEachPlayer[0] = 0;
+	MAIN_GT->battleSetup.teamOfEachPlayer[1] = 1;
+	MAIN_GT->battleSetup.teamOfEachPlayer[2] = 2;
+	MAIN_GT->battleSetup.teamOfEachPlayer[3] = 3;
+#else
+	*(u32 *)&MAIN_GT->battleSetup.teamOfEachPlayer = 0x3020100;
+#endif
 
 	// traffic light countdown timer, set to negative one second
-	gGT->trafficLightsTimer = 0xfffffc40;
+	MAIN_GT->trafficLightsTimer = 0xfffffc40;
 
 	Timer_Init();
 	EnterCriticalSection();
-	sdata->MainDrawCb_DrawSyncPtr = (void *)(u32)DrawSyncCallback(&MainDrawCb_DrawSync);
+	MAIN_DRAW_SYNC_PTR = (void *)(u32)DrawSyncCallback(&MainDrawCb_DrawSync);
 	ExitCriticalSection();
 
 	MEMCARD_InitCard();
 	VSync(0);
-	GAMEPAD_Init(gGS);
+	GAMEPAD_Init(MAIN_GS);
 	VSync(0);
-	GAMEPAD_GetNumConnected(gGS);
+	GAMEPAD_GetNumConnected(MAIN_GS);
 
 #ifdef CTR_NATIVE
 #define BIGPATH "\\BIGFILE.BIG;1"
@@ -579,36 +167,20 @@ void StateZero()
 #define BIGPATH rdata.s_PathTo_Bigfile
 #endif
 
-	// Get CD Position fo BIGFILE
-	sdata->ptrBigfile1 = LOAD_ReadDirectory(BIGPATH);
-
-// Defrag to save heap space,
-// required because MEMPACK_Init moves heap
-#if 0
-	// NOTE(aalhendi): Retail main does not rewrite BIGFILE overlay sizes here.
-	extern char RB_NewEndFile[4];
-
-	// Dont load full overlay file, cut off the end
-	struct BigEntry *firstEntry = BIG_GETENTRY(sdata->ptrBigfile1);
-	firstEntry[231].size = 28 * 0x800;
-	// firstEntry[231].size = (u32)RB_NewEndFile - (u32)OVR_Region3;
-	// printf("Size: %08x\n", firstEntry[231].size);
-
-	// Cut off Region1 overlays at 2 sectors (not 3),
-	// This protects Region2 RAM so it is not overwritten
-	// during Region1 disc streaming, saves loading time
-	for (int i = 221; i <= 225; i++)
-		firstEntry[i].size = 2 * 0x800;
-#endif
+	// Get CD Position of BIGFILE
+	MAIN_BIGFILE_1 = LOAD_ReadDirectory(BIGPATH);
 
 	// English=1
-	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
+	LOAD_LangFile((int)MAIN_BIGFILE_1, 1);
 	GAMEPROG_NewGame_OnBoot();
-	gGT->overlayIndex_null_notUsed = 0;
+	MAIN_GT->overlayIndex_null_notUsed = 0;
 
-	gGT->levelID = NAUGHTY_DOG_CRATE;
-	memcpy(gGT->levelName, sdata->s_ndi, sizeof(sdata->s_ndi));
-	// gGT->levelID = OXIDE_TRUE_ENDING;
+	MAIN_GT->levelID = NAUGHTY_DOG_CRATE;
+#ifdef CTR_NATIVE
+	memcpy(MAIN_GT->levelName, sdata->s_ndi, sizeof(sdata->s_ndi));
+#else
+	*(u32 *)MAIN_GT->levelName = MAIN_S_NDI_WORD;
+#endif
 
 	InitGeom();
 	SetGeomOffset(0x100, 0x78); // width/2, height/2
@@ -620,19 +192,19 @@ void StateZero()
 	// NOTE(aalhendi): Retail bakes these authored matrix tables in place.
 	Vector_BakeMatrixTable();
 
-	gGT->swapchainIndex = 0;
-	gGT->backBuffer = &gGT->db[0];
+	MAIN_GT->swapchainIndex = 0;
+	MAIN_GT->backBuffer = &MAIN_GT->db[0];
 
-	gGT->overlayIndex_EndOfRace = 0xff;
-	gGT->overlayIndex_LOD = OVERLAY_INDEX_NONE;
-	gGT->overlayIndex_Threads = OVERLAY_INDEX_NONE;
+	MAIN_GT->overlayIndex_EndOfRace = 0xff;
+	MAIN_GT->overlayIndex_LOD = OVERLAY_INDEX_NONE;
+	MAIN_GT->overlayIndex_Threads = OVERLAY_INDEX_NONE;
 
-	PutDispEnv(&gGT->db[1].dispEnv);
-	PutDrawEnv(&gGT->db[1].drawEnv);
+	PutDispEnv(&MAIN_GT->db[1].dispEnv);
+	PutDrawEnv(&MAIN_GT->db[1].drawEnv);
 	DrawSync(0);
 
 	// Load Intro TIM for "SCEA Presents" from VRAM file
-	LOAD_VramFile(sdata->ptrBigfile1, 0x1fd, NULL, &vramSize, -1);
+	LOAD_VramFile(MAIN_BIGFILE_1, 0x1fd, NULL, &vramSize, -1);
 	MainInit_VRAMDisplay();
 
 	// \SOUNDS\KART.HWL;1
@@ -648,9 +220,8 @@ void StateZero()
 	// "Start your engines, for Sony Computer..."
 	CDSYS_XAPlay(CDSYS_XA_TYPE_EXTRA, 0x50);
 
-	while (sdata->XA_State != 0)
+	while (MAIN_XA_STATE != 0)
 	{
-		// WARNING: Read-only address (ram, 0x8008d888) is written
 #ifdef CTR_NATIVE
 		// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
 		// this loop spins. Native owns VBlank in VSync(), so pump it here.
@@ -659,18 +230,343 @@ void StateZero()
 		CDSYS_XAPauseAtEnd();
 	}
 
-	DecalGlobal_Clear(gGT);
+	DecalGlobal_Clear(MAIN_GT);
 
 	// This loads UI textures (shared.vrm)
 	// This includes traffic lights, font, and more
-	LOAD_VramFile(sdata->ptrBigfile1, 0x102, NULL, &vramSize, -1);
+	LOAD_VramFile(MAIN_BIGFILE_1, 0x102, NULL, &vramSize, -1);
 
-	sdata->mainGameState = 3;
+	MAIN_GAME_STATE = 3;
 
 	// start loading
-	sdata->Loading.stage = LOAD_TEN_STAGES_0;
+	MAIN_LOAD_STAGE = LOAD_TEN_STAGES_0;
+	MAIN_GT->gameMode1 |= LOADING;
+	MAIN_GT->clockEffectEnabled &= 0xfffe;
+}
 
-	clockEffect = &gGT->clockEffectEnabled;
-	gGT->gameMode1 |= LOADING;
-	gGT->clockEffectEnabled = *clockEffect & 0xfffe;
+#ifdef CTR_NATIVE
+void StateZero(void)
+{
+	Main_StateZeroBody();
+}
+#endif
+
+#ifdef CTR_NATIVE
+u32 CTR_Main(void)
+#else
+int main(void)
+#endif
+{
+	while (MAIN_GAME_STATE != 5)
+	{
+		LOAD_NextQueuedFile();
+		CDSYS_XAPauseAtEnd();
+
+		switch (MAIN_GAME_STATE)
+		{
+		// Initialize Game (happens once)
+		case 0:
+#ifdef CTR_NATIVE
+			StateZero();
+#else
+			Main_StateZeroBody();
+#endif
+			break;
+
+		// Reset stage, reset music
+		case 2:
+			Audio_SetState_Safe(1);
+			MEMPACK_PopState();
+
+			// ignore threads, because we PopState,
+			// so the threadpool will reset anyway
+			LevInstDef_RePack(MAIN_GT->level1->ptr_mesh_info, 0);
+
+			MAIN_GAME_STATE = 1;
+			break;
+
+		// Happens on first frame that loading ends
+		case 1:
+			ElimBG_Deactivate(MAIN_GT);
+			MainStats_RestartRaceCountLoss();
+			Voiceline_ClearTimeStamp();
+
+			// Disable End-Of-Race menu
+			MAIN_GT->gameMode1 &= ~END_OF_RACE;
+
+			if ((MAIN_GT->levelID != MAIN_MENU_LEVEL) && (RaceFlag_IsFullyOnScreen() != 0))
+			{
+				RaceFlag_BeginTransition(2);
+			}
+			else if ((MAIN_GT->levelID == MAIN_MENU_LEVEL) && (RaceFlag_IsFullyOffScreen() != 0))
+			{
+				RaceFlag_SetFullyOnScreen();
+			}
+
+			DropRain_Reset(MAIN_GT);
+			GAMEPROG_GetPtrHighScoreTrack();
+			MainInit_FinalizeInit(MAIN_GT);
+			GAMEPAD_GetNumConnected(MAIN_GS);
+
+			MAIN_SOUND_PAUSED = 0;
+			VehBirth_EngineAudio_AllPlayers();
+
+			// 9 = intro cutscene, 10 = traffic lights, 11 = racing
+			if ((u32)MAIN_GT->levelID < NITRO_COURT)
+			{
+				Audio_SetState_Safe(9);
+			}
+			else if ((u32)(MAIN_GT->levelID - NITRO_COURT) < 7)
+			{
+				Audio_SetState_Safe(10);
+			}
+
+			MAIN_GAME_STATE = 3;
+			MAIN_GT->clockEffectEnabled &= 0xfffe;
+			break;
+
+		// Main Gameplay Update
+		// Makes up all normal interaction with the game
+		case 3:
+			// if loading, or gameplay interrupted
+			if (MAIN_LOAD_STAGE != LOAD_IDLE)
+			{
+				struct GameTracker *gGT;
+				int stage;
+
+				if ((RaceFlag_IsFullyOnScreen() == 1) || (MAIN_GT->levelID == NAUGHTY_DOG_CRATE) || (MAIN_PAUSE_STATE != 0))
+				{
+					MAIN_GT->gameMode1 |= LOADING;
+				}
+
+				gGT = MAIN_GT;
+				stage = MAIN_LOAD_STAGE;
+
+				// elapsed milliseconds per frame, locked 32 here
+				// impacts speed of flag wave during "loading...", but does not impact speed of flying text
+				gGT->elapsedTimeMS = 32;
+
+				// if restarting race
+				if (stage == LOAD_RESTART)
+				{
+					if (RaceFlag_IsFullyOnScreen() == 1)
+					{
+						// reinitialize world, does not reinitialize pools
+						MAIN_GAME_STATE = 2;
+						MAIN_LOAD_STAGE = LOAD_IDLE;
+						MAIN_GT->gameMode1 &= ~LOADING;
+						break;
+					}
+				}
+				// if waiting for checkered flag to cover screen,
+				// right before loading the next requested level
+				else if (stage == -4)
+				{
+					if (RaceFlag_IsFullyOnScreen() == 1)
+					{
+						struct GameTracker *loadGT = MAIN_GT;
+						u32 add0 = MAIN_ADD_BITS_0;
+						u32 rem0 = MAIN_REM_BITS_0;
+						u32 add8 = MAIN_ADD_BITS_8;
+						u32 rem8 = MAIN_REM_BITS_8;
+
+						MAIN_ADD_BITS_0 = 0;
+						MAIN_REM_BITS_0 = 0;
+						MAIN_ADD_BITS_8 = 0;
+						MAIN_REM_BITS_8 = 0;
+
+						loadGT->hudFlags &= HUD_FLAG_CLEAR_INTRO_RACE_TITLE_BARS_MASK;
+
+						loadGT->gameMode1 |= add0;
+						loadGT->gameMode2 |= add8;
+						loadGT->gameMode1 &= ~rem0;
+						loadGT->gameMode2 &= ~rem8;
+
+						MainRaceTrack_StartLoad(MAIN_LEV_ID_TO_LOAD);
+					}
+					else if (RaceFlag_IsFullyOffScreen() == 1)
+					{
+						RaceFlag_BeginTransition(1);
+					}
+				}
+				// if loading VLC
+				else if (stage == LOAD_VLC)
+				{
+					if (MAIN_VLC_LOADED == 1)
+					{
+						MAIN_LOAD_STAGE = LOAD_IDLE;
+						MAIN_GAME_STATE = 1;
+						gGT->gameMode1 &= ~LOADING;
+					}
+					break;
+				}
+				// if something is being loaded
+				else
+				{
+					MAIN_LOAD_STAGE = LOAD_TenStages(gGT, stage, MAIN_BIGFILE_1);
+
+					// If just finished loading stage 9
+					if (MAIN_LOAD_STAGE == LOAD_FINISHED)
+					{
+						gGT = MAIN_GT;
+						if ((gGT->levelID == MAIN_MENU_LEVEL) || (gGT->levelID == SCRAPBOOK))
+						{
+							MainLoadVLC();
+							MAIN_LOAD_STAGE = LOAD_VLC;
+							break;
+						}
+
+						MAIN_LOAD_STAGE = LOAD_IDLE;
+						MAIN_GAME_STATE = 1;
+						gGT->gameMode1 &= ~LOADING;
+						break;
+					}
+				}
+			}
+
+			// =========== Main Game Loop ======================
+
+			if ((-960 < MAIN_GT->trafficLightsTimer) && ((MAIN_GT->gameMode1 & (START_OF_RACE | PAUSE_ALL)) == 0))
+			{
+				MAIN_GT->trafficLightsTimer -= MAIN_GT->elapsedTimeMS;
+				if (MAIN_GT->trafficLightsTimer < -960)
+				{
+					MAIN_GT->trafficLightsTimer = 0xfffffc40;
+				}
+			}
+
+			MAIN_FRAME_COUNTER++;
+
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			{
+				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(MAIN_GT);
+
+				if (NativeReplayScheduler_BeginFrame(&replayFrameInfo) != 0)
+				{
+					return 0;
+				}
+				NativeSaveState_BeginFrame();
+			}
+			{
+				struct NativePerfFrameInfo perfFrameInfo = MainPerf_FrameInfo(MAIN_GT);
+
+				NativePerf_BeginFrame(&perfFrameInfo);
+			}
+#endif
+			GAMEPAD_ProcessAnyoneVars(MAIN_GS);
+
+			// Start new frame (ClearOTagR)
+			MainFrame_ResetDB(MAIN_GT, MAIN_GS);
+
+			if ((MAIN_GT->boolDemoMode != 0) && (MAIN_GT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK, MAIN_LOAD_STAGE == LOAD_IDLE))
+			{
+				// 30-second timer within Demo Mode
+				MAIN_GT->demoCountdownTimer--;
+
+				if (MAIN_GT->demoCountdownTimer < 1)
+				{
+					MAIN_GT->boolDemoMode = 0;
+					MAIN_GT->numPlyrNextGame = 1;
+					MAIN_MENU_STATE = MAIN_MENU_TITLE;
+					MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+				}
+				else if (MAIN_GS->anyoneHeldCurr != 0)
+				{
+					MAIN_GT->boolDemoMode = 0;
+					MainRaceTrack_RequestLoad(MAIN_MENU_LEVEL);
+				}
+
+				if (MAIN_GT->numPlyrCurrGame == 1)
+				{
+					DecalFont_DrawMultiLine(MAIN_LNG_STRINGS[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, 0x23, 0x200, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+				}
+				else
+				{
+					DecalFont_DrawMultiLine(MAIN_LNG_STRINGS[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, 100, 0x200, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
+				}
+			}
+
+			if ((MAIN_GT->gameMode1 & LOADING) == 0)
+			{
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+				NativePerf_BeginScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
+#endif
+				MainFrame_GameLogic(MAIN_GT, MAIN_GS);
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+				NativePerf_EndScope(NATIVE_PERF_BUCKET_GAME_LOGIC);
+#endif
+			}
+
+			if (MAIN_GT->boolDemoMode != 0)
+			{
+				MAIN_GT->hudFlags &= HUD_FLAG_CLEAR_RACE_HUD_MASK;
+			}
+
+			// reset vsync calls between drawsync
+			MAIN_GT->vSync_between_drawSync = 0;
+
+#ifdef CTR_NATIVE
+			Platform_BeginFrame();
+#endif
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			NativePerf_BeginScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
+#endif
+			MainFrame_RenderFrame(MAIN_GT, MAIN_GS);
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			NativePerf_EndScope(NATIVE_PERF_BUCKET_RENDER_FRAME);
+#endif
+#ifdef CTR_NATIVE
+			Platform_EndFrame();
+#endif
+
+			// if mask is talking in Adventure Hub
+			if (MAIN_ADV_MASK_3D != 0)
+			{
+				AH_MaskHint_Update();
+			}
+#if defined(CTR_NATIVE) && defined(CTR_INTERNAL)
+			{
+				struct NativeReplaySchedulerFrameInfo replayFrameInfo = MainReplayScheduler_FrameInfo(MAIN_GT);
+
+				if (NativeReplayScheduler_EndFrame(&replayFrameInfo) != 0)
+				{
+					return 0;
+				}
+			}
+			{
+				struct NativePerfFrameInfo perfFrameInfo = MainPerf_FrameInfo(MAIN_GT);
+
+				NativePerf_EndFrame(&perfFrameInfo);
+			}
+#endif
+			break;
+
+#ifndef CTR_NATIVE
+		// Left over from demos that timed out and restarted after sitting idle
+		case 4:
+			MEMPACK_PopState();
+			MEMPACK_PopState();
+			MEMPACK_PopState();
+
+			CTR_ErrorScreen(0, 0, 0);
+			Music_Stop();
+
+			howl_StopAudio(1, 1, 1);
+			Bank_DestroyAll();
+			howl_Disable();
+
+			GAMEPAD_SetMainMode(MAIN_GS);
+
+			VSync(30);
+
+			MAIN_GAME_STATE = 0;
+			break;
+#endif
+		}
+	}
+
+#ifndef CTR_NATIVE
+	MainKillGame_StopCTR();
+#endif
+	return 0;
 }

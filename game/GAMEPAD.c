@@ -29,8 +29,9 @@ void GAMEPAD_Init(struct GamepadSystem *gGamepads)
 }
 
 
-void GAMEPAD_SetMainMode(void)
+void GAMEPAD_SetMainMode(struct GamepadSystem *gGamepads)
 {
+	(void)gGamepads;
 	PadSetMainMode(0, 0, 0);
 	PadSetMainMode(1, 0, 0);
 	PadSetMainMode(2, 0, 0);

@@ -31,10 +31,11 @@ static void MainFrame_RegisterGpuLinkRanges(struct GameTracker *gGT)
 }
 #endif
 
-void MainFrame_ResetDB(struct GameTracker *gGT)
+void MainFrame_ResetDB(struct GameTracker *gGT, struct GamepadSystem *gGamepads)
 {
 	s32 i;
 	register struct GameTracker *frameTracker CTR_PSX_REGISTER("$6");
+	(void)gGamepads;
 
 	LOAD_Hub_Main(MAIN_FRAME_BIGFILE1);
 	gGT->swapchainIndex = 1 - gGT->swapchainIndex;
