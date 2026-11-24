@@ -237,6 +237,13 @@ extern char ctr_sdata_s_printDividing[] asm("sdata_static+1456");
 extern char ctr_sdata_s_longInt[] asm("sdata_static+1460");
 // NOTE(aalhendi): Keep the four-byte quantity buffer absolute under G8.
 extern char ctr_sdata_s_spacebar[] asm("sdata_static+1464");
+extern __typeof__(sdata_static.TurboDisplayPos_Only1P) ctr_sdata_TurboDisplayPos_Only1P asm("sdata_static+828");
+extern char ctr_sdata_s_subtractLongInt[] asm("sdata_static+1476");
+extern char ctr_sdata_s_additionLongInt[] asm("sdata_static+1484");
+extern char ctr_sdata_s_subtractInt[] asm("sdata_static+1492");
+extern char ctr_sdata_s_999[] asm("sdata_static+1496");
+extern char ctr_sdata_s_intSpace[] asm("sdata_static+1504");
+extern char ctr_sdata_s_str[] asm("sdata_static+1508");
 extern struct MetaDataCHAR ctr_characterMetadata[16] asm(RETAIL_CHARACTER_METADATA_ASM_NAME);
 extern s16 ctr_characterIDs[8] asm(RETAIL_CHARACTER_IDS_ASM_NAME);
 // NOTE(aalhendi): The owned HUD-layout pointer table is indexed by player count minus one.
