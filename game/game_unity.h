@@ -206,6 +206,9 @@
 #include "PSX/PSX_SDK_MemMove.c"
 #include "PSX/PSX_SDK_CardInit.c"
 #include "PSX/PSX_SDK_CardControl.c"
+#include "PSX/PSX_SDK_GpuSync.c"
+#include "PSX/PSX_SDK_GpuImage.c"
+#include "PSX/PSX_SDK_GpuOrder.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"

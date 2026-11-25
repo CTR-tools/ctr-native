@@ -6482,6 +6482,93 @@
         "CD_readState": "0x8008af00",
         "CD_read_retry": "0x80076d28"
       }
+    },
+    {
+      "name": "psx-sdk-gpu-sync",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "DrawSyncCallback",
+      "end_symbol": "DrawSync",
+      "symbol_prefix": "",
+      "source": "game/PSX/PSX_SDK_GpuSync.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80011d2c",
+        "rodata_size": 48
+      },
+      "function_rodata_addresses": {
+        "DrawSyncCallback": "0x80011d2c",
+        "SetDispMask": "0x80011d2c"
+      },
+      "link_symbols": {
+        "psxGpuJtb": "0x8008ad78",
+        "psxGpuPrintf": "0x8008ad7c",
+        "psxGpuEnv": "0x8008ad80",
+        "psxGpuFillBytes": "0x800752e8"
+      }
+    },
+    {
+      "name": "psx-sdk-gpu-image",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "LoadImage",
+      "end_symbol": "ClearOTagR",
+      "symbol_prefix": "",
+      "source": "game/PSX/PSX_SDK_GpuImage.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80011dac",
+        "rodata_size": 34
+      },
+      "function_rodata_addresses": {
+        "LoadImage": "0x80011dac",
+        "StoreImage": "0x80011dac",
+        "MoveImage": "0x80011dac"
+      },
+      "link_symbols": {
+        "psxGpuJtb": "0x8008ad78",
+        "psxGpuMovePrim": "0x8008ae18",
+        "psxGpuCheckRect": "0x80073058"
+      }
+    },
+    {
+      "name": "psx-sdk-gpu-order",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "start_symbol": "ClearOTagR",
+      "end_symbol": "PutDispEnv",
+      "symbol_prefix": "",
+      "source": "game/PSX/PSX_SDK_GpuOrder.c",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses", "-fno-builtin"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x80011de8",
+        "rodata_size": 65
+      },
+      "function_rodata_addresses": {
+        "ClearOTagR": "0x80011de8",
+        "DrawOTag": "0x80011de8",
+        "PutDrawEnv": "0x80011de8"
+      },
+      "link_symbols": {
+        "psxGpuJtb": "0x8008ad78",
+        "psxGpuPrintf": "0x8008ad7c",
+        "psxGpuEnv": "0x8008ad80",
+        "psxGpuOtTail": "0x8008ae2c",
+        "psxGpuOtHead": "0x8008ae40",
+        "psxGpuBuildDrawEnv": "0x80073bb8"
+      }
     }
   ]
 }
