@@ -1528,6 +1528,32 @@ class StoragePaddingTests(unittest.TestCase):
                 for invalid in (None, [], {"Unknown": 4}, {"Test_Read": True}, {"Test_Read": -4}, {"Test_Read": 2}, {"Test_Read": 12}, {"Test_Read": 16}, {"Test_Read": "4"}):
                     with self.subTest(invalid=invalid), self.assertRaises(ctr_match.MatchError):
                         ctr_resident.discover_function_ranges({**config, "function_padding": invalid}, symbols)
+                rodata_block = {"rodata_address": "0x80011000", "rodata_size": 16}
+                ctr_match.validate_layout_config({**config, "function_padding": {"Test_Read": 4}, "linked_block": rodata_block})
+                for incomplete in ({"rodata_address": "0x80011000"}, {"rodata_size": 16}):
+                    with self.subTest(incomplete=incomplete), self.assertRaises(ctr_match.MatchError):
+                        ctr_match.validate_layout_config({**config, "function_padding": {"Test_Read": 4}, "linked_block": incomplete})
+                with self.assertRaises(ctr_match.MatchError):
+                    ctr_match.validate_layout_config({
+                        **config,
+                        "bss_ranges": [{"output_section": ".bss.state", "symbol": "state", "symbol_address": "0x80020000", "offset": 0, "size": 4}],
+                        "linked_block": rodata_block,
+                    })
+                with self.assertRaises(ctr_match.MatchError):
+                    ctr_match.validate_layout_config({**config, "function_padding": {"Test_Read": 4}, "data_ranges": []})
+                bad_rodata_sections = {
+                    ".resident_block_0": {"address": 0x1000, "size": 12, "flags": {"CONTENTS", "ALLOC", "LOAD", "CODE"}, "elf_type": 1, "elf_flags": 6},
+                    ".rodata": {"address": 0x80011000, "size": 16, "flags": {"CONTENTS", "ALLOC", "LOAD"}, "elf_type": 1, "elf_flags": 3},
+                }
+                padded_rodata = {**config, "function_padding": {"Test_Read": 4}, "linked_block": rodata_block}
+                with mock.patch.object(ctr_match, "allocated_sections", return_value=bad_rodata_sections), \
+                     mock.patch.object(ctr_match, "linked_symbols", return_value={}):
+                    with self.assertRaisesRegex(ctr_match.MatchError, "joint .rodata section is not A PROGBITS"):
+                        ctr_resident.compare_linked_intervals(
+                            {"artifacts": []}, mock.MagicMock(binutils={"objdump": Path("objdump")}),
+                            padded_rodata, root, selected, root / "block.elf",
+                            [(".resident_block_0", symbols[0], symbols[1])],
+                        )
 
     def test_descriptor_parser_rejects_malformed_values_as_match_error(self):
         descriptor = {"output_section": ".bss.state", "symbol": "state", "symbol_address": "0x80020000", "offset": 0, "size": 4}

@@ -611,6 +611,10 @@ def compare_linked_intervals(
             ctr_match.verify_initialized_owners(ctr_match.data_ranges(config), sections, owners)
         if "bss_ranges" in config:
             ctr_match.verify_bss_owners(ctr_match.bss_ranges(config), sections, owners)
+        if "rodata_address" in config["linked_block"]:
+            rodata = sections[".rodata"]
+            if rodata["elf_type"] != 1 or rodata["elf_flags"] != 2:
+                raise ctr_match.MatchError("joint .rodata section is not A PROGBITS")
         if any(key in config for key in ("bss_ranges", "function_padding")):
             verify_code_owners(owners, {span[0]: sections[span[0]] for span in intervals}, functions)
     spans = []
@@ -968,9 +972,11 @@ def validate_layout_result(
     block = result["linked_block"]
     if block.get("error"):
         raise ctr_match.MatchError("BSS/padding result has no sealed joint ownership proof")
-    if any(key in block for key in ("data_ranges", "data")) or any(block.get(key) is not None for key in (
+    has_rodata = "rodata_address" in config["linked_block"]
+    if any(key in block for key in ("data_ranges", "data")) or (
+        not has_rodata and any(block.get(key) is not None for key in (
             "rodata_address", "rodata_size", "rodata_exact", "rodata_placement_exact",
-            "rodata_candidate_size", "rodata_expected_sha256", "rodata_candidate_sha256")):
+            "rodata_candidate_size", "rodata_expected_sha256", "rodata_candidate_sha256"))):
         raise ctr_match.MatchError("BSS/padding proof contains unsupported mixed DATA/rodata claims")
     tools = ctr_match.resolve_toolchain(manifest)
     elf = ctr_match.repository_path(block["elf"])
@@ -981,6 +987,8 @@ def validate_layout_result(
     bss_ranges = ctr_match.bss_ranges(config)
     allowed = {item["section"] for item in block["code_intervals"]}
     allowed.update(item["output_section"] for item in bss_ranges)
+    if has_rodata:
+        allowed.add(".rodata")
     if set(sections) != allowed:
         raise ctr_match.MatchError("joint proof has missing or undeclared allocated storage")
     ctr_match.reject_overlapping_ranges(sections.values(), "joint proof sections")
@@ -1094,15 +1102,36 @@ def validate_layout_result(
         layout_matching += measurement["matching_bytes"]
         layout_expected += len(expected)
         all_exact &= actual == expected
+    rodata_exact = True
+    if has_rodata:
+        rodata_address = ctr_match.parse_int(config["linked_block"]["rodata_address"])
+        rodata_size = ctr_match.parse_int(config["linked_block"]["rodata_size"])
+        rodata_section = sections[".rodata"]
+        actual_rodata = ctr_match.elf_section_contents(elf, ".rodata")
+        expected_rodata = ctr_match.reference_bytes(
+            manifest, references, {"region": config["artifact"], "address": rodata_address, "size": rodata_size}
+        )
+        rodata_exact = actual_rodata == expected_rodata
+        if (rodata_section["elf_type"] != 1 or rodata_section["elf_flags"] != 2
+                or rodata_section["address"] != rodata_address or rodata_section["size"] != rodata_size
+                or block.get("rodata_address") != f"0x{rodata_address:08x}"
+                or block.get("rodata_size") != rodata_size
+                or block.get("rodata_candidate_size") != len(actual_rodata)
+                or block.get("rodata_expected_sha256") != ctr_match.sha256_bytes(expected_rodata)
+                or block.get("rodata_candidate_sha256") != ctr_match.sha256_bytes(actual_rodata)
+                or block.get("rodata_placement_exact") is not True
+                or block.get("rodata_exact") != rodata_exact):
+            raise ctr_match.MatchError("cached rodata proof changed")
     if block["code"] != {"matching_bytes": body_matching, "expected_size": body_expected, "exact": all_exact}:
         raise ctr_match.MatchError("cached CODE summary changed")
     if "function_padding" in config:
         if (block["function_padding"] != padding or block["padding"] != {"size": sum(item["size"] for item in padding), "exact": True}
                 or block["layout"] != {"matching_bytes": layout_matching, "expected_size": layout_expected, "exact": all_exact}):
             raise ctr_match.MatchError("cached CODE/PAD/layout summary changed")
+    overall_exact = all_exact and rodata_exact
     if (result["exact_function_count"] != sum(item["exact"] for item in result["functions"])
-            or result["selected_exact"] != (all(item["exact"] for item in result["functions"]) and all_exact)
-            or block["exact"] != all_exact or result["exact"] != (result["complete"] and all_exact)):
+            or result["selected_exact"] != (all(item["exact"] for item in result["functions"]) and overall_exact)
+            or block["exact"] != overall_exact or result["exact"] != (result["complete"] and overall_exact)):
         raise ctr_match.MatchError("cached exactness summary changed")
 
 

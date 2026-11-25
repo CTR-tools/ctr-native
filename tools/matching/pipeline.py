@@ -1291,9 +1291,12 @@ def validate_layout_config(config: dict[str, Any]) -> None:
     if (config.get("kind") != "resident" or "code_intervals" not in config
             or "linker_script" not in config or not isinstance(config.get("linked_block"), dict)):
         raise MatchError("BSS/padding ownership requires a resident joint linked interval target")
-    if any(key in config for key in ("data_ranges", "data_range")) or any(
-            key in config["linked_block"] for key in ("rodata_address", "rodata_size")):
-        raise MatchError("BSS/padding ownership does not support mixed initialized DATA or rodata")
+    block = config["linked_block"]
+    if any(key in config for key in ("data_ranges", "data_range")) or (
+            "bss_ranges" in config and any(key in block for key in ("rodata_address", "rodata_size"))):
+        raise MatchError("BSS/padding ownership does not support mixed initialized DATA or BSS+rodata")
+    if ("rodata_address" in block) != ("rodata_size" in block):
+        raise MatchError("linked block needs both rodata address and size")
     bss_ranges(config)
 
 
