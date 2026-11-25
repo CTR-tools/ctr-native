@@ -510,6 +510,182 @@ done:
 	return ret;
 }
 
+void _mtapFailAuto(struct PsxPadSlot *slot, s32 unused)
+{
+	// NOTE(aalhendi): Keep slot in $s1 so the recursive multitap loop assigns
+	// the loop counter to $s2 and idHi stays materialized in $s3 before checks.
+	register struct PsxPadSlot *s CTR_PSX_REGISTER("$17") = slot;
+	u32 idHi;
+	struct PsxPadSlot *sub;
+	u8 prev55;
+
+	(void)unused;
+	idHi = s->rxBuf[0] >> 4;
+	CTR_PSX_KEEP_VALUE(idHi);
+	if (s->mtapType != 8)
+	{
+		if (idHi == 8 && s == s->parent)
+		{
+			s->mtapType = (u8)idHi;
+			s->recvBuf[0] = 0xff;
+			s->recvBuf[1] = 0x80;
+			s->recvLen = 2;
+		}
+	}
+	if (s->mtapType == 8)
+	{
+		sub = s->subSlots;
+		if (sub != NULL)
+		{
+			s32 i;
+
+			for (i = 0; i < 4; i++)
+			{
+				_mtapFailAuto(sub++, -1);
+			}
+		}
+	}
+	sub = s->parent->subSlots;
+	if (s->subSlots != NULL && s->flag55 == 0 && ((sub++)->flag56 != 0 || (sub++)->flag56 != 0 || (sub++)->flag56 != 0 || sub->flag56 != 0))
+	{
+		if (s->failCount == 0)
+		{
+			s->failCount = 1;
+		}
+		return;
+	}
+	sub = s->parent->subSlots;
+	if (s->subSlots == NULL && s->flag56 == 0 &&
+	    (s->parent->flag55 != 0 || (sub++)->flag56 != 0 || (sub++)->flag56 != 0 || (sub++)->flag56 != 0 || sub->flag56 != 0))
+	{
+		if (s->failCount == 0)
+		{
+			s->failCount = 1;
+		}
+		return;
+	}
+	prev55 = s->flag55;
+	s->flag55 = 0;
+	s->failTicks++;
+	s->flag57 = s->flag56;
+	s->flag56 = prev55;
+	if (s->cmdStage != 0)
+	{
+		if (s->cmdStage == 1)
+		{
+			if (s->failCount < 11 && s->mtapType != 8)
+			{
+				s->failCount++;
+				return;
+			}
+			if (s->modeId != 0)
+			{
+				if (s->failCount < 21)
+				{
+					s->failCount++;
+					return;
+				}
+				psxPadResetSlot(s);
+			}
+			s->state = 2;
+			if (s->mtapType != 8)
+			{
+				if (s->subSlots != NULL)
+				{
+					s->flag56 = 0;
+					s->flag55 = 0;
+				}
+				s->cmdStage = 0xff;
+			}
+			else
+			{
+				s->cmdStage = 0xfe;
+			}
+			return;
+		}
+		if (s->failCount < 11)
+		{
+			s->failCount++;
+			return;
+		}
+	}
+	if (s->state != 0)
+	{
+		s->recvBuf[0] = 0xff;
+		s->recvBuf[1] = 0;
+		s->mtapType = 0;
+		s->recvLen = 0;
+		psxPadResetSlot(s);
+	}
+	if (idHi != 8)
+	{
+		if (s->mtapType == 8)
+		{
+			s->mtapType = 0;
+			s->recvBuf[1] = 0;
+		}
+	}
+	else if (s->subSlots != NULL)
+	{
+		s->mtapType = (u8)idHi;
+		s->recvBuf[1] = 0x80;
+	}
+}
+
+s32 _mtapCanExecCmd(struct PsxPadSlot *slot)
+{
+	// NOTE(aalhendi): Converge leaf returns on $v0 and place the sub-slot load
+	// delay before the loop header so the back-edge targets the first loop load.
+	register s32 ret CTR_PSX_REGISTER("$2");
+
+	if (slot->modeId == 0)
+	{
+		ret = 1;
+	}
+	else if (slot->subSlots != NULL)
+	{
+		if (slot->cmdStage != 0xff)
+		{
+			ret = 1;
+		}
+		else
+		{
+			struct PsxPadSlot *sub;
+			struct PsxPadSlot *parent;
+			s32 i CTR_PSX_GLOBAL_REGISTER_HINT("$5") = 0;
+			u32 idleStage;
+
+			parent = slot->parent;
+			idleStage = 0xff;
+			CTR_PSX_LOAD_WORD_DELAYED(sub, parent->subSlots);
+			do
+			{
+				if (sub->cmdStage != idleStage && sub->cmdStage != 0)
+				{
+					ret = 1;
+					goto done;
+				}
+				i++;
+				sub++;
+			} while (i < 4);
+			ret = 0;
+		}
+	}
+	else
+	{
+		s32 res = 0;
+
+		if (slot->parent->cmdStage != 0xff || slot->cmdStage != 0xff)
+		{
+			res = 1;
+		}
+		ret = res;
+	}
+done:
+	CTR_PSX_KEEP_VALUE(ret);
+	return ret;
+}
+
 s32 ReadInitPadFlag(void)
 {
 	return psxInitPadFlag;

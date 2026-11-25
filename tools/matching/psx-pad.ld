@@ -24,7 +24,11 @@ SECTIONS
         KEEP(*(._padSendLoadActInfo))
         KEEP(*(._padRecvLoadActInfo))
     } = 0
-    .resident_block_3 0x80080630 : SUBALIGN(4) {
+    .resident_block_3 0x8007f47c : SUBALIGN(4) {
+        KEEP(*(._mtapFailAuto))
+        KEEP(*(._mtapCanExecCmd)) . = 0x404;
+    } = 0
+    .resident_block_4 0x80080630 : SUBALIGN(4) {
         KEEP(*(.ReadInitPadFlag))
     } = 0
     /DISCARD/ : { *(.reginfo) *(.MIPS.abiflags) *(.pdr) *(.gnu.attributes) *(.comment) }

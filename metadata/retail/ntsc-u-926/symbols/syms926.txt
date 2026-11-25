@@ -1393,6 +1393,7 @@
 8007da0c _padRecvLoadActInfo
 8007de04 _padCmdParaMode
 8007f47c _mtapFailAuto
+8007f7c8 _mtapCanExecCmd
 8007f880 SysDeqIntRP
 8007f890 SysEnqIntRP
 8007f8a0 _SpuIsInAllocateArea_

@@ -42,7 +42,7 @@ struct PsxPadSlot
 	u32 unk2c;
 	u8 *recvBuf;
 	u8 actLen;
-	u8 unk35;
+	u8 recvLen;
 	u8 unk36;
 	u8 flag55;
 	u8 flag56;
@@ -56,7 +56,10 @@ struct PsxPadSlot
 	u8 cmdSubIdx;
 	u8 combRem;
 	u8 state;
-	u8 unk4a[7];
+	u8 failCount;
+	u8 unk4b;
+	u32 failTicks;
+	u8 unk50;
 	u8 modeOffs;
 	u8 modeLock;
 	u8 modeSame;
@@ -67,7 +70,7 @@ struct PsxPadSlot
 	u8 curMode;
 	u8 unkE5;
 	u16 modeId;
-	u8 unkE8;
+	u8 mtapType;
 	u8 numAct;
 	u8 numComb;
 	u8 checkFlag;
@@ -96,6 +99,8 @@ extern s32 _padGetActSize(struct PsxPadSlot *slot);
 extern s32 _padLoadActInfo(struct PsxPadSlot *slot, u8 *buf);
 extern void _padSendLoadActInfo(struct PsxPadSlot *slot);
 extern s32 _padRecvLoadActInfo(struct PsxPadSlot *slot);
+extern void _mtapFailAuto(struct PsxPadSlot *slot, s32 unused);
+extern s32 _mtapCanExecCmd(struct PsxPadSlot *slot);
 extern void SysDeqIntRP(s32 prio, void *node);
 extern void ChangeClearRCnt(s32 spec, s32 flag);
 

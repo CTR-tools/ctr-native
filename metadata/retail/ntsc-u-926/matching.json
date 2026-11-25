@@ -6584,6 +6584,7 @@
         {"start_symbol": "PadGetState", "end_symbol": "PadInitMtap"},
         {"start_symbol": "PadStopCom", "end_symbol": "strcpy"},
         {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padCmdParaMode"},
+        {"start_symbol": "_mtapFailAuto", "end_symbol": "SysDeqIntRP"},
         {"start_symbol": "ReadInitPadFlag", "end_symbol": "InitCARD2"}
       ],
       "linker_script": "tools/matching/psx-pad.ld",
@@ -6605,7 +6606,8 @@
         "PadGetState": 4,
         "_padRecvActAlign": 4,
         "_padRecvMainMode": 12,
-        "PadInfoAct": 12
+        "PadInfoAct": 12,
+        "_mtapCanExecCmd": 12
       },
       "link_symbols": {
         "psxPadResetSlot": "0x8008c770",
