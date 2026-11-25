@@ -6608,6 +6608,44 @@
         "psxPadSendCmd4c": "0x8007de38",
         "psxPadSendCmd4cExtra": "0x8007de78"
       }
+    },
+    {
+      "name": "psx-sdk-spu-dma",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_SpuDmaIrq.c",
+        "game/PSX/PSX_SDK_SpuDma.c"
+      ],
+      "start_symbol": "_spu_FiDMA",
+      "end_symbol": "_spu_FsetRXXa",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_SpuDmaIrq.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "psxSpuSdkRegs": "0x8008c3b4",
+        "psxSpuDmaMadr": "0x8008c3b8",
+        "psxSpuDmaBcr": "0x8008c3bc",
+        "psxSpuDmaChcr": "0x8008c3c0",
+        "psxSpuTsa": "0x8008c3cc",
+        "psxSpuTransferMode": "0x8008c3d0",
+        "psxSpuMemModePlus": "0x8008c3dc",
+        "psxSpuTransferCallback": "0x8008c3ec",
+        "psxSpuDmaDir": "0x8008c404",
+        "psxSpuDmaAddr": "0x8008c408",
+        "psxSpuDmaBlocks": "0x8008c40c",
+        "psxSpuWriteByIO": "0x8007a974",
+        "psxSpuSetDmaWriteMode": "0x8007b0dc",
+        "psxSpuSetDmaReadMode": "0x8007b104",
+        "psxSpuWaitReady": "0x8007b12c"
+      }
     }
   ]
 }

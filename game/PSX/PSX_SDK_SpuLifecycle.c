@@ -16,6 +16,9 @@ u32 SpuSetTransferStartAddr(u32 addr)
 		return 0;
 	}
 	psxSpuTsa = (u16)_spu_FsetRXXa(-1, addr);
+	// NOTE(aalhendi): Match retail reload of psxSpuTsa before shifting by
+	// psxSpuMemModePlus.
+	CTR_PSX_MEMORY_BARRIER();
 	return (u32)psxSpuTsa << psxSpuMemModePlus;
 }
 

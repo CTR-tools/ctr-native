@@ -211,6 +211,8 @@
 #include "PSX/PSX_SDK_GpuOrder.c"
 #include "PSX/PSX_SDK_PadState.c"
 #include "PSX/PSX_SDK_PadCore.c"
+#include "PSX/PSX_SDK_SpuDmaIrq.c"
+#include "PSX/PSX_SDK_SpuDma.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"
