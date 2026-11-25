@@ -6709,6 +6709,43 @@
         "psxSpuMemModePlus": "0x8008c3dc",
         "psxSpuMemList": "0x8008cb64"
       }
+    },
+    {
+      "name": "psx-sdk-intr-dma",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_IntrDmaInit.c",
+        "game/PSX/PSX_SDK_IntrDma.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "startIntrDMA", "end_symbol": "ReturnFromException"}
+      ],
+      "linker_script": "tools/matching/psx-intr-dma.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_IntrDmaInit.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {
+        "rodata_address": "0x800123b0",
+        "rodata_size": 43
+      },
+      "function_rodata_addresses": {
+        "_trapIntrDMA": "0x800123b0"
+      },
+      "function_padding": {
+        "_clearIntrDMATable": 4
+      },
+      "link_symbols": {
+        "psxDmaDicr": "0x8008cb04",
+        "psxDmaCallbacks": "0x8008cb08",
+        "psxDmaMadrBase": "0x8008cb28"
+      }
     }
   ]
 }

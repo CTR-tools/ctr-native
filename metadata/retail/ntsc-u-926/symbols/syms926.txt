@@ -1402,6 +1402,9 @@
 80080260 setjmp
 80080270 HookEntryInt
 80080280 startIntrDMA
+800802cc _trapIntrDMA
+8008044c _setIntrDMA
+800804f8 _clearIntrDMATable
 80080520 ReturnFromException
 80080530 ResetEntryInt
 80080540 _patch_gte
