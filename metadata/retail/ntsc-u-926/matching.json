@@ -6569,6 +6569,45 @@
         "psxGpuOtHead": "0x8008ae40",
         "psxGpuBuildDrawEnv": "0x80073bb8"
       }
+    },
+    {
+      "name": "psx-sdk-pad",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_PadState.c",
+        "game/PSX/PSX_SDK_PadCore.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "PadGetState", "end_symbol": "PadInitMtap"},
+        {"start_symbol": "PadStopCom", "end_symbol": "PadSetActAlign"},
+        {"start_symbol": "PadSetAct", "end_symbol": "PadInfoAct"},
+        {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padLoadActInfo"},
+        {"start_symbol": "ReadInitPadFlag", "end_symbol": "InitCARD2"}
+      ],
+      "linker_script": "tools/matching/psx-pad.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_PadState.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {
+        "PadGetState": 4
+      },
+      "link_symbols": {
+        "psxPadResetSlot": "0x8008c770",
+        "psxPadResolvePort": "0x8008c780",
+        "psxPadIntrNode": "0x8008c7cc",
+        "psxInitPadFlag": "0x8008cb3c",
+        "psxPadSendCmd45": "0x8007de24",
+        "psxPadSendCmd4c": "0x8007de38",
+        "psxPadSendCmd4cExtra": "0x8007de78"
+      }
     }
   ]
 }
