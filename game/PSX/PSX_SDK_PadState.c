@@ -75,3 +75,26 @@ void _padSendAtLoadInfo(struct PsxPadSlot *slot)
 		break;
 	}
 }
+
+void _padSendLoadActInfo(struct PsxPadSlot *slot)
+{
+	switch (slot->cmdStage)
+	{
+	case 2:
+		psxPadSendCmd4c(slot, slot->cmdSubIdx);
+		break;
+	case 3:
+		psxPadSendCmd4cAct(slot, slot->cmdSubIdx);
+		break;
+	case 4:
+		if (slot->combRem == 0)
+		{
+			psxPadSendCmd4cExtra(slot, slot->cmdSubIdx);
+		}
+		else
+		{
+			psxPadSendCmd4cNext(slot);
+		}
+		break;
+	}
+}

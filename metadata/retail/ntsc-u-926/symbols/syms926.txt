@@ -1389,6 +1389,8 @@
 8007d5e8 _padRecvAtLoadInfo
 8007d858 _padGetActSize
 8007d890 _padLoadActInfo
+8007d964 _padSendLoadActInfo
+8007da0c _padRecvLoadActInfo
 8007de04 _padCmdParaMode
 8007f47c _mtapFailAuto
 8007f880 SysDeqIntRP

@@ -19,11 +19,18 @@ struct PsxPadActInfo
 	u8 sign;
 };
 
+struct PsxPadCombEntry
+{
+	u8 len;
+	u8 pad[3];
+	u8 *data;
+};
+
 struct PsxPadSlot
 {
-	u32 unk00;
+	u16 *modeTable;
 	struct PsxPadActInfo *actInfo;
-	u32 unk08;
+	struct PsxPadCombEntry *combTable;
 	struct PsxPadSlot *subSlots;
 	struct PsxPadSlot *parent;
 	void (*sendCb)(struct PsxPadSlot *);
@@ -47,7 +54,7 @@ struct PsxPadSlot
 	u8 unk44[2];
 	u8 cmdStage;
 	u8 cmdSubIdx;
-	u8 unk48;
+	u8 combRem;
 	u8 state;
 	u8 unk4a[7];
 	u8 modeOffs;
@@ -73,6 +80,7 @@ extern struct PsxPadSlot *(*psxPadResolvePort)(int port);
 extern s32 (*psxPadCanExecCmd)(struct PsxPadSlot *slot);
 extern u8 psxPadIntrNode[];
 extern s32 psxInitPadFlag;
+extern u8 *psxPadCombCursor;
 
 extern void PadSetCmd(struct PsxPadSlot *slot, s32 cmd, u8 *buf, s32 len);
 extern void _padSendActAlign(struct PsxPadSlot *slot);
@@ -81,9 +89,13 @@ extern void _padSendMainMode(struct PsxPadSlot *slot);
 extern s32 _padRecvMainMode(struct PsxPadSlot *slot);
 extern void psxPadSendCmd45(struct PsxPadSlot *slot);
 extern void psxPadSendCmd4c(struct PsxPadSlot *slot, u8 curMode);
+extern void psxPadSendCmd4cAct(struct PsxPadSlot *slot, u8 subIdx);
 extern void psxPadSendCmd4cExtra(struct PsxPadSlot *slot, u8 subIdx);
+extern void psxPadSendCmd4cNext(struct PsxPadSlot *slot);
 extern s32 _padGetActSize(struct PsxPadSlot *slot);
-extern void _padLoadActInfo(struct PsxPadSlot *slot, u8 *buf);
+extern s32 _padLoadActInfo(struct PsxPadSlot *slot, u8 *buf);
+extern void _padSendLoadActInfo(struct PsxPadSlot *slot);
+extern s32 _padRecvLoadActInfo(struct PsxPadSlot *slot);
 extern void SysDeqIntRP(s32 prio, void *node);
 extern void ChangeClearRCnt(s32 spec, s32 flag);
 

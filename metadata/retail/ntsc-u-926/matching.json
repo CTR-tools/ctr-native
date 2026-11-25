@@ -6583,7 +6583,7 @@
       "code_intervals": [
         {"start_symbol": "PadGetState", "end_symbol": "PadInitMtap"},
         {"start_symbol": "PadStopCom", "end_symbol": "strcpy"},
-        {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padLoadActInfo"},
+        {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padCmdParaMode"},
         {"start_symbol": "ReadInitPadFlag", "end_symbol": "InitCARD2"}
       ],
       "linker_script": "tools/matching/psx-pad.ld",
@@ -6613,9 +6613,12 @@
         "psxPadCanExecCmd": "0x8008c788",
         "psxPadIntrNode": "0x8008c7cc",
         "psxInitPadFlag": "0x8008cb3c",
+        "psxPadCombCursor": "0x8009ec94",
         "psxPadSendCmd45": "0x8007de24",
         "psxPadSendCmd4c": "0x8007de38",
-        "psxPadSendCmd4cExtra": "0x8007de78"
+        "psxPadSendCmd4cAct": "0x8007de58",
+        "psxPadSendCmd4cExtra": "0x8007de78",
+        "psxPadSendCmd4cNext": "0x8007de98"
       }
     },
     {

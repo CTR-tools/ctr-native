@@ -262,6 +262,254 @@ s32 _padGetActSize(struct PsxPadSlot *slot)
 	return modeBytes + actBytes + (s32)extra;
 }
 
+s32 _padLoadActInfo(struct PsxPadSlot *slot, u8 *buf)
+{
+	// NOTE(aalhendi): Keep slot in $a0 across the NULL/actInfo checks so the
+	// indirect psxPadCanExecCmd call omits a redundant move $a0,$s0 in its
+	// delay slot, and keep the return/state literals in retail order.
+	register struct PsxPadSlot *slotArg CTR_PSX_REGISTER("$4") = slot;
+
+	if (buf == NULL)
+	{
+		goto fail;
+	}
+	if (slot->actInfo != NULL)
+	{
+		return 0;
+	}
+	if (psxPadCanExecCmd(slotArg) != 0)
+	{
+	fail:
+		return 0;
+	}
+	{
+		s32 ret = 1;
+		u8 *p;
+
+		CTR_PSX_FORGET_VALUE(ret);
+		{
+			s32 reqState = PadStateReqInfo;
+
+			CTR_PSX_KEEP_VALUE(reqState);
+			p = (u8 *)((((s32)buf + 3) >> 2) << 2);
+			slot->state = (u8)reqState;
+		}
+		slot->cmdStage = 1;
+		slot->sendCb = _padSendLoadActInfo;
+		slot->recvCb = _padRecvLoadActInfo;
+		slot->modeTable = (u16 *)p;
+		slot->cmdSubIdx = 0;
+		p += (((s32)slot->numModes + 1) >> 1) << 2;
+		slot->actInfo = (struct PsxPadActInfo *)p;
+		p += ((s32)slot->numAct * 5 + 3) & 0xffc;
+		slot->combTable = (struct PsxPadCombEntry *)p;
+		return ret;
+	}
+}
+
+s32 _padRecvLoadActInfo(struct PsxPadSlot *slot)
+{
+	// NOTE(aalhendi): Keep the leaf return converged on $v0 and preserve retail
+	// arithmetic right-shift and combination-loop register allocation.
+	register s32 ret CTR_PSX_REGISTER("$2");
+
+	switch (slot->cmdStage)
+	{
+	case 2:
+	{
+		u8 *rx = slot->rxBuf;
+		u16 *modes;
+
+		if ((rx[2] != 0) || (rx[3] != 0))
+		{
+			ret = 0;
+			goto done;
+		}
+		modes = slot->modeTable;
+		modes[slot->cmdSubIdx] = (u16)(((u32)rx[4] << 8) + rx[5]);
+		if (slot->verifyVal != slot->modeTable[slot->cmdSubIdx])
+		{
+			slot->verifyVal = slot->modeTable[slot->cmdSubIdx];
+			ret = 0;
+			goto done;
+		}
+		slot->verifyVal = 0;
+		slot->checkFlag = 0;
+		slot->cmdSubIdx++;
+		if (slot->cmdSubIdx < slot->numModes)
+		{
+			ret = 0;
+			goto done;
+		}
+		slot->cmdSubIdx = 0;
+		break;
+	}
+	case 3:
+	{
+		u8 *rx = slot->rxBuf;
+		struct PsxPadActInfo *info;
+
+		if ((rx[2] != 0) || (rx[3] != 0))
+		{
+			ret = 0;
+			goto done;
+		}
+		info = &slot->actInfo[slot->cmdSubIdx];
+		{
+			s32 b5;
+
+			if ((info->func == rx[4]) && (info->sub == (rx[5] & 0x7f)) && (info->size == rx[6]) && (info->curr == rx[7]))
+			{
+				b5 = rx[5];
+				CTR_PSX_FORGET_VALUE(b5);
+				if (info->sign == (b5 >> 7))
+				{
+					slot->verifyVal = 0;
+				}
+				else
+				{
+					slot->verifyVal = 0xffff;
+				}
+			}
+			else
+			{
+				slot->verifyVal = 0xffff;
+			}
+			info->func = slot->rxBuf[4];
+			info->sub = slot->rxBuf[5] & 0x7f;
+			info->size = slot->rxBuf[6];
+			info->curr = slot->rxBuf[7];
+			b5 = slot->rxBuf[5];
+			CTR_PSX_FORGET_VALUE(b5);
+			info->sign = (u8)(b5 >> 7);
+		}
+		if (slot->verifyVal != 0)
+		{
+			ret = 0;
+			goto done;
+		}
+		slot->checkFlag = 0;
+		slot->cmdSubIdx++;
+		if (slot->cmdSubIdx < slot->numAct)
+		{
+			ret = 0;
+			goto done;
+		}
+		slot->cmdSubIdx = 0;
+		slot->combRem = 0;
+		break;
+	}
+	case 4:
+	{
+		u8 *rx = slot->rxBuf;
+		struct PsxPadCombEntry *comb;
+		u8 *src;
+		register s32 count CTR_PSX_REGISTER("$7");
+		s32 firstStop;
+
+		if (rx[2] != 0)
+		{
+			slot->combRem = 0;
+			ret = 0;
+			goto done;
+		}
+		comb = &slot->combTable[slot->cmdSubIdx];
+		if (slot->combRem == 0)
+		{
+			u8 len = rx[4];
+			u8 *data;
+
+			slot->combRem = len;
+			comb->len = len;
+			count = 3;
+			CTR_PSX_FORGET_VALUE(count);
+			src = &slot->rxBuf[5];
+			if (slot->cmdSubIdx == 0)
+			{
+				data = (u8 *)slot->combTable + ((u32)slot->numComb << 3);
+			}
+			else
+			{
+				data = comb[-1].data + ((comb[-1].len + 3) & 0x1fc);
+			}
+			comb->data = data;
+			psxPadCombCursor = data;
+		}
+		else
+		{
+			count = 5;
+			src = &rx[3];
+		}
+		count--;
+		firstStop = -1;
+		CTR_PSX_FORGET_VALUE(firstStop);
+		if (count != firstStop)
+		{
+			register u8 *endPtr CTR_PSX_REGISTER("$8") = &slot->numModes;
+			register u16 mismatch CTR_PSX_REGISTER("$10") = 0xffff;
+			u8 **cursorPtr = &psxPadCombCursor;
+			register s32 stop CTR_PSX_REGISTER("$9");
+
+			CTR_PSX_KEEP_VALUE(endPtr);
+			CTR_PSX_KEEP_VALUE(mismatch);
+			CTR_PSX_KEEP_VALUE(cursorPtr);
+			stop = -1;
+			CTR_PSX_KEEP_VALUE(stop);
+			do
+			{
+				if (slot->combRem == 0)
+				{
+					goto check_verify;
+				}
+				if (psxPadCombCursor >= endPtr)
+				{
+					slot->cmdSubIdx = 0;
+					slot->combRem = 0;
+					ret = 0;
+					goto done;
+				}
+				if (*psxPadCombCursor != *src)
+				{
+					slot->verifyVal = mismatch;
+				}
+				*(*cursorPtr)++ = *src++;
+				slot->combRem--;
+			} while (--count != stop);
+		}
+		if (slot->combRem != 0)
+		{
+			ret = 0;
+			goto done;
+		}
+	check_verify:
+		if (slot->verifyVal != 0)
+		{
+			slot->verifyVal = 0;
+			slot->combRem = 0;
+			ret = 0;
+			goto done;
+		}
+		slot->cmdSubIdx++;
+		if (slot->cmdSubIdx >= slot->numComb)
+		{
+			slot->state = PadStateStable;
+			slot->cmdStage = 0xfe;
+			slot->checkFlag = 0;
+			ret = 0;
+			goto done;
+		}
+		slot->combRem = 0;
+		slot->checkFlag = 0;
+		ret = 0;
+		goto done;
+	}
+	}
+	ret = 1;
+done:
+	CTR_PSX_KEEP_VALUE(ret);
+	return ret;
+}
+
 s32 ReadInitPadFlag(void)
 {
 	return psxInitPadFlag;

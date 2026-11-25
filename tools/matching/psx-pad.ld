@@ -20,6 +20,9 @@ SECTIONS
         KEEP(*(._padSendAtLoadInfo))
         KEEP(*(._padRecvAtLoadInfo))
         KEEP(*(._padGetActSize))
+        KEEP(*(._padLoadActInfo))
+        KEEP(*(._padSendLoadActInfo))
+        KEEP(*(._padRecvLoadActInfo))
     } = 0
     .resident_block_3 0x80080630 : SUBALIGN(4) {
         KEEP(*(.ReadInitPadFlag))
