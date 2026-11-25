@@ -184,6 +184,8 @@
 #include "PSX/PSX_SDK_CDState.c"
 #include "PSX/PSX_SDK_CDTransfer.c"
 #include "PSX/PSX_SDK_CDForward.c"
+#include "PSX/PSX_SDK_CDRead.c"
+#include "PSX/PSX_SDK_CDDiskReady.c"
 #include "PSX/PSX_SDK_StreamState.c"
 #include "PSX/PSX_SDK_Stream.c"
 #include "PSX/PSX_SDK_StreamSetup.c"

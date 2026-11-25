@@ -6456,6 +6456,32 @@
       "link_symbols": {
         "_patch_card_entry": "0x800806e8"
       }
+    },
+    {
+      "name": "psx-sdk-cd-read",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "Cd",
+      "sources": [
+        "game/PSX/PSX_SDK_CDRead.c",
+        "game/PSX/PSX_SDK_CDDiskReady.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "CdRead", "end_symbol": "CdReadCallback"},
+        {"start_symbol": "CdDiskReady", "end_symbol": "StCdInterrupt"}
+      ],
+      "linker_script": "tools/matching/psx-cd-read.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "CD_dataMode": "0x8008ad14",
+        "CD_readState": "0x8008af00",
+        "CD_read_retry": "0x80076d28"
+      }
     }
   ]
 }
