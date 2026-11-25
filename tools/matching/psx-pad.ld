@@ -1,21 +1,27 @@
 OUTPUT_ARCH(mips)
 SECTIONS
 {
+    .rodata 0x80011eb0 : SUBALIGN(4) { *(.rodata) *(.rodata.*) }
     .resident_block_0 0x80075590 : SUBALIGN(4) {
         KEEP(*(.PadGetState)) . = 0xd0;
     } = 0
     .resident_block_1 0x8007588c : SUBALIGN(4) {
         KEEP(*(.PadStopCom))
-    } = 0
-    .resident_block_2 0x80075ba0 : SUBALIGN(4) {
+        KEEP(*(.PadSetActAlign))
+        KEEP(*(._padSendActAlign))
+        KEEP(*(._padRecvActAlign)) . = 0x1b4;
+        KEEP(*(.PadSetMainMode))
+        KEEP(*(._padSendMainMode))
+        KEEP(*(._padRecvMainMode)) . = 0x314;
         KEEP(*(.PadSetAct))
+        KEEP(*(.PadInfoAct)) . = 0x434;
     } = 0
-    .resident_block_3 0x8007d564 : SUBALIGN(4) {
+    .resident_block_2 0x8007d564 : SUBALIGN(4) {
         KEEP(*(._padSendAtLoadInfo))
         KEEP(*(._padRecvAtLoadInfo))
         KEEP(*(._padGetActSize))
     } = 0
-    .resident_block_4 0x80080630 : SUBALIGN(4) {
+    .resident_block_3 0x80080630 : SUBALIGN(4) {
         KEEP(*(.ReadInitPadFlag))
     } = 0
     /DISCARD/ : { *(.reginfo) *(.MIPS.abiflags) *(.pdr) *(.gnu.attributes) *(.comment) }

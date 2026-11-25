@@ -6582,8 +6582,7 @@
       ],
       "code_intervals": [
         {"start_symbol": "PadGetState", "end_symbol": "PadInitMtap"},
-        {"start_symbol": "PadStopCom", "end_symbol": "PadSetActAlign"},
-        {"start_symbol": "PadSetAct", "end_symbol": "PadInfoAct"},
+        {"start_symbol": "PadStopCom", "end_symbol": "strcpy"},
         {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padLoadActInfo"},
         {"start_symbol": "ReadInitPadFlag", "end_symbol": "InitCARD2"}
       ],
@@ -6595,13 +6594,23 @@
       },
       "small_data_limit": 0,
       "aspsx_version": "2.77",
-      "linked_block": {},
+      "linked_block": {
+        "rodata_address": "0x80011eb0",
+        "rodata_size": 20
+      },
+      "function_rodata_addresses": {
+        "PadInfoAct": "0x80011eb0"
+      },
       "function_padding": {
-        "PadGetState": 4
+        "PadGetState": 4,
+        "_padRecvActAlign": 4,
+        "_padRecvMainMode": 12,
+        "PadInfoAct": 12
       },
       "link_symbols": {
         "psxPadResetSlot": "0x8008c770",
         "psxPadResolvePort": "0x8008c780",
+        "psxPadCanExecCmd": "0x8008c788",
         "psxPadIntrNode": "0x8008c7cc",
         "psxInitPadFlag": "0x8008cb3c",
         "psxPadSendCmd45": "0x8007de24",

@@ -10,10 +10,19 @@
 // NOTE(aalhendi): Retail libpad keeps controller slot descriptors and driver
 // globals across 0x8008c770..0x8008cb3c; these declarations name existing
 // storage only.
+struct PsxPadActInfo
+{
+	u8 func;
+	u8 sub;
+	u8 size;
+	u8 curr;
+	u8 sign;
+};
+
 struct PsxPadSlot
 {
 	u32 unk00;
-	void *actInfo;
+	struct PsxPadActInfo *actInfo;
 	u32 unk08;
 	struct PsxPadSlot *subSlots;
 	struct PsxPadSlot *parent;
@@ -40,7 +49,12 @@ struct PsxPadSlot
 	u8 cmdSubIdx;
 	u8 unk48;
 	u8 state;
-	u8 unk4a[25];
+	u8 unk4a[7];
+	u8 modeOffs;
+	u8 modeLock;
+	u8 modeSame;
+	u8 unk54[9];
+	u8 actAlign[6];
 	u8 infoBuf[128];
 	u8 numModes;
 	u8 curMode;
@@ -56,9 +70,15 @@ struct PsxPadSlot
 
 extern void (*psxPadResetSlot)(struct PsxPadSlot *slot);
 extern struct PsxPadSlot *(*psxPadResolvePort)(int port);
+extern s32 (*psxPadCanExecCmd)(struct PsxPadSlot *slot);
 extern u8 psxPadIntrNode[];
 extern s32 psxInitPadFlag;
 
+extern void PadSetCmd(struct PsxPadSlot *slot, s32 cmd, u8 *buf, s32 len);
+extern void _padSendActAlign(struct PsxPadSlot *slot);
+extern s32 _padRecvActAlign(struct PsxPadSlot *slot);
+extern void _padSendMainMode(struct PsxPadSlot *slot);
+extern s32 _padRecvMainMode(struct PsxPadSlot *slot);
 extern void psxPadSendCmd45(struct PsxPadSlot *slot);
 extern void psxPadSendCmd4c(struct PsxPadSlot *slot, u8 curMode);
 extern void psxPadSendCmd4cExtra(struct PsxPadSlot *slot, u8 subIdx);

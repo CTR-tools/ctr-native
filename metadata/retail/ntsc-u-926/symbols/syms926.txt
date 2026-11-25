@@ -1233,10 +1233,11 @@
 800757c0 PadStartCom
 8007588c PadStopCom
 800758d0 PadSetActAlign
-// unknown 8007594c ------ called by lib funcs
+8007594c _padSendActAlign
+80075974 _padRecvActAlign
 80075a40 PadSetMainMode
-// unknown 80075adc ------ called by lib funcs
-// unknown 80075b34 ------ called by lib funcs
+80075adc _padSendMainMode
+80075b34 _padRecvMainMode
 80075ba0 PadSetAct
 80075be0 PadInfoAct
 80075cc0 strcpy

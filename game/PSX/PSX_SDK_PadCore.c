@@ -1,11 +1,154 @@
 #include "PSX_SDK_PadInternal.h"
 
+int PadSetActAlign(int port, unsigned char *table)
+{
+	struct PsxPadSlot *slot = psxPadResolvePort(port);
+
+	if (psxPadCanExecCmd(slot) != 0)
+	{
+		return 0;
+	}
+	{
+		s32 ret = 1;
+
+		// NOTE(aalhendi): Keep the return value distinct from the cmdStage
+		// literal so GCC emits li $v1,1 instead of move $v1,$v0.
+		CTR_PSX_FORGET_VALUE(ret);
+		slot->cmdStage = 1;
+		slot->sendCb = _padSendActAlign;
+		slot->alignPtr = table;
+		slot->recvCb = _padRecvActAlign;
+		return ret;
+	}
+}
+
+s32 _padRecvActAlign(struct PsxPadSlot *slot)
+{
+	s32 act;
+
+	if (slot->numAct != 0)
+	{
+		s32 actOffs;
+		s32 numAct;
+		u8 empty;
+
+		act = 0;
+		// NOTE(aalhendi): Prevent CSE from initializing actOffs ($t2) from act
+		// ($t0) instead of $zero, and keep the 0xff constant and loop-end
+		// numAct load in retail order.
+		CTR_PSX_FORGET_VALUE(act);
+		empty = 0xff;
+		CTR_PSX_KEEP_VALUE(empty);
+		actOffs = 0;
+		do
+		{
+			s32 count;
+			s32 i;
+			s32 limit;
+			u8 *p;
+
+			p = slot->alignPtr;
+			count = 0;
+			for (i = 5; i >= 0; i--)
+			{
+				if (*p++ == act)
+				{
+					count++;
+				}
+			}
+			limit = ((struct PsxPadActInfo *)((u32)actOffs + (u32)slot->actInfo))->size;
+			p = slot->alignPtr;
+			if (limit == 0)
+			{
+				limit = 1;
+			}
+			for (i = 0; i < 6; i++)
+			{
+				if (*p++ == act)
+				{
+					if (count < limit)
+					{
+						slot->actAlign[i] = empty;
+						count--;
+					}
+					else
+					{
+						slot->actAlign[i] = (u8)act;
+					}
+				}
+			}
+			numAct = slot->numAct;
+			CTR_PSX_KEEP_VALUE(numAct);
+			act++;
+			actOffs += 5;
+		} while (act < numAct);
+	}
+	slot->cmdStage = 0xfe;
+	return 0;
+}
+
+int PadSetMainMode(int socket, int offs, int lock)
+{
+	// NOTE(aalhendi): Preserve retail $s1/$s2 assignment (lock in $s1, offs in
+	// $s2) and keep the return literal distinct from the cmdStage store.
+	register int lockReg CTR_PSX_REGISTER("$17") = lock;
+	struct PsxPadSlot *slot = psxPadResolvePort(socket);
+
+	if (psxPadCanExecCmd(slot) != 0)
+	{
+		return 0;
+	}
+	{
+		s32 ret = 1;
+
+		CTR_PSX_FORGET_VALUE(ret);
+		slot->cmdStage = 1;
+		slot->sendCb = _padSendMainMode;
+		slot->modeOffs = (u8)offs;
+		slot->modeLock = (u8)lockReg;
+		slot->recvCb = _padRecvMainMode;
+		slot->modeSame = (u8)(offs == slot->curMode);
+		return ret;
+	}
+}
+
 void PadSetAct(int port, unsigned char *table, int len)
 {
 	struct PsxPadSlot *slot = psxPadResolvePort(port);
 
 	slot->actBuf = table;
 	slot->actLen = (u8)len;
+}
+
+int PadInfoAct(int port, int acno, int term)
+{
+	struct PsxPadSlot *slot = psxPadResolvePort(port);
+	struct PsxPadActInfo *info;
+
+	if (acno < 0)
+	{
+		return slot->numAct;
+	}
+	if (acno >= slot->numAct)
+	{
+		return 0;
+	}
+	info = &slot->actInfo[acno];
+	switch (term)
+	{
+	case InfoActFunc:
+		return info->func;
+	case InfoActSub:
+		return info->sub;
+	case InfoActSize:
+		return info->size;
+	case InfoActCurr:
+		return info->curr;
+	case InfoActSign:
+		return info->sign;
+	default:
+		return 0;
+	}
 }
 
 s32 _padRecvAtLoadInfo(struct PsxPadSlot *slot)
