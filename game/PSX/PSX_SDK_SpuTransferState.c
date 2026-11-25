@@ -2,7 +2,7 @@
 
 s32 psxSpuTransferModeRaw CTR_PSX_MATCH_SECTION(".data.psxSpuTransferModeRaw") = 0;
 s32 psxSpuTransferMode CTR_PSX_MATCH_SECTION(".data.psxSpuTransferMode") = 0;
-SpuTransferCallbackProc psxSpuTransferCallback CTR_PSX_MATCH_SECTION(".data.psxSpuTransferCallback") = 0;
+volatile SpuTransferCallbackProc psxSpuTransferCallback CTR_PSX_MATCH_SECTION(".data.psxSpuTransferCallback") = 0;
 
 #ifndef CTR_NATIVE
 // NOTE(aalhendi): Describe the genuine C objects for old GCC; these annotations emit no bytes.

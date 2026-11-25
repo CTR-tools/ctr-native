@@ -6311,6 +6311,80 @@
         {"output_section": ".data.psxSpuTransferMode", "symbol": "psxSpuTransferMode", "symbol_address": "0x8008c3d0", "offset": 0, "size": 4},
         {"output_section": ".data.psxSpuTransferCallback", "symbol": "psxSpuTransferCallback", "symbol_address": "0x8008c3ec", "offset": 0, "size": 4}
       ]
+    },
+    {
+      "name": "psx-sdk-spu-control",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_SpuControl.c",
+        "game/PSX/PSX_SDK_SpuLifecycle.c",
+        "game/PSX/PSX_SDK_SpuStart.c",
+        "game/PSX/PSX_SDK_SpuDispatch.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "SpuSetIRQCallback", "end_symbol": "CdSearchFile"},
+        {"start_symbol": "SpuSetIRQAddr", "end_symbol": "SpuSetCommonCDVolume"},
+        {"start_symbol": "SpuReadDecodedData", "end_symbol": "ResetGraph"},
+        {"start_symbol": "SpuSetReverb", "end_symbol": "SpuSetVoiceADSRAttr"},
+        {"start_symbol": "SpuSetReverbVoice", "end_symbol": "SpuSetVoiceVolume"},
+        {"start_symbol": "_SpuInit", "end_symbol": "_spu_init"},
+        {"start_symbol": "_SpuCallback", "end_symbol": "GPU_cw"},
+        {"start_symbol": "SpuClearReverbWorkArea", "end_symbol": "_SpuSetAnyVoice"},
+        {"start_symbol": "_SpuDataCallback", "end_symbol": "bzero"}
+      ],
+      "linker_script": "tools/matching/psx-spu-control.ld",
+      "include_directories": ["include"],
+      "forced_includes": ["tools/matching/namespaces/psx-spu-setters/retail_symbols.h"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_SpuLifecycle.c": ["-mframed-return-boundary=on"],
+        "game/PSX/PSX_SDK_SpuStart.c": ["-msplit-addresses", "-mframed-return-boundary=on"],
+        "game/PSX/PSX_SDK_SpuDispatch.c": ["-fno-schedule-insns", "-fno-schedule-insns2", "-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {
+        "SpuSetIRQCallback": 4,
+        "SpuReadDecodedData": 4,
+        "SpuSetReverb": 4,
+        "SpuSetTransferStartAddr": 4,
+        "SpuWrite": 4,
+        "SpuIsTransferCompleted": 12,
+        "SpuSetReverbVoice": 12,
+        "SpuStart": 8,
+        "_SpuCallback": 12,
+        "SpuClearReverbWorkArea": 12,
+        "_SpuDataCallback": 12
+      },
+      "link_symbols": {
+        "psxSpuEvDma": "0x8008c33c",
+        "psxSpuKeyStat": "0x8008c340",
+        "psxSpuTransferModeRaw": "0x8008c344",
+        "psxSpuRevFlag": "0x8008c348",
+        "psxSpuRevReserveWa": "0x8008c34c",
+        "psxSpuRevOffsetAddr": "0x8008c350",
+        "psxSpuRevAttr": "0x8008c358",
+        "psxSpuRQVoice": "0x8008c368",
+        "psxSpuRQMask": "0x8008c36c",
+        "psxSpuVoiceCenterNote": "0x8008c370",
+        "psxSpuEnv": "0x8008c3a0",
+        "psxSpuIsCalled": "0x8008c3a4",
+        "psxSpuTsa": "0x8008c3cc",
+        "psxSpuTransferMode": "0x8008c3d0",
+        "psxSpuMemModePlus": "0x8008c3dc",
+        "psxSpuInTransfer": "0x8008c3e8",
+        "psxSpuTransferCallback": "0x8008c3ec",
+        "psxSpuIrqCallback": "0x8008c3f0",
+        "psxSpuRevStartAddr": "0x8008c824",
+        "psxSpuMemListSize": "0x8008cb5c",
+        "psxSpuMemListCount": "0x8008cb60",
+        "psxSpuMemList": "0x8008cb64",
+        "psxSpuZeroBuf": "0x8008cb6c"
+      }
     }
   ]
 }

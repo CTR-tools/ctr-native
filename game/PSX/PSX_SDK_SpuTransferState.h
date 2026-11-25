@@ -6,7 +6,7 @@
 
 extern s32 psxSpuTransferModeRaw;
 extern s32 psxSpuTransferMode;
-extern SpuTransferCallbackProc psxSpuTransferCallback;
+extern volatile SpuTransferCallbackProc psxSpuTransferCallback;
 
 #ifdef CTR_NATIVE
 #define SPU_TRANSFER_STATE(type, owner, page, offset) (&(owner))

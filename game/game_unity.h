@@ -194,6 +194,10 @@
 #include "PSX/PSX_SDK_StreamBackloc.c"
 #include "PSX/PSX_SDK_SpuState.c"
 #include "PSX/PSX_SDK_SpuSetters.c"
+#include "PSX/PSX_SDK_SpuControl.c"
+#include "PSX/PSX_SDK_SpuLifecycle.c"
+#include "PSX/PSX_SDK_SpuStart.c"
+#include "PSX/PSX_SDK_SpuDispatch.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"
