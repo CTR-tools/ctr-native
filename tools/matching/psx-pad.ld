@@ -36,11 +36,21 @@ SECTIONS
         KEEP(*(._padComSendCmd))
         KEEP(*(._padComRecvId))
     } = 0
-    .resident_block_4 0x8007f47c : SUBALIGN(4) {
+    .resident_block_4 0x8007e740 : SUBALIGN(4) {
+        KEEP(*(._mtapInit))
+        KEEP(*(._mtapResetSlot))
+        KEEP(*(._mtapEndCom))
+        KEEP(*(._mtapShiftFlags))
+        KEEP(*(._mtapTxByte))
+    } = 0
+    .resident_block_5 0x8007edb4 : SUBALIGN(4) {
+        KEEP(*(._mtapResolvePort))
+    } = 0
+    .resident_block_6 0x8007f47c : SUBALIGN(4) {
         KEEP(*(._mtapFailAuto))
         KEEP(*(._mtapCanExecCmd)) . = 0x404;
     } = 0
-    .resident_block_5 0x80080630 : SUBALIGN(4) {
+    .resident_block_7 0x80080630 : SUBALIGN(4) {
         KEEP(*(.ReadInitPadFlag))
     } = 0
     /DISCARD/ : { *(.reginfo) *(.MIPS.abiflags) *(.pdr) *(.gnu.attributes) *(.comment) }

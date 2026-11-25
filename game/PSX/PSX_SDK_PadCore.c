@@ -640,6 +640,260 @@ s32 _padComRecvId(struct PsxPadSlot *slot)
 	return 0;
 }
 
+void _mtapInit(void)
+{
+	// NOTE(aalhendi): Match retail saved-register assignment ($s0=slots, $s1=subs)
+	// and keep the final callback store ordered before the epilogue restores.
+	register struct PsxPadSlot *slots CTR_PSX_REGISTER("$16") = psxPadSlots;
+	register struct PsxPadSlot *subs CTR_PSX_REGISTER("$17");
+	register u8 *rx CTR_PSX_REGISTER("$2");
+	register u8 *tx CTR_PSX_REGISTER("$3");
+	void (*recvAuto)(struct PsxPadSlot *);
+
+	bzero(slots, sizeof(psxPadSlots));
+	subs = psxPadSubSlots;
+	bzero(subs, sizeof(psxPadSubSlots));
+	rx = psxPadRxBufs[0];
+	tx = psxPadTxBufs[0];
+	slots[0].rxBuf = rx;
+	rx += 35;
+	slots[0].txBuf = tx;
+	tx += 35;
+	slots[0].subSlots = subs;
+	subs += 4;
+	slots[1].rxBuf = rx;
+	psxPadEndComCb = _mtapEndCom;
+	psxPadResetSlot = _mtapResetSlot;
+	psxPadTxByteCb = _mtapTxByte;
+	psxPadHeaderCb = _mtapHeaderCb;
+	psxPadResolvePort = _mtapResolvePort;
+	psxPadShiftFlagsCb = _mtapShiftFlags;
+	psxPadPreComCb = _mtapPreCom;
+	psxPadCanExecCmd = _mtapCanExecCmd;
+	recvAuto = _mtapRecvAuto;
+	CTR_PSX_KEEP_VALUE(recvAuto);
+	psxPadRootSlots = slots;
+	slots[1].txBuf = tx;
+	slots[1].subSlots = subs;
+	CTR_PSX_MEMORY_BARRIER();
+	psxPadRecvAutoCb = recvAuto;
+	CTR_PSX_MEMORY_BARRIER();
+}
+
+void _mtapResetSlot(struct PsxPadSlot *slot)
+{
+	if (slot->state != 0)
+	{
+		u8 *align;
+		s32 i;
+		u8 fill;
+
+		// NOTE(aalhendi): Keep the entry branch delay slot empty as in retail.
+		CTR_PSX_OBSERVE_VALUE(slot);
+		align = slot->actAlign;
+		fill = 0xff;
+		i = 5;
+		slot->state = 0;
+		slot->cmdStage = 0;
+		slot->modeId = 0;
+		slot->sendCb = NULL;
+		slot->recvCb = NULL;
+		slot->numModes = 0;
+		slot->curMode = 0;
+		slot->modeId = 0;
+		slot->numAct = 0;
+		slot->numComb = 0;
+		slot->modeTable = NULL;
+		slot->actInfo = NULL;
+		slot->combTable = NULL;
+		slot->flag55 = 0;
+		slot->flag56 = 0;
+		slot->flag57 = 0;
+		do
+		{
+			*align++ = fill;
+			i--;
+		} while (i >= 0);
+	}
+}
+
+void _mtapEndCom(s32 status)
+{
+	// NOTE(aalhendi): Hoist loop-invariant table bases and sentinel into retail
+	// saved registers ($s0=slots, $s1=subCount, $s2=-9, $s3=statusTbl) with $a1=status.
+	register s32 st CTR_PSX_REGISTER("$5") = status;
+	register struct PsxPadSlot *slots CTR_PSX_REGISTER("$16") = psxPadSlots;
+	register s32 *statusTbl CTR_PSX_REGISTER("$19") = psxPadPortStatus;
+	register s32 neg9 CTR_PSX_REGISTER("$18") = -9;
+	register s32 *subCountTbl CTR_PSX_REGISTER("$17") = psxPadPortSubCount;
+	s32 started;
+
+	CTR_PSX_KEEP_VALUE(slots);
+	CTR_PSX_KEEP_VALUE(statusTbl);
+	CTR_PSX_KEEP_VALUE(neg9);
+	do
+	{
+		s32 cur = psxPadPollCur;
+		struct PsxPadSlot *slot;
+
+		psxPadSioRegs[5] = 0;
+		statusTbl[cur] = st;
+		slot = (struct PsxPadSlot *)((u32)(cur * (s32)sizeof(struct PsxPadSlot)) + (u32)slots);
+		if (st != neg9)
+		{
+			if (st == 0)
+			{
+				subCountTbl[cur] = ((slot->rxBuf[0] >> 4) == 8) ? 4 : 0;
+			}
+			else
+			{
+				_mtapFailAuto(slot, st);
+			}
+		}
+		psxPadPortBusy = 0;
+		psxPadPollCur++;
+		if (psxPadPollCur <= psxPadPortMax)
+		{
+			started = psxPadStartPort((struct PsxPadSlot *)((u32)(psxPadPollCur * (s32)sizeof(struct PsxPadSlot)) + (u32)slots));
+		}
+		else
+		{
+			started = 1;
+		}
+		st = 0xffff;
+	} while (started == 0);
+}
+
+void _mtapShiftFlags(struct PsxPadSlot *slot)
+{
+	struct PsxPadSlot *sub;
+	s32 i;
+
+	slot->flag56 = slot->flag55;
+	slot->flag55 = 0;
+	sub = slot->subSlots;
+	for (i = 0; i < 4; i++, sub++)
+	{
+		sub->flag57 = sub->flag56;
+		sub->flag56 = sub->flag55;
+		sub->flag55 = 0;
+	}
+}
+
+s32 _mtapTxByte(struct PsxPadSlot *slotArg, s32 mtapActive)
+{
+	// NOTE(aalhendi): Keep slot in $a0 and converge leaf returns on $v0 so the
+	// command-byte switch shares the single epilogue and byte-load tail.
+	struct PsxPadSlot *slot CTR_PSX_GLOBAL_REGISTER_HINT("$4") = slotArg;
+	register s32 ret CTR_PSX_REGISTER("$2");
+	s32 rawIdx = (s32)slot->txIdx - 3;
+	s32 idx;
+	s32 cmd;
+
+	if (mtapActive != 0)
+	{
+		s32 subIdx = rawIdx / 8;
+
+		idx = (rawIdx % 8) - 2;
+		slot = &slot->subSlots[subIdx];
+	}
+	else
+	{
+		idx = rawIdx;
+	}
+	cmd = slot->flag55;
+	if (idx >= 0)
+	{
+		u8 *p;
+
+		switch (cmd)
+		{
+		case 0:
+			if (idx < 6 && slot->actEnable[idx] == 0)
+			{
+				ret = 0;
+				goto done;
+			}
+			if (idx < slot->actLen)
+			{
+				p = slot->actBuf + idx;
+			readByte:
+				ret = *p;
+				goto done;
+			}
+			ret = 0;
+			goto done;
+		case 0x4d:
+			if (idx < slot->cmdLen)
+			{
+				p = slot->cmdData + idx;
+				goto readByte;
+			}
+			ret = 0xff;
+			goto done;
+		default:
+			if (idx < slot->cmdLen)
+			{
+				p = slot->cmdData + idx;
+				goto readByte;
+			}
+			ret = 0;
+			goto done;
+		}
+	}
+	CTR_PSX_OBSERVE_VALUE(idx);
+	{
+		s32 rem CTR_PSX_LOCAL_REGISTER_HINT("$4") = idx + 2;
+
+		if (rem == 0)
+		{
+			if (cmd == 0)
+			{
+				ret = 0x42;
+			}
+			else
+			{
+				CTR_PSX_FORGET_VALUE(cmd);
+				ret = cmd & 0xff;
+			}
+		}
+		else
+		{
+			ret = 0;
+		}
+	}
+done:
+	CTR_PSX_KEEP_VALUE(ret);
+	return ret;
+}
+
+struct PsxPadSlot *_mtapResolvePort(int port)
+{
+	struct PsxPadSlot *slot = &psxPadSlots[0];
+
+	if ((port & 0xf0) != 0)
+	{
+		slot = &psxPadSlots[1];
+	}
+	if (psxPadMtapMode != 0)
+	{
+		// NOTE(aalhendi): Preserve the retail branch-delay slot boundaries on
+		// the multitap port check and sub-slot index mask.
+		CTR_PSX_OBSERVE_VALUE(slot);
+		if (slot->mtapType == 8 && (port & 0xf) == 0)
+		{
+			goto useSub;
+		}
+		if ((port & 3) != 0)
+		{
+			CTR_PSX_FORGET_VALUE(port);
+		useSub:
+			slot = &slot->subSlots[port & 3];
+		}
+	}
+	return slot;
+}
+
 void _mtapFailAuto(struct PsxPadSlot *slot, s32 unused)
 {
 	// NOTE(aalhendi): Keep slot in $s1 so the recursive multitap loop assigns

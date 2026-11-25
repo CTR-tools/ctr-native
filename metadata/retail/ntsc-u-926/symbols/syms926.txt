@@ -1403,6 +1403,15 @@
 8007dfb4 _padComSendCmd
 8007e08c _padComRecvId
 8007e138 _padComRecvHeader
+8007e740 _mtapInit
+8007e858 _mtapResetSlot
+8007e8cc _mtapEndCom
+8007e9e4 _mtapShiftFlags
+8007ea28 _mtapTxByte
+8007eb38 _mtapHeaderCb
+8007edb4 _mtapResolvePort
+8007ee24 _mtapPreCom
+8007f094 _mtapRecvAuto
 8007f47c _mtapFailAuto
 8007f7c8 _mtapCanExecCmd
 8007f880 SysDeqIntRP
