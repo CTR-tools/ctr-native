@@ -198,6 +198,12 @@
 #include "PSX/PSX_SDK_SpuLifecycle.c"
 #include "PSX/PSX_SDK_SpuStart.c"
 #include "PSX/PSX_SDK_SpuDispatch.c"
+#include "PSX/PSX_SDK_Callback.c"
+#include "PSX/PSX_SDK_GpuDma.c"
+#include "PSX/PSX_SDK_RCnt.c"
+#include "PSX/PSX_SDK_MemMove.c"
+#include "PSX/PSX_SDK_CardInit.c"
+#include "PSX/PSX_SDK_CardControl.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"

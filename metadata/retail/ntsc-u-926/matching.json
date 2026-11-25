@@ -6385,6 +6385,77 @@
         "psxSpuMemList": "0x8008cb64",
         "psxSpuZeroBuf": "0x8008cb6c"
       }
+    },
+    {
+      "name": "psx-sdk-system",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_Callback.c",
+        "game/PSX/PSX_SDK_GpuDma.c",
+        "game/PSX/PSX_SDK_RCnt.c",
+        "game/PSX/PSX_SDK_MemMove.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "ResetCallback", "end_symbol": "StopCallback"},
+        {"start_symbol": "BreakDraw", "end_symbol": "memcpy"},
+        {"start_symbol": "memmove", "end_symbol": "_card_info"}
+      ],
+      "linker_script": "tools/matching/psx-system.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_Callback.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {
+        "ResetRCnt": 4,
+        "memmove": 4
+      },
+      "link_symbols": {
+        "psxCallbackDispatch": "0x8008c020",
+        "psxDmaGpuMadr": "0x8008c074",
+        "psxDmaGpuChcr": "0x8008c07c",
+        "psxGpuStat": "0x8008c084",
+        "psxIntReg": "0x8008c094",
+        "psxRCntRegs": "0x8008c098",
+        "psxRCntIrqMasks": "0x8008c09c"
+      }
+    },
+    {
+      "name": "psx-sdk-card",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_CardInit.c",
+        "game/PSX/PSX_SDK_CardControl.c"
+      ],
+      "code_intervals": [
+        {"start_symbol": "InitCARD", "end_symbol": "write"},
+        {"start_symbol": "_card_clear", "end_symbol": "format"}
+      ],
+      "linker_script": "tools/matching/psx-card.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_CardControl.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {
+        "StopCARD": 4,
+        "_card_clear": 12
+      },
+      "link_symbols": {
+        "_patch_card_entry": "0x800806e8"
+      }
     }
   ]
 }
