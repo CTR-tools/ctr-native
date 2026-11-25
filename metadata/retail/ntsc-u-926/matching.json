@@ -6672,6 +6672,31 @@
         "psxDctInHw": "0x80079a74",
         "psxDctOutHw": "0x80079b04"
       }
+    },
+    {
+      "name": "psx-sdk-spu-reverb",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": ["game/PSX/PSX_SDK_SpuReverb.c"],
+      "code_intervals": [
+        {"start_symbol": "_SpuIsInAllocateArea_", "end_symbol": "SpuClearReverbWorkArea"}
+      ],
+      "linker_script": "tools/matching/psx-spu-reverb.ld",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "function_padding": {
+        "_SpuIsInAllocateArea_": 4
+      },
+      "link_symbols": {
+        "psxSpuSdkRegs": "0x8008c3b4",
+        "psxSpuMemModePlus": "0x8008c3dc",
+        "psxSpuMemList": "0x8008cb64"
+      }
     }
   ]
 }

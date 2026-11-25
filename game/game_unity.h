@@ -215,6 +215,7 @@
 #include "PSX/PSX_SDK_SpuDma.c"
 #include "PSX/PSX_SDK_PressReset.c"
 #include "PSX/PSX_SDK_PressCore.c"
+#include "PSX/PSX_SDK_SpuReverb.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"
