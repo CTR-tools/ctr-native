@@ -213,6 +213,8 @@
 #include "PSX/PSX_SDK_PadCore.c"
 #include "PSX/PSX_SDK_SpuDmaIrq.c"
 #include "PSX/PSX_SDK_SpuDma.c"
+#include "PSX/PSX_SDK_PressReset.c"
+#include "PSX/PSX_SDK_PressCore.c"
 #endif
 #include "PSX/PSX_SDK_AddPrim.c"
 #include "PSX/PSX_SDK_DrawMove.c"

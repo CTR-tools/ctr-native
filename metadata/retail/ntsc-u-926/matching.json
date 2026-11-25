@@ -6646,6 +6646,32 @@
         "psxSpuSetDmaReadMode": "0x8007b104",
         "psxSpuWaitReady": "0x8007b12c"
       }
+    },
+    {
+      "name": "psx-sdk-press",
+      "kind": "resident",
+      "artifact": "exe",
+      "symbol_file": "metadata/retail/ntsc-u-926/symbols/syms926.txt",
+      "symbol_prefix": "",
+      "sources": [
+        "game/PSX/PSX_SDK_PressReset.c",
+        "game/PSX/PSX_SDK_PressCore.c"
+      ],
+      "start_symbol": "DecDCTReset",
+      "end_symbol": "DecDCToutCallback",
+      "include_directories": ["include"],
+      "compiler_flags": ["-O2", "-G0", "-msoft-float", "-mno-split-addresses"],
+      "source_flags": {
+        "game/PSX/PSX_SDK_PressCore.c": ["-mframed-return-boundary=on"]
+      },
+      "small_data_limit": 0,
+      "aspsx_version": "2.77",
+      "linked_block": {},
+      "link_symbols": {
+        "psxDctResetHw": "0x80079984",
+        "psxDctInHw": "0x80079a74",
+        "psxDctOutHw": "0x80079b04"
+      }
     }
   ]
 }
