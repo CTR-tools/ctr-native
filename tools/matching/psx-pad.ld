@@ -23,12 +23,24 @@ SECTIONS
         KEEP(*(._padLoadActInfo))
         KEEP(*(._padSendLoadActInfo))
         KEEP(*(._padRecvLoadActInfo))
+        KEEP(*(._padCmdParaMode))
+        KEEP(*(._padSendCmd45))
+        KEEP(*(._padSendCmd4c))
+        KEEP(*(._padSendCmd46))
+        KEEP(*(._padSendCmd47))
+        KEEP(*(._padSendCmd4b))
     } = 0
-    .resident_block_3 0x8007f47c : SUBALIGN(4) {
+    .resident_block_3 0x8007decc : SUBALIGN(4) {
+        KEEP(*(._padCheckWait))
+        KEEP(*(._padComInit))
+        KEEP(*(._padComSendCmd))
+        KEEP(*(._padComRecvId))
+    } = 0
+    .resident_block_4 0x8007f47c : SUBALIGN(4) {
         KEEP(*(._mtapFailAuto))
         KEEP(*(._mtapCanExecCmd)) . = 0x404;
     } = 0
-    .resident_block_4 0x80080630 : SUBALIGN(4) {
+    .resident_block_5 0x80080630 : SUBALIGN(4) {
         KEEP(*(.ReadInitPadFlag))
     } = 0
     /DISCARD/ : { *(.reginfo) *(.MIPS.abiflags) *(.pdr) *(.gnu.attributes) *(.comment) }

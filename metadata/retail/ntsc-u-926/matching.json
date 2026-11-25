@@ -6583,7 +6583,8 @@
       "code_intervals": [
         {"start_symbol": "PadGetState", "end_symbol": "PadInitMtap"},
         {"start_symbol": "PadStopCom", "end_symbol": "strcpy"},
-        {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padCmdParaMode"},
+        {"start_symbol": "_padSendAtLoadInfo", "end_symbol": "_padStartWait"},
+        {"start_symbol": "_padCheckWait", "end_symbol": "_padComRecvHeader"},
         {"start_symbol": "_mtapFailAuto", "end_symbol": "SysDeqIntRP"},
         {"start_symbol": "ReadInitPadFlag", "end_symbol": "InitCARD2"}
       ],
@@ -6612,15 +6613,23 @@
       "link_symbols": {
         "psxPadResetSlot": "0x8008c770",
         "psxPadResolvePort": "0x8008c780",
+        "psxPadPreComCb": "0x8008c784",
         "psxPadCanExecCmd": "0x8008c788",
+        "psxPadPollCb2": "0x8008c798",
+        "psxPadPollCb1": "0x8008c79c",
+        "psxPadPollPending": "0x8008c7a8",
+        "psxPadPollCur": "0x8008c7ac",
+        "psxPadMtapMode": "0x8008c7b8",
+        "psxPadPollTarget": "0x8008c7bc",
         "psxPadIntrNode": "0x8008c7cc",
+        "psxPadRecvBytes": "0x8008c7e8",
+        "psxPadComState": "0x8008c7ec",
         "psxInitPadFlag": "0x8008cb3c",
         "psxPadCombCursor": "0x8009ec94",
-        "psxPadSendCmd45": "0x8007de24",
-        "psxPadSendCmd4c": "0x8007de38",
-        "psxPadSendCmd4cAct": "0x8007de58",
-        "psxPadSendCmd4cExtra": "0x8007de78",
-        "psxPadSendCmd4cNext": "0x8007de98"
+        "psxPadWaitStart": "0x8009ec98",
+        "psxPadWaitLimit": "0x8009ec9c",
+        "psxPadTransStart": "0x8007cffc",
+        "psxPadTransByte": "0x8007d220"
       }
     },
     {

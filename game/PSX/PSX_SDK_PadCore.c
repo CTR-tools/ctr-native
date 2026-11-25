@@ -510,6 +510,136 @@ done:
 	return ret;
 }
 
+#define PSX_RCNT2_COUNT  (*(volatile u16 *)0x1f801120u)
+#define PSX_RCNT2_MODE   (*(volatile u16 *)0x1f801124u)
+#define PSX_RCNT2_TARGET (*(volatile u16 *)0x1f801128u)
+
+void _padCmdParaMode(struct PsxPadSlot *slot, u8 mode)
+{
+	slot->flag55 = 0x43;
+	slot->cmdData = slot->cmdArg;
+	slot->cmdArg[0] = mode;
+	slot->cmdLen = 1;
+}
+
+void _padSendCmd45(struct PsxPadSlot *slot)
+{
+	slot->flag55 = 0x45;
+	slot->cmdData = NULL;
+	slot->cmdLen = 0;
+}
+
+void _padSendCmd4c(struct PsxPadSlot *slot, u8 arg)
+{
+	slot->flag55 = 0x4c;
+	slot->cmdData = slot->cmdArg;
+	slot->cmdArg[0] = arg;
+	slot->cmdLen = 1;
+}
+
+void _padSendCmd46(struct PsxPadSlot *slot, u8 arg)
+{
+	slot->flag55 = 0x46;
+	slot->cmdData = slot->cmdArg;
+	slot->cmdArg[0] = arg;
+	slot->cmdLen = 1;
+}
+
+void _padSendCmd47(struct PsxPadSlot *slot, u8 arg)
+{
+	slot->flag55 = 0x47;
+	slot->cmdData = slot->cmdArg;
+	slot->cmdArg[0] = arg;
+	slot->cmdLen = 1;
+}
+
+void _padSendCmd4b(struct PsxPadSlot *slot)
+{
+	slot->flag55 = 0x4b;
+	slot->cmdData = NULL;
+	slot->cmdLen = 0;
+}
+
+s32 _padCheckWait(void)
+{
+	// NOTE(aalhendi): Prefer $a0 for the counter reading so wraparound leaves $v1
+	// free for the target register pointer and the elapsed comparison matches retail.
+	s32 cur CTR_PSX_GLOBAL_REGISTER_HINT("$4") = PSX_RCNT2_COUNT;
+	s32 elapsed;
+	s32 limit;
+
+	if (cur < psxPadWaitStart)
+	{
+		if (PSX_RCNT2_TARGET != 0)
+		{
+			cur += PSX_RCNT2_TARGET;
+		}
+		else
+		{
+			cur += 0x10000;
+		}
+	}
+	if ((PSX_RCNT2_MODE & 0x200) == 0)
+	{
+		elapsed = (cur - psxPadWaitStart) >> 3;
+		limit = psxPadWaitLimit;
+	}
+	else
+	{
+		elapsed = cur - psxPadWaitStart;
+		limit = psxPadWaitLimit;
+	}
+	return elapsed >= limit;
+}
+
+s32 _padComInit(struct PsxPadSlot *slot)
+{
+	psxPadComState = psxPadPreComCb(slot);
+	slot->rxBuf[0] = 0;
+	return psxPadTransStart(slot, -2);
+}
+
+s32 _padComSendCmd(struct PsxPadSlot *slot)
+{
+	if (psxPadPollCur == psxPadPollTarget && psxPadPollPending != 0)
+	{
+		psxPadPollCb1();
+		psxPadPollCb2();
+	}
+	if (psxPadComState != 0)
+	{
+		psxPadPreComCb(&slot->subSlots[0]);
+		psxPadPreComCb(&slot->subSlots[1]);
+	}
+	if (slot->flag55 != 0)
+	{
+		return psxPadTransByte(slot, slot->flag55);
+	}
+	return psxPadTransByte(slot, 0x42);
+}
+
+s32 _padComRecvId(struct PsxPadSlot *slot)
+{
+	s32 res;
+
+	if (psxPadComState != 0)
+	{
+		psxPadPreComCb(&slot->subSlots[2]);
+		psxPadPreComCb(&slot->subSlots[3]);
+	}
+	res = psxPadTransByte(slot, (slot->flag55 != 0) ? 0 : psxPadMtapMode);
+	if (res < 0)
+	{
+		return res;
+	}
+	psxPadRecvBytes = (res & 0xf) << 1;
+	if (psxPadRecvBytes == 0)
+	{
+		psxPadRecvBytes = 32;
+	}
+	return 0;
+}
+
 void _mtapFailAuto(struct PsxPadSlot *slot, s32 unused)
 {
 	// NOTE(aalhendi): Keep slot in $s1 so the recursive multitap loop assigns

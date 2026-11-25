@@ -1392,6 +1392,17 @@
 8007d964 _padSendLoadActInfo
 8007da0c _padRecvLoadActInfo
 8007de04 _padCmdParaMode
+8007de24 _padSendCmd45
+8007de38 _padSendCmd4c
+8007de58 _padSendCmd46
+8007de78 _padSendCmd47
+8007de98 _padSendCmd4b
+8007deac _padStartWait
+8007decc _padCheckWait
+8007df6c _padComInit
+8007dfb4 _padComSendCmd
+8007e08c _padComRecvId
+8007e138 _padComRecvHeader
 8007f47c _mtapFailAuto
 8007f7c8 _mtapCanExecCmd
 8007f880 SysDeqIntRP

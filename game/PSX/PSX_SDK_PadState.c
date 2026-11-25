@@ -65,13 +65,13 @@ void _padSendAtLoadInfo(struct PsxPadSlot *slot)
 	switch (slot->cmdStage)
 	{
 	case 2:
-		psxPadSendCmd45(slot);
+		_padSendCmd45(slot);
 		break;
 	case 3:
-		psxPadSendCmd4c(slot, slot->curMode);
+		_padSendCmd4c(slot, slot->curMode);
 		break;
 	case 4:
-		psxPadSendCmd4cExtra(slot, slot->cmdSubIdx);
+		_padSendCmd47(slot, slot->cmdSubIdx);
 		break;
 	}
 }
@@ -81,19 +81,19 @@ void _padSendLoadActInfo(struct PsxPadSlot *slot)
 	switch (slot->cmdStage)
 	{
 	case 2:
-		psxPadSendCmd4c(slot, slot->cmdSubIdx);
+		_padSendCmd4c(slot, slot->cmdSubIdx);
 		break;
 	case 3:
-		psxPadSendCmd4cAct(slot, slot->cmdSubIdx);
+		_padSendCmd46(slot, slot->cmdSubIdx);
 		break;
 	case 4:
 		if (slot->combRem == 0)
 		{
-			psxPadSendCmd4cExtra(slot, slot->cmdSubIdx);
+			_padSendCmd47(slot, slot->cmdSubIdx);
 		}
 		else
 		{
-			psxPadSendCmd4cNext(slot);
+			_padSendCmd4b(slot);
 		}
 		break;
 	}
